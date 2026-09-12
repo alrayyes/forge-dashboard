@@ -44,6 +44,8 @@ tags:
     description: The aggregated view across both forges.
   - name: auth
     description: Passkey (WebAuthn) registration, login and session management.
+  - name: settings
+    description: The signed-in user's own GitHub/Forgejo credentials.
 
 paths:
   /api/auth/register/begin:
@@ -196,6 +198,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/settings:
+    get:
+      operationId: getSettings
+      summary: The signed-in user's own forge configuration
+      description: |
+        Tokens are never returned, before or after being saved — only
+        whether one is currently on file. There is no way to read a saved
+        token back out through this API.
+      tags: [settings]
+      responses:
+        "200":
+          description: The current settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsResponse"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: putSettings
+      summary: Save the signed-in user's forge configuration
+      description: |
+        Replaces every field except a blank token, which means "keep
+        whatever's already saved" rather than "clear it" — the only
+        sensible behavior for a field the browser is never shown the
+        current value of. Saving triggers that user's dashboard to start
+        refreshing from the new configuration.
+      tags: [settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsRequest"
+      responses:
+        "200":
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsResponse"
+        "400":
+          description: The request body wasn't valid JSON.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /healthz:
     get:
       operationId: health
@@ -290,6 +350,57 @@ components:
           type: string
         isAdmin:
           type: boolean
+
+    SettingsResponse:
+      type: object
+      description: |
+        The signed-in user's own GitHub/Forgejo configuration. Never
+        includes a token's value — only whether one is currently saved,
+        so the UI can show a "Configured" badge without the secret ever
+        reaching the browser.
+      required:
+        [
+          githubUsername,
+          githubTokenSet,
+          forgejoUrl,
+          forgejoUsername,
+          forgejoTokenSet,
+        ]
+      properties:
+        githubUsername:
+          type: string
+          description: Used as a token-free public-repos fallback when no GitHub token is set.
+        githubTokenSet:
+          type: boolean
+          description: Whether a GitHub token is currently saved.
+        forgejoUrl:
+          type: string
+        forgejoUsername:
+          type: string
+          description: Used as a token-free public-repos fallback when no Forgejo token is set.
+        forgejoTokenSet:
+          type: boolean
+          description: Whether a Forgejo token is currently saved.
+
+    SettingsRequest:
+      type: object
+      description: |
+        Replaces the signed-in user's saved GitHub/Forgejo configuration.
+        A blank `githubToken` or `forgejoToken` keeps whatever token is
+        already saved for that forge rather than clearing it — this is
+        the only way to update the username fields without having to
+        resubmit a token you don't want to re-paste.
+      properties:
+        githubToken:
+          type: string
+        githubUsername:
+          type: string
+        forgejoUrl:
+          type: string
+        forgejoToken:
+          type: string
+        forgejoUsername:
+          type: string
 
     Forge:
       type: string
