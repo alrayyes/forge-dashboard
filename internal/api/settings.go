@@ -1,0 +1,110 @@
+package api
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+
+	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/settings"
+)
+
+// SettingsResponse matches components.schemas.SettingsResponse in
+// api/openapi.yaml. Tokens are never sent back to the browser once
+// saved — *Set reports whether one is on file, not what it is.
+type SettingsResponse struct {
+	GitHubUsername  string `json:"githubUsername"`
+	GitHubTokenSet  bool   `json:"githubTokenSet"`
+	ForgejoURL      string `json:"forgejoUrl"`
+	ForgejoUsername string `json:"forgejoUsername"`
+	ForgejoTokenSet bool   `json:"forgejoTokenSet"`
+}
+
+func settingsResponseOf(c settings.Credentials) SettingsResponse {
+	return SettingsResponse{
+		GitHubUsername:  c.GitHubUsername,
+		GitHubTokenSet:  c.GitHubToken != "",
+		ForgejoURL:      c.ForgejoURL,
+		ForgejoUsername: c.ForgejoUsername,
+		ForgejoTokenSet: c.ForgejoToken != "",
+	}
+}
+
+func handleSettingsGet(store *settings.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+			return
+		}
+
+		creds, err := store.Get(r.Context(), u.ID)
+		if err != nil && !errors.Is(err, settings.ErrNotFound) {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+			return
+		}
+		writeJSON(w, http.StatusOK, settingsResponseOf(creds))
+	}
+}
+
+// settingsPutRequest matches components.schemas.SettingsRequest. A blank
+// token field means "leave the saved one alone" — the only way a secret
+// field can behave once the browser can't be shown what's already saved.
+// Every other field is a plain replace: an intentionally blanked
+// GitHubUsername, say, really does clear it.
+type settingsPutRequest struct {
+	GitHubToken     string `json:"githubToken"`
+	GitHubUsername  string `json:"githubUsername"`
+	ForgejoURL      string `json:"forgejoUrl"`
+	ForgejoToken    string `json:"forgejoToken"`
+	ForgejoUsername string `json:"forgejoUsername"`
+}
+
+func handleSettingsPut(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+			return
+		}
+
+		var req settingsPutRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+			return
+		}
+
+		existing, err := deps.SettingsStore.Get(r.Context(), u.ID)
+		if err != nil && !errors.Is(err, settings.ErrNotFound) {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
+			return
+		}
+
+		merged := settings.Credentials{
+			GitHubToken:     coalesce(req.GitHubToken, existing.GitHubToken),
+			GitHubUsername:  req.GitHubUsername,
+			ForgejoURL:      req.ForgejoURL,
+			ForgejoToken:    coalesce(req.ForgejoToken, existing.ForgejoToken),
+			ForgejoUsername: req.ForgejoUsername,
+		}
+
+		if err := deps.SettingsStore.Set(r.Context(), u.ID, merged); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not save settings"))
+			return
+		}
+
+		// deps.AppContext: see the identical comment in auth.go's
+		// startSession — this background refresh loop has to outlive the
+		// request that started it.
+		deps.Manager.Ensure(deps.AppContext, u.ID, deps.BuildSources(merged))
+
+		writeJSON(w, http.StatusOK, settingsResponseOf(merged))
+	}
+}
+
+func coalesce(newValue, existingValue string) string {
+	if newValue != "" {
+		return newValue
+	}
+	return existingValue
+}

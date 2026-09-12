@@ -1,17 +1,22 @@
 package api_test
 
 import (
+	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/descope/virtualwebauthn"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
@@ -25,23 +30,32 @@ const (
 	testAdmin   = "admin"
 	testUser    = "ryan"
 	testDisplay = "Ryan"
+
+	// Fast enough that require.Eventually in these tests doesn't have to
+	// wait long, slow enough not to burn CPU spinning between assertions.
+	testRefreshInterval = 10 * time.Millisecond
 )
+
+// noSources is the default Deps.BuildSources for tests that don't care
+// about real forge data — most of this file, which is about the auth and
+// settings plumbing, not internal/github or internal/forgejo (each tested
+// in its own package).
+func noSources(settingspkg.Credentials) []dashboard.Source { return nil }
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	empty := dashboard.NewAggregator(nil)
-	return newTestServerWithSnapshot(t, empty.Get)
+	return newTestServerWithSources(t, noSources)
 }
 
-func newTestServerWithSnapshot(t *testing.T, getSnapshot func() dashboard.Snapshot) *httptest.Server {
+func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Credentials) []dashboard.Source) *httptest.Server {
 	t.Helper()
 
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "auth.db"))
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
-	store := authpkg.NewStore(db)
-	require.NoError(t, store.Init(t.Context()))
+	authStore := authpkg.NewStore(db)
+	require.NoError(t, authStore.Init(t.Context()))
 
 	wa, err := webauthn.New(&webauthn.Config{
 		RPID:          testRPID,
@@ -49,12 +63,38 @@ func newTestServerWithSnapshot(t *testing.T, getSnapshot func() dashboard.Snapsh
 		RPOrigins:     []string{testOrigin},
 	})
 	require.NoError(t, err)
+	authService := authpkg.NewService(wa, authStore, testAdmin)
 
-	svc := authpkg.NewService(wa, store, testAdmin)
-	mux := api.NewMux(getSnapshot, svc, store)
+	cipher, err := settingspkg.NewCipher(testEncryptionKey(t))
+	require.NoError(t, err)
+	settingsStore := settingspkg.NewStore(db, cipher)
+	require.NoError(t, settingsStore.Init(t.Context()))
+
+	manager := dashboard.NewManager(testRefreshInterval)
+	t.Cleanup(manager.Stop)
+
+	appCtx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	mux := api.NewMux(api.Deps{
+		AuthService:   authService,
+		AuthStore:     authStore,
+		SettingsStore: settingsStore,
+		Manager:       manager,
+		BuildSources:  buildSources,
+		AppContext:    appCtx,
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+func testEncryptionKey(t *testing.T) string {
+	t.Helper()
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	require.NoError(t, err)
+	return base64.StdEncoding.EncodeToString(key)
 }
 
 // registerViaRealCeremony drives a full registration through the actual

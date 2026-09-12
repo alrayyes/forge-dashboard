@@ -1,14 +1,14 @@
-// Command forge-dashboard is the composition root: it builds a Source per
-// configured forge, starts the aggregator's background refresh, and serves
-// the API and static frontend against whatever the aggregator most
-// recently assembled. See CLAUDE.md and the README for the environment
-// variables that configure it.
+// Command forge-dashboard is the composition root: it wires the SQLite
+// database, the passkey auth service, and the per-user dashboard.Manager,
+// then serves the API and static frontend. See CLAUDE.md and the README
+// for the environment variables that configure it.
 package main
 
 import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,6 +22,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/go-webauthn/webauthn/webauthn"
 	_ "modernc.org/sqlite"
 )
@@ -45,23 +46,42 @@ func main() {
 		}
 	}
 
-	sources := buildSources()
-	agg := dashboard.NewAggregator(sources)
-
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	go agg.Run(ctx, refreshInterval)
+	db, err := openDatabase()
+	if err != nil {
+		slog.Error("open database", "error", err)
+		os.Exit(1)
+	}
 
-	authService, authStore, err := buildAuth(ctx)
+	authService, authStore, err := buildAuth(ctx, db)
 	if err != nil {
 		slog.Error("auth setup failed", "error", err)
 		os.Exit(1)
 	}
 
+	settingsStore, err := buildSettingsStore(ctx, db)
+	if err != nil {
+		slog.Error("settings setup failed", "error", err)
+		os.Exit(1)
+	}
+
+	manager := dashboard.NewManager(refreshInterval)
+	defer manager.Stop()
+
+	deps := api.Deps{
+		AuthService:   authService,
+		AuthStore:     authStore,
+		SettingsStore: settingsStore,
+		Manager:       manager,
+		BuildSources:  buildSourcesForUser,
+		AppContext:    ctx,
+	}
+
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           api.NewMux(agg.Get, authService, authStore),
+		Handler:           api.NewMux(deps),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -74,72 +94,60 @@ func main() {
 		}
 	}()
 
-	slog.Info("starting", "version", version, "addr", addr, "sources", len(sources), "refreshInterval", refreshInterval)
+	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-// buildSources wires one dashboard.Source per forge that has enough
-// configuration to be worth trying. A forge with nothing configured at
-// all is skipped entirely rather than added and left to fail on every
-// refresh — there's nothing useful to report about a forge nobody asked
-// to watch.
-func buildSources() []dashboard.Source {
+// buildSourcesForUser wires one dashboard.Source per forge c has enough
+// configuration for. A forge with nothing set is skipped entirely — the
+// per-user equivalent of v1's buildSources, now driven by a Settings save
+// instead of GITHUB_TOKEN/FORGEJO_* environment variables.
+func buildSourcesForUser(c settings.Credentials) []dashboard.Source {
 	var sources []dashboard.Source
 
-	token, username := os.Getenv("GITHUB_TOKEN"), os.Getenv("GITHUB_USERNAME")
 	switch {
-	case token != "":
-		client := github.NewClient(token, "", "")
+	case c.GitHubToken != "":
+		client := github.NewClient(c.GitHubToken, "", "")
 		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeGitHub, client, dashboard.DefaultMaxConcurrency))
-	case username != "":
-		slog.Warn("GITHUB_TOKEN not set, falling back to GITHUB_USERNAME's public repos only", "username", username)
-		client := github.NewClient("", username, "")
+	case c.GitHubUsername != "":
+		client := github.NewClient("", c.GitHubUsername, "")
 		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeGitHub, client, dashboard.DefaultMaxConcurrency))
-	default:
-		slog.Warn("neither GITHUB_TOKEN nor GITHUB_USERNAME set, skipping GitHub")
 	}
 
-	forgejoURL := os.Getenv("FORGEJO_URL")
-	forgejoToken, forgejoUsername := os.Getenv("FORGEJO_TOKEN"), os.Getenv("FORGEJO_USERNAME")
 	switch {
-	case forgejoURL == "":
-		slog.Warn("FORGEJO_URL not set, skipping Forgejo")
-	case forgejoToken != "":
-		client := forgejo.NewClient(forgejoURL, forgejoToken, "")
+	case c.ForgejoURL == "":
+		// nothing configured for Forgejo at all
+	case c.ForgejoToken != "":
+		client := forgejo.NewClient(c.ForgejoURL, c.ForgejoToken, "")
 		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
-	case forgejoUsername != "":
-		slog.Warn("FORGEJO_TOKEN not set, falling back to FORGEJO_USERNAME's public repos only", "username", forgejoUsername)
-		client := forgejo.NewClient(forgejoURL, "", forgejoUsername)
+	case c.ForgejoUsername != "":
+		client := forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername)
 		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
-	default:
-		slog.Warn("FORGEJO_URL set but neither FORGEJO_TOKEN nor FORGEJO_USERNAME set, skipping Forgejo")
 	}
 
 	return sources
 }
 
-// buildAuth opens (creating if needed) the SQLite database passkey
-// registration, login and sessions persist to, and wires up the WebAuthn
-// relying party from the environment. RP_ID and RP_ORIGIN default to a
-// plain local dev run; a real deployment behind a real domain has to set
-// both, or every registered passkey will be scoped to "localhost" and
-// refuse to work there.
-func buildAuth(ctx context.Context) (*auth.Service, *auth.Store, error) {
+// openDatabase opens (creating the containing directory if needed) the
+// one SQLite file both auth and settings persist to.
+func openDatabase() (*sql.DB, error) {
 	dbPath := envOr("DB_PATH", "/data/forge-dashboard.db")
 	if dir := filepath.Dir(dbPath); dir != "." {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
+	return sql.Open("sqlite", dbPath)
+}
 
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return nil, nil, err
-	}
-
+// buildAuth wires up the WebAuthn relying party from the environment.
+// RP_ID and RP_ORIGIN default to a plain local dev run; a real deployment
+// behind a real domain has to set both, or every registered passkey will
+// be scoped to "localhost" and refuse to work there.
+func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, error) {
 	store := auth.NewStore(db)
 	if err := store.Init(ctx); err != nil {
 		return nil, nil, err
@@ -162,6 +170,27 @@ func buildAuth(ctx context.Context) (*auth.Service, *auth.Store, error) {
 	}
 
 	return auth.NewService(wa, store, adminUsername), store, nil
+}
+
+// buildSettingsStore requires a real ENCRYPTION_KEY — a service about to
+// hold real GitHub/Forgejo tokens has to fail loudly at startup rather
+// than silently store them in the clear because nobody set one.
+func buildSettingsStore(ctx context.Context, db *sql.DB) (*settings.Store, error) {
+	key := os.Getenv("ENCRYPTION_KEY")
+	if key == "" {
+		return nil, fmt.Errorf("ENCRYPTION_KEY is required (generate one with `openssl rand -base64 32`)")
+	}
+
+	cipher, err := settings.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	store := settings.NewStore(db, cipher)
+	if err := store.Init(ctx); err != nil {
+		return nil, err
+	}
+	return store, nil
 }
 
 func envOr(key, fallback string) string {

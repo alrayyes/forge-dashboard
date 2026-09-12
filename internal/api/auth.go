@@ -3,9 +3,11 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
 // SessionUser matches components.schemas.SessionUser in api/openapi.yaml.
@@ -45,7 +47,7 @@ func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 	}
 }
 
-func handleRegisterFinish(svc *auth.Service) http.HandlerFunc {
+func handleRegisterFinish(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		username := r.URL.Query().Get("username")
 		if username == "" {
@@ -53,13 +55,13 @@ func handleRegisterFinish(svc *auth.Service) http.HandlerFunc {
 			return
 		}
 
-		u, err := svc.FinishRegistration(r.Context(), username, r)
+		u, err := deps.AuthService.FinishRegistration(r.Context(), username, r)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("registration failed"))
 			return
 		}
 
-		startSession(w, r, svc, u)
+		startSession(w, r, deps, u)
 	}
 }
 
@@ -88,7 +90,7 @@ func handleLoginBegin(svc *auth.Service) http.HandlerFunc {
 	}
 }
 
-func handleLoginFinish(svc *auth.Service) http.HandlerFunc {
+func handleLoginFinish(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		username := r.URL.Query().Get("username")
 		if username == "" {
@@ -96,23 +98,40 @@ func handleLoginFinish(svc *auth.Service) http.HandlerFunc {
 			return
 		}
 
-		u, err := svc.FinishLogin(r.Context(), username, r)
+		u, err := deps.AuthService.FinishLogin(r.Context(), username, r)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("login failed"))
 			return
 		}
 
-		startSession(w, r, svc, u)
+		startSession(w, r, deps, u)
 	}
 }
 
-func startSession(w http.ResponseWriter, r *http.Request, svc *auth.Service, u *auth.User) {
-	token, err := svc.CreateSession(r.Context(), u)
+func startSession(w http.ResponseWriter, r *http.Request, deps Deps, u *auth.User) {
+	token, err := deps.AuthService.CreateSession(r.Context(), u)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorBody("could not start session"))
 		return
 	}
 	auth.SetSessionCookie(w, token, auth.IsHTTPS(r))
+
+	// Warm up this user's Aggregator from whatever they last saved in
+	// Settings — the Manager holds no state across a restart, so this is
+	// what makes a returning user's dashboard start refreshing again
+	// without a trip to Settings first. A user with nothing saved yet
+	// just gets Manager.Get's empty-snapshot default, same as before this
+	// ran.
+	//
+	// deps.AppContext, not r.Context(): the background refresh goroutine
+	// Ensure starts has to outlive this one request, and a *http.Request's
+	// context is canceled the moment this handler returns.
+	if creds, err := deps.SettingsStore.Get(r.Context(), u.ID); err == nil {
+		deps.Manager.Ensure(deps.AppContext, u.ID, deps.BuildSources(creds))
+	} else if !errors.Is(err, settings.ErrNotFound) {
+		slog.Warn("could not load settings to warm up dashboard", "user", u.Username, "error", err)
+	}
+
 	writeJSON(w, http.StatusOK, sessionUserOf(u))
 }
 

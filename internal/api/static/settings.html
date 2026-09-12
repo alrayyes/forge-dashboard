@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings — Forge Board</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  .settings-wrap { max-width: 640px; margin: 0 auto; padding: 28px 0 64px; }
+  .settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .settings-header h1 { font-size: 19px; margin: 0; }
+  .back-link {
+    font-size: 13px;
+    color: var(--ink-2);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .back-link:hover { color: var(--ink); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 22px 20px;
+    margin-bottom: 18px;
+  }
+  .card h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-2);
+    margin: 0 0 4px;
+  }
+  .card .hint { font-size: 12.5px; color: var(--ink-3); margin: 0 0 16px; }
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    margin-bottom: 5px;
+  }
+  .field label .configured {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--good);
+    background: var(--good-bg);
+    border-radius: 999px;
+    padding: 1px 8px;
+  }
+  .field input {
+    width: 100%;
+    font-family: inherit;
+    font-size: 13.5px;
+    padding: 9px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-sunken);
+    color: var(--ink);
+  }
+  .field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .field .field-hint { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; }
+  .actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+  .btn {
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { filter: brightness(1.05); }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .status { font-size: 12.5px; min-height: 1.4em; }
+  .status.error { color: var(--critical); }
+  .status.ok { color: var(--good); }
+</style>
+</head>
+<body>
+<div class="settings-wrap">
+  <div class="settings-header">
+    <h1>Settings</h1>
+    <a class="back-link" href="/">&larr; Back to dashboard</a>
+  </div>
+
+  <form id="settings-form">
+    <div class="card">
+      <h2>GitHub</h2>
+      <p class="hint">A token sees every repo it can push to, private included. Leave the token blank to keep the one already saved.</p>
+      <div class="field">
+        <label for="github-token">Personal access token <span class="configured" id="github-token-badge" hidden>Configured</span></label>
+        <input id="github-token" name="githubToken" type="password" autocomplete="off" placeholder="ghp_…">
+      </div>
+      <div class="field">
+        <label for="github-username">Username (used only when no token is set)</label>
+        <input id="github-username" name="githubUsername" type="text" autocomplete="off" placeholder="your-username" aria-describedby="github-username-hint">
+        <p class="field-hint" id="github-username-hint">Shows that account's public repos, unauthenticated — no credential involved.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Forgejo</h2>
+      <p class="hint">Same trade-off as GitHub: a token sees private repos, a username alone sees public ones only.</p>
+      <div class="field">
+        <label for="forgejo-url">Instance URL</label>
+        <input id="forgejo-url" name="forgejoUrl" type="text" autocomplete="off" placeholder="https://git.example.com">
+      </div>
+      <div class="field">
+        <label for="forgejo-token">API token <span class="configured" id="forgejo-token-badge" hidden>Configured</span></label>
+        <input id="forgejo-token" name="forgejoToken" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token">
+      </div>
+      <div class="field">
+        <label for="forgejo-username">Username (used only when no token is set)</label>
+        <input id="forgejo-username" name="forgejoUsername" type="text" autocomplete="off" placeholder="your-username">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" id="save-button">Save</button>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </div>
+  </form>
+</div>
+
+<script src="settings.js"></script>
+</body>
+</html>
