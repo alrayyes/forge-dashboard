@@ -203,10 +203,34 @@
     if (existing) existing.remove();
   }
 
+  // ---- who's signed in, and signing out ----
+  fetch('/api/auth/session', { headers: { Accept: 'application/json' } })
+    .then(function (res) {
+      if (res.status === 401) {
+        window.location.href = '/login.html';
+        return null;
+      }
+      return res.ok ? res.json() : null;
+    })
+    .then(function (session) {
+      if (session) document.getElementById('whoami').textContent = session.displayName;
+    })
+    .catch(function () { /* a transient failure here isn't worth blocking the page over */ });
+
+  document.getElementById('logout-button').addEventListener('click', function () {
+    fetch('/api/auth/logout', { method: 'POST' }).finally(function () {
+      window.location.href = '/login.html';
+    });
+  });
+
   // ---- main fetch/render loop ----
   function refresh() {
     fetch('/api/dashboard', { headers: { Accept: 'application/json' } })
       .then(function (res) {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          throw new Error('session expired');
+        }
         if (!res.ok) throw new Error('backend answered ' + res.status);
         return res.json();
       })
