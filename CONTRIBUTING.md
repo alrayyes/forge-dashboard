@@ -24,6 +24,13 @@
 - **Docker**, for `internal/forgejo`'s container-based integration test
   (real testcontainers-go, a real Forgejo instance — see its own file
   header for why) and for building the image locally.
+- Nothing extra for `internal/auth`'s tests — the SQLite driver
+  (`modernc.org/sqlite`) is pure Go, and the WebAuthn ceremony tests drive
+  the real protocol against a virtual authenticator
+  (`github.com/descope/virtualwebauthn` at the Go level,
+  Playwright + Chrome DevTools Protocol's `WebAuthn` domain at the
+  browser level) rather than a physical key or a stand-in for this
+  repo's own code.
 
 One command installs the linters and the git hooks:
 
@@ -60,12 +67,17 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
 - `internal/github` and `internal/forgejo` are the two adapters — thin,
   handwritten REST clients, each wrapped in a `dashboard.GenericSource`
   rather than duplicating the concurrency/error-handling logic per forge.
+- `internal/auth` is passkey registration, login and sessions —
+  `Store` persists users/credentials/sessions to SQLite, `Service` drives
+  the WebAuthn ceremonies against `Store`, and `RequireAuth` is the
+  middleware that gates a handler on a valid session.
 - `internal/api/static` is the frontend: plain HTML/CSS/JS, embedded into
   the binary with `//go:embed`. No build step, no framework — see the
-  README for why.
+  README for why. `login.html`/`login.js` are the one page that stays
+  reachable without a session.
 - `cmd/forge-dashboard` is the composition root: reads environment
-  variables, wires the configured sources, starts the background refresh,
-  serves the API and static files.
+  variables, wires the configured sources and the auth service, starts
+  the background refresh, and serves the API and static files.
 
 ## Commit messages
 
