@@ -42,8 +42,160 @@ tags:
     description: Liveness, for whatever supervises the process.
   - name: dashboard
     description: The aggregated view across both forges.
+  - name: auth
+    description: Passkey (WebAuthn) registration, login and session management.
 
 paths:
+  /api/auth/register/begin:
+    post:
+      operationId: beginRegistration
+      summary: Start a passkey registration ceremony
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBeginRequest"
+      responses:
+        "200":
+          description: |
+            WebAuthn credential creation options, passed straight to the
+            browser's `navigator.credentials.create()`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebAuthnCeremonyOptions"
+        "409":
+          description: That username is already registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/register/finish:
+    post:
+      operationId: finishRegistration
+      summary: Complete a passkey registration ceremony
+      tags: [auth]
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        description: |
+          The raw response from `navigator.credentials.create()`, exactly as
+          the browser produced it — forwarded to the server untouched.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebAuthnCeremonyOptions"
+      responses:
+        "200":
+          description: Registration succeeded; a session cookie is now set.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionUser"
+        "400":
+          description: The ceremony failed verification, or had already expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/login/begin:
+    post:
+      operationId: beginLogin
+      summary: Start a passkey login ceremony
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBeginRequest"
+      responses:
+        "200":
+          description: |
+            WebAuthn credential request options, passed straight to the
+            browser's `navigator.credentials.get()`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebAuthnCeremonyOptions"
+        "404":
+          description: No account is registered under that username.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/login/finish:
+    post:
+      operationId: finishLogin
+      summary: Complete a passkey login ceremony
+      tags: [auth]
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        description: |
+          The raw response from `navigator.credentials.get()`, exactly as
+          the browser produced it — forwarded to the server untouched.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebAuthnCeremonyOptions"
+      responses:
+        "200":
+          description: Login succeeded; a session cookie is now set.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionUser"
+        "400":
+          description: The ceremony failed verification, or had already expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/logout:
+    post:
+      operationId: logout
+      summary: End the current session
+      tags: [auth]
+      responses:
+        "204":
+          description: Logged out; the session cookie is now cleared.
+
+  /api/auth/session:
+    get:
+      operationId: getSession
+      summary: Who, if anyone, the current session cookie belongs to
+      tags: [auth]
+      responses:
+        "200":
+          description: The current session's user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionUser"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /healthz:
     get:
       operationId: health
@@ -90,6 +242,54 @@ components:
         status:
           type: string
           const: ok
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    RegisterBeginRequest:
+      type: object
+      required: [username, displayName]
+      properties:
+        username:
+          type: string
+          examples: [ryan]
+        displayName:
+          type: string
+          examples: [Ryan]
+
+    LoginBeginRequest:
+      type: object
+      required: [username]
+      properties:
+        username:
+          type: string
+          examples: [ryan]
+
+    WebAuthnCeremonyOptions:
+      type: object
+      description: |
+        The WebAuthn specification's own JSON shape for
+        `PublicKeyCredentialCreationOptions`/`PublicKeyCredentialRequestOptions`
+        (the begin responses) and `PublicKeyCredential`
+        (the finish request bodies) — passed through to and from the
+        browser's own `navigator.credentials` API untouched, so this
+        contract intentionally doesn't re-model WebAuthn's own schema.
+      additionalProperties: true
+
+    SessionUser:
+      type: object
+      required: [username, displayName, isAdmin]
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        isAdmin:
+          type: boolean
 
     Forge:
       type: string
