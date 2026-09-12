@@ -96,6 +96,16 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string, is
 	return u, nil
 }
 
+// DeleteUnregisteredUser removes username's account if — and only if — it
+// has no credentials attached: an abandoned registration (begun, never
+// finished, so nothing was ever actually attached to the username) rather
+// than a real account. A no-op if the account has since gained a
+// credential, or doesn't exist at all.
+func (s *Store) DeleteUnregisteredUser(ctx context.Context, username string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE username = ? AND credentials_json = '[]'`, username)
+	return err
+}
+
 // GetUserByUsername returns ErrNotFound when no such user is registered.
 func (s *Store) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	row := s.db.QueryRowContext(ctx,

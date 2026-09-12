@@ -47,8 +47,17 @@ func NewService(wa *webauthn.WebAuthn, store *Store, adminUsername string) *Serv
 // username. Returns ErrAlreadyRegistered if that username already has an
 // account.
 func (s *Service) BeginRegistration(ctx context.Context, username, displayName string) (*protocol.CredentialCreation, error) {
-	if _, err := s.store.GetUserByUsername(ctx, username); err == nil {
-		return nil, ErrAlreadyRegistered
+	if existing, err := s.store.GetUserByUsername(ctx, username); err == nil {
+		if len(existing.Credentials) > 0 {
+			return nil, ErrAlreadyRegistered
+		}
+		// A registration was begun and never finished — a page reload
+		// before the passkey prompt completed, say. Nothing was ever
+		// actually attached to this username, so it's free to reclaim
+		// rather than a permanent dead end nobody can log into either.
+		if err := s.store.DeleteUnregisteredUser(ctx, username); err != nil {
+			return nil, err
+		}
 	} else if !errors.Is(err, ErrNotFound) {
 		return nil, err
 	}
@@ -105,6 +114,12 @@ func (s *Service) BeginLogin(ctx context.Context, username string) (*protocol.Cr
 	u, err := s.store.GetUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
+	}
+	if len(u.Credentials) == 0 {
+		// An abandoned registration (BeginRegistration reclaims these on
+		// retry) — nothing to log in with, which to a caller is the same
+		// signal as no account at all.
+		return nil, ErrNotFound
 	}
 
 	assertion, session, err := s.webauthn.BeginLogin(u)

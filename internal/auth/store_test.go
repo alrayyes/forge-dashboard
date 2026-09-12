@@ -162,3 +162,31 @@ func TestStore_UnknownSessionToken_ReturnsErrNotFound(t *testing.T) {
 
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
+
+func TestStore_DeleteUnregisteredUser_RemovesAUserWithNoCredentials(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+
+	require.NoError(t, store.DeleteUnregisteredUser(t.Context(), "ryan"))
+
+	_, err = store.GetUserByUsername(t.Context(), "ryan")
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	require.NoError(t, store.DeleteUnregisteredUser(t.Context(), "ryan"))
+
+	got, err := store.GetUserByUsername(t.Context(), "ryan")
+	require.NoError(t, err)
+	assert.Len(t, got.Credentials, 1)
+}
