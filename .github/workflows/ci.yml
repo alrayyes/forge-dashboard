@@ -184,9 +184,12 @@ jobs:
           RP_ID: "localhost"
           RP_ORIGIN: "http://localhost:8080"
           ADMIN_USERNAME: "admin"
-          # A throwaway key — this job's database never outlives the run.
-          ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
         run: |
+          # Generated fresh each run rather than a fixed value committed to
+          # the workflow — this job's database never outlives the run, and
+          # a hardcoded key here reads as a leaked secret to gitleaks even
+          # though it's a throwaway.
+          export ENCRYPTION_KEY="$(openssl rand -base64 32)"
           ./forge-dashboard &
           echo $! > server.pid
           npx wait-on http://localhost:8080/healthz
