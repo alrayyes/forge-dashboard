@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/alrayyes/forge-dashboard/compare/v0.8.0...v0.8.1) (2026-09-12)
+
+
+### Bug Fixes
+
+* stop gitleaks flagging the e2e job's throwaway ENCRYPTION_KEY ([#17](https://github.com/alrayyes/forge-dashboard/issues/17)) ([780802f](https://github.com/alrayyes/forge-dashboard/commit/780802f3bd5ae01199ca9be4135c1598fac76dc2))
+
 ## [0.8.0](https://github.com/alrayyes/forge-dashboard/compare/v0.7.1...v0.8.0) (2026-09-12)
 
 
