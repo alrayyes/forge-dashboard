@@ -71,3 +71,6 @@ webauthn\.io
 relying
 ceremonies
 [Ss]ign-in
+goroutines?
+plaintext
+else's

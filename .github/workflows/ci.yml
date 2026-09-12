@@ -184,6 +184,8 @@ jobs:
           RP_ID: "localhost"
           RP_ORIGIN: "http://localhost:8080"
           ADMIN_USERNAME: "admin"
+          # A throwaway key — this job's database never outlives the run.
+          ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
         run: |
           ./forge-dashboard &
           echo $! > server.pid
