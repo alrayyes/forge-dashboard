@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/alrayyes/forge-dashboard/compare/v0.6.0...v0.7.0) (2026-09-12)
+
+
+### Features
+
+* passkey login gates the dashboard ([#9](https://github.com/alrayyes/forge-dashboard/issues/9)) ([0127736](https://github.com/alrayyes/forge-dashboard/commit/012773608b192fbf38bed2cadc585388b2b78bb1))
+
 ## [0.6.0](https://github.com/alrayyes/forge-dashboard/compare/v0.5.0...v0.6.0) (2026-09-12)
 
 
