@@ -252,3 +252,35 @@ func TestRegisterBegin_DuplicateUsername_Conflicts(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }
+
+// Real bug, reported live: a reload between register/begin and
+// register/finish (before the passkey prompt completes) used to leave a
+// username permanently claimed with no credential attached — every retry
+// hit 409, and login/begin 500'd since there was nothing to log in with.
+func TestRegisterBegin_AbandonedRegistration_CanBeRetried(t *testing.T) {
+	srv := newTestServer(t)
+
+	resp1, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`"}`))
+	require.NoError(t, err)
+	_ = resp1.Body.Close()
+	require.Equal(t, http.StatusOK, resp1.StatusCode)
+
+	resp2, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`"}`))
+	require.NoError(t, err)
+	defer func() { _ = resp2.Body.Close() }()
+	assert.Equal(t, http.StatusOK, resp2.StatusCode)
+}
+
+func TestLoginBegin_AbandonedRegistration_ReturnsNotFoundNotServerError(t *testing.T) {
+	srv := newTestServer(t)
+
+	resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`"}`))
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	loginResp, err := http.Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`"}`))
+	require.NoError(t, err)
+	defer func() { _ = loginResp.Body.Close() }()
+	assert.Equal(t, http.StatusNotFound, loginResp.StatusCode)
+}
