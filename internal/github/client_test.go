@@ -22,7 +22,7 @@ func writeJSON(t *testing.T, w http.ResponseWriter, v any) {
 	assert.NoError(t, json.NewEncoder(w).Encode(v))
 }
 
-func TestListWriteRepos_FiltersToPushAccessAndPaginates(t *testing.T) {
+func TestListRepos_FiltersToPushAccessAndPaginates(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
@@ -40,12 +40,49 @@ func TestListWriteRepos_FiltersToPushAccessAndPaginates(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := github.NewClient("test-token", srv.URL)
-	repos, err := client.ListWriteRepos(t.Context())
+	client := github.NewClient("test-token", "", srv.URL)
+	repos, err := client.ListRepos(t.Context())
 
 	require.NoError(t, err)
 	require.Len(t, repos, 1)
 	assert.Equal(t, "alrayyes/a", repos[0].FullName)
+}
+
+func TestListRepos_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		assert.Empty(t, r.Header.Get("Authorization"), "the public fallback should never send a credential")
+		assert.Equal(t, "owner", r.URL.Query().Get("type"))
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			// No "permissions" field at all — GitHub omits it entirely on
+			// an unauthenticated request.
+			{"full_name": "alrayyes/hush-hush", "name": "hush-hush", "owner": map[string]string{"login": "alrayyes"}},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("", "alrayyes", srv.URL)
+	repos, err := client.ListRepos(t.Context())
+
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+	assert.Equal(t, "alrayyes/hush-hush", repos[0].FullName)
+}
+
+func TestListRepos_NeitherTokenNorUsername_Errors(t *testing.T) {
+	t.Parallel()
+
+	client := github.NewClient("", "", "http://unused.invalid")
+	_, err := client.ListRepos(t.Context())
+
+	require.Error(t, err)
 }
 
 func TestListOpenPullRequests_MapsFieldsAndResolvesCIFromCheckRuns(t *testing.T) {
@@ -78,7 +115,7 @@ func TestListOpenPullRequests_MapsFieldsAndResolvesCIFromCheckRuns(t *testing.T)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := github.NewClient("test-token", srv.URL)
+	client := github.NewClient("test-token", "", srv.URL)
 	prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
 
 	require.NoError(t, err)
@@ -124,7 +161,7 @@ func TestListOpenPullRequests_FallsBackToCombinedStatusWhenNoCheckRuns(t *testin
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := github.NewClient("test-token", srv.URL)
+	client := github.NewClient("test-token", "", srv.URL)
 	prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
 
 	require.NoError(t, err)
@@ -149,7 +186,7 @@ func TestListOpenIssues_ExcludesPullRequests(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := github.NewClient("test-token", srv.URL)
+	client := github.NewClient("test-token", "", srv.URL)
 	issues, err := client.ListOpenIssues(t.Context(), "alrayyes", "a", "alrayyes/a")
 
 	require.NoError(t, err)

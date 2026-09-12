@@ -25,16 +25,25 @@ const defaultBaseURL = "https://api.github.com"
 // single page.
 const perPage = 100
 
-// Client talks to the GitHub REST API as a single authenticated user.
+// Client talks to the GitHub REST API, either as an authenticated user (a
+// token) or anonymously against one user's public repositories (a
+// username, no token at all).
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
 	token      string
+	username   string
 }
 
-// NewClient returns a Client authenticating as token. baseURL defaults to
-// the real GitHub API; tests override it to point at an httptest.Server.
-func NewClient(token string, baseURL string) *Client {
+// NewClient returns a Client. With token set, it authenticates as that
+// user and ListRepos returns every repo the token can push to, private
+// included. With token empty and username set, every request goes out
+// unauthenticated and ListRepos returns only username's public repos —
+// there's no "write access" to filter by without a credential, so this
+// mode returns everything public GitHub already shows anyone.
+// baseURL defaults to the real GitHub API; tests override it to point at
+// an httptest.Server.
+func NewClient(token, username, baseURL string) *Client {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
@@ -42,6 +51,7 @@ func NewClient(token string, baseURL string) *Client {
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		baseURL:    baseURL,
 		token:      token,
+		username:   username,
 	}
 }
 
@@ -88,9 +98,22 @@ type repoJSON struct {
 	} `json:"permissions"`
 }
 
-// ListWriteRepos returns every repository the token can push to, across
+// ListRepos returns the repositories this Client is configured to track —
+// see NewClient for the two modes.
+func (c *Client) ListRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
+	switch {
+	case c.token != "":
+		return c.listWriteRepos(ctx)
+	case c.username != "":
+		return c.listPublicRepos(ctx)
+	default:
+		return nil, fmt.Errorf("github: neither a token nor a username is configured")
+	}
+}
+
+// listWriteRepos returns every repository the token can push to, across
 // every page.
-func (c *Client) ListWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
+func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
 	var repos []dashboard.RepoRef
 
 	for page := 1; ; page++ {
@@ -107,6 +130,33 @@ func (c *Client) ListWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error
 			if !r.Permissions.Push {
 				continue
 			}
+			repos = append(repos, dashboard.RepoRef{FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name})
+		}
+		if len(batch) < perPage {
+			break
+		}
+	}
+	return repos, nil
+}
+
+// listPublicRepos returns every public repository username owns, with no
+// authentication at all — the same list anyone gets landing on
+// github.com/username?tab=repositories.
+func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
+	var repos []dashboard.RepoRef
+
+	for page := 1; ; page++ {
+		var batch []repoJSON
+		q := url.Values{
+			"type":     {"owner"},
+			"per_page": {strconv.Itoa(perPage)},
+			"page":     {strconv.Itoa(page)},
+		}
+		path := fmt.Sprintf("/users/%s/repos", c.username)
+		if err := c.get(ctx, path, q, &batch); err != nil {
+			return nil, err
+		}
+		for _, r := range batch {
 			repos = append(repos, dashboard.RepoRef{FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name})
 		}
 		if len(batch) < perPage {

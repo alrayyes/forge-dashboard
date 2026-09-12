@@ -22,7 +22,7 @@ func writeJSON(t *testing.T, w http.ResponseWriter, v any) {
 	assert.NoError(t, json.NewEncoder(w).Encode(v))
 }
 
-func TestListWriteRepos_FiltersToPushAccessAndPaginates(t *testing.T) {
+func TestListRepos_FiltersToPushAccessAndPaginates(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
@@ -40,7 +40,7 @@ func TestListWriteRepos_FiltersToPushAccessAndPaginates(t *testing.T) {
 	defer srv.Close()
 
 	client := forgejo.NewClient(srv.URL, "test-token")
-	repos, err := client.ListWriteRepos(t.Context())
+	repos, err := client.ListRepos(t.Context())
 
 	require.NoError(t, err)
 	require.Len(t, repos, 1)

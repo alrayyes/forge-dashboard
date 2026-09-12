@@ -71,22 +71,29 @@ func main() {
 }
 
 // buildSources wires one dashboard.Source per forge that has enough
-// configuration to be worth trying. A forge with no token configured is
-// skipped entirely rather than added and left to fail on every refresh —
-// there's nothing useful to report about a forge nobody asked to watch.
+// configuration to be worth trying. A forge with nothing configured at
+// all is skipped entirely rather than added and left to fail on every
+// refresh — there's nothing useful to report about a forge nobody asked
+// to watch.
 func buildSources() []dashboard.Source {
 	var sources []dashboard.Source
 
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
-		client := github.NewClient(token, "")
+	token, username := os.Getenv("GITHUB_TOKEN"), os.Getenv("GITHUB_USERNAME")
+	switch {
+	case token != "":
+		client := github.NewClient(token, "", "")
 		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeGitHub, client, dashboard.DefaultMaxConcurrency))
-	} else {
-		slog.Warn("GITHUB_TOKEN not set, skipping GitHub")
+	case username != "":
+		slog.Warn("GITHUB_TOKEN not set, falling back to GITHUB_USERNAME's public repos only", "username", username)
+		client := github.NewClient("", username, "")
+		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeGitHub, client, dashboard.DefaultMaxConcurrency))
+	default:
+		slog.Warn("neither GITHUB_TOKEN nor GITHUB_USERNAME set, skipping GitHub")
 	}
 
-	url, token := os.Getenv("FORGEJO_URL"), os.Getenv("FORGEJO_TOKEN")
-	if url != "" && token != "" {
-		client := forgejo.NewClient(url, token)
+	forgejoURL, forgejoToken := os.Getenv("FORGEJO_URL"), os.Getenv("FORGEJO_TOKEN")
+	if forgejoURL != "" && forgejoToken != "" {
+		client := forgejo.NewClient(forgejoURL, forgejoToken)
 		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
 	} else {
 		slog.Warn("FORGEJO_URL or FORGEJO_TOKEN not set, skipping Forgejo")

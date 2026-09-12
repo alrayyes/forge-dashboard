@@ -42,7 +42,7 @@ func TestClient_SatisfiesGenericSource(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := github.NewClient("test-token", srv.URL)
+	client := github.NewClient("test-token", "", srv.URL)
 	source := dashboard.NewGenericSource(dashboard.ForgeGitHub, client, dashboard.DefaultMaxConcurrency)
 
 	result := source.Fetch(t.Context())

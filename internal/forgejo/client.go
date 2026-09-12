@@ -84,9 +84,9 @@ type repoJSON struct {
 	} `json:"permissions"`
 }
 
-// ListWriteRepos returns every repository the token can push to, across
+// ListRepos returns every repository the token can push to, across
 // every page.
-func (c *Client) ListWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
+func (c *Client) ListRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
 	var repos []dashboard.RepoRef
 
 	for page := 1; ; page++ {

@@ -18,7 +18,7 @@ type fakeForgeClient struct {
 	failReposByFullName map[string]bool
 }
 
-func (f *fakeForgeClient) ListWriteRepos(_ context.Context) ([]dashboard.RepoRef, error) {
+func (f *fakeForgeClient) ListRepos(_ context.Context) ([]dashboard.RepoRef, error) {
 	return f.repos, f.listReposErr
 }
 

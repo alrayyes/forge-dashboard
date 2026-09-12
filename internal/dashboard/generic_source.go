@@ -11,7 +11,9 @@ import (
 // without opening that many sockets at once for no benefit.
 const DefaultMaxConcurrency = 8
 
-// RepoRef names one repository a ForgeClient has write access to.
+// RepoRef names one repository a ForgeClient is configured to track —
+// every repo the configured credential has write access to, or, with no
+// credential at all, every public repo a configured username owns.
 type RepoRef struct {
 	FullName string
 	Owner    string
@@ -22,7 +24,7 @@ type RepoRef struct {
 // internal/forgejo) provides for GenericSource to drive. Both clients'
 // method sets already match this shape, so neither needs an adapter.
 type ForgeClient interface {
-	ListWriteRepos(ctx context.Context) ([]RepoRef, error)
+	ListRepos(ctx context.Context) ([]RepoRef, error)
 	ListOpenPullRequests(ctx context.Context, owner, name, repo string) ([]PullRequest, error)
 	ListOpenIssues(ctx context.Context, owner, name, repo string) ([]Issue, error)
 }
@@ -47,7 +49,7 @@ func NewGenericSource(forge Forge, client ForgeClient, maxConcurrency int) *Gene
 // pull requests and issues concurrently, bounded by maxConcurrency. A
 // single repo's failure is logged and skipped, not fatal to the forge.
 func (s *GenericSource) Fetch(ctx context.Context) Result {
-	repos, err := s.client.ListWriteRepos(ctx)
+	repos, err := s.client.ListRepos(ctx)
 	if err != nil {
 		return Result{Health: ForgeHealth{Forge: s.forge, Reachable: false, Error: err.Error()}}
 	}

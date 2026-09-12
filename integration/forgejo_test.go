@@ -188,7 +188,7 @@ func TestForgejoClient_AgainstARealInstance(t *testing.T) {
 
 	client := forgejo.NewClient(baseURL, token)
 
-	repos, err := client.ListWriteRepos(ctx)
+	repos, err := client.ListRepos(ctx)
 	require.NoError(t, err)
 	require.Len(t, repos, 1)
 	require.Equal(t, "testadmin/widgets", repos[0].FullName)
