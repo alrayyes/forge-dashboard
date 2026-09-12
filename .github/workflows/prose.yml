@@ -1,0 +1,112 @@
+# The two tiers markdownlint doesn't cover.
+#
+# Layout is Prettier and structure is markdownlint, both in the ci workflow.
+# Those pass a document that reads badly: neither notices "an university",
+# "the the", or a paragraph that has quietly gone passive.
+#
+# Mechanics and style are separate jobs on purpose. When this goes red the
+# job name should say which tier failed, because a grammar mistake and a
+# style opinion are answered differently — one is wrong, the other is a
+# suggestion.
+name: prose
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+      - .vale.ini
+      - .ltex.json
+      - styles/**
+      - .github/workflows/prose.yml
+  pull_request:
+    paths:
+      - "**/*.md"
+      - .vale.ini
+      - .ltex.json
+      - styles/**
+      - .github/workflows/prose.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prose-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned like everything else. Vale's style packages are versioned
+  # separately and fetched by `vale sync`.
+  VALE_VERSION: v3.17.1
+  # ltex-ls-plus is pinned inside scripts/lint-mechanics.sh instead, so the
+  # hook and this workflow cannot install different versions of it.
+
+jobs:
+  # Mechanics: grammar, spelling, the phonetic article. These have a right
+  # answer, so this one fails the build.
+  mechanics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Built once by alrayyes/ltex-cli-plus, not fetched fresh here, so
+    # ltex-cli-plus is already on PATH and scripts/lint-mechanics.sh skips
+    # its own download.
+    container:
+      image: ghcr.io/alrayyes/ltex-cli-plus@sha256:ca09e576c9451b643abd0a6f52896f0a466bb16fc3ea64d246f58ee5bb278fe5 # 18.7.0
+    steps:
+      - name: Install checkout's and the script's own dependencies
+        # The image only carries ltex-cli-plus. git is what the script uses
+        # to list this repository's Markdown files.
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git nodejs
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the prose this repository owns
+        # safe.directory: actions/checkout's own fix for this writes to a
+        # temporary $HOME that only exists for the checkout step, so it never
+        # reaches this later step's real $HOME in a container-as-root job —
+        # without it, lint-mechanics.sh's own `git ls-files` call fails with
+        # "detected dubious ownership", silently emptying the file list.
+        # The same script the pre-push hook runs, so the two cannot disagree
+        # about the version, the file list or what counts as a failure.
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          ./scripts/lint-mechanics.sh
+
+  style:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install Vale
+        env:
+          GOTOOLCHAIN: auto
+        run: go install github.com/errata-ai/vale/v3/cmd/vale@${{ env.VALE_VERSION }}
+
+      - name: Vale
+        # The same script the pre-push hook runs, so the two cannot check
+        # different files or disagree about what's worth failing on.
+        env:
+          VALE_REPORT: vale.txt
+        run: ./scripts/lint-prose.sh
+
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo '### Vale'
+            echo
+            if [ -s vale.txt ]; then
+              echo '```'
+              cat vale.txt
+              echo '```'
+            else
+              echo 'Nothing to report.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

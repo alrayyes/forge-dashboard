@@ -1,0 +1,43 @@
+# Deliberately ungated: a secret can be committed to any file, so there's no
+# diff this is safe to skip for — no `paths:` filter, unlike prose.yml.
+name: gitleaks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitleaks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned like everything else. go install can pin a binary by tag; no
+  # separate download step or container image needed for that.
+  GITLEAKS_VERSION: v8.30.1
+
+jobs:
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # fetch-depth: 0, or there's no history to walk and the job passes
+      # having scanned nothing.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Install gitleaks
+        # The module's import path is zricethezav/gitleaks; gitleaks/gitleaks
+        # is only where the repository lives on GitHub.
+        run: go install github.com/zricethezav/gitleaks/v8@${{ env.GITLEAKS_VERSION }}
+      # Scoped to branches and tags rather than every ref, matching
+      # Ryankes.eu/main's ci.yml: GitHub keeps a permanent refs/pull/<n>/head
+      # per pull request, which a rewritten history would still leave
+      # pointing at pre-rewrite commits.
+      - run: gitleaks git --redact --no-banner --log-opts="--branches --tags" .

@@ -1,0 +1,12 @@
+# Secret scanning for forge-dashboard.
+#
+# This extends the ruleset that ships with the pinned gitleaks version rather
+# than replacing it, so new upstream rules arrive with the version bump instead
+# of having to be copied in by hand.
+#
+# Nothing is allowlisted yet. A repo stamped from this template that finds it
+# needs one adds it here rather than reaching for an ignore comment — see
+# Ryankes.eu/main's .gitleaks.toml for the shape a real allowlist takes.
+
+[extend]
+useDefault = true
