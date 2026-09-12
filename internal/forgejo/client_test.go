@@ -39,12 +39,46 @@ func TestListRepos_FiltersToPushAccessAndPaginates(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := forgejo.NewClient(srv.URL, "test-token")
+	client := forgejo.NewClient(srv.URL, "test-token", "")
 	repos, err := client.ListRepos(t.Context())
 
 	require.NoError(t, err)
 	require.Len(t, repos, 1)
 	assert.Equal(t, "alrayyes/a", repos[0].FullName)
+}
+
+func TestListRepos_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		assert.Empty(t, r.Header.Get("Authorization"), "the public fallback should never send a credential")
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/tempus-fugit", "name": "tempus-fugit", "owner": map[string]string{"login": "alrayyes"}},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "", "alrayyes")
+	repos, err := client.ListRepos(t.Context())
+
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+	assert.Equal(t, "alrayyes/tempus-fugit", repos[0].FullName)
+}
+
+func TestListRepos_NeitherTokenNorUsername_Errors(t *testing.T) {
+	t.Parallel()
+
+	client := forgejo.NewClient("http://unused.invalid", "", "")
+	_, err := client.ListRepos(t.Context())
+
+	require.Error(t, err)
 }
 
 func TestListOpenPullRequests_MapsFieldsAndResolvesCI(t *testing.T) {
@@ -72,7 +106,7 @@ func TestListOpenPullRequests_MapsFieldsAndResolvesCI(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := forgejo.NewClient(srv.URL, "test-token")
+	client := forgejo.NewClient(srv.URL, "test-token", "")
 	prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
 
 	require.NoError(t, err)
@@ -114,7 +148,7 @@ func TestCIStatus_MapsWarningToPending(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := forgejo.NewClient(srv.URL, "test-token")
+	client := forgejo.NewClient(srv.URL, "test-token", "")
 	prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
 
 	require.NoError(t, err)
@@ -139,7 +173,7 @@ func TestListOpenIssues_UsesTypeIssuesFilter(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := forgejo.NewClient(srv.URL, "test-token")
+	client := forgejo.NewClient(srv.URL, "test-token", "")
 	issues, err := client.ListOpenIssues(t.Context(), "alrayyes", "a", "alrayyes/a")
 
 	require.NoError(t, err)

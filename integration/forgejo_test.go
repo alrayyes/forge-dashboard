@@ -186,7 +186,7 @@ func TestForgejoClient_AgainstARealInstance(t *testing.T) {
 	fixture.createIssue(t, "testadmin", "widgets", "A real issue")
 	fixture.createPullRequestWithStatus(t, "testadmin", "widgets", "Add widget.txt", "success")
 
-	client := forgejo.NewClient(baseURL, token)
+	client := forgejo.NewClient(baseURL, token, "")
 
 	repos, err := client.ListRepos(ctx)
 	require.NoError(t, err)
@@ -209,4 +209,14 @@ func TestForgejoClient_AgainstARealInstance(t *testing.T) {
 	require.True(t, result.Health.Reachable)
 	require.Len(t, result.PullRequests, 1)
 	require.Len(t, result.Issues, 1)
+
+	// The public fallback, unauthenticated, against the same real instance
+	// — "widgets" is public by default (createRepo never set private), so
+	// it should show up the same way it would to anyone browsing without
+	// an account.
+	anonClient := forgejo.NewClient(baseURL, "", "testadmin")
+	publicRepos, err := anonClient.ListRepos(ctx)
+	require.NoError(t, err)
+	require.Len(t, publicRepos, 1)
+	require.Equal(t, "testadmin/widgets", publicRepos[0].FullName)
 }

@@ -41,7 +41,7 @@ func TestClient_SatisfiesGenericSource(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := forgejo.NewClient(srv.URL, "test-token")
+	client := forgejo.NewClient(srv.URL, "test-token", "")
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency)
 
 	result := source.Fetch(t.Context())

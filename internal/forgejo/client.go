@@ -21,21 +21,28 @@ import (
 // this stays conservative rather than assuming a larger limit was set.
 const pageLimit = 50
 
-// Client talks to a Forgejo instance's API as a single authenticated user.
+// Client talks to a Forgejo instance's API, either as an authenticated
+// user (a token) or anonymously against one user's public repositories on
+// that instance (a username, no token at all).
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
 	token      string
+	username   string
 }
 
-// NewClient returns a Client authenticating as token against instanceURL
-// (e.g. "https://git.higherlearning.eu"). baseURL in tests points straight
-// at an httptest.Server instead.
-func NewClient(instanceURL, token string) *Client {
+// NewClient returns a Client against instanceURL (e.g.
+// "https://git.higherlearning.eu"). With token set, it authenticates as
+// that user and ListRepos returns every repo the token can push to,
+// private included. With token empty and username set, every request
+// goes out unauthenticated and ListRepos returns only username's public
+// repos on that instance.
+func NewClient(instanceURL, token, username string) *Client {
 	return &Client{
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		baseURL:    strings.TrimRight(instanceURL, "/") + "/api/v1",
 		token:      token,
+		username:   username,
 	}
 }
 
@@ -84,9 +91,22 @@ type repoJSON struct {
 	} `json:"permissions"`
 }
 
-// ListRepos returns every repository the token can push to, across
-// every page.
+// ListRepos returns the repositories this Client is configured to track —
+// see NewClient for the two modes.
 func (c *Client) ListRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
+	switch {
+	case c.token != "":
+		return c.listWriteRepos(ctx)
+	case c.username != "":
+		return c.listPublicRepos(ctx)
+	default:
+		return nil, fmt.Errorf("forgejo: neither a token nor a username is configured")
+	}
+}
+
+// listWriteRepos returns every repository the token can push to, across
+// every page.
+func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
 	var repos []dashboard.RepoRef
 
 	for page := 1; ; page++ {
@@ -99,6 +119,28 @@ func (c *Client) ListRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
 			if !r.Permissions.Push {
 				continue
 			}
+			repos = append(repos, dashboard.RepoRef{FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name})
+		}
+		if len(batch) < pageLimit {
+			break
+		}
+	}
+	return repos, nil
+}
+
+// listPublicRepos returns every public repository username owns on this
+// instance, with no authentication at all.
+func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
+	var repos []dashboard.RepoRef
+
+	for page := 1; ; page++ {
+		var batch []repoJSON
+		q := url.Values{"limit": {strconv.Itoa(pageLimit)}, "page": {strconv.Itoa(page)}}
+		path := fmt.Sprintf("/users/%s/repos", c.username)
+		if err := c.get(ctx, path, q, &batch); err != nil {
+			return nil, err
+		}
+		for _, r := range batch {
 			repos = append(repos, dashboard.RepoRef{FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name})
 		}
 		if len(batch) < pageLimit {
