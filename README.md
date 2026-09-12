@@ -40,33 +40,38 @@ acceptance criteria this v1 was built against.
   unauthenticated GitHub API calls are capped at 60/hour, so this mode
   only sees everything on an account small enough to fit that budget —
   a token (5,000/hour) is what an account this size actually needs.
-- A **Forgejo instance URL and API token** (`Settings → Applications →
-Generate New Token`, scoped to `read:repository` and `read:issue`) — or
-  omit both `FORGEJO_*` variables to run against GitHub alone.
+- A **Forgejo instance URL, plus either an API token** (`Settings →
+Applications → Generate New Token`, scoped to `read:repository` and
+  `read:issue`) **or a username** for that instance's public-repos-only
+  fallback, same trade-off as GitHub's. Both `GITHUB_*` and `FORGEJO_*`
+  are entirely independent and each optional on its own — run with just
+  one forge configured, or neither (an empty dashboard) if that's ever
+  useful for a smoke test.
 
 ## Configuration
 
 Everything is environment variables — no config file:
 
-| Variable           | Required | Default | Meaning                                                                                          |
-| ------------------ | -------- | ------- | ------------------------------------------------------------------------------------------------ |
-| `ADDR`             | no       | `:8080` | Listen address.                                                                                  |
-| `GITHUB_TOKEN`     | no\*     | —       | A GitHub personal access token. Every repo it can push to is tracked, private included.          |
-| `GITHUB_USERNAME`  | no\*     | —       | Used only when `GITHUB_TOKEN` is unset — shows that account's **public** repos, unauthenticated. |
-| `FORGEJO_URL`      | no\*     | —       | Base URL of the Forgejo instance, for example `https://git.example.com`.                         |
-| `FORGEJO_TOKEN`    | no\*     | —       | A Forgejo API token. Forgejo is skipped entirely unless both this and `FORGEJO_URL` are set.     |
-| `REFRESH_INTERVAL` | no       | `5m`    | How often the backend re-polls both forges, as a Go duration (`2m30s`, `10m`).                   |
+| Variable           | Required | Default | Meaning                                                                                           |
+| ------------------ | -------- | ------- | ------------------------------------------------------------------------------------------------- |
+| `ADDR`             | no       | `:8080` | Listen address.                                                                                   |
+| `GITHUB_TOKEN`     | no\*     | —       | A GitHub personal access token. Every repo it can push to is tracked, private included.           |
+| `GITHUB_USERNAME`  | no\*     | —       | Used only when `GITHUB_TOKEN` is unset — shows that account's **public** repos, unauthenticated.  |
+| `FORGEJO_URL`      | no\*     | —       | Base URL of the Forgejo instance, for example `https://git.example.com`.                          |
+| `FORGEJO_TOKEN`    | no\*     | —       | A Forgejo API token. Every repo it can push to is tracked, private included.                      |
+| `FORGEJO_USERNAME` | no\*     | —       | Used only when `FORGEJO_URL` is set but `FORGEJO_TOKEN` isn't — that account's public repos only. |
+| `REFRESH_INTERVAL` | no       | `5m`    | How often the backend re-polls both forges, as a Go duration (`2m30s`, `10m`).                    |
 
-\* At least one forge should be configured or the dashboard has nothing to
-show — the process still starts and serves an empty snapshot either way,
-rather than refusing to boot. `GITHUB_TOKEN` wins over `GITHUB_USERNAME`
-when both are set.
+\* Each forge is entirely optional, and GitHub and Forgejo don't depend on
+each other — configure one, both, or neither (the process still starts
+and serves an empty snapshot either way, rather than refusing to boot).
+Within a forge, its token wins over its username when both are set.
 
 Repository discovery is automatic. With a token, the dashboard lists
-every repository it has push access to (`GET /user/repos`); with only a
-username, it lists that account's public repositories
-(`GET /users/<username>/repos`) with no credential in play at all. Either
-way there's no per-repo allowlist to maintain.
+every repository it has push access to (`GET /user/repos` on both APIs);
+with only a username, it lists that account's public repositories
+(`GET /users/<username>/repos`, also both APIs) with no credential in
+play at all. Either way there's no per-repo allowlist to maintain.
 
 ## Running it
 

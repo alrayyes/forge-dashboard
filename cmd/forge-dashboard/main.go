@@ -91,12 +91,20 @@ func buildSources() []dashboard.Source {
 		slog.Warn("neither GITHUB_TOKEN nor GITHUB_USERNAME set, skipping GitHub")
 	}
 
-	forgejoURL, forgejoToken := os.Getenv("FORGEJO_URL"), os.Getenv("FORGEJO_TOKEN")
-	if forgejoURL != "" && forgejoToken != "" {
-		client := forgejo.NewClient(forgejoURL, forgejoToken)
+	forgejoURL := os.Getenv("FORGEJO_URL")
+	forgejoToken, forgejoUsername := os.Getenv("FORGEJO_TOKEN"), os.Getenv("FORGEJO_USERNAME")
+	switch {
+	case forgejoURL == "":
+		slog.Warn("FORGEJO_URL not set, skipping Forgejo")
+	case forgejoToken != "":
+		client := forgejo.NewClient(forgejoURL, forgejoToken, "")
 		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
-	} else {
-		slog.Warn("FORGEJO_URL or FORGEJO_TOKEN not set, skipping Forgejo")
+	case forgejoUsername != "":
+		slog.Warn("FORGEJO_TOKEN not set, falling back to FORGEJO_USERNAME's public repos only", "username", forgejoUsername)
+		client := forgejo.NewClient(forgejoURL, "", forgejoUsername)
+		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
+	default:
+		slog.Warn("FORGEJO_URL set but neither FORGEJO_TOKEN nor FORGEJO_USERNAME set, skipping Forgejo")
 	}
 
 	return sources
