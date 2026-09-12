@@ -1,0 +1,221 @@
+# The contract, and the only machine-readable description of it. Hand-written
+# and committed rather than generated from handler annotations — the spec is
+# reviewed as the design, and internal/api is written against it, not the
+# other way round.
+openapi: 3.1.0
+
+info:
+  title: forge-dashboard
+  summary: A single-page view of open PRs, issues and CI status across GitHub and Forgejo.
+  description: |
+    Aggregates every repository the configured GitHub and Forgejo accounts
+    have write access to into one read-only view: open pull requests (with
+    CI status), open issues, and per-forge reachability. The backend holds
+    both forges' credentials; the frontend only ever calls the endpoints
+    below.
+  version: 1.0.0
+  contact:
+    name: forge-dashboard
+    url: https://github.com/alrayyes/forge-dashboard
+  license:
+    name: GPL-3.0
+    identifier: GPL-3.0-only
+
+servers:
+  - url: "{scheme}://{host}"
+    description: |
+      No canonical host — this runs on a homelab reachable only over
+      Tailscale, so the variables below are the shape of the answer rather
+      than the answer.
+    variables:
+      scheme:
+        default: https
+        enum: [https, http]
+      host:
+        default: localhost:8080
+        description: The default listen address. Set ADDR to change it.
+
+security: []
+
+tags:
+  - name: health
+    description: Liveness, for whatever supervises the process.
+  - name: dashboard
+    description: The aggregated view across both forges.
+
+paths:
+  /healthz:
+    get:
+      operationId: health
+      summary: Liveness
+      description: |
+        Answers 200 once the server has started. Doesn't reflect whether
+        either forge is reachable — see forges[].reachable on the dashboard
+        response for that.
+      tags: [health]
+      responses:
+        "200":
+          description: The process is up.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+              example:
+                status: ok
+
+  /api/dashboard:
+    get:
+      operationId: getDashboard
+      summary: The aggregated view
+      description: |
+        Returns the most recently fetched snapshot. The backend refreshes
+        this on its own schedule in the background; this endpoint never
+        blocks on a live call to either forge, so it answers instantly even
+        when a forge is slow or unreachable.
+      tags: [dashboard]
+      responses:
+        "200":
+          description: The current snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+
+    Forge:
+      type: string
+      enum: [github, forgejo]
+
+    CIStatus:
+      type: string
+      enum: [success, failure, pending, none]
+      description: |
+        The combined result across every check reported against the pull
+        request's head commit. "none" means neither forge reported any
+        check at all, not that one failed.
+
+    ForgeHealth:
+      type: object
+      required: [forge, reachable, repoCount]
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        reachable:
+          type: boolean
+          description: Whether the last refresh attempt against this forge succeeded.
+        error:
+          type: string
+          description: The last error, if reachable is false. Omitted when reachable.
+        repoCount:
+          type: integer
+          minimum: 0
+          description: Repositories with write access this forge reported.
+
+    PullRequest:
+      type: object
+      required:
+        [
+          forge,
+          repo,
+          number,
+          title,
+          url,
+          author,
+          draft,
+          labels,
+          createdAt,
+          updatedAt,
+          ci,
+        ]
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        repo:
+          type: string
+          description: Owner-qualified repository name.
+          examples: [alrayyes/hush-hush]
+        number:
+          type: integer
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+          description: The real pull request URL on its own forge.
+        author:
+          type: string
+        draft:
+          type: boolean
+        labels:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        ci:
+          $ref: "#/components/schemas/CIStatus"
+
+    Issue:
+      type: object
+      required:
+        [forge, repo, number, title, url, author, labels, createdAt, updatedAt]
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        repo:
+          type: string
+          examples: [alrayyes/hush-hush]
+        number:
+          type: integer
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+          description: The real issue URL on its own forge.
+        author:
+          type: string
+        labels:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Dashboard:
+      type: object
+      required: [generatedAt, forges, pullRequests, issues]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          description: When this snapshot was refreshed, not when it was requested.
+        forges:
+          type: array
+          items:
+            $ref: "#/components/schemas/ForgeHealth"
+        pullRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/PullRequest"
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/Issue"
