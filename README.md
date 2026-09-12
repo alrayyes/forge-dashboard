@@ -20,11 +20,15 @@ now describes the first slice of.
   Pass, 1Password, iCloud Keychain, a platform authenticator, or a
   hardware key, anything that speaks passkeys. Nothing password-shaped is
   ever stored or transmitted.
-- **Credentials never reach the browser.** The Go backend holds both
-  forges' tokens server-side and only ever hands the frontend its own
-  already-filtered JSON. Confirm this yourself: open the browser's network
-  tab and watch it call nothing but `/api/dashboard`, `/api/auth/*` and
-  `/healthz`.
+- **Every user configures their own forges.** Each signed-in user has
+  their own GitHub/Forgejo tokens, set from the Settings page, and sees
+  only their own dashboard — nobody else's tokens, nobody else's repos.
+- **Credentials never reach the browser.** The Go backend holds every
+  user's tokens server-side, encrypted at rest, and only ever hands the
+  frontend its own already-filtered JSON. Confirm this yourself: open the
+  browser's network tab and watch it call nothing but `/api/dashboard`,
+  `/api/settings`, `/api/auth/*` and `/healthz` — and that `/api/settings`
+  never echoes a token back, only whether one is set.
 - **One Go binary, no frontend build step.** Plain HTML/CSS/JS, embedded
   into the binary with `//go:embed`. `go build` is the whole pipeline — no
   Node toolchain needed to run the service, only to run its own lint/test
@@ -35,28 +39,32 @@ now describes the first slice of.
 
 ### Where this stands against #3
 
-This ships passkey registration and login gating the dashboard, and an
-admin flag established at startup rather than by whoever registers
-first. It does **not** yet ship #3's other two pieces: per-user
-GitHub/Forgejo tokens (every signed-in user currently sees the same
-dashboard, still configured by the environment variables below) and
-dashboard sharing between users. Those land as their own follow-up work
-on top of this.
+This ships passkey registration and login gating the dashboard, an admin
+flag established at startup rather than by whoever registers first, and
+per-user GitHub/Forgejo tokens — every signed-in user configures their
+own forges from the Settings page and sees only their own dashboard. It
+does **not** yet ship #3's remaining pieces: dashboard sharing between
+users, and an admin UI for managing other users. Those land as their own
+follow-up work on top of this.
 
 ## Requirements
 
 - **Go 1.27 or newer**, to build.
 - **A passkey-capable browser** to sign in at all — any current Chrome,
   Safari, Firefox or Edge; a phone counts too. Nothing else to install.
-- **Somewhere writable for the auth database** (`DB_PATH`, default
+- **Somewhere writable for the database** (`DB_PATH`, default
   `/data/forge-dashboard.db`) that survives a restart — registered
-  passkeys and sessions live there. In Docker that means a mounted volume
-  at `/data`; see **Docker** below.
-- Credentials for at least one forge — see **Credentials** below for
-  exactly which permissions to grant. `GITHUB_*` and `FORGEJO_*` are
-  entirely independent and each optional on its own: run with just one
-  forge configured, or neither (an empty dashboard), if that's ever
-  useful for a smoke test.
+  passkeys, sessions, and every user's encrypted forge credentials live
+  there. In Docker that means a mounted volume at `/data`; see **Docker**
+  below.
+- **`ENCRYPTION_KEY`**, a base64-encoded 32-byte key the process refuses
+  to start without — see **Configuration** below for how to generate one.
+  It's what encrypts every user's forge tokens at rest; there's no
+  sensible default for a secret like this one.
+- Each signed-in user configures their own forge credentials from the
+  Settings page after registering — see **Credentials** below for exactly
+  which permissions to grant. Nothing forge-related needs setting before
+  the process starts.
 
 ## Authentication
 
@@ -82,66 +90,64 @@ afterward — see `internal/auth` and `api/openapi.yaml`'s `auth` tag.
 
 ## Credentials
 
-Each forge takes either a token (sees private repos too) or a bare
-username (public repos only, no credential at all) — never both
-purposes at once. A token always wins over a username if you set both.
+Set from the Settings page (`/settings.html`, linked from the dashboard
+header) once you're signed in — nothing forge-related is configured by
+the process itself. Each forge takes either a token (sees private repos
+too) or a bare username (public repos only, no credential at all) —
+never both purposes at once. A token always wins over a username if you
+set both, and leaving a token field blank on save keeps whatever was
+saved before, so updating your username doesn't mean re-pasting the
+token too.
 
 ### GitHub
 
-- **Token** (`GITHUB_TOKEN`): a personal access token with read access
-  to the repositories you want tracked.
+- **Token**: a personal access token with read access to the
+  repositories you want tracked.
   - Classic token: the `repo` scope.
   - Fine-grained token: **Contents**, **Issues**, **Pull requests**
     (Read-only), plus **Metadata** (Read-only, mandatory on every
     fine-grained token regardless).
-- **Username only** (`GITHUB_USERNAME`, `GITHUB_TOKEN` unset): shows
-  that account's public repositories, fully unauthenticated — the same
-  data anyone gets landing on `github.com/<username>?tab=repositories`.
-  Verified live against a real 105-public-repo account. Unauthenticated
-  GitHub API calls are capped at **60 requests/hour**, so this mode only
-  sees everything on an account small enough to fit that budget — a
-  token (5,000/hour) is what an account this size actually needs.
+- **Username only** (token left blank): shows that account's public
+  repositories, fully unauthenticated — the same data anyone gets
+  landing on `github.com/<username>?tab=repositories`. Verified live
+  against a real 105-public-repo account. Unauthenticated GitHub API
+  calls are capped at **60 requests/hour**, so this mode only sees
+  everything on an account small enough to fit that budget — a token
+  (5,000/hour) is what an account this size actually needs.
 
 ### Forgejo
 
-- **Token** (`FORGEJO_TOKEN`): `Settings → Applications → Generate New
-Token`, with **`read:repository`**, **`read:issue`**, and
-  **`read:user`** all checked. `read:user` is easy to miss — it isn't
-  obviously related to repos, but `GET /user/repos` (how repository
-  discovery works) refuses a token without it: confirmed live against a
-  real instance, `403 token does not have at least one of required
-scope(s): [read:user]`, before `read:user` was added to the token.
-- **Username only** (`FORGEJO_USERNAME`, `FORGEJO_TOKEN` unset): shows
+- **Token**: `Settings → Applications → Generate New Token`, with
+  **`read:repository`**, **`read:issue`**, and **`read:user`** all
+  checked. `read:user` is easy to miss — it isn't obviously related to
+  repos, but `GET /user/repos` (how repository discovery works) refuses
+  a token without it: confirmed live against a real instance, `403
+token does not have at least one of required scope(s): [read:user]`,
+  before `read:user` was added to the token.
+- **Username only** (token left blank, instance URL still set): shows
   that account's public repositories on the configured instance,
   unauthenticated — same trade-off as GitHub's username mode. Verified
   against a real Forgejo instance's `GET /users/<username>/repos`.
 
 ## Configuration
 
-Everything is environment variables — no config file:
+Everything the process itself needs is environment variables — no
+config file, and nothing forge-related, since that's per-user now (see
+**Credentials** above):
 
-| Variable           | Required | Default                    | Meaning                                                                                           |
-| ------------------ | -------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
-| `ADDR`             | no       | `:8080`                    | Listen address.                                                                                   |
-| `DB_PATH`          | no       | `/data/forge-dashboard.db` | Where the auth database (passkeys, sessions) lives. Needs to persist across restarts.             |
-| `RP_ID`            | no       | `localhost`                | The WebAuthn relying party ID — set to your real domain in any real deployment.                   |
-| `RP_ORIGIN`        | no       | `http://localhost:8080`    | The WebAuthn relying party origin — set to the real `https://` origin users reach this at.        |
-| `ADMIN_USERNAME`   | no       | —                          | The one username that becomes an admin on registration. Unset means nobody does.                  |
-| `GITHUB_TOKEN`     | no\*     | —                          | A GitHub personal access token. Every repo it can push to is tracked, private included.           |
-| `GITHUB_USERNAME`  | no\*     | —                          | Used only when `GITHUB_TOKEN` is unset — shows that account's **public** repos, unauthenticated.  |
-| `FORGEJO_URL`      | no\*     | —                          | Base URL of the Forgejo instance, for example `https://git.example.com`.                          |
-| `FORGEJO_TOKEN`    | no\*     | —                          | A Forgejo API token. Every repo it can push to is tracked, private included.                      |
-| `FORGEJO_USERNAME` | no\*     | —                          | Used only when `FORGEJO_URL` is set but `FORGEJO_TOKEN` isn't — that account's public repos only. |
-| `REFRESH_INTERVAL` | no       | `5m`                       | How often the backend re-polls both forges, as a Go duration (`2m30s`, `10m`).                    |
+| Variable           | Required | Default                    | Meaning                                                                                                  |
+| ------------------ | -------- | -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `ADDR`             | no       | `:8080`                    | Listen address.                                                                                          |
+| `DB_PATH`          | no       | `/data/forge-dashboard.db` | Where passkeys, sessions, and every user's encrypted forge credentials live.                             |
+| `RP_ID`            | no       | `localhost`                | The WebAuthn relying party ID — set to your real domain in any real deployment.                          |
+| `RP_ORIGIN`        | no       | `http://localhost:8080`    | The WebAuthn relying party origin — set to the real `https://` origin users reach this at.               |
+| `ADMIN_USERNAME`   | no       | —                          | The one username that becomes an admin on registration. Unset means nobody does.                         |
+| `ENCRYPTION_KEY`   | **yes**  | —                          | Base64-encoded 32-byte key for encrypting forge tokens at rest. Generate with `openssl rand -base64 32`. |
+| `REFRESH_INTERVAL` | no       | `5m`                       | How often the backend re-polls a signed-in user's forges, as a Go duration (`2m30s`, `10m`).             |
 
-\* Each forge is entirely optional, and GitHub and Forgejo don't depend on
-each other — configure one, both, or neither (the process still starts
-and serves an empty snapshot either way, rather than refusing to boot).
-Within a forge, its token wins over its username when both are set.
-
-Repository discovery is automatic. With a token, the dashboard lists
-every repository it has push access to (`GET /user/repos` on both APIs);
-with only a username, it lists that account's public repositories
+Repository discovery is automatic per user. With a token, the dashboard
+lists every repository it has push access to (`GET /user/repos` on both
+APIs); with only a username, it lists that account's public repositories
 (`GET /users/<username>/repos`, also both APIs) with no credential in
 play at all. Either way there's no per-repo allowlist to maintain.
 
@@ -151,19 +157,20 @@ play at all. Either way there's no per-repo allowlist to maintain.
 go build -o forge-dashboard ./cmd/forge-dashboard
 mkdir -p data
 DB_PATH=./data/forge-dashboard.db \
-  GITHUB_TOKEN=ghp_xxx FORGEJO_URL=https://git.example.com FORGEJO_TOKEN=xxx \
+  ENCRYPTION_KEY="$(openssl rand -base64 32)" \
   ./forge-dashboard
 ```
 
-Then open `http://localhost:8080` and register a passkey — `RP_ID`/
+Then open `http://localhost:8080`, register a passkey — `RP_ID`/
 `RP_ORIGIN` default to `localhost`/`http://localhost:8080`, which matches
-this local run with nothing extra to set.
+this local run with nothing extra to set — and add your GitHub/Forgejo
+credentials from the Settings page.
 
 ### Docker
 
-The `/data` directory the image ships is where the auth database goes —
-mount a volume there, or every passkey registered is gone the moment the
-container is recreated:
+The `/data` directory the image ships is where the database goes — mount
+a volume there, or every passkey and every saved credential is gone the
+moment the container is recreated:
 
 ```sh
 docker build -t forge-dashboard .
@@ -172,9 +179,13 @@ docker run --rm -p 8080:8080 \
   --memory=64m --cpus=0.5 \
   -v forge-dashboard-data:/data \
   -e RP_ID=localhost -e RP_ORIGIN=http://localhost:8080 -e ADMIN_USERNAME=you \
-  -e GITHUB_TOKEN=ghp_xxx -e FORGEJO_URL=https://git.example.com -e FORGEJO_TOKEN=xxx \
+  -e ENCRYPTION_KEY="$(openssl rand -base64 32)" \
   forge-dashboard
 ```
+
+Generate `ENCRYPTION_KEY` once and keep it — losing it makes every saved
+credential unrecoverable, and every user has to re-enter theirs from the
+Settings page.
 
 The published image is `ghcr.io/alrayyes/forge-dashboard`, built and
 pushed on every release by `.goreleaser.yml`'s `dockers:` block — tagged
@@ -196,10 +207,13 @@ here.
 
 ## API
 
-`api/openapi.yaml` is the contract: `GET /healthz` for liveness, and
-`GET /api/dashboard` for the aggregated snapshot the frontend renders.
-`redocly lint` validates it; nothing yet asserts the handlers still match
-it (see [CONTRIBUTING.md](CONTRIBUTING.md#how-it-fits-together)).
+`api/openapi.yaml` is the contract: `GET /healthz` for liveness,
+`GET /api/dashboard` for the signed-in user's aggregated snapshot, and
+`GET`/`PUT /api/settings` for that user's own GitHub/Forgejo
+configuration — the `PUT` response never echoes a token back, only
+whether one is now set. `redocly lint` validates it; nothing yet asserts
+the handlers still match it (see
+[CONTRIBUTING.md](CONTRIBUTING.md#how-it-fits-together)).
 
 ## Contributing
 

@@ -57,7 +57,11 @@
       "Traefik",
       "ghcr.io",
       "Playwright",
-      "axe-core"
+      "axe-core",
+      "goroutine",
+      "goroutines",
+      "plaintext",
+      "ENCRYPTION_KEY"
     ]
   },
   "ltex.disabledRules": {

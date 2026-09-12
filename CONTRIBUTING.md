@@ -61,9 +61,10 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
 - `api/openapi.yaml` is the contract — handwritten and reviewed as the
   design — see `internal/api`'s handlers for what implements it.
 - `internal/dashboard` is the domain: the `PullRequest`/`Issue`/`Snapshot`
-  model, the `Source`/`ForgeClient` interfaces, and the `Aggregator` that
-  refreshes a snapshot in the background so a request never blocks on
-  either forge.
+  model, the `Source`/`ForgeClient` interfaces, the `Aggregator` that
+  refreshes one user's snapshot in the background so a request never
+  blocks on either forge, and the `Manager` that owns one `Aggregator`
+  (and its refresh goroutine) per signed-in user.
 - `internal/github` and `internal/forgejo` are the two adapters — thin,
   handwritten REST clients, each wrapped in a `dashboard.GenericSource`
   rather than duplicating the concurrency/error-handling logic per forge.
@@ -71,13 +72,21 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
   `Store` persists users/credentials/sessions to SQLite, `Service` drives
   the WebAuthn ceremonies against `Store`, and `RequireAuth` is the
   middleware that gates a handler on a valid session.
+- `internal/settings` is each user's own GitHub/Forgejo configuration —
+  `Cipher` is AES-256-GCM encryption keyed off `ENCRYPTION_KEY`, and
+  `Store` persists it to SQLite with the tokens encrypted, never in
+  plaintext.
 - `internal/api/static` is the frontend: plain HTML/CSS/JS, embedded into
   the binary with `//go:embed`. No build step, no framework — see the
   README for why. `login.html`/`login.js` are the one page that stays
-  reachable without a session.
+  reachable without a session; `settings.html`/`settings.js` is where a
+  signed-in user sets their own tokens.
 - `cmd/forge-dashboard` is the composition root: reads environment
-  variables, wires the configured sources and the auth service, starts
-  the background refresh, and serves the API and static files.
+  variables, wires the auth service, the settings store and the
+  dashboard manager, and serves the API and static files. A session's
+  own `AppContext` (not the request's — see `internal/api.Deps`'s own
+  comment) roots each user's background refresh goroutine so it outlives
+  the HTTP request that started it.
 
 ## Commit messages
 
