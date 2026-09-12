@@ -4,4 +4,5 @@
 *.jpg binary
 *.ico binary
 go.sum -diff linguist-generated
+bun.lock -diff
 *.sh text eol=lf

@@ -1,0 +1,84 @@
+version: 2
+
+project_name: forge-dashboard
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: forge-dashboard
+    main: ./cmd/forge-dashboard
+    binary: forge-dashboard
+    env:
+      - CGO_ENABLED=0
+    # Linux only, unlike a CLI scaffold's wider matrix: this is a deployed
+    # service, meant to run in a container on a server, not on someone's own
+    # machine.
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    # The version the binary reports comes from the tag, so a running
+    # container can be asked what it is without going back to CI to look it
+    # up.
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: forge-dashboard
+    ids: [forge-dashboard]
+    formats: [tar.gz]
+    name_template: "forge-dashboard_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+# Two per-arch images, joined into one multi-arch manifest below - built
+# from Dockerfile.release, which only COPYs the binary this same goreleaser
+# run already cross-compiled (go-releases.md's "the Dockerfile's job is to
+# COPY, not to build" - the arm64 variant only has to copy a file under QEMU
+# emulation, not run `go build` under it). Dockerfile (source build) is what
+# a contributor's local `docker build .` still uses.
+dockers:
+  - image_templates:
+      - "ghcr.io/alrayyes/forge-dashboard:{{ .Version }}-amd64"
+    use: buildx
+    dockerfile: Dockerfile.release
+    ids: [forge-dashboard]
+    goarch: amd64
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.source={{ .GitURL }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+  - image_templates:
+      - "ghcr.io/alrayyes/forge-dashboard:{{ .Version }}-arm64"
+    use: buildx
+    dockerfile: Dockerfile.release
+    ids: [forge-dashboard]
+    goarch: arm64
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.source={{ .GitURL }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+
+docker_manifests:
+  - name_template: "ghcr.io/alrayyes/forge-dashboard:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/alrayyes/forge-dashboard:{{ .Version }}-amd64"
+      - "ghcr.io/alrayyes/forge-dashboard:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/alrayyes/forge-dashboard:latest"
+    image_templates:
+      - "ghcr.io/alrayyes/forge-dashboard:{{ .Version }}-amd64"
+      - "ghcr.io/alrayyes/forge-dashboard:{{ .Version }}-arm64"
+
+# release-please already wrote the notes, curated from the same commits, and
+# created the release carrying them. A second shortlog generated here would
+# put them on twice, and `release.mode: replace` would throw the curated copy
+# away — so the changelog is off and `release.mode` stays at its default,
+# keep-existing. goreleaser is only hanging binaries on a release that exists.
+changelog:
+  disable: true

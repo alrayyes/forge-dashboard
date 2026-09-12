@@ -1,0 +1,41 @@
+# release-please has no built-in auto-merge either — same gap as
+# Dependabot, same fix: gate on the label release-please itself applies,
+# wait for the same checks every other pull request waits for, then arm
+# auto-merge the same way a human would from the UI.
+#
+# pull_request, not pull_request_target: release-please's pull request
+# comes from a branch on this repo, never a fork, so there's no untrusted
+# checkout to guard against.
+name: release-auto-merge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# A second push to the same pull request makes the first run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    # release-please labels its own pull request "autorelease: pending"
+    # and re-labels it "autorelease: tagged" once merged — checking the
+    # label rather than the actor, since the PR is opened by whichever
+    # identity runs googleapis/release-please-action, not a bot account.
+    if: "contains(github.event.pull_request.labels.*.name, 'autorelease: pending')"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # RELEASE_TOKEN, not the default GITHUB_TOKEN: GitHub suppresses the
+      # push event a GITHUB_TOKEN-performed merge produces (to stop
+      # recursive runs), which would otherwise leave this repo's own
+      # release workflow's `push` trigger never firing after an
+      # auto-merged release PR lands on main.
+      - name: Enable auto-merge
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}

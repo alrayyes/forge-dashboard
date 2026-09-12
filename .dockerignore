@@ -1,0 +1,12 @@
+# Everything the Go build doesn't need. Without this the build context pulled
+# in node_modules and Vale's style packages — tens of megabytes docker has to
+# hash and send to the daemon before the first instruction even runs.
+.git/
+.github/
+node_modules/
+.bun-cache/
+styles/Google/
+styles/proselint/
+dist/
+coverage.out
+*.md

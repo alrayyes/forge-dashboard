@@ -1,0 +1,6 @@
+# hadolint catches an unpinned base image, a RUN that quietly does nothing,
+# the mechanics a Dockerfile review would otherwise have to check by eye.
+# Nothing ignored yet — the Dockerfile is small and clean; add a rule here
+# with a reason if that changes, rather than scattering
+# `# hadolint ignore=` comments through it.
+failure-threshold: warning

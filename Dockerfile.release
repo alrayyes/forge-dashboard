@@ -1,0 +1,18 @@
+# goreleaser's own dockers: block only, never built by hand. goreleaser has
+# already cross-compiled the binary for this platform before this ever runs,
+# so there's nothing left to compile here - the arm64 variant only has to
+# copy a file under QEMU emulation, not run `go build` under it (5-20x
+# slower than the native cross-compile goreleaser already did). See
+# Dockerfile for the from-source build a contributor runs locally - the two
+# intentionally diverge past this point.
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+
+COPY forge-dashboard /forge-dashboard
+
+# The :nonroot base image variant already sets the user, so this is explicit
+# rather than load-bearing.
+USER nonroot:nonroot
+
+EXPOSE 8080
+
+ENTRYPOINT ["/forge-dashboard"]

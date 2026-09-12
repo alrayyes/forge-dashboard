@@ -1,0 +1,51 @@
+# commitlint checks individual commit messages inside a pull request; it
+# never sees the pull request title. On a squash merge, GitHub defaults the
+# squash commit message to that title — so a title reading "fixed stuff"
+# squashes straight past commitlint and lands exactly that on main, and
+# release-please reads that landed message to decide the next version.
+#
+# pull_request_target, not pull_request: this needs base-repo permissions to
+# comment/check a pull request opened from a fork, which pull_request alone
+# doesn't get.
+name: pr-title
+
+on:
+  pull_request_target:
+    types: [opened, reopened, edited, synchronize]
+
+permissions:
+  pull-requests: read
+  statuses: write
+
+# A second push to the same pull request makes the first run pointless.
+# github.ref, not the pattern the other two use: on pull_request_target
+# it resolves to the base branch, the same for every pull request, so
+# grouping on it would let one pull request's push cancel an unrelated
+# pull request's check.
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Mirrors @commitlint/config-conventional's type-enum list, so the
+          # two checks agree on what's a valid type.
+          types: |
+            build
+            chore
+            ci
+            docs
+            feat
+            fix
+            perf
+            refactor
+            revert
+            style
+            test

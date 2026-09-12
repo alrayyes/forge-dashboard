@@ -1,0 +1,19 @@
+# Prettier is here to fill Biome's gaps, which this repo doesn't otherwise use
+# — today that means Markdown and YAML. Everything below is either somebody
+# else's file or a format Prettier has no business reformatting.
+node_modules/
+.bun-cache/
+dist/
+bun.lock
+go.sum
+
+# Written by the release job, not by hand.
+CHANGELOG.md
+
+# Vale's downloaded style packages.
+styles/Google/
+styles/proselint/
+
+# `openspec init`'s generated skill/command docs — somebody else's docs,
+# held to somebody else's rules.
+.claude/

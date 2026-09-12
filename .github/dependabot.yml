@@ -1,0 +1,85 @@
+# Runs even though nothing deploys from this repo: a dependency bump that
+# needs a config change on our side - a new default, a breaking flag, a
+# moved setting - surfaces here, on the template, instead of on day one of
+# the first real project cloned from it. Costs nothing to leave on either:
+# public repos get unlimited GitHub Actions minutes, so there's no metering
+# concern the way a private repo would have.
+#
+# Dependabot raises the pull request; CI decides whether it lands. Everything
+# here is pinned to an exact version, which is the whole reason this works —
+# a floating range drifts silently and there's nothing to raise a pull
+# request about.
+#
+# Two pins Dependabot can't see, and which are updated by hand: the base
+# images in the Dockerfile (golang, distroless) and the hadolint image
+# digest in lefthook.yml/ci.yml. All three are digest-pinned and none of them
+# live anywhere Dependabot's ecosystems look.
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Amsterdam
+    open-pull-requests-limit: 10
+    commit-message:
+      # Conventional Commits, because commitlint checks these messages and
+      # the version number is computed from them. gomod ships in the built
+      # binary, so a bump here is a change to what ships whether or not it's
+      # security-relevant, and fix: cuts the patch release the same way any
+      # other fix does. github-actions below stays ci: — it changes the
+      # pipeline, not the artifact.
+      prefix: fix
+      include: scope
+    groups:
+      go-dependencies:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      # Grouping (even a group of one) keeps a major bump on Dependabot's
+      # lowercase group-title template instead of falling back to its
+      # sentence-case single-update one, which fails commitlint's
+      # subject-case rule on the raw commit - see rules/releases.md.
+      go-dependencies-major:
+        patterns: ["*"]
+        update-types: [major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Amsterdam
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      actions-major:
+        patterns: ["*"]
+        update-types: [major]
+
+  # Nothing here is JavaScript. package.json exists so commitlint can
+  # resolve the shared config it extends, which bunx alone cannot do.
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Amsterdam
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      tooling:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      tooling-major:
+        patterns: ["*"]
+        update-types: [major]

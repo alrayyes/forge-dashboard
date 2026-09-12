@@ -1,0 +1,140 @@
+# The same commands CI runs, so the two cannot drift. The hook catches it
+# early; CI is the gate that cannot be skipped.
+#
+# Grows a job here the same PR that adds the tool it runs — a linter with no
+# hook is a linter you only meet at CI.
+
+# pre-commit may write. Let every fixer run and restage what it touched — a
+# commit should not fail over a quote style a tool can settle by itself.
+pre-commit:
+  jobs:
+    # Runs inside the pinned golang image rather than the host binary, so
+    # the version doing the work is go.mod's own `go` directive, not
+    # whatever the host package manager currently has — rules/go-mod.md.
+    - name: gofmt
+      glob: "*.go"
+      run: scripts/go-docker.sh gofmt -w {staged_files}
+      stage_fixed: true
+
+    - name: golangci-lint
+      glob: "*.go"
+      run: scripts/golangci-lint-docker.sh golangci-lint run ./...
+
+    # go mod edit -fmt is the canonicalizer for go.mod itself: a builtin `go`
+    # subcommand, not gofmt (which never touches go.mod) and not `go mod tidy`
+    # (which does network resolution a formatting-only hook shouldn't be
+    # doing).
+    - name: gomod
+      glob: "go.mod"
+      run: scripts/go-docker.sh go mod edit -fmt go.mod
+      stage_fixed: true
+
+    # Prettier decides the layout, markdownlint then judges what Prettier
+    # produced. The other order has markdownlint fixing something Prettier is
+    # about to overwrite.
+    - name: prettier
+      glob: "*.{md,yml,yaml}"
+      run: bunx prettier --write {staged_files}
+      stage_fixed: true
+
+    - name: markdownlint
+      glob: "*.md"
+      run: bunx markdownlint-cli2 {staged_files}
+
+    # Fast enough for a commit. LTeX is not — around ten seconds a file — so
+    # mechanics run at push instead, where the wait is paid once rather than
+    # per commit.
+    - name: vale
+      glob: "*.md"
+      exclude:
+        - "CHANGELOG.md"
+        - ".claude/**"
+      run: vale {staged_files}
+
+    # Reads only, so it changes nothing to restage. Invoked bare rather than
+    # on {staged_files}: what gets linted is the `apis` list in redocly.yaml,
+    # and naming a path here is how the hook and CI end up checking different
+    # files. The glob only decides whether it's worth running at all.
+    - name: redocly
+      glob:
+        - "api/*.yaml"
+        - "api/*.yml"
+        - "api/**/*.yaml"
+        - "api/**/*.yml"
+        - "redocly.yaml"
+      run: bunx redocly lint
+
+    # Pinned by digest rather than `latest`, like any other container image —
+    # dependencies.md's rule applies to an image named in a hook command just
+    # as much as one named in a Dockerfile itself. Both Dockerfiles at once,
+    # mounted rather than piped over stdin, since stdin only ever carries one
+    # file.
+    - name: hadolint
+      glob:
+        - "Dockerfile"
+        - "Dockerfile.release"
+      run: >-
+        docker run --rm -v "$(pwd):/work" -w /work
+        hadolint/hadolint@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
+        /bin/hadolint Dockerfile Dockerfile.release
+
+commit-msg:
+  jobs:
+    # Resolved from node_modules rather than fetched by bunx: commitlint has to
+    # load the config its own config extends, and bunx cannot resolve a sibling
+    # package for it. Run `bun install` if this cannot find itself.
+    - name: commitlint
+      run: bunx commitlint --edit {1}
+
+# pre-push never writes. A hook rewriting files under a push leaves the pushed
+# commit and the working tree disagreeing about what was reviewed.
+#
+# Parallel because of that: nothing here touches a file, so no job can be
+# reading what another is rewriting.
+pre-push:
+  parallel: true
+  jobs:
+    - name: test
+      run: scripts/go-docker.sh go test ./...
+
+    # dependencies.md: pinning a version says nothing about whether it has a
+    # known CVE. Separate from the update bots that raise a pull request
+    # when one's pinned — this is what actually notices.
+    - name: govulncheck
+      run: scripts/go-docker.sh go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
+    # No check-only flag on `go mod edit -fmt`, so the gate is running it
+    # again and diffing. A no-op on a go.mod pre-commit already canonicalized;
+    # only fails if that got bypassed.
+    - name: gomod
+      run: scripts/go-docker.sh go mod edit -fmt go.mod && git diff --exit-code go.mod
+
+    # These are `package.json` scripts rather than the commands spelled out,
+    # because CI runs the same ones and a literal copied into two files drifts
+    # the first time somebody edits one of them.
+    - name: prettier
+      run: bun run format:check
+
+    - name: markdownlint
+      run: bun run lint:md
+
+    # Every other linter here runs at commit, at push and in CI. Vale ran at
+    # commit and then nothing until CI, because its invocation lived in the
+    # workflow as a block of bash with nothing a hook could reuse. It is a
+    # script now, and this is the whole-tree run that was missing.
+    - name: vale
+      run: bun run lint:prose
+
+    # Grammar and spelling. Left out of pre-commit on the grounds that it is a
+    # ~300 MB download, which it is — but it caches outside the repository and
+    # then costs about ten seconds.
+    - name: mechanics
+      run: bun run lint:mechanics
+
+    - name: redocly
+      run: bun run lint:api
+
+    # Proves the image still builds before anyone pushes, without publishing
+    # anything.
+    - name: docker-build
+      run: docker build -t forge-dashboard:pre-push-check .
