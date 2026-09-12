@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/alrayyes/forge-dashboard/compare/v0.7.0...v0.7.1) (2026-09-12)
+
+
+### Bug Fixes
+
+* let a username reclaim an abandoned registration ([#11](https://github.com/alrayyes/forge-dashboard/issues/11)) ([880b702](https://github.com/alrayyes/forge-dashboard/commit/880b702280e19ee403122ff4ea1b84753fcece65))
+
 ## [0.7.0](https://github.com/alrayyes/forge-dashboard/compare/v0.6.0...v0.7.0) (2026-09-12)
 
 
