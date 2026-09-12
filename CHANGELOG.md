@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/alrayyes/forge-dashboard/compare/v0.7.1...v0.8.0) (2026-09-12)
+
+
+### Features
+
+* per-user GitHub/Forgejo tokens ([#12](https://github.com/alrayyes/forge-dashboard/issues/12)) ([af6bdef](https://github.com/alrayyes/forge-dashboard/commit/af6bdef0ef4930d117543f9d24870cf587de72f6))
+
 ## [0.7.1](https://github.com/alrayyes/forge-dashboard/compare/v0.7.0...v0.7.1) (2026-09-12)
 
 
