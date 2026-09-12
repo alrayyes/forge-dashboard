@@ -178,6 +178,12 @@ jobs:
           GITHUB_TOKEN: ""
           FORGEJO_URL: ""
           FORGEJO_TOKEN: ""
+          # A plain runner, not the distroless image's /data volume — kept
+          # inside the workspace so it's cleaned up with everything else.
+          DB_PATH: "./tmp-e2e-data/forge-dashboard.db"
+          RP_ID: "localhost"
+          RP_ORIGIN: "http://localhost:8080"
+          ADMIN_USERNAME: "admin"
         run: |
           ./forge-dashboard &
           echo $! > server.pid
