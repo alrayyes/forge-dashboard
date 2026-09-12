@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/alrayyes/forge-dashboard/compare/v0.5.0...v0.6.0) (2026-09-12)
+
+
+### Features
+
+* **forgejo:** support a token-free public-repos fallback ([#6](https://github.com/alrayyes/forge-dashboard/issues/6)) ([54fd0d6](https://github.com/alrayyes/forge-dashboard/commit/54fd0d6b47f7af38a4b795f6670cfc2db0a15a20))
+
+
+### Bug Fixes
+
+* **deps:** bump github.com/moby/go-archive from 0.2.0 to 0.3.0 ([#5](https://github.com/alrayyes/forge-dashboard/issues/5)) ([aa91711](https://github.com/alrayyes/forge-dashboard/commit/aa917112c50eb4a1ff83ba02ac7edb8265272774))
+
 ## [0.5.0](https://github.com/alrayyes/forge-dashboard/compare/v0.4.2...v0.5.0) (2026-09-12)
 
 
