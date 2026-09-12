@@ -30,23 +30,47 @@ acceptance criteria this v1 was built against.
 ## Requirements
 
 - **Go 1.27 or newer**, to build.
-- A **GitHub personal access token** with read access to the repositories
-  you want tracked (`repo` scope covers private repos; a fine-grained
-  token needs Contents/Issues/Pull requests/Metadata read access) — or,
-  with no token at all, a **GitHub username** to show that account's
-  public repositories only (no credential involved; the same data
-  anyone gets landing on `github.com/<username>?tab=repositories`).
-  Verified live against a real 105-public-repo account; be aware
-  unauthenticated GitHub API calls are capped at 60/hour, so this mode
-  only sees everything on an account small enough to fit that budget —
-  a token (5,000/hour) is what an account this size actually needs.
-- A **Forgejo instance URL, plus either an API token** (`Settings →
-Applications → Generate New Token`, scoped to `read:repository` and
-  `read:issue`) **or a username** for that instance's public-repos-only
-  fallback, same trade-off as GitHub's. Both `GITHUB_*` and `FORGEJO_*`
-  are entirely independent and each optional on its own — run with just
-  one forge configured, or neither (an empty dashboard) if that's ever
+- Credentials for at least one forge — see **Credentials** below for
+  exactly which permissions to grant. `GITHUB_*` and `FORGEJO_*` are
+  entirely independent and each optional on its own: run with just one
+  forge configured, or neither (an empty dashboard), if that's ever
   useful for a smoke test.
+
+## Credentials
+
+Each forge takes either a token (sees private repos too) or a bare
+username (public repos only, no credential at all) — never both
+purposes at once. A token always wins over a username if you set both.
+
+### GitHub
+
+- **Token** (`GITHUB_TOKEN`): a personal access token with read access
+  to the repositories you want tracked.
+  - Classic token: the `repo` scope.
+  - Fine-grained token: **Contents**, **Issues**, **Pull requests**
+    (Read-only), plus **Metadata** (Read-only, mandatory on every
+    fine-grained token regardless).
+- **Username only** (`GITHUB_USERNAME`, `GITHUB_TOKEN` unset): shows
+  that account's public repositories, fully unauthenticated — the same
+  data anyone gets landing on `github.com/<username>?tab=repositories`.
+  Verified live against a real 105-public-repo account. Unauthenticated
+  GitHub API calls are capped at **60 requests/hour**, so this mode only
+  sees everything on an account small enough to fit that budget — a
+  token (5,000/hour) is what an account this size actually needs.
+
+### Forgejo
+
+- **Token** (`FORGEJO_TOKEN`): `Settings → Applications → Generate New
+Token`, with **`read:repository`**, **`read:issue`**, and
+  **`read:user`** all checked. `read:user` is easy to miss — it isn't
+  obviously related to repos, but `GET /user/repos` (how repository
+  discovery works) refuses a token without it: confirmed live against a
+  real instance, `403 token does not have at least one of required
+scope(s): [read:user]`, before `read:user` was added to the token.
+- **Username only** (`FORGEJO_USERNAME`, `FORGEJO_TOKEN` unset): shows
+  that account's public repositories on the configured instance,
+  unauthenticated — same trade-off as GitHub's username mode. Verified
+  against a real Forgejo instance's `GET /users/<username>/repos`.
 
 ## Configuration
 
