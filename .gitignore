@@ -13,6 +13,12 @@ node_modules/
 /test-results/
 /playwright-report/
 
+# The auth database a local or CI run writes to — never committed, and the
+# default path (/data/forge-dashboard.db) is outside the repo anyway; this
+# only catches a run that pointed DB_PATH inside it.
+/data/
+/tmp-e2e-data/
+
 # Written by the release job, not by hand.
 CHANGELOG.md
 

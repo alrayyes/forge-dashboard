@@ -7,18 +7,23 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/api"
+	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/go-webauthn/webauthn/webauthn"
+	_ "modernc.org/sqlite"
 )
 
 // version is stamped in at build time by goreleaser, from the tag. "dev" is
@@ -48,9 +53,15 @@ func main() {
 
 	go agg.Run(ctx, refreshInterval)
 
+	authService, authStore, err := buildAuth(ctx)
+	if err != nil {
+		slog.Error("auth setup failed", "error", err)
+		os.Exit(1)
+	}
+
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           api.NewMux(agg.Get),
+		Handler:           api.NewMux(agg.Get, authService, authStore),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -108,6 +119,49 @@ func buildSources() []dashboard.Source {
 	}
 
 	return sources
+}
+
+// buildAuth opens (creating if needed) the SQLite database passkey
+// registration, login and sessions persist to, and wires up the WebAuthn
+// relying party from the environment. RP_ID and RP_ORIGIN default to a
+// plain local dev run; a real deployment behind a real domain has to set
+// both, or every registered passkey will be scoped to "localhost" and
+// refuse to work there.
+func buildAuth(ctx context.Context) (*auth.Service, *auth.Store, error) {
+	dbPath := envOr("DB_PATH", "/data/forge-dashboard.db")
+	if dir := filepath.Dir(dbPath); dir != "." {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	store := auth.NewStore(db)
+	if err := store.Init(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	rpID := envOr("RP_ID", "localhost")
+	rpOrigin := envOr("RP_ORIGIN", "http://localhost:8080")
+	wa, err := webauthn.New(&webauthn.Config{
+		RPID:          rpID,
+		RPDisplayName: "Forge Board",
+		RPOrigins:     []string{rpOrigin},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	adminUsername := os.Getenv("ADMIN_USERNAME")
+	if adminUsername == "" {
+		slog.Warn("ADMIN_USERNAME not set — nobody will be able to register as an admin")
+	}
+
+	return auth.NewService(wa, store, adminUsername), store, nil
 }
 
 func envOr(key, fallback string) string {

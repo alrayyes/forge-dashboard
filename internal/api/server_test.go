@@ -2,8 +2,8 @@ package api_test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -13,20 +13,54 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func readJSON(resp *http.Response, v any) error {
+	defer func() { _ = resp.Body.Close() }()
+	return json.NewDecoder(resp.Body).Decode(v)
+}
+
 func TestHealthz_AnswersOK(t *testing.T) {
 	t.Parallel()
 
-	mux := api.NewMux(func() dashboard.Snapshot { return dashboard.Snapshot{} })
+	srv := newTestServer(t)
+	resp, err := http.Get(srv.URL + "/healthz")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
-	mux.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var body api.Health
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.NoError(t, readJSON(resp, &body))
 	assert.Equal(t, "ok", body.Status)
+}
+
+func TestDashboard_RequiresASession(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	resp, err := http.Get(srv.URL + "/api/dashboard")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestDashboard_WithASession_SerializesEmptyArraysNotNull(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), "null", "before any refresh, arrays should still be empty, not null")
 }
 
 func TestDashboard_ReturnsWhateverTheSnapshotFuncCurrentlyHolds(t *testing.T) {
@@ -38,29 +72,19 @@ func TestDashboard_ReturnsWhateverTheSnapshotFuncCurrentlyHolds(t *testing.T) {
 		PullRequests: []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1}},
 		Issues:       []dashboard.Issue{},
 	}
-	mux := api.NewMux(func() dashboard.Snapshot { return want })
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
-	mux.ServeHTTP(rec, req)
+	srv := newTestServerWithSnapshot(t, func() dashboard.Snapshot { return want })
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
-	require.Equal(t, http.StatusOK, rec.Code)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 	var got dashboard.Snapshot
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.NoError(t, readJSON(resp, &got))
 	assert.Equal(t, want, got)
-}
-
-func TestDashboard_BeforeFirstRefresh_SerializesEmptyArraysNotNull(t *testing.T) {
-	t.Parallel()
-
-	agg := dashboard.NewAggregator(nil)
-	mux := api.NewMux(agg.Get)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
-	mux.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	assert.NotContains(t, rec.Body.String(), "null", "before any refresh, arrays should still be empty, not null")
 }

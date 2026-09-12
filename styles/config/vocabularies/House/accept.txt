@@ -61,3 +61,13 @@ Playwright
 axe-core
 IBM
 Plex
+middleware
+passwordless
+iCloud
+[Aa]dmin
+WebAuthn
+webauthn\.io
+[Pp]asskeys?
+relying
+ceremonies
+[Ss]ign-in

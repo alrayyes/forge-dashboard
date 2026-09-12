@@ -48,6 +48,8 @@
       "toolchains",
       "unexported",
       "testcontainers-go",
+      "WebAuthn",
+      "writable",
       "tailnet",
       "homelab",
       "homelab's",
@@ -73,7 +75,8 @@
       "COMMA_COMPOUND_SENTENCE",
       "COMMA_COMPOUND_SENTENCE_2",
       "OXFORD_SPELLING_Z_NOT_S",
-      "PCT_SINGULAR_NOUN_PLURAL_VERB_AGREEMENT"
+      "PCT_SINGULAR_NOUN_PLURAL_VERB_AGREEMENT",
+      "RELY_ON"
     ]
   }
 }
