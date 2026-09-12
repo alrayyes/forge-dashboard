@@ -1,0 +1,17 @@
+# What this scaffold builds, not what an editor or OS drops beside it —
+# those live in ~/.config/git/gitignore_global, not here.
+
+/scaffold-go-api
+/dist
+coverage.out
+junit.xml
+
+node_modules/
+.bun-cache/
+
+# Written by the release job, not by hand.
+CHANGELOG.md
+
+# Vale's style packages, downloaded by `vale sync`.
+/styles/Google/
+/styles/proselint/
