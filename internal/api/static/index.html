@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge Board</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <circle cx="6" cy="6" r="2.4" stroke="#eef1f6" stroke-width="1.6"/>
+          <circle cx="6" cy="18" r="2.4" stroke="#eef1f6" stroke-width="1.6"/>
+          <circle cx="18" cy="12" r="2.4" stroke="#eef1f6" stroke-width="1.6"/>
+          <path d="M6 8.4V15.6" stroke="#eef1f6" stroke-width="1.6"/>
+          <path d="M8.2 7.2 15.8 10.8" stroke="#eef1f6" stroke-width="1.6"/>
+          <path d="M8.2 16.8 15.8 13.2" stroke="#eef1f6" stroke-width="1.6"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Forge Board</h1>
+        <p id="forge-names"><span class="mono">&hellip;</span></p>
+      </div>
+    </div>
+    <div class="header-status">
+      <div id="forge-health" aria-live="polite"></div>
+      <span class="refreshed">Refreshed <span class="mono" id="refreshed-at">&mdash;</span></span>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" aria-pressed="false">
+        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12H5M19 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>
+        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.2A8.5 8.5 0 1 1 9.8 4a6.7 6.7 0 0 0 10.2 10.2Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="n" id="stat-prs">&ndash;</div><div class="label">Open pull requests</div></div>
+    <div class="stat"><div class="n" id="stat-issues">&ndash;</div><div class="label">Open issues</div></div>
+    <div class="stat critical"><div class="n" id="stat-failing">&ndash;</div><div class="label">CI failing</div></div>
+    <div class="stat"><div class="n" id="stat-repos">&ndash;</div><div class="label">Repos tracked</div></div>
+  </div>
+
+  <section class="board" aria-label="Open pull requests">
+    <div class="board-head">
+      <h2>Pull requests</h2>
+      <span class="count" id="pr-count">&ndash;</span>
+    </div>
+
+    <div class="row filter-row" role="search" aria-label="Filter pull requests by column">
+      <input class="col-filter" data-col="repo" type="text" placeholder="Repo" aria-label="Filter by repo">
+      <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title">
+      <input class="col-filter" data-col="author" type="text" placeholder="Author" aria-label="Filter by author">
+      <select class="col-filter" data-col="created" aria-label="Filter by created">
+        <option value="">Created</option>
+        <option value="60">&lt; 1 hour</option>
+        <option value="1440">&lt; 24 hours</option>
+        <option value="10080">&lt; 7 days</option>
+        <option value="43200">&lt; 30 days</option>
+      </select>
+      <select class="col-filter" data-col="updated" aria-label="Filter by updated">
+        <option value="">Updated</option>
+        <option value="60">&lt; 1 hour</option>
+        <option value="1440">&lt; 24 hours</option>
+        <option value="10080">&lt; 7 days</option>
+        <option value="43200">&lt; 30 days</option>
+      </select>
+      <select class="col-filter" data-col="status" aria-label="Filter by CI status">
+        <option value="">CI status</option>
+        <option value="success">Passing</option>
+        <option value="failure">Failing</option>
+        <option value="pending">Running</option>
+        <option value="none">No checks</option>
+      </select>
+      <div class="empty-cell"></div>
+    </div>
+
+    <div id="pr-rows"></div>
+    <p class="empty-state" id="pr-empty" hidden>No open pull requests.</p>
+    <p class="no-results" id="pr-no-results" hidden>No pull requests match these filters.</p>
+  </section>
+
+  <section class="board" aria-label="Open issues">
+    <div class="board-head">
+      <h2>Issues</h2>
+      <span class="count" id="issue-count">&ndash;</span>
+    </div>
+
+    <div class="row filter-row" role="search" aria-label="Filter issues by column">
+      <input class="col-filter" data-col="repo" type="text" placeholder="Repo" aria-label="Filter by repo">
+      <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title">
+      <input class="col-filter" data-col="author" type="text" placeholder="Author" aria-label="Filter by author">
+      <select class="col-filter" data-col="created" aria-label="Filter by created">
+        <option value="">Created</option>
+        <option value="60">&lt; 1 hour</option>
+        <option value="1440">&lt; 24 hours</option>
+        <option value="10080">&lt; 7 days</option>
+        <option value="43200">&lt; 30 days</option>
+      </select>
+      <select class="col-filter" data-col="updated" aria-label="Filter by updated">
+        <option value="">Updated</option>
+        <option value="60">&lt; 1 hour</option>
+        <option value="1440">&lt; 24 hours</option>
+        <option value="10080">&lt; 7 days</option>
+        <option value="43200">&lt; 30 days</option>
+      </select>
+      <div class="empty-cell"></div>
+      <div class="empty-cell"></div>
+    </div>
+
+    <div id="issue-rows"></div>
+    <p class="empty-state" id="issue-empty" hidden>No open issues.</p>
+    <p class="no-results" id="issue-no-results" hidden>No issues match these filters.</p>
+  </section>
+
+  <footer>
+    Read-only mirror of both forges &middot; credentials never leave <span class="mono">forge-dashboard</span>'s backend
+  </footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

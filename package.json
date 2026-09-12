@@ -1,15 +1,18 @@
 {
   "name": "forge-dashboard-tooling",
   "private": true,
-  "description": "Not a JavaScript project. This exists so commitlint can resolve the shared config it extends, and so Prettier, markdownlint and Redocly are pinned like everything else.",
+  "description": "Not a JavaScript project. This exists so commitlint can resolve the shared config it extends, so Prettier, markdownlint, Redocly and Playwright are pinned like everything else, and to run the accessibility journey test against the built binary.",
   "packageManager": "bun@1.4.0",
   "devDependencies": {
+    "@axe-core/playwright": "4.11.2",
     "@commitlint/cli": "21.2.2",
     "@commitlint/config-conventional": "21.2.2",
+    "@playwright/test": "1.56.0",
     "@redocly/cli": "2.51.2",
     "lefthook": "2.1.12",
     "markdownlint-cli2": "0.23.2",
-    "prettier": "3.9.6"
+    "prettier": "3.9.6",
+    "wait-on": "9.0.1"
   },
   "trustedDependencies": ["lefthook"],
   "scripts": {
@@ -18,6 +21,7 @@
     "lint:md": "markdownlint-cli2",
     "lint:api": "redocly lint",
     "lint:prose": "./scripts/lint-prose.sh",
-    "lint:mechanics": "./scripts/lint-mechanics.sh"
+    "lint:mechanics": "./scripts/lint-mechanics.sh",
+    "test:e2e": "playwright test"
   }
 }
