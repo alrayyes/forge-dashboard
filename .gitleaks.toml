@@ -3,10 +3,18 @@
 # This extends the ruleset that ships with the pinned gitleaks version rather
 # than replacing it, so new upstream rules arrive with the version bump instead
 # of having to be copied in by hand.
-#
-# Nothing is allowlisted yet. A repo stamped from this template that finds it
-# needs one adds it here rather than reaching for an ignore comment — see
-# Ryankes.eu/main's .gitleaks.toml for the shape a real allowlist takes.
 
 [extend]
 useDefault = true
+
+[allowlist]
+description = "Known-fake secrets, never real credentials"
+regexes = [
+  # A throwaway ENCRYPTION_KEY the e2e CI job used to hardcode for its
+  # ephemeral, never-persisted database — since replaced with one
+  # generated fresh per run, but still in git history, where gitleaks
+  # keeps finding it (both its base64 form and, decoded, the raw hex
+  # gitleaks also flags as a second match on the same line).
+  '''MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=''',
+  '''0123456789abcdef0123456789abcdef''',
+]
