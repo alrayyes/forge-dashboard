@@ -153,6 +153,63 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   });
 
+  test.describe('group by repo', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.route('**/api/dashboard*', (route) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+          pullRequests: [
+            { forge: 'github', repo: 'alrayyes/wiki', number: 1, title: 'Wiki PR', url: 'https://example.com/1', author: 'claude', ci: 'success', labels: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 2, title: 'Dashboard PR one', url: 'https://example.com/2', author: 'claude', ci: 'success', labels: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 3, title: 'Dashboard PR two', url: 'https://example.com/3', author: 'claude', ci: 'success', labels: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          ],
+          issues: [],
+        }),
+      }));
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+    });
+
+    test('off by default: the flat list is unchanged', async ({ page }) => {
+      await expect(page.locator('#pr-rows > .repo-group-heading')).toHaveCount(0);
+    });
+
+    test('grouping clusters rows under a real heading per repo, alphabetically, with a count', async ({ page }) => {
+      await page.check('#pr-group-toggle');
+
+      const headings = page.locator('#pr-rows > h3.repo-group-heading');
+      await expect(headings).toHaveCount(2);
+      await expect(headings.nth(0)).toContainText('alrayyes/forge-dashboard');
+      await expect(headings.nth(0)).toContainText('2');
+      await expect(headings.nth(1)).toContainText('alrayyes/wiki');
+      await expect(headings.nth(1)).toContainText('1');
+
+      // Still all three rows, just clustered rather than removed.
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+    });
+
+    test('a filter combined with grouping only clusters the repos that still have matches — no empty headings', async ({ page }) => {
+      await page.check('#pr-group-toggle');
+      await page.fill('section[aria-label="Open pull requests"] .col-filter[data-col="title"]', 'Dashboard');
+
+      await expect(page.locator('#pr-rows > h3.repo-group-heading')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > h3.repo-group-heading')).toContainText('alrayyes/forge-dashboard');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    });
+
+    test('unchecking the toggle returns to the flat list', async ({ page }) => {
+      await page.check('#pr-group-toggle');
+      await expect(page.locator('#pr-rows > h3.repo-group-heading')).toHaveCount(2);
+
+      await page.uncheck('#pr-group-toggle');
+      await expect(page.locator('#pr-rows > h3.repo-group-heading')).toHaveCount(0);
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+    });
+  });
+
   test('the repo filter is a combobox listing repos actually on screen, and still accepts free text', async ({ page }) => {
     await page.route('**/api/dashboard*', (route) => route.fulfill({
       status: 200,

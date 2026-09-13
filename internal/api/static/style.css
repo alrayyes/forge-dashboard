@@ -294,6 +294,8 @@ section.board {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 14px 18px 12px;
   border-bottom: 1px solid var(--border);
 }
@@ -312,11 +314,44 @@ section.board {
    (forge shows as a badge inside the repo cell, not a column of its
    own), so it lives here rather than fighting the filter-row's grid for
    space. */
-.board-head-controls { display: flex; align-items: center; gap: 12px; }
+.board-head-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .board-head-controls select.col-filter {
   width: auto;
   font-size: 12px;
   padding: 5px 7px;
+}
+
+.group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.group-toggle input { cursor: pointer; }
+
+.repo-group-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 18px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-2);
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border);
+}
+.repo-group-heading:first-child { border-top: none; }
+.repo-group-count {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink-3);
 }
 
 .row {

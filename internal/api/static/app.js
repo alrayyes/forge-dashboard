@@ -173,10 +173,38 @@
     var state = {
       items: [],
       filters: {},
-      groupBy: null, // no grouping feature yet (issue #39) — reserved
+      groupBy: null,
       page: 1,
       pageSize: 25,
     };
+
+    // Grouped by repo, alphabetically, under a real heading (not a
+    // styled div) so it's announced as structure, not decoration. Off by
+    // default — this is a toggle, not a permanent change to how the flat
+    // list already reads.
+    function renderGrouped(container, items) {
+      var groups = {};
+      var repoOrder = [];
+      items.forEach(function (item) {
+        if (!groups[item.repo]) {
+          groups[item.repo] = [];
+          repoOrder.push(item.repo);
+        }
+        groups[item.repo].push(item);
+      });
+      repoOrder.sort();
+
+      repoOrder.forEach(function (repo) {
+        var heading = document.createElement('h3');
+        heading.className = 'repo-group-heading';
+        heading.appendChild(document.createTextNode(repo));
+        heading.appendChild(el('span', 'repo-group-count', String(groups[repo].length)));
+        container.appendChild(heading);
+        groups[repo].forEach(function (item) {
+          container.appendChild(buildRow(item, isPR, onStatusClick, handleLabelClick, state.filters.label));
+        });
+      });
+    }
 
     // The repo filter is a combobox (a free-text <input> with a
     // <datalist>) rather than a plain dropdown — repos aren't a small,
@@ -271,27 +299,45 @@
         return matchesFilters(item, isPR, state.filters);
       });
 
-      var totalPages = Math.max(1, Math.ceil(visible.length / state.pageSize));
-      if (state.page > totalPages) state.page = totalPages;
-      var start = (state.page - 1) * state.pageSize;
-      var pageItems = visible.slice(start, start + state.pageSize);
-
       container.innerHTML = '';
-      pageItems.forEach(function (item) {
-        container.appendChild(buildRow(item, isPR, onStatusClick, handleLabelClick, state.filters.label));
-      });
+
+      if (state.groupBy === 'repo') {
+        // Grouping and pagination stay mutually exclusive — paginating
+        // grouped clusters coherently is a bigger problem than either
+        // feature's own acceptance criteria asked for, so grouped mode
+        // just renders the whole filtered set and the pager hides.
+        renderGrouped(container, visible);
+        var groupedPagination = document.getElementById(idPrefix + '-pagination');
+        if (groupedPagination) groupedPagination.hidden = true;
+      } else {
+        var totalPages = Math.max(1, Math.ceil(visible.length / state.pageSize));
+        if (state.page > totalPages) state.page = totalPages;
+        var start = (state.page - 1) * state.pageSize;
+        var pageItems = visible.slice(start, start + state.pageSize);
+        pageItems.forEach(function (item) {
+          container.appendChild(buildRow(item, isPR, onStatusClick, handleLabelClick, state.filters.label));
+        });
+        renderPagination(visible.length, totalPages);
+      }
 
       document.getElementById(emptyId).hidden = state.items.length !== 0;
       var noResults = document.getElementById(noResultsId);
       if (noResults) noResults.hidden = visible.length !== 0 || state.items.length === 0;
-
-      renderPagination(visible.length, totalPages);
     }
 
     var pageSizeSelect = document.getElementById(idPrefix + '-page-size');
     if (pageSizeSelect) {
       pageSizeSelect.addEventListener('change', function () {
         state.pageSize = Number(pageSizeSelect.value) || 25;
+        state.page = 1;
+        render();
+      });
+    }
+
+    var groupToggle = document.getElementById(idPrefix + '-group-toggle');
+    if (groupToggle) {
+      groupToggle.addEventListener('change', function () {
+        state.groupBy = groupToggle.checked ? 'repo' : null;
         state.page = 1;
         render();
       });
