@@ -122,6 +122,70 @@ func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 	}, time.Second, 10*time.Millisecond, "saving settings should start a background refresh that the dashboard picks up")
 }
 
+func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testing.T) {
+	t.Parallel()
+
+	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
+	wantHealth := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 3}
+
+	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
+		if c.GitHubToken != secretToken {
+			return nil
+		}
+		return []dashboard.Source{&fakeConfiguredSource{health: wantHealth}}
+	}
+
+	srv, manager := newTestServerWithSourcesAndManager(t, buildSources)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	require.NoError(t, err)
+	putReq.AddCookie(sessionCookie)
+	putReq.Header.Set("Content-Type", "application/json")
+	putResp, err := http.DefaultClient.Do(putReq)
+	require.NoError(t, err)
+	_ = putResp.Body.Close()
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	dashboardReq := func() (dashboard.Snapshot, int) {
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
+		require.NoError(t, err)
+		req.AddCookie(sessionCookie)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		var snap dashboard.Snapshot
+		require.NoError(t, readJSON(resp, &snap))
+		return snap, resp.StatusCode
+	}
+
+	require.Eventually(t, func() bool {
+		snap, status := dashboardReq()
+		return status == http.StatusOK && len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 3
+	}, time.Second, 10*time.Millisecond, "settings should have started a background refresh before simulating a restart")
+
+	// Simulate a process restart: Manager.Stop cancels every running
+	// refresh loop and clears its map, the same effect on Manager state a
+	// real restart has — the session cookie (stored in the auth DB) and
+	// the saved Settings (stored in the settings DB) both survive it,
+	// only the in-memory Aggregator doesn't.
+	manager.Stop()
+
+	// Without a fresh login, the existing session should still lazily
+	// rewarm from saved Settings — not show the zero-value empty
+	// snapshot forever the way it did before this fix. Real bug reported
+	// live: "no PRs or issues are shown" with a "Refreshed 739872d ago"
+	// footer, matching Go's zero-value time.Time serialized and diffed
+	// against now. The rewarm itself is async (Manager.Ensure starts a
+	// background refresh rather than blocking this request on it, same
+	// as handleDashboard's own doc comment promises), so this asserts
+	// eventual convergence, not an instant one.
+	require.Eventually(t, func() bool {
+		snap, status := dashboardReq()
+		return status == http.StatusOK && !snap.GeneratedAt.IsZero() && len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 3
+	}, time.Second, 10*time.Millisecond, "a lazily rewarmed dashboard should reflect the previously saved sources again, not stay stuck at the zero-value snapshot")
+}
+
 func TestDashboard_WithOwnerQuery_UnsharedViewer_Refused(t *testing.T) {
 	t.Parallel()
 
