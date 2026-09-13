@@ -57,6 +57,18 @@ test.describe('dashboard page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
+  test('a non-admin user never sees the Admin link, not just in the DOM but actually rendered', async ({ page }) => {
+    // Real bug: admin-link.hidden = !session.isAdmin set the hidden
+    // attribute correctly, but .theme-toggle's display:inline-flex beat
+    // the browser's default [hidden] { display: none } regardless of
+    // specificity, so the link stayed visually visible for every user.
+    // toBeHidden() checks actual rendered visibility, not just the
+    // attribute — an assertion on the attribute alone would have missed
+    // this. The global setup registers "admin" first, so this
+    // freshly-registered user is never the admin.
+    await expect(page.locator('#admin-link')).toBeHidden();
+  });
+
   test('theme toggle switches data-theme on the root element', async ({ page }) => {
     const root = page.locator('html');
     await expect(root).not.toHaveAttribute('data-theme', 'dark');
@@ -168,6 +180,87 @@ test.describe('dashboard page', () => {
     await page.fill('section[aria-label="Open pull requests"] .col-filter[data-col="repo"]', 'wiki');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     await expect(page.locator('#pr-rows > .row')).toContainText('Two');
+  });
+
+  test.describe('pagination', () => {
+    function makePR(n) {
+      return {
+        forge: 'github', repo: 'alrayyes/forge-dashboard', number: n, title: 'PR number ' + n,
+        url: 'https://example.com/' + n, author: 'claude', ci: 'success', labels: [],
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      };
+    }
+
+    test('a filtered set under one page shows no pagination controls', async ({ page }) => {
+      await page.route('**/api/dashboard*', (route) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [makePR(1), makePR(2)],
+          issues: [],
+        }),
+      }));
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      await expect(page.locator('#pr-pagination')).toBeHidden();
+    });
+
+    test('a set over one page paginates, and changing the page size re-pages from page 1', async ({ page }) => {
+      var prs = [];
+      for (var i = 1; i <= 30; i++) prs.push(makePR(i));
+
+      await page.route('**/api/dashboard*', (route) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: prs,
+          issues: [],
+        }),
+      }));
+      await page.reload();
+
+      // Default page size is 25, so 30 PRs means page 1 of 2.
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(25);
+      await expect(page.locator('#pr-pagination')).toBeVisible();
+      await expect(page.locator('#pr-pagination-pages .pagination-page.active')).toHaveText('1');
+
+      await page.click('#pr-pagination-pages .pagination-page:has-text("2")');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(5);
+      await expect(page.locator('#pr-pagination-pages .pagination-page.active')).toHaveText('2');
+
+      // Changing page size while on page 2 resets to page 1 of the new
+      // size rather than showing a confusing partial page.
+      await page.selectOption('#pr-page-size', '50');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(30);
+      await expect(page.locator('#pr-pagination')).toBeHidden();
+    });
+
+    test('a filter narrowing the set below one page hides pagination and resets to page 1', async ({ page }) => {
+      var prs = [];
+      for (var i = 1; i <= 30; i++) prs.push(makePR(i));
+      prs[0].title = 'the only match';
+
+      await page.route('**/api/dashboard*', (route) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: prs,
+          issues: [],
+        }),
+      }));
+      await page.reload();
+      await expect(page.locator('#pr-pagination')).toBeVisible();
+
+      await page.fill('section[aria-label="Open pull requests"] .col-filter[data-col="title"]', 'the only match');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-pagination')).toBeHidden();
+    });
   });
 
   test.describe('CI status click-to-filter', () => {

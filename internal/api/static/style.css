@@ -227,6 +227,15 @@ header {
 }
 
 .theme-toggle:hover { border-color: var(--accent); color: var(--ink); }
+/* Real bug found alongside the pagination one below: an author
+   display:inline-flex always beats the UA's [hidden] { display: none },
+   regardless of specificity — #admin-link is a .theme-toggle, and
+   admin-link.hidden = !session.isAdmin in app.js had no visual effect
+   without this. Every signed-in user was seeing the Admin link,
+   whether or not they actually were one (the backend still refused
+   the page — see admin.js's 403 handling — so this was a confusing
+   UX leak, not a security hole). */
+.theme-toggle[hidden] { display: none; }
 .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .theme-toggle svg { display: block; }
 .theme-toggle .icon-moon { display: none; }
@@ -509,6 +518,59 @@ select.col-filter { cursor: pointer; }
   text-align: center;
   color: var(--ink-3);
   font-size: 13px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+
+/* An author-stylesheet display rule always wins over the UA's default
+   [hidden] { display: none }, regardless of selector specificity — the
+   flex rule above needs this explicit override or the hidden attribute
+   toggled in app.js has no visual effect. */
+.pagination[hidden] { display: none; }
+
+.pagination-pages { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+
+.pagination-nav, .pagination-page {
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.pagination-page { min-width: 30px; text-align: center; }
+.pagination-nav:hover, .pagination-page:hover { color: var(--ink); }
+.pagination-nav:disabled { opacity: 0.5; cursor: not-allowed; }
+.pagination-page.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.pagination-nav:focus-visible, .pagination-page:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.pagination-size select {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
 }
 
 .error-banner {

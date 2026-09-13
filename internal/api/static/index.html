@@ -104,6 +104,18 @@
     <div id="pr-rows"></div>
     <p class="empty-state" id="pr-empty" hidden>No open pull requests.</p>
     <p class="no-results" id="pr-no-results" hidden>No pull requests match these filters.</p>
+    <div class="pagination" id="pr-pagination" hidden>
+      <div class="pagination-pages" id="pr-pagination-pages"></div>
+      <label class="pagination-size">
+        Per page
+        <select id="pr-page-size" aria-label="Results per page">
+          <option value="10">10</option>
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </label>
+    </div>
   </section>
 
   <section class="board" aria-label="Open issues">
@@ -145,6 +157,18 @@
     <div id="issue-rows"></div>
     <p class="empty-state" id="issue-empty" hidden>No open issues.</p>
     <p class="no-results" id="issue-no-results" hidden>No issues match these filters.</p>
+    <div class="pagination" id="issue-pagination" hidden>
+      <div class="pagination-pages" id="issue-pagination-pages"></div>
+      <label class="pagination-size">
+        Per page
+        <select id="issue-page-size" aria-label="Results per page">
+          <option value="10">10</option>
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </label>
+    </div>
   </section>
 
   <footer>
