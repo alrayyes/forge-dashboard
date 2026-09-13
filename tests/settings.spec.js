@@ -102,14 +102,20 @@ test.describe('settings page', () => {
   test('webhook URLs and secret are populated, and the secret starts masked', async ({ page }) => {
     await page.goto('/settings.html');
 
-    const githubURL = await page.locator('#webhook-url-github').inputValue();
-    const forgejoURL = await page.locator('#webhook-url-forgejo').inputValue();
-    expect(githubURL).toMatch(/\/api\/webhooks\/github\/.+/);
-    expect(forgejoURL).toMatch(/\/api\/webhooks\/forgejo\/.+/);
+    // The webhook fields fill in only after the settings fetch resolves —
+    // an auto-retrying toHaveValue, not a one-shot inputValue, is what
+    // actually waits for that instead of racing it.
+    const githubURLLocator = page.locator('#webhook-url-github');
+    const forgejoURLLocator = page.locator('#webhook-url-forgejo');
+    await expect(githubURLLocator).toHaveValue(/\/api\/webhooks\/github\/.+/);
+    await expect(forgejoURLLocator).toHaveValue(/\/api\/webhooks\/forgejo\/.+/);
+    const githubURL = await githubURLLocator.inputValue();
+    const forgejoURL = await forgejoURLLocator.inputValue();
     // Same token in both URLs, since they identify the same user.
     expect(githubURL.split('/').pop()).toBe(forgejoURL.split('/').pop());
 
     await expect(page.locator('#webhook-secret')).toHaveAttribute('type', 'password');
+    await expect(page.locator('#webhook-secret')).not.toHaveValue('');
     const secret = await page.locator('#webhook-secret').inputValue();
     expect(secret.length).toBeGreaterThan(0);
 
@@ -133,6 +139,9 @@ test.describe('settings page', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/settings.html');
 
+    // Wait for the settings fetch to fill the field in before copying it —
+    // otherwise this can race the same fetch the field's own value does.
+    await expect(page.locator('#webhook-url-github')).toHaveValue(/\/api\/webhooks\/github\/.+/);
     await page.click('.copy-button[data-copy-target="webhook-url-github"]');
     await expect(page.locator('#webhook-copy-status')).toHaveText('Copied.');
 
