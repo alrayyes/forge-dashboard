@@ -19,6 +19,17 @@ test.describe('settings page', () => {
     await registerAndSignIn(page);
   });
 
+  test('dark mode chosen on the dashboard still applies after navigating to settings', async ({ page }) => {
+    // Real bug reported live: settings/admin/login had no theme handling
+    // at all, so an explicit dark-mode choice on the dashboard silently
+    // reverted to the OS default the moment someone left it.
+    await page.click('#theme-toggle');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+    await page.goto('/settings.html');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  });
+
   test('the header settings link reaches the settings page', async ({ page }) => {
     await page.click('a[href="/settings.html"]');
     await expect(page).toHaveURL(/\/settings\.html$/);
