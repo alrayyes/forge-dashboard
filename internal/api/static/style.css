@@ -399,25 +399,23 @@ section.board {
   flex-wrap: wrap;
   gap: 12px;
 }
-.board-head-controls select.col-filter {
+.board-head-controls select.col-filter,
+.board-head-controls select.group-select {
   width: auto;
   font-size: 12px;
   padding: 5px 7px;
 }
 
-.group-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-.group-toggle input {
+.group-select {
+  font-family: inherit;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
   cursor: pointer;
 }
 
-.repo-group-heading {
+.group-heading {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -431,10 +429,10 @@ section.board {
   background: var(--surface-sunken);
   border-bottom: 1px solid var(--border);
 }
-.repo-group-heading:first-child {
+.group-heading:first-child {
   border-top: none;
 }
-.repo-group-count {
+.group-count {
   font-family: "IBM Plex Mono", monospace;
   font-weight: 500;
   text-transform: none;

@@ -234,7 +234,7 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   });
 
-  test.describe('group by repo', () => {
+  test.describe('grouping', () => {
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route) =>
         route.fulfill({
@@ -290,17 +290,15 @@ test.describe('dashboard page', () => {
     });
 
     test('off by default: the flat list is unchanged', async ({ page }) => {
-      await expect(page.locator('#pr-rows > .repo-group-heading')).toHaveCount(
-        0,
-      );
+      await expect(page.locator('#pr-rows > .group-heading')).toHaveCount(0);
     });
 
-    test('grouping clusters rows under a real heading per repo, alphabetically, with a count', async ({
+    test('group by repo clusters rows under a real heading per repo, alphabetically, with a count', async ({
       page,
     }) => {
-      await page.check('#pr-group-toggle');
+      await page.selectOption('#pr-group-select', 'repo');
 
-      const headings = page.locator('#pr-rows > h3.repo-group-heading');
+      const headings = page.locator('#pr-rows > h3.group-heading');
       await expect(headings).toHaveCount(2);
       await expect(headings.nth(0)).toContainText('alrayyes/forge-dashboard');
       await expect(headings.nth(0)).toContainText('2');
@@ -314,32 +312,120 @@ test.describe('dashboard page', () => {
     test('a filter combined with grouping only clusters the repos that still have matches — no empty headings', async ({
       page,
     }) => {
-      await page.check('#pr-group-toggle');
+      await page.selectOption('#pr-group-select', 'repo');
       await page.fill(
         'section[aria-label="Open pull requests"] .col-filter[data-col="title"]',
         'Dashboard',
       );
 
-      await expect(
-        page.locator('#pr-rows > h3.repo-group-heading'),
-      ).toHaveCount(1);
-      await expect(
-        page.locator('#pr-rows > h3.repo-group-heading'),
-      ).toContainText('alrayyes/forge-dashboard');
+      await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > h3.group-heading')).toContainText(
+        'alrayyes/forge-dashboard',
+      );
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     });
 
-    test('unchecking the toggle returns to the flat list', async ({ page }) => {
-      await page.check('#pr-group-toggle');
-      await expect(
-        page.locator('#pr-rows > h3.repo-group-heading'),
-      ).toHaveCount(2);
+    test('switching back to no grouping returns to the flat list', async ({
+      page,
+    }) => {
+      await page.selectOption('#pr-group-select', 'repo');
+      await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(2);
 
-      await page.uncheck('#pr-group-toggle');
-      await expect(
-        page.locator('#pr-rows > h3.repo-group-heading'),
-      ).toHaveCount(0);
+      await page.selectOption('#pr-group-select', '');
+      await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(0);
       await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+    });
+
+    test.describe('group by forge', () => {
+      test.beforeEach(async ({ page }) => {
+        await page.route('**/api/dashboard*', (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              generatedAt: new Date().toISOString(),
+              forges: [
+                { forge: 'github', reachable: true, repoCount: 1 },
+                { forge: 'forgejo', reachable: true, repoCount: 1 },
+              ],
+              pullRequests: [
+                {
+                  forge: 'github',
+                  repo: 'alrayyes/forge-dashboard',
+                  number: 1,
+                  title: 'A GitHub PR',
+                  url: 'https://example.com/1',
+                  author: 'claude',
+                  ci: 'success',
+                  labels: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                },
+                {
+                  forge: 'forgejo',
+                  repo: 'homelab/vps-docker',
+                  number: 2,
+                  title: 'A Forgejo PR one',
+                  url: 'https://example.com/2',
+                  author: 'claude',
+                  ci: 'success',
+                  labels: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                },
+                {
+                  forge: 'forgejo',
+                  repo: 'homelab/vps-docker',
+                  number: 3,
+                  title: 'A Forgejo PR two',
+                  url: 'https://example.com/3',
+                  author: 'claude',
+                  ci: 'success',
+                  labels: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                },
+              ],
+              issues: [],
+            }),
+          }),
+        );
+        await page.reload();
+        await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+      });
+
+      test('clusters rows under a real heading per forge, using the display label, alphabetically, with a count', async ({
+        page,
+      }) => {
+        await page.selectOption('#pr-group-select', 'forge');
+
+        const headings = page.locator('#pr-rows > h3.group-heading');
+        await expect(headings).toHaveCount(2);
+        // Alphabetical by display label: "Forgejo" before "GitHub".
+        await expect(headings.nth(0)).toContainText('Forgejo');
+        await expect(headings.nth(0)).toContainText('2');
+        await expect(headings.nth(1)).toContainText('GitHub');
+        await expect(headings.nth(1)).toContainText('1');
+        await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+      });
+
+      test('a filter combined with forge grouping only clusters the forges that still have matches — no empty headings', async ({
+        page,
+      }) => {
+        await page.selectOption('#pr-group-select', 'forge');
+        await page.selectOption(
+          'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+          'github',
+        );
+
+        await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(
+          1,
+        );
+        await expect(page.locator('#pr-rows > h3.group-heading')).toContainText(
+          'GitHub',
+        );
+        await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      });
     });
   });
 

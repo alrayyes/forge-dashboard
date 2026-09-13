@@ -63,10 +63,11 @@
     <div class="board-head">
       <h2>Pull requests</h2>
       <div class="board-head-controls">
-        <label class="group-toggle">
-          <input type="checkbox" id="pr-group-toggle">
-          Group by repo
-        </label>
+        <select class="group-select" id="pr-group-select" aria-label="Group rows by">
+          <option value="">No grouping</option>
+          <option value="repo">Group by repo</option>
+          <option value="forge">Group by forge</option>
+        </select>
         <select class="col-filter" data-col="forge" aria-label="Filter by forge">
           <option value="">All forges</option>
           <option value="github">GitHub</option>
@@ -130,10 +131,11 @@
     <div class="board-head">
       <h2>Issues</h2>
       <div class="board-head-controls">
-        <label class="group-toggle">
-          <input type="checkbox" id="issue-group-toggle">
-          Group by repo
-        </label>
+        <select class="group-select" id="issue-group-select" aria-label="Group rows by">
+          <option value="">No grouping</option>
+          <option value="repo">Group by repo</option>
+          <option value="forge">Group by forge</option>
+        </select>
         <select class="col-filter" data-col="forge" aria-label="Filter by forge">
           <option value="">All forges</option>
           <option value="github">GitHub</option>
