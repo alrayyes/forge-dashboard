@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/alrayyes/forge-dashboard/compare/v0.12.1...v0.13.0) (2026-09-13)
+
+
+### Features
+
+* token creation guidance and required permissions on Settings ([#32](https://github.com/alrayyes/forge-dashboard/issues/32)) ([903146f](https://github.com/alrayyes/forge-dashboard/commit/903146f09cf1e7bcfa1736992629c9b4e2d2bcda)), closes [#29](https://github.com/alrayyes/forge-dashboard/issues/29)
+
 ## [0.12.1](https://github.com/alrayyes/forge-dashboard/compare/v0.12.0...v0.12.1) (2026-09-13)
 
 
