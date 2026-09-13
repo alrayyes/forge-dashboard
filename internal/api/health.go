@@ -13,3 +13,17 @@ type Health struct {
 func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, Health{Status: "ok"})
 }
+
+// Version matches components.schemas.Version in api/openapi.yaml.
+type Version struct {
+	Version string `json:"version"`
+}
+
+// handleVersion answers the release tag this binary was built from —
+// public and unauthenticated, same as /healthz, so the pre-login page can
+// link to it too.
+func handleVersion(version string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, Version{Version: version})
+	}
+}

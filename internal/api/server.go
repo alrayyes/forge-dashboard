@@ -20,6 +20,11 @@ var staticFiles embed.FS
 // long parameter list, since it's grown one dependency per feature slice
 // (auth, then per-user settings) and reads better named than positional.
 type Deps struct {
+	// Version is the release tag this binary was built from ("dev" for a
+	// build outside the release pipeline) — see cmd/forge-dashboard's own
+	// version var for how it's set.
+	Version string
+
 	AuthService *auth.Service
 	AuthStore   *auth.Store
 
@@ -50,6 +55,7 @@ func NewMux(deps Deps) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", handleHealth)
+	mux.HandleFunc("GET /api/version", handleVersion(deps.Version))
 
 	mux.HandleFunc("POST /api/auth/register/begin", handleRegisterBegin(deps.AuthService))
 	mux.HandleFunc("POST /api/auth/register/finish", handleRegisterFinish(deps))

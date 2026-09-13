@@ -392,6 +392,27 @@ paths:
               example:
                 status: ok
 
+  /api/version:
+    get:
+      operationId: getVersion
+      summary: The running server's own version
+      description: |
+        The tag goreleaser stamped the running binary with ("dev" for a
+        build outside the release pipeline). Public and unauthenticated —
+        every page, including the pre-login screen, links to the matching
+        GitHub release from its footer so a person can tell what's
+        actually deployed without shelling into the box.
+      tags: [health]
+      responses:
+        "200":
+          description: The running version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+              example:
+                version: 0.12.1
+
   /api/dashboard:
     get:
       operationId: getDashboard
@@ -530,6 +551,17 @@ components:
         status:
           type: string
           const: ok
+
+    Version:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string
+          description: |
+            The release tag this binary was built from, with no leading
+            "v" — or "dev" for a build outside the release pipeline.
+          examples: ["0.12.1", dev]
 
     Error:
       type: object
