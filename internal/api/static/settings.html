@@ -74,6 +74,25 @@
     color: var(--ink);
   }
   .field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .token-input { position: relative; }
+  .token-input input { padding-right: 58px; }
+  .token-toggle {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .token-toggle:hover { color: var(--ink); }
+  .token-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .field .field-hint { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; }
   .field .field-hint code {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
@@ -171,7 +190,10 @@
       <p class="hint">A token sees every repo it can push to, private included. Leave the token blank to keep the one already saved.</p>
       <div class="field">
         <label for="github-token">Personal access token <span class="configured" id="github-token-badge" hidden>Configured</span></label>
-        <input id="github-token" name="githubToken" type="password" autocomplete="off" placeholder="ghp_…" aria-describedby="github-token-hint">
+        <div class="token-input">
+          <input id="github-token" name="githubToken" type="password" autocomplete="off" placeholder="ghp_…" aria-describedby="github-token-hint">
+          <button type="button" class="token-toggle" data-target="github-token" aria-pressed="false" aria-label="Show personal access token">Show</button>
+        </div>
         <p class="field-hint" id="github-token-hint">
           Needs read-only access to your repos, their issues, pull requests, and commit status — nothing else.
           <a href="https://github.com/settings/tokens/new?scopes=repo&amp;description=forge-dashboard" target="_blank" rel="noopener noreferrer">Create a token with that scope already set &rarr;</a>
@@ -195,7 +217,10 @@
       </div>
       <div class="field">
         <label for="forgejo-token">API token <span class="configured" id="forgejo-token-badge" hidden>Configured</span></label>
-        <input id="forgejo-token" name="forgejoToken" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token" aria-describedby="forgejo-token-hint">
+        <div class="token-input">
+          <input id="forgejo-token" name="forgejoToken" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token" aria-describedby="forgejo-token-hint">
+          <button type="button" class="token-toggle" data-target="forgejo-token" aria-pressed="false" aria-label="Show API token">Show</button>
+        </div>
         <p class="field-hint" id="forgejo-token-hint">
           Needs read-only access to your repos and their issues/pull requests — select the <code>read:repository</code> and <code>read:issue</code> scopes.
           <a id="forgejo-token-link" target="_blank" rel="noopener noreferrer">Open your instance's token settings &rarr;</a>
