@@ -46,6 +46,8 @@ tags:
     description: Passkey (WebAuthn) registration, login and session management.
   - name: settings
     description: The signed-in user's own GitHub/Forgejo credentials.
+  - name: admin
+    description: Managing the user base itself. Every endpoint here requires the signed-in user to be the designated admin.
 
 paths:
   /api/auth/register/begin:
@@ -256,6 +258,116 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/admin/users:
+    get:
+      operationId: listUsers
+      summary: List every registered user
+      description: |
+        Never includes a passkey or a forge credential — a username,
+        display name, admin flag and registration timestamp per user.
+      tags: [admin]
+      responses:
+        "200":
+          description: Every registered user.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The signed-in user isn't the designated admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/admin/users/{username}/revoke:
+    post:
+      operationId: revokeUser
+      summary: Revoke a user's passkeys and sessions
+      description: |
+        Deletes every session and every registered passkey for this user —
+        they're signed out everywhere immediately, and have to register a
+        new passkey from scratch to get back in. Their saved forge
+        credentials are untouched; use the delete endpoint to remove the
+        account itself.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/AdminUsername"
+      responses:
+        "204":
+          description: Revoked.
+        "400":
+          description: An admin can't revoke their own account through this endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The signed-in user isn't the designated admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No user is registered under that username.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/admin/users/{username}:
+    delete:
+      operationId: deleteUser
+      summary: Remove a user outright
+      description: |
+        Deletes the account, every session, every registered passkey, and
+        every saved forge credential — irreversible. Their username
+        becomes available for a fresh registration.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/AdminUsername"
+      responses:
+        "204":
+          description: Removed.
+        "400":
+          description: An admin can't remove their own account through this endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The signed-in user isn't the designated admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No user is registered under that username.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /healthz:
     get:
       operationId: health
@@ -294,6 +406,14 @@ paths:
                 $ref: "#/components/schemas/Dashboard"
 
 components:
+  parameters:
+    AdminUsername:
+      name: username
+      in: path
+      required: true
+      schema:
+        type: string
+
   schemas:
     Health:
       type: object
@@ -350,6 +470,20 @@ components:
           type: string
         isAdmin:
           type: boolean
+
+    AdminUser:
+      type: object
+      required: [username, displayName, isAdmin, createdAt]
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
 
     SettingsResponse:
       type: object
