@@ -41,8 +41,9 @@ test.describe('dashboard page', () => {
   test('the footer shows the running version, fetched from /api/version', async ({ page }) => {
     // CI builds the e2e binary with no goreleaser ldflags, so this is
     // always "dev" here — a real release build shows "· vX.Y.Z" linked to
-    // its GitHub release instead (see footer.js).
-    await expect(page.locator('#footer-version')).toHaveText('· dev build');
+    // its GitHub release instead (see footer.js). Also carries a
+    // "Release history" link now (see releases.spec.js).
+    await expect(page.locator('#footer-version')).toContainText('· dev build');
   });
 
   test('has no axe-core violations at desktop width', async ({ page }) => {

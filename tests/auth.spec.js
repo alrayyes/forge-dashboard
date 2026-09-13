@@ -37,7 +37,10 @@ test.describe('passkey login', () => {
     // /api/version needs no session, so this works on the one page a
     // visitor can reach before ever authenticating.
     await page.goto('/login.html');
-    await expect(page.locator('#footer-version')).toHaveText('· dev build');
+    // Also carries a "Release history" link now (see releases.spec.js) —
+    // this test's own concern is just that the version itself shows up
+    // with no session at all.
+    await expect(page.locator('#footer-version')).toContainText('· dev build');
   });
 
   test('register a passkey with a real WebAuthn ceremony, then reach the dashboard', async ({ page }) => {
