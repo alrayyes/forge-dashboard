@@ -840,6 +840,91 @@ test.describe('dashboard page', () => {
         .analyze();
       expect(results.violations).toEqual([]);
     });
+
+    test('the label select lists labels actually on screen, and picking one filters and marks the matching chip active', async ({
+      page,
+    }) => {
+      const options = page.locator('#issue-label-select option');
+      await expect(options).toHaveCount(3); // "All labels" plus the two.
+
+      await page.selectOption('#issue-label-select', 'kind/bug');
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#issue-rows > .row')).toContainText(
+        'A bug report',
+      );
+      const bugChip = page
+        .locator('#issue-rows .row', { hasText: 'A bug report' })
+        .locator('.label-chip', { hasText: 'kind/bug' });
+      await expect(bugChip).toHaveClass(/active/);
+
+      await page.selectOption('#issue-label-select', '');
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+    });
+
+    test('clicking a label chip keeps the select in sync', async ({ page }) => {
+      await page
+        .locator('#issue-rows .label-chip', { hasText: 'kind/bug' })
+        .click();
+      await expect(page.locator('#issue-label-select')).toHaveValue('kind/bug');
+
+      await page
+        .locator('#issue-rows .label-chip', { hasText: 'kind/bug' })
+        .click();
+      await expect(page.locator('#issue-label-select')).toHaveValue('');
+    });
+
+    test('a label beyond the first three chips on an item is still clearable via the select, even with no chip on screen to click', async ({
+      page,
+    }) => {
+      // Real bug this guards against: titleCell only ever renders the
+      // first three labels per item. Filtering to a label that isn't
+      // among an item's first three never renders a chip for it at all
+      // — before the select existed, there was nothing left to click to
+      // undo the filter.
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            pullRequests: [],
+            issues: [
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 1,
+                title: 'Many labels',
+                url: 'https://example.com/1',
+                author: 'claude',
+                labels: [
+                  { name: 'a', color: 'd73a4a' },
+                  { name: 'b', color: 'a2eeef' },
+                  { name: 'c', color: '7057ff' },
+                  { name: 'kind/buried', color: '008672' },
+                ],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+          }),
+        }),
+      );
+      await page.reload();
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+
+      await page.selectOption('#issue-label-select', 'kind/buried');
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+      // Only the first three labels render a chip — the filtered-on one
+      // genuinely has no chip anywhere on screen right now.
+      await expect(
+        page.locator('#issue-rows .label-chip', { hasText: 'kind/buried' }),
+      ).toHaveCount(0);
+
+      // Still clearable, with no chip to click.
+      await page.selectOption('#issue-label-select', '');
+      await expect(page.locator('#issue-label-select')).toHaveValue('');
+    });
   });
 
   test.describe('label colors', () => {

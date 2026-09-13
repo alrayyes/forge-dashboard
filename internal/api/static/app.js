@@ -138,7 +138,11 @@
   function labelChip(label, onLabelClick, activeLabel) {
     var chip = document.createElement('button');
     chip.type = 'button';
-    var isActive = label.name === activeLabel;
+    // activeLabel (state.filters.label) is always lowercase — set that
+    // way by both the chip click below and the Label <select>'s generic
+    // .col-filter wiring, which lowercases every filter value uniformly
+    // — so the comparison here has to lowercase label.name to match.
+    var isActive = label.name.toLowerCase() === activeLabel;
     chip.className = `label-chip${isActive ? ' active' : ''}`;
     chip.textContent = label.name;
     if (label.color && !isActive) {
@@ -248,7 +252,7 @@
     if (filters.status && isPR && item.ci !== filters.status) return false;
     if (
       filters.label &&
-      !(item.labels || []).some((l) => l.name === filters.label)
+      !(item.labels || []).some((l) => l.name.toLowerCase() === filters.label)
     )
       return false;
     return true;
@@ -316,18 +320,22 @@
       });
     }
 
-    // Distinct, sorted values of getValue(item) across the items currently
-    // on screen — what both a filter <select>'s options and a filter
-    // <input>'s <datalist> suggestions are populated from.
-    function distinctValues(getValue) {
+    // Distinct, sorted values of getValues(item) across the items
+    // currently on screen — what both a filter <select>'s options and a
+    // filter <input>'s <datalist> suggestions are populated from.
+    // getValues returns either one value (repo, author, title) or an
+    // array of them (label — an item can carry several).
+    function distinctValues(getValues) {
       var seen = {};
       var values = [];
       state.items.forEach((item) => {
-        var v = getValue(item);
-        if (v && !seen[v]) {
-          seen[v] = true;
-          values.push(v);
-        }
+        var vs = getValues(item);
+        (Array.isArray(vs) ? vs : [vs]).forEach((v) => {
+          if (v && !seen[v]) {
+            seen[v] = true;
+            values.push(v);
+          }
+        });
       });
       values.sort();
       return values;
@@ -380,6 +388,10 @@
         document.getElementById(`${idPrefix}-title-options`),
         distinctValues((item) => item.title),
       );
+      populateSelect(
+        document.getElementById(`${idPrefix}-label-select`),
+        distinctValues((item) => (item.labels || []).map((l) => l.name)),
+      );
     }
 
     // Sets col to value, unless it's already value — then clears it. Used
@@ -397,9 +409,28 @@
     }
 
     // Each board filters its own labels independently — a click here
-    // never touches the other board's state.
+    // never touches the other board's state. Keeps the Label select's
+    // displayed value in sync, the same pattern handleStatusClick uses
+    // for the CI-status select — a chip is one way to set this filter,
+    // the select is the other, and either always reflects what's
+    // actually active regardless of which one drove the change.
     function handleLabelClick(label) {
-      toggleFilter('label', label);
+      // state.filters.label is always lowercase (matchesFilters and
+      // labelChip's active check both expect that, matching the Label
+      // <select>'s own generic .col-filter wiring, which lowercases
+      // uniformly) — but a real <option>'s value keeps its real case,
+      // so select.value can't just be assigned next directly; the
+      // browser only accepts an exact (case-sensitive) option value,
+      // silently clearing the selection on any case mismatch otherwise.
+      var next = toggleFilter('label', label.toLowerCase());
+      var select = document.getElementById(`${idPrefix}-label-select`);
+      var option;
+      if (select) {
+        option = Array.from(select.options).find(
+          (o) => o.value.toLowerCase() === next,
+        );
+        select.value = option ? option.value : '';
+      }
     }
 
     function setPage(page) {
