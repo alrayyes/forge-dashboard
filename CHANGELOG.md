@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.1](https://github.com/alrayyes/forge-dashboard/compare/v0.23.0...v0.23.1) (2026-09-13)
+
+
+### Bug Fixes
+
+* set a busy_timeout on the SQLite connection ([#83](https://github.com/alrayyes/forge-dashboard/issues/83)) ([b8d2d09](https://github.com/alrayyes/forge-dashboard/commit/b8d2d09e2a5c3ae1226c8a7165b1739003d7f0c1)), closes [#82](https://github.com/alrayyes/forge-dashboard/issues/82)
+
 ## [0.23.0](https://github.com/alrayyes/forge-dashboard/compare/v0.22.0...v0.23.0) (2026-09-13)
 
 
