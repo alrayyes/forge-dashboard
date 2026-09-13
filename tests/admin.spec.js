@@ -24,6 +24,14 @@ async function registerUser(page, username, displayName) {
 }
 
 test.describe('admin area', () => {
+  // beforeAll registers ADMIN_USERNAME exactly once against the shared
+  // e2e server — not idempotent, since a second registration attempt
+  // finds the username already taken. A retried test re-runs beforeAll
+  // in a fresh worker, which would try to register "admin" again and
+  // fail; disabling retries here means a real beforeAll failure surfaces
+  // as a failure instead of a second, doomed registration attempt.
+  test.describe.configure({ retries: 0 });
+
   let adminStorageState;
 
   test.beforeAll(async ({ browser }) => {
@@ -57,8 +65,10 @@ test.describe('admin area', () => {
 
     // The admin's own row has no working action buttons — there's no
     // recovery path for locking yourself out, so the backend refuses it
-    // and the frontend doesn't offer it.
-    const adminRow = adminPage.locator('tr', { hasText: ADMIN_USERNAME });
+    // and the frontend doesn't offer it. Matched on the row's own
+    // data-username attribute, not hasText — a substring match against
+    // "admin" would also catch this file's own "admin-test-*" usernames.
+    const adminRow = adminPage.locator('tr[data-username="' + ADMIN_USERNAME + '"]');
     await expect(adminRow.locator('button[data-action="revoke"]')).toBeDisabled();
     await expect(adminRow.locator('button[data-action="remove"]')).toBeDisabled();
 

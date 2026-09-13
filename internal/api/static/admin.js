@@ -30,6 +30,7 @@
     users.forEach(function (u) {
       var isSelf = u.username === currentUsername;
       var tr = document.createElement('tr');
+      tr.setAttribute('data-username', u.username);
       tr.innerHTML =
         '<td>' + escapeHTML(u.username) + (u.isAdmin ? ' <span class="admin-badge">Admin</span>' : '') + '</td>' +
         '<td>' + escapeHTML(u.displayName) + '</td>' +
