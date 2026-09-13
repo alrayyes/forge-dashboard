@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.0](https://github.com/alrayyes/forge-dashboard/compare/v0.26.0...v0.27.0) (2026-09-13)
+
+
+### Features
+
+* add an in-app release history page ([#90](https://github.com/alrayyes/forge-dashboard/issues/90)) ([6b2ec06](https://github.com/alrayyes/forge-dashboard/commit/6b2ec06501cac6d27dde2ef6abf3ee088e3f6898)), closes [#62](https://github.com/alrayyes/forge-dashboard/issues/62)
+
 ## [0.26.0](https://github.com/alrayyes/forge-dashboard/compare/v0.25.0...v0.26.0) (2026-09-13)
 
 
