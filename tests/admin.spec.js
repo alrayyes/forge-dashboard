@@ -1,13 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { addVirtualAuthenticator } = require('./webauthn-helper');
-
-// Matches ADMIN_USERNAME in .github/workflows/ci.yml's e2e job — the one
-// username the server itself designates as admin, so it can only ever be
-// registered once against the shared server this whole file runs against.
-// Every test below reuses that one registration's session via storageState
-// rather than registering (or logging back in as) "admin" a second time.
-const ADMIN_USERNAME = 'admin';
+const { ADMIN_USERNAME, STORAGE_STATE_PATH: ADMIN_STORAGE_STATE } = require('./admin-global-setup');
 
 function uniqueUsername(prefix) {
   return prefix + '-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
@@ -24,24 +18,6 @@ async function registerUser(page, username, displayName) {
 }
 
 test.describe('admin area', () => {
-  // beforeAll registers ADMIN_USERNAME exactly once against the shared
-  // e2e server — not idempotent, since a second registration attempt
-  // finds the username already taken. A retried test re-runs beforeAll
-  // in a fresh worker, which would try to register "admin" again and
-  // fail; disabling retries here means a real beforeAll failure surfaces
-  // as a failure instead of a second, doomed registration attempt.
-  test.describe.configure({ retries: 0 });
-
-  let adminStorageState;
-
-  test.beforeAll(async ({ browser }) => {
-    const context = await browser.newContext();
-    const page = await context.newPage();
-    await registerUser(page, ADMIN_USERNAME, 'Admin');
-    adminStorageState = await context.storageState();
-    await context.close();
-  });
-
   test('a non-admin who navigates here directly is bounced to the dashboard', async ({ page }) => {
     await registerUser(page, uniqueUsername('admin-test-nonadmin'), 'Not An Admin');
 
@@ -58,7 +34,7 @@ test.describe('admin area', () => {
       const targetPage = await targetContext.newPage();
       await registerUser(targetPage, targetUsername, 'Target User');
 
-      const adminContext = await browser.newContext({ storageState: adminStorageState });
+      const adminContext = await browser.newContext({ storageState: ADMIN_STORAGE_STATE });
       try {
         const adminPage = await adminContext.newPage();
         await adminPage.goto('/admin.html');
@@ -102,7 +78,7 @@ test.describe('admin area', () => {
   // failure seen live: a leaked context here surfaced as a WebAuthn
   // ceremony timeout in a completely different test).
   test('has no axe-core violations at desktop width', async ({ browser }) => {
-    const adminContext = await browser.newContext({ storageState: adminStorageState });
+    const adminContext = await browser.newContext({ storageState: ADMIN_STORAGE_STATE });
     try {
       const adminPage = await adminContext.newPage();
       await adminPage.goto('/admin.html');
@@ -118,7 +94,7 @@ test.describe('admin area', () => {
   });
 
   test('has no axe-core violations and no horizontal scroll at phone width', async ({ browser }) => {
-    const adminContext = await browser.newContext({ storageState: adminStorageState, viewport: { width: 390, height: 844 } });
+    const adminContext = await browser.newContext({ storageState: ADMIN_STORAGE_STATE, viewport: { width: 390, height: 844 } });
     try {
       const adminPage = await adminContext.newPage();
       await adminPage.goto('/admin.html');

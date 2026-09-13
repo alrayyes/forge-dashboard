@@ -69,11 +69,12 @@
   }
   .btn:hover { filter: brightness(1.05); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  /* --critical on --surface-sunken falls short of WCAG AA contrast (4.29:1
-     of the 4.5:1 required) — --critical-bg is the tint this palette already
-     pairs it with elsewhere (the settings page's "Configured" badge does
-     the same with --good/--good-bg) for exactly this reason. */
-  .btn-danger { color: var(--critical); border-color: var(--critical); background: var(--critical-bg); }
+  /* Neither --critical on --surface-sunken (4.29:1) nor on --critical-bg
+     (3.94:1) clears the 4.5:1 WCAG AA text-contrast floor — axe-core
+     caught both, live. Danger is a red border and bolder weight instead;
+     the text itself stays --ink, the same color every other button's
+     text already passes contrast with on this exact background. */
+  .btn-danger { border-color: var(--critical); font-weight: 600; }
   .status { font-size: 12.5px; min-height: 1.4em; margin: 0 0 12px; }
   .status.error { color: var(--critical); }
   .status.ok { color: var(--good); }

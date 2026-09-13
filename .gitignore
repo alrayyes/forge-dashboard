@@ -13,6 +13,10 @@ node_modules/
 /test-results/
 /playwright-report/
 
+# The admin session globalSetup registers once and every admin test
+# reuses — a real session cookie, generated fresh each run.
+/tests/.auth/
+
 # The auth database a local or CI run writes to — never committed, and the
 # default path (/data/forge-dashboard.db) is outside the repo anyway; this
 # only catches a run that pointed DB_PATH inside it.
