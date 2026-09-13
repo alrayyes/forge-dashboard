@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/alrayyes/forge-dashboard/compare/v0.16.0...v0.17.0) (2026-09-13)
+
+
+### Features
+
+* click a label chip to filter the list by that label ([#55](https://github.com/alrayyes/forge-dashboard/issues/55)) ([20ed445](https://github.com/alrayyes/forge-dashboard/commit/20ed445cdb1637a0ad99c0d48d4945b2ef6afe34)), closes [#45](https://github.com/alrayyes/forge-dashboard/issues/45)
+
 ## [0.16.0](https://github.com/alrayyes/forge-dashboard/compare/v0.15.0...v0.16.0) (2026-09-13)
 
 
