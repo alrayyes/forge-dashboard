@@ -50,6 +50,13 @@ tags:
     description: Managing the user base itself. Every endpoint here requires the signed-in user to be the designated admin.
   - name: sharing
     description: Granting other registered users read-only access to the signed-in user's own dashboard.
+  - name: webhooks
+    description: |
+      Where GitHub/Forgejo push repository events, for an immediate refresh
+      instead of waiting on the next poll. Not session-authenticated like
+      everything else here — the path's token identifies the user, and the
+      request's HMAC signature (computed with that user's webhook secret)
+      is what proves it actually came from their forge.
 
 paths:
   /api/auth/register/begin:
@@ -534,10 +541,93 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/webhooks/github/{webhookToken}:
+    post:
+      operationId: receiveGitHubWebhook
+      summary: Receive a GitHub repository webhook delivery
+      description: |
+        Triggers an immediate refresh for the user webhookToken identifies,
+        once the request's `X-Hub-Signature-256` header is verified against
+        that user's webhook secret. Every delivery GitHub can send for a
+        repository webhook (a new pull request, a closed issue, a status or
+        check-run update, even the `ping` event GitHub sends when the
+        webhook is first created) means the same thing here — something
+        changed, refresh — so nothing about the payload itself is parsed.
+      tags: [webhooks]
+      parameters:
+        - $ref: "#/components/parameters/PathWebhookToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: GitHub's own event payload — its shape isn't ours to describe, and nothing here reads it.
+      responses:
+        "204":
+          description: Signature verified; a refresh was triggered.
+        "401":
+          description: The X-Hub-Signature-256 header was missing or didn't verify against this user's webhook secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No user's webhook token matches webhookToken.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/webhooks/forgejo/{webhookToken}:
+    post:
+      operationId: receiveForgejoWebhook
+      summary: Receive a Forgejo repository webhook delivery
+      description: |
+        Triggers an immediate refresh for the user webhookToken identifies,
+        once the request's signature header is verified against that
+        user's webhook secret — `X-Forgejo-Signature` on a webhook set up
+        with the "Forgejo" type, `X-Gitea-Signature` on one set up with the
+        legacy "Gitea" type; both carry the same raw hex HMAC-SHA256. Every
+        delivery means the same thing here — something changed, refresh —
+        so nothing about the payload itself is parsed.
+      tags: [webhooks]
+      parameters:
+        - $ref: "#/components/parameters/PathWebhookToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Forgejo's own event payload — its shape isn't ours to describe, and nothing here reads it.
+      responses:
+        "204":
+          description: Signature verified; a refresh was triggered.
+        "401":
+          description: Both signature headers were missing, or neither verified against this user's webhook secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No user's webhook token matches webhookToken.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   parameters:
     PathUsername:
       name: username
+      in: path
+      required: true
+      schema:
+        type: string
+
+    PathWebhookToken:
+      name: webhookToken
       in: path
       required: true
       schema:
