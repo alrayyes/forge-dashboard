@@ -14,6 +14,25 @@ test.describe('passkey login', () => {
     await expect(page).toHaveURL(/\/login\.html$/);
   });
 
+  test('dark mode chosen while signed in still applies on the login page after logging out', async ({ page }) => {
+    await addVirtualAuthenticator(page);
+    const username = uniqueUsername('e2e-theme');
+
+    await page.goto('/login.html');
+    await page.click('#show-register');
+    await page.fill('#register-username', username);
+    await page.fill('#register-display-name', 'Theme Test User');
+    await page.click('#register-submit');
+    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+
+    await page.click('#theme-toggle');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+    await page.click('#logout-button');
+    await expect(page).toHaveURL(/\/login\.html$/);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  });
+
   test('the login page shows the running version with no session at all', async ({ page }) => {
     // /api/version needs no session, so this works on the one page a
     // visitor can reach before ever authenticating.
