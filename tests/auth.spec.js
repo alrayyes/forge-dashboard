@@ -14,6 +14,13 @@ test.describe('passkey login', () => {
     await expect(page).toHaveURL(/\/login\.html$/);
   });
 
+  test('the login page shows the running version with no session at all', async ({ page }) => {
+    // /api/version needs no session, so this works on the one page a
+    // visitor can reach before ever authenticating.
+    await page.goto('/login.html');
+    await expect(page.locator('#footer-version')).toHaveText('· dev build');
+  });
+
   test('register a passkey with a real WebAuthn ceremony, then reach the dashboard', async ({ page }) => {
     await addVirtualAuthenticator(page);
     const username = uniqueUsername('e2e');

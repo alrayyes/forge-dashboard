@@ -31,6 +31,7 @@ const (
 	testAdmin   = "admin"
 	testUser    = "ryan"
 	testDisplay = "Ryan"
+	testVersion = "0.99.0-test"
 
 	// Fast enough that require.Eventually in these tests doesn't have to
 	// wait long, slow enough not to burn CPU spinning between assertions.
@@ -81,6 +82,7 @@ func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Creden
 	t.Cleanup(cancel)
 
 	mux := api.NewMux(api.Deps{
+		Version:       testVersion,
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,

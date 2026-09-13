@@ -25,6 +25,13 @@ test.describe('dashboard page', () => {
     await expect(page.locator('.board')).toHaveCount(2);
   });
 
+  test('the footer shows the running version, fetched from /api/version', async ({ page }) => {
+    // CI builds the e2e binary with no goreleaser ldflags, so this is
+    // always "dev" here — a real release build shows "· vX.Y.Z" linked to
+    // its GitHub release instead (see footer.js).
+    await expect(page.locator('#footer-version')).toHaveText('· dev build');
+  });
+
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await expect(page.locator('#stat-prs')).not.toHaveText('–');
 

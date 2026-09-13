@@ -78,6 +78,7 @@ func main() {
 	defer manager.Stop()
 
 	deps := api.Deps{
+		Version:       version,
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
