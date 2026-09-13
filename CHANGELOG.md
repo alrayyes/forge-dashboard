@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.1](https://github.com/alrayyes/forge-dashboard/compare/v0.27.0...v0.27.1) (2026-09-13)
+
+
+### Bug Fixes
+
+* lazily rewarm a user's dashboard after a process restart ([#93](https://github.com/alrayyes/forge-dashboard/issues/93)) ([f2b21e2](https://github.com/alrayyes/forge-dashboard/commit/f2b21e2d7b5aa6a7c92fddcb763b8b88d7a5b865))
+
 ## [0.27.0](https://github.com/alrayyes/forge-dashboard/compare/v0.26.0...v0.27.0) (2026-09-13)
 
 
