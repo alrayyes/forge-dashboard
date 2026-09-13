@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/alrayyes/forge-dashboard/compare/v0.8.1...v0.9.0) (2026-09-13)
+
+
+### Features
+
+* admin user management ([#19](https://github.com/alrayyes/forge-dashboard/issues/19)) ([68448e8](https://github.com/alrayyes/forge-dashboard/commit/68448e8e1b56dc3dcb3e34528d853cd235ada1f9))
+
 ## [0.8.1](https://github.com/alrayyes/forge-dashboard/compare/v0.8.0...v0.8.1) (2026-09-12)
 
 
