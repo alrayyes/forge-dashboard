@@ -75,7 +75,20 @@
     return wrap;
   }
 
-  function titleCell(item) {
+  // A real button — see the comment above ciPill on why the row isn't an
+  // <a> around everything.
+  function labelChip(label, onLabelClick, activeLabel) {
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'label-chip' + (label === activeLabel ? ' active' : '');
+    chip.textContent = label;
+    chip.setAttribute('aria-label', 'Filter by label: ' + label);
+    chip.setAttribute('aria-pressed', String(label === activeLabel));
+    chip.addEventListener('click', function () { onLabelClick(label); });
+    return chip;
+  }
+
+  function titleCell(item, onLabelClick, activeLabel) {
     var wrap = el('div', 'title-cell');
     // The real, keyboard-focusable link — a "stretched link" (see
     // .title-cell .title::after in style.css) makes the whole row
@@ -98,7 +111,7 @@
     wrap.appendChild(title);
     if (item.draft) wrap.appendChild(el('span', 'draft-badge', 'Draft'));
     (item.labels || []).slice(0, 3).forEach(function (label) {
-      wrap.appendChild(el('span', 'label-chip', label));
+      wrap.appendChild(labelChip(label, onLabelClick, activeLabel));
     });
     return wrap;
   }
@@ -117,11 +130,11 @@
     return pill;
   }
 
-  function buildRow(item, isPR, onStatusClick) {
+  function buildRow(item, isPR, onStatusClick, onLabelClick, activeLabel) {
     var row = el('div', 'row');
 
     row.appendChild(repoCell(item));
-    row.appendChild(titleCell(item));
+    row.appendChild(titleCell(item, onLabelClick, activeLabel));
 
     var meta = el('div', 'row-meta');
     meta.appendChild(el('div', 'author', item.author));
@@ -151,6 +164,7 @@
     if (filters.created && minutesAgo(item.createdAt) > Number(filters.created)) return false;
     if (filters.updated && minutesAgo(item.updatedAt) > Number(filters.updated)) return false;
     if (filters.status && isPR && item.ci !== filters.status) return false;
+    if (filters.label && (item.labels || []).indexOf(filters.label) === -1) return false;
     return true;
   }
 
@@ -163,6 +177,26 @@
       pageSize: Infinity,
     };
 
+    // Sets col to value, unless it's already value — then clears it. Used
+    // by a click on something that represents one specific value (a CI
+    // pill, a label chip, the "CI failing" stat tile) rather than the
+    // free-choice dropdown, where a second click meaning "never mind" is
+    // the expected behavior. Returns the filter's new value so a caller
+    // can sync a visible control (the status <select>) to match.
+    function toggleFilter(col, value) {
+      var next = state.filters[col] === value ? '' : value;
+      state.filters[col] = next;
+      state.page = 1;
+      render();
+      return next;
+    }
+
+    // Each board filters its own labels independently — a click here
+    // never touches the other board's state.
+    function handleLabelClick(label) {
+      toggleFilter('label', label);
+    }
+
     function render() {
       var container = document.getElementById(containerId);
       var visible = state.items.filter(function (item) {
@@ -171,7 +205,7 @@
 
       container.innerHTML = '';
       visible.forEach(function (item) {
-        container.appendChild(buildRow(item, isPR, onStatusClick));
+        container.appendChild(buildRow(item, isPR, onStatusClick, handleLabelClick, state.filters.label));
       });
 
       document.getElementById(emptyId).hidden = state.items.length !== 0;
@@ -190,19 +224,7 @@
         state.page = 1;
         render();
       },
-      // Sets col to value, unless it's already value — then clears it. Used
-      // by a click on something that represents one specific value (a CI
-      // pill, the "CI failing" stat tile) rather than the free-choice
-      // dropdown, where a second click meaning "never mind" is the
-      // expected behavior. Returns the filter's new value so the caller
-      // can sync a visible control (the status <select>) to match.
-      toggleFilter: function (col, value) {
-        var next = state.filters[col] === value ? '' : value;
-        state.filters[col] = next;
-        state.page = 1;
-        render();
-        return next;
-      },
+      toggleFilter: toggleFilter,
     };
   }
 

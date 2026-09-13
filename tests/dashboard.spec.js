@@ -177,6 +177,65 @@ test.describe('dashboard page', () => {
       expect(results.violations).toEqual([]);
     });
   });
+
+  test.describe('label click-to-filter', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.route('**/api/dashboard*', (route) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [
+            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 1, title: 'A bug report', url: 'https://example.com/1', author: 'claude', labels: ['kind/bug'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 2, title: 'A feature request', url: 'https://example.com/2', author: 'claude', labels: ['kind/feature'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          ],
+        }),
+      }));
+      await page.reload();
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+    });
+
+    test('clicking a label chip filters to that label, marks the chip active, and clicking it again clears the filter', async ({ page }) => {
+      const bugChip = page.locator('#issue-rows .row', { hasText: 'A bug report' }).locator('.label-chip', { hasText: 'kind/bug' });
+      await bugChip.click();
+
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#issue-rows > .row')).toContainText('A bug report');
+      await expect(bugChip).toHaveClass(/active/);
+      await expect(bugChip).toHaveAttribute('aria-pressed', 'true');
+
+      await bugChip.click();
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+      await expect(bugChip).not.toHaveClass(/active/);
+    });
+
+    test('clicking a label chip does not also open the issue', async ({ page }) => {
+      let navigated = false;
+      page.on('popup', () => { navigated = true; });
+
+      await page.locator('#issue-rows .row', { hasText: 'A bug report' }).locator('.label-chip').click();
+
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+      expect(navigated).toBe(false);
+    });
+
+    test('label filtering on the issues board never touches the pull requests board', async ({ page }) => {
+      await page.locator('#issue-rows .label-chip', { hasText: 'kind/bug' }).click();
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+      // No pull requests in this fixture at all — still renders its own
+      // empty state rather than erroring because a sibling board filtered.
+      await expect(page.locator('#pr-empty')).toBeVisible();
+    });
+
+    test('has no axe-core violations with real label chips rendered', async ({ page }) => {
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
 });
 
 test.describe('login page', () => {
