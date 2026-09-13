@@ -73,7 +73,8 @@
     </div>
 
     <div class="row filter-row" role="search" aria-label="Filter pull requests by column">
-      <input class="col-filter" data-col="repo" type="text" placeholder="Repo" aria-label="Filter by repo">
+      <input class="col-filter" data-col="repo" type="text" placeholder="Repo" aria-label="Filter by repo" list="pr-repo-options" autocomplete="off">
+      <datalist id="pr-repo-options"></datalist>
       <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title">
       <input class="col-filter" data-col="author" type="text" placeholder="Author" aria-label="Filter by author">
       <select class="col-filter" data-col="created" aria-label="Filter by created">
@@ -119,7 +120,8 @@
     </div>
 
     <div class="row filter-row" role="search" aria-label="Filter issues by column">
-      <input class="col-filter" data-col="repo" type="text" placeholder="Repo" aria-label="Filter by repo">
+      <input class="col-filter" data-col="repo" type="text" placeholder="Repo" aria-label="Filter by repo" list="issue-repo-options" autocomplete="off">
+      <datalist id="issue-repo-options"></datalist>
       <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title">
       <input class="col-filter" data-col="author" type="text" placeholder="Author" aria-label="Filter by author">
       <select class="col-filter" data-col="created" aria-label="Filter by created">

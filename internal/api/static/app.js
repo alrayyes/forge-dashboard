@@ -169,7 +169,7 @@
     return true;
   }
 
-  function createBoard(containerId, emptyId, noResultsId, isPR, onStatusClick) {
+  function createBoard(containerId, emptyId, noResultsId, isPR, onStatusClick, repoOptionsId) {
     var state = {
       items: [],
       filters: {},
@@ -177,6 +177,31 @@
       page: 1, // no pagination feature yet (issue #37) — reserved
       pageSize: Infinity,
     };
+
+    // The repo filter is a combobox (a free-text <input> with a
+    // <datalist>) rather than a plain dropdown — repos aren't a small,
+    // stable enum the way CI status is, so typing still has to work, but
+    // picking from what's actually on screen beats guessing the exact
+    // spelling.
+    function updateRepoOptions() {
+      var datalist = document.getElementById(repoOptionsId);
+      if (!datalist) return;
+      var seen = {};
+      var repos = [];
+      state.items.forEach(function (item) {
+        if (!seen[item.repo]) {
+          seen[item.repo] = true;
+          repos.push(item.repo);
+        }
+      });
+      repos.sort();
+      datalist.innerHTML = '';
+      repos.forEach(function (repo) {
+        var option = document.createElement('option');
+        option.value = repo;
+        datalist.appendChild(option);
+      });
+    }
 
     // Sets col to value, unless it's already value — then clears it. Used
     // by a click on something that represents one specific value (a CI
@@ -218,6 +243,7 @@
       setItems: function (items) {
         state.items = items;
         state.page = 1;
+        updateRepoOptions();
         render();
       },
       setFilter: function (col, value) {
@@ -242,8 +268,8 @@
     if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  var prBoard = createBoard('pr-rows', 'pr-empty', 'pr-no-results', true, handleStatusClick);
-  var issueBoard = createBoard('issue-rows', 'issue-empty', 'issue-no-results', false);
+  var prBoard = createBoard('pr-rows', 'pr-empty', 'pr-no-results', true, handleStatusClick, 'pr-repo-options');
+  var issueBoard = createBoard('issue-rows', 'issue-empty', 'issue-no-results', false, undefined, 'issue-repo-options');
 
   var statFailingTile = document.getElementById('stat-failing-tile');
   if (statFailingTile) statFailingTile.addEventListener('click', function () { handleStatusClick('failure'); });
