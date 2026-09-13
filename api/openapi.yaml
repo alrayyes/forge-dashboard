@@ -248,7 +248,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/SettingsResponse"
         "400":
-          description: The request body wasn't valid JSON.
+          description: |
+            The request body wasn't valid JSON, or a Forgejo token/username
+            was set with no Forgejo URL — a combination the dashboard can't
+            use, since the URL is what a token or username connects to.
           content:
             application/json:
               schema:

@@ -49,6 +49,27 @@ test.describe('settings page', () => {
     await expect(page.locator('#github-token')).toHaveValue('');
   });
 
+  test('a Forgejo username with no instance URL is refused before it ever reaches the server', async ({ page }) => {
+    await page.goto('/settings.html');
+
+    await page.fill('#forgejo-username', 'octocat-forgejo');
+    await page.click('#save-button');
+
+    await expect(page.locator('#status')).toContainText(/instance url/i);
+
+    await page.reload();
+    await expect(page.locator('#forgejo-username')).toHaveValue('', { timeout: 5000 });
+  });
+
+  test('the Forgejo token-settings link tracks the instance URL field and is inert when it is empty', async ({ page }) => {
+    await page.goto('/settings.html');
+
+    await expect(page.locator('#forgejo-token-link')).not.toHaveAttribute('href', /.+/);
+
+    await page.fill('#forgejo-url', 'git.example.com');
+    await expect(page.locator('#forgejo-token-link')).toHaveAttribute('href', 'https://git.example.com/user/settings/applications');
+  });
+
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await page.goto('/settings.html');
 

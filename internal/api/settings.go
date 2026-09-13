@@ -88,6 +88,15 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			ForgejoUsername: req.ForgejoUsername,
 		}
 
+		// buildSourcesForUser skips Forgejo entirely once ForgejoURL is
+		// empty, token or username notwithstanding — so a token/username
+		// saved without a URL wouldn't just be incomplete, it'd silently
+		// do nothing.
+		if merged.ForgejoURL == "" && (merged.ForgejoToken != "" || merged.ForgejoUsername != "") {
+			writeJSON(w, http.StatusBadRequest, errorBody("forgejoUrl is required when a Forgejo token or username is set"))
+			return
+		}
+
 		if err := deps.SettingsStore.Set(r.Context(), u.ID, merged); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save settings"))
 			return

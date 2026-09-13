@@ -78,6 +78,64 @@ func TestSettingsPut_ThenGet_RoundTripsNonSecretFieldsAndNeverReturnsTheToken(t 
 	assert.True(t, got.ForgejoTokenSet)
 }
 
+func TestSettingsPut_ForgejoTokenWithoutURL_Rejected(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoToken":"fj_secret"}`, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestSettingsPut_ForgejoUsernameWithoutURL_Rejected(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoUsername":"ryan"}`, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestSettingsPut_ForgejoURLAlongsideTokenOrUsername_Accepted(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+		`{"forgejoUrl":"https://git.example.com","forgejoUsername":"ryan"}`, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestSettingsPut_ClearingForgejoURLWhileATokenIsAlreadySaved_Rejected(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	first := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+		`{"forgejoUrl":"https://git.example.com","forgejoToken":"fj_secret"}`, sessionCookie)
+	_ = first.Body.Close()
+	require.Equal(t, http.StatusOK, first.StatusCode)
+
+	// The token field is blank here too, but that means "keep the saved
+	// token" (see settingsPutRequest's doc comment) — so this still leaves
+	// a Forgejo token on file with no URL to use it against, and should be
+	// refused the same as never having set a URL at all.
+	second := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoUrl":""}`, sessionCookie)
+	defer func() { _ = second.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, second.StatusCode)
+}
+
 func TestSettingsPut_BlankTokenField_KeepsThePreviouslySavedToken(t *testing.T) {
 	t.Parallel()
 

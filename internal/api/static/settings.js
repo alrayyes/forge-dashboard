@@ -145,6 +145,20 @@
   document.getElementById('settings-form').addEventListener('submit', function (e) {
     e.preventDefault();
 
+    var forgejoUrl = document.getElementById('forgejo-url').value.trim();
+    var forgejoToken = document.getElementById('forgejo-token').value;
+    var forgejoUsername = document.getElementById('forgejo-username').value.trim();
+    // A blank token field still means "keep the one already saved" (see
+    // the PUT handler's doc comment), so a saved token counts here too —
+    // otherwise re-saving without retyping the token would sail past this
+    // check only to be rejected server-side.
+    var forgejoTokenAlreadySaved = !document.getElementById('forgejo-token-badge').hidden;
+    if (!forgejoUrl && (forgejoToken || forgejoTokenAlreadySaved || forgejoUsername)) {
+      setStatus('Forgejo needs an instance URL to use that token or username against.', 'error');
+      document.getElementById('forgejo-url').focus();
+      return;
+    }
+
     var saveButton = document.getElementById('save-button');
     saveButton.disabled = true;
     setStatus('Saving…');
@@ -152,9 +166,9 @@
     var body = {
       githubToken: document.getElementById('github-token').value,
       githubUsername: document.getElementById('github-username').value.trim(),
-      forgejoUrl: document.getElementById('forgejo-url').value.trim(),
-      forgejoToken: document.getElementById('forgejo-token').value,
-      forgejoUsername: document.getElementById('forgejo-username').value.trim(),
+      forgejoUrl: forgejoUrl,
+      forgejoToken: forgejoToken,
+      forgejoUsername: forgejoUsername,
     };
 
     fetch('/api/settings', {
