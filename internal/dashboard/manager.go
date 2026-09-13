@@ -63,6 +63,18 @@ func (m *Manager) Get(userID []byte) Snapshot {
 	return entry.agg.Get()
 }
 
+// Running reports whether userID currently has an Aggregator refreshing
+// in the background. False right after a process restart for every user
+// — the Manager holds no state across one — until something re-Ensures
+// them; a caller can use this to tell "nothing saved in Settings" apart
+// from "just needs rewarming from what's already saved."
+func (m *Manager) Running(userID []byte) bool {
+	m.mu.Lock()
+	_, ok := m.users[string(userID)]
+	m.mu.Unlock()
+	return ok
+}
+
 // RefreshNow fetches userID's sources immediately, out of band from their
 // regular refreshInterval ticker — the webhook handler's entry point for
 // turning a forge event into an up-to-date snapshot within seconds rather

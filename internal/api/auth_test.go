@@ -51,6 +51,17 @@ func newTestServer(t *testing.T) *httptest.Server {
 
 func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Credentials) []dashboard.Source) *httptest.Server {
 	t.Helper()
+	srv, _ := newTestServerWithSourcesAndManager(t, buildSources)
+	return srv
+}
+
+// newTestServerWithSourcesAndManager is newTestServerWithSources plus the
+// *dashboard.Manager itself — for a test that needs to simulate a process
+// restart (manager.Stop(), which cancels every running loop and clears
+// its map, the same effect on Manager state a real restart has) without
+// tearing down the rest of the server.
+func newTestServerWithSourcesAndManager(t *testing.T, buildSources func(settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Manager) {
+	t.Helper()
 
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
 	require.NoError(t, err)
@@ -93,7 +104,7 @@ func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Creden
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return srv
+	return srv, manager
 }
 
 func testEncryptionKey(t *testing.T) string {

@@ -1,12 +1,15 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
 // handleDashboard answers the requested dashboard: the signed-in user's
@@ -28,6 +31,7 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 
 		ownerUsername := r.URL.Query().Get("owner")
 		if ownerUsername == "" || ownerUsername == u.Username {
+			warmUpAggregator(r.Context(), deps, u.ID, u.Username)
 			writeJSON(w, http.StatusOK, deps.Manager.Get(u.ID))
 			return
 		}
@@ -52,8 +56,40 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		warmUpAggregator(r.Context(), deps, owner.ID, owner.Username)
 		writeJSON(w, http.StatusOK, deps.Manager.Get(owner.ID))
 	}
+}
+
+// warmUpAggregator re-establishes userID's Aggregator from whatever they
+// last saved in Settings, if the Manager doesn't already have one
+// running for them. The Manager holds no state across a process restart
+// — every deploy wipes it — and a request against an already-valid
+// session cookie never goes through startSession's own warm-up again the
+// way a fresh login does, so without this a dashboard that survived a
+// restart would show the zero-value empty snapshot forever, not just
+// until the next scheduled refresh. A user with nothing saved yet is a
+// no-op, same as Manager.Get's empty-snapshot default.
+func warmUpAggregator(ctx context.Context, deps Deps, userID []byte, username string) {
+	if deps.Manager.Running(userID) {
+		return
+	}
+	loadAndEnsure(ctx, deps, userID, username)
+}
+
+// loadAndEnsure loads userID's saved Settings and (re)builds their
+// Aggregator from them — unconditionally, unlike warmUpAggregator, since
+// startSession calls this on every login regardless of whether one's
+// already running, to pick up whatever was most recently saved.
+func loadAndEnsure(ctx context.Context, deps Deps, userID []byte, username string) {
+	creds, err := deps.SettingsStore.Get(ctx, userID)
+	if err != nil {
+		if !errors.Is(err, settings.ErrNotFound) {
+			slog.Warn("could not load settings to warm up dashboard", "user", username, "error", err)
+		}
+		return
+	}
+	deps.Manager.Ensure(deps.AppContext, userID, deps.BuildSources(creds))
 }
 
 // handleDashboardStream pushes the signed-in user's own dashboard
@@ -80,6 +116,8 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 			writeJSON(w, http.StatusInternalServerError, errorBody("streaming not supported"))
 			return
 		}
+
+		warmUpAggregator(r.Context(), deps, u.ID, u.Username)
 
 		ch, unsubscribe, ok := deps.Manager.Subscribe(u.ID)
 		if !ok {

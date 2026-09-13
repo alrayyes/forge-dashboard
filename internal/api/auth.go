@@ -3,11 +3,9 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
-	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
 // SessionUser matches components.schemas.SessionUser in api/openapi.yaml.
@@ -119,18 +117,12 @@ func startSession(w http.ResponseWriter, r *http.Request, deps Deps, u *auth.Use
 	// Warm up this user's Aggregator from whatever they last saved in
 	// Settings — the Manager holds no state across a restart, so this is
 	// what makes a returning user's dashboard start refreshing again
-	// without a trip to Settings first. A user with nothing saved yet
-	// just gets Manager.Get's empty-snapshot default, same as before this
-	// ran.
-	//
-	// deps.AppContext, not r.Context(): the background refresh goroutine
-	// Ensure starts has to outlive this one request, and a *http.Request's
-	// context is canceled the moment this handler returns.
-	if creds, err := deps.SettingsStore.Get(r.Context(), u.ID); err == nil {
-		deps.Manager.Ensure(deps.AppContext, u.ID, deps.BuildSources(creds))
-	} else if !errors.Is(err, settings.ErrNotFound) {
-		slog.Warn("could not load settings to warm up dashboard", "user", u.Username, "error", err)
-	}
+	// without a trip to Settings first. Unconditional, unlike
+	// warmUpAggregator's use elsewhere: a login is a deliberate moment to
+	// pick up whatever was most recently saved, not just a gap to paper
+	// over. A user with nothing saved yet just gets Manager.Get's
+	// empty-snapshot default, same as before this ran.
+	loadAndEnsure(r.Context(), deps, u.ID, u.Username)
 
 	writeJSON(w, http.StatusOK, sessionUserOf(u))
 }
