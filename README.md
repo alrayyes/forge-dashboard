@@ -39,14 +39,14 @@ now describes the first slice of.
 
 ### Where this stands against #3
 
-This ships passkey registration and login gating the dashboard, per-user
-GitHub/Forgejo tokens — every signed-in user configures their own forges
-from the Settings page and sees only their own dashboard — and an admin
-area for the one account `ADMIN_USERNAME` designates: list every
-registered user, revoke a user's passkeys and sessions without deleting
-their account, or remove one outright. It does **not** yet ship #3's
-last remaining piece: dashboard sharing between users. That lands as its
-own follow-up work on top of this.
+This ships every piece of #3: passkey registration and login gating the
+dashboard, per-user GitHub/Forgejo tokens (every signed-in user
+configures their own forges from the Settings page and sees only their
+own dashboard by default), an admin area for the one account
+`ADMIN_USERNAME` designates (list every registered user, revoke a
+user's passkeys and sessions without deleting their account, or remove
+one outright), and dashboard sharing (grant another registered user
+read-only access to your own dashboard, from Settings).
 
 ## Requirements
 
@@ -107,6 +107,19 @@ actions per row.
 Neither action works on the admin's own account (the backend refuses it
 with a 400, and the frontend disables both buttons on that row) — there's
 no recovery path for locking yourself out this way.
+
+## Sharing
+
+From Settings, share your own dashboard with another registered user,
+read-only — they need no GitHub/Forgejo credentials of their own
+configured. Once shared, a selector appears in their dashboard header
+so they can switch between their own dashboard and yours; Settings also
+lists everyone who's shared their dashboard with you, and everyone
+you've shared yours with, with a one-click way to stop.
+
+Enforced server-side (`GET /api/dashboard?owner=<username>` answers 403
+without an active share, not just a hidden frontend control) — see
+`internal/sharing` and `api/openapi.yaml`'s `sharing` tag.
 
 ## Credentials
 
@@ -228,13 +241,15 @@ here.
 ## API
 
 `api/openapi.yaml` is the contract: `GET /healthz` for liveness,
-`GET /api/dashboard` for the signed-in user's aggregated snapshot,
-`GET`/`PUT /api/settings` for that user's own GitHub/Forgejo
-configuration — the `PUT` response never echoes a token back, only
-whether one is now set — and `GET /api/admin/users` plus the
-revoke/delete endpoints under `admin`, every one of them refusing
-anyone but the designated admin. `redocly lint` validates it; nothing
-yet asserts the handlers still match it (see
+`GET /api/dashboard` for the signed-in user's aggregated snapshot (or,
+with `?owner=<username>`, one shared with them), `GET`/`PUT
+/api/settings` for that user's own GitHub/Forgejo configuration — the
+`PUT` response never echoes a token back, only whether one is now set
+— `GET/PUT/DELETE /api/sharing(/{username})` for managing who can see
+your dashboard, and `GET /api/admin/users` plus the revoke/delete
+endpoints under `admin`, every one of them refusing anyone but the
+designated admin. `redocly lint` validates it; nothing yet asserts the
+handlers still match it (see
 [CONTRIBUTING.md](CONTRIBUTING.md#how-it-fits-together)).
 
 ## Contributing
