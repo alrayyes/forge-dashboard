@@ -52,6 +52,7 @@ UIs?
 APIs?
 tailnet
 homelab('s)?
+AGPL('s)?
 Tailscale
 Traefik
 liveness

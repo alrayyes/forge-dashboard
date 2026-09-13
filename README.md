@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/alrayyes/forge-dashboard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alrayyes/forge-dashboard/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/alrayyes/forge-dashboard?sort=semver)](https://github.com/alrayyes/forge-dashboard/releases/latest)
-[![licence](https://img.shields.io/badge/licence-GPL--3.0-blue)](LICENSE)
+[![licence](https://img.shields.io/badge/licence-AGPL--3.0-blue)](LICENSE)
 
 A single-page dashboard of open pull requests, issues, and CI status across
 every repository you have write access to on **GitHub** and a **Forgejo**
@@ -261,4 +261,8 @@ how a change gets reviewed and released.
 
 ## Licence
 
-[GPL-3.0](LICENSE).
+[AGPL-3.0](LICENSE). Chosen over the plain GPL-3.0 this project started
+under because AGPL's network-use clause also covers running a modified
+copy as a hosted service — closing the one gap GPL leaves open ahead of
+an eventual open-core split (see
+[#63](https://github.com/alrayyes/forge-dashboard/issues/63)).
