@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/alrayyes/forge-dashboard/compare/v0.25.0...v0.26.0) (2026-09-13)
+
+
+### Features
+
+* push dashboard updates over Server-Sent Events ([#88](https://github.com/alrayyes/forge-dashboard/issues/88)) ([cf3017c](https://github.com/alrayyes/forge-dashboard/commit/cf3017c4c97c6cf3f1fc2581d2d5b6d6c224fdab))
+
 ## [0.25.0](https://github.com/alrayyes/forge-dashboard/compare/v0.24.0...v0.25.0) (2026-09-13)
 
 
