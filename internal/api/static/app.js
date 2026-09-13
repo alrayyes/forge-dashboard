@@ -516,6 +516,28 @@
   });
 
   // ---- main fetch/render loop ----
+  function applySnapshot(data) {
+    clearError();
+    lastGeneratedAt = data.generatedAt;
+    tickRefreshedAt();
+
+    renderForgeHealth(data.forges || []);
+
+    var prs = data.pullRequests || [];
+    var issues = data.issues || [];
+    prBoard.setItems(prs);
+    issueBoard.setItems(issues);
+
+    document.getElementById('stat-prs').textContent = String(prs.length);
+    document.getElementById('stat-issues').textContent = String(issues.length);
+    document.getElementById('stat-failing').textContent = String(prs.filter(function (p) { return p.ci === 'failure'; }).length);
+    document.getElementById('stat-repos').textContent = String(
+      (data.forges || []).reduce(function (sum, f) { return sum + (f.repoCount || 0); }, 0)
+    );
+    document.getElementById('pr-count').textContent = prs.length + ' open';
+    document.getElementById('issue-count').textContent = issues.length + ' open';
+  }
+
   function refresh() {
     var url = '/api/dashboard' + (currentOwner ? '?owner=' + encodeURIComponent(currentOwner) : '');
     fetch(url, { headers: { Accept: 'application/json' } })
@@ -527,27 +549,7 @@
         if (!res.ok) throw new Error('backend answered ' + res.status);
         return res.json();
       })
-      .then(function (data) {
-        clearError();
-        lastGeneratedAt = data.generatedAt;
-        tickRefreshedAt();
-
-        renderForgeHealth(data.forges || []);
-
-        var prs = data.pullRequests || [];
-        var issues = data.issues || [];
-        prBoard.setItems(prs);
-        issueBoard.setItems(issues);
-
-        document.getElementById('stat-prs').textContent = String(prs.length);
-        document.getElementById('stat-issues').textContent = String(issues.length);
-        document.getElementById('stat-failing').textContent = String(prs.filter(function (p) { return p.ci === 'failure'; }).length);
-        document.getElementById('stat-repos').textContent = String(
-          (data.forges || []).reduce(function (sum, f) { return sum + (f.repoCount || 0); }, 0)
-        );
-        document.getElementById('pr-count').textContent = prs.length + ' open';
-        document.getElementById('issue-count').textContent = issues.length + ' open';
-      })
+      .then(applySnapshot)
       .catch(function (err) {
         showError('Could not reach the backend: ' + err.message);
       });
@@ -555,4 +557,23 @@
 
   refresh();
   setInterval(refresh, REFRESH_INTERVAL_MS);
+
+  // ---- live updates over Server-Sent Events, on top of the poll above ----
+  // The poll keeps running unconditionally — this only ever makes the
+  // dashboard update sooner than the next one, never a replacement for
+  // it. A browser or proxy that can't hold this connection open just
+  // never benefits from it: EventSource retries on its own, and if it
+  // never connects at all the poll still keeps the data fresh.
+  if (window.EventSource) {
+    var eventSource = new EventSource('/api/dashboard/stream');
+    eventSource.onmessage = function (event) {
+      // Only when looking at your own dashboard — a push here is always
+      // this session's own aggregator, never the owner currently
+      // selected in the sharing dropdown.
+      if (currentOwner) return;
+      try {
+        applySnapshot(JSON.parse(event.data));
+      } catch (e) { /* a malformed event here isn't worth surfacing over the working poll */ }
+    };
+  }
 })();
