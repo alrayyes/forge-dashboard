@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/alrayyes/forge-dashboard/compare/v0.15.0...v0.16.0) (2026-09-13)
+
+
+### Features
+
+* click a CI status to filter the pull request list by it ([#52](https://github.com/alrayyes/forge-dashboard/issues/52)) ([716e420](https://github.com/alrayyes/forge-dashboard/commit/716e42039e1316d0076867ecca26cbbf11354c84))
+
 ## [0.15.0](https://github.com/alrayyes/forge-dashboard/compare/v0.14.1...v0.15.0) (2026-09-13)
 
 
