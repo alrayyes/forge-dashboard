@@ -270,31 +270,39 @@
       pageSize: 25,
     };
 
-    // Grouped by repo, alphabetically, under a real heading (not a
-    // styled div) so it's announced as structure, not decoration. Off by
-    // default — this is a toggle, not a permanent change to how the flat
-    // list already reads.
-    function renderGrouped(container, items) {
-      var groups = {};
-      var repoOrder = [];
-      items.forEach((item) => {
-        if (!groups[item.repo]) {
-          groups[item.repo] = [];
-          repoOrder.push(item.repo);
-        }
-        groups[item.repo].push(item);
-      });
-      repoOrder.sort();
+    // Grouped by repo or by forge, alphabetically (forge by its display
+    // label, not the raw "github"/"forgejo" value, since that's what a
+    // screen reader announces), under a real heading (not a styled div)
+    // so it's announced as structure, not decoration. Off by default —
+    // this is a chosen mode, not a permanent change to how the flat list
+    // already reads.
+    function renderGrouped(container, items, groupBy) {
+      var keyOf =
+        groupBy === 'forge'
+          ? (item) => FORGE_LABELS[item.forge] || item.forge
+          : (item) => item.repo;
 
-      repoOrder.forEach((repo) => {
+      var groups = {};
+      var order = [];
+      items.forEach((item) => {
+        var key = keyOf(item);
+        if (!groups[key]) {
+          groups[key] = [];
+          order.push(key);
+        }
+        groups[key].push(item);
+      });
+      order.sort();
+
+      order.forEach((key) => {
         var heading = document.createElement('h3');
-        heading.className = 'repo-group-heading';
-        heading.appendChild(document.createTextNode(repo));
+        heading.className = 'group-heading';
+        heading.appendChild(document.createTextNode(key));
         heading.appendChild(
-          el('span', 'repo-group-count', String(groups[repo].length)),
+          el('span', 'group-count', String(groups[key].length)),
         );
         container.appendChild(heading);
-        groups[repo].forEach((item) => {
+        groups[key].forEach((item) => {
           container.appendChild(
             buildRow(
               item,
@@ -457,12 +465,12 @@
       var totalPages;
       var start;
       var pageItems;
-      if (state.groupBy === 'repo') {
+      if (state.groupBy) {
         // Grouping and pagination stay mutually exclusive — paginating
         // grouped clusters coherently is a bigger problem than either
         // feature's own acceptance criteria asked for, so grouped mode
         // just renders the whole filtered set and the pager hides.
-        renderGrouped(container, visible);
+        renderGrouped(container, visible, state.groupBy);
         groupedPagination = document.getElementById(`${idPrefix}-pagination`);
         if (groupedPagination) groupedPagination.hidden = true;
       } else {
@@ -499,10 +507,10 @@
       });
     }
 
-    var groupToggle = document.getElementById(`${idPrefix}-group-toggle`);
-    if (groupToggle) {
-      groupToggle.addEventListener('change', () => {
-        state.groupBy = groupToggle.checked ? 'repo' : null;
+    var groupSelect = document.getElementById(`${idPrefix}-group-select`);
+    if (groupSelect) {
+      groupSelect.addEventListener('change', () => {
+        state.groupBy = groupSelect.value || null;
         state.page = 1;
         render();
       });
