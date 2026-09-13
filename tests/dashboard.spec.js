@@ -25,6 +25,19 @@ test.describe('dashboard page', () => {
     await expect(page.locator('.board')).toHaveCount(2);
   });
 
+  test('a user with no background refresh running yet still sees the dashboard, with no error banner', async ({ page }) => {
+    // GET /api/dashboard/stream 404s until Settings has been saved once
+    // (no Manager Aggregator running yet) — EventSource retries that on
+    // its own, silently, and the poll this page also runs keeps the
+    // dashboard itself working regardless. Real bug shape this guards
+    // against: an unhandled SSE failure surfacing as a visible error.
+    const streamResponse = await page.request.get('/api/dashboard/stream');
+    expect(streamResponse.status()).toBe(404);
+
+    await expect(page.locator('h1')).toHaveText('Forge Board');
+    await expect(page.locator('#error-banner')).toHaveCount(0);
+  });
+
   test('the footer shows the running version, fetched from /api/version', async ({ page }) => {
     // CI builds the e2e binary with no goreleaser ldflags, so this is
     // always "dev" here — a real release build shows "· vX.Y.Z" linked to

@@ -468,6 +468,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/dashboard/stream:
+    get:
+      operationId: streamDashboard
+      summary: Server-Sent Events stream of the signed-in user's own dashboard
+      description: |
+        Pushes a fresh snapshot every time this user's background
+        refresh produces one — most notably right after a verified
+        webhook delivery (see the webhooks tag) triggers an immediate
+        one, which is what turns that into a live update instead of
+        something only the next scheduled refresh picks up.
+
+        Doesn't support `owner` the way GET /api/dashboard does — only
+        ever the signed-in user's own dashboard, never a shared one.
+        The frontend's own 30-second poll against GET /api/dashboard
+        keeps running unconditionally, connected or not — a browser or
+        proxy that can't hold an SSE connection open just never
+        benefits from this, rather than the dashboard going stale
+        silently.
+      tags: [dashboard]
+      responses:
+        "200":
+          description: |
+            An SSE stream. Each event's `data` field is a JSON-encoded
+            snapshot, identical in shape to GET /api/dashboard's
+            response body.
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No background refresh is running yet for this user — Settings has never been saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/sharing:
     get:
       operationId: getSharing
