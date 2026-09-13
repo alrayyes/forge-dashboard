@@ -75,16 +75,62 @@
     return wrap;
   }
 
+  // WCAG relative-luminance/contrast math (same formula this codebase's
+  // own design tokens were hand-verified against) — picks whichever of
+  // near-black/near-white ink actually reads against a label's real
+  // background color, since that color is arbitrary and forge-supplied,
+  // not one of our own palette's pre-checked pairs.
+  function relativeLuminance(hex) {
+    function channel(c) {
+      c = c / 255;
+      return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    }
+    var r = channel(parseInt(hex.substr(0, 2), 16));
+    var g = channel(parseInt(hex.substr(2, 2), 16));
+    var b = channel(parseInt(hex.substr(4, 2), 16));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  function contrastRatio(l1, l2) {
+    var lighter = Math.max(l1, l2);
+    var darker = Math.min(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  function labelTextColor(bgHex) {
+    // True black/white, not this app's own --ink/--ink-3 tokens — a
+    // themed near-black measurably under-performs pure black against an
+    // arbitrary background (caught live: GitHub's own default "bug" red,
+    // #d73a4a, cleared 4.5:1 against pure black at 4.59:1 but only hit
+    // 4.2:1 against this app's #0b0f14 — the decision math and the
+    // applied color have to agree on which black they mean, or a label
+    // can fail axe-core's contrast check despite this function "picking
+    // the higher-contrast option").
+    var bg = relativeLuminance(bgHex);
+    var blackContrast = contrastRatio(bg, 0);
+    var whiteContrast = contrastRatio(bg, 1);
+    return blackContrast >= whiteContrast ? '#000000' : '#ffffff';
+  }
+
   // A real button — see the comment above ciPill on why the row isn't an
   // <a> around everything.
   function labelChip(label, onLabelClick, activeLabel) {
     var chip = document.createElement('button');
     chip.type = 'button';
-    chip.className = 'label-chip' + (label === activeLabel ? ' active' : '');
-    chip.textContent = label;
-    chip.setAttribute('aria-label', 'Filter by label: ' + label);
-    chip.setAttribute('aria-pressed', String(label === activeLabel));
-    chip.addEventListener('click', function () { onLabelClick(label); });
+    var isActive = label.name === activeLabel;
+    chip.className = 'label-chip' + (isActive ? ' active' : '');
+    chip.textContent = label.name;
+    if (label.color && !isActive) {
+      // The active state has its own fixed accent styling (see
+      // .label-chip.active in style.css) — a per-label background would
+      // fight with "this is the one currently filtering" as a signal.
+      chip.style.backgroundColor = '#' + label.color;
+      chip.style.borderColor = '#' + label.color;
+      chip.style.color = labelTextColor(label.color);
+    }
+    chip.setAttribute('aria-label', 'Filter by label: ' + label.name);
+    chip.setAttribute('aria-pressed', String(isActive));
+    chip.addEventListener('click', function () { onLabelClick(label.name); });
     return chip;
   }
 
@@ -165,7 +211,7 @@
     if (filters.created && minutesAgo(item.createdAt) > Number(filters.created)) return false;
     if (filters.updated && minutesAgo(item.updatedAt) > Number(filters.updated)) return false;
     if (filters.status && isPR && item.ci !== filters.status) return false;
-    if (filters.label && (item.labels || []).indexOf(filters.label) === -1) return false;
+    if (filters.label && !(item.labels || []).some(function (l) { return l.name === filters.label; })) return false;
     return true;
   }
 

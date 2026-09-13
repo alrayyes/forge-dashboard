@@ -146,7 +146,7 @@ func TestListOpenPullRequests_MapsFieldsAndResolvesCI(t *testing.T) {
 			{
 				"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
 				"draft": false, "user": map[string]string{"login": "ryankes"},
-				"labels":     []map[string]string{{"name": "topic/monitoring"}},
+				"labels":     []map[string]string{{"name": "topic/monitoring", "color": "1d76db"}},
 				"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
 				"head": map[string]string{"sha": "cafef00d"},
 			},
@@ -173,7 +173,7 @@ func TestListOpenPullRequests_MapsFieldsAndResolvesCI(t *testing.T) {
 	})
 	t.Run("labels carry through", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, []string{"topic/monitoring"}, pr.Labels)
+		assert.Equal(t, []dashboard.Label{{Name: "topic/monitoring", Color: "1d76db"}}, pr.Labels)
 	})
 	t.Run("CI reflects the combined status", func(t *testing.T) {
 		t.Parallel()

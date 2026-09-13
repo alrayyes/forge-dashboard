@@ -27,6 +27,13 @@ const (
 	CINone    CIStatus = "none"
 )
 
+// Label matches components.schemas.Label — a label's name and its real
+// colour from the forge, not just the name.
+type Label struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
+
 // PullRequest matches components.schemas.PullRequest in api/openapi.yaml.
 type PullRequest struct {
 	Forge     Forge     `json:"forge"`
@@ -36,7 +43,7 @@ type PullRequest struct {
 	URL       string    `json:"url"`
 	Author    string    `json:"author"`
 	Draft     bool      `json:"draft"`
-	Labels    []string  `json:"labels"`
+	Labels    []Label   `json:"labels"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	CI        CIStatus  `json:"ci"`
@@ -50,7 +57,7 @@ type Issue struct {
 	Title     string    `json:"title"`
 	URL       string    `json:"url"`
 	Author    string    `json:"author"`
-	Labels    []string  `json:"labels"`
+	Labels    []Label   `json:"labels"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

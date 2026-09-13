@@ -712,6 +712,21 @@ components:
         request's head commit. "none" means neither forge reported any
         check at all, not that one failed.
 
+    Label:
+      type: object
+      required: [name, color]
+      properties:
+        name:
+          type: string
+          examples: [kind/bug]
+        color:
+          type: string
+          description: |
+            The label's colour as a hex string with no leading "#",
+            exactly as the forge reports it.
+          pattern: "^[0-9a-fA-F]{6}$"
+          examples: [d73a4a]
+
     ForgeHealth:
       type: object
       required: [forge, reachable, repoCount]
@@ -767,7 +782,7 @@ components:
         labels:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/Label"
         createdAt:
           type: string
           format: date-time
@@ -800,7 +815,7 @@ components:
         labels:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/Label"
         createdAt:
           type: string
           format: date-time
