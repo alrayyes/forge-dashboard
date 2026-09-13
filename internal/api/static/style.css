@@ -19,7 +19,14 @@
      own --good already clears 4.5:1 on both and is untouched. */
   --good: #157347;
   --good-bg: #e4f6ee;
-  --critical: #d9363e;
+  /* Same story as --good above: #d9363e passed against --surface
+     (4.62:1) but not against --critical-bg itself (3.94:1, short of
+     4.5:1) — caught live by axe-core the first time a real "failure" CI
+     pill rendered in a scanned page (.ci-pill.failure and .error-banner
+     both use this pair as text, not just the pill's dot). Darkened until
+     it clears both, dark mode's own --critical already does and is
+     untouched. */
+  --critical: #c52f37;
   --critical-bg: #fbe9e9;
   --warning: #b8790a;
   --warning-bg: #faf0da;
@@ -241,6 +248,19 @@ header {
   box-shadow: var(--shadow);
 }
 
+/* A couple of .stat tiles are real <button>s (clicking "CI failing"
+   jumps to the pull requests board filtered to it) — reset the button
+   defaults so they still read as the same plain stat card. */
+button.stat {
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+button.stat:hover,
+button.stat:focus-visible { border-color: var(--border-strong); }
+button.stat:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 .stat .n {
   font-family: "IBM Plex Mono", monospace;
   font-size: 26px;
@@ -280,18 +300,18 @@ section.board {
 .board-head .count { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--ink-3); }
 
 .row {
+  position: relative; /* the containing block .title::after stretches against */
   display: grid;
   grid-template-columns: 168px 1fr 96px 82px 82px 92px 22px;
   gap: 12px;
   align-items: center;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
-  text-decoration: none;
   color: inherit;
 }
 
 .row:last-child { border-bottom: none; }
-a.row:hover { background: var(--surface-sunken); }
+.row:hover, .row:focus-within { background: var(--surface-sunken); }
 
 .filter-row { padding: 10px 18px; background: var(--surface-sunken); }
 
@@ -340,14 +360,51 @@ select.col-filter { cursor: pointer; }
   white-space: nowrap;
 }
 
-.title-cell { min-width: 0; display: flex; align-items: baseline; gap: 8px; overflow: hidden; }
+/* No overflow:hidden here (deliberately — see .title::after below): it
+   would clip that pseudo-element to this box instead of letting it
+   stretch to the whole .row. flex-wrap plus .title's flex-basis:100%
+   (same fix as the phone-width title-wrap bug, now applied everywhere)
+   is what keeps a title-cell with several long label chips from
+   overflowing sideways instead — a chip that doesn't fit wraps onto the
+   next line rather than needing a clip. */
+.title-cell { min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; row-gap: 6px; }
 .row-meta { display: contents; }
 
 .title {
+  /* Deliberately no overflow:hidden on .title itself — .title::after's
+     stretched overlay is this element's own generated content, and
+     overflow:hidden on the generating box clips its own pseudo-element
+     back down to that box's bounds (inset:0 still computes against .row,
+     but the clip wins), which defeated the "click anywhere in the row"
+     part of the stretched-link pattern below. The ellipsis truncation
+     that needs overflow:hidden now lives on the inner .title-text span
+     instead, where it can't clip the overlay. */
   font-size: 13.5px;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.title-text {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  overflow-wrap: break-word;
+}
+
+/* The "stretched link" pattern: .title is the one real, focusable <a> in
+   the row (see app.js's titleCell), and this pseudo-element stretches it
+   to cover the whole row (.row is the nearest `position: relative`
+   ancestor) so clicking anywhere still opens the PR/issue — without the
+   row itself being an <a>, which would make the CI pill and label chips
+   invalid, inaccessible nested interactive elements. */
+.title::after {
+  content: "";
+  position: absolute;
+  inset: 0;
 }
 
 .title .num { color: var(--ink-3); font-family: "IBM Plex Mono", monospace; font-size: 12px; margin-right: 6px; }
@@ -386,6 +443,10 @@ select.col-filter { cursor: pointer; }
 .created, .updated { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
 .ci-pill {
+  /* Above .title::after's stretched-link overlay, or the pill would be
+     unreachable under it. */
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -394,7 +455,12 @@ select.col-filter { cursor: pointer; }
   padding: 4px 9px;
   border-radius: 999px;
   white-space: nowrap;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
 }
+
+.ci-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .ci-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .ci-pill.success { background: var(--good-bg); color: var(--good); }
@@ -455,26 +521,16 @@ footer a.mono:hover, footer a.mono:focus-visible { text-decoration: underline; c
   }
   .row .repo { grid-area: repo; }
   .row .go { grid-area: go; }
-  /* Without flex-wrap, .title-cell's flex-row children (.title plus any
-     draft badge and label chips, each flex:none so they never shrink)
-     fight over one line's width — with several long label chips present,
-     .title gets squeezed down to a sliver and every word wraps onto its
-     own line. flex-basis:100% on .title forces it onto a full-width line
-     by itself; flex-wrap lets the badges/chips flow onto the line below
-     instead of everyone cramming into one. */
-  .row .title-cell {
-    grid-area: title;
-    white-space: normal;
-    flex-wrap: wrap;
-    row-gap: 6px;
-  }
-  .row .title-cell .title {
+  /* Below this width the title wraps instead of truncating with an
+     ellipsis — the .title-cell/.title flex-wrap and flex-basis:100% that
+     make that safe with several long label chips present are already the
+     base rule (see the phone-width title-wrap bug fix), so only the
+     wrap-vs-truncate behavior itself changes here. */
+  .row .title-cell { grid-area: title; }
+  .row .title-cell .title-text {
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
-    overflow-wrap: break-word;
-    flex: 1 1 100%;
-    min-width: 0;
   }
   .row-meta {
     grid-area: meta;

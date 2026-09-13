@@ -115,6 +115,68 @@ test.describe('dashboard page', () => {
     await repoFilter.fill('nonexistent-repo');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(0);
   });
+
+  test.describe('CI status click-to-filter', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.route('**/api/dashboard*', (route) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [
+            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 1, title: 'A passing PR', url: 'https://example.com/1', author: 'claude', ci: 'success', labels: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 2, title: 'A failing PR', url: 'https://example.com/2', author: 'claude', ci: 'failure', labels: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          ],
+          issues: [],
+        }),
+      }));
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    });
+
+    test('clicking the "CI failing" stat tile filters to failing pull requests, and clicking it again clears the filter', async ({ page }) => {
+      await page.click('#stat-failing-tile');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('A failing PR');
+      await expect(page.locator('section[aria-label="Open pull requests"] .col-filter[data-col="status"]')).toHaveValue('failure');
+
+      await page.click('#stat-failing-tile');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      await expect(page.locator('section[aria-label="Open pull requests"] .col-filter[data-col="status"]')).toHaveValue('');
+    });
+
+    test('clicking anywhere else in a row still opens the pull request, same as before the row stopped being one big <a>', async ({ page }) => {
+      // force:true — the stretched-link overlay covering .repo (see
+      // .title::after in style.css) is the whole point of this pattern,
+      // and Playwright's actionability check refuses a plain .click() on
+      // an element another one visually intercepts. A real click here
+      // (mouse or touch) hits the overlay exactly the same way.
+      const [popup] = await Promise.all([
+        page.waitForEvent('popup'),
+        page.locator('#pr-rows .row', { hasText: 'A passing PR' }).locator('.repo').click({ force: true }),
+      ]);
+      await expect(popup).toHaveURL('https://example.com/1');
+    });
+
+    test('clicking a row\'s CI pill filters to that status, without also opening the PR', async ({ page }) => {
+      let navigated = false;
+      page.on('popup', () => { navigated = true; });
+
+      await page.locator('#pr-rows .row', { hasText: 'A passing PR' }).locator('.ci-pill').click();
+
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('A passing PR');
+      expect(navigated).toBe(false);
+    });
+
+    test('has no axe-core violations with real rows rendered, including nested-interactive checks', async ({ page }) => {
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
 });
 
 test.describe('login page', () => {
