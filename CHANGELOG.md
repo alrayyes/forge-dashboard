@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/alrayyes/forge-dashboard/compare/v0.20.0...v0.21.0) (2026-09-13)
+
+
+### Features
+
+* group pull requests and issues by repo ([#75](https://github.com/alrayyes/forge-dashboard/issues/75)) ([11227ba](https://github.com/alrayyes/forge-dashboard/commit/11227bac3fe85030b4598c6f6d0306441467a206)), closes [#39](https://github.com/alrayyes/forge-dashboard/issues/39)
+
 ## [0.20.0](https://github.com/alrayyes/forge-dashboard/compare/v0.19.0...v0.20.0) (2026-09-13)
 
 
