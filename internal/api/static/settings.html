@@ -74,6 +74,18 @@
   }
   .field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .field .field-hint { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; }
+  .field .field-hint code {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 11px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 4px;
+  }
+  .field .field-hint a { display: inline-block; margin-top: 2px; color: var(--accent); }
+  .field .field-hint a:not([href]) { color: var(--ink-3); pointer-events: none; }
+  .field .field-hint #forgejo-token-link-disabled-hint { display: none; }
+  .field .field-hint a#forgejo-token-link:not([href]) + #forgejo-token-link-disabled-hint { display: inline; }
   .actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
   .btn {
     font-family: inherit;
@@ -158,7 +170,12 @@
       <p class="hint">A token sees every repo it can push to, private included. Leave the token blank to keep the one already saved.</p>
       <div class="field">
         <label for="github-token">Personal access token <span class="configured" id="github-token-badge" hidden>Configured</span></label>
-        <input id="github-token" name="githubToken" type="password" autocomplete="off" placeholder="ghp_…">
+        <input id="github-token" name="githubToken" type="password" autocomplete="off" placeholder="ghp_…" aria-describedby="github-token-hint">
+        <p class="field-hint" id="github-token-hint">
+          Needs read-only access to your repos, their issues, pull requests, and commit status — nothing else.
+          <a href="https://github.com/settings/tokens/new?scopes=repo&amp;description=forge-dashboard" target="_blank" rel="noopener noreferrer">Create a token with that scope already set &rarr;</a>
+          Classic tokens: the <code>repo</code> scope (or just <code>public_repo</code> if every repo you track is public). Fine-grained tokens: grant Metadata, Issues, Pull requests, Commit statuses, and Checks, each set to Read-only.
+        </p>
       </div>
       <div class="field">
         <label for="github-username">Username (used only when no token is set)</label>
@@ -176,7 +193,12 @@
       </div>
       <div class="field">
         <label for="forgejo-token">API token <span class="configured" id="forgejo-token-badge" hidden>Configured</span></label>
-        <input id="forgejo-token" name="forgejoToken" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token">
+        <input id="forgejo-token" name="forgejoToken" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token" aria-describedby="forgejo-token-hint">
+        <p class="field-hint" id="forgejo-token-hint">
+          Needs read-only access to your repos and their issues/pull requests — select the <code>read:repository</code> and <code>read:issue</code> scopes.
+          <a id="forgejo-token-link" target="_blank" rel="noopener noreferrer">Open your instance's token settings &rarr;</a>
+          <span id="forgejo-token-link-disabled-hint">(fill in the instance URL above first)</span>
+        </p>
       </div>
       <div class="field">
         <label for="forgejo-username">Username (used only when no token is set)</label>
