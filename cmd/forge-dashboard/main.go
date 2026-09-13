@@ -142,6 +142,13 @@ func buildSourcesForUser(c settings.Credentials) []dashboard.Source {
 
 // openDatabase opens (creating the containing directory if needed) the
 // one SQLite file both auth and settings persist to.
+//
+// _busy_timeout and _journal_mode=WAL matter here specifically because
+// this file sees concurrent writers from goroutines handling different
+// requests at once — without a busy_timeout, SQLite's default is to fail
+// a write immediately with SQLITE_BUSY ("database is locked") the moment
+// it can't get the lock, rather than wait for the other writer to finish.
+// Confirmed live: forge-dashboard#82.
 func openDatabase() (*sql.DB, error) {
 	dbPath := envOr("DB_PATH", "/data/forge-dashboard.db")
 	if dir := filepath.Dir(dbPath); dir != "." {
@@ -149,7 +156,7 @@ func openDatabase() (*sql.DB, error) {
 			return nil, err
 		}
 	}
-	return sql.Open("sqlite", dbPath)
+	return sql.Open("sqlite", dbPath+"?_busy_timeout=5000&_journal_mode=WAL")
 }
 
 // buildAuth wires up the WebAuthn relying party from the environment.
