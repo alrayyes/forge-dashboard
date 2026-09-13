@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/alrayyes/forge-dashboard/compare/v0.18.0...v0.19.0) (2026-09-13)
+
+
+### Features
+
+* make the repo filter a combobox of repos actually on screen ([#61](https://github.com/alrayyes/forge-dashboard/issues/61)) ([80e6502](https://github.com/alrayyes/forge-dashboard/commit/80e65029088b7c73bc70e58ff93a8cb46c24657c)), closes [#35](https://github.com/alrayyes/forge-dashboard/issues/35)
+
 ## [0.18.0](https://github.com/alrayyes/forge-dashboard/compare/v0.17.0...v0.18.0) (2026-09-13)
 
 
