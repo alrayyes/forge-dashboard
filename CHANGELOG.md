@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/alrayyes/forge-dashboard/compare/v0.19.0...v0.20.0) (2026-09-13)
+
+
+### Features
+
+* paginate pull request and issue lists ([#72](https://github.com/alrayyes/forge-dashboard/issues/72)) ([7db300a](https://github.com/alrayyes/forge-dashboard/commit/7db300a3ea73d38e4e6bc27ddf36ffe99a424c3e))
+
 ## [0.19.0](https://github.com/alrayyes/forge-dashboard/compare/v0.18.0...v0.19.0) (2026-09-13)
 
 
