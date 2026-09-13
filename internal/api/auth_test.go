@@ -17,6 +17,7 @@ import (
 	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
+	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/descope/virtualwebauthn"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
@@ -70,6 +71,9 @@ func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Creden
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(t, settingsStore.Init(t.Context()))
 
+	sharingStore := sharingpkg.NewStore(db)
+	require.NoError(t, sharingStore.Init(t.Context()))
+
 	manager := dashboard.NewManager(testRefreshInterval)
 	t.Cleanup(manager.Stop)
 
@@ -80,6 +84,7 @@ func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Creden
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
+		SharingStore:  sharingStore,
 		Manager:       manager,
 		BuildSources:  buildSources,
 		AppContext:    appCtx,

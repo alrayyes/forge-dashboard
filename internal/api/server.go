@@ -10,6 +10,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
+	"github.com/alrayyes/forge-dashboard/internal/sharing"
 )
 
 //go:embed all:static
@@ -23,6 +24,7 @@ type Deps struct {
 	AuthStore   *auth.Store
 
 	SettingsStore *settings.Store
+	SharingStore  *sharing.Store
 
 	// Manager holds each signed-in user's own Aggregator, built from
 	// their saved Credentials via BuildSources.
@@ -56,9 +58,13 @@ func NewMux(deps Deps) *http.ServeMux {
 	mux.HandleFunc("POST /api/auth/logout", handleLogout(deps.AuthStore))
 	mux.Handle("GET /api/auth/session", auth.RequireAuth(deps.AuthStore)(handleGetSession()))
 
-	mux.Handle("GET /api/dashboard", auth.RequireAuth(deps.AuthStore)(handleDashboard(deps.Manager)))
+	mux.Handle("GET /api/dashboard", auth.RequireAuth(deps.AuthStore)(handleDashboard(deps)))
 	mux.Handle("GET /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
+
+	mux.Handle("GET /api/sharing", auth.RequireAuth(deps.AuthStore)(handleSharingGet(deps)))
+	mux.Handle("PUT /api/sharing/{username}", auth.RequireAuth(deps.AuthStore)(handleSharingPut(deps)))
+	mux.Handle("DELETE /api/sharing/{username}", auth.RequireAuth(deps.AuthStore)(handleSharingDelete(deps)))
 
 	mux.Handle("GET /api/admin/users", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminListUsers(deps.AuthStore))))
 	mux.Handle("POST /api/admin/users/{username}/revoke", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminRevokeUser(deps))))
