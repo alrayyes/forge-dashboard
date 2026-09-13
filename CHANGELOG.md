@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/alrayyes/forge-dashboard/compare/v0.23.1...v0.24.0) (2026-09-13)
+
+
+### Features
+
+* **settings:** per-user webhook credentials ([#81](https://github.com/alrayyes/forge-dashboard/issues/81)) ([22e8c4f](https://github.com/alrayyes/forge-dashboard/commit/22e8c4f7799216c47321faafa60e114cb89cc2c1))
+
 ## [0.23.1](https://github.com/alrayyes/forge-dashboard/compare/v0.23.0...v0.23.1) (2026-09-13)
 
 
