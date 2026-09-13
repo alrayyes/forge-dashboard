@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/alrayyes/forge-dashboard/compare/v0.14.1...v0.15.0) (2026-09-13)
+
+
+### Features
+
+* show the running version in the footer, linked to its release ([#50](https://github.com/alrayyes/forge-dashboard/issues/50)) ([69d6e12](https://github.com/alrayyes/forge-dashboard/commit/69d6e12301160d0a0c0f23704111bbbe1cce4126))
+
 ## [0.14.1](https://github.com/alrayyes/forge-dashboard/compare/v0.14.0...v0.14.1) (2026-09-13)
 
 
