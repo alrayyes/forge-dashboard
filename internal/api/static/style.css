@@ -33,6 +33,13 @@
 
   --shadow: 0 1px 2px rgba(16, 24, 38, 0.04), 0 8px 24px -12px rgba(16, 24, 38, 0.12);
   --radius: 10px;
+
+  /* The brand mark's own tile — deliberately the same dark color in both
+     themes, never overridden below, since its SVG strokes are hardcoded
+     light. Bound to --ink instead, this went invisible in dark mode:
+     --ink flips light-on-dark there, leaving light strokes on a now-light
+     tile. */
+  --brand-mark-bg: #101826;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -143,7 +150,7 @@ header {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: var(--ink);
+  background: var(--brand-mark-bg);
   display: grid;
   place-items: center;
   flex: none;
@@ -190,9 +197,9 @@ header {
 }
 
 @keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(30, 158, 107, 0.35); }
-  70% { box-shadow: 0 0 0 6px rgba(30, 158, 107, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(30, 158, 107, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(21, 115, 71, 0.35); }
+  70% { box-shadow: 0 0 0 6px rgba(21, 115, 71, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(21, 115, 71, 0); }
 }
 
 .refreshed { font-size: 12px; color: var(--ink-3); }
