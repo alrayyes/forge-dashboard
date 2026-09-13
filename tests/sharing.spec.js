@@ -3,7 +3,7 @@ const AxeBuilder = require('@axe-core/playwright').default;
 const { addVirtualAuthenticator } = require('./webauthn-helper');
 
 function uniqueUsername(prefix) {
-  return prefix + '-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
 async function registerUser(page, username, displayName) {
@@ -17,7 +17,9 @@ async function registerUser(page, username, displayName) {
 }
 
 test.describe('dashboard sharing', () => {
-  test('sharing makes the owner selectable from the viewer header, and stopping sharing removes it from settings', async ({ browser }) => {
+  test('sharing makes the owner selectable from the viewer header, and stopping sharing removes it from settings', async ({
+    browser,
+  }) => {
     const ownerUsername = uniqueUsername('sharing-owner');
     const viewerUsername = uniqueUsername('sharing-viewer');
 
@@ -34,13 +36,21 @@ test.describe('dashboard sharing', () => {
         await ownerPage.goto('/settings.html');
         await ownerPage.fill('#share-username', viewerUsername);
         await ownerPage.click('#share-form button[type="submit"]');
-        await expect(ownerPage.locator('#share-status')).toContainText('Shared');
-        await expect(ownerPage.locator('#shared-with-list')).toContainText(viewerUsername);
+        await expect(ownerPage.locator('#share-status')).toContainText(
+          'Shared',
+        );
+        await expect(ownerPage.locator('#shared-with-list')).toContainText(
+          viewerUsername,
+        );
 
         await viewerPage.reload();
-        const ownerOption = viewerPage.locator('#dashboard-owner-select option[value="' + ownerUsername + '"]');
+        const ownerOption = viewerPage.locator(
+          `#dashboard-owner-select option[value="${ownerUsername}"]`,
+        );
         await expect(ownerOption).toHaveCount(1);
-        await expect(viewerPage.locator('#dashboard-owner-select')).toBeVisible();
+        await expect(
+          viewerPage.locator('#dashboard-owner-select'),
+        ).toBeVisible();
 
         await viewerPage.selectOption('#dashboard-owner-select', ownerUsername);
         // Switching owners re-fetches /api/dashboard?owner=<ownerUsername> —
@@ -52,8 +62,14 @@ test.describe('dashboard sharing', () => {
         await expect(viewerPage.locator('#error-banner')).toHaveCount(0);
 
         await ownerPage.goto('/settings.html');
-        await ownerPage.click('#shared-with-list button.btn-remove[data-username="' + viewerUsername + '"]');
-        await expect(ownerPage.locator('#share-status')).toContainText('No longer shared');
+        await ownerPage.click(
+          '#shared-with-list button.btn-remove[data-username="' +
+            viewerUsername +
+            '"]',
+        );
+        await expect(ownerPage.locator('#share-status')).toContainText(
+          'No longer shared',
+        );
         await expect(ownerPage.locator('#shared-with-empty')).toBeVisible();
       } finally {
         await viewerContext.close();
@@ -63,7 +79,9 @@ test.describe('dashboard sharing', () => {
     }
   });
 
-  test('has no axe-core violations on settings with an active share, at desktop and phone width', async ({ browser }) => {
+  test('has no axe-core violations on settings with an active share, at desktop and phone width', async ({
+    browser,
+  }) => {
     const ownerUsername = uniqueUsername('sharing-axe-owner');
     const viewerUsername = uniqueUsername('sharing-axe-viewer');
 
@@ -83,7 +101,9 @@ test.describe('dashboard sharing', () => {
       await ownerPage.goto('/settings.html');
       await ownerPage.fill('#share-username', viewerUsername);
       await ownerPage.click('#share-form button[type="submit"]');
-      await expect(ownerPage.locator('#shared-with-list')).toContainText(viewerUsername);
+      await expect(ownerPage.locator('#shared-with-list')).toContainText(
+        viewerUsername,
+      );
 
       const desktopResults = await new AxeBuilder({ page: ownerPage })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -92,23 +112,35 @@ test.describe('dashboard sharing', () => {
 
       await ownerPage.setViewportSize({ width: 390, height: 844 });
       await ownerPage.reload();
-      await expect(ownerPage.locator('#shared-with-list')).toContainText(viewerUsername);
+      await expect(ownerPage.locator('#shared-with-list')).toContainText(
+        viewerUsername,
+      );
 
       const phoneResults = await new AxeBuilder({ page: ownerPage })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
       expect(phoneResults.violations).toEqual([]);
 
-      const scrollWidth = await ownerPage.evaluate(() => document.documentElement.scrollWidth);
-      const clientWidth = await ownerPage.evaluate(() => document.documentElement.clientWidth);
+      const scrollWidth = await ownerPage.evaluate(
+        () => document.documentElement.scrollWidth,
+      );
+      const clientWidth = await ownerPage.evaluate(
+        () => document.documentElement.clientWidth,
+      );
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
     } finally {
       await ownerContext.close();
     }
   });
 
-  test('a user who never shared sees no dashboard selector', async ({ page }) => {
-    await registerUser(page, uniqueUsername('sharing-alone'), 'Nobody Shared With Me');
+  test('a user who never shared sees no dashboard selector', async ({
+    page,
+  }) => {
+    await registerUser(
+      page,
+      uniqueUsername('sharing-alone'),
+      'Nobody Shared With Me',
+    );
 
     await expect(page.locator('#dashboard-owner-select')).toBeHidden();
   });

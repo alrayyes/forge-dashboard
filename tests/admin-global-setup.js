@@ -10,7 +10,7 @@
 // such per-worker lifecycle: it runs once for the whole test run, full
 // stop, which is exactly what "the first real registration" needs.
 const { chromium } = require('@playwright/test');
-const path = require('path');
+const path = require('node:path');
 const { addVirtualAuthenticator } = require('./webauthn-helper');
 
 const ADMIN_TEST_USERNAME = 'admin';
@@ -23,12 +23,12 @@ module.exports = async function globalSetup(config) {
   const page = await context.newPage();
 
   await addVirtualAuthenticator(page);
-  await page.goto(baseURL + '/login.html');
+  await page.goto(`${baseURL}/login.html`);
   await page.click('#show-register');
   await page.fill('#register-username', ADMIN_TEST_USERNAME);
   await page.fill('#register-display-name', 'Admin');
   await page.click('#register-submit');
-  await page.waitForURL(baseURL + '/', { timeout: 10000 });
+  await page.waitForURL(`${baseURL}/`, { timeout: 10000 });
 
   await context.storageState({ path: STORAGE_STATE_PATH });
   await browser.close();

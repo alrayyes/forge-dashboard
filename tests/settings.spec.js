@@ -4,7 +4,7 @@ const { addVirtualAuthenticator } = require('./webauthn-helper');
 
 async function registerAndSignIn(page) {
   await addVirtualAuthenticator(page);
-  const username = 'settings-test-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
+  const username = `settings-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
   await page.goto('/login.html');
   await page.click('#show-register');
@@ -19,7 +19,9 @@ test.describe('settings page', () => {
     await registerAndSignIn(page);
   });
 
-  test('dark mode chosen on the dashboard still applies after navigating to settings', async ({ page }) => {
+  test('dark mode chosen on the dashboard still applies after navigating to settings', async ({
+    page,
+  }) => {
     // Real bug reported live: settings/admin/login had no theme handling
     // at all, so an explicit dark-mode choice on the dashboard silently
     // reverted to the OS default the moment someone left it.
@@ -30,16 +32,23 @@ test.describe('settings page', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   });
 
-  test('the header settings link reaches the settings page', async ({ page }) => {
+  test('the header settings link reaches the settings page', async ({
+    page,
+  }) => {
     await page.click('a[href="/settings.html"]');
     await expect(page).toHaveURL(/\/settings\.html$/);
     await expect(page.locator('h1')).toHaveText('Settings');
   });
 
-  test('saved settings persist across a reload, and the token never comes back', async ({ page }) => {
+  test('saved settings persist across a reload, and the token never comes back', async ({
+    page,
+  }) => {
     await page.goto('/settings.html');
 
-    await page.fill('#github-token', 'ghp_e2e-test-token-should-not-round-trip');
+    await page.fill(
+      '#github-token',
+      'ghp_e2e-test-token-should-not-round-trip',
+    );
     await page.fill('#github-username', 'octocat');
     await page.fill('#forgejo-url', 'https://git.example.com');
     await page.fill('#forgejo-username', 'octocat-forgejo');
@@ -54,17 +63,26 @@ test.describe('settings page', () => {
     await page.reload();
 
     await expect(page.locator('#github-username')).toHaveValue('octocat');
-    await expect(page.locator('#forgejo-url')).toHaveValue('https://git.example.com');
-    await expect(page.locator('#forgejo-username')).toHaveValue('octocat-forgejo');
+    await expect(page.locator('#forgejo-url')).toHaveValue(
+      'https://git.example.com',
+    );
+    await expect(page.locator('#forgejo-username')).toHaveValue(
+      'octocat-forgejo',
+    );
     await expect(page.locator('#github-token-badge')).toBeVisible();
     await expect(page.locator('#github-token')).toHaveValue('');
   });
 
-  test('the show/hide toggle reveals and re-masks a token field', async ({ page }) => {
+  test('the show/hide toggle reveals and re-masks a token field', async ({
+    page,
+  }) => {
     await page.goto('/settings.html');
 
     await page.fill('#github-token', 'ghp_e2e-visibility-check');
-    await expect(page.locator('#github-token')).toHaveAttribute('type', 'password');
+    await expect(page.locator('#github-token')).toHaveAttribute(
+      'type',
+      'password',
+    );
 
     const toggle = page.locator('.token-toggle[data-target="github-token"]');
     await toggle.click();
@@ -73,12 +91,17 @@ test.describe('settings page', () => {
     await expect(toggle).toHaveText('Hide');
 
     await toggle.click();
-    await expect(page.locator('#github-token')).toHaveAttribute('type', 'password');
+    await expect(page.locator('#github-token')).toHaveAttribute(
+      'type',
+      'password',
+    );
     await expect(toggle).toHaveAttribute('aria-pressed', 'false');
     await expect(toggle).toHaveText('Show');
   });
 
-  test('a Forgejo username with no instance URL is refused before it ever reaches the server', async ({ page }) => {
+  test('a Forgejo username with no instance URL is refused before it ever reaches the server', async ({
+    page,
+  }) => {
     await page.goto('/settings.html');
 
     await page.fill('#forgejo-username', 'octocat-forgejo');
@@ -87,19 +110,31 @@ test.describe('settings page', () => {
     await expect(page.locator('#status')).toContainText(/instance url/i);
 
     await page.reload();
-    await expect(page.locator('#forgejo-username')).toHaveValue('', { timeout: 5000 });
+    await expect(page.locator('#forgejo-username')).toHaveValue('', {
+      timeout: 5000,
+    });
   });
 
-  test('the Forgejo token-settings link tracks the instance URL field and is inert when it is empty', async ({ page }) => {
+  test('the Forgejo token-settings link tracks the instance URL field and is inert when it is empty', async ({
+    page,
+  }) => {
     await page.goto('/settings.html');
 
-    await expect(page.locator('#forgejo-token-link')).not.toHaveAttribute('href', /.+/);
+    await expect(page.locator('#forgejo-token-link')).not.toHaveAttribute(
+      'href',
+      /.+/,
+    );
 
     await page.fill('#forgejo-url', 'git.example.com');
-    await expect(page.locator('#forgejo-token-link')).toHaveAttribute('href', 'https://git.example.com/user/settings/applications');
+    await expect(page.locator('#forgejo-token-link')).toHaveAttribute(
+      'href',
+      'https://git.example.com/user/settings/applications',
+    );
   });
 
-  test('webhook URLs and secret are populated, and the secret starts masked', async ({ page }) => {
+  test('webhook URLs and secret are populated, and the secret starts masked', async ({
+    page,
+  }) => {
     await page.goto('/settings.html');
 
     // The webhook fields fill in only after the settings fetch resolves —
@@ -114,7 +149,10 @@ test.describe('settings page', () => {
     // Same token in both URLs, since they identify the same user.
     expect(githubURL.split('/').pop()).toBe(forgejoURL.split('/').pop());
 
-    await expect(page.locator('#webhook-secret')).toHaveAttribute('type', 'password');
+    await expect(page.locator('#webhook-secret')).toHaveAttribute(
+      'type',
+      'password',
+    );
     await expect(page.locator('#webhook-secret')).not.toHaveValue('');
     const secret = await page.locator('#webhook-secret').inputValue();
     expect(secret.length).toBeGreaterThan(0);
@@ -124,28 +162,46 @@ test.describe('settings page', () => {
     await expect(page.locator('#webhook-secret')).toHaveValue(secret);
   });
 
-  test('the webhook secret show/hide toggle works the same as the token fields', async ({ page }) => {
+  test('the webhook secret show/hide toggle works the same as the token fields', async ({
+    page,
+  }) => {
     await page.goto('/settings.html');
 
     const toggle = page.locator('.token-toggle[data-target="webhook-secret"]');
-    await expect(page.locator('#webhook-secret')).toHaveAttribute('type', 'password');
+    await expect(page.locator('#webhook-secret')).toHaveAttribute(
+      'type',
+      'password',
+    );
     await toggle.click();
-    await expect(page.locator('#webhook-secret')).toHaveAttribute('type', 'text');
+    await expect(page.locator('#webhook-secret')).toHaveAttribute(
+      'type',
+      'text',
+    );
     await toggle.click();
-    await expect(page.locator('#webhook-secret')).toHaveAttribute('type', 'password');
+    await expect(page.locator('#webhook-secret')).toHaveAttribute(
+      'type',
+      'password',
+    );
   });
 
-  test('copying the GitHub webhook URL confirms it in the status line', async ({ page, context }) => {
+  test('copying the GitHub webhook URL confirms it in the status line', async ({
+    page,
+    context,
+  }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/settings.html');
 
     // Wait for the settings fetch to fill the field in before copying it —
     // otherwise this can race the same fetch the field's own value does.
-    await expect(page.locator('#webhook-url-github')).toHaveValue(/\/api\/webhooks\/github\/.+/);
+    await expect(page.locator('#webhook-url-github')).toHaveValue(
+      /\/api\/webhooks\/github\/.+/,
+    );
     await page.click('.copy-button[data-copy-target="webhook-url-github"]');
     await expect(page.locator('#webhook-copy-status')).toHaveText('Copied.');
 
-    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+    const clipboardText = await page.evaluate(() =>
+      navigator.clipboard.readText(),
+    );
     const expected = await page.locator('#webhook-url-github').inputValue();
     expect(clipboardText).toBe(expected);
   });
@@ -160,7 +216,9 @@ test.describe('settings page', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('has no axe-core violations and no horizontal scroll at phone width', async ({ page }) => {
+  test('has no axe-core violations and no horizontal scroll at phone width', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/settings.html');
 
@@ -169,8 +227,12 @@ test.describe('settings page', () => {
       .analyze();
     expect(results.violations).toEqual([]);
 
-    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    const scrollWidth = await page.evaluate(
+      () => document.documentElement.scrollWidth,
+    );
+    const clientWidth = await page.evaluate(
+      () => document.documentElement.clientWidth,
+    );
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 });

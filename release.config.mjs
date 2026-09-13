@@ -10,41 +10,42 @@
 // has bare (non-v-prefixed) tags; getting the format wrong there publishes
 // 1.0.0 over history that's already released.
 const forgejoUrl =
-  process.env.FORGEJO_SERVER_URL ?? "https://git.higherlearning.eu";
+	process.env.FORGEJO_SERVER_URL ?? 'https://git.higherlearning.eu';
 
 export default {
-  branches: ["main"],
-  plugins: [
-    ["@semantic-release/commit-analyzer", { preset: "conventionalcommits" }],
-    [
-      "@semantic-release/release-notes-generator",
-      { preset: "conventionalcommits" },
-    ],
-    ["@semantic-release/changelog", { changelogTitle: "# Changelog" }],
-    // Creates the Forgejo release. forgejoToken is passed explicitly rather
-    // than left to the environment: the runner injects its own FORGEJO_TOKEN
-    // into every job automatically, with repository write, and the plugin
-    // reads env.FORGEJO_TOKEN when given no token of its own — so leaving it
-    // to the environment means the release is authenticated by whichever of
-    // the two the runner happens to leave in place. Passing forgejoToken
-    // settles it: it wins over the environment in the plugin's own
-    // resolution, and RELEASE_TOKEN is a name Forgejo neither reserves nor
-    // sets (see FORGEJO.md's CI gotcha on reserved secret prefixes).
-    [
-      "@ribbon-studios/semantic-release-forgejo",
-      { forgejoUrl, forgejoToken: process.env.RELEASE_TOKEN },
-    ],
-    // Last of the prepare/publish plugins on purpose: it commits what the
-    // changelog plugin wrote, and semantic-release tags the commit it made.
-    // No package.json bump here, unlike a JS project's config — a Go binary
-    // has no manifest to bump (go.md); goreleaser reads the version off the
-    // tag instead, via -X main.version={{.Tag}} in .goreleaser.yml.
-    [
-      "@semantic-release/git",
-      {
-        assets: ["CHANGELOG.md"],
-        message: "chore(release): ${nextRelease.version} [skip ci]",
-      },
-    ],
-  ],
+	branches: ['main'],
+	plugins: [
+		['@semantic-release/commit-analyzer', { preset: 'conventionalcommits' }],
+		[
+			'@semantic-release/release-notes-generator',
+			{ preset: 'conventionalcommits' },
+		],
+		['@semantic-release/changelog', { changelogTitle: '# Changelog' }],
+		// Creates the Forgejo release. forgejoToken is passed explicitly rather
+		// than left to the environment: the runner injects its own FORGEJO_TOKEN
+		// into every job automatically, with repository write, and the plugin
+		// reads env.FORGEJO_TOKEN when given no token of its own — so leaving it
+		// to the environment means the release is authenticated by whichever of
+		// the two the runner happens to leave in place. Passing forgejoToken
+		// settles it: it wins over the environment in the plugin's own
+		// resolution, and RELEASE_TOKEN is a name Forgejo neither reserves nor
+		// sets (see FORGEJO.md's CI gotcha on reserved secret prefixes).
+		[
+			'@ribbon-studios/semantic-release-forgejo',
+			{ forgejoUrl, forgejoToken: process.env.RELEASE_TOKEN },
+		],
+		// Last of the prepare/publish plugins on purpose: it commits what the
+		// changelog plugin wrote, and semantic-release tags the commit it made.
+		// No package.json bump here, unlike a JS project's config — a Go binary
+		// has no manifest to bump (go.md); goreleaser reads the version off the
+		// tag instead, via -X main.version={{.Tag}} in .goreleaser.yml.
+		[
+			'@semantic-release/git',
+			{
+				assets: ['CHANGELOG.md'],
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: semantic-release's own message-template interpolation, not a JS template literal -- backticks would evaluate ${nextRelease.version} immediately and throw, since nextRelease isn't in scope here.
+				message: 'chore(release): ${nextRelease.version} [skip ci]',
+			},
+		],
+	],
 };

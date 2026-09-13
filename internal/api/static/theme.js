@@ -5,13 +5,15 @@
 // synchronously in <head>, before first paint, so there's no flash of
 // the wrong theme; index.html doesn't need this (app.js already applies
 // the stored choice itself, on top of driving the toggle button there).
-(function () {
-  'use strict';
+(() => {
   var STORAGE_KEY = 'forge-board-theme';
+  var stored;
   try {
-    var stored = localStorage.getItem(STORAGE_KEY);
+    stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'dark' || stored === 'light') {
       document.documentElement.setAttribute('data-theme', stored);
     }
-  } catch (e) { /* private browsing, etc. */ }
+  } catch (_e) {
+    /* private browsing, etc. */
+  }
 })();

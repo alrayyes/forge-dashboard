@@ -41,6 +41,15 @@ pre-commit:
       glob: "*.md"
       run: bunx markdownlint-cli2 {staged_files}
 
+    # Biome leads for every file type it supports -- linting.md. Excludes
+    # .html/.svg via biome.json's own files.includes, not the glob here:
+    # this repo's HTML pages carry inline <style>/embedded content Biome
+    # would otherwise also lint, out of scope for now.
+    - name: biome
+      glob: "*.{js,jsx,ts,tsx,json,css}"
+      run: bunx biome check --write {staged_files}
+      stage_fixed: true
+
     # Fast enough for a commit. LTeX is not — around ten seconds a file — so
     # mechanics run at push instead, where the wait is paid once rather than
     # per commit.
@@ -133,6 +142,9 @@ pre-push:
 
     - name: redocly
       run: bun run lint:api
+
+    - name: biome
+      run: bun run lint:js
 
     # Proves the image still builds before anyone pushes, without publishing
     # anything.

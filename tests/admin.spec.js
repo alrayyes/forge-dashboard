@@ -1,10 +1,13 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { addVirtualAuthenticator } = require('./webauthn-helper');
-const { ADMIN_TEST_USERNAME: ADMIN_USERNAME, STORAGE_STATE_PATH: ADMIN_STORAGE_STATE } = require('./admin-global-setup');
+const {
+  ADMIN_TEST_USERNAME: ADMIN_USERNAME,
+  STORAGE_STATE_PATH: ADMIN_STORAGE_STATE,
+} = require('./admin-global-setup');
 
 function uniqueUsername(prefix) {
-  return prefix + '-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
 async function registerUser(page, username, displayName) {
@@ -18,15 +21,23 @@ async function registerUser(page, username, displayName) {
 }
 
 test.describe('admin area', () => {
-  test('a non-admin who navigates here directly is bounced to the dashboard', async ({ page }) => {
-    await registerUser(page, uniqueUsername('admin-test-nonadmin'), 'Not An Admin');
+  test('a non-admin who navigates here directly is bounced to the dashboard', async ({
+    page,
+  }) => {
+    await registerUser(
+      page,
+      uniqueUsername('admin-test-nonadmin'),
+      'Not An Admin',
+    );
 
     await page.goto('/admin.html');
 
     await expect(page).toHaveURL(/\/$/);
   });
 
-  test('lists every user, and lets an admin revoke or remove one', async ({ browser }) => {
+  test('lists every user, and lets an admin revoke or remove one', async ({
+    browser,
+  }) => {
     const targetUsername = uniqueUsername('admin-test-target');
 
     const targetContext = await browser.newContext();
@@ -34,12 +45,16 @@ test.describe('admin area', () => {
       const targetPage = await targetContext.newPage();
       await registerUser(targetPage, targetUsername, 'Target User');
 
-      const adminContext = await browser.newContext({ storageState: ADMIN_STORAGE_STATE });
+      const adminContext = await browser.newContext({
+        storageState: ADMIN_STORAGE_STATE,
+      });
       try {
         const adminPage = await adminContext.newPage();
         await adminPage.goto('/admin.html');
 
-        await expect(adminPage.locator('#user-rows')).toContainText(targetUsername);
+        await expect(adminPage.locator('#user-rows')).toContainText(
+          targetUsername,
+        );
 
         // The admin's own row has no working action buttons — there's no
         // recovery path for locking yourself out, so the backend refuses
@@ -47,12 +62,22 @@ test.describe('admin area', () => {
         // data-username attribute, not hasText — a substring match
         // against "admin" would also catch this file's own
         // "admin-test-*" usernames.
-        const adminRow = adminPage.locator('tr[data-username="' + ADMIN_USERNAME + '"]');
-        await expect(adminRow.locator('button[data-action="revoke"]')).toBeDisabled();
-        await expect(adminRow.locator('button[data-action="remove"]')).toBeDisabled();
+        const adminRow = adminPage.locator(
+          `tr[data-username="${ADMIN_USERNAME}"]`,
+        );
+        await expect(
+          adminRow.locator('button[data-action="revoke"]'),
+        ).toBeDisabled();
+        await expect(
+          adminRow.locator('button[data-action="remove"]'),
+        ).toBeDisabled();
 
         adminPage.once('dialog', (dialog) => dialog.accept());
-        await adminPage.click('button[data-action="revoke"][data-username="' + targetUsername + '"]');
+        await adminPage.click(
+          'button[data-action="revoke"][data-username="' +
+            targetUsername +
+            '"]',
+        );
         await expect(adminPage.locator('#status')).toContainText('revoked');
 
         // The revoked user's existing session should no longer work — a
@@ -61,9 +86,15 @@ test.describe('admin area', () => {
         await expect(targetPage).toHaveURL(/\/login\.html$/);
 
         adminPage.once('dialog', (dialog) => dialog.accept());
-        await adminPage.click('button[data-action="remove"][data-username="' + targetUsername + '"]');
+        await adminPage.click(
+          'button[data-action="remove"][data-username="' +
+            targetUsername +
+            '"]',
+        );
         await expect(adminPage.locator('#status')).toContainText('removed');
-        await expect(adminPage.locator('#user-rows')).not.toContainText(targetUsername);
+        await expect(adminPage.locator('#user-rows')).not.toContainText(
+          targetUsername,
+        );
       } finally {
         await adminContext.close();
       }
@@ -78,7 +109,9 @@ test.describe('admin area', () => {
   // failure seen live: a leaked context here surfaced as a WebAuthn
   // ceremony timeout in a completely different test).
   test('has no axe-core violations at desktop width', async ({ browser }) => {
-    const adminContext = await browser.newContext({ storageState: ADMIN_STORAGE_STATE });
+    const adminContext = await browser.newContext({
+      storageState: ADMIN_STORAGE_STATE,
+    });
     try {
       const adminPage = await adminContext.newPage();
       await adminPage.goto('/admin.html');
@@ -93,8 +126,13 @@ test.describe('admin area', () => {
     }
   });
 
-  test('has no axe-core violations and no horizontal scroll at phone width', async ({ browser }) => {
-    const adminContext = await browser.newContext({ storageState: ADMIN_STORAGE_STATE, viewport: { width: 390, height: 844 } });
+  test('has no axe-core violations and no horizontal scroll at phone width', async ({
+    browser,
+  }) => {
+    const adminContext = await browser.newContext({
+      storageState: ADMIN_STORAGE_STATE,
+      viewport: { width: 390, height: 844 },
+    });
     try {
       const adminPage = await adminContext.newPage();
       await adminPage.goto('/admin.html');
@@ -105,8 +143,12 @@ test.describe('admin area', () => {
         .analyze();
       expect(results.violations).toEqual([]);
 
-      const scrollWidth = await adminPage.evaluate(() => document.documentElement.scrollWidth);
-      const clientWidth = await adminPage.evaluate(() => document.documentElement.clientWidth);
+      const scrollWidth = await adminPage.evaluate(
+        () => document.documentElement.scrollWidth,
+      );
+      const clientWidth = await adminPage.evaluate(
+        () => document.documentElement.clientWidth,
+      );
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
 
       // The table itself used to need its own horizontal scroll within

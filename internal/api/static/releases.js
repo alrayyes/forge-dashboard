@@ -3,9 +3,7 @@
 // unauthenticated, public, and answers with Access-Control-Allow-Origin:
 // * (verified live), so there's nothing for this service's own backend
 // to proxy or cache.
-(function () {
-  'use strict';
-
+(() => {
   var REPO = 'alrayyes/forge-dashboard';
 
   var statusEl = document.getElementById('status');
@@ -14,7 +12,7 @@
 
   function setStatus(message, kind) {
     statusEl.textContent = message || '';
-    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+    statusEl.className = `status${kind ? ` ${kind}` : ''}`;
   }
 
   function escapeHTML(s) {
@@ -24,9 +22,15 @@
   }
 
   function inline(text) {
-    return escapeHTML(text).replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (m, label, url) {
-      return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + label + '</a>';
-    });
+    return escapeHTML(text).replace(
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      (_m, label, url) =>
+        '<a href="' +
+        url +
+        '" target="_blank" rel="noopener noreferrer">' +
+        label +
+        '</a>',
+    );
   }
 
   // release-please/goreleaser output, not general Markdown: a leading
@@ -42,24 +46,30 @@
     var inList = false;
 
     function closeList() {
-      if (inList) { html += '</ul>'; inList = false; }
+      if (inList) {
+        html += '</ul>';
+        inList = false;
+      }
     }
 
-    lines.forEach(function (rawLine) {
+    lines.forEach((rawLine) => {
       var line = rawLine.trim();
       if (!line || line.indexOf('## ') === 0) return;
       if (line.indexOf('### ') === 0) {
         closeList();
-        html += '<h3>' + inline(line.slice(4)) + '</h3>';
+        html += `<h3>${inline(line.slice(4))}</h3>`;
         return;
       }
       if (line.indexOf('* ') === 0) {
-        if (!inList) { html += '<ul>'; inList = true; }
-        html += '<li>' + inline(line.slice(2)) + '</li>';
+        if (!inList) {
+          html += '<ul>';
+          inList = true;
+        }
+        html += `<li>${inline(line.slice(2))}</li>`;
         return;
       }
       closeList();
-      html += '<p>' + inline(line) + '</p>';
+      html += `<p>${inline(line)}</p>`;
     });
     closeList();
     return html;
@@ -67,15 +77,19 @@
 
   function formatDate(iso) {
     var d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
   }
 
   function renderReleases(releases) {
     listEl.innerHTML = '';
     emptyEl.hidden = releases.length > 0;
 
-    releases.forEach(function (r) {
+    releases.forEach((r) => {
       var li = document.createElement('li');
       li.className = 'release';
 
@@ -92,8 +106,9 @@
       head.appendChild(h2);
 
       var published = r.published_at || r.created_at;
+      var time;
       if (published) {
-        var time = document.createElement('time');
+        time = document.createElement('time');
         time.className = 'release-date';
         time.setAttribute('datetime', published);
         time.textContent = formatDate(published);
@@ -112,24 +127,27 @@
   }
 
   setStatus('Loading…');
-  fetch('https://api.github.com/repos/' + REPO + '/releases?per_page=100', {
+  fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
     headers: { Accept: 'application/vnd.github+json' },
   })
-    .then(function (res) {
-      if (!res.ok) throw new Error('GitHub answered ' + res.status);
+    .then((res) => {
+      if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
       return res.json();
     })
-    .then(function (data) {
+    .then((data) => {
       setStatus('');
       renderReleases(data || []);
     })
-    .catch(function () {
-      setStatus('Could not load release history from GitHub. See it directly: ', 'error');
+    .catch(() => {
+      setStatus(
+        'Could not load release history from GitHub. See it directly: ',
+        'error',
+      );
       var link = document.createElement('a');
-      link.href = 'https://github.com/' + REPO + '/releases';
+      link.href = `https://github.com/${REPO}/releases`;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      link.textContent = 'github.com/' + REPO + '/releases';
+      link.textContent = `github.com/${REPO}/releases`;
       statusEl.appendChild(link);
     });
 })();
