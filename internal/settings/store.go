@@ -193,6 +193,35 @@ func (s *Store) EnsureWebhookCredentials(ctx context.Context, userID []byte) (to
 	return token, secret, nil
 }
 
+// FindByWebhookToken looks up which user a webhook token belongs to and
+// their signing secret, for verifying an inbound webhook delivery.
+// Returns ErrNotFound for any token with no match — including the empty
+// string, which every row that's never called EnsureWebhookCredentials
+// shares as its default, and which would otherwise resolve to whichever
+// of them the query happened to return first.
+func (s *Store) FindByWebhookToken(ctx context.Context, token string) (userID []byte, secret string, err error) {
+	if token == "" {
+		return nil, "", ErrNotFound
+	}
+
+	var encodedUserID string
+	err = s.db.QueryRowContext(ctx,
+		`SELECT user_id, webhook_secret FROM user_credentials WHERE webhook_token = ?`, token,
+	).Scan(&encodedUserID, &secret)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, "", ErrNotFound
+	}
+	if err != nil {
+		return nil, "", err
+	}
+
+	userID, err = base64.RawURLEncoding.DecodeString(encodedUserID)
+	if err != nil {
+		return nil, "", err
+	}
+	return userID, secret, nil
+}
+
 // randomWebhookValue returns 256 bits of randomness as a URL-safe string —
 // used for both the URL-embedded token and the HMAC-signing secret, which
 // need the same shape but are never used interchangeably (see

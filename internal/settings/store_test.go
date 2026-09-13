@@ -205,3 +205,61 @@ func TestStore_Get_IncludesWebhookCredentialsOnceGenerated(t *testing.T) {
 	assert.Equal(t, token, got.WebhookToken)
 	assert.Equal(t, secret, got.WebhookSecret)
 }
+
+func TestStore_FindByWebhookToken_ReturnsTheOwningUserAndSecret(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	token, secret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	require.NoError(t, err)
+
+	gotUserID, gotSecret, err := store.FindByWebhookToken(t.Context(), token)
+	require.NoError(t, err)
+	assert.Equal(t, userID, gotUserID)
+	assert.Equal(t, secret, gotSecret)
+}
+
+func TestStore_FindByWebhookToken_UnknownToken_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, _, err := store.FindByWebhookToken(t.Context(), "not-a-real-token")
+
+	assert.ErrorIs(t, err, settings.ErrNotFound)
+}
+
+func TestStore_FindByWebhookToken_EmptyToken_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	// Every row that's never called EnsureWebhookCredentials shares ""
+	// as its webhook_token default — this must never resolve to one of
+	// them, or an empty token in a request would pick an arbitrary user.
+	require.NoError(t, store.Set(t.Context(), []byte("user-1"), settings.Credentials{GitHubUsername: "ryan"}))
+	require.NoError(t, store.Set(t.Context(), []byte("user-2"), settings.Credentials{GitHubUsername: "octocat"}))
+
+	_, _, err := store.FindByWebhookToken(t.Context(), "")
+
+	assert.ErrorIs(t, err, settings.ErrNotFound)
+}
+
+func TestStore_FindByWebhookToken_TwoUsers_EachResolvesToTheirOwn(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	tokenA, secretA, err := store.EnsureWebhookCredentials(t.Context(), []byte("user-a"))
+	require.NoError(t, err)
+	tokenB, secretB, err := store.EnsureWebhookCredentials(t.Context(), []byte("user-b"))
+	require.NoError(t, err)
+
+	gotUserIDA, gotSecretA, err := store.FindByWebhookToken(t.Context(), tokenA)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("user-a"), gotUserIDA)
+	assert.Equal(t, secretA, gotSecretA)
+
+	gotUserIDB, gotSecretB, err := store.FindByWebhookToken(t.Context(), tokenB)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("user-b"), gotUserIDB)
+	assert.Equal(t, secretB, gotSecretB)
+}
