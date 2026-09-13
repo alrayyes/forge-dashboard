@@ -42,11 +42,11 @@ now describes the first slice of.
 This ships every piece of #3: passkey registration and login gating the
 dashboard, per-user GitHub/Forgejo tokens (every signed-in user
 configures their own forges from the Settings page and sees only their
-own dashboard by default), an admin area for the one account
-`ADMIN_USERNAME` designates (list every registered user, revoke a
-user's passkeys and sessions without deleting their account, or remove
-one outright), and dashboard sharing (grant another registered user
-read-only access to your own dashboard, from Settings).
+own dashboard by default), an admin area for whoever registers first
+(list every registered user, revoke a user's passkeys and sessions
+without deleting their account, or remove one outright), and dashboard
+sharing (grant another registered user read-only access to your own
+dashboard, from Settings).
 
 ## Requirements
 
@@ -77,10 +77,11 @@ session cookie (`HttpOnly`, `SameSite=Lax`, `Secure` whenever the request
 arrived over HTTPS) is what actually gates `/` and `/api/dashboard`
 afterward — see `internal/auth` and `api/openapi.yaml`'s `auth` tag.
 
-- **`ADMIN_USERNAME`** names the one username that becomes an admin the
-  moment it registers — decided here, at startup, rather than by whoever
-  happens to register first. Leave it unset and nobody registers as an
-  admin, and the admin area (`/admin.html`) refuses everyone. See
+- **Whoever registers first becomes admin.** No environment variable to
+  set or get wrong — the deployment's own network boundary
+  (Tailscale-only, see **Deployment** below) is what actually keeps a
+  stranger from racing to register before you do, the same protection
+  an explicit `ADMIN_USERNAME` variable would only duplicate. See
   **Admin area** below for what an admin can do.
 - **`RP_ID`** / **`RP_ORIGIN`** configure the WebAuthn relying party.
   They default to `localhost` / `http://localhost:8080` for a local run;
@@ -91,7 +92,7 @@ afterward — see `internal/auth` and `api/openapi.yaml`'s `auth` tag.
 
 ## Admin area
 
-The `ADMIN_USERNAME` account gets an Admin link in the dashboard header,
+Whoever registers first gets an Admin link in the dashboard header,
 leading to `/admin.html`: a list of every registered user, with two
 actions per row.
 
@@ -174,7 +175,6 @@ config file, and nothing forge-related, since that's per-user now (see
 | `DB_PATH`          | no       | `/data/forge-dashboard.db` | Where passkeys, sessions, and every user's encrypted forge credentials live.                             |
 | `RP_ID`            | no       | `localhost`                | The WebAuthn relying party ID — set to your real domain in any real deployment.                          |
 | `RP_ORIGIN`        | no       | `http://localhost:8080`    | The WebAuthn relying party origin — set to the real `https://` origin users reach this at.               |
-| `ADMIN_USERNAME`   | no       | —                          | The one username that becomes an admin on registration. Unset means nobody does.                         |
 | `ENCRYPTION_KEY`   | **yes**  | —                          | Base64-encoded 32-byte key for encrypting forge tokens at rest. Generate with `openssl rand -base64 32`. |
 | `REFRESH_INTERVAL` | no       | `5m`                       | How often the backend re-polls a signed-in user's forges, as a Go duration (`2m30s`, `10m`).             |
 
@@ -211,7 +211,7 @@ docker run --rm -p 8080:8080 \
   --cap-drop=ALL --security-opt=no-new-privileges --read-only \
   --memory=64m --cpus=0.5 \
   -v forge-dashboard-data:/data \
-  -e RP_ID=localhost -e RP_ORIGIN=http://localhost:8080 -e ADMIN_USERNAME=you \
+  -e RP_ID=localhost -e RP_ORIGIN=http://localhost:8080 \
   -e ENCRYPTION_KEY="$(openssl rand -base64 32)" \
   forge-dashboard
 ```

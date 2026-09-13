@@ -18,7 +18,7 @@ func newTestService(t *testing.T) (*auth.Service, *auth.Store) {
 		RPOrigins:     []string{"http://localhost"},
 	})
 	require.NoError(t, err)
-	return auth.NewService(wa, store, ""), store
+	return auth.NewService(wa, store), store
 }
 
 // A reload (or any interruption) between BeginRegistration and
@@ -37,6 +37,36 @@ func TestBeginRegistration_AbandonedRegistration_CanBeReclaimed(t *testing.T) {
 	_, err = svc.BeginRegistration(t.Context(), "ryan", "Ryan")
 
 	assert.NoError(t, err)
+}
+
+// No ADMIN_USERNAME env var to get right or forget — the first username
+// to actually complete registration becomes admin.
+func TestBeginRegistration_FirstUser_BecomesAdmin(t *testing.T) {
+	t.Parallel()
+	svc, store := newTestService(t)
+
+	_, err := svc.BeginRegistration(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+
+	u, err := store.GetUserByUsername(t.Context(), "ryan")
+	require.NoError(t, err)
+	assert.True(t, u.IsAdmin)
+}
+
+func TestBeginRegistration_SecondUser_IsNotAdmin(t *testing.T) {
+	t.Parallel()
+	svc, store := newTestService(t)
+
+	first, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), first.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	_, err = svc.BeginRegistration(t.Context(), "alex", "Alex")
+	require.NoError(t, err)
+
+	alex, err := store.GetUserByUsername(t.Context(), "alex")
+	require.NoError(t, err)
+	assert.False(t, alex.IsAdmin)
 }
 
 func TestBeginRegistration_CompletedRegistration_IsRefused(t *testing.T) {

@@ -183,7 +183,6 @@ jobs:
           DB_PATH: "./tmp-e2e-data/forge-dashboard.db"
           RP_ID: "localhost"
           RP_ORIGIN: "http://localhost:8080"
-          ADMIN_USERNAME: "admin"
         run: |
           # Generated fresh each run rather than a fixed value committed to
           # the workflow — this job's database never outlives the run, and

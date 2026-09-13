@@ -191,6 +191,42 @@ func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	assert.Len(t, got.Credentials, 1)
 }
 
+func TestStore_HasAnyRegisteredUser_NoUsersYet_ReportsFalse(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	has, err := store.HasAnyRegisteredUser(t.Context())
+	require.NoError(t, err)
+	assert.False(t, has)
+}
+
+func TestStore_HasAnyRegisteredUser_UnfinishedRegistration_StillReportsFalse(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	// CreateUser alone is what BeginRegistration does before the ceremony
+	// finishes — a row exists, but nothing was ever actually completed.
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+
+	has, err := store.HasAnyRegisteredUser(t.Context())
+	require.NoError(t, err)
+	assert.False(t, has, "an abandoned registration shouldn't count as a real user existing")
+}
+
+func TestStore_HasAnyRegisteredUser_CompletedRegistration_ReportsTrue(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	has, err := store.HasAnyRegisteredUser(t.Context())
+	require.NoError(t, err)
+	assert.True(t, has)
+}
+
 func TestStore_ListUsers_ReturnsEveryRegisteredUser(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)

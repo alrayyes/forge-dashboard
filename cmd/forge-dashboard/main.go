@@ -172,12 +172,7 @@ func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, err
 		return nil, nil, err
 	}
 
-	adminUsername := os.Getenv("ADMIN_USERNAME")
-	if adminUsername == "" {
-		slog.Warn("ADMIN_USERNAME not set — nobody will be able to register as an admin")
-	}
-
-	return auth.NewService(wa, store, adminUsername), store, nil
+	return auth.NewService(wa, store), store, nil
 }
 
 // buildSettingsStore requires a real ENCRYPTION_KEY — a service about to

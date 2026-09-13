@@ -26,6 +26,7 @@ func TestAdminListUsers_NonAdmin_Refused(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
+	registerViaRealCeremony(t, srv, testAdmin, "Admin") // first registrant becomes admin
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/admin/users", nil)
@@ -69,6 +70,7 @@ func TestAdminRevokeUser_NonAdmin_Refused(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
+	registerViaRealCeremony(t, srv, testAdmin, "Admin") // first registrant becomes admin
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/admin/users/anyone/revoke", nil)
@@ -141,6 +143,7 @@ func TestAdminDeleteUser_NonAdmin_Refused(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
+	registerViaRealCeremony(t, srv, testAdmin, "Admin") // first registrant becomes admin
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	req, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/admin/users/anyone", nil)

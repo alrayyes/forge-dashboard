@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { addVirtualAuthenticator } = require('./webauthn-helper');
-const { ADMIN_USERNAME, STORAGE_STATE_PATH: ADMIN_STORAGE_STATE } = require('./admin-global-setup');
+const { ADMIN_TEST_USERNAME: ADMIN_USERNAME, STORAGE_STATE_PATH: ADMIN_STORAGE_STATE } = require('./admin-global-setup');
 
 function uniqueUsername(prefix) {
   return prefix + '-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
