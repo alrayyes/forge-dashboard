@@ -453,8 +453,27 @@ footer .mono { color: var(--ink-2); }
   }
   .row .repo { grid-area: repo; }
   .row .go { grid-area: go; }
-  .row .title-cell { grid-area: title; white-space: normal; }
-  .row .title-cell .title { white-space: normal; }
+  /* Without flex-wrap, .title-cell's flex-row children (.title plus any
+     draft badge and label chips, each flex:none so they never shrink)
+     fight over one line's width — with several long label chips present,
+     .title gets squeezed down to a sliver and every word wraps onto its
+     own line. flex-basis:100% on .title forces it onto a full-width line
+     by itself; flex-wrap lets the badges/chips flow onto the line below
+     instead of everyone cramming into one. */
+  .row .title-cell {
+    grid-area: title;
+    white-space: normal;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .row .title-cell .title {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: break-word;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
   .row-meta {
     grid-area: meta;
     display: flex;
