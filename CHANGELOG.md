@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.0](https://github.com/alrayyes/forge-dashboard/compare/v0.17.0...v0.18.0) (2026-09-13)
+
+
+### Features
+
+* show/hide toggle for the token fields on Settings ([#58](https://github.com/alrayyes/forge-dashboard/issues/58)) ([388f05e](https://github.com/alrayyes/forge-dashboard/commit/388f05e50042016d88634cc14743537ee8cd520f)), closes [#44](https://github.com/alrayyes/forge-dashboard/issues/44)
+
+
+### Bug Fixes
+
+* dark mode not respected outside the dashboard ([#57](https://github.com/alrayyes/forge-dashboard/issues/57)) ([907a2d9](https://github.com/alrayyes/forge-dashboard/commit/907a2d94d267bd81904f28bc5e27973bc9c00d63))
+
 ## [0.17.0](https://github.com/alrayyes/forge-dashboard/compare/v0.16.0...v0.17.0) (2026-09-13)
 
 
