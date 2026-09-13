@@ -138,6 +138,13 @@ func (f *forgejoFixture) createRepo(t *testing.T, name string) {
 	})
 }
 
+func (f *forgejoFixture) archiveRepo(t *testing.T, owner, repo string) {
+	t.Helper()
+	f.request(t, http.MethodPatch, fmt.Sprintf("/repos/%s/%s", owner, repo), map[string]any{
+		"archived": true,
+	})
+}
+
 func (f *forgejoFixture) createIssue(t *testing.T, owner, repo, title string) {
 	t.Helper()
 	f.request(t, http.MethodPost, fmt.Sprintf("/repos/%s/%s/issues", owner, repo), map[string]any{
@@ -186,11 +193,18 @@ func TestForgejoClient_AgainstARealInstance(t *testing.T) {
 	fixture.createIssue(t, "testadmin", "widgets", "A real issue")
 	fixture.createPullRequestWithStatus(t, "testadmin", "widgets", "Add widget.txt", "success")
 
+	// A real archived repo, against the real API — confirms Client's
+	// filter matches Forgejo's actual "archived" field name and value,
+	// not just an assumption the unit tests' hand-built JSON fixtures
+	// share with the production code.
+	fixture.createRepo(t, "mothballed")
+	fixture.archiveRepo(t, "testadmin", "mothballed")
+
 	client := forgejo.NewClient(baseURL, token, "")
 
 	repos, err := client.ListRepos(ctx)
 	require.NoError(t, err)
-	require.Len(t, repos, 1)
+	require.Len(t, repos, 1, "the archived repo should be excluded")
 	require.Equal(t, "testadmin/widgets", repos[0].FullName)
 
 	prs, err := client.ListOpenPullRequests(ctx, "testadmin", "widgets", "testadmin/widgets")

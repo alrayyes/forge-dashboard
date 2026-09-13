@@ -182,7 +182,9 @@ Repository discovery is automatic per user. With a token, the dashboard
 lists every repository it has push access to (`GET /user/repos` on both
 APIs); with only a username, it lists that account's public repositories
 (`GET /users/<username>/repos`, also both APIs) with no credential in
-play at all. Either way there's no per-repo allowlist to maintain.
+play at all. Either way there's no per-repo allowlist to maintain —
+archived and forked repositories are excluded automatically, on both
+forges, in either mode.
 
 ## Running it
 
