@@ -308,29 +308,70 @@
       });
     }
 
-    // The repo filter is a combobox (a free-text <input> with a
-    // <datalist>) rather than a plain dropdown — repos aren't a small,
-    // stable enum the way CI status is, so typing still has to work, but
-    // picking from what's actually on screen beats guessing the exact
-    // spelling.
-    function updateRepoOptions() {
-      var datalist = document.getElementById(`${idPrefix}-repo-options`);
-      if (!datalist) return;
+    // Distinct, sorted values of getValue(item) across the items currently
+    // on screen — what both a filter <select>'s options and a filter
+    // <input>'s <datalist> suggestions are populated from.
+    function distinctValues(getValue) {
       var seen = {};
-      var repos = [];
+      var values = [];
       state.items.forEach((item) => {
-        if (!seen[item.repo]) {
-          seen[item.repo] = true;
-          repos.push(item.repo);
+        var v = getValue(item);
+        if (v && !seen[v]) {
+          seen[v] = true;
+          values.push(v);
         }
       });
-      repos.sort();
-      datalist.innerHTML = '';
-      repos.forEach((repo) => {
+      values.sort();
+      return values;
+    }
+
+    // Repo and author are a small, closed set of values actually on
+    // screen at any moment — the same reasoning created/updated/status
+    // are already plain <select>s for. The "all" placeholder is the
+    // select's own first <option>, written once in the HTML rather than
+    // rebuilt here; only the options after it get replaced. Can't just
+    // clear+repopulate blindly either way, or a selection survives only
+    // until the next item-set refresh (a poll, an SSE push, another
+    // filter narrowing what's visible) silently resets it back to "all."
+    function populateSelect(select, values) {
+      if (!select) return;
+      var previous = select.value;
+      while (select.options.length > 1) select.remove(1);
+      values.forEach((v) => {
         var option = document.createElement('option');
-        option.value = repo;
+        option.value = v;
+        option.textContent = v;
+        select.appendChild(option);
+      });
+      if (values.indexOf(previous) !== -1) select.value = previous;
+    }
+
+    // Title is the one column that's genuinely open-ended free text —
+    // the datalist only adds suggestions from what's on screen, it
+    // doesn't restrict what can still be typed and substring-matched.
+    function populateDatalist(datalist, values) {
+      if (!datalist) return;
+      datalist.innerHTML = '';
+      values.forEach((v) => {
+        var option = document.createElement('option');
+        option.value = v;
         datalist.appendChild(option);
       });
+    }
+
+    function updateFilterOptions() {
+      populateSelect(
+        document.getElementById(`${idPrefix}-repo-select`),
+        distinctValues((item) => item.repo),
+      );
+      populateSelect(
+        document.getElementById(`${idPrefix}-author-select`),
+        distinctValues((item) => item.author),
+      );
+      populateDatalist(
+        document.getElementById(`${idPrefix}-title-options`),
+        distinctValues((item) => item.title),
+      );
     }
 
     // Sets col to value, unless it's already value — then clears it. Used
@@ -471,7 +512,7 @@
       setItems: (items) => {
         state.items = items;
         state.page = 1;
-        updateRepoOptions();
+        updateFilterOptions();
         render();
       },
       setFilter: (col, value) => {

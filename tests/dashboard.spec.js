@@ -167,11 +167,12 @@ test.describe('dashboard page', () => {
     // No forges configured in this CI run, so both boards render their
     // empty state — filtering an empty board is still a real assertion:
     // the filter input accepts text and the row list stays empty rather
-    // than erroring.
-    const repoFilter = page.locator(
-      'section[aria-label="Open pull requests"] .col-filter[data-col="repo"]',
+    // than erroring. Title, not repo/author: those are now <select>s
+    // with nothing to pick from an empty board.
+    const titleFilter = page.locator(
+      'section[aria-label="Open pull requests"] .col-filter[data-col="title"]',
     );
-    await repoFilter.fill('nonexistent-repo');
+    await titleFilter.fill('nonexistent-title');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(0);
   });
 
@@ -342,66 +343,94 @@ test.describe('dashboard page', () => {
     });
   });
 
-  test('the repo filter is a combobox listing repos actually on screen, and still accepts free text', async ({
-    page,
-  }) => {
-    await page.route('**/api/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
-          pullRequests: [
-            {
-              forge: 'github',
-              repo: 'alrayyes/forge-dashboard',
-              number: 1,
-              title: 'One',
-              url: 'https://example.com/1',
-              author: 'claude',
-              ci: 'success',
-              labels: [],
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-            {
-              forge: 'github',
-              repo: 'alrayyes/wiki',
-              number: 2,
-              title: 'Two',
-              url: 'https://example.com/2',
-              author: 'claude',
-              ci: 'success',
-              labels: [],
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-          ],
-          issues: [],
+  test.describe('repo and author filters are selects, title is autocomplete', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            pullRequests: [
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 1,
+                title: 'One',
+                url: 'https://example.com/1',
+                author: 'claude',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'github',
+                repo: 'alrayyes/wiki',
+                number: 2,
+                title: 'Two',
+                url: 'https://example.com/2',
+                author: 'ryan',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+            issues: [],
+          }),
         }),
-      }),
-    );
-    await page.reload();
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      );
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    });
 
-    const options = page.locator('#pr-repo-options option');
-    await expect(options).toHaveCount(2);
-    await expect(
-      page.locator('#pr-repo-options option[value="alrayyes/forge-dashboard"]'),
-    ).toHaveCount(1);
-    await expect(
-      page.locator('#pr-repo-options option[value="alrayyes/wiki"]'),
-    ).toHaveCount(1);
+    test('the repo select lists repos actually on screen, and picking one filters to it', async ({
+      page,
+    }) => {
+      const options = page.locator('#pr-repo-select option');
+      await expect(options).toHaveCount(3); // "All repos" plus the two.
+      await expect(
+        page.locator('#pr-repo-select option[value="alrayyes/wiki"]'),
+      ).toHaveCount(1);
 
-    // Free text still works exactly as before — the datalist only adds
-    // suggestions, it doesn't restrict what can be typed.
-    await page.fill(
-      'section[aria-label="Open pull requests"] .col-filter[data-col="repo"]',
-      'wiki',
-    );
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-    await expect(page.locator('#pr-rows > .row')).toContainText('Two');
+      await page.selectOption('#pr-repo-select', 'alrayyes/wiki');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('Two');
+
+      await page.selectOption('#pr-repo-select', '');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    });
+
+    test('the author select lists authors actually on screen, and picking one filters to it', async ({
+      page,
+    }) => {
+      await expect(page.locator('#pr-author-select option')).toHaveCount(3); // "All authors" plus the two.
+
+      await page.selectOption('#pr-author-select', 'ryan');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('Two');
+    });
+
+    test('the title filter offers suggestions from what is on screen, but still accepts free text', async ({
+      page,
+    }) => {
+      const suggestions = page.locator('#pr-title-options option');
+      await expect(suggestions).toHaveCount(2);
+      await expect(
+        page.locator('#pr-title-options option[value="Two"]'),
+      ).toHaveCount(1);
+
+      // Free text still works — the datalist only adds suggestions, it
+      // doesn't restrict what can be typed.
+      await page.fill(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="title"]',
+        'wo',
+      );
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('Two');
+    });
   });
 
   test.describe('pagination', () => {

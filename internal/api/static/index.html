@@ -77,10 +77,14 @@
     </div>
 
     <div class="row filter-row" role="search" aria-label="Filter pull requests by column">
-      <input class="col-filter" data-col="repo" type="text" placeholder="Repo" aria-label="Filter by repo" list="pr-repo-options" autocomplete="off">
-      <datalist id="pr-repo-options"></datalist>
-      <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title">
-      <input class="col-filter" data-col="author" type="text" placeholder="Author" aria-label="Filter by author">
+      <select class="col-filter" data-col="repo" id="pr-repo-select" aria-label="Filter by repo">
+        <option value="">All repos</option>
+      </select>
+      <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title" list="pr-title-options" autocomplete="off">
+      <datalist id="pr-title-options"></datalist>
+      <select class="col-filter" data-col="author" id="pr-author-select" aria-label="Filter by author">
+        <option value="">All authors</option>
+      </select>
       <select class="col-filter" data-col="created" aria-label="Filter by created">
         <option value="">Created</option>
         <option value="60">&lt; 1 hour</option>
@@ -140,10 +144,14 @@
     </div>
 
     <div class="row filter-row" role="search" aria-label="Filter issues by column">
-      <input class="col-filter" data-col="repo" type="text" placeholder="Repo" aria-label="Filter by repo" list="issue-repo-options" autocomplete="off">
-      <datalist id="issue-repo-options"></datalist>
-      <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title">
-      <input class="col-filter" data-col="author" type="text" placeholder="Author" aria-label="Filter by author">
+      <select class="col-filter" data-col="repo" id="issue-repo-select" aria-label="Filter by repo">
+        <option value="">All repos</option>
+      </select>
+      <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title" list="issue-title-options" autocomplete="off">
+      <datalist id="issue-title-options"></datalist>
+      <select class="col-filter" data-col="author" id="issue-author-select" aria-label="Filter by author">
+        <option value="">All authors</option>
+      </select>
       <select class="col-filter" data-col="created" aria-label="Filter by created">
         <option value="">Created</option>
         <option value="60">&lt; 1 hour</option>
