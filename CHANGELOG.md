@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/alrayyes/forge-dashboard/compare/v0.10.0...v0.11.0) (2026-09-13)
+
+
+### Features
+
+* whoever registers first becomes admin ([#24](https://github.com/alrayyes/forge-dashboard/issues/24)) ([6452e3a](https://github.com/alrayyes/forge-dashboard/commit/6452e3a3b0c2e940e9c92965b406ba8c42e0d515))
+
 ## [0.10.0](https://github.com/alrayyes/forge-dashboard/compare/v0.9.0...v0.10.0) (2026-09-13)
 
 
