@@ -57,6 +57,48 @@ test.describe('dashboard page', () => {
     await expect(root).toHaveAttribute('data-theme', 'dark');
   });
 
+  test('a long title with several label chips wraps as a block instead of collapsing to single-word lines', async ({ page }) => {
+    // A real bug seen live: with white-space:normal enabled at phone width
+    // but the flex-row layout unchanged, long label chips (flex:none, so
+    // they never shrink) squeezed .title down to a sliver, wrapping every
+    // word onto its own line. flex-basis:100% on .title should force it
+    // onto a full-width line of its own regardless of how many chips sit
+    // beside it.
+    await page.route('**/api/dashboard*', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [],
+        issues: [{
+          forge: 'github',
+          repo: 'alrayyes/forge-dashboard',
+          number: 233,
+          title: 'Wire Uptime Kuma down-alerts to auto-file Forgejo issues so an outage always leaves a ticket trail',
+          url: 'https://example.com/233',
+          author: 'claude',
+          labels: ['blocked/needs-you', 'kind/feature', 'topic/infrastructure'],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }],
+      }),
+    }));
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+
+    const titleCell = page.locator('#issue-rows .title-cell').first();
+    const box = await titleCell.boundingBox();
+    // The row is ~390px wide minus padding; a healthy title-cell spans
+    // nearly all of it. The bug collapsed it to well under 100px.
+    expect(box.width).toBeGreaterThan(300);
+
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  });
+
   test('per-column filters narrow the visible rows', async ({ page }) => {
     // No forges configured in this CI run, so both boards render their
     // empty state — filtering an empty board is still a real assertion:
