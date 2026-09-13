@@ -87,8 +87,14 @@
     title.href = item.url;
     title.target = '_blank';
     title.rel = 'noopener noreferrer';
-    title.appendChild(el('span', 'num', '#' + item.number));
-    title.appendChild(document.createTextNode(item.title));
+    // The ellipsis truncation lives on this inner span, not .title itself
+    // — overflow:hidden on .title would clip its own ::after stretched
+    // overlay down to .title's box instead of letting it cover the whole
+    // row (see the comment on .title in style.css).
+    var text = el('span', 'title-text');
+    text.appendChild(el('span', 'num', '#' + item.number));
+    text.appendChild(document.createTextNode(item.title));
+    title.appendChild(text);
     wrap.appendChild(title);
     if (item.draft) wrap.appendChild(el('span', 'draft-badge', 'Draft'));
     (item.labels || []).slice(0, 3).forEach(function (label) {
