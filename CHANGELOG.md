@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.1](https://github.com/alrayyes/forge-dashboard/compare/v0.29.0...v0.29.1) (2026-09-13)
+
+
+### Bug Fixes
+
+* add a label filter select, so an active filter is always clearable ([#108](https://github.com/alrayyes/forge-dashboard/issues/108)) ([6a5dfbb](https://github.com/alrayyes/forge-dashboard/commit/6a5dfbb1ad4d42a301e7ef9e7513f0171bfa77c8)), closes [#107](https://github.com/alrayyes/forge-dashboard/issues/107)
+
 ## [0.29.0](https://github.com/alrayyes/forge-dashboard/compare/v0.28.0...v0.29.0) (2026-09-13)
 
 
