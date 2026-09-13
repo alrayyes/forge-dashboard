@@ -422,6 +422,11 @@ select.col-filter { cursor: pointer; }
 }
 
 .label-chip {
+  /* Above .title::after's stretched-link overlay, same reason as
+     .ci-pill — otherwise the chip would be unreachable under it. */
+  position: relative;
+  z-index: 1;
+  font-family: inherit;
   font-size: 10.5px;
   color: var(--ink-2);
   background: var(--surface-sunken);
@@ -430,7 +435,11 @@ select.col-filter { cursor: pointer; }
   padding: 1px 7px;
   flex: none;
   white-space: nowrap;
+  cursor: pointer;
 }
+
+.label-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.label-chip.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 
 .author {
   font-size: 12.5px;
