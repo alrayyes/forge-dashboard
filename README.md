@@ -263,6 +263,4 @@ how a change gets reviewed and released.
 
 [AGPL-3.0](LICENSE). Chosen over the plain GPL-3.0 this project started
 under because AGPL's network-use clause also covers running a modified
-copy as a hosted service — closing the one gap GPL leaves open ahead of
-an eventual open-core split (see
-[#63](https://github.com/alrayyes/forge-dashboard/issues/63)).
+copy as a hosted service, which GPL alone doesn't.
