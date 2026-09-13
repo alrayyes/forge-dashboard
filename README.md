@@ -163,6 +163,15 @@ token does not have at least one of required scope(s): [read:user]`,
   unauthenticated — same trade-off as GitHub's username mode. Verified
   against a real Forgejo instance's `GET /users/<username>/repos`.
 
+## Webhooks
+
+Optional. Without one, the dashboard still refreshes on its own schedule
+and the browser tab polls it every 30 seconds; a webhook just means a new
+pull request, a closed issue, or a CI status change on a tracked repo
+shows up within seconds instead of at the next poll. Set up from the
+Settings page, one forge at a time — full copy-pasteable steps and how
+delivery verification works: [docs/webhooks.md](docs/webhooks.md).
+
 ## Configuration
 
 Everything the process itself needs is environment variables — no

@@ -64,7 +64,9 @@
       "goroutine",
       "goroutines",
       "plaintext",
-      "ENCRYPTION_KEY"
+      "ENCRYPTION_KEY",
+      "copy-pasteable",
+      "POSTs"
     ]
   },
   "ltex.disabledRules": {
