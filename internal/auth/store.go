@@ -125,7 +125,35 @@ func (s *Store) GetUserByID(ctx context.Context, id []byte) (*User, error) {
 	return scanUser(row)
 }
 
-func scanUser(row *sql.Row) (*User, error) {
+// ListUsers returns every registered account, for the admin area.
+func (s *Store) ListUsers(ctx context.Context) ([]*User, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, username, display_name, is_admin, credentials_json, created_at FROM users ORDER BY username`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var users []*User
+	for rows.Next() {
+		u, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// rowScanner is the common surface of *sql.Row and *sql.Rows that scanUser
+// needs — one field-mapping function shared by a single-row lookup and a
+// ListUsers loop.
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanUser(row rowScanner) (*User, error) {
 	var (
 		idStr, credsJSON string
 		u                User
@@ -290,6 +318,29 @@ func (s *Store) UserForSession(ctx context.Context, token string) (*User, error)
 // another user's session.
 func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE token = ?`, token)
+	return err
+}
+
+// RevokeUser signs userID out everywhere and clears every registered
+// passkey, without deleting the account itself — they have to register a
+// new passkey from scratch to get back in, same as BeginRegistration
+// reclaiming an abandoned one.
+func (s *Store) RevokeUser(ctx context.Context, userID []byte) error {
+	if _, err := s.db.ExecContext(ctx, `UPDATE users SET credentials_json = '[]' WHERE id = ?`, encodeID(userID)); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, encodeID(userID))
+	return err
+}
+
+// DeleteUser removes the account and every session it holds — irreversible,
+// and the caller's job to also clean up anything outside this store (saved
+// forge credentials, a running dashboard refresh).
+func (s *Store) DeleteUser(ctx context.Context, userID []byte) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, encodeID(userID)); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, encodeID(userID))
 	return err
 }
 

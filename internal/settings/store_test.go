@@ -72,6 +72,25 @@ func TestStore_Set_Twice_ReplacesTheWholeRow(t *testing.T) {
 	assert.Equal(t, "second-token", got.GitHubToken)
 }
 
+func TestStore_Delete_ThenGet_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubToken: "a-token"}))
+	require.NoError(t, store.Delete(t.Context(), userID))
+
+	_, err := store.Get(t.Context(), userID)
+	assert.ErrorIs(t, err, settings.ErrNotFound)
+}
+
+func TestStore_Delete_NeverSaved_IsANoOp(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	assert.NoError(t, store.Delete(t.Context(), []byte("nobody")))
+}
+
 func TestStore_TokensAreEncryptedAtRest(t *testing.T) {
 	t.Parallel()
 
