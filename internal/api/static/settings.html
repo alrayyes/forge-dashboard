@@ -90,6 +90,39 @@
   .status { font-size: 12.5px; min-height: 1.4em; }
   .status.error { color: var(--critical); }
   .status.ok { color: var(--good); }
+  .share-form { display: flex; gap: 8px; margin-bottom: 14px; }
+  .share-form input {
+    flex: 1;
+    font-family: inherit;
+    font-size: 13.5px;
+    padding: 9px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-sunken);
+    color: var(--ink);
+  }
+  .share-list { list-style: none; margin: 0; padding: 0; }
+  .share-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13.5px;
+  }
+  .share-list li:last-child { border-bottom: none; }
+  .share-list .btn-remove {
+    font-family: inherit;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-sunken);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .share-list .btn-remove:hover { filter: brightness(1.05); }
+  .empty-state { font-size: 12.5px; color: var(--ink-3); margin: 0; }
 </style>
 </head>
 <body>
@@ -97,6 +130,26 @@
   <div class="settings-header">
     <h1>Settings</h1>
     <a class="back-link" href="/">&larr; Back to dashboard</a>
+  </div>
+
+  <div class="card">
+    <h2>Sharing</h2>
+    <p class="hint">Let another registered user view your dashboard, read-only — they need no tokens of their own configured.</p>
+    <form id="share-form" class="share-form">
+      <label for="share-username" class="sr-only">Username to share your dashboard with</label>
+      <input id="share-username" type="text" autocomplete="off" placeholder="username" required>
+      <button type="submit" class="btn btn-primary">Share</button>
+    </form>
+    <ul class="share-list" id="shared-with-list"></ul>
+    <p class="empty-state" id="shared-with-empty" hidden>You haven't shared your dashboard with anyone yet.</p>
+    <p class="status" id="share-status" role="status" aria-live="polite"></p>
+  </div>
+
+  <div class="card">
+    <h2>Shared with you</h2>
+    <p class="hint">Switch to one of these from the dashboard header.</p>
+    <ul class="share-list" id="shared-with-me-list"></ul>
+    <p class="empty-state" id="shared-with-me-empty" hidden>Nobody has shared their dashboard with you yet.</p>
   </div>
 
   <form id="settings-form">

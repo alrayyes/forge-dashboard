@@ -225,9 +225,33 @@
     });
   });
 
+  // ---- switching to a dashboard someone else shared with you ----
+  var currentOwner = '';
+  var ownerSelect = document.getElementById('dashboard-owner-select');
+
+  fetch('/api/sharing', { headers: { Accept: 'application/json' } })
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (data) {
+      if (!data || !data.sharedWithMe || data.sharedWithMe.length === 0) return;
+      data.sharedWithMe.forEach(function (u) {
+        var option = document.createElement('option');
+        option.value = u.username;
+        option.textContent = u.displayName + "’s dashboard";
+        ownerSelect.appendChild(option);
+      });
+      ownerSelect.hidden = false;
+    })
+    .catch(function () { /* a transient failure here isn't worth blocking the page over */ });
+
+  ownerSelect.addEventListener('change', function () {
+    currentOwner = ownerSelect.value;
+    refresh();
+  });
+
   // ---- main fetch/render loop ----
   function refresh() {
-    fetch('/api/dashboard', { headers: { Accept: 'application/json' } })
+    var url = '/api/dashboard' + (currentOwner ? '?owner=' + encodeURIComponent(currentOwner) : '');
+    fetch(url, { headers: { Accept: 'application/json' } })
       .then(function (res) {
         if (res.status === 401) {
           window.location.href = '/login.html';

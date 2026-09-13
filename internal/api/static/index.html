@@ -29,6 +29,10 @@
       </div>
     </div>
     <div class="header-status">
+      <label for="dashboard-owner-select" class="sr-only">Viewing dashboard</label>
+      <select id="dashboard-owner-select" class="mono" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface-sunken);color:var(--ink);" hidden>
+        <option value="">My dashboard</option>
+      </select>
       <div id="forge-health" aria-live="polite"></div>
       <span class="refreshed">Refreshed <span class="mono" id="refreshed-at">&mdash;</span></span>
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" aria-pressed="false">

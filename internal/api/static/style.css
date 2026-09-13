@@ -101,6 +101,22 @@ body {
 
 .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
 
+/* Visually hidden but still reachable by a screen reader — for a label a
+   compact form's own layout (a placeholder-only input beside a button)
+   already makes visually redundant, per a11y.md: a placeholder alone
+   never substitutes for a real label. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 a { color: inherit; }
 
 .wrap { max-width: 1220px; margin: 0 auto; }

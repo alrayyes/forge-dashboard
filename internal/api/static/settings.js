@@ -11,6 +11,100 @@
     document.getElementById(id).hidden = !configured;
   }
 
+  function escapeHTML(s) {
+    var div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  // ---- sharing ----
+  var shareStatusEl = document.getElementById('share-status');
+  function setShareStatus(message, kind) {
+    shareStatusEl.textContent = message || '';
+    shareStatusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function renderShareList(listEl, emptyEl, users, removable) {
+    listEl.innerHTML = '';
+    emptyEl.hidden = users.length > 0;
+    users.forEach(function (u) {
+      var li = document.createElement('li');
+      var label = escapeHTML(u.displayName) + ' (' + escapeHTML(u.username) + ')';
+      if (removable) {
+        li.innerHTML = '<span>' + label + '</span><button class="btn-remove" type="button" data-username="' + escapeHTML(u.username) + '">Stop sharing</button>';
+      } else {
+        li.innerHTML = '<span>' + label + '</span>';
+      }
+      listEl.appendChild(li);
+    });
+  }
+
+  function loadSharing() {
+    return fetch('/api/sharing', { headers: { Accept: 'application/json' } })
+      .then(function (res) {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          return null;
+        }
+        return res.ok ? res.json() : Promise.reject(new Error('could not load sharing (' + res.status + ')'));
+      })
+      .then(function (data) {
+        if (!data) return;
+        renderShareList(document.getElementById('shared-with-list'), document.getElementById('shared-with-empty'), data.sharedWith, true);
+        renderShareList(document.getElementById('shared-with-me-list'), document.getElementById('shared-with-me-empty'), data.sharedWithMe, false);
+      });
+  }
+
+  loadSharing().catch(function (err) {
+    setShareStatus(err.message || 'Could not load sharing.', 'error');
+  });
+
+  document.getElementById('share-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var usernameInput = document.getElementById('share-username');
+    var username = usernameInput.value.trim();
+    if (!username) return;
+
+    setShareStatus('Sharing…');
+    fetch('/api/sharing/' + encodeURIComponent(username), { method: 'PUT' })
+      .then(function (res) {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          return;
+        }
+        if (!res.ok) {
+          return res.json().then(function (data) { throw new Error(data.error || 'could not share'); });
+        }
+        usernameInput.value = '';
+        setShareStatus('Shared with ' + username + '.', 'ok');
+        return loadSharing();
+      })
+      .catch(function (err) {
+        setShareStatus(err.message || 'Could not share.', 'error');
+      });
+  });
+
+  document.getElementById('shared-with-list').addEventListener('click', function (e) {
+    var button = e.target.closest('button.btn-remove');
+    if (!button) return;
+    var username = button.getAttribute('data-username');
+
+    setShareStatus('Removing…');
+    fetch('/api/sharing/' + encodeURIComponent(username), { method: 'DELETE' })
+      .then(function (res) {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          return;
+        }
+        if (!res.ok) throw new Error('could not stop sharing');
+        setShareStatus('No longer shared with ' + username + '.', 'ok');
+        return loadSharing();
+      })
+      .catch(function (err) {
+        setShareStatus(err.message || 'Could not stop sharing.', 'error');
+      });
+  });
+
   // ---- load whatever's already saved ----
   fetch('/api/settings', { headers: { Accept: 'application/json' } })
     .then(function (res) {
