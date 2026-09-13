@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/alrayyes/forge-dashboard/compare/v0.22.0...v0.23.0) (2026-09-13)
+
+
+### Features
+
+* on-demand refresh and subscription on Aggregator/Manager ([#79](https://github.com/alrayyes/forge-dashboard/issues/79)) ([9d73d3d](https://github.com/alrayyes/forge-dashboard/commit/9d73d3d955777ef8ad95cd5d8df93b0d88b3c36e))
+
 ## [0.22.0](https://github.com/alrayyes/forge-dashboard/compare/v0.21.0...v0.22.0) (2026-09-13)
 
 
