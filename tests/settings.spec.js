@@ -99,6 +99,57 @@ test.describe('settings page', () => {
     await expect(page.locator('#forgejo-token-link')).toHaveAttribute('href', 'https://git.example.com/user/settings/applications');
   });
 
+  test('webhook URLs and secret are populated, and the secret starts masked', async ({ page }) => {
+    await page.goto('/settings.html');
+
+    // The webhook fields fill in only after the settings fetch resolves —
+    // an auto-retrying toHaveValue, not a one-shot inputValue, is what
+    // actually waits for that instead of racing it.
+    const githubURLLocator = page.locator('#webhook-url-github');
+    const forgejoURLLocator = page.locator('#webhook-url-forgejo');
+    await expect(githubURLLocator).toHaveValue(/\/api\/webhooks\/github\/.+/);
+    await expect(forgejoURLLocator).toHaveValue(/\/api\/webhooks\/forgejo\/.+/);
+    const githubURL = await githubURLLocator.inputValue();
+    const forgejoURL = await forgejoURLLocator.inputValue();
+    // Same token in both URLs, since they identify the same user.
+    expect(githubURL.split('/').pop()).toBe(forgejoURL.split('/').pop());
+
+    await expect(page.locator('#webhook-secret')).toHaveAttribute('type', 'password');
+    await expect(page.locator('#webhook-secret')).not.toHaveValue('');
+    const secret = await page.locator('#webhook-secret').inputValue();
+    expect(secret.length).toBeGreaterThan(0);
+
+    await page.reload();
+    await expect(page.locator('#webhook-url-github')).toHaveValue(githubURL);
+    await expect(page.locator('#webhook-secret')).toHaveValue(secret);
+  });
+
+  test('the webhook secret show/hide toggle works the same as the token fields', async ({ page }) => {
+    await page.goto('/settings.html');
+
+    const toggle = page.locator('.token-toggle[data-target="webhook-secret"]');
+    await expect(page.locator('#webhook-secret')).toHaveAttribute('type', 'password');
+    await toggle.click();
+    await expect(page.locator('#webhook-secret')).toHaveAttribute('type', 'text');
+    await toggle.click();
+    await expect(page.locator('#webhook-secret')).toHaveAttribute('type', 'password');
+  });
+
+  test('copying the GitHub webhook URL confirms it in the status line', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto('/settings.html');
+
+    // Wait for the settings fetch to fill the field in before copying it —
+    // otherwise this can race the same fetch the field's own value does.
+    await expect(page.locator('#webhook-url-github')).toHaveValue(/\/api\/webhooks\/github\/.+/);
+    await page.click('.copy-button[data-copy-target="webhook-url-github"]');
+    await expect(page.locator('#webhook-copy-status')).toHaveText('Copied.');
+
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+    const expected = await page.locator('#webhook-url-github').inputValue();
+    expect(clipboardText).toBe(expected);
+  });
+
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await page.goto('/settings.html');
 

@@ -115,3 +115,93 @@ func TestStore_TokensAreEncryptedAtRest(t *testing.T) {
 	assert.NotContains(t, rawColumn, secretToken, "the raw database column must never hold the plaintext token")
 	assert.NotEmpty(t, rawColumn)
 }
+
+func TestStore_EnsureWebhookCredentials_FirstCall_GeneratesNonEmptyValues(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	token, secret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, token)
+	assert.NotEmpty(t, secret)
+	assert.NotEqual(t, token, secret, "the URL-facing token and the HMAC-signing secret must be two different values")
+}
+
+func TestStore_EnsureWebhookCredentials_SecondCall_ReturnsTheSameValues(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	firstToken, firstSecret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	require.NoError(t, err)
+
+	secondToken, secondSecret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	require.NoError(t, err)
+
+	assert.Equal(t, firstToken, secondToken, "a webhook already configured on a forge points at this URL — it can't change on every visit to Settings")
+	assert.Equal(t, firstSecret, secondSecret)
+}
+
+func TestStore_EnsureWebhookCredentials_TwoUsers_GetDifferentValues(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	tokenA, secretA, err := store.EnsureWebhookCredentials(t.Context(), []byte("user-a"))
+	require.NoError(t, err)
+	tokenB, secretB, err := store.EnsureWebhookCredentials(t.Context(), []byte("user-b"))
+	require.NoError(t, err)
+
+	assert.NotEqual(t, tokenA, tokenB)
+	assert.NotEqual(t, secretA, secretB)
+}
+
+func TestStore_EnsureWebhookCredentials_AfterExistingSettingsSaved_LeavesThemIntact(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubToken: "ghp_existing", GitHubUsername: "ryan"}))
+
+	_, _, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	require.NoError(t, err)
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Equal(t, "ghp_existing", got.GitHubToken, "generating webhook credentials must not disturb settings already saved")
+	assert.Equal(t, "ryan", got.GitHubUsername)
+}
+
+func TestStore_Set_NeverOverwritesAlreadyGeneratedWebhookCredentials(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	token, secret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	require.NoError(t, err)
+
+	// A real settings save (the Settings page's own Save button) — it
+	// doesn't know about webhook credentials at all, and shouldn't need
+	// to for them to survive.
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubUsername: "octocat"}))
+
+	gotToken, gotSecret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Equal(t, token, gotToken)
+	assert.Equal(t, secret, gotSecret)
+}
+
+func TestStore_Get_IncludesWebhookCredentialsOnceGenerated(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	token, secret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	require.NoError(t, err)
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Equal(t, token, got.WebhookToken)
+	assert.Equal(t, secret, got.WebhookSecret)
+}

@@ -2,9 +2,11 @@ package settings
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -20,7 +22,15 @@ type Credentials struct {
 	ForgejoURL      string
 	ForgejoToken    string
 	ForgejoUsername string
-	UpdatedAt       time.Time
+	// WebhookToken identifies this user in a webhook URL
+	// (/api/webhooks/{provider}/{token}); WebhookSecret is what's pasted
+	// into the forge's own webhook "Secret" field and never appears in
+	// the URL, so a leaked log line alone can't forge a valid signature.
+	// Neither is a third-party credential the way the forge tokens above
+	// are, so neither is encrypted at rest — see EnsureWebhookCredentials.
+	WebhookToken  string
+	WebhookSecret string
+	UpdatedAt     time.Time
 }
 
 // Store persists Credentials, encrypted at rest, one row per user.
@@ -46,11 +56,38 @@ func (s *Store) Init(ctx context.Context) error {
 		forgejo_url TEXT NOT NULL DEFAULT '',
 		forgejo_token TEXT NOT NULL DEFAULT '',
 		forgejo_username TEXT NOT NULL DEFAULT '',
+		webhook_token TEXT NOT NULL DEFAULT '',
+		webhook_secret TEXT NOT NULL DEFAULT '',
 		updated_at TIMESTAMP NOT NULL
 	);
 	`
-	_, err := s.db.ExecContext(ctx, schema)
-	return err
+	if _, err := s.db.ExecContext(ctx, schema); err != nil {
+		return err
+	}
+	return s.addWebhookColumnsIfMissing(ctx)
+}
+
+// addWebhookColumnsIfMissing exists for a database that already had this
+// table before webhook_token/webhook_secret were added — CREATE TABLE IF
+// NOT EXISTS above is a no-op against it, so the columns need adding here
+// instead. SQLite has no ADD COLUMN IF NOT EXISTS, so a "duplicate column
+// name" error is the expected, ignored outcome on a database that already
+// has them (including every fresh one, which got them from the CREATE
+// TABLE above already).
+func (s *Store) addWebhookColumnsIfMissing(ctx context.Context) error {
+	migrations := []string{
+		`ALTER TABLE user_credentials ADD COLUMN webhook_token TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE user_credentials ADD COLUMN webhook_secret TEXT NOT NULL DEFAULT ''`,
+	}
+	for _, stmt := range migrations {
+		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
+			if strings.Contains(err.Error(), "duplicate column name") {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 // Set replaces userID's entire credential row — a Settings save is always
@@ -88,10 +125,10 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 		encGitHubToken, encForgejoToken string
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, updated_at
+		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, updated_at
 		FROM user_credentials WHERE user_id = ?`,
 		encodeUserID(userID),
-	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.UpdatedAt)
+	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Credentials{}, ErrNotFound
 	}
@@ -106,6 +143,66 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 		return Credentials{}, err
 	}
 	return c, nil
+}
+
+// EnsureWebhookCredentials returns userID's webhook token and secret,
+// generating and persisting them on first call — a user who never opens
+// Settings never gets a row touched for this, and a repeat call always
+// returns the same values (a webhook already configured on a forge
+// points at a URL built from the token; it can't change underneath it).
+// Doesn't touch any other field, including on a user who has no saved
+// row at all yet.
+func (s *Store) EnsureWebhookCredentials(ctx context.Context, userID []byte) (token, secret string, err error) {
+	encodedID := encodeUserID(userID)
+
+	err = s.db.QueryRowContext(ctx,
+		`SELECT webhook_token, webhook_secret FROM user_credentials WHERE user_id = ?`, encodedID,
+	).Scan(&token, &secret)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		// No row at all yet — proceed to create one with just the
+		// webhook fields; a later real Set upserts the rest around it.
+	case err != nil:
+		return "", "", err
+	case token != "" && secret != "":
+		return token, secret, nil
+	}
+
+	if token == "" {
+		if token, err = randomWebhookValue(); err != nil {
+			return "", "", err
+		}
+	}
+	if secret == "" {
+		if secret, err = randomWebhookValue(); err != nil {
+			return "", "", err
+		}
+	}
+
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO user_credentials (user_id, webhook_token, webhook_secret, updated_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (user_id) DO UPDATE SET
+			webhook_token = excluded.webhook_token,
+			webhook_secret = excluded.webhook_secret`,
+		encodedID, token, secret, time.Now().UTC(),
+	)
+	if err != nil {
+		return "", "", err
+	}
+	return token, secret, nil
+}
+
+// randomWebhookValue returns 256 bits of randomness as a URL-safe string —
+// used for both the URL-embedded token and the HMAC-signing secret, which
+// need the same shape but are never used interchangeably (see
+// Credentials.WebhookToken's doc comment).
+func randomWebhookValue() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
 // Delete removes userID's saved credentials — a no-op, not an error, if

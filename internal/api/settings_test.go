@@ -78,6 +78,64 @@ func TestSettingsPut_ThenGet_RoundTripsNonSecretFieldsAndNeverReturnsTheToken(t 
 	assert.True(t, got.ForgejoTokenSet)
 }
 
+func TestSettingsGet_FirstVisit_GeneratesWebhookCredentials(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got api.SettingsResponse
+	require.NoError(t, readJSON(resp, &got))
+	assert.NotEmpty(t, got.WebhookToken)
+	assert.NotEmpty(t, got.WebhookSecret)
+	assert.NotEqual(t, got.WebhookToken, got.WebhookSecret)
+}
+
+func TestSettingsGet_SecondVisit_ReturnsTheSameWebhookCredentials(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	first := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	var firstGot api.SettingsResponse
+	require.NoError(t, readJSON(first, &firstGot))
+	_ = first.Body.Close()
+
+	second := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	defer func() { _ = second.Body.Close() }()
+	var secondGot api.SettingsResponse
+	require.NoError(t, readJSON(second, &secondGot))
+
+	assert.Equal(t, firstGot.WebhookToken, secondGot.WebhookToken)
+	assert.Equal(t, firstGot.WebhookSecret, secondGot.WebhookSecret)
+}
+
+func TestSettingsPut_DoesNotDisturbAlreadyGeneratedWebhookCredentials(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	var before api.SettingsResponse
+	require.NoError(t, readJSON(getResp, &before))
+	_ = getResp.Body.Close()
+
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubUsername":"ryan"}`, sessionCookie)
+	defer func() { _ = putResp.Body.Close() }()
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	var after api.SettingsResponse
+	require.NoError(t, readJSON(putResp, &after))
+	assert.Equal(t, before.WebhookToken, after.WebhookToken)
+	assert.Equal(t, before.WebhookSecret, after.WebhookSecret)
+}
+
 func TestSettingsPut_ForgejoTokenWithoutURL_Rejected(t *testing.T) {
 	t.Parallel()
 

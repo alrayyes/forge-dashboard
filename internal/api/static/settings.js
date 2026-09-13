@@ -120,6 +120,22 @@
       });
   });
 
+  // ---- webhook URLs/secret ----
+  var webhookCopyStatusEl = document.getElementById('webhook-copy-status');
+  function setWebhookCopyStatus(message, kind) {
+    webhookCopyStatusEl.textContent = message || '';
+    webhookCopyStatusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  document.querySelectorAll('.copy-button').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var input = document.getElementById(button.dataset.copyTarget);
+      navigator.clipboard.writeText(input.value)
+        .then(function () { setWebhookCopyStatus('Copied.', 'ok'); })
+        .catch(function () { setWebhookCopyStatus('Could not copy — select and copy the URL by hand.', 'error'); });
+    });
+  });
+
   // ---- Forgejo token-settings link, built from whatever URL is typed in ----
   function updateForgejoTokenLink() {
     var link = document.getElementById('forgejo-token-link');
@@ -151,6 +167,9 @@
       setConfiguredBadge('github-token-badge', data.githubTokenSet);
       setConfiguredBadge('forgejo-token-badge', data.forgejoTokenSet);
       updateForgejoTokenLink();
+      document.getElementById('webhook-url-github').value = window.location.origin + '/api/webhooks/github/' + data.webhookToken;
+      document.getElementById('webhook-url-forgejo').value = window.location.origin + '/api/webhooks/forgejo/' + data.webhookToken;
+      document.getElementById('webhook-secret').value = data.webhookSecret;
     })
     .catch(function (err) {
       setStatus(err.message || 'Could not load settings.', 'error');

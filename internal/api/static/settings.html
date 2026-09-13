@@ -155,6 +155,23 @@
   }
   .share-list .btn-remove:hover { filter: brightness(1.05); }
   .empty-state { font-size: 12.5px; color: var(--ink-3); margin: 0; }
+  .copy-button {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .copy-button:hover { color: var(--ink); }
+  .copy-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 </style>
 </head>
 <body>
@@ -238,6 +255,36 @@
       <p class="status" id="status" role="status" aria-live="polite"></p>
     </div>
   </form>
+
+  <div class="card">
+    <h2>Webhooks</h2>
+    <p class="hint">Add these to a repo to update your dashboard the moment something happens there, instead of waiting on the next poll. Optional — polling every 30 seconds keeps running either way.</p>
+    <div class="field">
+      <label for="webhook-url-github">GitHub webhook URL</label>
+      <div class="token-input">
+        <input id="webhook-url-github" type="text" readonly aria-describedby="webhook-url-github-hint">
+        <button type="button" class="copy-button" data-copy-target="webhook-url-github">Copy</button>
+      </div>
+      <p class="field-hint" id="webhook-url-github-hint">Repo &rarr; Settings &rarr; Webhooks &rarr; Add webhook. Content type <code>application/json</code>, secret below, events: Pull requests, Issues, Statuses, Check runs.</p>
+    </div>
+    <div class="field">
+      <label for="webhook-url-forgejo">Forgejo webhook URL</label>
+      <div class="token-input">
+        <input id="webhook-url-forgejo" type="text" readonly aria-describedby="webhook-url-forgejo-hint">
+        <button type="button" class="copy-button" data-copy-target="webhook-url-forgejo">Copy</button>
+      </div>
+      <p class="field-hint" id="webhook-url-forgejo-hint">Repo &rarr; Settings &rarr; Webhooks &rarr; Add Webhook &rarr; Forgejo. Secret below, trigger on: Pull Request, Issue, Push, Status.</p>
+    </div>
+    <div class="field">
+      <label for="webhook-secret">Secret</label>
+      <div class="token-input">
+        <input id="webhook-secret" type="password" readonly>
+        <button type="button" class="token-toggle" data-target="webhook-secret" aria-pressed="false" aria-label="Show webhook secret">Show</button>
+      </div>
+      <p class="field-hint">The same secret goes in both webhooks above — it's what proves a delivery actually came from your forge.</p>
+    </div>
+    <p class="status" id="webhook-copy-status" role="status" aria-live="polite"></p>
+  </div>
 
   <footer>
     Read-only mirror of both forges &middot; credentials never leave <span class="mono">forge-dashboard</span>'s backend
