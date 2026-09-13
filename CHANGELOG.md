@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.0](https://github.com/alrayyes/forge-dashboard/compare/v0.9.0...v0.10.0) (2026-09-13)
+
+
+### Features
+
+* dashboard sharing ([#21](https://github.com/alrayyes/forge-dashboard/issues/21)) ([6b68928](https://github.com/alrayyes/forge-dashboard/commit/6b68928ec425dd975539015c0ec210f01b59b280))
+
+
+### Bug Fixes
+
+* dark-mode logo rendering as a blank tile ([#23](https://github.com/alrayyes/forge-dashboard/issues/23)) ([7933cb9](https://github.com/alrayyes/forge-dashboard/commit/7933cb90a03cfd6f07283fdcc6d56cf5e38256d3))
+
 ## [0.9.0](https://github.com/alrayyes/forge-dashboard/compare/v0.8.1...v0.9.0) (2026-09-13)
 
 
