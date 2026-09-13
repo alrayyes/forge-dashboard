@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/alrayyes/forge-dashboard/compare/v0.21.0...v0.22.0) (2026-09-13)
+
+
+### Features
+
+* render label colors on pull request and issue chips ([#77](https://github.com/alrayyes/forge-dashboard/issues/77)) ([a2412ca](https://github.com/alrayyes/forge-dashboard/commit/a2412caed5223c1b1b5e07f719b47cd0d56eebca)), closes [#42](https://github.com/alrayyes/forge-dashboard/issues/42)
+
 ## [0.21.0](https://github.com/alrayyes/forge-dashboard/compare/v0.20.0...v0.21.0) (2026-09-13)
 
 
