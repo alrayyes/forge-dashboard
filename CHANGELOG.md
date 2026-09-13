@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/alrayyes/forge-dashboard/compare/v0.13.0...v0.14.0) (2026-09-13)
+
+
+### Features
+
+* require a Forgejo URL alongside any Forgejo token or username ([#33](https://github.com/alrayyes/forge-dashboard/issues/33)) ([75ade23](https://github.com/alrayyes/forge-dashboard/commit/75ade234b681ad5c35b55d242f46ed8a513fc75d))
+
 ## [0.13.0](https://github.com/alrayyes/forge-dashboard/compare/v0.12.1...v0.13.0) (2026-09-13)
 
 
