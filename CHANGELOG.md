@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/alrayyes/forge-dashboard/compare/v0.24.0...v0.25.0) (2026-09-13)
+
+
+### Features
+
+* receive and verify GitHub/Forgejo repository webhooks ([#86](https://github.com/alrayyes/forge-dashboard/issues/86)) ([9aed17f](https://github.com/alrayyes/forge-dashboard/commit/9aed17f7df91b250e3af879e31f265c8b98f84b7))
+
 ## [0.24.0](https://github.com/alrayyes/forge-dashboard/compare/v0.23.1...v0.24.0) (2026-09-13)
 
 
