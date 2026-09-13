@@ -105,6 +105,20 @@
       });
   });
 
+  // ---- Forgejo token-settings link, built from whatever URL is typed in ----
+  function updateForgejoTokenLink() {
+    var link = document.getElementById('forgejo-token-link');
+    var raw = document.getElementById('forgejo-url').value.trim();
+    if (!raw) {
+      link.removeAttribute('href');
+      return;
+    }
+    var base = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+    base = base.replace(/\/+$/, '');
+    link.href = base + '/user/settings/applications';
+  }
+  document.getElementById('forgejo-url').addEventListener('input', updateForgejoTokenLink);
+
   // ---- load whatever's already saved ----
   fetch('/api/settings', { headers: { Accept: 'application/json' } })
     .then(function (res) {
@@ -121,6 +135,7 @@
       document.getElementById('forgejo-username').value = data.forgejoUsername || '';
       setConfiguredBadge('github-token-badge', data.githubTokenSet);
       setConfiguredBadge('forgejo-token-badge', data.forgejoTokenSet);
+      updateForgejoTokenLink();
     })
     .catch(function (err) {
       setStatus(err.message || 'Could not load settings.', 'error');
