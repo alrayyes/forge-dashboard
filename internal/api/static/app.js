@@ -77,7 +77,16 @@
 
   function titleCell(item) {
     var wrap = el('div', 'title-cell');
-    var title = el('div', 'title');
+    // The real, keyboard-focusable link — a "stretched link" (see
+    // .title-cell .title::after in style.css) makes the whole row
+    // clickable, without the row itself being an <a> that would make the
+    // CI pill and label chips invalid/inaccessible nested interactive
+    // elements. https://css-tricks.com/block-links-the-search-for-a-perfect-solution/
+    var title = document.createElement('a');
+    title.className = 'title';
+    title.href = item.url;
+    title.target = '_blank';
+    title.rel = 'noopener noreferrer';
     title.appendChild(el('span', 'num', '#' + item.number));
     title.appendChild(document.createTextNode(item.title));
     wrap.appendChild(title);
@@ -88,25 +97,22 @@
     return wrap;
   }
 
-  function ciPill(status) {
-    var pill = el('div', 'ci-pill ' + status);
+  // status is a real button — see titleCell's comment on why the row
+  // isn't an <a> around everything. onStatusClick is only ever passed for
+  // the pull requests board (isPR).
+  function ciPill(status, onStatusClick) {
+    var pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'ci-pill ' + status;
     pill.appendChild(el('span', 'dot'));
     pill.appendChild(document.createTextNode(CI_LABELS[status] || status));
+    pill.setAttribute('aria-label', 'Filter pull requests by CI status: ' + (CI_LABELS[status] || status));
+    pill.addEventListener('click', function () { onStatusClick(status); });
     return pill;
   }
 
-  function buildRow(item, isPR) {
-    var row = document.createElement('a');
-    row.className = 'row';
-    row.href = item.url;
-    row.target = '_blank';
-    row.rel = 'noopener noreferrer';
-    row.dataset.repo = (item.forge + ' ' + item.repo).toLowerCase();
-    row.dataset.title = item.title.toLowerCase();
-    row.dataset.author = (item.author || '').toLowerCase();
-    row.dataset.createdMin = String(minutesAgo(item.createdAt));
-    row.dataset.updatedMin = String(minutesAgo(item.updatedAt));
-    if (isPR) row.dataset.status = item.ci;
+  function buildRow(item, isPR, onStatusClick) {
+    var row = el('div', 'row');
 
     row.appendChild(repoCell(item));
     row.appendChild(titleCell(item));
@@ -116,7 +122,7 @@
     meta.appendChild(el('div', 'created', relativeTime(item.createdAt)));
     meta.appendChild(el('div', 'updated', relativeTime(item.updatedAt)));
     if (isPR) {
-      meta.appendChild(ciPill(item.ci));
+      meta.appendChild(ciPill(item.ci, onStatusClick));
     } else {
       meta.appendChild(el('div', 'empty-cell'));
     }
@@ -142,7 +148,7 @@
     return true;
   }
 
-  function createBoard(containerId, emptyId, noResultsId, isPR) {
+  function createBoard(containerId, emptyId, noResultsId, isPR, onStatusClick) {
     var state = {
       items: [],
       filters: {},
@@ -159,7 +165,7 @@
 
       container.innerHTML = '';
       visible.forEach(function (item) {
-        container.appendChild(buildRow(item, isPR));
+        container.appendChild(buildRow(item, isPR, onStatusClick));
       });
 
       document.getElementById(emptyId).hidden = state.items.length !== 0;
@@ -178,11 +184,40 @@
         state.page = 1;
         render();
       },
+      // Sets col to value, unless it's already value — then clears it. Used
+      // by a click on something that represents one specific value (a CI
+      // pill, the "CI failing" stat tile) rather than the free-choice
+      // dropdown, where a second click meaning "never mind" is the
+      // expected behavior. Returns the filter's new value so the caller
+      // can sync a visible control (the status <select>) to match.
+      toggleFilter: function (col, value) {
+        var next = state.filters[col] === value ? '' : value;
+        state.filters[col] = next;
+        state.page = 1;
+        render();
+        return next;
+      },
     };
   }
 
-  var prBoard = createBoard('pr-rows', 'pr-empty', 'pr-no-results', true);
+  // Clicking a CI pill or the "CI failing" stat tile jumps to the pull
+  // requests board filtered to that status — declared before prBoard is
+  // assigned below since it's only ever called later, after a user click,
+  // by which point prBoard exists (function declarations hoist, so this
+  // is safe to reference here).
+  function handleStatusClick(status) {
+    var next = prBoard.toggleFilter('status', status);
+    var select = document.querySelector('section[aria-label="Open pull requests"] .col-filter[data-col="status"]');
+    if (select) select.value = next;
+    var section = document.querySelector('section[aria-label="Open pull requests"]');
+    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  var prBoard = createBoard('pr-rows', 'pr-empty', 'pr-no-results', true, handleStatusClick);
   var issueBoard = createBoard('issue-rows', 'issue-empty', 'issue-no-results', false);
+
+  var statFailingTile = document.getElementById('stat-failing-tile');
+  if (statFailingTile) statFailingTile.addEventListener('click', function () { handleStatusClick('failure'); });
 
   document.querySelectorAll('section.board').forEach(function (board) {
     var target = board.querySelector('#issue-rows') ? issueBoard : prBoard;
