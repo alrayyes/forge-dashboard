@@ -18,8 +18,8 @@ info:
     name: forge-dashboard
     url: https://github.com/alrayyes/forge-dashboard
   license:
-    name: GPL-3.0
-    identifier: GPL-3.0-only
+    name: AGPL-3.0
+    identifier: AGPL-3.0-only
 
 servers:
   - url: "{scheme}://{host}"
