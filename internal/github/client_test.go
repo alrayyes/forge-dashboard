@@ -48,6 +48,32 @@ func TestListRepos_FiltersToPushAccessAndPaginates(t *testing.T) {
 	assert.Equal(t, "alrayyes/a", repos[0].FullName)
 }
 
+func TestListRepos_ExcludesArchivedAndForkedRepos(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/user/repos", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/active", "name": "active", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true}, "archived": false, "fork": false},
+			{"full_name": "alrayyes/archived", "name": "archived", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true}, "archived": true, "fork": false},
+			{"full_name": "alrayyes/forked", "name": "forked", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true}, "archived": false, "fork": true},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	repos, err := client.ListRepos(t.Context())
+
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+	assert.Equal(t, "alrayyes/active", repos[0].FullName)
+}
+
 func TestListRepos_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 	t.Parallel()
 
@@ -74,6 +100,32 @@ func TestListRepos_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, repos, 1)
 	assert.Equal(t, "alrayyes/hush-hush", repos[0].FullName)
+}
+
+func TestListRepos_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/active", "name": "active", "owner": map[string]string{"login": "alrayyes"}, "archived": false, "fork": false},
+			{"full_name": "alrayyes/archived", "name": "archived", "owner": map[string]string{"login": "alrayyes"}, "archived": true, "fork": false},
+			{"full_name": "alrayyes/forked", "name": "forked", "owner": map[string]string{"login": "alrayyes"}, "archived": false, "fork": true},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("", "alrayyes", srv.URL)
+	repos, err := client.ListRepos(t.Context())
+
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+	assert.Equal(t, "alrayyes/active", repos[0].FullName)
 }
 
 func TestListRepos_NeitherTokenNorUsername_Errors(t *testing.T) {
