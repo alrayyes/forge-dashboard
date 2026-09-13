@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.1](https://github.com/alrayyes/forge-dashboard/compare/v0.14.0...v0.14.1) (2026-09-13)
+
+
+### Bug Fixes
+
+* admin user table needing horizontal scroll at phone width ([#47](https://github.com/alrayyes/forge-dashboard/issues/47)) ([f016d98](https://github.com/alrayyes/forge-dashboard/commit/f016d986506fa899cd36a33a241628ceb35b4734))
+* long titles with several label chips collapsing to single-word lines ([#46](https://github.com/alrayyes/forge-dashboard/issues/46)) ([800fc3e](https://github.com/alrayyes/forge-dashboard/commit/800fc3e6efb6db8d92a99e05a9352a1c160aad3e))
+
 ## [0.14.0](https://github.com/alrayyes/forge-dashboard/compare/v0.13.0...v0.14.0) (2026-09-13)
 
 
