@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — Forge Board</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  .admin-wrap { max-width: 760px; margin: 0 auto; padding: 28px 0 64px; }
+  .admin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .admin-header h1 { font-size: 19px; margin: 0; }
+  .back-link {
+    font-size: 13px;
+    color: var(--ink-2);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .back-link:hover { color: var(--ink); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px;
+    margin-bottom: 18px;
+    overflow-x: auto;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 10px 12px; white-space: nowrap; }
+  th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-2);
+    border-bottom: 1px solid var(--border);
+  }
+  td { border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .admin-badge {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent-ink);
+    background: var(--accent);
+    border-radius: 999px;
+    padding: 1px 8px;
+  }
+  .row-actions { display: flex; gap: 8px; }
+  .btn {
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-sunken);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.05); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* Neither --critical on --surface-sunken (4.29:1) nor on --critical-bg
+     (3.94:1) clears the 4.5:1 WCAG AA text-contrast floor — axe-core
+     caught both, live. Danger is a red border and bolder weight instead;
+     the text itself stays --ink, the same color every other button's
+     text already passes contrast with on this exact background. */
+  .btn-danger { border-color: var(--critical); font-weight: 600; }
+  .status { font-size: 12.5px; min-height: 1.4em; margin: 0 0 12px; }
+  .status.error { color: var(--critical); }
+  .status.ok { color: var(--good); }
+  .empty-state { font-size: 13px; color: var(--ink-3); padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="admin-wrap">
+  <div class="admin-header">
+    <h1>Admin</h1>
+    <a class="back-link" href="/">&larr; Back to dashboard</a>
+  </div>
+
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Username</th>
+          <th scope="col">Display name</th>
+          <th scope="col">Registered</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="user-rows"></tbody>
+    </table>
+    <p class="empty-state" id="empty-state" hidden>No other users are registered.</p>
+  </div>
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>

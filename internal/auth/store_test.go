@@ -190,3 +190,58 @@ func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, got.Credentials, 1)
 }
+
+func TestStore_ListUsers_ReturnsEveryRegisteredUser(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan", true)
+	require.NoError(t, err)
+	_, err = store.CreateUser(t.Context(), "alex", "Alex", false)
+	require.NoError(t, err)
+
+	users, err := store.ListUsers(t.Context())
+	require.NoError(t, err)
+
+	require.Len(t, users, 2)
+	usernames := []string{users[0].Username, users[1].Username}
+	assert.ElementsMatch(t, []string{"ryan", "alex"}, usernames)
+}
+
+func TestStore_RevokeUser_ClearsCredentialsAndSessions(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	token, err := store.CreateSession(t.Context(), u.ID, time.Hour)
+	require.NoError(t, err)
+
+	require.NoError(t, store.RevokeUser(t.Context(), u.ID))
+
+	got, err := store.GetUserByID(t.Context(), u.ID)
+	require.NoError(t, err)
+	assert.Empty(t, got.Credentials)
+
+	_, err = store.UserForSession(t.Context(), token)
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_DeleteUser_RemovesTheAccountAndItsSessions(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	token, err := store.CreateSession(t.Context(), u.ID, time.Hour)
+	require.NoError(t, err)
+
+	require.NoError(t, store.DeleteUser(t.Context(), u.ID))
+
+	_, err = store.GetUserByUsername(t.Context(), "ryan")
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+
+	_, err = store.UserForSession(t.Context(), token)
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}

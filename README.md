@@ -39,13 +39,14 @@ now describes the first slice of.
 
 ### Where this stands against #3
 
-This ships passkey registration and login gating the dashboard, an admin
-flag established at startup rather than by whoever registers first, and
-per-user GitHub/Forgejo tokens — every signed-in user configures their
-own forges from the Settings page and sees only their own dashboard. It
-does **not** yet ship #3's remaining pieces: dashboard sharing between
-users, and an admin UI for managing other users. Those land as their own
-follow-up work on top of this.
+This ships passkey registration and login gating the dashboard, per-user
+GitHub/Forgejo tokens — every signed-in user configures their own forges
+from the Settings page and sees only their own dashboard — and an admin
+area for the one account `ADMIN_USERNAME` designates: list every
+registered user, revoke a user's passkeys and sessions without deleting
+their account, or remove one outright. It does **not** yet ship #3's
+last remaining piece: dashboard sharing between users. That lands as its
+own follow-up work on top of this.
 
 ## Requirements
 
@@ -79,14 +80,33 @@ afterward — see `internal/auth` and `api/openapi.yaml`'s `auth` tag.
 - **`ADMIN_USERNAME`** names the one username that becomes an admin the
   moment it registers — decided here, at startup, rather than by whoever
   happens to register first. Leave it unset and nobody registers as an
-  admin (fine for now: nothing in this slice is admin-gated yet — that's
-  part of #3's remaining scope).
+  admin, and the admin area (`/admin.html`) refuses everyone. See
+  **Admin area** below for what an admin can do.
 - **`RP_ID`** / **`RP_ORIGIN`** configure the WebAuthn relying party.
   They default to `localhost` / `http://localhost:8080` for a local run;
   a real deployment **must** set both to its real domain, or every
   passkey registered against the default refuses to work there — a
   passkey is cryptographically bound to the origin it was created for,
   not something this service can paper over after the fact.
+
+## Admin area
+
+The `ADMIN_USERNAME` account gets an Admin link in the dashboard header,
+leading to `/admin.html`: a list of every registered user, with two
+actions per row.
+
+- **Revoke** signs a user out everywhere and clears every passkey they've
+  registered, without touching their account or saved forge credentials
+  — they have to register a new passkey from scratch to get back in.
+  Useful for a lost device or a compromised passkey manager, short of
+  removing the person entirely.
+- **Remove** deletes the account outright — passkeys, sessions, and
+  saved forge credentials all go with it, and the username becomes
+  available for a fresh registration. Irreversible.
+
+Neither action works on the admin's own account (the backend refuses it
+with a 400, and the frontend disables both buttons on that row) — there's
+no recovery path for locking yourself out this way.
 
 ## Credentials
 
@@ -208,11 +228,13 @@ here.
 ## API
 
 `api/openapi.yaml` is the contract: `GET /healthz` for liveness,
-`GET /api/dashboard` for the signed-in user's aggregated snapshot, and
+`GET /api/dashboard` for the signed-in user's aggregated snapshot,
 `GET`/`PUT /api/settings` for that user's own GitHub/Forgejo
 configuration — the `PUT` response never echoes a token back, only
-whether one is now set. `redocly lint` validates it; nothing yet asserts
-the handlers still match it (see
+whether one is now set — and `GET /api/admin/users` plus the
+revoke/delete endpoints under `admin`, every one of them refusing
+anyone but the designated admin. `redocly lint` validates it; nothing
+yet asserts the handlers still match it (see
 [CONTRIBUTING.md](CONTRIBUTING.md#how-it-fits-together)).
 
 ## Contributing

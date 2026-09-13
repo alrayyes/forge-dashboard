@@ -73,6 +73,37 @@ func TestManager_Ensure_ReplacingAUser_StopsTheOldRefreshLoop(t *testing.T) {
 	assert.LessOrEqual(t, first.calls.Load(), callsAtSwitch+1, "the first source's refresh loop should have stopped, not kept running alongside the second")
 }
 
+func TestManager_Remove_StopsTheRefreshLoopAndEvictsTheSnapshot(t *testing.T) {
+	t.Parallel()
+
+	user := []byte("user-a")
+	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, RepoCount: 1}}
+
+	m := dashboard.NewManager(5 * time.Millisecond)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), user, []dashboard.Source{src})
+	require.Eventually(t, func() bool { return src.calls.Load() >= 2 }, time.Second, 5*time.Millisecond)
+
+	m.Remove(user)
+
+	callsAtRemoval := src.calls.Load()
+	time.Sleep(50 * time.Millisecond)
+	assert.LessOrEqual(t, src.calls.Load(), callsAtRemoval+1, "the refresh loop should have stopped, not kept running after Remove")
+
+	snap := m.Get(user)
+	assert.Empty(t, snap.Forges, "a removed user's snapshot should be gone, not the last one it fetched")
+}
+
+func TestManager_Remove_UnknownUser_IsANoOp(t *testing.T) {
+	t.Parallel()
+
+	m := dashboard.NewManager(time.Minute)
+	t.Cleanup(m.Stop)
+
+	assert.NotPanics(t, func() { m.Remove([]byte("nobody")) })
+}
+
 func TestManager_TwoUsers_HaveIndependentSnapshots(t *testing.T) {
 	t.Parallel()
 

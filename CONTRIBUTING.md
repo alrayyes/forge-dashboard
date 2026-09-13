@@ -68,10 +68,13 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
 - `internal/github` and `internal/forgejo` are the two adapters — thin,
   handwritten REST clients, each wrapped in a `dashboard.GenericSource`
   rather than duplicating the concurrency/error-handling logic per forge.
-- `internal/auth` is passkey registration, login and sessions —
-  `Store` persists users/credentials/sessions to SQLite, `Service` drives
-  the WebAuthn ceremonies against `Store`, and `RequireAuth` is the
-  middleware that gates a handler on a valid session.
+- `internal/auth` is passkey registration, login, sessions, and admin
+  user-management — `Store` persists users/credentials/sessions to
+  SQLite (plus `ListUsers`/`RevokeUser`/`DeleteUser` for the admin
+  area), `Service` drives the WebAuthn ceremonies against `Store`,
+  `RequireAuth` is the middleware that gates a handler on a valid
+  session, and `RequireAdmin` composes inside it to gate one on the
+  session's own `IsAdmin` flag.
 - `internal/settings` is each user's own GitHub/Forgejo configuration —
   `Cipher` is AES-256-GCM encryption keyed off `ENCRYPTION_KEY`, and
   `Store` persists it to SQLite with the tokens encrypted, never in
@@ -80,7 +83,9 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
   the binary with `//go:embed`. No build step, no framework — see the
   README for why. `login.html`/`login.js` are the one page that stays
   reachable without a session; `settings.html`/`settings.js` is where a
-  signed-in user sets their own tokens.
+  signed-in user sets their own tokens; `admin.html`/`admin.js` is the
+  admin's user list, reachable by anyone with a session but functionally
+  gated by every API call it makes 403ing for a non-admin.
 - `cmd/forge-dashboard` is the composition root: reads environment
   variables, wires the auth service, the settings store and the
   dashboard manager, and serves the API and static files. A session's

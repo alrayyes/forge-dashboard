@@ -108,4 +108,11 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 	return c, nil
 }
 
+// Delete removes userID's saved credentials — a no-op, not an error, if
+// they never saved any. Used when an admin removes the account outright.
+func (s *Store) Delete(ctx context.Context, userID []byte) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM user_credentials WHERE user_id = ?`, encodeUserID(userID))
+	return err
+}
+
 func encodeUserID(id []byte) string { return base64.RawURLEncoding.EncodeToString(id) }
