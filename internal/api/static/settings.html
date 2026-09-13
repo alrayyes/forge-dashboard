@@ -189,7 +189,8 @@
       <p class="hint">Same trade-off as GitHub: a token sees private repos, a username alone sees public ones only.</p>
       <div class="field">
         <label for="forgejo-url">Instance URL</label>
-        <input id="forgejo-url" name="forgejoUrl" type="text" autocomplete="off" placeholder="https://git.example.com">
+        <input id="forgejo-url" name="forgejoUrl" type="text" autocomplete="off" placeholder="https://git.example.com" aria-describedby="forgejo-url-hint">
+        <p class="field-hint" id="forgejo-url-hint">Required if you set a token or username below — otherwise Forgejo is skipped entirely, with nothing to tell it which instance to use.</p>
       </div>
       <div class="field">
         <label for="forgejo-token">API token <span class="configured" id="forgejo-token-badge" hidden>Configured</span></label>
