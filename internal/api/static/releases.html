@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Release history — Forge Board</title>
+<script src="theme.js"></script>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  .releases-wrap { max-width: 720px; margin: 0 auto; padding: 28px 0 64px; }
+  .releases-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .releases-header h1 { font-size: 19px; margin: 0; }
+  .back-link {
+    font-size: 13px;
+    color: var(--ink-2);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .back-link:hover { color: var(--ink); }
+  .status { font-size: 12.5px; min-height: 1.4em; margin: 0 0 16px; }
+  .status.error { color: var(--critical); }
+  .release-list { list-style: none; margin: 0; padding: 0; }
+  .release {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 22px 20px;
+    margin-bottom: 14px;
+  }
+  .release-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    margin-bottom: 10px;
+  }
+  .release-head h2 { font-size: 15px; margin: 0; }
+  .release-head h2 a { color: var(--ink); text-decoration: none; }
+  .release-head h2 a:hover { color: var(--accent); }
+  .release-date { font-size: 12px; color: var(--ink-3); }
+  .release-notes { font-size: 13.5px; color: var(--ink-2); line-height: 1.55; }
+  .release-notes h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-3);
+    margin: 14px 0 6px;
+  }
+  .release-notes h3:first-child { margin-top: 0; }
+  .release-notes ul { margin: 0 0 4px; padding-left: 20px; }
+  .release-notes li { margin-bottom: 3px; }
+  .release-notes a { color: var(--accent); }
+  .release-notes .mono { font-size: 12px; }
+  .empty-state { font-size: 13px; color: var(--ink-3); padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="releases-wrap">
+  <div class="releases-header">
+    <h1>Release history</h1>
+    <a class="back-link" href="/">&larr; Back to dashboard</a>
+  </div>
+
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+  <ul class="release-list" id="release-list"></ul>
+  <p class="empty-state" id="release-empty" hidden>No releases published yet.</p>
+
+  <footer>
+    Read-only mirror of both forges &middot; credentials never leave <span class="mono">forge-dashboard</span>'s backend
+    <span id="footer-version"></span>
+  </footer>
+</div>
+
+<script src="footer.js"></script>
+<script src="releases.js"></script>
+</body>
+</html>
