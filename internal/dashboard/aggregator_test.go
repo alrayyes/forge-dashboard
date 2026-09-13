@@ -109,6 +109,66 @@ func TestAggregator_Refresh_OneSourceUnreachable_OthersStillReported(t *testing.
 	assert.NotEmpty(t, forgejoHealth.Error)
 }
 
+func TestAggregator_Subscribe_NotifiedOnRefresh(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeSource{result: dashboard.Result{
+		Health:       dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1}},
+	}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+
+	updates, unsubscribe := agg.Subscribe()
+	defer unsubscribe()
+
+	agg.Refresh(t.Context())
+
+	select {
+	case snap := <-updates:
+		assert.Len(t, snap.PullRequests, 1)
+	case <-time.After(time.Second):
+		t.Fatal("expected a snapshot on the subscription channel after Refresh")
+	}
+}
+
+func TestAggregator_Unsubscribe_StopsDelivery(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeSource{result: dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+
+	updates, unsubscribe := agg.Subscribe()
+	unsubscribe()
+
+	agg.Refresh(t.Context())
+
+	_, stillOpen := <-updates
+	assert.False(t, stillOpen, "the channel should be closed once unsubscribed, and never receive a late delivery")
+}
+
+func TestAggregator_Subscribe_SlowConsumerDoesNotBlockRefresh(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeSource{result: dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+
+	_, unsubscribe := agg.Subscribe() // never read from — a subscriber that fell behind
+	defer unsubscribe()
+
+	done := make(chan struct{})
+	go func() {
+		agg.Refresh(t.Context())
+		agg.Refresh(t.Context()) // a second refresh with the buffer already full
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Refresh blocked on a subscriber that never reads its channel")
+	}
+}
+
 func TestAggregator_Run_RefreshesOnIntervalUntilCanceled(t *testing.T) {
 	t.Parallel()
 
