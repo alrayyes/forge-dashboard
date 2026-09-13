@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/alrayyes/forge-dashboard/compare/v0.28.0...v0.29.0) (2026-09-13)
+
+
+### Features
+
+* add group-by-forge, alongside group-by-repo ([#105](https://github.com/alrayyes/forge-dashboard/issues/105)) ([a01dd3d](https://github.com/alrayyes/forge-dashboard/commit/a01dd3da105b9d52f6344275057c81600de2dfb1)), closes [#102](https://github.com/alrayyes/forge-dashboard/issues/102)
+
 ## [0.28.0](https://github.com/alrayyes/forge-dashboard/compare/v0.27.2...v0.28.0) (2026-09-13)
 
 
