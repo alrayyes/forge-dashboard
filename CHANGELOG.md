@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.2](https://github.com/alrayyes/forge-dashboard/compare/v0.27.1...v0.27.2) (2026-09-13)
+
+
+### Bug Fixes
+
+* pin bun below 1.4 so Dependabot's bun updater stops corrupting the lockfile ([#98](https://github.com/alrayyes/forge-dashboard/issues/98)) ([14958c4](https://github.com/alrayyes/forge-dashboard/commit/14958c432e28ce4377c8ebd3dd54191d944b5101)), closes [#95](https://github.com/alrayyes/forge-dashboard/issues/95)
+
 ## [0.27.1](https://github.com/alrayyes/forge-dashboard/compare/v0.27.0...v0.27.1) (2026-09-13)
 
 
