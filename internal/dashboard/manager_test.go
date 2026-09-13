@@ -104,6 +104,75 @@ func TestManager_Remove_UnknownUser_IsANoOp(t *testing.T) {
 	assert.NotPanics(t, func() { m.Remove([]byte("nobody")) })
 }
 
+func TestManager_RefreshNow_KnownUser_RefreshesImmediatelyAndReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	user := []byte("user-a")
+	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 7}}
+
+	// An interval long enough that the assertion below would fail on its
+	// own timing if RefreshNow weren't doing real, immediate work.
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), user, []dashboard.Source{src})
+	require.Eventually(t, func() bool { return src.calls.Load() >= 1 }, time.Second, 5*time.Millisecond, "the initial refresh Ensure starts")
+
+	ok := m.RefreshNow(t.Context(), user)
+
+	assert.True(t, ok)
+	assert.Equal(t, int32(2), src.calls.Load(), "RefreshNow should have triggered one more fetch on top of Ensure's initial one")
+}
+
+func TestManager_RefreshNow_UnknownUser_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	m := dashboard.NewManager(time.Minute)
+	t.Cleanup(m.Stop)
+
+	ok := m.RefreshNow(t.Context(), []byte("nobody"))
+
+	assert.False(t, ok)
+}
+
+func TestManager_Subscribe_KnownUser_ReceivesUpdatesFromRefreshNow(t *testing.T) {
+	t.Parallel()
+
+	user := []byte("user-a")
+	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 3}}
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), user, []dashboard.Source{src})
+	require.Eventually(t, func() bool { return src.calls.Load() >= 1 }, time.Second, 5*time.Millisecond)
+
+	updates, unsubscribe, ok := m.Subscribe(user)
+	require.True(t, ok)
+	defer unsubscribe()
+
+	m.RefreshNow(t.Context(), user)
+
+	select {
+	case snap := <-updates:
+		require.Len(t, snap.Forges, 1)
+		assert.Equal(t, 3, snap.Forges[0].RepoCount)
+	case <-time.After(time.Second):
+		t.Fatal("expected a snapshot on the subscription channel after RefreshNow")
+	}
+}
+
+func TestManager_Subscribe_UnknownUser_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	m := dashboard.NewManager(time.Minute)
+	t.Cleanup(m.Stop)
+
+	_, _, ok := m.Subscribe([]byte("nobody"))
+
+	assert.False(t, ok)
+}
+
 func TestManager_TwoUsers_HaveIndependentSnapshots(t *testing.T) {
 	t.Parallel()
 

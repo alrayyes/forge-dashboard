@@ -63,6 +63,38 @@ func (m *Manager) Get(userID []byte) Snapshot {
 	return entry.agg.Get()
 }
 
+// RefreshNow fetches userID's sources immediately, out of band from their
+// regular refreshInterval ticker — the webhook handler's entry point for
+// turning a forge event into an up-to-date snapshot within seconds rather
+// than waiting for the next scheduled refresh. Reports false if userID has
+// no running Aggregator (Ensure was never called for them), rather than
+// silently doing nothing.
+func (m *Manager) RefreshNow(ctx context.Context, userID []byte) bool {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return false
+	}
+	entry.agg.Refresh(ctx)
+	return true
+}
+
+// Subscribe delegates to userID's Aggregator — see Aggregator.Subscribe.
+// Reports false if userID has no running Aggregator.
+func (m *Manager) Subscribe(userID []byte) (<-chan Snapshot, func(), bool) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return nil, nil, false
+	}
+	ch, unsubscribe := entry.agg.Subscribe()
+	return ch, unsubscribe, true
+}
+
 // Remove stops userID's refresh loop and evicts their snapshot — a no-op
 // if they had none running. Used when an admin revokes or deletes an
 // account, so a locked-out user's background refresh doesn't keep polling
