@@ -49,6 +49,24 @@ test.describe('settings page', () => {
     await expect(page.locator('#github-token')).toHaveValue('');
   });
 
+  test('the show/hide toggle reveals and re-masks a token field', async ({ page }) => {
+    await page.goto('/settings.html');
+
+    await page.fill('#github-token', 'ghp_e2e-visibility-check');
+    await expect(page.locator('#github-token')).toHaveAttribute('type', 'password');
+
+    const toggle = page.locator('.token-toggle[data-target="github-token"]');
+    await toggle.click();
+    await expect(page.locator('#github-token')).toHaveAttribute('type', 'text');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(toggle).toHaveText('Hide');
+
+    await toggle.click();
+    await expect(page.locator('#github-token')).toHaveAttribute('type', 'password');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(toggle).toHaveText('Show');
+  });
+
   test('a Forgejo username with no instance URL is refused before it ever reaches the server', async ({ page }) => {
     await page.goto('/settings.html');
 

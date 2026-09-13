@@ -17,6 +17,21 @@
     return div.innerHTML;
   }
 
+  // ---- show/hide toggle for token fields ----
+  // A token is pasted, not typed — always-masked gives no way to notice a
+  // truncated paste or stray whitespace before saving.
+  document.querySelectorAll('.token-toggle').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var input = document.getElementById(button.dataset.target);
+      var showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      button.textContent = showing ? 'Show' : 'Hide';
+      button.setAttribute('aria-pressed', String(!showing));
+      var label = button.getAttribute('aria-label').replace(/^(Show|Hide)/, showing ? 'Show' : 'Hide');
+      button.setAttribute('aria-label', label);
+    });
+  });
+
   // ---- sharing ----
   var shareStatusEl = document.getElementById('share-status');
   function setShareStatus(message, kind) {
