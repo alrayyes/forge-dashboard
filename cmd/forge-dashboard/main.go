@@ -23,6 +23,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/github"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
+	"github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/go-webauthn/webauthn/webauthn"
 	_ "modernc.org/sqlite"
 )
@@ -67,6 +68,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	sharingStore := sharing.NewStore(db)
+	if err := sharingStore.Init(ctx); err != nil {
+		slog.Error("sharing setup failed", "error", err)
+		os.Exit(1)
+	}
+
 	manager := dashboard.NewManager(refreshInterval)
 	defer manager.Stop()
 
@@ -74,6 +81,7 @@ func main() {
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
+		SharingStore:  sharingStore,
 		Manager:       manager,
 		BuildSources:  buildSourcesForUser,
 		AppContext:    ctx,

@@ -48,6 +48,8 @@ tags:
     description: The signed-in user's own GitHub/Forgejo credentials.
   - name: admin
     description: Managing the user base itself. Every endpoint here requires the signed-in user to be the designated admin.
+  - name: sharing
+    description: Granting other registered users read-only access to the signed-in user's own dashboard.
 
 paths:
   /api/auth/register/begin:
@@ -300,7 +302,7 @@ paths:
         account itself.
       tags: [admin]
       parameters:
-        - $ref: "#/components/parameters/AdminUsername"
+        - $ref: "#/components/parameters/PathUsername"
       responses:
         "204":
           description: Revoked.
@@ -339,7 +341,7 @@ paths:
         becomes available for a fresh registration.
       tags: [admin]
       parameters:
-        - $ref: "#/components/parameters/AdminUsername"
+        - $ref: "#/components/parameters/PathUsername"
       responses:
         "204":
           description: Removed.
@@ -396,7 +398,19 @@ paths:
         this on its own schedule in the background; this endpoint never
         blocks on a live call to either forge, so it answers instantly even
         when a forge is slow or unreachable.
+
+        Omitting `owner` returns the signed-in user's own dashboard. Passing
+        it returns that user's dashboard instead — allowed only when they've
+        shared it with the caller (or the caller is viewing their own
+        username), and refused with a 403 otherwise.
       tags: [dashboard]
+      parameters:
+        - name: owner
+          in: query
+          required: false
+          schema:
+            type: string
+          description: A username that has shared their dashboard with the caller. Defaults to the caller's own.
       responses:
         "200":
           description: The current snapshot.
@@ -404,10 +418,101 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Dashboard"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: owner hasn't shared their dashboard with the signed-in user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No user is registered under owner.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/sharing:
+    get:
+      operationId: getSharing
+      summary: The signed-in user's sharing relationships
+      description: |
+        Both directions at once: who the signed-in user has shared their
+        own dashboard with, and whose dashboards have been shared with
+        them.
+      tags: [sharing]
+      responses:
+        "200":
+          description: The current sharing relationships.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharingResponse"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/sharing/{username}:
+    put:
+      operationId: shareWith
+      summary: Share the signed-in user's dashboard with username
+      description: |
+        Idempotent — sharing with a username already on the list changes
+        nothing. username needs no tokens of their own configured to view
+        the shared dashboard; they see the owner's aggregated data exactly
+        as the owner sees it.
+      tags: [sharing]
+      parameters:
+        - $ref: "#/components/parameters/PathUsername"
+      responses:
+        "204":
+          description: Shared.
+        "400":
+          description: Can't share your own dashboard with yourself.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No user is registered under that username.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: unshareWith
+      summary: Stop sharing the signed-in user's dashboard with username
+      description: Idempotent — removing a username that was never shared with changes nothing.
+      tags: [sharing]
+      parameters:
+        - $ref: "#/components/parameters/PathUsername"
+      responses:
+        "204":
+          description: No longer shared.
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 components:
   parameters:
-    AdminUsername:
+    PathUsername:
       name: username
       in: path
       required: true
@@ -484,6 +589,30 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    SharedUser:
+      type: object
+      required: [username, displayName]
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+
+    SharingResponse:
+      type: object
+      required: [sharedWith, sharedWithMe]
+      properties:
+        sharedWith:
+          type: array
+          description: Users the signed-in user has shared their own dashboard with.
+          items:
+            $ref: "#/components/schemas/SharedUser"
+        sharedWithMe:
+          type: array
+          description: Users who have shared their dashboard with the signed-in user.
+          items:
+            $ref: "#/components/schemas/SharedUser"
 
     SettingsResponse:
       type: object

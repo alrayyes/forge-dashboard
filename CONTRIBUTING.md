@@ -79,13 +79,19 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
   `Cipher` is AES-256-GCM encryption keyed off `ENCRYPTION_KEY`, and
   `Store` persists it to SQLite with the tokens encrypted, never in
   plaintext.
+- `internal/sharing` tracks who's granted whom read-only access to their
+  dashboard — `Store` owns nothing about what a dashboard actually is,
+  just the owner/viewer relationship; `internal/api`'s dashboard handler
+  is what turns a granted share into an actual `dashboard.Manager`
+  lookup for the owner's snapshot instead of the caller's own.
 - `internal/api/static` is the frontend: plain HTML/CSS/JS, embedded into
   the binary with `//go:embed`. No build step, no framework — see the
   README for why. `login.html`/`login.js` are the one page that stays
   reachable without a session; `settings.html`/`settings.js` is where a
-  signed-in user sets their own tokens; `admin.html`/`admin.js` is the
-  admin's user list, reachable by anyone with a session but functionally
-  gated by every API call it makes 403ing for a non-admin.
+  signed-in user sets their own tokens and manages sharing; `admin.html`/
+  `admin.js` is the admin's user list, reachable by anyone with a session
+  but functionally gated by every API call it makes 403ing for a
+  non-admin.
 - `cmd/forge-dashboard` is the composition root: reads environment
   variables, wires the auth service, the settings store and the
   dashboard manager, and serves the API and static files. A session's
