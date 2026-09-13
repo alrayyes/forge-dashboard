@@ -145,11 +145,25 @@ func (f *forgejoFixture) archiveRepo(t *testing.T, owner, repo string) {
 	})
 }
 
-func (f *forgejoFixture) createIssue(t *testing.T, owner, repo, title string) {
+func (f *forgejoFixture) createIssue(t *testing.T, owner, repo, title string, labelIDs ...int) {
 	t.Helper()
-	f.request(t, http.MethodPost, fmt.Sprintf("/repos/%s/%s/issues", owner, repo), map[string]any{
-		"title": title,
+	body := map[string]any{"title": title}
+	if len(labelIDs) > 0 {
+		body["labels"] = labelIDs
+	}
+	f.request(t, http.MethodPost, fmt.Sprintf("/repos/%s/%s/issues", owner, repo), body)
+}
+
+// createLabel returns the real label ID Forgejo assigned, needed to
+// attach it to an issue at creation time.
+func (f *forgejoFixture) createLabel(t *testing.T, owner, repo, name, color string) int {
+	t.Helper()
+	label := f.request(t, http.MethodPost, fmt.Sprintf("/repos/%s/%s/labels", owner, repo), map[string]any{
+		"name": name, "color": "#" + color,
 	})
+	id, ok := label["id"].(float64)
+	require.True(t, ok, "expected a label id in the response: %+v", label)
+	return int(id)
 }
 
 // createPullRequestWithStatus creates a real branch, a real commit on it
@@ -190,7 +204,13 @@ func TestForgejoClient_AgainstARealInstance(t *testing.T) {
 	fixture := &forgejoFixture{baseURL: baseURL, token: token}
 
 	fixture.createRepo(t, "widgets")
-	fixture.createIssue(t, "testadmin", "widgets", "A real issue")
+	// A real label, against the real API — confirms Client's Label.Color
+	// matches Forgejo's actual field name and hex format ("1d76db", no
+	// leading "#" even though the create-label call above needs one),
+	// not just an assumption the unit tests' hand-built JSON fixtures
+	// share with the production code.
+	bugLabelID := fixture.createLabel(t, "testadmin", "widgets", "kind/bug", "1d76db")
+	fixture.createIssue(t, "testadmin", "widgets", "A real issue", bugLabelID)
 	fixture.createPullRequestWithStatus(t, "testadmin", "widgets", "Add widget.txt", "success")
 
 	// A real archived repo, against the real API — confirms Client's
@@ -217,6 +237,7 @@ func TestForgejoClient_AgainstARealInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, issues, 1)
 	require.Equal(t, "A real issue", issues[0].Title)
+	require.Equal(t, []dashboard.Label{{Name: "kind/bug", Color: "1d76db"}}, issues[0].Labels)
 
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency)
 	result := source.Fetch(ctx)

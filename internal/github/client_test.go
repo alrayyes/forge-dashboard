@@ -147,7 +147,7 @@ func TestListOpenPullRequests_MapsFieldsAndResolvesCIFromCheckRuns(t *testing.T)
 				{
 					"number": 42, "title": "Add widget", "html_url": "https://github.com/alrayyes/a/pull/42",
 					"draft": true, "user": map[string]string{"login": "ryankes"},
-					"labels":     []map[string]string{{"name": "enhancement"}},
+					"labels":     []map[string]string{{"name": "enhancement", "color": "a2eeef"}},
 					"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
 					"head": map[string]string{"sha": "deadbeef"},
 				},
@@ -183,7 +183,7 @@ func TestListOpenPullRequests_MapsFieldsAndResolvesCIFromCheckRuns(t *testing.T)
 	})
 	t.Run("labels carry through", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, []string{"enhancement"}, pr.Labels)
+		assert.Equal(t, []dashboard.Label{{Name: "enhancement", Color: "a2eeef"}}, pr.Labels)
 	})
 	t.Run("CI reflects the failed check run", func(t *testing.T) {
 		t.Parallel()

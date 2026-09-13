@@ -97,7 +97,7 @@ test.describe('dashboard page', () => {
           title: 'Wire Uptime Kuma down-alerts to auto-file Forgejo issues so an outage always leaves a ticket trail',
           url: 'https://example.com/233',
           author: 'claude',
-          labels: ['blocked/needs-you', 'kind/feature', 'topic/infrastructure'],
+          labels: [{ name: 'blocked/needs-you', color: 'd93f0b' }, { name: 'kind/feature', color: 'a2eeef' }, { name: 'topic/infrastructure', color: '5319e7' }],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         }],
@@ -392,8 +392,8 @@ test.describe('dashboard page', () => {
           forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
           pullRequests: [],
           issues: [
-            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 1, title: 'A bug report', url: 'https://example.com/1', author: 'claude', labels: ['kind/bug'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 2, title: 'A feature request', url: 'https://example.com/2', author: 'claude', labels: ['kind/feature'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 1, title: 'A bug report', url: 'https://example.com/1', author: 'claude', labels: [{ name: 'kind/bug', color: 'd73a4a' }], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 2, title: 'A feature request', url: 'https://example.com/2', author: 'claude', labels: [{ name: 'kind/feature', color: 'a2eeef' }], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
           ],
         }),
       }));
@@ -438,6 +438,34 @@ test.describe('dashboard page', () => {
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
       expect(results.violations).toEqual([]);
+    });
+  });
+
+  test.describe('label colors', () => {
+    test('a label chip renders with its real background color and a contrasting text color', async ({ page }) => {
+      await page.route('**/api/dashboard*', (route) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [
+            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 1, title: 'A dark-label issue', url: 'https://example.com/1', author: 'claude', labels: [{ name: 'kind/bug', color: '5319e7' }], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 2, title: 'A light-label issue', url: 'https://example.com/2', author: 'claude', labels: [{ name: 'kind/docs', color: 'fef2c0' }], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          ],
+        }),
+      }));
+      await page.reload();
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+
+      const darkChip = page.locator('#issue-rows .label-chip', { hasText: 'kind/bug' });
+      await expect(darkChip).toHaveCSS('background-color', 'rgb(83, 25, 231)');
+      await expect(darkChip).toHaveCSS('color', 'rgb(255, 255, 255)');
+
+      const lightChip = page.locator('#issue-rows .label-chip', { hasText: 'kind/docs' });
+      await expect(lightChip).toHaveCSS('background-color', 'rgb(254, 242, 192)');
+      await expect(lightChip).toHaveCSS('color', 'rgb(0, 0, 0)');
     });
   });
 });

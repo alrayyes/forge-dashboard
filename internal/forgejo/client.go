@@ -160,7 +160,8 @@ type userJSON struct {
 }
 
 type labelJSON struct {
-	Name string `json:"name"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
 }
 
 type pullJSON struct {
@@ -177,12 +178,12 @@ type pullJSON struct {
 	} `json:"head"`
 }
 
-func labelNames(labels []labelJSON) []string {
-	names := make([]string, 0, len(labels))
+func toLabels(labels []labelJSON) []dashboard.Label {
+	out := make([]dashboard.Label, 0, len(labels))
 	for _, l := range labels {
-		names = append(names, l.Name)
+		out = append(out, dashboard.Label{Name: l.Name, Color: l.Color})
 	}
-	return names
+	return out
 }
 
 // ListOpenPullRequests returns every open pull request against repo, with
@@ -210,7 +211,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 				URL:       p.HTMLURL,
 				Author:    p.User.Login,
 				Draft:     p.Draft,
-				Labels:    labelNames(p.Labels),
+				Labels:    toLabels(p.Labels),
 				CreatedAt: p.CreatedAt,
 				UpdatedAt: p.UpdatedAt,
 				CI:        ci,
@@ -257,7 +258,7 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 				Title:     i.Title,
 				URL:       i.HTMLURL,
 				Author:    i.User.Login,
-				Labels:    labelNames(i.Labels),
+				Labels:    toLabels(i.Labels),
 				CreatedAt: i.CreatedAt,
 				UpdatedAt: i.UpdatedAt,
 			})
