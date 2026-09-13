@@ -653,9 +653,11 @@ components:
       type: object
       description: |
         The signed-in user's own GitHub/Forgejo configuration. Never
-        includes a token's value — only whether one is currently saved,
-        so the UI can show a "Configured" badge without the secret ever
-        reaching the browser.
+        includes a forge token's value — only whether one is currently
+        saved, so the UI can show a "Configured" badge without the secret
+        ever reaching the browser. webhookToken/webhookSecret are the
+        exception: they're ours to hand back in the clear, since the user
+        has to paste them into the forge's own webhook setup.
       required:
         [
           githubUsername,
@@ -663,6 +665,8 @@ components:
           forgejoUrl,
           forgejoUsername,
           forgejoTokenSet,
+          webhookToken,
+          webhookSecret,
         ]
       properties:
         githubUsername:
@@ -679,6 +683,19 @@ components:
         forgejoTokenSet:
           type: boolean
           description: Whether a Forgejo token is currently saved.
+        webhookToken:
+          type: string
+          description: |
+            Identifies this user in a webhook URL
+            (`/api/webhooks/{provider}/{webhookToken}`). Generated on
+            first visit to Settings and stable after that.
+        webhookSecret:
+          type: string
+          description: |
+            Pasted into the forge's own webhook "Secret" field, used to
+            verify the signature header on incoming webhook deliveries
+            (`X-Hub-Signature-256` on GitHub, `X-Forgejo-Signature` on
+            Forgejo). Never appears in the webhook URL itself.
 
     SettingsRequest:
       type: object

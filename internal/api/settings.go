@@ -18,6 +18,11 @@ type SettingsResponse struct {
 	ForgejoURL      string `json:"forgejoUrl"`
 	ForgejoUsername string `json:"forgejoUsername"`
 	ForgejoTokenSet bool   `json:"forgejoTokenSet"`
+	// WebhookToken and WebhookSecret, unlike the forge tokens above, are
+	// ours to hand back in the clear — the user has to paste them into
+	// the forge's own webhook setup, so a "set" flag alone wouldn't do.
+	WebhookToken  string `json:"webhookToken"`
+	WebhookSecret string `json:"webhookSecret"`
 }
 
 func settingsResponseOf(c settings.Credentials) SettingsResponse {
@@ -27,6 +32,8 @@ func settingsResponseOf(c settings.Credentials) SettingsResponse {
 		ForgejoURL:      c.ForgejoURL,
 		ForgejoUsername: c.ForgejoUsername,
 		ForgejoTokenSet: c.ForgejoToken != "",
+		WebhookToken:    c.WebhookToken,
+		WebhookSecret:   c.WebhookSecret,
 	}
 }
 
@@ -43,6 +50,16 @@ func handleSettingsGet(store *settings.Store) http.HandlerFunc {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
 			return
 		}
+
+		// Every visit to Settings is a webhook credentials' first chance
+		// to exist — a user who never saved GitHub/Forgejo settings at
+		// all still needs a webhook URL to paste into their forge.
+		creds.WebhookToken, creds.WebhookSecret, err = store.EnsureWebhookCredentials(r.Context(), u.ID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not load webhook credentials"))
+			return
+		}
+
 		writeJSON(w, http.StatusOK, settingsResponseOf(creds))
 	}
 }
@@ -86,6 +103,11 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			ForgejoURL:      req.ForgejoURL,
 			ForgejoToken:    coalesce(req.ForgejoToken, existing.ForgejoToken),
 			ForgejoUsername: req.ForgejoUsername,
+			// Set doesn't touch these columns (see settings.Store.Set) —
+			// carried over here only so this response reflects them
+			// too, rather than reporting them blank until the next GET.
+			WebhookToken:  existing.WebhookToken,
+			WebhookSecret: existing.WebhookSecret,
 		}
 
 		// buildSourcesForUser skips Forgejo entirely once ForgejoURL is
