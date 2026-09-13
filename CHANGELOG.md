@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/alrayyes/forge-dashboard/compare/v0.11.0...v0.12.0) (2026-09-13)
+
+
+### Features
+
+* exclude archived and forked repos from the dashboard ([#26](https://github.com/alrayyes/forge-dashboard/issues/26)) ([e1b8c58](https://github.com/alrayyes/forge-dashboard/commit/e1b8c58df8ab97480740696d0a2bdac5ead54689))
+
 ## [0.11.0](https://github.com/alrayyes/forge-dashboard/compare/v0.10.0...v0.11.0) (2026-09-13)
 
 
