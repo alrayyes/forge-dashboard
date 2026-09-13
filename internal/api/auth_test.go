@@ -177,6 +177,7 @@ func readAll(t *testing.T, resp *http.Response) string {
 }
 
 func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 
 	sessionCookie, cred, authenticator := registerViaRealCeremony(t, srv, testUser, testDisplay)
@@ -247,6 +248,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 }
 
 func TestPasskeyRegistration_FirstUserBecomesAdmin(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
@@ -264,6 +266,7 @@ func TestPasskeyRegistration_FirstUserBecomesAdmin(t *testing.T) {
 }
 
 func TestPasskeyRegistration_SecondUserIsNotAdmin(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 
 	registerViaRealCeremony(t, srv, testAdmin, "Admin") // first registrant becomes admin
@@ -282,6 +285,7 @@ func TestPasskeyRegistration_SecondUserIsNotAdmin(t *testing.T) {
 }
 
 func TestLogout_ClearsTheSession(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
@@ -303,6 +307,7 @@ func TestLogout_ClearsTheSession(t *testing.T) {
 }
 
 func TestRegisterBegin_DuplicateUsername_Conflicts(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 	registerViaRealCeremony(t, srv, testUser, testDisplay)
 
@@ -317,6 +322,7 @@ func TestRegisterBegin_DuplicateUsername_Conflicts(t *testing.T) {
 // username permanently claimed with no credential attached — every retry
 // hit 409, and login/begin 500'd since there was nothing to log in with.
 func TestRegisterBegin_AbandonedRegistration_CanBeRetried(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 
 	resp1, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`"}`))
@@ -331,6 +337,7 @@ func TestRegisterBegin_AbandonedRegistration_CanBeRetried(t *testing.T) {
 }
 
 func TestLoginBegin_AbandonedRegistration_ReturnsNotFoundNotServerError(t *testing.T) {
+	t.Parallel()
 	srv := newTestServer(t)
 
 	resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`"}`))
