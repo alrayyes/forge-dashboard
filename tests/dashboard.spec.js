@@ -116,6 +116,31 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#pr-rows > .row')).toHaveCount(0);
   });
 
+  test('the forge filter narrows the list to one forge', async ({ page }) => {
+    await page.route('**/api/dashboard*', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }, { forge: 'forgejo', reachable: true, repoCount: 1 }],
+        pullRequests: [
+          { forge: 'github', repo: 'alrayyes/forge-dashboard', number: 1, title: 'A GitHub PR', url: 'https://example.com/1', author: 'claude', ci: 'success', labels: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { forge: 'forgejo', repo: 'homelab/vps-docker', number: 2, title: 'A Forgejo PR', url: 'https://example.com/2', author: 'claude', ci: 'success', labels: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        ],
+        issues: [],
+      }),
+    }));
+    await page.reload();
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+
+    await page.selectOption('section[aria-label="Open pull requests"] .col-filter[data-col="forge"]', 'forgejo');
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+    await expect(page.locator('#pr-rows > .row')).toContainText('A Forgejo PR');
+
+    await page.selectOption('section[aria-label="Open pull requests"] .col-filter[data-col="forge"]', '');
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+  });
+
   test.describe('CI status click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route) => route.fulfill({
