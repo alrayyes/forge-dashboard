@@ -62,7 +62,14 @@
   <section class="board" aria-label="Open pull requests">
     <div class="board-head">
       <h2>Pull requests</h2>
-      <span class="count" id="pr-count">&ndash;</span>
+      <div class="board-head-controls">
+        <select class="col-filter" data-col="forge" aria-label="Filter by forge">
+          <option value="">All forges</option>
+          <option value="github">GitHub</option>
+          <option value="forgejo">Forgejo</option>
+        </select>
+        <span class="count" id="pr-count">&ndash;</span>
+      </div>
     </div>
 
     <div class="row filter-row" role="search" aria-label="Filter pull requests by column">
@@ -101,7 +108,14 @@
   <section class="board" aria-label="Open issues">
     <div class="board-head">
       <h2>Issues</h2>
-      <span class="count" id="issue-count">&ndash;</span>
+      <div class="board-head-controls">
+        <select class="col-filter" data-col="forge" aria-label="Filter by forge">
+          <option value="">All forges</option>
+          <option value="github">GitHub</option>
+          <option value="forgejo">Forgejo</option>
+        </select>
+        <span class="count" id="issue-count">&ndash;</span>
+      </div>
     </div>
 
     <div class="row filter-row" role="search" aria-label="Filter issues by column">

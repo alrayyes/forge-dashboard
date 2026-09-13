@@ -158,6 +158,7 @@
   // is what this replaces (see issue #36).
   function matchesFilters(item, isPR, filters) {
     var repoKey = (item.forge + ' ' + item.repo).toLowerCase();
+    if (filters.forge && item.forge !== filters.forge) return false;
     if (filters.repo && repoKey.indexOf(filters.repo) === -1) return false;
     if (filters.title && item.title.toLowerCase().indexOf(filters.title) === -1) return false;
     if (filters.author && (item.author || '').toLowerCase().indexOf(filters.author) === -1) return false;
