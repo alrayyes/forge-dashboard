@@ -7,9 +7,9 @@ module.exports = defineConfig({
     baseURL: 'http://localhost:8080',
   },
   reporter: 'list',
-  // Registers the one ADMIN_USERNAME account once, before any test file
-  // runs — see the file's own header comment for why this can't be a
-  // per-file beforeAll.
+  // Registers the very first user (who becomes admin) once, before any
+  // test file runs — see the file's own header comment for why this
+  // can't be a per-file beforeAll.
   globalSetup: require.resolve('./tests/admin-global-setup.js'),
   // Every test here drives a real WebAuthn ceremony through Chrome's CDP
   // virtual authenticator against one shared Go binary — real CTAP2 crypto,

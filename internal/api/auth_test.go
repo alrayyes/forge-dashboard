@@ -64,7 +64,7 @@ func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Creden
 		RPOrigins:     []string{testOrigin},
 	})
 	require.NoError(t, err)
-	authService := authpkg.NewService(wa, authStore, testAdmin)
+	authService := authpkg.NewService(wa, authStore)
 
 	cipher, err := settingspkg.NewCipher(testEncryptionKey(t))
 	require.NoError(t, err)
@@ -233,10 +233,10 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 	})
 }
 
-func TestPasskeyRegistration_AdminUsernameBecomesAdmin(t *testing.T) {
+func TestPasskeyRegistration_FirstUserBecomesAdmin(t *testing.T) {
 	srv := newTestServer(t)
 
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
 	require.NoError(t, err)
@@ -250,9 +250,10 @@ func TestPasskeyRegistration_AdminUsernameBecomesAdmin(t *testing.T) {
 	assert.True(t, body.IsAdmin)
 }
 
-func TestPasskeyRegistration_NonAdminUsernameIsNotAdmin(t *testing.T) {
+func TestPasskeyRegistration_SecondUserIsNotAdmin(t *testing.T) {
 	srv := newTestServer(t)
 
+	registerViaRealCeremony(t, srv, testAdmin, "Admin") // first registrant becomes admin
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)

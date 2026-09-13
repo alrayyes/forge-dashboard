@@ -31,16 +31,13 @@ const (
 // Service drives WebAuthn registration and login ceremonies against the
 // configured relying party, persisting every step through Store.
 type Service struct {
-	webauthn      *webauthn.WebAuthn
-	store         *Store
-	adminUsername string
+	webauthn *webauthn.WebAuthn
+	store    *Store
 }
 
-// NewService returns a Service. adminUsername names the one account that
-// becomes an admin on registration — established here, at startup, rather
-// than by whoever happens to register first.
-func NewService(wa *webauthn.WebAuthn, store *Store, adminUsername string) *Service {
-	return &Service{webauthn: wa, store: store, adminUsername: adminUsername}
+// NewService returns a Service.
+func NewService(wa *webauthn.WebAuthn, store *Store) *Service {
+	return &Service{webauthn: wa, store: store}
 }
 
 // BeginRegistration starts a registration ceremony for a brand-new
@@ -62,13 +59,21 @@ func (s *Service) BeginRegistration(ctx context.Context, username, displayName s
 		return nil, err
 	}
 
+	// The first username to actually complete registration becomes admin
+	// — checked before creating this row, so it reflects who's completed
+	// so far, not who's merely begun (an abandoned attempt reclaimed by
+	// DeleteUnregisteredUser above never counted as "the first user").
+	hasAdmin, err := s.store.HasAnyRegisteredUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// A real user row from the first step, not a throwaway in-memory
 	// stand-in — WebAuthnID has to be genuinely random and BeginRegistration
 	// only reads from the User interface, so creating it now (rather than
 	// after the ceremony finishes) means FinishRegistration has a real,
 	// already-persisted ID to attach the credential to.
-	isAdmin := s.adminUsername != "" && username == s.adminUsername
-	u, err := s.store.CreateUser(ctx, username, displayName, isAdmin)
+	u, err := s.store.CreateUser(ctx, username, displayName, !hasAdmin)
 	if err != nil {
 		return nil, err
 	}

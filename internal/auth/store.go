@@ -125,6 +125,25 @@ func (s *Store) GetUserByID(ctx context.Context, id []byte) (*User, error) {
 	return scanUser(row)
 }
 
+// HasAnyRegisteredUser reports whether any account has completed
+// registration — a row with no credentials (BeginRegistration begun,
+// never finished) doesn't count. The first username to make this true
+// is the one that becomes admin.
+func (s *Store) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
+	var exists int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT 1 FROM users WHERE credentials_json != '[]' LIMIT 1`,
+	).Scan(&exists)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return false, nil
+	case err != nil:
+		return false, err
+	default:
+		return true, nil
+	}
+}
+
 // ListUsers returns every registered account, for the admin area.
 func (s *Store) ListUsers(ctx context.Context) ([]*User, error) {
 	rows, err := s.db.QueryContext(ctx,
