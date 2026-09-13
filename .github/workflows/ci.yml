@@ -228,6 +228,20 @@ jobs:
       - name: redocly lint
         run: bun run lint:api -- --format=github-actions
 
+  # Biome leads for every file type it supports -- linting.md. Same command
+  # the pre-push hook runs, so the two can't drift.
+  js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: biome check
+        run: bun run lint:js
+
   # A hook is something you can skip, and the version number depends on
   # these messages being right, so the whole branch is checked here too.
   commits:

@@ -5,16 +5,20 @@ const { addVirtualAuthenticator } = require('./webauthn-helper');
 // One username per test run so parallel/repeated runs never collide on
 // "already registered" — the server has no reset endpoint and shouldn't.
 function uniqueUsername(prefix) {
-  return prefix + '-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
 test.describe('passkey login', () => {
-  test('an unauthenticated visitor is redirected to the login page', async ({ page }) => {
+  test('an unauthenticated visitor is redirected to the login page', async ({
+    page,
+  }) => {
     await page.goto('/');
     await expect(page).toHaveURL(/\/login\.html$/);
   });
 
-  test('dark mode chosen while signed in still applies on the login page after logging out', async ({ page }) => {
+  test('dark mode chosen while signed in still applies on the login page after logging out', async ({
+    page,
+  }) => {
     await addVirtualAuthenticator(page);
     const username = uniqueUsername('e2e-theme');
 
@@ -33,7 +37,9 @@ test.describe('passkey login', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   });
 
-  test('the login page shows the running version with no session at all', async ({ page }) => {
+  test('the login page shows the running version with no session at all', async ({
+    page,
+  }) => {
     // /api/version needs no session, so this works on the one page a
     // visitor can reach before ever authenticating.
     await page.goto('/login.html');
@@ -43,7 +49,9 @@ test.describe('passkey login', () => {
     await expect(page.locator('#footer-version')).toContainText('· dev build');
   });
 
-  test('register a passkey with a real WebAuthn ceremony, then reach the dashboard', async ({ page }) => {
+  test('register a passkey with a real WebAuthn ceremony, then reach the dashboard', async ({
+    page,
+  }) => {
     await addVirtualAuthenticator(page);
     const username = uniqueUsername('e2e');
 
@@ -85,14 +93,18 @@ test.describe('passkey login', () => {
     await expect(page.locator('#whoami')).toHaveText('Login Roundtrip');
   });
 
-  test('a wrong username at login fails without a session being issued', async ({ page }) => {
+  test('a wrong username at login fails without a session being issued', async ({
+    page,
+  }) => {
     await addVirtualAuthenticator(page);
 
     await page.goto('/login.html');
     await page.fill('#login-username', 'this-username-was-never-registered');
     await page.click('#login-submit');
 
-    await expect(page.locator('#status')).toContainText(/no account/i, { timeout: 5000 });
+    await expect(page.locator('#status')).toContainText(/no account/i, {
+      timeout: 5000,
+    });
     await expect(page).toHaveURL(/\/login\.html$/);
   });
 
@@ -106,7 +118,9 @@ test.describe('passkey login', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('has no axe-core violations and no horizontal scroll at phone width', async ({ page }) => {
+  test('has no axe-core violations and no horizontal scroll at phone width', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/login.html');
 
@@ -115,8 +129,12 @@ test.describe('passkey login', () => {
       .analyze();
     expect(results.violations).toEqual([]);
 
-    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    const scrollWidth = await page.evaluate(
+      () => document.documentElement.scrollWidth,
+    );
+    const clientWidth = await page.evaluate(
+      () => document.documentElement.clientWidth,
+    );
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 });

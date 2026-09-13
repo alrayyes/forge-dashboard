@@ -1,30 +1,37 @@
-(function () {
-  'use strict';
-
+(() => {
   // ---- base64url <-> ArrayBuffer ----
   function base64urlToBuffer(base64url) {
     var padded = base64url.replace(/-/g, '+').replace(/_/g, '/');
-    var padding = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
+    var padding =
+      padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
     var binary = atob(padded + padding);
     var buffer = new ArrayBuffer(binary.length);
     var bytes = new Uint8Array(buffer);
-    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    var i;
+    for (i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return buffer;
   }
 
   function bufferToBase64url(buffer) {
     var bytes = new Uint8Array(buffer);
     var binary = '';
-    for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    var i;
+    for (i = 0; i < bytes.byteLength; i++)
+      binary += String.fromCharCode(bytes[i]);
+    return btoa(binary)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
   }
 
   // ---- WebAuthn options: server JSON -> browser-ready objects ----
   function prepareCreationOptions(options) {
-    options.publicKey.challenge = base64urlToBuffer(options.publicKey.challenge);
+    options.publicKey.challenge = base64urlToBuffer(
+      options.publicKey.challenge,
+    );
     options.publicKey.user.id = base64urlToBuffer(options.publicKey.user.id);
     if (options.publicKey.excludeCredentials) {
-      options.publicKey.excludeCredentials.forEach(function (c) {
+      options.publicKey.excludeCredentials.forEach((c) => {
         c.id = base64urlToBuffer(c.id);
       });
     }
@@ -32,9 +39,11 @@
   }
 
   function prepareRequestOptions(options) {
-    options.publicKey.challenge = base64urlToBuffer(options.publicKey.challenge);
+    options.publicKey.challenge = base64urlToBuffer(
+      options.publicKey.challenge,
+    );
     if (options.publicKey.allowCredentials) {
-      options.publicKey.allowCredentials.forEach(function (c) {
+      options.publicKey.allowCredentials.forEach((c) => {
         c.id = base64urlToBuffer(c.id);
       });
     }
@@ -52,7 +61,9 @@
         clientDataJSON: bufferToBase64url(response.clientDataJSON),
         attestationObject: bufferToBase64url(response.attestationObject),
       },
-      clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+      clientExtensionResults: cred.getClientExtensionResults
+        ? cred.getClientExtensionResults()
+        : {},
     };
   }
 
@@ -66,9 +77,13 @@
         clientDataJSON: bufferToBase64url(response.clientDataJSON),
         authenticatorData: bufferToBase64url(response.authenticatorData),
         signature: bufferToBase64url(response.signature),
-        userHandle: response.userHandle ? bufferToBase64url(response.userHandle) : null,
+        userHandle: response.userHandle
+          ? bufferToBase64url(response.userHandle)
+          : null,
       },
-      clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+      clientExtensionResults: cred.getClientExtensionResults
+        ? cred.getClientExtensionResults()
+        : {},
     };
   }
 
@@ -76,7 +91,7 @@
   var statusEl = document.getElementById('status');
   function setStatus(message, kind) {
     statusEl.textContent = message || '';
-    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+    statusEl.className = `status${kind ? ` ${kind}` : ''}`;
   }
 
   async function postJSON(url, body) {
@@ -86,14 +101,15 @@
       credentials: 'same-origin',
       body: JSON.stringify(body || {}),
     });
-    var data = await res.json().catch(function () { return {}; });
-    if (!res.ok) throw new Error(data.error || 'request failed (' + res.status + ')');
+    var data = await res.json().catch(() => ({}));
+    if (!res.ok)
+      throw new Error(data.error || `request failed (${res.status})`);
     return data;
   }
 
   // ---- login ----
   var loginForm = document.getElementById('login-form');
-  loginForm.addEventListener('submit', async function (e) {
+  loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     var username = document.getElementById('login-username').value.trim();
     if (!username) return;
@@ -102,20 +118,31 @@
     submitBtn.disabled = true;
     setStatus('Waiting for your passkey…');
 
+    var options;
+    var publicKey;
+    var assertion;
+    var credentialJSON;
+    var res;
+    var errBody;
     try {
-      var options = await postJSON('/api/auth/login/begin', { username: username });
-      var publicKey = prepareRequestOptions(options);
-      var assertion = await navigator.credentials.get({ publicKey: publicKey });
-      var credentialJSON = assertionCredentialToJSON(assertion);
-
-      var res = await fetch('/api/auth/login/finish?username=' + encodeURIComponent(username), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(credentialJSON),
+      options = await postJSON('/api/auth/login/begin', {
+        username: username,
       });
+      publicKey = prepareRequestOptions(options);
+      assertion = await navigator.credentials.get({ publicKey: publicKey });
+      credentialJSON = assertionCredentialToJSON(assertion);
+
+      res = await fetch(
+        `/api/auth/login/finish?username=${encodeURIComponent(username)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(credentialJSON),
+        },
+      );
       if (!res.ok) {
-        var errBody = await res.json().catch(function () { return {}; });
+        errBody = await res.json().catch(() => ({}));
         throw new Error(errBody.error || 'sign-in failed');
       }
 
@@ -130,30 +157,46 @@
 
   // ---- register ----
   var registerForm = document.getElementById('register-form');
-  registerForm.addEventListener('submit', async function (e) {
+  registerForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     var username = document.getElementById('register-username').value.trim();
-    var displayName = document.getElementById('register-display-name').value.trim();
+    var displayName = document
+      .getElementById('register-display-name')
+      .value.trim();
     if (!username || !displayName) return;
 
     var submitBtn = document.getElementById('register-submit');
     submitBtn.disabled = true;
     setStatus('Follow your browser or device prompt to create a passkey…');
 
+    var options;
+    var publicKey;
+    var credential;
+    var credentialJSON;
+    var res;
+    var errBody;
     try {
-      var options = await postJSON('/api/auth/register/begin', { username: username, displayName: displayName });
-      var publicKey = prepareCreationOptions(options);
-      var credential = await navigator.credentials.create({ publicKey: publicKey });
-      var credentialJSON = creationCredentialToJSON(credential);
-
-      var res = await fetch('/api/auth/register/finish?username=' + encodeURIComponent(username), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(credentialJSON),
+      options = await postJSON('/api/auth/register/begin', {
+        username: username,
+        displayName: displayName,
       });
+      publicKey = prepareCreationOptions(options);
+      credential = await navigator.credentials.create({
+        publicKey: publicKey,
+      });
+      credentialJSON = creationCredentialToJSON(credential);
+
+      res = await fetch(
+        `/api/auth/register/finish?username=${encodeURIComponent(username)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(credentialJSON),
+        },
+      );
       if (!res.ok) {
-        var errBody = await res.json().catch(function () { return {}; });
+        errBody = await res.json().catch(() => ({}));
         throw new Error(errBody.error || 'registration failed');
       }
 
@@ -167,13 +210,13 @@
   });
 
   // ---- toggling between the two forms ----
-  document.getElementById('show-register').addEventListener('click', function () {
+  document.getElementById('show-register').addEventListener('click', () => {
     loginForm.hidden = true;
     registerForm.hidden = false;
     setStatus('');
     document.getElementById('register-username').focus();
   });
-  document.getElementById('show-login').addEventListener('click', function () {
+  document.getElementById('show-login').addEventListener('click', () => {
     registerForm.hidden = true;
     loginForm.hidden = false;
     setStatus('');
@@ -182,6 +225,8 @@
 
   if (!window.PublicKeyCredential) {
     setStatus('This browser does not support passkeys.', 'error');
-    loginForm.querySelectorAll('button, input').forEach(function (el) { el.disabled = true; });
+    loginForm.querySelectorAll('button, input').forEach((el) => {
+      el.disabled = true;
+    });
   }
 })();

@@ -1,8 +1,11 @@
-(function () {
-  'use strict';
-
+(() => {
   var REFRESH_INTERVAL_MS = 30000;
-  var CI_LABELS = { success: 'Passing', failure: 'Failing', pending: 'Running', none: 'No checks' };
+  var CI_LABELS = {
+    success: 'Passing',
+    failure: 'Failing',
+    pending: 'Running',
+    none: 'No checks',
+  };
   var FORGE_LABELS = { github: 'GitHub', forgejo: 'Forgejo' };
   var FORGE_CLASSES = { github: 'gh', forgejo: 'fj' };
 
@@ -15,7 +18,7 @@
     var STORAGE_KEY = 'forge-board-theme';
 
     function systemPrefersDark() {
-      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      return window.matchMedia?.('(prefers-color-scheme: dark)').matches;
     }
 
     function applyTheme(theme) {
@@ -24,37 +27,53 @@
       } else {
         root.removeAttribute('data-theme');
       }
-      var isDark = theme === 'dark' || (theme !== 'light' && systemPrefersDark());
+      var isDark =
+        theme === 'dark' || (theme !== 'light' && systemPrefersDark());
       toggle.setAttribute('aria-pressed', String(isDark));
-      toggle.setAttribute('aria-label', isDark ? 'Switch to light theme' : 'Switch to dark theme');
+      toggle.setAttribute(
+        'aria-label',
+        isDark ? 'Switch to light theme' : 'Switch to dark theme',
+      );
     }
 
     var stored = null;
-    try { stored = localStorage.getItem(STORAGE_KEY); } catch (e) { /* private browsing, etc. */ }
+    try {
+      stored = localStorage.getItem(STORAGE_KEY);
+    } catch (_e) {
+      /* private browsing, etc. */
+    }
     applyTheme(stored);
 
-    toggle.addEventListener('click', function () {
-      var currentlyDark = root.getAttribute('data-theme') === 'dark' ||
+    toggle.addEventListener('click', () => {
+      var currentlyDark =
+        root.getAttribute('data-theme') === 'dark' ||
         (!root.getAttribute('data-theme') && systemPrefersDark());
       var next = currentlyDark ? 'light' : 'dark';
       applyTheme(next);
-      try { localStorage.setItem(STORAGE_KEY, next); } catch (e) { /* ignore */ }
+      try {
+        localStorage.setItem(STORAGE_KEY, next);
+      } catch (_e) {
+        /* ignore */
+      }
     });
   })();
 
   // ---- formatting ----
   function minutesAgo(iso) {
-    return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    return Math.max(
+      0,
+      Math.round((Date.now() - new Date(iso).getTime()) / 60000),
+    );
   }
 
   function relativeTime(iso) {
     var mins = minutesAgo(iso);
     if (mins < 1) return 'just now';
-    if (mins < 60) return mins + 'm ago';
+    if (mins < 60) return `${mins}m ago`;
     var hours = Math.round(mins / 60);
-    if (hours < 24) return hours + 'h ago';
+    if (hours < 24) return `${hours}h ago`;
     var days = Math.round(hours / 24);
-    return days + 'd ago';
+    return `${days}d ago`;
   }
 
   function el(tag, className, text) {
@@ -67,9 +86,11 @@
   // ---- row rendering ----
   function repoCell(item) {
     var wrap = el('div', 'repo');
-    var badge = el('span', 'forge-badge ' + FORGE_CLASSES[item.forge]);
+    var badge = el('span', `forge-badge ${FORGE_CLASSES[item.forge]}`);
     badge.appendChild(el('span', 'dot'));
-    badge.appendChild(document.createTextNode(FORGE_LABELS[item.forge] || item.forge));
+    badge.appendChild(
+      document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
+    );
     wrap.appendChild(badge);
     wrap.appendChild(el('span', 'repo-name', item.repo));
     return wrap;
@@ -83,7 +104,7 @@
   function relativeLuminance(hex) {
     function channel(c) {
       c = c / 255;
-      return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
     }
     var r = channel(parseInt(hex.substr(0, 2), 16));
     var g = channel(parseInt(hex.substr(2, 2), 16));
@@ -118,19 +139,21 @@
     var chip = document.createElement('button');
     chip.type = 'button';
     var isActive = label.name === activeLabel;
-    chip.className = 'label-chip' + (isActive ? ' active' : '');
+    chip.className = `label-chip${isActive ? ' active' : ''}`;
     chip.textContent = label.name;
     if (label.color && !isActive) {
       // The active state has its own fixed accent styling (see
       // .label-chip.active in style.css) — a per-label background would
       // fight with "this is the one currently filtering" as a signal.
-      chip.style.backgroundColor = '#' + label.color;
-      chip.style.borderColor = '#' + label.color;
+      chip.style.backgroundColor = `#${label.color}`;
+      chip.style.borderColor = `#${label.color}`;
       chip.style.color = labelTextColor(label.color);
     }
-    chip.setAttribute('aria-label', 'Filter by label: ' + label.name);
+    chip.setAttribute('aria-label', `Filter by label: ${label.name}`);
     chip.setAttribute('aria-pressed', String(isActive));
-    chip.addEventListener('click', function () { onLabelClick(label.name); });
+    chip.addEventListener('click', () => {
+      onLabelClick(label.name);
+    });
     return chip;
   }
 
@@ -151,12 +174,12 @@
     // overlay down to .title's box instead of letting it cover the whole
     // row (see the comment on .title in style.css).
     var text = el('span', 'title-text');
-    text.appendChild(el('span', 'num', '#' + item.number));
+    text.appendChild(el('span', 'num', `#${item.number}`));
     text.appendChild(document.createTextNode(item.title));
     title.appendChild(text);
     wrap.appendChild(title);
     if (item.draft) wrap.appendChild(el('span', 'draft-badge', 'Draft'));
-    (item.labels || []).slice(0, 3).forEach(function (label) {
+    (item.labels || []).slice(0, 3).forEach((label) => {
       wrap.appendChild(labelChip(label, onLabelClick, activeLabel));
     });
     return wrap;
@@ -168,11 +191,16 @@
   function ciPill(status, onStatusClick) {
     var pill = document.createElement('button');
     pill.type = 'button';
-    pill.className = 'ci-pill ' + status;
+    pill.className = `ci-pill ${status}`;
     pill.appendChild(el('span', 'dot'));
     pill.appendChild(document.createTextNode(CI_LABELS[status] || status));
-    pill.setAttribute('aria-label', 'Filter pull requests by CI status: ' + (CI_LABELS[status] || status));
-    pill.addEventListener('click', function () { onStatusClick(status); });
+    pill.setAttribute(
+      'aria-label',
+      `Filter pull requests by CI status: ${CI_LABELS[status] || status}`,
+    );
+    pill.addEventListener('click', () => {
+      onStatusClick(status);
+    });
     return pill;
   }
 
@@ -203,19 +231,37 @@
   // into instead of bolting another special case onto row-hiding, which
   // is what this replaces (see issue #36).
   function matchesFilters(item, isPR, filters) {
-    var repoKey = (item.forge + ' ' + item.repo).toLowerCase();
+    var repoKey = `${item.forge} ${item.repo}`.toLowerCase();
     if (filters.forge && item.forge !== filters.forge) return false;
     if (filters.repo && repoKey.indexOf(filters.repo) === -1) return false;
-    if (filters.title && item.title.toLowerCase().indexOf(filters.title) === -1) return false;
-    if (filters.author && (item.author || '').toLowerCase().indexOf(filters.author) === -1) return false;
-    if (filters.created && minutesAgo(item.createdAt) > Number(filters.created)) return false;
-    if (filters.updated && minutesAgo(item.updatedAt) > Number(filters.updated)) return false;
+    if (filters.title && item.title.toLowerCase().indexOf(filters.title) === -1)
+      return false;
+    if (
+      filters.author &&
+      (item.author || '').toLowerCase().indexOf(filters.author) === -1
+    )
+      return false;
+    if (filters.created && minutesAgo(item.createdAt) > Number(filters.created))
+      return false;
+    if (filters.updated && minutesAgo(item.updatedAt) > Number(filters.updated))
+      return false;
     if (filters.status && isPR && item.ci !== filters.status) return false;
-    if (filters.label && !(item.labels || []).some(function (l) { return l.name === filters.label; })) return false;
+    if (
+      filters.label &&
+      !(item.labels || []).some((l) => l.name === filters.label)
+    )
+      return false;
     return true;
   }
 
-  function createBoard(containerId, emptyId, noResultsId, isPR, onStatusClick, idPrefix) {
+  function createBoard(
+    containerId,
+    emptyId,
+    noResultsId,
+    isPR,
+    onStatusClick,
+    idPrefix,
+  ) {
     var state = {
       items: [],
       filters: {},
@@ -231,7 +277,7 @@
     function renderGrouped(container, items) {
       var groups = {};
       var repoOrder = [];
-      items.forEach(function (item) {
+      items.forEach((item) => {
         if (!groups[item.repo]) {
           groups[item.repo] = [];
           repoOrder.push(item.repo);
@@ -240,14 +286,24 @@
       });
       repoOrder.sort();
 
-      repoOrder.forEach(function (repo) {
+      repoOrder.forEach((repo) => {
         var heading = document.createElement('h3');
         heading.className = 'repo-group-heading';
         heading.appendChild(document.createTextNode(repo));
-        heading.appendChild(el('span', 'repo-group-count', String(groups[repo].length)));
+        heading.appendChild(
+          el('span', 'repo-group-count', String(groups[repo].length)),
+        );
         container.appendChild(heading);
-        groups[repo].forEach(function (item) {
-          container.appendChild(buildRow(item, isPR, onStatusClick, handleLabelClick, state.filters.label));
+        groups[repo].forEach((item) => {
+          container.appendChild(
+            buildRow(
+              item,
+              isPR,
+              onStatusClick,
+              handleLabelClick,
+              state.filters.label,
+            ),
+          );
         });
       });
     }
@@ -258,11 +314,11 @@
     // picking from what's actually on screen beats guessing the exact
     // spelling.
     function updateRepoOptions() {
-      var datalist = document.getElementById(idPrefix + '-repo-options');
+      var datalist = document.getElementById(`${idPrefix}-repo-options`);
       if (!datalist) return;
       var seen = {};
       var repos = [];
-      state.items.forEach(function (item) {
+      state.items.forEach((item) => {
         if (!seen[item.repo]) {
           seen[item.repo] = true;
           repos.push(item.repo);
@@ -270,7 +326,7 @@
       });
       repos.sort();
       datalist.innerHTML = '';
-      repos.forEach(function (repo) {
+      repos.forEach((repo) => {
         var option = document.createElement('option');
         option.value = repo;
         datalist.appendChild(option);
@@ -302,87 +358,109 @@
       render();
     }
 
-    function renderPagination(visibleCount, totalPages) {
-      var wrap = document.getElementById(idPrefix + '-pagination');
+    function renderPagination(totalPages) {
+      var wrap = document.getElementById(`${idPrefix}-pagination`);
       if (!wrap) return;
 
       var needed = totalPages > 1;
       wrap.hidden = !needed;
       if (!needed) return;
 
-      var pages = document.getElementById(idPrefix + '-pagination-pages');
+      var pages = document.getElementById(`${idPrefix}-pagination-pages`);
       pages.innerHTML = '';
 
       var prev = el('button', 'pagination-nav', 'Previous');
       prev.type = 'button';
       prev.disabled = state.page <= 1;
-      prev.addEventListener('click', function () { setPage(state.page - 1); });
+      prev.addEventListener('click', () => {
+        setPage(state.page - 1);
+      });
       pages.appendChild(prev);
 
-      for (var p = 1; p <= totalPages; p++) {
-        var button = el('button', 'pagination-page', String(p));
+      var p;
+      var button;
+      for (p = 1; p <= totalPages; p++) {
+        button = el('button', 'pagination-page', String(p));
         button.type = 'button';
         if (p === state.page) {
           button.classList.add('active');
           button.setAttribute('aria-current', 'page');
         }
-        button.addEventListener('click', (function (page) {
-          return function () { setPage(page); };
-        })(p));
+        button.addEventListener(
+          'click',
+          ((page) => () => {
+            setPage(page);
+          })(p),
+        );
         pages.appendChild(button);
       }
 
       var next = el('button', 'pagination-nav', 'Next');
       next.type = 'button';
       next.disabled = state.page >= totalPages;
-      next.addEventListener('click', function () { setPage(state.page + 1); });
+      next.addEventListener('click', () => {
+        setPage(state.page + 1);
+      });
       pages.appendChild(next);
     }
 
     function render() {
       var container = document.getElementById(containerId);
-      var visible = state.items.filter(function (item) {
-        return matchesFilters(item, isPR, state.filters);
-      });
+      var visible = state.items.filter((item) =>
+        matchesFilters(item, isPR, state.filters),
+      );
 
       container.innerHTML = '';
 
+      var groupedPagination;
+      var totalPages;
+      var start;
+      var pageItems;
       if (state.groupBy === 'repo') {
         // Grouping and pagination stay mutually exclusive — paginating
         // grouped clusters coherently is a bigger problem than either
         // feature's own acceptance criteria asked for, so grouped mode
         // just renders the whole filtered set and the pager hides.
         renderGrouped(container, visible);
-        var groupedPagination = document.getElementById(idPrefix + '-pagination');
+        groupedPagination = document.getElementById(`${idPrefix}-pagination`);
         if (groupedPagination) groupedPagination.hidden = true;
       } else {
-        var totalPages = Math.max(1, Math.ceil(visible.length / state.pageSize));
+        totalPages = Math.max(1, Math.ceil(visible.length / state.pageSize));
         if (state.page > totalPages) state.page = totalPages;
-        var start = (state.page - 1) * state.pageSize;
-        var pageItems = visible.slice(start, start + state.pageSize);
-        pageItems.forEach(function (item) {
-          container.appendChild(buildRow(item, isPR, onStatusClick, handleLabelClick, state.filters.label));
+        start = (state.page - 1) * state.pageSize;
+        pageItems = visible.slice(start, start + state.pageSize);
+        pageItems.forEach((item) => {
+          container.appendChild(
+            buildRow(
+              item,
+              isPR,
+              onStatusClick,
+              handleLabelClick,
+              state.filters.label,
+            ),
+          );
         });
-        renderPagination(visible.length, totalPages);
+        renderPagination(totalPages);
       }
 
       document.getElementById(emptyId).hidden = state.items.length !== 0;
       var noResults = document.getElementById(noResultsId);
-      if (noResults) noResults.hidden = visible.length !== 0 || state.items.length === 0;
+      if (noResults)
+        noResults.hidden = visible.length !== 0 || state.items.length === 0;
     }
 
-    var pageSizeSelect = document.getElementById(idPrefix + '-page-size');
+    var pageSizeSelect = document.getElementById(`${idPrefix}-page-size`);
     if (pageSizeSelect) {
-      pageSizeSelect.addEventListener('change', function () {
+      pageSizeSelect.addEventListener('change', () => {
         state.pageSize = Number(pageSizeSelect.value) || 25;
         state.page = 1;
         render();
       });
     }
 
-    var groupToggle = document.getElementById(idPrefix + '-group-toggle');
+    var groupToggle = document.getElementById(`${idPrefix}-group-toggle`);
     if (groupToggle) {
-      groupToggle.addEventListener('change', function () {
+      groupToggle.addEventListener('change', () => {
         state.groupBy = groupToggle.checked ? 'repo' : null;
         state.page = 1;
         render();
@@ -390,13 +468,13 @@
     }
 
     return {
-      setItems: function (items) {
+      setItems: (items) => {
         state.items = items;
         state.page = 1;
         updateRepoOptions();
         render();
       },
-      setFilter: function (col, value) {
+      setFilter: (col, value) => {
         state.filters[col] = value;
         state.page = 1;
         render();
@@ -412,22 +490,45 @@
   // is safe to reference here).
   function handleStatusClick(status) {
     var next = prBoard.toggleFilter('status', status);
-    var select = document.querySelector('section[aria-label="Open pull requests"] .col-filter[data-col="status"]');
+    var select = document.querySelector(
+      'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
+    );
     if (select) select.value = next;
-    var section = document.querySelector('section[aria-label="Open pull requests"]');
+    var section = document.querySelector(
+      'section[aria-label="Open pull requests"]',
+    );
     if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  var prBoard = createBoard('pr-rows', 'pr-empty', 'pr-no-results', true, handleStatusClick, 'pr');
-  var issueBoard = createBoard('issue-rows', 'issue-empty', 'issue-no-results', false, undefined, 'issue');
+  var prBoard = createBoard(
+    'pr-rows',
+    'pr-empty',
+    'pr-no-results',
+    true,
+    handleStatusClick,
+    'pr',
+  );
+  var issueBoard = createBoard(
+    'issue-rows',
+    'issue-empty',
+    'issue-no-results',
+    false,
+    undefined,
+    'issue',
+  );
 
   var statFailingTile = document.getElementById('stat-failing-tile');
-  if (statFailingTile) statFailingTile.addEventListener('click', function () { handleStatusClick('failure'); });
+  if (statFailingTile)
+    statFailingTile.addEventListener('click', () => {
+      handleStatusClick('failure');
+    });
 
-  document.querySelectorAll('section.board').forEach(function (board) {
+  document.querySelectorAll('section.board').forEach((board) => {
     var target = board.querySelector('#issue-rows') ? issueBoard : prBoard;
-    board.querySelectorAll('.col-filter').forEach(function (c) {
-      var apply = function () { target.setFilter(c.dataset.col, c.value.trim().toLowerCase()); };
+    board.querySelectorAll('.col-filter').forEach((c) => {
+      var apply = () => {
+        target.setFilter(c.dataset.col, c.value.trim().toLowerCase());
+      };
       c.addEventListener('input', apply);
       c.addEventListener('change', apply);
     });
@@ -437,16 +538,24 @@
   function renderForgeHealth(forges) {
     var container = document.getElementById('forge-health');
     container.innerHTML = '';
-    forges.forEach(function (f) {
-      var chip = el('span', 'forge-health' + (f.reachable ? '' : ' unreachable'));
+    forges.forEach((f) => {
+      var chip = el('span', `forge-health${f.reachable ? '' : ' unreachable'}`);
       chip.appendChild(el('span', 'pulse-dot'));
-      var label = (FORGE_LABELS[f.forge] || f.forge) + (f.reachable ? ' reachable' : ' unreachable');
+      var label =
+        (FORGE_LABELS[f.forge] || f.forge) +
+        (f.reachable ? ' reachable' : ' unreachable');
       chip.appendChild(document.createTextNode(label));
       if (!f.reachable && f.error) chip.title = f.error;
       container.appendChild(chip);
     });
-    document.getElementById('forge-names').innerHTML =
-      forges.map(function (f) { return '<span class="mono">' + (FORGE_LABELS[f.forge] || f.forge) + '</span>'; }).join(' + ');
+    document.getElementById('forge-names').innerHTML = forges
+      .map(
+        (f) =>
+          '<span class="mono">' +
+          (FORGE_LABELS[f.forge] || f.forge) +
+          '</span>',
+      )
+      .join(' + ');
   }
 
   // ---- ticking "refreshed Xs ago" clock, independent of the poll interval ----
@@ -462,7 +571,9 @@
     if (existing) existing.remove();
     var banner = el('div', 'error-banner', message);
     banner.id = 'error-banner';
-    document.querySelector('.wrap').insertBefore(banner, document.querySelector('.stats'));
+    document
+      .querySelector('.wrap')
+      .insertBefore(banner, document.querySelector('.stats'));
   }
 
   function clearError() {
@@ -472,22 +583,24 @@
 
   // ---- who's signed in, and signing out ----
   fetch('/api/auth/session', { headers: { Accept: 'application/json' } })
-    .then(function (res) {
+    .then((res) => {
       if (res.status === 401) {
         window.location.href = '/login.html';
         return null;
       }
       return res.ok ? res.json() : null;
     })
-    .then(function (session) {
+    .then((session) => {
       if (!session) return;
       document.getElementById('whoami').textContent = session.displayName;
       document.getElementById('admin-link').hidden = !session.isAdmin;
     })
-    .catch(function () { /* a transient failure here isn't worth blocking the page over */ });
+    .catch(() => {
+      /* a transient failure here isn't worth blocking the page over */
+    });
 
-  document.getElementById('logout-button').addEventListener('click', function () {
-    fetch('/api/auth/logout', { method: 'POST' }).finally(function () {
+  document.getElementById('logout-button').addEventListener('click', () => {
+    fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
       window.location.href = '/login.html';
     });
   });
@@ -497,20 +610,22 @@
   var ownerSelect = document.getElementById('dashboard-owner-select');
 
   fetch('/api/sharing', { headers: { Accept: 'application/json' } })
-    .then(function (res) { return res.ok ? res.json() : null; })
-    .then(function (data) {
-      if (!data || !data.sharedWithMe || data.sharedWithMe.length === 0) return;
-      data.sharedWithMe.forEach(function (u) {
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (!data?.sharedWithMe || data.sharedWithMe.length === 0) return;
+      data.sharedWithMe.forEach((u) => {
         var option = document.createElement('option');
         option.value = u.username;
-        option.textContent = u.displayName + "’s dashboard";
+        option.textContent = `${u.displayName}’s dashboard`;
         ownerSelect.appendChild(option);
       });
       ownerSelect.hidden = false;
     })
-    .catch(function () { /* a transient failure here isn't worth blocking the page over */ });
+    .catch(() => {
+      /* a transient failure here isn't worth blocking the page over */
+    });
 
-  ownerSelect.addEventListener('change', function () {
+  ownerSelect.addEventListener('change', () => {
     currentOwner = ownerSelect.value;
     refresh();
   });
@@ -530,28 +645,33 @@
 
     document.getElementById('stat-prs').textContent = String(prs.length);
     document.getElementById('stat-issues').textContent = String(issues.length);
-    document.getElementById('stat-failing').textContent = String(prs.filter(function (p) { return p.ci === 'failure'; }).length);
-    document.getElementById('stat-repos').textContent = String(
-      (data.forges || []).reduce(function (sum, f) { return sum + (f.repoCount || 0); }, 0)
+    document.getElementById('stat-failing').textContent = String(
+      prs.filter((p) => p.ci === 'failure').length,
     );
-    document.getElementById('pr-count').textContent = prs.length + ' open';
-    document.getElementById('issue-count').textContent = issues.length + ' open';
+    document.getElementById('stat-repos').textContent = String(
+      (data.forges || []).reduce((sum, f) => sum + (f.repoCount || 0), 0),
+    );
+    document.getElementById('pr-count').textContent = `${prs.length} open`;
+    document.getElementById('issue-count').textContent =
+      `${issues.length} open`;
   }
 
   function refresh() {
-    var url = '/api/dashboard' + (currentOwner ? '?owner=' + encodeURIComponent(currentOwner) : '');
+    var url =
+      '/api/dashboard' +
+      (currentOwner ? `?owner=${encodeURIComponent(currentOwner)}` : '');
     fetch(url, { headers: { Accept: 'application/json' } })
-      .then(function (res) {
+      .then((res) => {
         if (res.status === 401) {
           window.location.href = '/login.html';
           throw new Error('session expired');
         }
-        if (!res.ok) throw new Error('backend answered ' + res.status);
+        if (!res.ok) throw new Error(`backend answered ${res.status}`);
         return res.json();
       })
       .then(applySnapshot)
-      .catch(function (err) {
-        showError('Could not reach the backend: ' + err.message);
+      .catch((err) => {
+        showError(`Could not reach the backend: ${err.message}`);
       });
   }
 
@@ -564,16 +684,19 @@
   // it. A browser or proxy that can't hold this connection open just
   // never benefits from it: EventSource retries on its own, and if it
   // never connects at all the poll still keeps the data fresh.
+  var eventSource;
   if (window.EventSource) {
-    var eventSource = new EventSource('/api/dashboard/stream');
-    eventSource.onmessage = function (event) {
+    eventSource = new EventSource('/api/dashboard/stream');
+    eventSource.onmessage = (event) => {
       // Only when looking at your own dashboard — a push here is always
       // this session's own aggregator, never the owner currently
       // selected in the sharing dropdown.
       if (currentOwner) return;
       try {
         applySnapshot(JSON.parse(event.data));
-      } catch (e) { /* a malformed event here isn't worth surfacing over the working poll */ }
+      } catch (_e) {
+        /* a malformed event here isn't worth surfacing over the working poll */
+      }
     };
   }
 })();

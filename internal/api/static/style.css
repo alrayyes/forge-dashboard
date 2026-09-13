@@ -38,7 +38,8 @@
   --fj: #c2410c;
   --fj-bg: #fbe8dc;
 
-  --shadow: 0 1px 2px rgba(16, 24, 38, 0.04), 0 8px 24px -12px rgba(16, 24, 38, 0.12);
+  --shadow:
+    0 1px 2px rgba(16, 24, 38, 0.04), 0 8px 24px -12px rgba(16, 24, 38, 0.12);
   --radius: 10px;
 
   /* The brand mark's own tile — deliberately the same dark color in both
@@ -109,7 +110,9 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
@@ -120,7 +123,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+.mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
 
 /* Visually hidden but still reachable by a screen reader — for a label a
    compact form's own layout (a placeholder-only input beside a button)
@@ -138,9 +143,14 @@ body {
   border: 0;
 }
 
-a { color: inherit; }
+a {
+  color: inherit;
+}
 
-.wrap { max-width: 1220px; margin: 0 auto; }
+.wrap {
+  max-width: 1220px;
+  margin: 0 auto;
+}
 
 header {
   display: flex;
@@ -151,7 +161,11 @@ header {
   padding: 28px 0 20px;
 }
 
-.brand { display: flex; align-items: center; gap: 12px; }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
 .brand-mark {
   width: 34px;
@@ -163,13 +177,33 @@ header {
   flex: none;
 }
 
-.brand h1 { font-size: 19px; margin: 0; letter-spacing: -0.01em; }
-.brand p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-3); }
-.brand p .mono { color: var(--ink-2); }
+.brand h1 {
+  font-size: 19px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.brand p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.brand p .mono {
+  color: var(--ink-2);
+}
 
-.header-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 
-#forge-health { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#forge-health {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 .forge-health {
   display: flex;
@@ -183,7 +217,10 @@ header {
   border-radius: 999px;
 }
 
-.forge-health.unreachable { color: var(--critical); border-color: var(--critical-bg); }
+.forge-health.unreachable {
+  color: var(--critical);
+  border-color: var(--critical-bg);
+}
 
 .pulse-dot {
   width: 7px;
@@ -200,16 +237,27 @@ header {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse-dot { animation: none; }
+  .pulse-dot {
+    animation: none;
+  }
 }
 
 @keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(21, 115, 71, 0.35); }
-  70% { box-shadow: 0 0 0 6px rgba(21, 115, 71, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(21, 115, 71, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(21, 115, 71, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(21, 115, 71, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(21, 115, 71, 0);
+  }
 }
 
-.refreshed { font-size: 12px; color: var(--ink-3); }
+.refreshed {
+  font-size: 12px;
+  color: var(--ink-3);
+}
 
 .theme-toggle {
   display: inline-flex;
@@ -226,7 +274,10 @@ header {
   flex: none;
 }
 
-.theme-toggle:hover { border-color: var(--accent); color: var(--ink); }
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
 /* Real bug found alongside the pagination one below: an author
    display:inline-flex always beats the UA's [hidden] { display: none },
    regardless of specificity — #admin-link is a .theme-toggle, and
@@ -235,12 +286,25 @@ header {
    whether or not they actually were one (the backend still refused
    the page — see admin.js's 403 handling — so this was a confusing
    UX leak, not a security hole). */
-.theme-toggle[hidden] { display: none; }
-.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.theme-toggle svg { display: block; }
-.theme-toggle .icon-moon { display: none; }
-:root[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
-:root[data-theme="dark"] .theme-toggle .icon-moon { display: block; }
+.theme-toggle[hidden] {
+  display: none;
+}
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.theme-toggle svg {
+  display: block;
+}
+.theme-toggle .icon-moon {
+  display: none;
+}
+:root[data-theme="dark"] .theme-toggle .icon-sun {
+  display: none;
+}
+:root[data-theme="dark"] .theme-toggle .icon-moon {
+  display: block;
+}
 
 .stats {
   display: grid;
@@ -267,8 +331,13 @@ button.stat {
   width: 100%;
 }
 button.stat:hover,
-button.stat:focus-visible { border-color: var(--border-strong); }
-button.stat:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.stat:focus-visible {
+  border-color: var(--border-strong);
+}
+button.stat:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 
 .stat .n {
   font-family: "IBM Plex Mono", monospace;
@@ -278,8 +347,14 @@ button.stat:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
   line-height: 1.1;
 }
 
-.stat .label { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
-.stat.critical .n { color: var(--critical); }
+.stat .label {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 4px;
+}
+.stat.critical .n {
+  color: var(--critical);
+}
 
 section.board {
   background: var(--surface);
@@ -308,13 +383,22 @@ section.board {
   color: var(--ink-2);
 }
 
-.board-head .count { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--ink-3); }
+.board-head .count {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
 
 /* The forge filter doesn't correspond to one of .row's own grid columns
    (forge shows as a badge inside the repo cell, not a column of its
    own), so it lives here rather than fighting the filter-row's grid for
    space. */
-.board-head-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.board-head-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
 .board-head-controls select.col-filter {
   width: auto;
   font-size: 12px;
@@ -329,7 +413,9 @@ section.board {
   color: var(--ink-2);
   cursor: pointer;
 }
-.group-toggle input { cursor: pointer; }
+.group-toggle input {
+  cursor: pointer;
+}
 
 .repo-group-heading {
   display: flex;
@@ -345,7 +431,9 @@ section.board {
   background: var(--surface-sunken);
   border-bottom: 1px solid var(--border);
 }
-.repo-group-heading:first-child { border-top: none; }
+.repo-group-heading:first-child {
+  border-top: none;
+}
 .repo-group-count {
   font-family: "IBM Plex Mono", monospace;
   font-weight: 500;
@@ -365,10 +453,18 @@ section.board {
   color: inherit;
 }
 
-.row:last-child { border-bottom: none; }
-.row:hover, .row:focus-within { background: var(--surface-sunken); }
+.row:last-child {
+  border-bottom: none;
+}
+.row:hover,
+.row:focus-within {
+  background: var(--surface-sunken);
+}
 
-.filter-row { padding: 10px 18px; background: var(--surface-sunken); }
+.filter-row {
+  padding: 10px 18px;
+  background: var(--surface-sunken);
+}
 
 .col-filter {
   width: 100%;
@@ -382,11 +478,27 @@ section.board {
   min-width: 0;
 }
 
-.col-filter::placeholder { color: var(--ink-3); }
-select.col-filter { cursor: pointer; }
-.col-filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.col-filter::placeholder {
+  color: var(--ink-3);
+}
+/* biome-ignore lint/style/noDescendingSpecificity: .board-head-controls
+   select.col-filter (higher specificity, earlier) sets width/font-size/
+   padding, never cursor -- no property actually collides, so source
+   order here doesn't affect which value wins for anything. */
+select.col-filter {
+  cursor: pointer;
+}
+.col-filter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 
-.repo { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.repo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 
 .forge-badge {
   display: inline-flex;
@@ -400,11 +512,25 @@ select.col-filter { cursor: pointer; }
   white-space: nowrap;
 }
 
-.forge-badge .dot { width: 6px; height: 6px; border-radius: 50%; }
-.forge-badge.gh { background: var(--gh-bg); color: var(--gh); }
-.forge-badge.gh .dot { background: var(--gh); }
-.forge-badge.fj { background: var(--fj-bg); color: var(--fj); }
-.forge-badge.fj .dot { background: var(--fj); }
+.forge-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.forge-badge.gh {
+  background: var(--gh-bg);
+  color: var(--gh);
+}
+.forge-badge.gh .dot {
+  background: var(--gh);
+}
+.forge-badge.fj {
+  background: var(--fj-bg);
+  color: var(--fj);
+}
+.forge-badge.fj .dot {
+  background: var(--fj);
+}
 
 .repo-name {
   font-family: "IBM Plex Mono", monospace;
@@ -422,8 +548,17 @@ select.col-filter { cursor: pointer; }
    is what keeps a title-cell with several long label chips from
    overflowing sideways instead — a chip that doesn't fit wraps onto the
    next line rather than needing a clip. */
-.title-cell { min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; row-gap: 6px; }
-.row-meta { display: contents; }
+.title-cell {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.row-meta {
+  display: contents;
+}
 
 .title {
   /* Deliberately no overflow:hidden on .title itself — .title::after's
@@ -462,7 +597,12 @@ select.col-filter { cursor: pointer; }
   inset: 0;
 }
 
-.title .num { color: var(--ink-3); font-family: "IBM Plex Mono", monospace; font-size: 12px; margin-right: 6px; }
+.title .num {
+  color: var(--ink-3);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  margin-right: 6px;
+}
 
 .draft-badge {
   font-size: 10.5px;
@@ -493,8 +633,15 @@ select.col-filter { cursor: pointer; }
   cursor: pointer;
 }
 
-.label-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.label-chip.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.label-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.label-chip.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
 
 .author {
   font-size: 12.5px;
@@ -504,7 +651,12 @@ select.col-filter { cursor: pointer; }
   white-space: nowrap;
 }
 
-.created, .updated { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.created,
+.updated {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
 
 .ci-pill {
   /* Above .title::after's stretched-link overlay, or the pill would be
@@ -524,31 +676,77 @@ select.col-filter { cursor: pointer; }
   cursor: pointer;
 }
 
-.ci-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ci-pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 
-.ci-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.ci-pill.success { background: var(--good-bg); color: var(--good); }
-.ci-pill.success .dot { background: var(--good); }
-.ci-pill.failure { background: var(--critical-bg); color: var(--critical); }
-.ci-pill.failure .dot { background: var(--critical); }
-.ci-pill.pending { background: var(--warning-bg); color: var(--warning); }
-.ci-pill.pending .dot { background: var(--warning); animation: pulse-amber 1.6s infinite; }
-.ci-pill.none { background: var(--neutral-bg); color: var(--ink-3); }
-.ci-pill.none .dot { background: var(--neutral); }
+/* biome-ignore lint/style/noDescendingSpecificity: .forge-badge.gh .dot
+   (higher specificity, earlier) sets only background -- never width/
+   height/border-radius/flex, so no property actually collides. */
+.ci-pill .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.ci-pill.success {
+  background: var(--good-bg);
+  color: var(--good);
+}
+.ci-pill.success .dot {
+  background: var(--good);
+}
+.ci-pill.failure {
+  background: var(--critical-bg);
+  color: var(--critical);
+}
+.ci-pill.failure .dot {
+  background: var(--critical);
+}
+.ci-pill.pending {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.ci-pill.pending .dot {
+  background: var(--warning);
+  animation: pulse-amber 1.6s infinite;
+}
+.ci-pill.none {
+  background: var(--neutral-bg);
+  color: var(--ink-3);
+}
+.ci-pill.none .dot {
+  background: var(--neutral);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .ci-pill.pending .dot { animation: none; }
+  .ci-pill.pending .dot {
+    animation: none;
+  }
 }
 
 @keyframes pulse-amber {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
-.go { color: var(--ink-3); display: flex; justify-content: flex-end; }
-.empty-cell { visibility: hidden; }
+.go {
+  color: var(--ink-3);
+  display: flex;
+  justify-content: flex-end;
+}
+.empty-cell {
+  visibility: hidden;
+}
 
-.empty-state, .no-results {
+.empty-state,
+.no-results {
   padding: 28px 18px;
   text-align: center;
   color: var(--ink-3);
@@ -569,11 +767,19 @@ select.col-filter { cursor: pointer; }
    [hidden] { display: none }, regardless of selector specificity — the
    flex rule above needs this explicit override or the hidden attribute
    toggled in app.js has no visual effect. */
-.pagination[hidden] { display: none; }
+.pagination[hidden] {
+  display: none;
+}
 
-.pagination-pages { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
 
-.pagination-nav, .pagination-page {
+.pagination-nav,
+.pagination-page {
   font-family: inherit;
   font-size: 12.5px;
   padding: 5px 9px;
@@ -584,11 +790,28 @@ select.col-filter { cursor: pointer; }
   cursor: pointer;
 }
 
-.pagination-page { min-width: 30px; text-align: center; }
-.pagination-nav:hover, .pagination-page:hover { color: var(--ink); }
-.pagination-nav:disabled { opacity: 0.5; cursor: not-allowed; }
-.pagination-page.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.pagination-nav:focus-visible, .pagination-page:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pagination-page {
+  min-width: 30px;
+  text-align: center;
+}
+.pagination-nav:hover,
+.pagination-page:hover {
+  color: var(--ink);
+}
+.pagination-nav:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pagination-page.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.pagination-nav:focus-visible,
+.pagination-page:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 
 .pagination-size {
   display: flex;
@@ -617,13 +840,31 @@ select.col-filter { cursor: pointer; }
   font-size: 13px;
 }
 
-footer { text-align: center; font-size: 12px; color: var(--ink-3); padding-top: 8px; }
-footer .mono { color: var(--ink-2); }
-footer a.mono { text-decoration: none; }
-footer a.mono:hover, footer a.mono:focus-visible { text-decoration: underline; color: var(--ink); }
+footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-3);
+  padding-top: 8px;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: .brand p .mono
+   (higher specificity, earlier) sets color to this exact same value --
+   whichever wins, the result is identical. */
+footer .mono {
+  color: var(--ink-2);
+}
+footer a.mono {
+  text-decoration: none;
+}
+footer a.mono:hover,
+footer a.mono:focus-visible {
+  text-decoration: underline;
+  color: var(--ink);
+}
 
 @media (max-width: 860px) {
-  .stats { grid-template-columns: repeat(2, 1fr); }
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 760px) {
@@ -636,14 +877,20 @@ footer a.mono:hover, footer a.mono:focus-visible { text-decoration: underline; c
     row-gap: 6px;
     padding: 13px 16px;
   }
-  .row .repo { grid-area: repo; }
-  .row .go { grid-area: go; }
+  .row .repo {
+    grid-area: repo;
+  }
+  .row .go {
+    grid-area: go;
+  }
   /* Below this width the title wraps instead of truncating with an
      ellipsis — the .title-cell/.title flex-wrap and flex-basis:100% that
      make that safe with several long label chips present are already the
      base rule (see the phone-width title-wrap bug fix), so only the
      wrap-vs-truncate behavior itself changes here. */
-  .row .title-cell { grid-area: title; }
+  .row .title-cell {
+    grid-area: title;
+  }
   .row .title-cell .title-text {
     white-space: normal;
     overflow: visible;
@@ -656,12 +903,24 @@ footer a.mono:hover, footer a.mono:focus-visible { text-decoration: underline; c
     gap: 10px;
     flex-wrap: wrap;
   }
-  .row.filter-row { display: flex; flex-wrap: wrap; gap: 8px; }
-  .row.filter-row .col-filter { flex: 1 1 130px; }
-  .row.filter-row .empty-cell { display: none; }
+  .row.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .row.filter-row .col-filter {
+    flex: 1 1 130px;
+  }
+  .row.filter-row .empty-cell {
+    display: none;
+  }
 }
 
 @media (max-width: 420px) {
-  .stats { grid-template-columns: 1fr 1fr; }
-  header { padding-top: 20px; }
+  .stats {
+    grid-template-columns: 1fr 1fr;
+  }
+  header {
+    padding-top: 20px;
+  }
 }
