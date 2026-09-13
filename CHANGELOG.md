@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/alrayyes/forge-dashboard/compare/v0.27.2...v0.28.0) (2026-09-13)
+
+
+### Features
+
+* repo/author filters become selects, title gets autocomplete ([#103](https://github.com/alrayyes/forge-dashboard/issues/103)) ([52b2a5b](https://github.com/alrayyes/forge-dashboard/commit/52b2a5b9dd8f9f39281a04939f084a1bcbbe06c9)), closes [#101](https://github.com/alrayyes/forge-dashboard/issues/101)
+
 ## [0.27.2](https://github.com/alrayyes/forge-dashboard/compare/v0.27.1...v0.27.2) (2026-09-13)
 
 
