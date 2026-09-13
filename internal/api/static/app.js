@@ -213,7 +213,9 @@
       return res.ok ? res.json() : null;
     })
     .then(function (session) {
-      if (session) document.getElementById('whoami').textContent = session.displayName;
+      if (!session) return;
+      document.getElementById('whoami').textContent = session.displayName;
+      document.getElementById('admin-link').hidden = !session.isAdmin;
     })
     .catch(function () { /* a transient failure here isn't worth blocking the page over */ });
 
