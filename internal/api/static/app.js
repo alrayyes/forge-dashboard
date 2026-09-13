@@ -169,13 +169,13 @@
     return true;
   }
 
-  function createBoard(containerId, emptyId, noResultsId, isPR, onStatusClick, repoOptionsId) {
+  function createBoard(containerId, emptyId, noResultsId, isPR, onStatusClick, idPrefix) {
     var state = {
       items: [],
       filters: {},
-      groupBy: null, // no grouping feature yet (issue #38) — reserved
-      page: 1, // no pagination feature yet (issue #37) — reserved
-      pageSize: Infinity,
+      groupBy: null, // no grouping feature yet (issue #39) — reserved
+      page: 1,
+      pageSize: 25,
     };
 
     // The repo filter is a combobox (a free-text <input> with a
@@ -184,7 +184,7 @@
     // picking from what's actually on screen beats guessing the exact
     // spelling.
     function updateRepoOptions() {
-      var datalist = document.getElementById(repoOptionsId);
+      var datalist = document.getElementById(idPrefix + '-repo-options');
       if (!datalist) return;
       var seen = {};
       var repos = [];
@@ -223,20 +223,78 @@
       toggleFilter('label', label);
     }
 
+    function setPage(page) {
+      state.page = page;
+      render();
+    }
+
+    function renderPagination(visibleCount, totalPages) {
+      var wrap = document.getElementById(idPrefix + '-pagination');
+      if (!wrap) return;
+
+      var needed = totalPages > 1;
+      wrap.hidden = !needed;
+      if (!needed) return;
+
+      var pages = document.getElementById(idPrefix + '-pagination-pages');
+      pages.innerHTML = '';
+
+      var prev = el('button', 'pagination-nav', 'Previous');
+      prev.type = 'button';
+      prev.disabled = state.page <= 1;
+      prev.addEventListener('click', function () { setPage(state.page - 1); });
+      pages.appendChild(prev);
+
+      for (var p = 1; p <= totalPages; p++) {
+        var button = el('button', 'pagination-page', String(p));
+        button.type = 'button';
+        if (p === state.page) {
+          button.classList.add('active');
+          button.setAttribute('aria-current', 'page');
+        }
+        button.addEventListener('click', (function (page) {
+          return function () { setPage(page); };
+        })(p));
+        pages.appendChild(button);
+      }
+
+      var next = el('button', 'pagination-nav', 'Next');
+      next.type = 'button';
+      next.disabled = state.page >= totalPages;
+      next.addEventListener('click', function () { setPage(state.page + 1); });
+      pages.appendChild(next);
+    }
+
     function render() {
       var container = document.getElementById(containerId);
       var visible = state.items.filter(function (item) {
         return matchesFilters(item, isPR, state.filters);
       });
 
+      var totalPages = Math.max(1, Math.ceil(visible.length / state.pageSize));
+      if (state.page > totalPages) state.page = totalPages;
+      var start = (state.page - 1) * state.pageSize;
+      var pageItems = visible.slice(start, start + state.pageSize);
+
       container.innerHTML = '';
-      visible.forEach(function (item) {
+      pageItems.forEach(function (item) {
         container.appendChild(buildRow(item, isPR, onStatusClick, handleLabelClick, state.filters.label));
       });
 
       document.getElementById(emptyId).hidden = state.items.length !== 0;
       var noResults = document.getElementById(noResultsId);
       if (noResults) noResults.hidden = visible.length !== 0 || state.items.length === 0;
+
+      renderPagination(visible.length, totalPages);
+    }
+
+    var pageSizeSelect = document.getElementById(idPrefix + '-page-size');
+    if (pageSizeSelect) {
+      pageSizeSelect.addEventListener('change', function () {
+        state.pageSize = Number(pageSizeSelect.value) || 25;
+        state.page = 1;
+        render();
+      });
     }
 
     return {
@@ -268,8 +326,8 @@
     if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  var prBoard = createBoard('pr-rows', 'pr-empty', 'pr-no-results', true, handleStatusClick, 'pr-repo-options');
-  var issueBoard = createBoard('issue-rows', 'issue-empty', 'issue-no-results', false, undefined, 'issue-repo-options');
+  var prBoard = createBoard('pr-rows', 'pr-empty', 'pr-no-results', true, handleStatusClick, 'pr');
+  var issueBoard = createBoard('issue-rows', 'issue-empty', 'issue-no-results', false, undefined, 'issue');
 
   var statFailingTile = document.getElementById('stat-failing-tile');
   if (statFailingTile) statFailingTile.addEventListener('click', function () { handleStatusClick('failure'); });
