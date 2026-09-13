@@ -60,6 +60,10 @@ func NewMux(deps Deps) *http.ServeMux {
 	mux.Handle("GET /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 
+	mux.Handle("GET /api/admin/users", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminListUsers(deps.AuthStore))))
+	mux.Handle("POST /api/admin/users/{username}/revoke", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminRevokeUser(deps))))
+	mux.Handle("DELETE /api/admin/users/{username}", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminDeleteUser(deps))))
+
 	static, err := fs.Sub(staticFiles, "static")
 	if err != nil {
 		// Only possible if the embed directive above stops matching a
@@ -80,6 +84,11 @@ func NewMux(deps Deps) *http.ServeMux {
 	mux.Handle("GET /app.js", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /settings.html", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /settings.js", requireAuthPage(deps.AuthStore, fileServer))
+	// admin.html/js only need a session at this layer — a non-admin who
+	// navigates here directly gets bounced by the page's own JS once
+	// /api/admin/users answers 403, same as any other API call it makes.
+	mux.Handle("GET /admin.html", requireAuthPage(deps.AuthStore, fileServer))
+	mux.Handle("GET /admin.js", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /", fileServer)
 
 	return mux

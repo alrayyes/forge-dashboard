@@ -53,3 +53,20 @@ func unauthorized(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": "not authenticated"})
 }
+
+// RequireAdmin wraps next so it only ever runs for the designated admin —
+// everyone else gets a 403. Compose it inside RequireAuth
+// (RequireAuth(store)(RequireAdmin(next))), since it reads the user
+// RequireAuth already put in context rather than looking one up itself.
+func RequireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := UserFromContext(r.Context())
+		if !ok || !u.IsAdmin {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "admin access required"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
