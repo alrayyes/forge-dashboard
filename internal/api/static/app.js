@@ -125,44 +125,71 @@
     return row;
   }
 
-  function renderRows(containerId, items, isPR, emptyId) {
-    var container = document.getElementById(containerId);
-    container.innerHTML = '';
-    document.getElementById(emptyId).hidden = items.length !== 0;
-    items.forEach(function (item) {
-      container.appendChild(buildRow(item, isPR));
-    });
-    applyFilters(container.closest('section.board'));
+  // ---- board state + render ----
+  // Each board (pull requests, issues) owns one state object — the raw
+  // items last fetched, the active per-column filters, and placeholders
+  // for grouping/pagination so those features have a state shape to slot
+  // into instead of bolting another special case onto row-hiding, which
+  // is what this replaces (see issue #36).
+  function matchesFilters(item, isPR, filters) {
+    var repoKey = (item.forge + ' ' + item.repo).toLowerCase();
+    if (filters.repo && repoKey.indexOf(filters.repo) === -1) return false;
+    if (filters.title && item.title.toLowerCase().indexOf(filters.title) === -1) return false;
+    if (filters.author && (item.author || '').toLowerCase().indexOf(filters.author) === -1) return false;
+    if (filters.created && minutesAgo(item.createdAt) > Number(filters.created)) return false;
+    if (filters.updated && minutesAgo(item.updatedAt) > Number(filters.updated)) return false;
+    if (filters.status && isPR && item.ci !== filters.status) return false;
+    return true;
   }
 
-  // ---- per-column filtering ----
-  function applyFilters(board) {
-    if (!board) return;
-    var controls = board.querySelectorAll('.col-filter');
-    var rows = board.querySelectorAll('#pr-rows > .row, #issue-rows > .row');
-    var noResults = board.querySelector('.no-results');
-    var f = {};
-    controls.forEach(function (c) { f[c.dataset.col] = c.value.trim().toLowerCase(); });
+  function createBoard(containerId, emptyId, noResultsId, isPR) {
+    var state = {
+      items: [],
+      filters: {},
+      groupBy: null, // no grouping feature yet (issue #38) — reserved
+      page: 1, // no pagination feature yet (issue #37) — reserved
+      pageSize: Infinity,
+    };
 
-    var visible = 0;
-    rows.forEach(function (row) {
-      var ok = true;
-      if (f.repo && (row.dataset.repo || '').indexOf(f.repo) === -1) ok = false;
-      if (f.title && (row.dataset.title || '').indexOf(f.title) === -1) ok = false;
-      if (f.author && (row.dataset.author || '').indexOf(f.author) === -1) ok = false;
-      if (f.created && Number(row.dataset.createdMin) > Number(f.created)) ok = false;
-      if (f.updated && Number(row.dataset.updatedMin) > Number(f.updated)) ok = false;
-      if (f.status && row.dataset.status !== f.status) ok = false;
-      row.style.display = ok ? '' : 'none';
-      if (ok) visible += 1;
-    });
-    if (noResults) noResults.hidden = visible !== 0 || rows.length === 0;
+    function render() {
+      var container = document.getElementById(containerId);
+      var visible = state.items.filter(function (item) {
+        return matchesFilters(item, isPR, state.filters);
+      });
+
+      container.innerHTML = '';
+      visible.forEach(function (item) {
+        container.appendChild(buildRow(item, isPR));
+      });
+
+      document.getElementById(emptyId).hidden = state.items.length !== 0;
+      var noResults = document.getElementById(noResultsId);
+      if (noResults) noResults.hidden = visible.length !== 0 || state.items.length === 0;
+    }
+
+    return {
+      setItems: function (items) {
+        state.items = items;
+        state.page = 1;
+        render();
+      },
+      setFilter: function (col, value) {
+        state.filters[col] = value;
+        state.page = 1;
+        render();
+      },
+    };
   }
+
+  var prBoard = createBoard('pr-rows', 'pr-empty', 'pr-no-results', true);
+  var issueBoard = createBoard('issue-rows', 'issue-empty', 'issue-no-results', false);
 
   document.querySelectorAll('section.board').forEach(function (board) {
+    var target = board.querySelector('#issue-rows') ? issueBoard : prBoard;
     board.querySelectorAll('.col-filter').forEach(function (c) {
-      c.addEventListener('input', function () { applyFilters(board); });
-      c.addEventListener('change', function () { applyFilters(board); });
+      var apply = function () { target.setFilter(c.dataset.col, c.value.trim().toLowerCase()); };
+      c.addEventListener('input', apply);
+      c.addEventListener('change', apply);
     });
   });
 
@@ -269,8 +296,8 @@
 
         var prs = data.pullRequests || [];
         var issues = data.issues || [];
-        renderRows('pr-rows', prs, true, 'pr-empty');
-        renderRows('issue-rows', issues, false, 'issue-empty');
+        prBoard.setItems(prs);
+        issueBoard.setItems(issues);
 
         document.getElementById('stat-prs').textContent = String(prs.length);
         document.getElementById('stat-issues').textContent = String(issues.length);
