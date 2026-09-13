@@ -69,7 +69,11 @@
   }
   .btn:hover { filter: brightness(1.05); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-danger { color: var(--critical); border-color: var(--critical); }
+  /* --critical on --surface-sunken falls short of WCAG AA contrast (4.29:1
+     of the 4.5:1 required) — --critical-bg is the tint this palette already
+     pairs it with elsewhere (the settings page's "Configured" badge does
+     the same with --good/--good-bg) for exactly this reason. */
+  .btn-danger { color: var(--critical); border-color: var(--critical); background: var(--critical-bg); }
   .status { font-size: 12.5px; min-height: 1.4em; margin: 0 0 12px; }
   .status.error { color: var(--critical); }
   .status.ok { color: var(--good); }
