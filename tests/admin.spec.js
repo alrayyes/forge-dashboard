@@ -108,6 +108,16 @@ test.describe('admin area', () => {
       const scrollWidth = await adminPage.evaluate(() => document.documentElement.scrollWidth);
       const clientWidth = await adminPage.evaluate(() => document.documentElement.clientWidth);
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+
+      // The table itself used to need its own horizontal scroll within
+      // .card even though the page-level check above stayed green — real
+      // device testing found people didn't notice the hidden scroll
+      // affordance and just saw a cut-off table. The user table now
+      // restyles into stacked cards at this width instead.
+      const card = adminPage.locator('.card').first();
+      const cardScrollWidth = await card.evaluate((el) => el.scrollWidth);
+      const cardClientWidth = await card.evaluate((el) => el.clientWidth);
+      expect(cardScrollWidth).toBeLessThanOrEqual(cardClientWidth);
     } finally {
       await adminContext.close();
     }

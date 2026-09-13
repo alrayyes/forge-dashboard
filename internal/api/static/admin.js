@@ -32,10 +32,10 @@
       var tr = document.createElement('tr');
       tr.setAttribute('data-username', u.username);
       tr.innerHTML =
-        '<td>' + escapeHTML(u.username) + (u.isAdmin ? ' <span class="admin-badge">Admin</span>' : '') + '</td>' +
-        '<td>' + escapeHTML(u.displayName) + '</td>' +
-        '<td>' + escapeHTML(formatDate(u.createdAt)) + '</td>' +
-        '<td class="row-actions">' +
+        '<td data-label="Username">' + escapeHTML(u.username) + (u.isAdmin ? ' <span class="admin-badge">Admin</span>' : '') + '</td>' +
+        '<td data-label="Display name">' + escapeHTML(u.displayName) + '</td>' +
+        '<td data-label="Registered">' + escapeHTML(formatDate(u.createdAt)) + '</td>' +
+        '<td class="row-actions" data-label="Actions">' +
         '<button class="btn" type="button" data-action="revoke" data-username="' + escapeHTML(u.username) + '"' + (isSelf ? ' disabled' : '') + '>Revoke</button>' +
         '<button class="btn btn-danger" type="button" data-action="remove" data-username="' + escapeHTML(u.username) + '"' + (isSelf ? ' disabled' : '') + '>Remove</button>' +
         '</td>';
