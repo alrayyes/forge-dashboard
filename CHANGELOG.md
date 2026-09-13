@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/alrayyes/forge-dashboard/compare/v0.12.0...v0.12.1) (2026-09-13)
+
+
+### Bug Fixes
+
+* add missing footer to settings, admin, and login pages ([#30](https://github.com/alrayyes/forge-dashboard/issues/30)) ([491e63e](https://github.com/alrayyes/forge-dashboard/commit/491e63ee12dbd27ed999e6399303af1e2cba1ed4)), closes [#28](https://github.com/alrayyes/forge-dashboard/issues/28)
+
 ## [0.12.0](https://github.com/alrayyes/forge-dashboard/compare/v0.11.0...v0.12.0) (2026-09-13)
 
 
