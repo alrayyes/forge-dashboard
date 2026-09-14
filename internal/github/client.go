@@ -71,6 +71,9 @@ func NewClient(token, username, baseURL string) *Client {
 	}
 }
 
+// Forge implements dashboard.Source.
+func (c *Client) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
+
 // Fetch implements dashboard.Source directly — GitHub drives its own
 // fetch strategy (GraphQL vs. the REST fallback) rather than going
 // through dashboard.GenericSource's one-call-per-repo model, which is
