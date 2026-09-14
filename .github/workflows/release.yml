@@ -119,6 +119,14 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    # This job commits and pushes itself (the "open a pull request" step
+    # below) — tooling.md's rule for exactly that: without it, `git push`
+    # fires the repo's own lefthook pre-push hooks against a commit
+    # nothing interactively made, in a job that never installed half of
+    # what they expect (vale, most concretely — confirmed live, this is
+    # why that step failed outright: "vale: command not found").
+    env:
+      LEFTHOOK: 0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
