@@ -18,6 +18,8 @@ type Aggregator struct {
 
 	subsMu sync.Mutex
 	subs   map[chan Snapshot]struct{}
+
+	refreshing sync.Mutex
 }
 
 // NewAggregator returns an Aggregator whose Get answers an empty snapshot
@@ -76,7 +78,20 @@ func (a *Aggregator) Get() Snapshot {
 // the merged result. A source's own Fetch never returns an error — a forge
 // it can't reach at all shows up as an unreachable ForgeHealth entry
 // instead, so one broken forge never drops the other's data.
+//
+// A Refresh already in flight makes a concurrent call a no-op rather than
+// running a second, fully redundant fetch in parallel — real incident: a
+// webhook delivery, the scheduled tick, and another webhook landing at
+// once for the same user each ran their own full fetch against the real
+// API with nothing preventing the overlap, multiplying request volume by
+// however many triggers happened to stack up. The in-flight refresh will
+// produce a result soon enough regardless of what triggered it.
 func (a *Aggregator) Refresh(ctx context.Context) {
+	if !a.refreshing.TryLock() {
+		return
+	}
+	defer a.refreshing.Unlock()
+
 	results := make([]Result, len(a.sources))
 
 	var wg sync.WaitGroup

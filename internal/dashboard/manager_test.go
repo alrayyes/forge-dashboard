@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -192,4 +193,55 @@ func TestManager_TwoUsers_HaveIndependentSnapshots(t *testing.T) {
 
 	assert.Equal(t, 1, m.Get(userA).Forges[0].RepoCount)
 	assert.Equal(t, 2, m.Get(userB).Forges[0].RepoCount)
+}
+
+// TestManager_EnsureIfAbsent_ConcurrentCallsForNewUser_OnlyCreateOneAggregator
+// is a regression test for a real race: warmUpAggregator used to check
+// Running() and, if false, separately call Ensure() - two unlocked
+// operations with a DB read in between. Several requests for the same
+// user landing in that gap (multiple browser tabs and an SSE reconnect,
+// all arriving right after a restart wipes the Manager clean) each saw
+// "not running" and each spun up their own brand-new Aggregator with its
+// own immediate Refresh.
+func TestManager_EnsureIfAbsent_ConcurrentCallsForNewUser_OnlyCreateOneAggregator(t *testing.T) {
+	t.Parallel()
+
+	user := []byte("user-new")
+	src := &countingSource{}
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	const callers = 10
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			m.EnsureIfAbsent(t.Context(), user, []dashboard.Source{src})
+		}()
+	}
+	wg.Wait()
+
+	require.Eventually(t, func() bool { return src.calls.Load() >= 1 }, time.Second, 5*time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, int32(1), src.calls.Load(), "only one of the concurrent callers should have actually created an Aggregator and refreshed")
+}
+
+func TestManager_EnsureIfAbsent_AlreadyRunning_NeverReplaces(t *testing.T) {
+	t.Parallel()
+
+	user := []byte("user-a")
+	original := &countingSource{}
+	replacement := &countingSource{}
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), user, []dashboard.Source{original})
+	require.Eventually(t, func() bool { return original.calls.Load() >= 1 }, time.Second, 5*time.Millisecond)
+
+	m.EnsureIfAbsent(t.Context(), user, []dashboard.Source{replacement})
+
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, int32(0), replacement.calls.Load(), "an already-running Aggregator should never be replaced by EnsureIfAbsent")
 }

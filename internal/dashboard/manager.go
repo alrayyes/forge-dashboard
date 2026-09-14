@@ -50,6 +50,32 @@ func (m *Manager) Ensure(ctx context.Context, userID []byte, sources []Source) {
 	go agg.Run(runCtx, m.refreshInterval)
 }
 
+// EnsureIfAbsent is Ensure, but only takes effect if userID has no
+// Aggregator running yet — the check and the insert happen under the
+// same lock, unlike a separate Running() check followed by a call to
+// Ensure(), which races when several requests for the same user land in
+// the same instant (several browser tabs and an SSE reconnect, all
+// arriving right after a restart wipes the Manager clean): each would
+// see "not running" and each would create its own Aggregator with its
+// own immediate Refresh. Concurrent callers here still each do their own
+// harmless work building sources beforehand; only one gets to actually
+// create the Aggregator and kick off its first Refresh.
+func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []Source) {
+	key := string(userID)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.users[key]; ok {
+		return
+	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	agg := NewAggregator(sources)
+	m.users[key] = &managedAggregator{agg: agg, cancel: cancel}
+	go agg.Run(runCtx, m.refreshInterval)
+}
+
 // Get returns userID's current snapshot — empty, not nil arrays, if
 // Ensure was never called for them (no credentials saved yet).
 func (m *Manager) Get(userID []byte) Snapshot {

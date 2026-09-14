@@ -70,11 +70,28 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 // restart would show the zero-value empty snapshot forever, not just
 // until the next scheduled refresh. A user with nothing saved yet is a
 // no-op, same as Manager.Get's empty-snapshot default.
+//
+// The Running() check is a fast path — cheap, and safe even if it races,
+// since a false negative just falls through to EnsureIfAbsent below,
+// which is what actually has to be race-safe: several requests for the
+// same user landing in the same instant right after a restart (several
+// browser tabs and an SSE reconnect, all reconnecting at once) used to
+// each see "not running" from a bare Running() check and each spin up
+// their own Aggregator with its own immediate Refresh — confirmed as a
+// real, if not fully explained, contributor to a request-volume burst
+// live in production.
 func warmUpAggregator(ctx context.Context, deps Deps, userID []byte, username string) {
 	if deps.Manager.Running(userID) {
 		return
 	}
-	loadAndEnsure(ctx, deps, userID, username)
+	creds, err := deps.SettingsStore.Get(ctx, userID)
+	if err != nil {
+		if !errors.Is(err, settings.ErrNotFound) {
+			slog.Warn("could not load settings to warm up dashboard", "user", username, "error", err)
+		}
+		return
+	}
+	deps.Manager.EnsureIfAbsent(deps.AppContext, userID, deps.BuildSources(creds))
 }
 
 // loadAndEnsure loads userID's saved Settings and (re)builds their
