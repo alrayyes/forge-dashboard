@@ -137,6 +137,63 @@ func TestListRepos_NeitherTokenNorUsername_Errors(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestListRepos_ErrorIncludesAPIMessage(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/user/repos", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]string{"message": "API rate limit exceeded for user ID 511318."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	_, err := client.ListRepos(t.Context())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "API rate limit exceeded for user ID 511318.")
+}
+
+func TestListRepos_RateLimitErrorIncludesResetTime(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/user/repos", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "1789395740")
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]string{"message": "API rate limit exceeded."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	_, err := client.ListRepos(t.Context())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resets")
+}
+
+func TestListRepos_RetryAfterIncludedWhenPresent(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/user/repos", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "42")
+		w.WriteHeader(http.StatusTooManyRequests)
+		writeJSON(t, w, map[string]string{"message": "You have exceeded a secondary rate limit."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	_, err := client.ListRepos(t.Context())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "retry after 42s")
+}
+
 func TestListOpenPullRequests_MapsFieldsAndResolvesCIFromCheckRuns(t *testing.T) {
 	t.Parallel()
 

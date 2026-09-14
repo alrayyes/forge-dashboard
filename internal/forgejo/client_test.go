@@ -188,6 +188,43 @@ func TestListRepos_NeitherTokenNorUsername_Errors(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestListRepos_ErrorIncludesAPIMessage(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		writeJSON(t, w, map[string]string{"message": "token does not have at least one of the required scopes"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	_, err := client.ListRepos(t.Context())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "token does not have at least one of the required scopes")
+}
+
+func TestListRepos_RetryAfterIncludedWhenPresent(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "30")
+		w.WriteHeader(http.StatusTooManyRequests)
+		writeJSON(t, w, map[string]string{"message": "too many requests"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	_, err := client.ListRepos(t.Context())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "retry after 30s")
+}
+
 func TestListOpenPullRequests_MapsFieldsAndResolvesCI(t *testing.T) {
 	t.Parallel()
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -71,13 +72,38 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("forgejo: GET %s: unexpected status %s", path, resp.Status)
+		return fmt.Errorf("forgejo: GET %s: %s", path, apiErrorDetail(resp))
 	}
 
 	if out == nil {
 		return nil
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+// apiErrorDetail turns a failed response into the reason a person reading
+// the dashboard's forge-health error actually needs: the instance's own
+// error message where the body carries one, plus a Retry-After wait
+// (RFC 9110 §10.2.3) where a fronting proxy or the instance itself sent
+// one — Forgejo has no built-in rate limiting of its own, but this still
+// covers an instance sitting behind one that does.
+func apiErrorDetail(resp *http.Response) string {
+	msg := resp.Status
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	if err == nil {
+		var apiErr struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(body, &apiErr) == nil && apiErr.Message != "" {
+			msg = apiErr.Message
+		}
+	}
+
+	if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+		msg += fmt.Sprintf(" (retry after %ss)", retryAfter)
+	}
+
+	return msg
 }
 
 type repoJSON struct {

@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -78,13 +79,44 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("github: GET %s: unexpected status %s", path, resp.Status)
+		return fmt.Errorf("github: GET %s: %s", path, apiErrorDetail(resp))
 	}
 
 	if out == nil {
 		return nil
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+// apiErrorDetail turns a failed response into the reason a person reading
+// the dashboard's forge-health error actually needs: GitHub's own error
+// message where the body carries one, plus when the request can be retried
+// — from X-RateLimit-Reset once the primary limit is exhausted, or from
+// Retry-After (RFC 9110 §10.2.3) for everything else, secondary rate
+// limiting included.
+func apiErrorDetail(resp *http.Response) string {
+	msg := resp.Status
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	if err == nil {
+		var apiErr struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(body, &apiErr) == nil && apiErr.Message != "" {
+			msg = apiErr.Message
+		}
+	}
+
+	if resp.Header.Get("X-RateLimit-Remaining") == "0" {
+		if reset := resp.Header.Get("X-RateLimit-Reset"); reset != "" {
+			if ts, err := strconv.ParseInt(reset, 10, 64); err == nil {
+				msg += fmt.Sprintf(" (resets %s)", time.Unix(ts, 0).UTC().Format(time.RFC3339))
+			}
+		}
+	} else if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+		msg += fmt.Sprintf(" (retry after %ss)", retryAfter)
+	}
+
+	return msg
 }
 
 type repoJSON struct {

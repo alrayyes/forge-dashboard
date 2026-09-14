@@ -834,14 +834,22 @@
     var container = document.getElementById('forge-health');
     container.innerHTML = '';
     forges.forEach((f) => {
+      var item = el('div', 'forge-health-item');
       var chip = el('span', `forge-health${f.reachable ? '' : ' unreachable'}`);
       chip.appendChild(el('span', 'pulse-dot'));
       var label =
         (FORGE_LABELS[f.forge] || f.forge) +
         (f.reachable ? ' reachable' : ' unreachable');
       chip.appendChild(document.createTextNode(label));
-      if (!f.reachable && f.error) chip.title = f.error;
-      container.appendChild(chip);
+      item.appendChild(chip);
+      // The reason has to be real text, not just chip.title — a hover
+      // tooltip never reaches a touch device and isn't reliably announced
+      // by a screen reader either.
+      if (!f.reachable && f.error) {
+        chip.title = f.error;
+        item.appendChild(el('span', 'forge-health-error', f.error));
+      }
+      container.appendChild(item);
     });
     document.getElementById('forge-names').innerHTML = forges
       .map(

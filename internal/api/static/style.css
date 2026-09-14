@@ -200,9 +200,21 @@ header {
 
 #forge-health {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.forge-health-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.forge-health-error {
+  font-size: 11px;
+  color: var(--critical);
+  max-width: 320px;
 }
 
 .forge-health {
