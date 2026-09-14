@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.38.0](https://github.com/alrayyes/forge-dashboard/compare/v0.37.1...v0.38.0) (2026-09-14)
+
+
+### Features
+
+* add a LOG_LEVEL debug mode logging every outbound request ([#146](https://github.com/alrayyes/forge-dashboard/issues/146)) ([b668560](https://github.com/alrayyes/forge-dashboard/commit/b668560072fd4fed1738493b843210b1d1fdabf1)), closes [#145](https://github.com/alrayyes/forge-dashboard/issues/145)
+* **dashboard:** add Forge() and RepoRefresher to the Source interface ([#150](https://github.com/alrayyes/forge-dashboard/issues/150)) ([5aef5e1](https://github.com/alrayyes/forge-dashboard/commit/5aef5e12e4699279156bf267d348ba8f4b12225c))
+
+
+### Bug Fixes
+
+* shorten and report rate limit for GraphQL-errors-array case too ([#149](https://github.com/alrayyes/forge-dashboard/issues/149)) ([504fed6](https://github.com/alrayyes/forge-dashboard/commit/504fed65c38512efecd09059a95592d1b1e5e481)), closes [#142](https://github.com/alrayyes/forge-dashboard/issues/142)
+
 ## [0.37.1](https://github.com/alrayyes/forge-dashboard/compare/v0.37.0...v0.37.1) (2026-09-14)
 
 
