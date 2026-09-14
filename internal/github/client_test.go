@@ -194,6 +194,30 @@ func TestListRepos_RetryAfterIncludedWhenPresent(t *testing.T) {
 	assert.Contains(t, err.Error(), "retry after 42s")
 }
 
+func TestRateLimit_ReportsCoreResource(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/rate_limit", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"resources": map[string]any{
+				"core":   map[string]any{"limit": 5000, "remaining": 4922, "reset": 1789400145},
+				"search": map[string]any{"limit": 30, "remaining": 30, "reset": 1789400145},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	rl, err := client.RateLimit(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, 5000, rl.Limit)
+	assert.Equal(t, 4922, rl.Remaining)
+	assert.Equal(t, int64(1789400145), rl.ResetsAt.Unix())
+}
+
 func TestListOpenPullRequests_MapsFieldsAndResolvesCIFromCheckRuns(t *testing.T) {
 	t.Parallel()
 

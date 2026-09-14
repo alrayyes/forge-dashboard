@@ -119,6 +119,31 @@ func apiErrorDetail(resp *http.Response) string {
 	return msg
 }
 
+// RateLimit reports the core REST API budget for this Client's credential
+// (or, unauthenticated, the calling IP's own — a much smaller 60/hour
+// budget, but the same shape). GitHub excludes this endpoint from the
+// budget it reports, so calling it never itself moves the number it
+// returns.
+func (c *Client) RateLimit(ctx context.Context) (dashboard.RateLimit, error) {
+	var resp struct {
+		Resources struct {
+			Core struct {
+				Limit     int   `json:"limit"`
+				Remaining int   `json:"remaining"`
+				Reset     int64 `json:"reset"`
+			} `json:"core"`
+		} `json:"resources"`
+	}
+	if err := c.get(ctx, "/rate_limit", nil, &resp); err != nil {
+		return dashboard.RateLimit{}, err
+	}
+	return dashboard.RateLimit{
+		Limit:     resp.Resources.Core.Limit,
+		Remaining: resp.Resources.Core.Remaining,
+		ResetsAt:  time.Unix(resp.Resources.Core.Reset, 0).UTC(),
+	}, nil
+}
+
 type repoJSON struct {
 	FullName string `json:"full_name"`
 	Name     string `json:"name"`

@@ -217,6 +217,15 @@ header {
   max-width: 320px;
 }
 
+.forge-health-ratelimit {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.forge-health-ratelimit.exhausted {
+  color: var(--critical);
+}
+
 .forge-health {
   display: flex;
   align-items: center;
