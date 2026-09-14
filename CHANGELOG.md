@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.0](https://github.com/alrayyes/forge-dashboard/compare/v0.31.0...v0.32.0) (2026-09-14)
+
+
+### Features
+
+* add auto-updating README screenshots, refreshed on every release ([#118](https://github.com/alrayyes/forge-dashboard/issues/118)) ([4f74fe0](https://github.com/alrayyes/forge-dashboard/commit/4f74fe024d3d8c2aee574c66fa266f5c8e899dd0)), closes [#113](https://github.com/alrayyes/forge-dashboard/issues/113)
+
 ## [0.31.0](https://github.com/alrayyes/forge-dashboard/compare/v0.30.0...v0.31.0) (2026-09-14)
 
 
