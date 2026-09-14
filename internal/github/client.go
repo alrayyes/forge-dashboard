@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	ghsdk "github.com/google/go-github/v75/github"
 )
 
 const defaultBaseURL = "https://api.github.com"
@@ -42,12 +43,16 @@ const itemsPerRepo = 50
 // Client talks to GitHub, either as an authenticated user (a token,
 // GraphQL) or anonymously against one user's public repositories (a
 // username, no token, REST — GraphQL allows no anonymous access at all).
+// The REST fallback is driven by google/go-github rather than hand-rolled
+// requests — same wire calls, typed responses and typed rate-limit errors
+// instead of reparsing JSON bodies by hand.
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
 	graphqlURL string
 	token      string
 	username   string
+	restClient *ghsdk.Client
 }
 
 // NewClient returns a Client. With token set, Fetch queries GraphQL for
@@ -62,12 +67,20 @@ func NewClient(token, username, baseURL string) *Client {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
+
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	restClient := ghsdk.NewClient(httpClient)
+	if u, err := url.Parse(baseURL + "/"); err == nil {
+		restClient.BaseURL = u
+	}
+
 	return &Client{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httpClient,
 		baseURL:    baseURL,
 		graphqlURL: baseURL + "/graphql",
 		token:      token,
 		username:   username,
+		restClient: restClient,
 	}
 }
 
@@ -528,57 +541,26 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 // requests are IP-limited to 60/hour, a budget concurrency would only
 // burn through faster.
 
-func (c *Client) get(ctx context.Context, path string, query url.Values, out any) error {
-	u := c.baseURL + path
-	if query != nil {
-		u += "?" + query.Encode()
+// restError turns a failed go-github REST call into the reason a person
+// reading the dashboard's forge-health error actually needs — go-github's
+// typed RateLimitError/AbuseRateLimitError already carry the same
+// legal-boilerplate body GitHub's REST API returns, so this shortens it
+// the same way rateLimitShortMessage does for the GraphQL path, just
+// against a typed error instead of raw response headers.
+func restError(method, path string, err error) error {
+	var rateLimitErr *ghsdk.RateLimitError
+	if errors.As(err, &rateLimitErr) {
+		return fmt.Errorf("github: %s %s: rate limit exceeded", method, path)
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return err
+	var abuseErr *ghsdk.AbuseRateLimitError
+	if errors.As(err, &abuseErr) {
+		return fmt.Errorf("github: %s %s: rate limited", method, path)
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-
-	slog.Debug("github request", "method", http.MethodGet, "url", u)
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
+	var errResp *ghsdk.ErrorResponse
+	if errors.As(err, &errResp) {
+		return fmt.Errorf("github: %s %s: %s", method, path, errResp.Message)
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// The REST fallback (unauthenticated, public-repos mode) has no
-		// rate-limit reporting of its own — its 60/hour budget is IP-scoped,
-		// not worth surfacing the same way a real credential's is.
-		msg, _ := apiErrorDetail(resp)
-		return fmt.Errorf("github: GET %s: %s", path, msg)
-	}
-
-	if out == nil {
-		return nil
-	}
-	return json.NewDecoder(resp.Body).Decode(out)
-}
-
-type restRepo struct {
-	FullName string `json:"full_name"`
-	Name     string `json:"name"`
-	Owner    struct {
-		Login string `json:"login"`
-	} `json:"owner"`
-	Archived bool `json:"archived"`
-	Fork     bool `json:"fork"`
-}
-
-type restUser struct {
-	Login string `json:"login"`
-}
-
-type restLabel struct {
-	Name  string `json:"name"`
-	Color string `json:"color"`
+	return fmt.Errorf("github: %s %s: %w", method, path, err)
 }
 
 func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
@@ -590,13 +572,14 @@ func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
 
 	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: len(repos)}}
 	for _, repo := range repos {
-		prs, err := c.listOpenPullRequestsREST(ctx, repo.Owner.Login, repo.Name, repo.FullName)
+		owner, name, fullName := repo.GetOwner().GetLogin(), repo.GetName(), repo.GetFullName()
+		prs, err := c.listOpenPullRequestsREST(ctx, owner, name, fullName)
 		if err != nil {
-			slog.Warn("list pull requests failed", "forge", dashboard.ForgeGitHub, "repo", repo.FullName, "error", err)
+			slog.Warn("list pull requests failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
 		}
-		issues, err := c.listOpenIssuesREST(ctx, repo.Owner.Login, repo.Name, repo.FullName)
+		issues, err := c.listOpenIssuesREST(ctx, owner, name, fullName)
 		if err != nil {
-			slog.Warn("list issues failed", "forge", dashboard.ForgeGitHub, "repo", repo.FullName, "error", err)
+			slog.Warn("list issues failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
 		}
 		result.PullRequests = append(result.PullRequests, prs...)
 		result.Issues = append(result.Issues, issues...)
@@ -607,51 +590,35 @@ func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
 // listPublicRepos returns every public repository username owns, with no
 // authentication at all — the same list anyone gets landing on
 // github.com/username?tab=repositories.
-func (c *Client) listPublicRepos(ctx context.Context) ([]restRepo, error) {
-	var repos []restRepo
+func (c *Client) listPublicRepos(ctx context.Context) ([]*ghsdk.Repository, error) {
+	var repos []*ghsdk.Repository
+	path := fmt.Sprintf("/users/%s/repos", c.username)
+	opts := &ghsdk.RepositoryListByUserOptions{Type: "owner", ListOptions: ghsdk.ListOptions{PerPage: perPage}}
 
-	for page := 1; ; page++ {
-		var batch []restRepo
-		q := url.Values{
-			"type":     {"owner"},
-			"per_page": {strconv.Itoa(perPage)},
-			"page":     {strconv.Itoa(page)},
-		}
-		path := fmt.Sprintf("/users/%s/repos", c.username)
-		if err := c.get(ctx, path, q, &batch); err != nil {
-			return nil, err
+	for {
+		slog.Debug("github request", "method", http.MethodGet, "url", path)
+		batch, resp, err := c.restClient.Repositories.ListByUser(ctx, c.username, opts)
+		if err != nil {
+			return nil, restError(http.MethodGet, path, err)
 		}
 		for _, r := range batch {
-			if r.Archived || r.Fork {
+			if r.GetArchived() || r.GetFork() {
 				continue
 			}
 			repos = append(repos, r)
 		}
-		if len(batch) < perPage {
+		if resp.NextPage == 0 {
 			break
 		}
+		opts.Page = resp.NextPage
 	}
 	return repos, nil
 }
 
-type restPull struct {
-	Number    int         `json:"number"`
-	Title     string      `json:"title"`
-	HTMLURL   string      `json:"html_url"`
-	Draft     bool        `json:"draft"`
-	User      restUser    `json:"user"`
-	Labels    []restLabel `json:"labels"`
-	CreatedAt time.Time   `json:"created_at"`
-	UpdatedAt time.Time   `json:"updated_at"`
-	Head      struct {
-		SHA string `json:"sha"`
-	} `json:"head"`
-}
-
-func restLabelsToDashboard(labels []restLabel) []dashboard.Label {
+func restLabelsToDashboard(labels []*ghsdk.Label) []dashboard.Label {
 	out := make([]dashboard.Label, 0, len(labels))
 	for _, l := range labels {
-		out = append(out, dashboard.Label{Name: l.Name, Color: l.Color})
+		out = append(out, dashboard.Label{Name: l.GetName(), Color: l.GetColor()})
 	}
 	return out
 }
@@ -661,107 +628,79 @@ func restLabelsToDashboard(labels []restLabel) []dashboard.Label {
 // GraphQL path gets for free from statusCheckRollup.
 func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
 	var prs []dashboard.PullRequest
+	path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
+	opts := &ghsdk.PullRequestListOptions{State: "open", ListOptions: ghsdk.ListOptions{PerPage: perPage}}
 
-	for page := 1; ; page++ {
-		var batch []restPull
-		q := url.Values{
-			"state":    {"open"},
-			"per_page": {strconv.Itoa(perPage)},
-			"page":     {strconv.Itoa(page)},
-		}
-		path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
-		if err := c.get(ctx, path, q, &batch); err != nil {
-			return nil, err
+	for {
+		slog.Debug("github request", "method", http.MethodGet, "url", path)
+		batch, resp, err := c.restClient.PullRequests.List(ctx, owner, name, opts)
+		if err != nil {
+			return nil, restError(http.MethodGet, path, err)
 		}
 		for _, p := range batch {
-			ci, err := c.ciStatusREST(ctx, owner, name, p.Head.SHA)
+			ci, err := c.ciStatusREST(ctx, owner, name, p.GetHead().GetSHA())
 			if err != nil {
 				ci = dashboard.CINone
 			}
 			prs = append(prs, dashboard.PullRequest{
 				Forge:     dashboard.ForgeGitHub,
 				Repo:      repo,
-				Number:    p.Number,
-				Title:     p.Title,
-				URL:       p.HTMLURL,
-				Author:    p.User.Login,
-				Draft:     p.Draft,
+				Number:    p.GetNumber(),
+				Title:     p.GetTitle(),
+				URL:       p.GetHTMLURL(),
+				Author:    p.GetUser().GetLogin(),
+				Draft:     p.GetDraft(),
 				Labels:    restLabelsToDashboard(p.Labels),
-				CreatedAt: p.CreatedAt,
-				UpdatedAt: p.UpdatedAt,
+				CreatedAt: p.GetCreatedAt().Time,
+				UpdatedAt: p.GetUpdatedAt().Time,
 				CI:        ci,
 			})
 		}
-		if len(batch) < perPage {
+		if resp.NextPage == 0 {
 			break
 		}
+		opts.Page = resp.NextPage
 	}
 	return prs, nil
 }
 
-type restIssue struct {
-	Number      int             `json:"number"`
-	Title       string          `json:"title"`
-	HTMLURL     string          `json:"html_url"`
-	User        restUser        `json:"user"`
-	Labels      []restLabel     `json:"labels"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
-	PullRequest json.RawMessage `json:"pull_request"`
-}
-
 // listOpenIssuesREST returns every open issue against repo — pull
 // requests excluded, even though GitHub's REST issues endpoint returns
-// both: an entry with a non-null pull_request field is a pull request
+// both: an entry with a non-nil PullRequestLinks is a pull request
 // wearing an issue number, not a real issue.
 func (c *Client) listOpenIssuesREST(ctx context.Context, owner, name, repo string) ([]dashboard.Issue, error) {
 	var issues []dashboard.Issue
+	path := fmt.Sprintf("/repos/%s/%s/issues", owner, name)
+	opts := &ghsdk.IssueListByRepoOptions{State: "open", ListOptions: ghsdk.ListOptions{PerPage: perPage}}
 
-	for page := 1; ; page++ {
-		var batch []restIssue
-		q := url.Values{
-			"state":    {"open"},
-			"per_page": {strconv.Itoa(perPage)},
-			"page":     {strconv.Itoa(page)},
-		}
-		path := fmt.Sprintf("/repos/%s/%s/issues", owner, name)
-		if err := c.get(ctx, path, q, &batch); err != nil {
-			return nil, err
+	for {
+		slog.Debug("github request", "method", http.MethodGet, "url", path)
+		batch, resp, err := c.restClient.Issues.ListByRepo(ctx, owner, name, opts)
+		if err != nil {
+			return nil, restError(http.MethodGet, path, err)
 		}
 		for _, i := range batch {
-			if i.PullRequest != nil {
+			if i.PullRequestLinks != nil {
 				continue
 			}
 			issues = append(issues, dashboard.Issue{
 				Forge:     dashboard.ForgeGitHub,
 				Repo:      repo,
-				Number:    i.Number,
-				Title:     i.Title,
-				URL:       i.HTMLURL,
-				Author:    i.User.Login,
+				Number:    i.GetNumber(),
+				Title:     i.GetTitle(),
+				URL:       i.GetHTMLURL(),
+				Author:    i.GetUser().GetLogin(),
 				Labels:    restLabelsToDashboard(i.Labels),
-				CreatedAt: i.CreatedAt,
-				UpdatedAt: i.UpdatedAt,
+				CreatedAt: i.GetCreatedAt().Time,
+				UpdatedAt: i.GetUpdatedAt().Time,
 			})
 		}
-		if len(batch) < perPage {
+		if resp.NextPage == 0 {
 			break
 		}
+		opts.ListOptions.Page = resp.NextPage
 	}
 	return issues, nil
-}
-
-type restCheckRun struct {
-	Status     string `json:"status"`
-	Conclusion string `json:"conclusion"`
-}
-
-type restCheckRunsResponse struct {
-	CheckRuns []restCheckRun `json:"check_runs"`
-}
-
-type restCombinedStatusResponse struct {
-	State string `json:"state"`
 }
 
 // ciStatusREST resolves the combined CI result for sha. GitHub Actions
@@ -774,30 +713,34 @@ func (c *Client) ciStatusREST(ctx context.Context, owner, name, sha string) (das
 		return dashboard.CINone, nil
 	}
 
-	var runs restCheckRunsResponse
-	path := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
-	if err := c.get(ctx, path, url.Values{"per_page": {strconv.Itoa(perPage)}}, &runs); err != nil {
-		return dashboard.CINone, err
+	checkRunsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
+	slog.Debug("github request", "method", http.MethodGet, "url", checkRunsPath)
+	runs, _, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{
+		ListOptions: ghsdk.ListOptions{PerPage: perPage},
+	})
+	if err != nil {
+		return dashboard.CINone, restError(http.MethodGet, checkRunsPath, err)
 	}
 	if len(runs.CheckRuns) > 0 {
 		return statusFromCheckRuns(runs.CheckRuns), nil
 	}
 
-	var combined restCombinedStatusResponse
-	path = fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
-	if err := c.get(ctx, path, nil, &combined); err != nil {
-		return dashboard.CINone, err
+	statusPath := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
+	slog.Debug("github request", "method", http.MethodGet, "url", statusPath)
+	combined, _, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, nil)
+	if err != nil {
+		return dashboard.CINone, restError(http.MethodGet, statusPath, err)
 	}
-	return statusFromCombinedState(combined.State), nil
+	return statusFromCombinedState(combined.GetState()), nil
 }
 
-func statusFromCheckRuns(runs []restCheckRun) dashboard.CIStatus {
+func statusFromCheckRuns(runs []*ghsdk.CheckRun) dashboard.CIStatus {
 	failed := false
 	for _, r := range runs {
-		if r.Status != "completed" {
+		if r.GetStatus() != "completed" {
 			return dashboard.CIPending
 		}
-		switch r.Conclusion {
+		switch r.GetConclusion() {
 		case "success", "neutral", "skipped":
 			// counts as passing
 		default:

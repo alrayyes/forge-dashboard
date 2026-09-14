@@ -527,7 +527,7 @@ func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		assert.Empty(t, r.Header.Get("Authorization"), "the public fallback should never send a credential")
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
@@ -536,14 +536,14 @@ func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("/repos/alrayyes/tempus-fugit/pulls", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
 	})
 	mux.HandleFunc("/repos/alrayyes/tempus-fugit/issues", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
@@ -565,7 +565,7 @@ func TestFetch_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
@@ -576,14 +576,14 @@ func TestFetch_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("/repos/alrayyes/active/pulls", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
 	})
 	mux.HandleFunc("/repos/alrayyes/active/issues", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
@@ -604,7 +604,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
@@ -613,7 +613,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 		})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
@@ -628,7 +628,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 		})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
@@ -655,7 +655,7 @@ func TestFetch_NoToken_ExcludesPullRequestsFromIssues(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
@@ -664,14 +664,14 @@ func TestFetch_NoToken_ExcludesPullRequestsFromIssues(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
