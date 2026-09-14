@@ -1132,6 +1132,38 @@ test.describe('dashboard page', () => {
         .analyze();
       expect(results.violations).toEqual([]);
     });
+
+    test('the "CI failing" tile is styled as a warning once something is actually failing', async ({
+      page,
+    }) => {
+      // The beforeEach here has one failing PR.
+      await expect(page.locator('#stat-failing-tile')).toHaveClass(/critical/);
+    });
+  });
+
+  test('the "CI failing" tile is not styled as a warning when the count is zero', async ({
+    page,
+  }) => {
+    // Real bug reported live: the tile carried a static "critical" class
+    // in the markup, so "0 failing" read as an alarm — red for good news.
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [],
+        }),
+      }),
+    );
+    await page.reload();
+
+    await expect(page.locator('#stat-failing')).toHaveText('0');
+    await expect(page.locator('#stat-failing-tile')).not.toHaveClass(
+      /critical/,
+    );
   });
 
   test.describe('label click-to-filter', () => {
