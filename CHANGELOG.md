@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.0](https://github.com/alrayyes/forge-dashboard/compare/v0.39.0...v0.40.0) (2026-09-14)
+
+
+### Features
+
+* **webhooks:** scope a webhook-triggered refresh to the repo it names ([#158](https://github.com/alrayyes/forge-dashboard/issues/158)) ([940b3f2](https://github.com/alrayyes/forge-dashboard/commit/940b3f24b7b0f2f0d068ae942d7840721536115a))
+
 ## [0.39.0](https://github.com/alrayyes/forge-dashboard/compare/v0.38.1...v0.39.0) (2026-09-14)
 
 
