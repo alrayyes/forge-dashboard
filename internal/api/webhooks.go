@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -21,8 +22,8 @@ const maxWebhookBodyBytes = 5 << 20 // 5 MiB
 // handleGitHubWebhook verifies a GitHub repository webhook delivery
 // against its X-Hub-Signature-256 header and triggers an immediate
 // refresh for the user webhookToken identifies.
-func handleGitHubWebhook(store *settings.Store, manager *dashboard.Manager) http.HandlerFunc {
-	return handleWebhook(store, manager, func(h http.Header) string {
+func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager) http.HandlerFunc {
+	return handleWebhook(appCtx, store, manager, func(h http.Header) string {
 		const prefix = "sha256="
 		sig := h.Get("X-Hub-Signature-256")
 		if len(sig) <= len(prefix) || sig[:len(prefix)] != prefix {
@@ -37,8 +38,8 @@ func handleGitHubWebhook(store *settings.Store, manager *dashboard.Manager) http
 // Which header carries the signature depends on whether the webhook was
 // set up with the "Forgejo" type or the legacy "Gitea" one — both are the
 // same raw hex HMAC-SHA256, no prefix.
-func handleForgejoWebhook(store *settings.Store, manager *dashboard.Manager) http.HandlerFunc {
-	return handleWebhook(store, manager, func(h http.Header) string {
+func handleForgejoWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager) http.HandlerFunc {
+	return handleWebhook(appCtx, store, manager, func(h http.Header) string {
 		if sig := h.Get("X-Forgejo-Signature"); sig != "" {
 			return sig
 		}
@@ -54,7 +55,16 @@ func handleForgejoWebhook(store *settings.Store, manager *dashboard.Manager) htt
 // status change, even the "ping" event sent when the webhook is first
 // created — means the same thing here, so nothing about the payload
 // itself is parsed.
-func handleWebhook(store *settings.Store, manager *dashboard.Manager, signatureOf func(http.Header) string) http.HandlerFunc {
+//
+// The refresh runs in the background against appCtx (the process's own
+// long-lived context), not r.Context() — confirmed live: an account with
+// enough tracked repos can take longer to refresh than the sender is
+// willing to wait, and a sender that gives up closes the connection,
+// which cancels r.Context() and would have aborted every still-in-flight
+// forge fetch along with it. The delivery is acknowledged as soon as it's
+// verified; the refresh it triggers survives the delivery ending either
+// way.
+func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager, signatureOf func(http.Header) string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("webhookToken")
 
@@ -79,8 +89,8 @@ func handleWebhook(store *settings.Store, manager *dashboard.Manager, signatureO
 			return
 		}
 
-		manager.RefreshNow(r.Context(), userID)
 		w.WriteHeader(http.StatusNoContent)
+		go manager.RefreshNow(appCtx, userID)
 	}
 }
 
