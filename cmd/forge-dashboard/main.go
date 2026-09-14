@@ -119,11 +119,12 @@ func buildSourcesForUser(c settings.Credentials) []dashboard.Source {
 
 	switch {
 	case c.GitHubToken != "":
-		client := github.NewClient(c.GitHubToken, "", "")
-		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeGitHub, client, dashboard.DefaultMaxConcurrency))
+		// github.Client implements dashboard.Source itself (GraphQL, one
+		// request per refresh) rather than going through GenericSource's
+		// one-REST-call-per-repo model.
+		sources = append(sources, github.NewClient(c.GitHubToken, "", ""))
 	case c.GitHubUsername != "":
-		client := github.NewClient("", c.GitHubUsername, "")
-		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeGitHub, client, dashboard.DefaultMaxConcurrency))
+		sources = append(sources, github.NewClient("", c.GitHubUsername, ""))
 	}
 
 	switch {

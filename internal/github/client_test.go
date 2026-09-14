@@ -22,87 +22,463 @@ func writeJSON(t *testing.T, w http.ResponseWriter, v any) {
 	assert.NoError(t, json.NewEncoder(w).Encode(v))
 }
 
-func TestListRepos_FiltersToPushAccessAndPaginates(t *testing.T) {
-	t.Parallel()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/user/repos", func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Query().Get("page") {
-		case "1":
-			writeJSON(t, w, []map[string]any{
-				{"full_name": "alrayyes/a", "name": "a", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true}},
-				{"full_name": "alrayyes/read-only", "name": "read-only", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": false}},
-			})
-		default:
-			writeJSON(t, w, []map[string]any{})
-		}
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	client := github.NewClient("test-token", "", srv.URL)
-	repos, err := client.ListRepos(t.Context())
-
-	require.NoError(t, err)
-	require.Len(t, repos, 1)
-	assert.Equal(t, "alrayyes/a", repos[0].FullName)
+// graphqlRequestBody is what the client actually posted — tests read it
+// back to assert on the query/variables the client sent, or just to
+// dispatch per-page fixtures during pagination.
+type graphqlRequestBody struct {
+	Query     string         `json:"query"`
+	Variables map[string]any `json:"variables"`
 }
 
-func TestListRepos_ExcludesArchivedAndForkedRepos(t *testing.T) {
+func readGraphQLRequest(t *testing.T, r *http.Request) graphqlRequestBody {
+	t.Helper()
+	var body graphqlRequestBody
+	assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+	return body
+}
+
+func TestFetch_TokenConfigured_UsesGraphQL(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/user/repos", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") != "1" {
-			writeJSON(t, w, []map[string]any{})
-			return
-		}
-		writeJSON(t, w, []map[string]any{
-			{"full_name": "alrayyes/active", "name": "active", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true}, "archived": false, "fork": false},
-			{"full_name": "alrayyes/archived", "name": "archived", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true}, "archived": true, "fork": false},
-			{"full_name": "alrayyes/forked", "name": "forked", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true}, "archived": false, "fork": true},
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "remaining": 4999, "resetAt": "2026-09-14T16:00:00Z"},
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+						"nodes": []map[string]any{
+							{
+								"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+								"owner":        map[string]any{"login": "alrayyes"},
+								"pullRequests": map[string]any{"nodes": []map[string]any{}},
+								"issues":       map[string]any{"nodes": []map[string]any{}},
+							},
+						},
+					},
+				},
+			},
 		})
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
 	client := github.NewClient("test-token", "", srv.URL)
-	repos, err := client.ListRepos(t.Context())
+	result := client.Fetch(t.Context())
 
-	require.NoError(t, err)
-	require.Len(t, repos, 1)
-	assert.Equal(t, "alrayyes/active", repos[0].FullName)
+	require.True(t, result.Health.Reachable)
+	assert.Equal(t, 1, result.Health.RepoCount)
 }
 
-func TestListRepos_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
+func TestFetch_ReportsRateLimit(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "remaining": 4922, "resetAt": "2026-09-14T16:00:00Z"},
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes":    []map[string]any{},
+					},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.NotNil(t, result.Health.RateLimit)
+	assert.Equal(t, 5000, result.Health.RateLimit.Limit)
+	assert.Equal(t, 4922, result.Health.RateLimit.Remaining)
+}
+
+func TestFetch_ExcludesArchivedForkedAndReadOnlyRepos(t *testing.T) {
+	t.Parallel()
+
+	repoNode := func(name string, archived, fork bool, permission string) map[string]any {
+		return map[string]any{
+			"name": name, "isArchived": archived, "isFork": fork, "viewerPermission": permission,
+			"owner":        map[string]any{"login": "alrayyes"},
+			"pullRequests": map[string]any{"nodes": []map[string]any{}},
+			"issues":       map[string]any{"nodes": []map[string]any{}},
+		}
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes": []map[string]any{
+							repoNode("active", false, false, "WRITE"),
+							repoNode("archived", true, false, "WRITE"),
+							repoNode("forked", false, true, "WRITE"),
+							repoNode("read-only", false, false, "READ"),
+							repoNode("admin", false, false, "ADMIN"),
+						},
+					},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+	assert.Equal(t, 2, result.Health.RepoCount, "only \"active\" (WRITE) and \"admin\" (ADMIN) should count")
+}
+
+func TestFetch_MapsPullRequestFieldsAndCIFromStatusCheckRollup(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes": []map[string]any{
+							{
+								"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+								"owner": map[string]any{"login": "alrayyes"},
+								"pullRequests": map[string]any{
+									"nodes": []map[string]any{
+										{
+											"number": 12, "title": "Add NTP alarm", "url": "https://github.com/alrayyes/a/pull/12",
+											"isDraft": false, "author": map[string]any{"login": "ryankes"},
+											"labels":    map[string]any{"nodes": []map[string]any{{"name": "topic/monitoring", "color": "1d76db"}}},
+											"createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+											"commits": map[string]any{
+												"nodes": []map[string]any{
+													{"commit": map[string]any{"statusCheckRollup": map[string]any{"state": "SUCCESS"}}},
+												},
+											},
+										},
+									},
+								},
+								"issues": map[string]any{"nodes": []map[string]any{}},
+							},
+						},
+					},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	pr := result.PullRequests[0]
+
+	t.Run("basic fields", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, 12, pr.Number)
+		assert.Equal(t, "Add NTP alarm", pr.Title)
+		assert.Equal(t, "ryankes", pr.Author)
+		assert.Equal(t, "alrayyes/a", pr.Repo)
+	})
+	t.Run("labels carry through", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, []dashboard.Label{{Name: "topic/monitoring", Color: "1d76db"}}, pr.Labels)
+	})
+	t.Run("CI reflects the status check rollup", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, dashboard.CISuccess, pr.CI)
+	})
+}
+
+func TestFetch_PullRequestWithNoStatusCheckRollup_ReportsCINone(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes": []map[string]any{
+							{
+								"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+								"owner": map[string]any{"login": "alrayyes"},
+								"pullRequests": map[string]any{
+									"nodes": []map[string]any{
+										{
+											"number": 1, "title": "x", "url": "https://x", "isDraft": false,
+											"author": map[string]any{"login": "u"}, "labels": map[string]any{"nodes": []map[string]any{}},
+											"createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-01T00:00:00Z",
+											"commits": map[string]any{
+												"nodes": []map[string]any{
+													{"commit": map[string]any{"statusCheckRollup": nil}},
+												},
+											},
+										},
+									},
+								},
+								"issues": map[string]any{"nodes": []map[string]any{}},
+							},
+						},
+					},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CINone, result.PullRequests[0].CI)
+}
+
+func TestFetch_NullAuthor_ReportsGhost(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes": []map[string]any{
+							{
+								"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+								"owner":        map[string]any{"login": "alrayyes"},
+								"pullRequests": map[string]any{"nodes": []map[string]any{}},
+								"issues": map[string]any{
+									"nodes": []map[string]any{
+										{
+											"number": 5, "title": "deleted account's issue", "url": "https://x",
+											"author": nil, "labels": map[string]any{"nodes": []map[string]any{}},
+											"createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-01T00:00:00Z",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.Issues, 1)
+	assert.Equal(t, "ghost", result.Issues[0].Author)
+}
+
+func TestFetch_FollowsPagination(t *testing.T) {
+	t.Parallel()
+
+	repoNode := func(name string) map[string]any {
+		return map[string]any{
+			"name": name, "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+			"owner":        map[string]any{"login": "alrayyes"},
+			"pullRequests": map[string]any{"nodes": []map[string]any{}},
+			"issues":       map[string]any{"nodes": []map[string]any{}},
+		}
+	}
+
+	calls := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		calls++
+		if body.Variables["cursor"] == nil {
+			writeJSON(t, w, map[string]any{
+				"data": map[string]any{
+					"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+					"viewer": map[string]any{
+						"repositories": map[string]any{
+							"pageInfo": map[string]any{"hasNextPage": true, "endCursor": "cursor-1"},
+							"nodes":    []map[string]any{repoNode("a")},
+						},
+					},
+				},
+			})
+			return
+		}
+		assert.Equal(t, "cursor-1", body.Variables["cursor"])
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "remaining": 4999, "resetAt": "2026-09-14T16:00:00Z"},
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes":    []map[string]any{repoNode("b")},
+					},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+	assert.Equal(t, 2, result.Health.RepoCount)
+	assert.Equal(t, 2, calls)
+}
+
+func TestFetch_GraphQLErrorsArray_ReportsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"errors": []map[string]any{{"message": "Could not resolve to a User with the login of 'ghost'."}},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Contains(t, result.Health.Error, "Could not resolve to a User")
+}
+
+func TestFetch_ErrorIncludesAPIMessage(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]string{"message": "API rate limit exceeded for user ID 511318."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Contains(t, result.Health.Error, "API rate limit exceeded for user ID 511318.")
+}
+
+func TestFetch_RateLimitErrorIncludesResetTime(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "1789400145")
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]string{"message": "API rate limit exceeded."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Contains(t, result.Health.Error, "resets")
+}
+
+func TestFetch_RetryAfterIncludedWhenPresent(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "42")
+		w.WriteHeader(http.StatusTooManyRequests)
+		writeJSON(t, w, map[string]string{"message": "You have exceeded a secondary rate limit."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Contains(t, result.Health.Error, "retry after 42s")
+}
+
+func TestFetch_NoTokenNoUsername_ReportsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	client := github.NewClient("", "", "http://unused.invalid")
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.NotEmpty(t, result.Health.Error)
+}
+
+// ---- REST fallback: username configured, no token ----
+
+func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		assert.Empty(t, r.Header.Get("Authorization"), "the public fallback should never send a credential")
-		assert.Equal(t, "owner", r.URL.Query().Get("type"))
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
 			return
 		}
 		writeJSON(t, w, []map[string]any{
-			// No "permissions" field at all — GitHub omits it entirely on
-			// an unauthenticated request.
-			{"full_name": "alrayyes/hush-hush", "name": "hush-hush", "owner": map[string]string{"login": "alrayyes"}},
+			{"full_name": "alrayyes/tempus-fugit", "name": "tempus-fugit", "owner": map[string]string{"login": "alrayyes"}},
 		})
+	})
+	mux.HandleFunc("/repos/alrayyes/tempus-fugit/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/tempus-fugit/issues", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{})
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
 	client := github.NewClient("", "alrayyes", srv.URL)
-	repos, err := client.ListRepos(t.Context())
+	result := client.Fetch(t.Context())
 
-	require.NoError(t, err)
-	require.Len(t, repos, 1)
-	assert.Equal(t, "alrayyes/hush-hush", repos[0].FullName)
+	require.True(t, result.Health.Reachable)
+	assert.Equal(t, 1, result.Health.RepoCount)
+	assert.Nil(t, result.Health.RateLimit, "the REST fallback has no rate-limit reporting")
 }
 
-func TestListRepos_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
+func TestFetch_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
@@ -117,212 +493,131 @@ func TestListRepos_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 			{"full_name": "alrayyes/forked", "name": "forked", "owner": map[string]string{"login": "alrayyes"}, "archived": false, "fork": true},
 		})
 	})
+	mux.HandleFunc("/repos/alrayyes/active/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/active/issues", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{})
+	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
 	client := github.NewClient("", "alrayyes", srv.URL)
-	repos, err := client.ListRepos(t.Context())
+	result := client.Fetch(t.Context())
 
-	require.NoError(t, err)
-	require.Len(t, repos, 1)
-	assert.Equal(t, "alrayyes/active", repos[0].FullName)
+	require.True(t, result.Health.Reachable)
+	assert.Equal(t, 1, result.Health.RepoCount)
 }
 
-func TestListRepos_NeitherTokenNorUsername_Errors(t *testing.T) {
-	t.Parallel()
-
-	client := github.NewClient("", "", "http://unused.invalid")
-	_, err := client.ListRepos(t.Context())
-
-	require.Error(t, err)
-}
-
-func TestListRepos_ErrorIncludesAPIMessage(t *testing.T) {
+func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/user/repos", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-		writeJSON(t, w, map[string]string{"message": "API rate limit exceeded for user ID 511318."})
+	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/a", "name": "a", "owner": map[string]string{"login": "alrayyes"}},
+		})
 	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	client := github.NewClient("test-token", "", srv.URL)
-	_, err := client.ListRepos(t.Context())
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "API rate limit exceeded for user ID 511318.")
-}
-
-func TestListRepos_RateLimitErrorIncludesResetTime(t *testing.T) {
-	t.Parallel()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/user/repos", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("X-RateLimit-Remaining", "0")
-		w.Header().Set("X-RateLimit-Reset", "1789395740")
-		w.WriteHeader(http.StatusForbidden)
-		writeJSON(t, w, map[string]string{"message": "API rate limit exceeded."})
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	client := github.NewClient("test-token", "", srv.URL)
-	_, err := client.ListRepos(t.Context())
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "resets")
-}
-
-func TestListRepos_RetryAfterIncludedWhenPresent(t *testing.T) {
-	t.Parallel()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/user/repos", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Retry-After", "42")
-		w.WriteHeader(http.StatusTooManyRequests)
-		writeJSON(t, w, map[string]string{"message": "You have exceeded a secondary rate limit."})
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	client := github.NewClient("test-token", "", srv.URL)
-	_, err := client.ListRepos(t.Context())
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "retry after 42s")
-}
-
-func TestRateLimit_ReportsCoreResource(t *testing.T) {
-	t.Parallel()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/rate_limit", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, map[string]any{
-			"resources": map[string]any{
-				"core":   map[string]any{"limit": 5000, "remaining": 4922, "reset": 1789400145},
-				"search": map[string]any{"limit": 30, "remaining": 30, "reset": 1789400145},
+	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{
+				"number": 12, "title": "Add NTP alarm", "html_url": "https://github.com/alrayyes/a/pull/12",
+				"draft": false, "user": map[string]string{"login": "ryankes"},
+				"labels":     []map[string]string{{"name": "topic/monitoring", "color": "1d76db"}},
+				"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+				"head": map[string]string{"sha": "cafef00d"},
 			},
 		})
 	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	client := github.NewClient("test-token", "", srv.URL)
-	rl, err := client.RateLimit(t.Context())
-
-	require.NoError(t, err)
-	assert.Equal(t, 5000, rl.Limit)
-	assert.Equal(t, 4922, rl.Remaining)
-	assert.Equal(t, int64(1789400145), rl.ResetsAt.Unix())
-}
-
-func TestListOpenPullRequests_MapsFieldsAndResolvesCIFromCheckRuns(t *testing.T) {
-	t.Parallel()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") == "1" {
-			writeJSON(t, w, []map[string]any{
-				{
-					"number": 42, "title": "Add widget", "html_url": "https://github.com/alrayyes/a/pull/42",
-					"draft": true, "user": map[string]string{"login": "ryankes"},
-					"labels":     []map[string]string{{"name": "enhancement", "color": "a2eeef"}},
-					"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
-					"head": map[string]string{"sha": "deadbeef"},
-				},
-			})
-			return
-		}
-		writeJSON(t, w, []map[string]any{})
-	})
-	mux.HandleFunc("/repos/alrayyes/a/commits/deadbeef/check-runs", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, map[string]any{
-			"check_runs": []map[string]string{
-				{"status": "completed", "conclusion": "failure"},
-				{"status": "completed", "conclusion": "success"},
-			},
-		})
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	client := github.NewClient("test-token", "", srv.URL)
-	prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
-
-	require.NoError(t, err)
-	require.Len(t, prs, 1)
-	pr := prs[0]
-
-	t.Run("basic fields", func(t *testing.T) {
-		t.Parallel()
-		assert.Equal(t, 42, pr.Number)
-		assert.Equal(t, "Add widget", pr.Title)
-		assert.True(t, pr.Draft)
-		assert.Equal(t, "ryankes", pr.Author)
-	})
-	t.Run("labels carry through", func(t *testing.T) {
-		t.Parallel()
-		assert.Equal(t, []dashboard.Label{{Name: "enhancement", Color: "a2eeef"}}, pr.Labels)
-	})
-	t.Run("CI reflects the failed check run", func(t *testing.T) {
-		t.Parallel()
-		assert.Equal(t, dashboard.CIFailure, pr.CI)
-	})
-}
-
-func TestListOpenPullRequests_FallsBackToCombinedStatusWhenNoCheckRuns(t *testing.T) {
-	t.Parallel()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") == "1" {
-			writeJSON(t, w, []map[string]any{
-				{"number": 1, "title": "x", "html_url": "https://x", "user": map[string]string{"login": "u"}, "head": map[string]string{"sha": "sha1"}},
-			})
-			return
-		}
-		writeJSON(t, w, []map[string]any{})
-	})
-	mux.HandleFunc("/repos/alrayyes/a/commits/sha1/check-runs", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, map[string]any{"check_runs": []map[string]string{}})
-	})
-	mux.HandleFunc("/repos/alrayyes/a/commits/sha1/status", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, map[string]string{"state": "pending"})
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	client := github.NewClient("test-token", "", srv.URL)
-	prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
-
-	require.NoError(t, err)
-	require.Len(t, prs, 1)
-	assert.Equal(t, dashboard.CIPending, prs[0].CI)
-}
-
-func TestListOpenIssues_ExcludesPullRequests(t *testing.T) {
-	t.Parallel()
-
-	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("page") == "1" {
-			writeJSON(t, w, []map[string]any{
-				{"number": 1, "title": "a real issue", "html_url": "https://x/1", "user": map[string]string{"login": "u"}},
-				{"number": 2, "title": "actually a PR", "html_url": "https://x/2", "user": map[string]string{"login": "u"}, "pull_request": map[string]string{"url": "https://x"}},
-			})
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
 	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]string{{"status": "completed", "conclusion": "success"}}})
+	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	client := github.NewClient("test-token", "", srv.URL)
-	issues, err := client.ListOpenIssues(t.Context(), "alrayyes", "a", "alrayyes/a")
+	client := github.NewClient("", "alrayyes", srv.URL)
+	result := client.Fetch(t.Context())
 
-	require.NoError(t, err)
-	require.Len(t, issues, 1)
-	assert.Equal(t, 1, issues[0].Number)
+	require.Len(t, result.PullRequests, 1)
+	pr := result.PullRequests[0]
+	assert.Equal(t, 12, pr.Number)
+	assert.Equal(t, "ryankes", pr.Author)
+	assert.Equal(t, dashboard.CISuccess, pr.CI)
+}
+
+func TestFetch_NoToken_ExcludesPullRequestsFromIssues(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/a", "name": "a", "owner": map[string]string{"login": "alrayyes"}},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{
+				"number": 1, "title": "a real issue", "html_url": "https://x",
+				"user": map[string]string{"login": "u"}, "labels": []map[string]string{},
+				"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-01T00:00:00Z",
+			},
+			{
+				"number": 2, "title": "actually a PR", "html_url": "https://x",
+				"user": map[string]string{"login": "u"}, "labels": []map[string]string{},
+				"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-01T00:00:00Z",
+				"pull_request": map[string]string{"url": "https://x"},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("", "alrayyes", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.Issues, 1)
+	assert.Equal(t, 1, result.Issues[0].Number)
+}
+
+func TestFetch_Source(t *testing.T) {
+	t.Parallel()
+	var _ dashboard.Source = github.NewClient("token", "", "")
 }
