@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -23,7 +24,7 @@ const maxWebhookBodyBytes = 5 << 20 // 5 MiB
 // against its X-Hub-Signature-256 header and triggers an immediate
 // refresh for the user webhookToken identifies.
 func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager) http.HandlerFunc {
-	return handleWebhook(appCtx, store, manager, func(h http.Header) string {
+	return handleWebhook(appCtx, store, manager, dashboard.ForgeGitHub, func(h http.Header) string {
 		const prefix = "sha256="
 		sig := h.Get("X-Hub-Signature-256")
 		if len(sig) <= len(prefix) || sig[:len(prefix)] != prefix {
@@ -39,7 +40,7 @@ func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager 
 // set up with the "Forgejo" type or the legacy "Gitea" one — both are the
 // same raw hex HMAC-SHA256, no prefix.
 func handleForgejoWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager) http.HandlerFunc {
-	return handleWebhook(appCtx, store, manager, func(h http.Header) string {
+	return handleWebhook(appCtx, store, manager, dashboard.ForgeForgejo, func(h http.Header) string {
 		if sig := h.Get("X-Forgejo-Signature"); sig != "" {
 			return sig
 		}
@@ -47,14 +48,41 @@ func handleForgejoWebhook(appCtx context.Context, store *settings.Store, manager
 	})
 }
 
+// webhookPayload is the piece of a webhook delivery's body every event
+// that carries a repository (which is almost all of them — a few, like
+// "ping", don't) shares. Forgejo models its webhook payloads on GitHub's
+// own for the same reason its REST API does, so one shape covers both.
+type webhookPayload struct {
+	Repository struct {
+		FullName string `json:"full_name"`
+		Name     string `json:"name"`
+		Owner    struct {
+			Login string `json:"login"`
+		} `json:"owner"`
+	} `json:"repository"`
+}
+
+// repoFromPayload extracts the repository a webhook delivery names, if
+// its body has one — a malformed body already failed signature
+// verification before this runs, so a parse failure here just means an
+// event shape with no repository (a "ping", most likely), not a real
+// error.
+func repoFromPayload(body []byte) (owner, name, fullName string, ok bool) {
+	var payload webhookPayload
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", "", "", false
+	}
+	r := payload.Repository
+	if r.FullName == "" || r.Name == "" || r.Owner.Login == "" {
+		return "", "", "", false
+	}
+	return r.Owner.Login, r.Name, r.FullName, true
+}
+
 // handleWebhook is what handleGitHubWebhook and handleForgejoWebhook
 // share: look up the user by the path token, verify the body against
 // their webhook secret using whatever signatureOf extracts from the
-// request's headers, and refresh on success. Every event a tracked
-// repo's webhook can send — a new pull request, a closed issue, a CI
-// status change, even the "ping" event sent when the webhook is first
-// created — means the same thing here, so nothing about the payload
-// itself is parsed.
+// request's headers, and refresh on success.
 //
 // The refresh runs in the background against appCtx (the process's own
 // long-lived context), not r.Context() — confirmed live: an account with
@@ -64,7 +92,7 @@ func handleForgejoWebhook(appCtx context.Context, store *settings.Store, manager
 // forge fetch along with it. The delivery is acknowledged as soon as it's
 // verified; the refresh it triggers survives the delivery ending either
 // way.
-func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager, signatureOf func(http.Header) string) http.HandlerFunc {
+func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager, forge dashboard.Forge, signatureOf func(http.Header) string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("webhookToken")
 
@@ -90,8 +118,27 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 		}
 
 		w.WriteHeader(http.StatusNoContent)
-		go manager.RefreshNow(appCtx, userID)
+		go triggerRefresh(appCtx, manager, userID, forge, body)
 	}
+}
+
+// triggerRefresh scopes a webhook-triggered refresh to just the repo the
+// payload names, when it can — a webhook for one repo used to refresh a
+// user's entire tracked-repo set across both forges, real incident:
+// exhausting the account's shared GitHub rate-limit budget on an account
+// with many webhooked repos and real activity across them. Falls back to
+// a full RefreshNow whenever it can't: an unparseable or repository-less
+// payload (a "ping" delivery, most likely), or a forge whose Source
+// doesn't support a scoped fetch yet (Aggregator.RefreshRepo's own
+// RepoRefresher check) — a repo should never go unrefreshed just because
+// the scoped path couldn't be taken.
+func triggerRefresh(ctx context.Context, manager *dashboard.Manager, userID []byte, forge dashboard.Forge, body []byte) {
+	if owner, name, fullName, ok := repoFromPayload(body); ok {
+		if manager.RefreshRepo(ctx, userID, forge, owner, name, fullName) {
+			return
+		}
+	}
+	manager.RefreshNow(ctx, userID)
 }
 
 func validSignature(body []byte, secret, signatureHex string) bool {

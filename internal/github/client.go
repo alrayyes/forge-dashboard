@@ -502,35 +502,136 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		fullName := r.Owner.Login + "/" + r.Name
 
 		for _, p := range r.PullRequests.Nodes {
-			result.PullRequests = append(result.PullRequests, dashboard.PullRequest{
-				Forge:     dashboard.ForgeGitHub,
-				Repo:      fullName,
-				Number:    p.Number,
-				Title:     p.Title,
-				URL:       p.URL,
-				Author:    authorLogin(p.Author),
-				Draft:     p.IsDraft,
-				Labels:    labelsFromNodes(p.Labels.Nodes),
-				CreatedAt: p.CreatedAt,
-				UpdatedAt: p.UpdatedAt,
-				CI:        ciFromRollup(p.Commits.Nodes),
-			})
+			result.PullRequests = append(result.PullRequests, mapPullRequest(fullName, p))
 		}
 		for _, i := range r.Issues.Nodes {
-			result.Issues = append(result.Issues, dashboard.Issue{
-				Forge:     dashboard.ForgeGitHub,
-				Repo:      fullName,
-				Number:    i.Number,
-				Title:     i.Title,
-				URL:       i.URL,
-				Author:    authorLogin(i.Author),
-				Labels:    labelsFromNodes(i.Labels.Nodes),
-				CreatedAt: i.CreatedAt,
-				UpdatedAt: i.UpdatedAt,
-			})
+			result.Issues = append(result.Issues, mapIssue(fullName, i))
 		}
 	}
 	return result
+}
+
+func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
+	return dashboard.PullRequest{
+		Forge:     dashboard.ForgeGitHub,
+		Repo:      fullName,
+		Number:    p.Number,
+		Title:     p.Title,
+		URL:       p.URL,
+		Author:    authorLogin(p.Author),
+		Draft:     p.IsDraft,
+		Labels:    labelsFromNodes(p.Labels.Nodes),
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+		CI:        ciFromRollup(p.Commits.Nodes),
+	}
+}
+
+func mapIssue(fullName string, i graphqlIssue) dashboard.Issue {
+	return dashboard.Issue{
+		Forge:     dashboard.ForgeGitHub,
+		Repo:      fullName,
+		Number:    i.Number,
+		Title:     i.Title,
+		URL:       i.URL,
+		Author:    authorLogin(i.Author),
+		Labels:    labelsFromNodes(i.Labels.Nodes),
+		CreatedAt: i.CreatedAt,
+		UpdatedAt: i.UpdatedAt,
+	}
+}
+
+// repoQueryTemplate is reposQueryTemplate's single-repo counterpart —
+// same pull request/issue field shapes, scoped to the one repository a
+// webhook delivery already names, for RefreshRepo (dashboard.
+// RepoRefresher) rather than a full account-wide Fetch.
+const repoQueryTemplate = `
+query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(states: OPEN, first: %[1]d) {
+      nodes {
+        number
+        title
+        url
+        isDraft
+        author {
+          login
+        }
+        labels(first: 20) {
+          nodes {
+            name
+            color
+          }
+        }
+        createdAt
+        updatedAt
+        commits(last: 1) {
+          nodes {
+            commit {
+              statusCheckRollup {
+                state
+              }
+            }
+          }
+        }
+      }
+    }
+    issues(states: OPEN, first: %[1]d) {
+      nodes {
+        number
+        title
+        url
+        author {
+          login
+        }
+        labels(first: 20) {
+          nodes {
+            name
+            color
+          }
+        }
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}
+`
+
+var repoQuery = fmt.Sprintf(repoQueryTemplate, itemsPerRepo)
+
+type repoQueryResponse struct {
+	Repository *struct {
+		PullRequests struct {
+			Nodes []graphqlPullRequest `json:"nodes"`
+		} `json:"pullRequests"`
+		Issues struct {
+			Nodes []graphqlIssue `json:"nodes"`
+		} `json:"issues"`
+	} `json:"repository"`
+}
+
+// FetchRepo implements dashboard.RepoRefresher: the single-repo
+// counterpart to Fetch's account-wide GraphQL query, for a webhook
+// delivery that already knows exactly which repo changed.
+func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([]dashboard.PullRequest, []dashboard.Issue, error) {
+	var resp repoQueryResponse
+	if err := c.graphqlDo(ctx, repoQuery, map[string]any{"owner": owner, "name": name}, &resp); err != nil {
+		return nil, nil, err
+	}
+	if resp.Repository == nil {
+		return nil, nil, fmt.Errorf("github: graphql: repository %s not found", fullName)
+	}
+
+	prs := make([]dashboard.PullRequest, 0, len(resp.Repository.PullRequests.Nodes))
+	for _, p := range resp.Repository.PullRequests.Nodes {
+		prs = append(prs, mapPullRequest(fullName, p))
+	}
+	issues := make([]dashboard.Issue, 0, len(resp.Repository.Issues.Nodes))
+	for _, i := range resp.Repository.Issues.Nodes {
+		issues = append(issues, mapIssue(fullName, i))
+	}
+	return prs, issues, nil
 }
 
 // ==== REST fallback (username only, no token) ====

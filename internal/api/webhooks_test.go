@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -67,6 +68,36 @@ func (s *slowCountingSource) Fetch(ctx context.Context) dashboard.Result {
 }
 
 func (s *slowCountingSource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
+
+// repoCountingSource implements dashboard.RepoRefresher as well as
+// dashboard.Source, tracking full-account Fetch calls separately from
+// per-repo FetchRepo calls — the assertion surface for "a webhook naming
+// a repo triggered a scoped refresh, not a full one."
+type repoCountingSource struct {
+	fetchCalls     *atomic.Int64
+	repoFetchCalls sync.Map // fullName string -> *atomic.Int64
+}
+
+func (s *repoCountingSource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
+
+func (s *repoCountingSource) Fetch(_ context.Context) dashboard.Result {
+	n := s.fetchCalls.Add(1)
+	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: int(n)}}
+}
+
+func (s *repoCountingSource) FetchRepo(_ context.Context, _, _, fullName string) ([]dashboard.PullRequest, []dashboard.Issue, error) {
+	counter, _ := s.repoFetchCalls.LoadOrStore(fullName, &atomic.Int64{})
+	counter.(*atomic.Int64).Add(1)
+	return []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: fullName, Number: 1}}, nil, nil
+}
+
+func (s *repoCountingSource) repoFetchCallCount(fullName string) int64 {
+	counter, ok := s.repoFetchCalls.Load(fullName)
+	if !ok {
+		return 0
+	}
+	return counter.(*atomic.Int64).Load()
+}
 
 // newTestServerWithCountingSource registers a user, saves a throwaway
 // GitHub token so a countingSource is wired into their Manager
@@ -348,6 +379,58 @@ func TestForgejoWebhook_UnknownToken_Returns404(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestGitHubWebhook_PayloadNamesARepo_TriggersOnlyAScopedRefresh(t *testing.T) {
+	t.Parallel()
+
+	// Real incident: a webhook for one repository in a many-repo account
+	// triggered a full account-wide refresh, repeatedly enough to exhaust
+	// the account's shared GitHub rate-limit budget. The payload already
+	// names the repo that changed; a scoped refresh should use it instead
+	// of re-fetching every tracked repo.
+	source := &repoCountingSource{fetchCalls: &atomic.Int64{}}
+	srvURL, sessionCookie := newTestServerWithSource(t, source)
+	require.Eventually(t, func() bool { return source.fetchCalls.Load() >= 1 }, time.Second, 5*time.Millisecond, "Ensure should have fetched at least once already")
+	fetchesBeforeWebhook := source.fetchCalls.Load()
+
+	token, secret := webhookCredentials(t, srvURL, sessionCookie)
+	body := []byte(`{"action":"opened","repository":{"full_name":"alrayyes/tempus-fugit","name":"tempus-fugit","owner":{"login":"alrayyes"}}}`)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Eventually(t, func() bool { return source.repoFetchCallCount("alrayyes/tempus-fugit") >= 1 }, time.Second, 10*time.Millisecond,
+		"a webhook naming a repo should trigger a scoped refresh for it")
+	assert.Equal(t, fetchesBeforeWebhook, source.fetchCalls.Load(), "a scoped refresh must not also trigger a full account-wide fetch")
+}
+
+func TestGitHubWebhook_PayloadWithNoRepository_FallsBackToFullRefresh(t *testing.T) {
+	t.Parallel()
+
+	// The "ping" event Forgejo/GitHub send when a webhook is first created,
+	// and any payload shape this handler doesn't recognize, should still
+	// result in a refresh — just the account-wide one, not silently
+	// nothing.
+	srvURL, calls, sessionCookie := newTestServerWithCountingSource(t)
+	token, secret := webhookCredentials(t, srvURL, sessionCookie)
+	before := calls.Load()
+
+	body := []byte(`{"zen":"Responsive is better than fast."}`)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Eventually(t, func() bool { return calls.Load() > before }, time.Second, 10*time.Millisecond,
+		"a payload with no repository field should still fall back to a full refresh")
 }
 
 func TestWebhook_RefreshSurvivesTheTriggeringRequestEnding(t *testing.T) {
