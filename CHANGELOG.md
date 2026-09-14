@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.39.0](https://github.com/alrayyes/forge-dashboard/compare/v0.38.1...v0.39.0) (2026-09-14)
+
+
+### Features
+
+* **dashboard:** add Aggregator/Manager.RefreshRepo for scoped refreshes ([#156](https://github.com/alrayyes/forge-dashboard/issues/156)) ([f9fa3df](https://github.com/alrayyes/forge-dashboard/commit/f9fa3df41d6db3a7384f704845793e72ce93f015))
+
 ## [0.38.1](https://github.com/alrayyes/forge-dashboard/compare/v0.38.0...v0.38.1) (2026-09-14)
 
 
