@@ -1,20 +1,20 @@
-// Package forgejo is a thin client for the pieces of the Forgejo API
+// Package forgejo is a client for the pieces of the Forgejo API
 // (Gitea-compatible) forge-dashboard needs — the same shape as
 // internal/github, against a different API under a self-hosted host.
+// Driven by code.gitea.io/sdk/gitea, the official Gitea Go client and the
+// one Forgejo's own API compatibility targets, rather than hand-rolled
+// requests.
 package forgejo
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
+	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -27,10 +27,9 @@ const pageLimit = 50
 // user (a token) or anonymously against one user's public repositories on
 // that instance (a username, no token at all).
 type Client struct {
-	httpClient *http.Client
-	baseURL    string
-	token      string
-	username   string
+	sdk      *gitea.Client
+	token    string
+	username string
 }
 
 // NewClient returns a Client against instanceURL (e.g.
@@ -40,86 +39,49 @@ type Client struct {
 // goes out unauthenticated and ListRepos returns only username's public
 // repos on that instance.
 func NewClient(instanceURL, token, username string) *Client {
-	return &Client{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		baseURL:    strings.TrimRight(instanceURL, "/") + "/api/v1",
-		token:      token,
-		username:   username,
+	opts := []gitea.ClientOption{
+		gitea.SetHTTPClient(&http.Client{Timeout: 30 * time.Second}),
+		// Skips the server-version probe NewClient otherwise makes on
+		// every construction: this client only ever calls endpoints
+		// that have been stable since Gitea 1.11, so there's nothing to
+		// gate on a version check for.
+		gitea.SetGiteaVersion(""),
 	}
+	if token != "" {
+		opts = append(opts, gitea.SetToken(token))
+	}
+
+	sdk, err := gitea.NewClient(instanceURL, opts...)
+	if err != nil {
+		// SetHTTPClient, SetToken and SetGiteaVersion("") never fail,
+		// and SetGiteaVersion("") disables the one check (a server-version
+		// probe) that otherwise could — this can't actually happen.
+		panic(fmt.Sprintf("forgejo: unexpected client construction error: %v", err))
+	}
+
+	return &Client{sdk: sdk, token: token, username: username}
 }
 
-func (c *Client) get(ctx context.Context, path string, query url.Values, out any) error {
-	u := c.baseURL + path
-	if query != nil {
-		u += "?" + query.Encode()
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/json")
-	if c.token != "" {
-		// Forgejo/Gitea's own personal-access-token scheme, distinct from
-		// GitHub's "Bearer" — see the Forgejo API docs' authentication
-		// section.
-		req.Header.Set("Authorization", "token "+c.token)
-	}
-
-	slog.Debug("forgejo request", "method", http.MethodGet, "url", u)
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("forgejo: GET %s: %s", path, apiErrorDetail(resp))
-	}
-
-	if out == nil {
-		return nil
-	}
-	return json.NewDecoder(resp.Body).Decode(out)
+func (c *Client) setContext(ctx context.Context) {
+	c.sdk.SetContext(ctx)
 }
 
-// apiErrorDetail turns a failed response into the reason a person reading
-// the dashboard's forge-health error actually needs: the instance's own
-// error message where the body carries one, plus a Retry-After wait
-// (RFC 9110 §10.2.3) where a fronting proxy or the instance itself sent
-// one — Forgejo has no built-in rate limiting of its own, but this still
-// covers an instance sitting behind one that does.
-func apiErrorDetail(resp *http.Response) string {
-	msg := resp.Status
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-	if err == nil {
-		var apiErr struct {
-			Message string `json:"message"`
-		}
-		if json.Unmarshal(body, &apiErr) == nil && apiErr.Message != "" {
-			msg = apiErr.Message
+// forgejoError turns a failed gitea SDK call into the reason a person
+// reading the dashboard's forge-health error actually needs: the
+// instance's own error message (already extracted from the response body
+// by the SDK), plus a Retry-After wait (RFC 9110 §10.2.3) where a
+// fronting proxy or the instance itself sent one — Forgejo has no
+// built-in rate limiting of its own, but this still covers an instance
+// sitting behind one that does. The SDK's *Response is populated even on
+// a failed request, which is what makes the header still readable here.
+func forgejoError(method, path string, resp *gitea.Response, err error) error {
+	msg := err.Error()
+	if resp != nil {
+		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+			msg += fmt.Sprintf(" (retry after %ss)", retryAfter)
 		}
 	}
-
-	if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
-		msg += fmt.Sprintf(" (retry after %ss)", retryAfter)
-	}
-
-	return msg
-}
-
-type repoJSON struct {
-	FullName string `json:"full_name"`
-	Name     string `json:"name"`
-	Owner    struct {
-		Login string `json:"login"`
-	} `json:"owner"`
-	Permissions struct {
-		Push bool `json:"push"`
-	} `json:"permissions"`
-	Archived bool `json:"archived"`
-	Fork     bool `json:"fork"`
-	Mirror   bool `json:"mirror"`
+	return fmt.Errorf("forgejo: %s %s: %s", method, path, msg)
 }
 
 // ListRepos returns the repositories this Client is configured to track —
@@ -131,30 +93,45 @@ func (c *Client) ListRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
 	case c.username != "":
 		return c.listPublicRepos(ctx)
 	default:
-		return nil, fmt.Errorf("forgejo: neither a token nor a username is configured")
+		return nil, errors.New("forgejo: neither a token nor a username is configured")
 	}
+}
+
+func repoRef(r *gitea.Repository) dashboard.RepoRef {
+	owner := ""
+	if r.Owner != nil {
+		owner = r.Owner.UserName
+	}
+	return dashboard.RepoRef{FullName: r.FullName, Owner: owner, Name: r.Name}
+}
+
+func hasPushAccess(r *gitea.Repository) bool {
+	return r.Permissions != nil && r.Permissions.Push
 }
 
 // listWriteRepos returns every repository the token can push to, across
 // every page.
 func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
+	c.setContext(ctx)
 	var repos []dashboard.RepoRef
+	opt := gitea.ListReposOptions{ListOptions: gitea.ListOptions{PageSize: pageLimit}}
 
-	for page := 1; ; page++ {
-		var batch []repoJSON
-		q := url.Values{"limit": {strconv.Itoa(pageLimit)}, "page": {strconv.Itoa(page)}}
-		if err := c.get(ctx, "/user/repos", q, &batch); err != nil {
-			return nil, err
+	for {
+		slog.Debug("forgejo request", "method", http.MethodGet, "url", "/user/repos")
+		batch, resp, err := c.sdk.ListMyRepos(opt)
+		if err != nil {
+			return nil, forgejoError(http.MethodGet, "/user/repos", resp, err)
 		}
 		for _, r := range batch {
-			if !r.Permissions.Push || r.Archived || r.Fork || r.Mirror {
+			if !hasPushAccess(r) || r.Archived || r.Fork || r.Mirror {
 				continue
 			}
-			repos = append(repos, dashboard.RepoRef{FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name})
+			repos = append(repos, repoRef(r))
 		}
-		if len(batch) < pageLimit {
+		if resp.NextPage == 0 {
 			break
 		}
+		opt.Page = resp.NextPage
 	}
 	return repos, nil
 }
@@ -162,52 +139,32 @@ func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error
 // listPublicRepos returns every public repository username owns on this
 // instance, with no authentication at all.
 func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
+	c.setContext(ctx)
 	var repos []dashboard.RepoRef
+	opt := gitea.ListReposOptions{ListOptions: gitea.ListOptions{PageSize: pageLimit}}
+	path := fmt.Sprintf("/users/%s/repos", c.username)
 
-	for page := 1; ; page++ {
-		var batch []repoJSON
-		q := url.Values{"limit": {strconv.Itoa(pageLimit)}, "page": {strconv.Itoa(page)}}
-		path := fmt.Sprintf("/users/%s/repos", c.username)
-		if err := c.get(ctx, path, q, &batch); err != nil {
-			return nil, err
+	for {
+		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+		batch, resp, err := c.sdk.ListUserRepos(c.username, opt)
+		if err != nil {
+			return nil, forgejoError(http.MethodGet, path, resp, err)
 		}
 		for _, r := range batch {
 			if r.Archived || r.Fork || r.Mirror {
 				continue
 			}
-			repos = append(repos, dashboard.RepoRef{FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name})
+			repos = append(repos, repoRef(r))
 		}
-		if len(batch) < pageLimit {
+		if resp.NextPage == 0 {
 			break
 		}
+		opt.Page = resp.NextPage
 	}
 	return repos, nil
 }
 
-type userJSON struct {
-	Login string `json:"login"`
-}
-
-type labelJSON struct {
-	Name  string `json:"name"`
-	Color string `json:"color"`
-}
-
-type pullJSON struct {
-	Number    int         `json:"number"`
-	Title     string      `json:"title"`
-	HTMLURL   string      `json:"html_url"`
-	Draft     bool        `json:"draft"`
-	User      userJSON    `json:"user"`
-	Labels    []labelJSON `json:"labels"`
-	CreatedAt time.Time   `json:"created_at"`
-	UpdatedAt time.Time   `json:"updated_at"`
-	Head      struct {
-		SHA string `json:"sha"`
-	} `json:"head"`
-}
-
-func toLabels(labels []labelJSON) []dashboard.Label {
+func toLabels(labels []*gitea.Label) []dashboard.Label {
 	out := make([]dashboard.Label, 0, len(labels))
 	for _, l := range labels {
 		out = append(out, dashboard.Label{Name: l.Name, Color: l.Color})
@@ -215,92 +172,99 @@ func toLabels(labels []labelJSON) []dashboard.Label {
 	return out
 }
 
+func posterLogin(u *gitea.User) string {
+	if u == nil {
+		return ""
+	}
+	return u.UserName
+}
+
 // ListOpenPullRequests returns every open pull request against repo, with
 // CI already resolved. repo is owner-qualified ("alrayyes/tempus-fugit").
 func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
+	c.setContext(ctx)
 	var prs []dashboard.PullRequest
+	path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
+	opt := gitea.ListPullRequestsOptions{State: gitea.StateOpen, ListOptions: gitea.ListOptions{PageSize: pageLimit}}
 
-	for page := 1; ; page++ {
-		var batch []pullJSON
-		q := url.Values{"state": {"open"}, "limit": {strconv.Itoa(pageLimit)}, "page": {strconv.Itoa(page)}}
-		path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
-		if err := c.get(ctx, path, q, &batch); err != nil {
-			return nil, err
+	for {
+		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+		batch, resp, err := c.sdk.ListRepoPullRequests(owner, name, opt)
+		if err != nil {
+			return nil, forgejoError(http.MethodGet, path, resp, err)
 		}
 		for _, p := range batch {
-			ci, err := c.ciStatus(ctx, owner, name, p.Head.SHA)
+			sha := ""
+			if p.Head != nil {
+				sha = p.Head.Sha
+			}
+			ci, err := c.ciStatus(ctx, owner, name, sha)
 			if err != nil {
 				ci = dashboard.CINone
+			}
+			var created, updated time.Time
+			if p.Created != nil {
+				created = *p.Created
+			}
+			if p.Updated != nil {
+				updated = *p.Updated
 			}
 			prs = append(prs, dashboard.PullRequest{
 				Forge:     dashboard.ForgeForgejo,
 				Repo:      repo,
-				Number:    p.Number,
+				Number:    int(p.Index),
 				Title:     p.Title,
 				URL:       p.HTMLURL,
-				Author:    p.User.Login,
+				Author:    posterLogin(p.Poster),
 				Draft:     p.Draft,
 				Labels:    toLabels(p.Labels),
-				CreatedAt: p.CreatedAt,
-				UpdatedAt: p.UpdatedAt,
+				CreatedAt: created,
+				UpdatedAt: updated,
 				CI:        ci,
 			})
 		}
-		if len(batch) < pageLimit {
+		if resp.NextPage == 0 {
 			break
 		}
+		opt.Page = resp.NextPage
 	}
 	return prs, nil
-}
-
-type issueJSON struct {
-	Number    int         `json:"number"`
-	Title     string      `json:"title"`
-	HTMLURL   string      `json:"html_url"`
-	User      userJSON    `json:"user"`
-	Labels    []labelJSON `json:"labels"`
-	CreatedAt time.Time   `json:"created_at"`
-	UpdatedAt time.Time   `json:"updated_at"`
 }
 
 // ListOpenIssues returns every open issue against repo. Forgejo's issues
 // endpoint takes type=issues to exclude pull requests server-side, unlike
 // GitHub's equivalent — no client-side filtering needed here.
 func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) ([]dashboard.Issue, error) {
+	c.setContext(ctx)
 	var issues []dashboard.Issue
+	path := fmt.Sprintf("/repos/%s/%s/issues", owner, name)
+	opt := gitea.ListIssueOption{State: gitea.StateOpen, Type: gitea.IssueTypeIssue, ListOptions: gitea.ListOptions{PageSize: pageLimit}}
 
-	for page := 1; ; page++ {
-		var batch []issueJSON
-		q := url.Values{
-			"state": {"open"}, "type": {"issues"},
-			"limit": {strconv.Itoa(pageLimit)}, "page": {strconv.Itoa(page)},
-		}
-		path := fmt.Sprintf("/repos/%s/%s/issues", owner, name)
-		if err := c.get(ctx, path, q, &batch); err != nil {
-			return nil, err
+	for {
+		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+		batch, resp, err := c.sdk.ListRepoIssues(owner, name, opt)
+		if err != nil {
+			return nil, forgejoError(http.MethodGet, path, resp, err)
 		}
 		for _, i := range batch {
 			issues = append(issues, dashboard.Issue{
 				Forge:     dashboard.ForgeForgejo,
 				Repo:      repo,
-				Number:    i.Number,
+				Number:    int(i.Index),
 				Title:     i.Title,
 				URL:       i.HTMLURL,
-				Author:    i.User.Login,
+				Author:    posterLogin(i.Poster),
 				Labels:    toLabels(i.Labels),
-				CreatedAt: i.CreatedAt,
-				UpdatedAt: i.UpdatedAt,
+				CreatedAt: i.Created,
+				UpdatedAt: i.Updated,
 			})
 		}
-		if len(batch) < pageLimit {
+		if resp.NextPage == 0 {
 			break
 		}
+		opt.Page = resp.NextPage
 	}
 	return issues, nil
-}
-
-type combinedStatusResponse struct {
-	State string `json:"state"`
 }
 
 // ciStatus resolves the combined commit status for sha, which Forgejo
@@ -309,24 +273,26 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	if sha == "" {
 		return dashboard.CINone, nil
 	}
+	c.setContext(ctx)
 
-	var combined combinedStatusResponse
 	path := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
-	if err := c.get(ctx, path, nil, &combined); err != nil {
-		return dashboard.CINone, err
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+	combined, resp, err := c.sdk.GetCombinedStatus(owner, name, sha)
+	if err != nil {
+		return dashboard.CINone, forgejoError(http.MethodGet, path, resp, err)
 	}
 	return statusFromCombinedState(combined.State), nil
 }
 
-func statusFromCombinedState(state string) dashboard.CIStatus {
+func statusFromCombinedState(state gitea.StatusState) dashboard.CIStatus {
 	switch state {
-	case "success":
+	case gitea.StatusSuccess:
 		return dashboard.CISuccess
-	case "failure", "error":
+	case gitea.StatusFailure, gitea.StatusError:
 		return dashboard.CIFailure
-	case "pending":
+	case gitea.StatusPending:
 		return dashboard.CIPending
-	case "warning":
+	case gitea.StatusWarning:
 		// Neither a clean pass nor a hard failure (e.g. a non-blocking
 		// check complained) — closer to "still needs a look" than green.
 		return dashboard.CIPending
