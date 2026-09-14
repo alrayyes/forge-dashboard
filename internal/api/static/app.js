@@ -964,9 +964,11 @@
 
     document.getElementById('stat-prs').textContent = String(prs.length);
     document.getElementById('stat-issues').textContent = String(issues.length);
-    document.getElementById('stat-failing').textContent = String(
-      prs.filter((p) => p.ci === 'failure').length,
-    );
+    var failingCount = prs.filter((p) => p.ci === 'failure').length;
+    document.getElementById('stat-failing').textContent = String(failingCount);
+    // Red only once there's actually something failing — zero is good
+    // news, not a tile that reads as an alarm nobody needs to act on.
+    statFailingTile.classList.toggle('critical', failingCount > 0);
     document.getElementById('stat-repos').textContent = String(
       (data.forges || []).reduce((sum, f) => sum + (f.repoCount || 0), 0),
     );
