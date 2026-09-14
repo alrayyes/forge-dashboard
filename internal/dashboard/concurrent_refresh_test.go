@@ -75,6 +75,12 @@ func TestManager_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 	}
 	wg.Wait()
 
-	assert.LessOrEqual(t, calls.Load()-before, int64(1),
-		"concurrent refresh triggers for the same user should coalesce into at most one real request, not one per trigger")
+	// At most 2, not 1: whichever trigger acquires the in-flight slot
+	// causes one fetch, and every other trigger that arrives before that
+	// fetch finishes coalesces into a single trailing fetch guaranteed to
+	// start after it arrived (Aggregator.Refresh's own doc comment) —
+	// never one full fetch per trigger, which is the actual regression
+	// this guards against.
+	assert.LessOrEqual(t, calls.Load()-before, int64(2),
+		"concurrent refresh triggers for the same user should coalesce into at most one in-flight plus one trailing request, not one per trigger")
 }

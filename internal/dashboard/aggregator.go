@@ -19,13 +19,23 @@ type Aggregator struct {
 	subsMu sync.Mutex
 	subs   map[chan Snapshot]struct{}
 
-	refreshing sync.Mutex
+	refreshMu   sync.Mutex
+	refreshCond *sync.Cond
+	running     bool
+	pending     bool
+	// startedEpoch counts passes begun, completedEpoch counts passes
+	// finished — see Refresh's own doc comment for why a coalesced
+	// caller waits on these rather than just a done/not-done flag.
+	startedEpoch   int64
+	completedEpoch int64
 }
 
 // NewAggregator returns an Aggregator whose Get answers an empty snapshot
 // until the first Refresh (or Run) completes.
 func NewAggregator(sources []Source) *Aggregator {
-	return &Aggregator{sources: sources, snap: newEmptySnapshot(), subs: make(map[chan Snapshot]struct{})}
+	a := &Aggregator{sources: sources, snap: newEmptySnapshot(), subs: make(map[chan Snapshot]struct{})}
+	a.refreshCond = sync.NewCond(&a.refreshMu)
+	return a
 }
 
 // Subscribe returns a channel that receives the new Snapshot after every
@@ -75,23 +85,59 @@ func (a *Aggregator) Get() Snapshot {
 }
 
 // Refresh fetches every source concurrently and replaces the snapshot with
-// the merged result. A source's own Fetch never returns an error — a forge
-// it can't reach at all shows up as an unreachable ForgeHealth entry
-// instead, so one broken forge never drops the other's data.
+// the merged result, and does not return until a pass that started at or
+// after this call has completed. A source's own Fetch never returns an
+// error — a forge it can't reach at all shows up as an unreachable
+// ForgeHealth entry instead, so one broken forge never drops the other's
+// data.
 //
-// A Refresh already in flight makes a concurrent call a no-op rather than
-// running a second, fully redundant fetch in parallel — real incident: a
-// webhook delivery, the scheduled tick, and another webhook landing at
-// once for the same user each ran their own full fetch against the real
-// API with nothing preventing the overlap, multiplying request volume by
-// however many triggers happened to stack up. The in-flight refresh will
-// produce a result soon enough regardless of what triggered it.
+// A call arriving while a pass is already running doesn't start a second,
+// fully redundant fetch in parallel — real incident: a webhook delivery,
+// the scheduled tick, and another webhook landing at once for the same
+// user each ran their own full fetch against the real API with nothing
+// preventing the overlap, multiplying request volume by however many
+// triggers happened to stack up. It also isn't simply dropped: the
+// in-flight pass may already be past the point where it would have picked
+// up whatever prompted this call (a webhook for an issue opened a moment
+// after the in-flight pass started reading that repo), so this call
+// blocks until a pass that began after it arrived has run — every call is
+// guaranteed a fetch that reflects it, never silently zero, and never a
+// stale one returned before its own trigger was even fetched. Any number
+// of calls arriving during the same in-flight pass still coalesce into
+// exactly one trailing pass they all wait on together, not one each.
 func (a *Aggregator) Refresh(ctx context.Context) {
-	if !a.refreshing.TryLock() {
+	a.refreshMu.Lock()
+	if a.running {
+		a.pending = true
+		arrivedAfter := a.startedEpoch
+		for a.completedEpoch <= arrivedAfter {
+			a.refreshCond.Wait()
+		}
+		a.refreshMu.Unlock()
 		return
 	}
-	defer a.refreshing.Unlock()
+	a.running = true
+	a.startedEpoch++
+	a.refreshMu.Unlock()
 
+	for {
+		a.refreshOnce(ctx)
+
+		a.refreshMu.Lock()
+		a.completedEpoch = a.startedEpoch
+		a.refreshCond.Broadcast()
+		if !a.pending {
+			a.running = false
+			a.refreshMu.Unlock()
+			return
+		}
+		a.pending = false
+		a.startedEpoch++
+		a.refreshMu.Unlock()
+	}
+}
+
+func (a *Aggregator) refreshOnce(ctx context.Context) {
 	results := make([]Result, len(a.sources))
 
 	var wg sync.WaitGroup
