@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.1](https://github.com/alrayyes/forge-dashboard/compare/v0.37.0...v0.37.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* report the rate-limit budget even on a failed request ([#143](https://github.com/alrayyes/forge-dashboard/issues/143)) ([c0a2dea](https://github.com/alrayyes/forge-dashboard/commit/c0a2deae0d7237330b80a7d86beb42f7de3bb34d)), closes [#142](https://github.com/alrayyes/forge-dashboard/issues/142)
+
 ## [0.37.0](https://github.com/alrayyes/forge-dashboard/compare/v0.36.0...v0.37.0) (2026-09-14)
 
 
