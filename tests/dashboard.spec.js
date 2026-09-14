@@ -234,6 +234,115 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   });
 
+  test.describe('theme and filters persist across a reload', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              { forge: 'github', reachable: true, repoCount: 1 },
+              { forge: 'forgejo', reachable: true, repoCount: 1 },
+            ],
+            pullRequests: [
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 1,
+                title: 'A GitHub PR',
+                url: 'https://example.com/1',
+                author: 'claude',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'forgejo',
+                repo: 'homelab/vps-docker',
+                number: 2,
+                title: 'A Forgejo PR',
+                url: 'https://example.com/2',
+                author: 'ryan',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+            issues: [],
+          }),
+        }),
+      );
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    });
+
+    test('a chosen theme survives a reload', async ({ page }) => {
+      await page.click('#theme-toggle');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+      await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    });
+
+    test('a select filter survives a reload, both in state and visibly in the control', async ({
+      page,
+    }) => {
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        'forgejo',
+      );
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText(
+        'A Forgejo PR',
+      );
+      await expect(
+        page.locator(
+          'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        ),
+      ).toHaveValue('forgejo');
+    });
+
+    test('the free-text title filter survives a reload', async ({ page }) => {
+      const titleFilter = page.locator(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="title"]',
+      );
+      await titleFilter.fill('github');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(titleFilter).toHaveValue('github');
+    });
+
+    test('the two boards persist their filters independently', async ({
+      page,
+    }) => {
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        'github',
+      );
+
+      await page.reload();
+      await expect(
+        page.locator(
+          'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        ),
+      ).toHaveValue('github');
+      await expect(
+        page.locator(
+          'section[aria-label="Open issues"] .col-filter[data-col="forge"]',
+        ),
+      ).toHaveValue('');
+    });
+  });
+
   test.describe('grouping', () => {
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route) =>

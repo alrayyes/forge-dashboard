@@ -11,11 +11,66 @@
 
   var lastGeneratedAt = null;
 
+  // ---- cookies ----
+  // A cookie, not localStorage: it rides along on the request that renders
+  // the page, and it's the one storage mechanism shared identically by
+  // this file and theme.js (a separate script, loaded synchronously in
+  // <head> on other pages, with no module system to share state through).
+  // One year is long enough that "log back in later" always finds it;
+  // SameSite=Lax (not Strict, and no Secure — this also has to work over
+  // plain http://localhost in local/CI testing) so a link in from outside
+  // an already-authenticated tab still carries it.
+  function getCookie(name) {
+    var match = document.cookie.match(
+      new RegExp(
+        `(?:^|; )${name.replace(/[-.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]*)`,
+      ),
+    );
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  function setCookie(name, value) {
+    var maxAgeSeconds = 365 * 24 * 60 * 60;
+    // biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API isn't in Safari yet, and this repo targets more than just Chromium (browser-compat.md).
+    document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+  }
+
+  // ---- persisted per-column filters ----
+  // Both boards share one cookie, keyed by idPrefix ('pr'/'issue'), so
+  // persisting one board's filters never clobbers the other's.
+  var FILTERS_COOKIE = 'forge-board-filters';
+
+  function loadAllPersistedFilters() {
+    var raw = getCookie(FILTERS_COOKIE);
+    var parsed;
+    if (!raw) return {};
+    try {
+      parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (_e) {
+      return {};
+    }
+  }
+
+  function loadPersistedFilters(idPrefix) {
+    return loadAllPersistedFilters()[idPrefix] || {};
+  }
+
+  function savePersistedFilters(idPrefix, filters) {
+    var all = loadAllPersistedFilters();
+    all[idPrefix] = filters;
+    try {
+      setCookie(FILTERS_COOKIE, JSON.stringify(all));
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+
   // ---- theme toggle ----
   (function initTheme() {
     var root = document.documentElement;
     var toggle = document.getElementById('theme-toggle');
-    var STORAGE_KEY = 'forge-board-theme';
+    var THEME_COOKIE = 'forge-board-theme';
 
     function systemPrefersDark() {
       return window.matchMedia?.('(prefers-color-scheme: dark)').matches;
@@ -36,13 +91,7 @@
       );
     }
 
-    var stored = null;
-    try {
-      stored = localStorage.getItem(STORAGE_KEY);
-    } catch (_e) {
-      /* private browsing, etc. */
-    }
-    applyTheme(stored);
+    applyTheme(getCookie(THEME_COOKIE));
 
     toggle.addEventListener('click', () => {
       var currentlyDark =
@@ -50,11 +99,7 @@
         (!root.getAttribute('data-theme') && systemPrefersDark());
       var next = currentlyDark ? 'light' : 'dark';
       applyTheme(next);
-      try {
-        localStorage.setItem(STORAGE_KEY, next);
-      } catch (_e) {
-        /* ignore */
-      }
+      setCookie(THEME_COOKIE, next);
     });
   })();
 
@@ -266,13 +311,15 @@
     onStatusClick,
     idPrefix,
   ) {
+    var section = document.getElementById(containerId).closest('section.board');
     var state = {
       items: [],
-      filters: {},
+      filters: Object.assign({}, loadPersistedFilters(idPrefix)),
       groupBy: null,
       page: 1,
       pageSize: 25,
     };
+    var filtersRestoredToControls = false;
 
     // Grouped by repo or by forge, alphabetically (forge by its display
     // label, not the raw "github"/"forgejo" value, since that's what a
@@ -404,8 +451,35 @@
       var next = state.filters[col] === value ? '' : value;
       state.filters[col] = next;
       state.page = 1;
+      savePersistedFilters(idPrefix, state.filters);
       render();
       return next;
+    }
+
+    // Restores each visible .col-filter control to match the filters just
+    // loaded from the cookie. Only meaningful once real items exist:
+    // repo/author/label are dynamic <select>s populated from what's on
+    // screen, and setting a <select>'s value to one it has no matching
+    // <option> for yet is silently dropped rather than queued — the same
+    // trap handleLabelClick works around. Runs once, right after the
+    // first setItems — a later refresh must never repeat it, or it would
+    // stomp the title filter back to its lowercase canonical form (what
+    // state.filters holds) over whatever case the user is mid-typing.
+    function syncControlsToFilters() {
+      if (!section) return;
+      section.querySelectorAll('.col-filter').forEach((c) => {
+        var value = state.filters[c.dataset.col];
+        var option;
+        if (!value) return;
+        if (c.tagName === 'SELECT') {
+          option = Array.from(c.options).find(
+            (o) => o.value.toLowerCase() === value,
+          );
+          if (option) c.value = option.value;
+        } else {
+          c.value = value;
+        }
+      });
     }
 
     // Each board filters its own labels independently — a click here
@@ -552,11 +626,16 @@
         state.items = items;
         state.page = 1;
         updateFilterOptions();
+        if (!filtersRestoredToControls) {
+          filtersRestoredToControls = true;
+          syncControlsToFilters();
+        }
         render();
       },
       setFilter: (col, value) => {
         state.filters[col] = value;
         state.page = 1;
+        savePersistedFilters(idPrefix, state.filters);
         render();
       },
       toggleFilter: toggleFilter,
