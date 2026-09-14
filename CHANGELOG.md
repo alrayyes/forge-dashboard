@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.0](https://github.com/alrayyes/forge-dashboard/compare/v0.32.0...v0.33.0) (2026-09-14)
+
+
+### Features
+
+* add a link to the repo in the footer ([#120](https://github.com/alrayyes/forge-dashboard/issues/120)) ([24e1b8d](https://github.com/alrayyes/forge-dashboard/commit/24e1b8d389bb8bc0699899428b58695c7284610d))
+
 ## [0.32.0](https://github.com/alrayyes/forge-dashboard/compare/v0.31.0...v0.32.0) (2026-09-14)
 
 
