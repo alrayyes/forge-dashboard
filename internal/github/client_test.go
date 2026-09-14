@@ -370,6 +370,35 @@ func TestFetch_GraphQLErrorsArray_ReportsUnreachable(t *testing.T) {
 	assert.Contains(t, result.Health.Error, "Could not resolve to a User")
 }
 
+func TestFetch_GraphQLErrorsArray_RateLimitReportedAsHTTP200_StillGetsShortMessageAndRateLimit(t *testing.T) {
+	t.Parallel()
+
+	// Confirmed live: GitHub doesn't always reject a rate-limited GraphQL
+	// request outright — sometimes it answers 200 with the same "API rate
+	// limit exceeded" complaint as a query-level error instead, carrying
+	// the same X-RateLimit-* headers regardless.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Limit", "5000")
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "1789400145")
+		writeJSON(t, w, map[string]any{
+			"errors": []map[string]any{{"message": "API rate limit exceeded for user ID 511318. If you reach out to GitHub Support for help..."}},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Equal(t, "github: graphql: rate limit exceeded", result.Health.Error)
+	assert.NotContains(t, result.Health.Error, "GitHub Support")
+	require.NotNil(t, result.Health.RateLimit)
+	assert.Equal(t, 0, result.Health.RateLimit.Remaining)
+}
+
 func TestFetch_ErrorIncludesAPIMessage(t *testing.T) {
 	t.Parallel()
 
