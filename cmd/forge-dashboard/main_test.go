@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -46,4 +47,25 @@ func TestOpenDatabase_SurvivesConcurrentWriters(t *testing.T) {
 	var count int
 	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM t`).Scan(&count))
 	assert.Equal(t, writers, count)
+}
+
+// TestConfigureLogging_DebugLevel_EnablesDebugLogging is a regression test
+// for a real incident: diagnosing a rate-limit burst needed to know the
+// exact request volume it produced, and the process had no way to log at
+// that detail at all. Not run in parallel — configureLogging mutates the
+// global default logger, same as every other test in this package
+// touching shared process state.
+func TestConfigureLogging_DebugLevel_EnablesDebugLogging(t *testing.T) {
+	t.Setenv("LOG_LEVEL", "debug")
+	configureLogging()
+
+	assert.True(t, slog.Default().Enabled(t.Context(), slog.LevelDebug))
+}
+
+func TestConfigureLogging_NoLevelSet_DebugStaysDisabled(t *testing.T) {
+	t.Setenv("LOG_LEVEL", "")
+	configureLogging()
+
+	assert.False(t, slog.Default().Enabled(t.Context(), slog.LevelDebug))
+	assert.True(t, slog.Default().Enabled(t.Context(), slog.LevelInfo))
 }

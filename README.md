@@ -186,14 +186,15 @@ Everything the process itself needs is environment variables — no
 config file, and nothing forge-related, since that's per-user now (see
 **Credentials** above):
 
-| Variable           | Required | Default                    | Meaning                                                                                                  |
-| ------------------ | -------- | -------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `ADDR`             | no       | `:8080`                    | Listen address.                                                                                          |
-| `DB_PATH`          | no       | `/data/forge-dashboard.db` | Where passkeys, sessions, and every user's encrypted forge credentials live.                             |
-| `RP_ID`            | no       | `localhost`                | The WebAuthn relying party ID — set to your real domain in any real deployment.                          |
-| `RP_ORIGIN`        | no       | `http://localhost:8080`    | The WebAuthn relying party origin — set to the real `https://` origin users reach this at.               |
-| `ENCRYPTION_KEY`   | **yes**  | —                          | Base64-encoded 32-byte key for encrypting forge tokens at rest. Generate with `openssl rand -base64 32`. |
-| `REFRESH_INTERVAL` | no       | `5m`                       | How often the backend re-polls a signed-in user's forges, as a Go duration (`2m30s`, `10m`).             |
+| Variable           | Required | Default                    | Meaning                                                                                                                                                                                                                                    |
+| ------------------ | -------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ADDR`             | no       | `:8080`                    | Listen address.                                                                                                                                                                                                                            |
+| `DB_PATH`          | no       | `/data/forge-dashboard.db` | Where passkeys, sessions, and every user's encrypted forge credentials live.                                                                                                                                                               |
+| `RP_ID`            | no       | `localhost`                | The WebAuthn relying party ID — set to your real domain in any real deployment.                                                                                                                                                            |
+| `RP_ORIGIN`        | no       | `http://localhost:8080`    | The WebAuthn relying party origin — set to the real `https://` origin users reach this at.                                                                                                                                                 |
+| `ENCRYPTION_KEY`   | **yes**  | —                          | Base64-encoded 32-byte key for encrypting forge tokens at rest. Generate with `openssl rand -base64 32`.                                                                                                                                   |
+| `REFRESH_INTERVAL` | no       | `5m`                       | How often the backend re-polls a signed-in user's forges, as a Go duration (`2m30s`, `10m`).                                                                                                                                               |
+| `LOG_LEVEL`        | no       | `info`                     | `debug`, `info`, `warn`, or `error`. `debug` logs every outbound request to GitHub/Forgejo (method, URL) — turn it on to diagnose a request-volume spike from the process's own logs instead of reasoning about the code from the outside. |
 
 Repository discovery is automatic per user. With a token, the dashboard
 lists every repository it has push access to — on GitHub, one GraphQL

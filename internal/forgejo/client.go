@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -65,6 +66,7 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 		req.Header.Set("Authorization", "token "+c.token)
 	}
 
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", u)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
