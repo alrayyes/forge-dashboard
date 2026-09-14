@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.35.0](https://github.com/alrayyes/forge-dashboard/compare/v0.34.0...v0.35.0) (2026-09-14)
+
+
+### Features
+
+* surface the real reason a forge is unreachable ([#128](https://github.com/alrayyes/forge-dashboard/issues/128)) ([69801fd](https://github.com/alrayyes/forge-dashboard/commit/69801fd679fc280bfc484b50c4a4e6ec6282b51f)), closes [#127](https://github.com/alrayyes/forge-dashboard/issues/127)
+
 ## [0.34.0](https://github.com/alrayyes/forge-dashboard/compare/v0.33.0...v0.34.0) (2026-09-14)
 
 
