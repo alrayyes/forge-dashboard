@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.34.0](https://github.com/alrayyes/forge-dashboard/compare/v0.33.0...v0.34.0) (2026-09-14)
+
+
+### Features
+
+* add a copy button for the webhook secret ([#123](https://github.com/alrayyes/forge-dashboard/issues/123)) ([f2e4fb8](https://github.com/alrayyes/forge-dashboard/commit/f2e4fb8baf1877bc4df348290960588dfd16c101))
+
+
+### Bug Fixes
+
+* exclude Forgejo mirror repos from polling ([#125](https://github.com/alrayyes/forge-dashboard/issues/125)) ([1c379b8](https://github.com/alrayyes/forge-dashboard/commit/1c379b8cae2581441248a745de4657b23214340b)), closes [#124](https://github.com/alrayyes/forge-dashboard/issues/124)
+
 ## [0.33.0](https://github.com/alrayyes/forge-dashboard/compare/v0.32.0...v0.33.0) (2026-09-14)
 
 
