@@ -91,6 +91,7 @@ type repoJSON struct {
 	} `json:"permissions"`
 	Archived bool `json:"archived"`
 	Fork     bool `json:"fork"`
+	Mirror   bool `json:"mirror"`
 }
 
 // ListRepos returns the repositories this Client is configured to track —
@@ -118,7 +119,7 @@ func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error
 			return nil, err
 		}
 		for _, r := range batch {
-			if !r.Permissions.Push || r.Archived || r.Fork {
+			if !r.Permissions.Push || r.Archived || r.Fork || r.Mirror {
 				continue
 			}
 			repos = append(repos, dashboard.RepoRef{FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name})
@@ -143,7 +144,7 @@ func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, erro
 			return nil, err
 		}
 		for _, r := range batch {
-			if r.Archived || r.Fork {
+			if r.Archived || r.Fork || r.Mirror {
 				continue
 			}
 			repos = append(repos, dashboard.RepoRef{FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name})
