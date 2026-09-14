@@ -77,6 +77,20 @@
   .field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .token-input { position: relative; }
   .token-input input { padding-right: 58px; }
+  .token-input--dual input { padding-right: 112px; }
+  .token-input-actions {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 5px;
+  }
+  .token-input-actions .copy-button,
+  .token-input-actions .token-toggle {
+    position: static;
+    transform: none;
+  }
   .token-toggle {
     position: absolute;
     right: 5px;
@@ -278,9 +292,12 @@
     </div>
     <div class="field">
       <label for="webhook-secret">Secret</label>
-      <div class="token-input">
+      <div class="token-input token-input--dual">
         <input id="webhook-secret" type="password" readonly>
-        <button type="button" class="token-toggle" data-target="webhook-secret" aria-pressed="false" aria-label="Show webhook secret">Show</button>
+        <div class="token-input-actions">
+          <button type="button" class="copy-button" data-copy-target="webhook-secret">Copy</button>
+          <button type="button" class="token-toggle" data-target="webhook-secret" aria-pressed="false" aria-label="Show webhook secret">Show</button>
+        </div>
       </div>
       <p class="field-hint">The same secret goes in both webhooks above — it's what proves a delivery actually came from your forge.</p>
     </div>
