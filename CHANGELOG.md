@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.0](https://github.com/alrayyes/forge-dashboard/compare/v0.29.1...v0.30.0) (2026-09-14)
+
+
+### Features
+
+* persist theme and per-column filters via a cookie ([#114](https://github.com/alrayyes/forge-dashboard/issues/114)) ([1b6b51a](https://github.com/alrayyes/forge-dashboard/commit/1b6b51acd3bf5e5b6817107f3451532e2f680717)), closes [#111](https://github.com/alrayyes/forge-dashboard/issues/111)
+
 ## [0.29.1](https://github.com/alrayyes/forge-dashboard/compare/v0.29.0...v0.29.1) (2026-09-13)
 
 
