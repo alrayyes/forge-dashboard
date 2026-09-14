@@ -78,6 +78,8 @@ func (s *fakeConfiguredSource) Fetch(_ context.Context) dashboard.Result {
 	return dashboard.Result{Health: s.health}
 }
 
+func (s *fakeConfiguredSource) Forge() dashboard.Forge { return s.health.Forge }
+
 func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 	t.Parallel()
 

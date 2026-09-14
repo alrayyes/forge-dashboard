@@ -54,6 +54,9 @@ func NewGenericSource(forge Forge, client ForgeClient, maxConcurrency int) *Gene
 	return &GenericSource{forge: forge, client: client, maxConcurrency: maxConcurrency}
 }
 
+// Forge implements Source.
+func (s *GenericSource) Forge() Forge { return s.forge }
+
 // Fetch implements Source by listing repos, then fetching each one's open
 // pull requests and issues concurrently, bounded by maxConcurrency. A
 // single repo's failure is logged and skipped, not fatal to the forge.
@@ -107,4 +110,20 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 		result.Issues = append(result.Issues, r.issues...)
 	}
 	return result
+}
+
+// FetchRepo implements RepoRefresher: the same per-repo calls Fetch
+// already makes for every tracked repo, but for just the one a caller
+// (a webhook delivery) already knows the identity of — no ListRepos
+// call needed first.
+func (s *GenericSource) FetchRepo(ctx context.Context, owner, name, fullName string) ([]PullRequest, []Issue, error) {
+	prs, err := s.client.ListOpenPullRequests(ctx, owner, name, fullName)
+	if err != nil {
+		return nil, nil, err
+	}
+	issues, err := s.client.ListOpenIssues(ctx, owner, name, fullName)
+	if err != nil {
+		return nil, nil, err
+	}
+	return prs, issues, nil
 }

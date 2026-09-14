@@ -21,6 +21,8 @@ func (s *countingSource) Fetch(_ context.Context) dashboard.Result {
 	return dashboard.Result{Health: s.health}
 }
 
+func (s *countingSource) Forge() dashboard.Forge { return s.health.Forge }
+
 func TestManager_Ensure_ThenGet_ReturnsThatUsersSnapshot(t *testing.T) {
 	t.Parallel()
 

@@ -44,6 +44,8 @@ func (s *countingSource) Fetch(_ context.Context) dashboard.Result {
 	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: int(n)}}
 }
 
+func (s *countingSource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
+
 // slowCountingSource only advances calls if its Fetch runs to completion —
 // a context canceled mid-fetch (the real forge clients' own http.Client
 // requests abort the same way) leaves it untouched. That's what makes it
@@ -63,6 +65,8 @@ func (s *slowCountingSource) Fetch(ctx context.Context) dashboard.Result {
 		return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: ctx.Err().Error()}}
 	}
 }
+
+func (s *slowCountingSource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
 
 // newTestServerWithCountingSource registers a user, saves a throwaway
 // GitHub token so a countingSource is wired into their Manager
