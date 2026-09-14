@@ -830,6 +830,18 @@
   });
 
   // ---- forge health ----
+  function rateLimitChip(rl) {
+    var resetTime = new Date(rl.resetsAt).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    return el(
+      'span',
+      `forge-health-ratelimit${rl.remaining === 0 ? ' exhausted' : ''}`,
+      `${rl.remaining}/${rl.limit} requests · resets ${resetTime}`,
+    );
+  }
+
   function renderForgeHealth(forges) {
     var container = document.getElementById('forge-health');
     container.innerHTML = '';
@@ -849,6 +861,10 @@
         chip.title = f.error;
         item.appendChild(el('span', 'forge-health-error', f.error));
       }
+      // Shown whenever this forge reports one, reachable or not — the
+      // point is seeing the budget before it's already the reason
+      // something looks unreachable, not just explaining it after.
+      if (f.rateLimit) item.appendChild(rateLimitChip(f.rateLimit));
       container.appendChild(item);
     });
     document.getElementById('forge-names').innerHTML = forges

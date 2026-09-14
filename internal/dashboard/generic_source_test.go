@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,16 @@ func (f *fakeForgeClient) ListOpenPullRequests(_ context.Context, _, _, repo str
 
 func (f *fakeForgeClient) ListOpenIssues(_ context.Context, _, _, repo string) ([]dashboard.Issue, error) {
 	return f.issuesByRepo[repo], nil
+}
+
+type fakeRateLimitedForgeClient struct {
+	fakeForgeClient
+	rateLimit    dashboard.RateLimit
+	rateLimitErr error
+}
+
+func (f *fakeRateLimitedForgeClient) RateLimit(_ context.Context) (dashboard.RateLimit, error) {
+	return f.rateLimit, f.rateLimitErr
 }
 
 func TestGenericSource_Fetch_AggregatesAcrossRepos(t *testing.T) {
@@ -90,4 +101,39 @@ func TestGenericSource_Fetch_ListReposFails_ReportsUnreachable(t *testing.T) {
 
 	assert.False(t, result.Health.Reachable)
 	assert.NotEmpty(t, result.Health.Error)
+}
+
+func TestGenericSource_Fetch_ClientWithNoRateLimiter_LeavesRateLimitNil(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeForgeClient{}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+	result := source.Fetch(t.Context())
+
+	assert.Nil(t, result.Health.RateLimit)
+}
+
+func TestGenericSource_Fetch_ClientWithRateLimiter_ReportsIt(t *testing.T) {
+	t.Parallel()
+
+	resetsAt := time.Now().Add(time.Hour).UTC()
+	client := &fakeRateLimitedForgeClient{
+		rateLimit: dashboard.RateLimit{Limit: 5000, Remaining: 4922, ResetsAt: resetsAt},
+	}
+	source := dashboard.NewGenericSource(dashboard.ForgeGitHub, client, 4)
+	result := source.Fetch(t.Context())
+
+	require.NotNil(t, result.Health.RateLimit)
+	assert.Equal(t, dashboard.RateLimit{Limit: 5000, Remaining: 4922, ResetsAt: resetsAt}, *result.Health.RateLimit)
+}
+
+func TestGenericSource_Fetch_RateLimitCheckFails_StillReportsReachable(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeRateLimitedForgeClient{rateLimitErr: errors.New("boom")}
+	source := dashboard.NewGenericSource(dashboard.ForgeGitHub, client, 4)
+	result := source.Fetch(t.Context())
+
+	assert.True(t, result.Health.Reachable, "a failed rate-limit check shouldn't fail the whole forge")
+	assert.Nil(t, result.Health.RateLimit)
 }

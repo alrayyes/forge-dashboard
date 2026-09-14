@@ -62,12 +62,24 @@ type Issue struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// RateLimit matches components.schemas.RateLimit — the forge API's own
+// request budget for the credential the last refresh used. Only some
+// forges expose this (GitHub does, Forgejo doesn't by default), so it's
+// always a pointer: nil means "this forge doesn't report one," not "the
+// budget is zero."
+type RateLimit struct {
+	Limit     int       `json:"limit"`
+	Remaining int       `json:"remaining"`
+	ResetsAt  time.Time `json:"resetsAt"`
+}
+
 // ForgeHealth matches components.schemas.ForgeHealth.
 type ForgeHealth struct {
-	Forge     Forge  `json:"forge"`
-	Reachable bool   `json:"reachable"`
-	Error     string `json:"error,omitempty"`
-	RepoCount int    `json:"repoCount"`
+	Forge     Forge      `json:"forge"`
+	Reachable bool       `json:"reachable"`
+	Error     string     `json:"error,omitempty"`
+	RepoCount int        `json:"repoCount"`
+	RateLimit *RateLimit `json:"rateLimit,omitempty"`
 }
 
 // Snapshot matches components.schemas.Dashboard — the whole body

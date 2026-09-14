@@ -29,6 +29,15 @@ type ForgeClient interface {
 	ListOpenIssues(ctx context.Context, owner, name, repo string) ([]Issue, error)
 }
 
+// RateLimiter is implemented by a ForgeClient that can report its own API
+// rate-limit status — GitHub can; Forgejo can't, since it has no rate
+// limiting of its own by default. GenericSource checks for this via a
+// type assertion rather than adding it to ForgeClient itself, so a client
+// with nothing to report doesn't need a no-op method.
+type RateLimiter interface {
+	RateLimit(ctx context.Context) (RateLimit, error)
+}
+
 // GenericSource drives a ForgeClient the same way regardless of which forge
 // it talks to: list repositories, then fetch each one's open pull requests
 // and issues concurrently, bounded, skipping a single repo's failure rather
@@ -84,6 +93,14 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 	wg.Wait()
 
 	result := Result{Health: ForgeHealth{Forge: s.forge, Reachable: true, RepoCount: len(repos)}}
+	if rl, ok := s.client.(RateLimiter); ok {
+		limit, err := rl.RateLimit(ctx)
+		if err != nil {
+			slog.Warn("rate limit check failed", "forge", s.forge, "error", err)
+		} else {
+			result.Health.RateLimit = &limit
+		}
+	}
 	for _, r := range results {
 		result.PullRequests = append(result.PullRequests, r.prs...)
 		result.Issues = append(result.Issues, r.issues...)
