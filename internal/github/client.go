@@ -397,6 +397,7 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.token)
 
+	slog.Debug("github request", "method", http.MethodPost, "url", c.graphqlURL, "cursor", variables["cursor"])
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
@@ -516,6 +517,7 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
+	slog.Debug("github request", "method", http.MethodGet, "url", u)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err

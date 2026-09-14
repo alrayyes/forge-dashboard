@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,6 +37,8 @@ var version = "dev"
 const defaultRefreshInterval = 5 * time.Minute
 
 func main() {
+	configureLogging()
+
 	addr := envOr("ADDR", ":8080")
 	refreshInterval := defaultRefreshInterval
 	if v := os.Getenv("REFRESH_INTERVAL"); v != "" {
@@ -210,4 +213,24 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// configureLogging replaces the default slog logger with one honoring
+// LOG_LEVEL, so a real production incident (a request-rate burst, a
+// refresh that's misbehaving) can be diagnosed from the process's own
+// logs instead of reasoning about the code from the outside. Both forge
+// clients log a debug line per outbound request — count lines per second
+// against real logs to see exactly what a burst looked like, rather than
+// only being able to say what the code should do.
+func configureLogging() {
+	level := slog.LevelInfo
+	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 }
