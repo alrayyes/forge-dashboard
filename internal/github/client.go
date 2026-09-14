@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -90,15 +91,57 @@ func (c *Client) Fetch(ctx context.Context) dashboard.Result {
 
 // ---- shared error handling ----
 
+// rateLimitFromHeaders reads the budget GitHub reports on every response,
+// success or failure alike — most usefully on a failure, since that's
+// the one time a person reading forge-health actually needs to see it.
+// Returns nil where the headers aren't present at all (a non-rate-limit
+// failure, or a host that doesn't send them).
+func rateLimitFromHeaders(h http.Header) *dashboard.RateLimit {
+	limit, err1 := strconv.Atoi(h.Get("X-RateLimit-Limit"))
+	remaining, err2 := strconv.Atoi(h.Get("X-RateLimit-Remaining"))
+	reset, err3 := strconv.ParseInt(h.Get("X-RateLimit-Reset"), 10, 64)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return nil
+	}
+	return &dashboard.RateLimit{Limit: limit, Remaining: remaining, ResetsAt: time.Unix(reset, 0).UTC()}
+}
+
+// apiError wraps a failed request with the short reason apiErrorDetail
+// already built, plus whatever rate-limit budget the response's headers
+// carried — carried as a typed field, not folded into the message, so a
+// caller can populate ForgeHealth.RateLimit even from a failed request
+// without re-parsing the error string.
+type apiError struct {
+	msg       string
+	rateLimit *dashboard.RateLimit
+}
+
+func (e *apiError) Error() string { return e.msg }
+
 // apiErrorDetail turns a failed response into the reason a person reading
-// the dashboard's forge-health error actually needs: GitHub's own error
-// message where the body carries one (the same {"message": "..."} shape
-// for a rejected REST call, a rejected GraphQL call, and gateway-level
-// rejections like rate limiting), plus when the request can be retried —
-// from X-RateLimit-Reset once the primary limit is exhausted, or from
-// Retry-After (RFC 9110 §10.2.3) for everything else, secondary rate
-// limiting included.
-func apiErrorDetail(resp *http.Response) string {
+// the dashboard's forge-health error actually needs — and the rate-limit
+// budget the response reported, if any.
+//
+// Rate limiting gets its own short message rather than GitHub's own: the
+// real body ("API rate limit exceeded for user ID 511318. If you reach
+// out to GitHub Support for help, please include the request ID ... For
+// more on scraping GitHub and how it may affect your rights, please
+// review our Terms of Service...") is legal boilerplate meant for a
+// developer reading API docs, not a line on a dashboard — and the actual
+// budget is what the rate-limit chip (built from the RateLimit this
+// returns) already shows right next to it. Anything else — a bad token,
+// a real outage — keeps GitHub's own message, which is normally short
+// and specific ("Bad credentials", "Not Found").
+func apiErrorDetail(resp *http.Response) (string, *dashboard.RateLimit) {
+	rl := rateLimitFromHeaders(resp.Header)
+
+	if resp.Header.Get("X-RateLimit-Remaining") == "0" {
+		return "rate limit exceeded", rl
+	}
+	if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+		return fmt.Sprintf("rate limited, retry after %ss", retryAfter), rl
+	}
+
 	msg := resp.Status
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 	if err == nil {
@@ -109,18 +152,7 @@ func apiErrorDetail(resp *http.Response) string {
 			msg = apiErr.Message
 		}
 	}
-
-	if resp.Header.Get("X-RateLimit-Remaining") == "0" {
-		if reset := resp.Header.Get("X-RateLimit-Reset"); reset != "" {
-			if ts, err := strconv.ParseInt(reset, 10, 64); err == nil {
-				msg += fmt.Sprintf(" (resets %s)", time.Unix(ts, 0).UTC().Format(time.RFC3339))
-			}
-		}
-	} else if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
-		msg += fmt.Sprintf(" (retry after %ss)", retryAfter)
-	}
-
-	return msg
+	return msg, rl
 }
 
 // ==== GraphQL path (token) ====
@@ -372,7 +404,8 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("github: POST /graphql: %s", apiErrorDetail(resp))
+		msg, rl := apiErrorDetail(resp)
+		return &apiError{msg: fmt.Sprintf("github: POST /graphql: %s", msg), rateLimit: rl}
 	}
 
 	var envelope struct {
@@ -400,7 +433,12 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		var resp reposQueryResponse
 		if err := c.graphqlDo(ctx, reposQuery, map[string]any{"cursor": cursor}, &resp); err != nil {
 			slog.Warn("forge unreachable", "forge", dashboard.ForgeGitHub, "error", err)
-			return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: err.Error()}}
+			health := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: err.Error()}
+			var apiErr *apiError
+			if errors.As(err, &apiErr) {
+				health.RateLimit = apiErr.rateLimit
+			}
+			return dashboard.Result{Health: health}
 		}
 		if resp.RateLimit != nil {
 			rateLimit = &dashboard.RateLimit{
@@ -485,7 +523,11 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("github: GET %s: %s", path, apiErrorDetail(resp))
+		// The REST fallback (unauthenticated, public-repos mode) has no
+		// rate-limit reporting of its own — its 60/hour budget is IP-scoped,
+		// not worth surfacing the same way a real credential's is.
+		msg, _ := apiErrorDetail(resp)
+		return fmt.Errorf("github: GET %s: %s", path, msg)
 	}
 
 	if out == nil {

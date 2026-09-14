@@ -388,11 +388,42 @@ func TestFetch_ErrorIncludesAPIMessage(t *testing.T) {
 	assert.Contains(t, result.Health.Error, "API rate limit exceeded for user ID 511318.")
 }
 
-func TestFetch_RateLimitErrorIncludesResetTime(t *testing.T) {
+func TestFetch_RateLimitExceeded_ShortMessage_NotGitHubsBoilerplate(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Limit", "5000")
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "1789400145")
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]string{
+			"message": "API rate limit exceeded for user ID 511318. If you reach out to GitHub Support for help, please include the request ID 96A4:2BFEEC:245A8CA:235532C:6AA812F3 and timestamp 2026-09-14 15:29:55 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service)",
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Equal(t, "github: POST /graphql: rate limit exceeded", result.Health.Error)
+	assert.NotContains(t, result.Health.Error, "Terms of Service")
+	assert.NotContains(t, result.Health.Error, "GitHub Support")
+}
+
+func TestFetch_RateLimitExceeded_StillPopulatesRateLimit(t *testing.T) {
+	t.Parallel()
+
+	// The whole point of #142: this is the one moment a person most needs
+	// to see the budget, and the old design never even attempted the
+	// check because the request that would have made it also failed.
+	// GitHub sends the same X-RateLimit-* headers on the failed response
+	// itself.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Limit", "5000")
 		w.Header().Set("X-RateLimit-Remaining", "0")
 		w.Header().Set("X-RateLimit-Reset", "1789400145")
 		w.WriteHeader(http.StatusForbidden)
@@ -405,7 +436,29 @@ func TestFetch_RateLimitErrorIncludesResetTime(t *testing.T) {
 	result := client.Fetch(t.Context())
 
 	require.False(t, result.Health.Reachable)
-	assert.Contains(t, result.Health.Error, "resets")
+	require.NotNil(t, result.Health.RateLimit)
+	assert.Equal(t, 5000, result.Health.RateLimit.Limit)
+	assert.Equal(t, 0, result.Health.RateLimit.Remaining)
+	assert.Equal(t, int64(1789400145), result.Health.RateLimit.ResetsAt.Unix())
+}
+
+func TestFetch_FailureWithNoRateLimitHeaders_LeavesRateLimitNil(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		writeJSON(t, w, map[string]string{"message": "Bad credentials"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Contains(t, result.Health.Error, "Bad credentials")
+	assert.Nil(t, result.Health.RateLimit, "no rate-limit headers means nothing to report, not a fabricated zero")
 }
 
 func TestFetch_RetryAfterIncludedWhenPresent(t *testing.T) {
