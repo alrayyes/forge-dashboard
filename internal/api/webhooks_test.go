@@ -44,11 +44,42 @@ func (s *countingSource) Fetch(_ context.Context) dashboard.Result {
 	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: int(n)}}
 }
 
+// slowCountingSource only advances calls if its Fetch runs to completion —
+// a context canceled mid-fetch (the real forge clients' own http.Client
+// requests abort the same way) leaves it untouched. That's what makes it
+// able to tell "the refresh survived the request that triggered it ending"
+// apart from "it didn't."
+type slowCountingSource struct {
+	calls *atomic.Int64
+	delay time.Duration
+}
+
+func (s *slowCountingSource) Fetch(ctx context.Context) dashboard.Result {
+	select {
+	case <-time.After(s.delay):
+		n := s.calls.Add(1)
+		return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: int(n)}}
+	case <-ctx.Done():
+		return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: ctx.Err().Error()}}
+	}
+}
+
 // newTestServerWithCountingSource registers a user, saves a throwaway
 // GitHub token so a countingSource is wired into their Manager
 // Aggregator (RefreshNow is a no-op against a user nothing ever called
 // Ensure for), and returns the server URL, the shared fetch counter a
 // successful webhook delivery should advance, and the session cookie.
+func newTestServerWithCountingSource(t *testing.T) (srv string, calls *atomic.Int64, sessionCookie *http.Cookie) {
+	t.Helper()
+	calls = &atomic.Int64{}
+	srv, sessionCookie = newTestServerWithSource(t, &countingSource{calls: calls})
+	require.Eventually(t, func() bool { return calls.Load() >= 1 }, time.Second, 5*time.Millisecond, "Ensure should have fetched at least once already")
+	return srv, calls, sessionCookie
+}
+
+// newTestServerWithSource is newTestServerWithCountingSource's shared
+// core, parametrized on the Source so a slow one (below) can drive the
+// same setup.
 //
 // Deliberately builds its own server rather than using the shared
 // newTestServerWithSources helper: that one's Manager ticks every
@@ -57,14 +88,13 @@ func (s *countingSource) Fetch(_ context.Context) dashboard.Result {
 // background timer happened to fire" indistinguishable. An interval far
 // longer than any single test can run means the only fetches during it
 // are Ensure's own initial one and whatever RefreshNow calls happen.
-func newTestServerWithCountingSource(t *testing.T) (srv string, calls *atomic.Int64, sessionCookie *http.Cookie) {
+func newTestServerWithSource(t *testing.T, source dashboard.Source) (srv string, sessionCookie *http.Cookie) {
 	t.Helper()
-	calls = &atomic.Int64{}
 	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken == "" {
 			return nil
 		}
-		return []dashboard.Source{&countingSource{calls: calls}}
+		return []dashboard.Source{source}
 	}
 
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
@@ -120,9 +150,7 @@ func newTestServerWithCountingSource(t *testing.T) (srv string, calls *atomic.In
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	require.Eventually(t, func() bool { return calls.Load() >= 1 }, time.Second, 5*time.Millisecond, "Ensure should have fetched at least once already")
-
-	return testSrv.URL, calls, sessionCookie
+	return testSrv.URL, sessionCookie
 }
 
 func webhookCredentials(t *testing.T, srvURL string, sessionCookie *http.Cookie) (token, secret string) {
@@ -316,4 +344,42 @@ func TestForgejoWebhook_UnknownToken_Returns404(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestWebhook_RefreshSurvivesTheTriggeringRequestEnding(t *testing.T) {
+	t.Parallel()
+
+	// Real incident: a webhook delivery to an account with many tracked
+	// repos took long enough that the sender (Forgejo) gave up waiting
+	// and closed the connection mid-refresh — tying the refresh to the
+	// request's own context meant that canceled every in-flight forge
+	// fetch, so the webhook accomplished nothing.
+	calls := &atomic.Int64{}
+	source := &slowCountingSource{calls: calls, delay: 150 * time.Millisecond}
+	srvURL, sessionCookie := newTestServerWithSource(t, source)
+	require.Eventually(t, func() bool { return calls.Load() >= 1 }, time.Second, 5*time.Millisecond, "Ensure should have fetched at least once already")
+
+	token, secret := webhookCredentials(t, srvURL, sessionCookie)
+	before := calls.Load()
+
+	body := []byte(`{"action":"opened"}`)
+	reqCtx, cancelReq := context.WithCancel(t.Context())
+	defer cancelReq()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
+
+	start := time.Now()
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Less(t, time.Since(start), source.delay, "the delivery should be acknowledged before the refresh it triggers finishes")
+
+	// The sender hangs up right after getting its response — real Forgejo
+	// deliveries don't wait around either. This should have no effect on
+	// the refresh already running in the background.
+	cancelReq()
+
+	require.Eventually(t, func() bool { return calls.Load() > before }, time.Second, 10*time.Millisecond, "the refresh should complete even after the request that triggered it ends")
 }
