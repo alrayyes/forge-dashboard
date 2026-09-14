@@ -180,6 +180,11 @@ shows up within seconds instead of at the next poll. Set up from the
 Settings page, one forge at a time — full copy-pasteable steps and how
 delivery verification works: [docs/webhooks.md](docs/webhooks.md).
 
+A delivery refreshes just the repository it names, not the account's
+whole tracked-repo set — a much smaller GraphQL query on GitHub than a
+full refresh runs. A payload with no repository (the initial "ping"
+delivery a new webhook sends, say) falls back to a full refresh instead.
+
 ## Configuration
 
 Everything the process itself needs is environment variables — no

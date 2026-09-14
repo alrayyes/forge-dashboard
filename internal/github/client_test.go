@@ -703,3 +703,97 @@ func TestFetch_Source(t *testing.T) {
 	t.Parallel()
 	var _ dashboard.Source = github.NewClient("token", "", "")
 }
+
+func TestClient_ImplementsRepoRefresher(t *testing.T) {
+	t.Parallel()
+	var _ dashboard.RepoRefresher = github.NewClient("token", "", "")
+}
+
+func TestFetchRepo_QueriesOnlyTheNamedRepo(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		assert.Contains(t, body.Query, "repository(owner: $owner, name: $name)")
+		assert.Equal(t, "alrayyes", body.Variables["owner"])
+		assert.Equal(t, "a", body.Variables["name"])
+
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"pullRequests": map[string]any{
+						"nodes": []map[string]any{
+							{
+								"number": 12, "title": "Add NTP alarm", "url": "https://github.com/alrayyes/a/pull/12",
+								"isDraft": false, "author": map[string]string{"login": "ryankes"},
+								"labels":    map[string]any{"nodes": []map[string]string{{"name": "topic/monitoring", "color": "1d76db"}}},
+								"createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+								"commits": map[string]any{"nodes": []map[string]any{
+									{"commit": map[string]any{"statusCheckRollup": map[string]any{"state": "SUCCESS"}}},
+								}},
+							},
+						},
+					},
+					"issues": map[string]any{
+						"nodes": []map[string]any{
+							{
+								"number": 7, "title": "a real issue", "url": "https://github.com/alrayyes/a/issues/7",
+								"author":    map[string]string{"login": "ryankes"},
+								"labels":    map[string]any{"nodes": []map[string]string{}},
+								"createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-01T00:00:00Z",
+							},
+						},
+					},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	prs, issues, err := client.FetchRepo(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+	assert.Equal(t, 12, prs[0].Number)
+	assert.Equal(t, "alrayyes/a", prs[0].Repo)
+	assert.Equal(t, dashboard.CISuccess, prs[0].CI)
+	require.Len(t, issues, 1)
+	assert.Equal(t, 7, issues[0].Number)
+	assert.Equal(t, "alrayyes/a", issues[0].Repo)
+}
+
+func TestFetchRepo_RepositoryNotFound_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"data": map[string]any{"repository": nil}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	_, _, err := client.FetchRepo(t.Context(), "alrayyes", "gone", "alrayyes/gone")
+
+	require.Error(t, err)
+}
+
+func TestFetchRepo_GraphQLError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"errors": []map[string]string{{"message": "Bad credentials"}}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	_, _, err := client.FetchRepo(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Bad credentials")
+}
