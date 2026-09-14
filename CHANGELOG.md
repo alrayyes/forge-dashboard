@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.37.0](https://github.com/alrayyes/forge-dashboard/compare/v0.36.0...v0.37.0) (2026-09-14)
+
+
+### Features
+
+* switch the GitHub client to GraphQL ([#139](https://github.com/alrayyes/forge-dashboard/issues/139)) ([8a36c08](https://github.com/alrayyes/forge-dashboard/commit/8a36c08d0547586566570450ac32d541fe13c109)), closes [#138](https://github.com/alrayyes/forge-dashboard/issues/138)
+
+
+### Bug Fixes
+
+* only style the CI failing tile red once something is failing ([#140](https://github.com/alrayyes/forge-dashboard/issues/140)) ([c271c04](https://github.com/alrayyes/forge-dashboard/commit/c271c046fd7448e138b459512fea125a35f557a3))
+
 ## [0.36.0](https://github.com/alrayyes/forge-dashboard/compare/v0.35.0...v0.36.0) (2026-09-14)
 
 
