@@ -119,6 +119,22 @@ func (m *Manager) RefreshNow(ctx context.Context, userID []byte) bool {
 	return true
 }
 
+// RefreshRepo delegates to userID's Aggregator — see
+// Aggregator.RefreshRepo. Reports false if userID has no running
+// Aggregator, the same as RefreshNow, and also false wherever
+// Aggregator.RefreshRepo itself would — a caller should fall back to
+// RefreshNow either way, without needing to tell the two apart.
+func (m *Manager) RefreshRepo(ctx context.Context, userID []byte, forge Forge, owner, name, fullName string) bool {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return false
+	}
+	return entry.agg.RefreshRepo(ctx, forge, owner, name, fullName)
+}
+
 // Subscribe delegates to userID's Aggregator — see Aggregator.Subscribe.
 // Reports false if userID has no running Aggregator.
 func (m *Manager) Subscribe(userID []byte) (<-chan Snapshot, func(), bool) {

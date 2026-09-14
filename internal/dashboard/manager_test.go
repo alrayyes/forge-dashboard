@@ -138,6 +138,37 @@ func TestManager_RefreshNow_UnknownUser_ReturnsFalse(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestManager_RefreshRepo_KnownUser_DelegatesToTheirAggregator(t *testing.T) {
+	t.Parallel()
+
+	user := []byte("user-a")
+	src := newFakeRepoRefresherSource(dashboard.ForgeGitHub)
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1}}, nil)
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), user, []dashboard.Source{src})
+	require.Eventually(t, func() bool { return src.fetchCallCount() >= 1 }, time.Second, 5*time.Millisecond)
+
+	ok := m.RefreshRepo(t.Context(), user, dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+
+	assert.True(t, ok)
+	assert.Equal(t, 1, src.repoFetchCallCount("alrayyes/a"))
+	assert.Equal(t, 1, src.fetchCallCount(), "a scoped refresh should not also trigger a full account-wide fetch")
+}
+
+func TestManager_RefreshRepo_UnknownUser_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	m := dashboard.NewManager(time.Minute)
+	t.Cleanup(m.Stop)
+
+	ok := m.RefreshRepo(t.Context(), []byte("nobody"), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+
+	assert.False(t, ok)
+}
+
 func TestManager_Subscribe_KnownUser_ReceivesUpdatesFromRefreshNow(t *testing.T) {
 	t.Parallel()
 

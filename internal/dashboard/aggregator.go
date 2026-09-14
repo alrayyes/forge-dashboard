@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -19,23 +20,20 @@ type Aggregator struct {
 	subsMu sync.Mutex
 	subs   map[chan Snapshot]struct{}
 
-	refreshMu   sync.Mutex
-	refreshCond *sync.Cond
-	running     bool
-	pending     bool
-	// startedEpoch counts passes begun, completedEpoch counts passes
-	// finished — see Refresh's own doc comment for why a coalesced
-	// caller waits on these rather than just a done/not-done flag.
-	startedEpoch   int64
-	completedEpoch int64
+	refresh     *coalescer
+	repoRefresh *keyedCoalescer
 }
 
 // NewAggregator returns an Aggregator whose Get answers an empty snapshot
 // until the first Refresh (or Run) completes.
 func NewAggregator(sources []Source) *Aggregator {
-	a := &Aggregator{sources: sources, snap: newEmptySnapshot(), subs: make(map[chan Snapshot]struct{})}
-	a.refreshCond = sync.NewCond(&a.refreshMu)
-	return a
+	return &Aggregator{
+		sources:     sources,
+		snap:        newEmptySnapshot(),
+		subs:        make(map[chan Snapshot]struct{}),
+		refresh:     newCoalescer(),
+		repoRefresh: newKeyedCoalescer(),
+	}
 }
 
 // Subscribe returns a channel that receives the new Snapshot after every
@@ -86,55 +84,86 @@ func (a *Aggregator) Get() Snapshot {
 
 // Refresh fetches every source concurrently and replaces the snapshot with
 // the merged result, and does not return until a pass that started at or
-// after this call has completed. A source's own Fetch never returns an
-// error — a forge it can't reach at all shows up as an unreachable
-// ForgeHealth entry instead, so one broken forge never drops the other's
-// data.
-//
-// A call arriving while a pass is already running doesn't start a second,
-// fully redundant fetch in parallel — real incident: a webhook delivery,
-// the scheduled tick, and another webhook landing at once for the same
-// user each ran their own full fetch against the real API with nothing
-// preventing the overlap, multiplying request volume by however many
-// triggers happened to stack up. It also isn't simply dropped: the
-// in-flight pass may already be past the point where it would have picked
-// up whatever prompted this call (a webhook for an issue opened a moment
-// after the in-flight pass started reading that repo), so this call
-// blocks until a pass that began after it arrived has run — every call is
-// guaranteed a fetch that reflects it, never silently zero, and never a
-// stale one returned before its own trigger was even fetched. Any number
-// of calls arriving during the same in-flight pass still coalesce into
-// exactly one trailing pass they all wait on together, not one each.
+// after this call has completed — see coalescer's doc comment for the
+// guarantee and the incident behind it. A source's own Fetch never
+// returns an error — a forge it can't reach at all shows up as an
+// unreachable ForgeHealth entry instead, so one broken forge never drops
+// the other's data.
 func (a *Aggregator) Refresh(ctx context.Context) {
-	a.refreshMu.Lock()
-	if a.running {
-		a.pending = true
-		arrivedAfter := a.startedEpoch
-		for a.completedEpoch <= arrivedAfter {
-			a.refreshCond.Wait()
+	a.refresh.do(func() { a.refreshOnce(ctx) })
+}
+
+// RefreshRepo refreshes just the named repository's pull requests and
+// issues, merging the result into the current snapshot in place of that
+// repo's previous entries rather than replacing the whole snapshot — the
+// scoped counterpart to Refresh, for a webhook delivery that already
+// knows exactly which repo changed. Reports false if no configured
+// Source drives forge, or if the one that does can't do a scoped fetch
+// (RepoRefresher, the same optional-capability pattern as RateLimiter) —
+// the caller's own signal to fall back to a full Refresh, so a repo
+// never silently goes unrefreshed just because its Source can't do this
+// yet.
+//
+// Concurrent calls for the same repo coalesce the same way Refresh's own
+// calls do — see coalescer — keyed so an unrelated repo's own refresh
+// never waits on this one.
+func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, fullName string) bool {
+	var refresher RepoRefresher
+	for _, src := range a.sources {
+		if src.Forge() != forge {
+			continue
 		}
-		a.refreshMu.Unlock()
-		return
+		r, ok := src.(RepoRefresher)
+		if !ok {
+			return false
+		}
+		refresher = r
+		break
 	}
-	a.running = true
-	a.startedEpoch++
-	a.refreshMu.Unlock()
+	if refresher == nil {
+		return false
+	}
 
-	for {
-		a.refreshOnce(ctx)
-
-		a.refreshMu.Lock()
-		a.completedEpoch = a.startedEpoch
-		a.refreshCond.Broadcast()
-		if !a.pending {
-			a.running = false
-			a.refreshMu.Unlock()
+	a.repoRefresh.do(string(forge)+"/"+fullName, func() {
+		prs, issues, err := refresher.FetchRepo(ctx, owner, name, fullName)
+		if err != nil {
+			slog.Warn("scoped refresh failed", "forge", forge, "repo", fullName, "error", err)
 			return
 		}
-		a.pending = false
-		a.startedEpoch++
-		a.refreshMu.Unlock()
+		a.mergeRepo(forge, fullName, prs, issues)
+	})
+	return true
+}
+
+// mergeRepo replaces forge/fullName's own entries in the current snapshot
+// with prs and issues, leaving every other repo's data untouched.
+func (a *Aggregator) mergeRepo(forge Forge, fullName string, prs []PullRequest, issues []Issue) {
+	a.mu.Lock()
+	current := a.snap
+	a.mu.Unlock()
+
+	merged := Snapshot{Forges: current.Forges, GeneratedAt: time.Now().UTC()}
+	for _, pr := range current.PullRequests {
+		if pr.Forge == forge && pr.Repo == fullName {
+			continue
+		}
+		merged.PullRequests = append(merged.PullRequests, pr)
 	}
+	merged.PullRequests = append(merged.PullRequests, prs...)
+
+	for _, i := range current.Issues {
+		if i.Forge == forge && i.Repo == fullName {
+			continue
+		}
+		merged.Issues = append(merged.Issues, i)
+	}
+	merged.Issues = append(merged.Issues, issues...)
+
+	a.mu.Lock()
+	a.snap = merged
+	a.mu.Unlock()
+
+	a.notify(merged)
 }
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
