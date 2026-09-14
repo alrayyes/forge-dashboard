@@ -60,6 +60,7 @@ func NewGenericSource(forge Forge, client ForgeClient, maxConcurrency int) *Gene
 func (s *GenericSource) Fetch(ctx context.Context) Result {
 	repos, err := s.client.ListRepos(ctx)
 	if err != nil {
+		slog.Warn("forge unreachable", "forge", s.forge, "error", err)
 		return Result{Health: ForgeHealth{Forge: s.forge, Reachable: false, Error: err.Error()}}
 	}
 

@@ -1,16 +1,22 @@
-// Package github is a thin client for the pieces of the GitHub REST API
-// forge-dashboard needs: which repositories the token can write to, their
-// open pull requests and issues, and combined CI status per pull request.
-// It's hand-written against net/http rather than a generated SDK — the
-// surface area needed is small enough that a client library would cost
-// more to pin and understand than it saves.
+// Package github is a client for the pieces of the GitHub API
+// forge-dashboard needs: which repositories the credential can write to,
+// their open pull requests and issues, and combined CI status per pull
+// request. With a token, it talks to GitHub's GraphQL API — one request
+// returns everything a REST-based Client used to need one call per
+// repo/PR/CI-check for, and GraphQL draws from its own separate rate-limit
+// pool rather than the REST budget every other tool on the account shares.
+// GraphQL requires authentication for every request, so the
+// username-only (public repos, no token) mode still uses REST — a
+// fallback path that was never part of the authenticated budget anyway.
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -21,27 +27,34 @@ import (
 
 const defaultBaseURL = "https://api.github.com"
 
-// perPage is the page size used for every paginated list call. 100 is
-// GitHub's maximum, which keeps a ~100-repo account's repo listing to a
-// single page.
+// perPage is the page size used for the REST fallback's paginated list
+// calls. 100 is GitHub's maximum.
 const perPage = 100
 
-// Client talks to the GitHub REST API, either as an authenticated user (a
-// token) or anonymously against one user's public repositories (a
-// username, no token at all).
+// itemsPerRepo bounds how many open pull requests/issues/labels the
+// GraphQL query fetches per repository in one page. Generous for a
+// personal or small-team account; a repo with more open items than this
+// undercounts rather than paginating a second, nested dimension — a
+// tradeoff worth revisiting if it ever bites a real account.
+const itemsPerRepo = 50
+
+// Client talks to GitHub, either as an authenticated user (a token,
+// GraphQL) or anonymously against one user's public repositories (a
+// username, no token, REST — GraphQL allows no anonymous access at all).
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
+	graphqlURL string
 	token      string
 	username   string
 }
 
-// NewClient returns a Client. With token set, it authenticates as that
-// user and ListRepos returns every repo the token can push to, private
-// included. With token empty and username set, every request goes out
-// unauthenticated and ListRepos returns only username's public repos —
-// there's no "write access" to filter by without a credential, so this
-// mode returns everything public GitHub already shows anyone.
+// NewClient returns a Client. With token set, Fetch queries GraphQL for
+// every repo the token can push to, private included. With token empty
+// and username set, Fetch falls back to unauthenticated REST and returns
+// only username's public repos — there's no "write access" to filter by
+// without a credential, so this mode returns everything public GitHub
+// already shows anyone.
 // baseURL defaults to the real GitHub API; tests override it to point at
 // an httptest.Server.
 func NewClient(token, username, baseURL string) *Client {
@@ -51,47 +64,38 @@ func NewClient(token, username, baseURL string) *Client {
 	return &Client{
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		baseURL:    baseURL,
+		graphqlURL: baseURL + "/graphql",
 		token:      token,
 		username:   username,
 	}
 }
 
-func (c *Client) get(ctx context.Context, path string, query url.Values, out any) error {
-	u := c.baseURL + path
-	if query != nil {
-		u += "?" + query.Encode()
+// Fetch implements dashboard.Source directly — GitHub drives its own
+// fetch strategy (GraphQL vs. the REST fallback) rather than going
+// through dashboard.GenericSource's one-call-per-repo model, which is
+// exactly the round-trip count this exists to avoid.
+func (c *Client) Fetch(ctx context.Context) dashboard.Result {
+	switch {
+	case c.token != "":
+		return c.fetchViaGraphQL(ctx)
+	case c.username != "":
+		return c.fetchPublicViaREST(ctx)
+	default:
+		return dashboard.Result{Health: dashboard.ForgeHealth{
+			Forge: dashboard.ForgeGitHub, Reachable: false,
+			Error: "github: neither a token nor a username is configured",
+		}}
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("github: GET %s: %s", path, apiErrorDetail(resp))
-	}
-
-	if out == nil {
-		return nil
-	}
-	return json.NewDecoder(resp.Body).Decode(out)
 }
+
+// ---- shared error handling ----
 
 // apiErrorDetail turns a failed response into the reason a person reading
 // the dashboard's forge-health error actually needs: GitHub's own error
-// message where the body carries one, plus when the request can be retried
-// — from X-RateLimit-Reset once the primary limit is exhausted, or from
+// message where the body carries one (the same {"message": "..."} shape
+// for a rejected REST call, a rejected GraphQL call, and gateway-level
+// rejections like rate limiting), plus when the request can be retried —
+// from X-RateLimit-Reset once the primary limit is exhausted, or from
 // Retry-After (RFC 9110 §10.2.3) for everything else, secondary rate
 // limiting included.
 func apiErrorDetail(resp *http.Response) string {
@@ -119,93 +123,427 @@ func apiErrorDetail(resp *http.Response) string {
 	return msg
 }
 
-// RateLimit reports the core REST API budget for this Client's credential
-// (or, unauthenticated, the calling IP's own — a much smaller 60/hour
-// budget, but the same shape). GitHub excludes this endpoint from the
-// budget it reports, so calling it never itself moves the number it
-// returns.
-func (c *Client) RateLimit(ctx context.Context) (dashboard.RateLimit, error) {
-	var resp struct {
-		Resources struct {
-			Core struct {
-				Limit     int   `json:"limit"`
-				Remaining int   `json:"remaining"`
-				Reset     int64 `json:"reset"`
-			} `json:"core"`
-		} `json:"resources"`
-	}
-	if err := c.get(ctx, "/rate_limit", nil, &resp); err != nil {
-		return dashboard.RateLimit{}, err
-	}
-	return dashboard.RateLimit{
-		Limit:     resp.Resources.Core.Limit,
-		Remaining: resp.Resources.Core.Remaining,
-		ResetsAt:  time.Unix(resp.Resources.Core.Reset, 0).UTC(),
-	}, nil
+// ==== GraphQL path (token) ====
+
+type graphqlLabelNode struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
 }
 
-type repoJSON struct {
+func labelsFromNodes(nodes []graphqlLabelNode) []dashboard.Label {
+	out := make([]dashboard.Label, 0, len(nodes))
+	for _, n := range nodes {
+		out = append(out, dashboard.Label{Name: n.Name, Color: n.Color})
+	}
+	return out
+}
+
+type graphqlActor struct {
+	Login string `json:"login"`
+}
+
+// authorLogin reports "ghost" for a null author — GitHub's own name for a
+// deleted account, the same label the REST API's web UI uses.
+func authorLogin(a *graphqlActor) string {
+	if a == nil {
+		return "ghost"
+	}
+	return a.Login
+}
+
+type statusCheckRollup struct {
+	State string `json:"state"`
+}
+
+type prCommitNode struct {
+	Commit struct {
+		StatusCheckRollup *statusCheckRollup `json:"statusCheckRollup"`
+	} `json:"commit"`
+}
+
+// ciFromRollup maps GraphQL's own combined-status field — computed
+// server-side across both Actions check-runs and any legacy commit
+// status, the same fallback ciStatus used to do by hand against two REST
+// endpoints.
+func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
+	if len(commits) == 0 || commits[0].Commit.StatusCheckRollup == nil {
+		return dashboard.CINone
+	}
+	switch commits[0].Commit.StatusCheckRollup.State {
+	case "SUCCESS":
+		return dashboard.CISuccess
+	case "ERROR", "FAILURE":
+		return dashboard.CIFailure
+	case "PENDING", "EXPECTED":
+		return dashboard.CIPending
+	default:
+		return dashboard.CINone
+	}
+}
+
+type graphqlPullRequest struct {
+	Number  int           `json:"number"`
+	Title   string        `json:"title"`
+	URL     string        `json:"url"`
+	IsDraft bool          `json:"isDraft"`
+	Author  *graphqlActor `json:"author"`
+	Labels  struct {
+		Nodes []graphqlLabelNode `json:"nodes"`
+	} `json:"labels"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Commits   struct {
+		Nodes []prCommitNode `json:"nodes"`
+	} `json:"commits"`
+}
+
+type graphqlIssue struct {
+	Number int           `json:"number"`
+	Title  string        `json:"title"`
+	URL    string        `json:"url"`
+	Author *graphqlActor `json:"author"`
+	Labels struct {
+		Nodes []graphqlLabelNode `json:"nodes"`
+	} `json:"labels"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type graphqlRepo struct {
+	Name             string `json:"name"`
+	IsArchived       bool   `json:"isArchived"`
+	IsFork           bool   `json:"isFork"`
+	ViewerPermission string `json:"viewerPermission"`
+	Owner            struct {
+		Login string `json:"login"`
+	} `json:"owner"`
+	PullRequests struct {
+		Nodes []graphqlPullRequest `json:"nodes"`
+	} `json:"pullRequests"`
+	Issues struct {
+		Nodes []graphqlIssue `json:"nodes"`
+	} `json:"issues"`
+}
+
+// hasWriteAccess mirrors the REST client's old permissions.push filter —
+// GraphQL's viewerPermission is a coarser ADMIN/MAINTAIN/WRITE/TRIAGE/READ
+// enum, and write access is anything at WRITE or above.
+func hasWriteAccess(permission string) bool {
+	switch permission {
+	case "ADMIN", "MAINTAIN", "WRITE":
+		return true
+	default:
+		return false
+	}
+}
+
+type repoConnection struct {
+	PageInfo struct {
+		HasNextPage bool   `json:"hasNextPage"`
+		EndCursor   string `json:"endCursor"`
+	} `json:"pageInfo"`
+	Nodes []graphqlRepo `json:"nodes"`
+}
+
+type reposQueryResponse struct {
+	RateLimit *struct {
+		Limit     int       `json:"limit"`
+		Remaining int       `json:"remaining"`
+		ResetAt   time.Time `json:"resetAt"`
+	} `json:"rateLimit"`
+	Viewer struct {
+		Repositories repoConnection `json:"repositories"`
+	} `json:"viewer"`
+}
+
+// reposQuery fetches everything one refresh needs in a single round trip
+// per page: the token's own rate-limit budget, every repo it can push to
+// (forks excluded server-side), and each repo's open pull requests
+// (drafts, labels, and combined CI status via statusCheckRollup) and open
+// issues. GraphQL cleanly separates issues from pull requests, unlike
+// REST's single endpoint — no client-side "is this actually a PR"
+// filtering needed.
+const reposQueryTemplate = `
+query($cursor: String) {
+  rateLimit {
+    limit
+    remaining
+    resetAt
+  }
+  viewer {
+    repositories(first: 50, after: $cursor, affiliations: [OWNER, COLLABORATOR], isFork: false) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        name
+        isArchived
+        isFork
+        viewerPermission
+        owner {
+          login
+        }
+        pullRequests(states: OPEN, first: %[1]d) {
+          nodes {
+            number
+            title
+            url
+            isDraft
+            author {
+              login
+            }
+            labels(first: 20) {
+              nodes {
+                name
+                color
+              }
+            }
+            createdAt
+            updatedAt
+            commits(last: 1) {
+              nodes {
+                commit {
+                  statusCheckRollup {
+                    state
+                  }
+                }
+              }
+            }
+          }
+        }
+        issues(states: OPEN, first: %[1]d) {
+          nodes {
+            number
+            title
+            url
+            author {
+              login
+            }
+            labels(first: 20) {
+              nodes {
+                name
+                color
+              }
+            }
+            createdAt
+            updatedAt
+          }
+        }
+      }
+    }
+  }
+}
+`
+
+var reposQuery = fmt.Sprintf(reposQueryTemplate, itemsPerRepo)
+
+type graphqlRequestBody struct {
+	Query     string         `json:"query"`
+	Variables map[string]any `json:"variables,omitempty"`
+}
+
+type graphqlErrorEntry struct {
+	Message string `json:"message"`
+}
+
+// graphqlDo posts one GraphQL request and decodes its data into out.
+// GitHub reports a request rejected before execution (bad auth, rate
+// limiting) as a non-2xx status with the same error body REST uses; a
+// query-level failure comes back as 200 with a populated "errors" array
+// instead.
+func (c *Client) graphqlDo(ctx context.Context, query string, variables map[string]any, out any) error {
+	body, err := json.Marshal(graphqlRequestBody{Query: query, Variables: variables})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.graphqlURL, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.token)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("github: POST /graphql: %s", apiErrorDetail(resp))
+	}
+
+	var envelope struct {
+		Data   json.RawMessage     `json:"data"`
+		Errors []graphqlErrorEntry `json:"errors"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return err
+	}
+	if len(envelope.Errors) > 0 {
+		return fmt.Errorf("github: graphql: %s", envelope.Errors[0].Message)
+	}
+	if out == nil {
+		return nil
+	}
+	return json.Unmarshal(envelope.Data, out)
+}
+
+func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
+	var repos []graphqlRepo
+	var rateLimit *dashboard.RateLimit
+	var cursor *string
+
+	for {
+		var resp reposQueryResponse
+		if err := c.graphqlDo(ctx, reposQuery, map[string]any{"cursor": cursor}, &resp); err != nil {
+			slog.Warn("forge unreachable", "forge", dashboard.ForgeGitHub, "error", err)
+			return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: err.Error()}}
+		}
+		if resp.RateLimit != nil {
+			rateLimit = &dashboard.RateLimit{
+				Limit:     resp.RateLimit.Limit,
+				Remaining: resp.RateLimit.Remaining,
+				ResetsAt:  resp.RateLimit.ResetAt,
+			}
+		}
+		repos = append(repos, resp.Viewer.Repositories.Nodes...)
+		if !resp.Viewer.Repositories.PageInfo.HasNextPage {
+			break
+		}
+		endCursor := resp.Viewer.Repositories.PageInfo.EndCursor
+		cursor = &endCursor
+	}
+
+	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RateLimit: rateLimit}}
+	for _, r := range repos {
+		if r.IsArchived || r.IsFork || !hasWriteAccess(r.ViewerPermission) {
+			continue
+		}
+		result.Health.RepoCount++
+		fullName := r.Owner.Login + "/" + r.Name
+
+		for _, p := range r.PullRequests.Nodes {
+			result.PullRequests = append(result.PullRequests, dashboard.PullRequest{
+				Forge:     dashboard.ForgeGitHub,
+				Repo:      fullName,
+				Number:    p.Number,
+				Title:     p.Title,
+				URL:       p.URL,
+				Author:    authorLogin(p.Author),
+				Draft:     p.IsDraft,
+				Labels:    labelsFromNodes(p.Labels.Nodes),
+				CreatedAt: p.CreatedAt,
+				UpdatedAt: p.UpdatedAt,
+				CI:        ciFromRollup(p.Commits.Nodes),
+			})
+		}
+		for _, i := range r.Issues.Nodes {
+			result.Issues = append(result.Issues, dashboard.Issue{
+				Forge:     dashboard.ForgeGitHub,
+				Repo:      fullName,
+				Number:    i.Number,
+				Title:     i.Title,
+				URL:       i.URL,
+				Author:    authorLogin(i.Author),
+				Labels:    labelsFromNodes(i.Labels.Nodes),
+				CreatedAt: i.CreatedAt,
+				UpdatedAt: i.UpdatedAt,
+			})
+		}
+	}
+	return result
+}
+
+// ==== REST fallback (username only, no token) ====
+//
+// GitHub's GraphQL API allows no anonymous access at all, so the
+// public-repos mode keeps using REST. It stays sequential rather than
+// concurrent, unlike the old GenericSource-driven fetch: unauthenticated
+// requests are IP-limited to 60/hour, a budget concurrency would only
+// burn through faster.
+
+func (c *Client) get(ctx context.Context, path string, query url.Values, out any) error {
+	u := c.baseURL + path
+	if query != nil {
+		u += "?" + query.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("github: GET %s: %s", path, apiErrorDetail(resp))
+	}
+
+	if out == nil {
+		return nil
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+type restRepo struct {
 	FullName string `json:"full_name"`
 	Name     string `json:"name"`
 	Owner    struct {
 		Login string `json:"login"`
 	} `json:"owner"`
-	Permissions struct {
-		Push bool `json:"push"`
-	} `json:"permissions"`
 	Archived bool `json:"archived"`
 	Fork     bool `json:"fork"`
 }
 
-// ListRepos returns the repositories this Client is configured to track —
-// see NewClient for the two modes.
-func (c *Client) ListRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
-	switch {
-	case c.token != "":
-		return c.listWriteRepos(ctx)
-	case c.username != "":
-		return c.listPublicRepos(ctx)
-	default:
-		return nil, fmt.Errorf("github: neither a token nor a username is configured")
-	}
+type restUser struct {
+	Login string `json:"login"`
 }
 
-// listWriteRepos returns every repository the token can push to, across
-// every page.
-func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
-	var repos []dashboard.RepoRef
+type restLabel struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
 
-	for page := 1; ; page++ {
-		var batch []repoJSON
-		q := url.Values{
-			"affiliation": {"owner,collaborator"},
-			"per_page":    {strconv.Itoa(perPage)},
-			"page":        {strconv.Itoa(page)},
-		}
-		if err := c.get(ctx, "/user/repos", q, &batch); err != nil {
-			return nil, err
-		}
-		for _, r := range batch {
-			if !r.Permissions.Push || r.Archived || r.Fork {
-				continue
-			}
-			repos = append(repos, dashboard.RepoRef{FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name})
-		}
-		if len(batch) < perPage {
-			break
-		}
+func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
+	repos, err := c.listPublicRepos(ctx)
+	if err != nil {
+		slog.Warn("forge unreachable", "forge", dashboard.ForgeGitHub, "error", err)
+		return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: err.Error()}}
 	}
-	return repos, nil
+
+	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: len(repos)}}
+	for _, repo := range repos {
+		prs, err := c.listOpenPullRequestsREST(ctx, repo.Owner.Login, repo.Name, repo.FullName)
+		if err != nil {
+			slog.Warn("list pull requests failed", "forge", dashboard.ForgeGitHub, "repo", repo.FullName, "error", err)
+		}
+		issues, err := c.listOpenIssuesREST(ctx, repo.Owner.Login, repo.Name, repo.FullName)
+		if err != nil {
+			slog.Warn("list issues failed", "forge", dashboard.ForgeGitHub, "repo", repo.FullName, "error", err)
+		}
+		result.PullRequests = append(result.PullRequests, prs...)
+		result.Issues = append(result.Issues, issues...)
+	}
+	return result
 }
 
 // listPublicRepos returns every public repository username owns, with no
 // authentication at all — the same list anyone gets landing on
 // github.com/username?tab=repositories.
-func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
-	var repos []dashboard.RepoRef
+func (c *Client) listPublicRepos(ctx context.Context) ([]restRepo, error) {
+	var repos []restRepo
 
 	for page := 1; ; page++ {
-		var batch []repoJSON
+		var batch []restRepo
 		q := url.Values{
 			"type":     {"owner"},
 			"per_page": {strconv.Itoa(perPage)},
@@ -219,7 +557,7 @@ func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, erro
 			if r.Archived || r.Fork {
 				continue
 			}
-			repos = append(repos, dashboard.RepoRef{FullName: r.FullName, Owner: r.Owner.Login, Name: r.Name})
+			repos = append(repos, r)
 		}
 		if len(batch) < perPage {
 			break
@@ -228,22 +566,13 @@ func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, erro
 	return repos, nil
 }
 
-type userJSON struct {
-	Login string `json:"login"`
-}
-
-type labelJSON struct {
-	Name  string `json:"name"`
-	Color string `json:"color"`
-}
-
-type pullJSON struct {
+type restPull struct {
 	Number    int         `json:"number"`
 	Title     string      `json:"title"`
 	HTMLURL   string      `json:"html_url"`
 	Draft     bool        `json:"draft"`
-	User      userJSON    `json:"user"`
-	Labels    []labelJSON `json:"labels"`
+	User      restUser    `json:"user"`
+	Labels    []restLabel `json:"labels"`
 	CreatedAt time.Time   `json:"created_at"`
 	UpdatedAt time.Time   `json:"updated_at"`
 	Head      struct {
@@ -251,7 +580,7 @@ type pullJSON struct {
 	} `json:"head"`
 }
 
-func toLabels(labels []labelJSON) []dashboard.Label {
+func restLabelsToDashboard(labels []restLabel) []dashboard.Label {
 	out := make([]dashboard.Label, 0, len(labels))
 	for _, l := range labels {
 		out = append(out, dashboard.Label{Name: l.Name, Color: l.Color})
@@ -259,13 +588,14 @@ func toLabels(labels []labelJSON) []dashboard.Label {
 	return out
 }
 
-// ListOpenPullRequests returns every open pull request against repo, with
-// CI already resolved. repo is owner-qualified ("alrayyes/hush-hush").
-func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
+// listOpenPullRequestsREST returns every open pull request against repo,
+// with CI resolved via the same check-runs/combined-status fallback the
+// GraphQL path gets for free from statusCheckRollup.
+func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
 	var prs []dashboard.PullRequest
 
 	for page := 1; ; page++ {
-		var batch []pullJSON
+		var batch []restPull
 		q := url.Values{
 			"state":    {"open"},
 			"per_page": {strconv.Itoa(perPage)},
@@ -276,7 +606,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 			return nil, err
 		}
 		for _, p := range batch {
-			ci, err := c.ciStatus(ctx, owner, name, p.Head.SHA)
+			ci, err := c.ciStatusREST(ctx, owner, name, p.Head.SHA)
 			if err != nil {
 				ci = dashboard.CINone
 			}
@@ -288,7 +618,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 				URL:       p.HTMLURL,
 				Author:    p.User.Login,
 				Draft:     p.Draft,
-				Labels:    toLabels(p.Labels),
+				Labels:    restLabelsToDashboard(p.Labels),
 				CreatedAt: p.CreatedAt,
 				UpdatedAt: p.UpdatedAt,
 				CI:        ci,
@@ -301,26 +631,26 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 	return prs, nil
 }
 
-type issueJSON struct {
+type restIssue struct {
 	Number      int             `json:"number"`
 	Title       string          `json:"title"`
 	HTMLURL     string          `json:"html_url"`
-	User        userJSON        `json:"user"`
-	Labels      []labelJSON     `json:"labels"`
+	User        restUser        `json:"user"`
+	Labels      []restLabel     `json:"labels"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 	PullRequest json.RawMessage `json:"pull_request"`
 }
 
-// ListOpenIssues returns every open issue against repo — pull requests
-// excluded, even though GitHub's issues endpoint returns both: an entry
-// with a non-null pull_request field is a pull request wearing an issue
-// number, not a real issue.
-func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) ([]dashboard.Issue, error) {
+// listOpenIssuesREST returns every open issue against repo — pull
+// requests excluded, even though GitHub's REST issues endpoint returns
+// both: an entry with a non-null pull_request field is a pull request
+// wearing an issue number, not a real issue.
+func (c *Client) listOpenIssuesREST(ctx context.Context, owner, name, repo string) ([]dashboard.Issue, error) {
 	var issues []dashboard.Issue
 
 	for page := 1; ; page++ {
-		var batch []issueJSON
+		var batch []restIssue
 		q := url.Values{
 			"state":    {"open"},
 			"per_page": {strconv.Itoa(perPage)},
@@ -341,7 +671,7 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 				Title:     i.Title,
 				URL:       i.HTMLURL,
 				Author:    i.User.Login,
-				Labels:    toLabels(i.Labels),
+				Labels:    restLabelsToDashboard(i.Labels),
 				CreatedAt: i.CreatedAt,
 				UpdatedAt: i.UpdatedAt,
 			})
@@ -353,30 +683,30 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 	return issues, nil
 }
 
-type checkRunJSON struct {
+type restCheckRun struct {
 	Status     string `json:"status"`
 	Conclusion string `json:"conclusion"`
 }
 
-type checkRunsResponse struct {
-	CheckRuns []checkRunJSON `json:"check_runs"`
+type restCheckRunsResponse struct {
+	CheckRuns []restCheckRun `json:"check_runs"`
 }
 
-type combinedStatusResponse struct {
+type restCombinedStatusResponse struct {
 	State string `json:"state"`
 }
 
-// ciStatus resolves the combined CI result for sha. GitHub Actions reports
-// through the check-runs API; anything still using the older commit-status
-// API (a third-party CI, a repo with no Actions workflow) only shows up on
-// the combined-status endpoint, so that's the fallback when there are no
-// check runs at all.
-func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboard.CIStatus, error) {
+// ciStatusREST resolves the combined CI result for sha. GitHub Actions
+// reports through the check-runs API; anything still using the older
+// commit-status API (a third-party CI, a repo with no Actions workflow)
+// only shows up on the combined-status endpoint, so that's the fallback
+// when there are no check runs at all.
+func (c *Client) ciStatusREST(ctx context.Context, owner, name, sha string) (dashboard.CIStatus, error) {
 	if sha == "" {
 		return dashboard.CINone, nil
 	}
 
-	var runs checkRunsResponse
+	var runs restCheckRunsResponse
 	path := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
 	if err := c.get(ctx, path, url.Values{"per_page": {strconv.Itoa(perPage)}}, &runs); err != nil {
 		return dashboard.CINone, err
@@ -385,7 +715,7 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 		return statusFromCheckRuns(runs.CheckRuns), nil
 	}
 
-	var combined combinedStatusResponse
+	var combined restCombinedStatusResponse
 	path = fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
 	if err := c.get(ctx, path, nil, &combined); err != nil {
 		return dashboard.CINone, err
@@ -393,7 +723,7 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	return statusFromCombinedState(combined.State), nil
 }
 
-func statusFromCheckRuns(runs []checkRunJSON) dashboard.CIStatus {
+func statusFromCheckRuns(runs []restCheckRun) dashboard.CIStatus {
 	failed := false
 	for _, r := range runs {
 		if r.Status != "completed" {

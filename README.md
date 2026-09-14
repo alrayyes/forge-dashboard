@@ -196,14 +196,19 @@ config file, and nothing forge-related, since that's per-user now (see
 | `REFRESH_INTERVAL` | no       | `5m`                       | How often the backend re-polls a signed-in user's forges, as a Go duration (`2m30s`, `10m`).             |
 
 Repository discovery is automatic per user. With a token, the dashboard
-lists every repository it has push access to (`GET /user/repos` on both
-APIs); with only a username, it lists that account's public repositories
-(`GET /users/<username>/repos`, also both APIs) with no credential in
-play at all. Either way there's no per-repo allowlist to maintain —
-archived and forked repositories are excluded automatically, on both
-forges, in either mode. On Forgejo, a mirrored repository is excluded too
-— a pull mirror has no pull requests or issues of its own to poll, and its
-canonical home is whichever forge it's mirrored from.
+lists every repository it has push access to — on GitHub, one GraphQL
+query returns that whole list along with every repo's open pull requests,
+open issues, and CI status in a single request (drawing from GraphQL's
+own separate rate-limit pool, not the REST budget everything else on the
+account shares); on Forgejo, `GET /user/repos`. With only a username, it
+lists that account's public repositories (`GET /users/<username>/repos`
+on both) with no credential in play at all — GitHub's GraphQL API allows
+no anonymous access, so this mode stays REST-based there too. Either way
+there's no per-repo allowlist to maintain — archived and forked
+repositories are excluded automatically, on both forges, in either mode.
+On Forgejo, a mirrored repository is excluded too — a pull mirror has no
+pull requests or issues of its own to poll, and its canonical home is
+whichever forge it's mirrored from.
 
 ## Running it
 
