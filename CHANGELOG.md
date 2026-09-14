@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/alrayyes/forge-dashboard/compare/v0.30.0...v0.31.0) (2026-09-14)
+
+
+### Features
+
+* keep repo/author/label filters and group-by consistent with the active forge ([#116](https://github.com/alrayyes/forge-dashboard/issues/116)) ([60bd346](https://github.com/alrayyes/forge-dashboard/commit/60bd3462a00ff0a8fbe91da8b4fe099d18b6e6de)), closes [#112](https://github.com/alrayyes/forge-dashboard/issues/112)
+
 ## [0.30.0](https://github.com/alrayyes/forge-dashboard/compare/v0.29.1...v0.30.0) (2026-09-14)
 
 
