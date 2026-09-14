@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.38.1](https://github.com/alrayyes/forge-dashboard/compare/v0.38.0...v0.38.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* dedupe concurrent refresh triggers for the same user ([#148](https://github.com/alrayyes/forge-dashboard/issues/148)) ([c84d7e6](https://github.com/alrayyes/forge-dashboard/commit/c84d7e66d0c9a5e0135336718fcf4d83ee6a25b7))
+
 ## [0.38.0](https://github.com/alrayyes/forge-dashboard/compare/v0.37.1...v0.38.0) (2026-09-14)
 
 
