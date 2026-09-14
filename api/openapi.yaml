@@ -892,6 +892,30 @@ components:
           type: integer
           minimum: 0
           description: Repositories with write access this forge reported.
+        rateLimit:
+          $ref: "#/components/schemas/RateLimit"
+
+    RateLimit:
+      type: object
+      required: [limit, remaining, resetsAt]
+      description: >-
+        The forge API's own request budget for the credential the last
+        refresh used. Only reported where the forge exposes one — GitHub
+        does; Forgejo has no rate limiting of its own by default, so this
+        is omitted there.
+      properties:
+        limit:
+          type: integer
+          minimum: 0
+          description: Requests allowed per window.
+        remaining:
+          type: integer
+          minimum: 0
+          description: Requests left in the current window.
+        resetsAt:
+          type: string
+          format: date-time
+          description: When the window resets and remaining goes back to limit.
 
     PullRequest:
       type: object
