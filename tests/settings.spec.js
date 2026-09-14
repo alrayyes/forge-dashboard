@@ -206,6 +206,24 @@ test.describe('settings page', () => {
     expect(clipboardText).toBe(expected);
   });
 
+  test('copying the webhook secret confirms it in the status line', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto('/settings.html');
+
+    await expect(page.locator('#webhook-secret')).not.toHaveValue('');
+    await page.click('.copy-button[data-copy-target="webhook-secret"]');
+    await expect(page.locator('#webhook-copy-status')).toHaveText('Copied.');
+
+    const clipboardText = await page.evaluate(() =>
+      navigator.clipboard.readText(),
+    );
+    const expected = await page.locator('#webhook-secret').inputValue();
+    expect(clipboardText).toBe(expected);
+  });
+
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await page.goto('/settings.html');
 
