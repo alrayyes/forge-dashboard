@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.36.0](https://github.com/alrayyes/forge-dashboard/compare/v0.35.0...v0.36.0) (2026-09-14)
+
+
+### Features
+
+* **api:** add a rate-limit schema to ForgeHealth ([#133](https://github.com/alrayyes/forge-dashboard/issues/133)) ([073e7f4](https://github.com/alrayyes/forge-dashboard/commit/073e7f4f308ce7544b5535d344d602c38f128538))
+* show each forge's API rate-limit budget on the dashboard ([#136](https://github.com/alrayyes/forge-dashboard/issues/136)) ([747d797](https://github.com/alrayyes/forge-dashboard/commit/747d7971db0e25fc69ad9b2a729cfd5548fe2ac6))
+
+
+### Bug Fixes
+
+* run a webhook-triggered refresh detached from the request ([#135](https://github.com/alrayyes/forge-dashboard/issues/135)) ([582eda0](https://github.com/alrayyes/forge-dashboard/commit/582eda0a176be752267b94ba6bbd35ae2df370df)), closes [#134](https://github.com/alrayyes/forge-dashboard/issues/134)
+
 ## [0.35.0](https://github.com/alrayyes/forge-dashboard/compare/v0.34.0...v0.35.0) (2026-09-14)
 
 
