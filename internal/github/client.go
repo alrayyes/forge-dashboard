@@ -118,28 +118,40 @@ type apiError struct {
 
 func (e *apiError) Error() string { return e.msg }
 
+// rateLimitShortMessage reports a short reason instead of GitHub's own
+// message whenever the response's headers say rate limiting is the
+// actual cause — the real body ("API rate limit exceeded for user ID
+// 511318. If you reach out to GitHub Support for help, please include
+// the request ID ... For more on scraping GitHub and how it may affect
+// your rights, please review our Terms of Service...") is legal
+// boilerplate meant for a developer reading API docs, not a line on a
+// dashboard, and the actual budget is what the rate-limit chip (built
+// from the RateLimit rateLimitFromHeaders reports alongside this)
+// already shows right next to it. Checked purely from headers, not the
+// response body or status code, because GitHub reports rate limiting
+// both ways: a non-2xx status with this body shape, and — seen live —
+// an HTTP 200 carrying the same complaint as a GraphQL-level error
+// instead. ok is false for anything else (a bad token, a real outage),
+// which keeps GitHub's own message — normally short and specific
+// ("Bad credentials", "Not Found").
+func rateLimitShortMessage(h http.Header) (msg string, ok bool) {
+	if h.Get("X-RateLimit-Remaining") == "0" {
+		return "rate limit exceeded", true
+	}
+	if retryAfter := h.Get("Retry-After"); retryAfter != "" {
+		return fmt.Sprintf("rate limited, retry after %ss", retryAfter), true
+	}
+	return "", false
+}
+
 // apiErrorDetail turns a failed response into the reason a person reading
 // the dashboard's forge-health error actually needs — and the rate-limit
 // budget the response reported, if any.
-//
-// Rate limiting gets its own short message rather than GitHub's own: the
-// real body ("API rate limit exceeded for user ID 511318. If you reach
-// out to GitHub Support for help, please include the request ID ... For
-// more on scraping GitHub and how it may affect your rights, please
-// review our Terms of Service...") is legal boilerplate meant for a
-// developer reading API docs, not a line on a dashboard — and the actual
-// budget is what the rate-limit chip (built from the RateLimit this
-// returns) already shows right next to it. Anything else — a bad token,
-// a real outage — keeps GitHub's own message, which is normally short
-// and specific ("Bad credentials", "Not Found").
 func apiErrorDetail(resp *http.Response) (string, *dashboard.RateLimit) {
 	rl := rateLimitFromHeaders(resp.Header)
 
-	if resp.Header.Get("X-RateLimit-Remaining") == "0" {
-		return "rate limit exceeded", rl
-	}
-	if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
-		return fmt.Sprintf("rate limited, retry after %ss", retryAfter), rl
+	if msg, ok := rateLimitShortMessage(resp.Header); ok {
+		return msg, rl
 	}
 
 	msg := resp.Status
@@ -417,7 +429,16 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 		return err
 	}
 	if len(envelope.Errors) > 0 {
-		return fmt.Errorf("github: graphql: %s", envelope.Errors[0].Message)
+		rl := rateLimitFromHeaders(resp.Header)
+		msg := envelope.Errors[0].Message
+		// GitHub sometimes reports rate limiting as a query-level error in
+		// a 200 response rather than rejecting the request outright — the
+		// same headers are still there, so it gets the same short message
+		// and the same RateLimit reporting as the HTTP-status failure path.
+		if short, ok := rateLimitShortMessage(resp.Header); ok {
+			msg = short
+		}
+		return &apiError{msg: fmt.Sprintf("github: graphql: %s", msg), rateLimit: rl}
 	}
 	if out == nil {
 		return nil
