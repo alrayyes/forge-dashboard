@@ -52,6 +52,41 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#footer-version')).toContainText('· dev build');
   });
 
+  test('an unreachable forge shows the real reason as visible text, not just a hover tooltip', async ({
+    page,
+  }) => {
+    // Real incident: a rate-limited GitHub source showed only "GitHub
+    // unreachable", with the actual reason (rate limited, bad token, a
+    // real outage — all look identical from here) buried in a title
+    // attribute nothing but a mouse hover ever reaches.
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [
+            {
+              forge: 'github',
+              reachable: false,
+              repoCount: 0,
+              error:
+                'github: GET /user/repos: API rate limit exceeded for user ID 511318. (resets 2026-09-14T14:00:00Z)',
+            },
+          ],
+          pullRequests: [],
+          issues: [],
+        }),
+      }),
+    );
+
+    await page.reload();
+
+    await expect(page.locator('#forge-health')).toContainText(
+      'API rate limit exceeded for user ID 511318.',
+    );
+  });
+
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await expect(page.locator('#stat-prs')).not.toHaveText('–');
 
