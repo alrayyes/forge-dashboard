@@ -201,7 +201,9 @@ APIs); with only a username, it lists that account's public repositories
 (`GET /users/<username>/repos`, also both APIs) with no credential in
 play at all. Either way there's no per-repo allowlist to maintain —
 archived and forked repositories are excluded automatically, on both
-forges, in either mode.
+forges, in either mode. On Forgejo, a mirrored repository is excluded too
+— a pull mirror has no pull requests or issues of its own to poll, and its
+canonical home is whichever forge it's mirrored from.
 
 ## Running it
 

@@ -73,6 +73,36 @@ func TestListRepos_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	assert.Equal(t, "alrayyes/active", repos[0].FullName)
 }
 
+func TestListRepos_ExcludesMirroredRepos(t *testing.T) {
+	t.Parallel()
+
+	// alrayyes/backup-git-repos mirrors his GitHub repos into Forgejo for
+	// backup — real repos, but their canonical home (and the one worth
+	// polling for pull requests and issues) is GitHub. Confirmed live:
+	// forge-dashboard polled a mirror's /pulls and /issues and got a 404
+	// on every request, since a mirror has neither enabled.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/active", "name": "active", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true}, "mirror": false},
+			{"full_name": "alrayyes/tempus-fugit", "name": "tempus-fugit", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true}, "mirror": true},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	repos, err := client.ListRepos(t.Context())
+
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+	assert.Equal(t, "alrayyes/active", repos[0].FullName)
+}
+
 func TestListRepos_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 	t.Parallel()
 
@@ -111,6 +141,31 @@ func TestListRepos_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 			{"full_name": "alrayyes/active", "name": "active", "owner": map[string]string{"login": "alrayyes"}, "archived": false, "fork": false},
 			{"full_name": "alrayyes/archived", "name": "archived", "owner": map[string]string{"login": "alrayyes"}, "archived": true, "fork": false},
 			{"full_name": "alrayyes/forked", "name": "forked", "owner": map[string]string{"login": "alrayyes"}, "archived": false, "fork": true},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "", "alrayyes")
+	repos, err := client.ListRepos(t.Context())
+
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+	assert.Equal(t, "alrayyes/active", repos[0].FullName)
+}
+
+func TestListRepos_NoToken_ExcludesMirroredRepos(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/active", "name": "active", "owner": map[string]string{"login": "alrayyes"}, "mirror": false},
+			{"full_name": "alrayyes/tempus-fugit", "name": "tempus-fugit", "owner": map[string]string{"login": "alrayyes"}, "mirror": true},
 		})
 	})
 	srv := httptest.NewServer(mux)
