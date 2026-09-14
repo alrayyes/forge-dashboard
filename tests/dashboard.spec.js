@@ -518,9 +518,15 @@ test.describe('dashboard page', () => {
         await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
       });
 
-      test('a filter combined with forge grouping only clusters the forges that still have matches — no empty headings', async ({
+      test('picking a forge while grouped by forge resets grouping to none, instead of clustering into one no-op heading', async ({
         page,
       }) => {
+        // Covered in depth (option hidden, group-select value reset) by
+        // "the repo/author/label filters ... stay consistent with the
+        // active forge" below — this just confirms the render outcome:
+        // every visible row already shares one forge once the Forge
+        // filter narrows to it, so a single cluster would tell the user
+        // nothing a flat list didn't already (#112).
         await page.selectOption('#pr-group-select', 'forge');
         await page.selectOption(
           'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
@@ -528,12 +534,12 @@ test.describe('dashboard page', () => {
         );
 
         await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(
-          1,
-        );
-        await expect(page.locator('#pr-rows > h3.group-heading')).toContainText(
-          'GitHub',
+          0,
         );
         await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+        await expect(page.locator('#pr-rows > .row')).toContainText(
+          'A GitHub PR',
+        );
       });
     });
   });
@@ -584,13 +590,19 @@ test.describe('dashboard page', () => {
     test('the repo select lists repos actually on screen, and picking one filters to it', async ({
       page,
     }) => {
+      // Only one forge represented here, so options stay flat — no
+      // <optgroup> — but the value is still forge-qualified (#112).
       const options = page.locator('#pr-repo-select option');
       await expect(options).toHaveCount(3); // "All repos" plus the two.
+      await expect(page.locator('#pr-repo-select optgroup')).toHaveCount(0);
       await expect(
-        page.locator('#pr-repo-select option[value="alrayyes/wiki"]'),
+        page.locator('#pr-repo-select option[value="github:alrayyes/wiki"]'),
       ).toHaveCount(1);
+      await expect(
+        page.locator('#pr-repo-select option[value="github:alrayyes/wiki"]'),
+      ).toHaveText('alrayyes/wiki');
 
-      await page.selectOption('#pr-repo-select', 'alrayyes/wiki');
+      await page.selectOption('#pr-repo-select', 'github:alrayyes/wiki');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Two');
 
@@ -625,6 +637,179 @@ test.describe('dashboard page', () => {
       );
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Two');
+    });
+  });
+
+  test.describe('the repo/author/label filters and group-by stay consistent with the active forge', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              { forge: 'github', reachable: true, repoCount: 2 },
+              { forge: 'forgejo', reachable: true, repoCount: 1 },
+            ],
+            pullRequests: [
+              {
+                forge: 'github',
+                repo: 'shared/tools',
+                number: 1,
+                title: 'GitHub A',
+                url: 'https://example.com/1',
+                author: 'claude',
+                ci: 'success',
+                labels: [{ name: 'bug', color: 'd73a4a' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'forgejo',
+                repo: 'shared/tools',
+                number: 2,
+                title: 'Forgejo A',
+                url: 'https://example.com/2',
+                author: 'ryan',
+                ci: 'success',
+                labels: [{ name: 'enhancement', color: 'a2eeef' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'github',
+                repo: 'alrayyes/only-here',
+                number: 3,
+                title: 'GitHub only',
+                url: 'https://example.com/3',
+                author: 'claude',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+            issues: [],
+          }),
+        }),
+      );
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+    });
+
+    test('the repo select groups options by forge when a repo name is shared, and resolves each to exactly one forge', async ({
+      page,
+    }) => {
+      const groups = page.locator('#pr-repo-select optgroup');
+      await expect(groups).toHaveCount(2);
+      // Alphabetical by display label, same as group-by-forge's headings:
+      // "Forgejo" before "GitHub".
+      await expect(groups.nth(0)).toHaveAttribute('label', 'Forgejo');
+      await expect(groups.nth(1)).toHaveAttribute('label', 'GitHub');
+
+      await page.selectOption('#pr-repo-select', 'github:shared/tools');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('GitHub A');
+
+      await page.selectOption('#pr-repo-select', 'forgejo:shared/tools');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('Forgejo A');
+    });
+
+    test('picking a forge narrows the repo, author, and label selects to that forge only, ungrouped', async ({
+      page,
+    }) => {
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        'forgejo',
+      );
+
+      await expect(page.locator('#pr-repo-select optgroup')).toHaveCount(0);
+      await expect(page.locator('#pr-repo-select option')).toHaveCount(2); // All repos + shared/tools.
+      await expect(page.locator('#pr-author-select option')).toHaveCount(2); // All authors + ryan.
+      await expect(page.locator('#pr-label-select option')).toHaveCount(2); // All labels + enhancement.
+    });
+
+    test('clearing the forge filter widens the repo, author, and label options back out', async ({
+      page,
+    }) => {
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        'forgejo',
+      );
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        '',
+      );
+
+      await expect(page.locator('#pr-repo-select optgroup')).toHaveCount(2);
+      await expect(page.locator('#pr-author-select option')).toHaveCount(3); // All + claude + ryan.
+      await expect(page.locator('#pr-label-select option')).toHaveCount(3); // All + bug + enhancement.
+    });
+
+    test('a repo selection that no longer exists once the forge filter narrows clears itself, not just the control', async ({
+      page,
+    }) => {
+      await page.selectOption('#pr-repo-select', 'github:alrayyes/only-here');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        'forgejo',
+      );
+
+      // "alrayyes/only-here" doesn't exist under Forgejo — the stale
+      // selection has to clear, or this would silently show zero rows
+      // with no visible reason why.
+      await expect(page.locator('#pr-repo-select')).toHaveValue('');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('Forgejo A');
+    });
+
+    test('an author selection that no longer exists once the forge filter narrows clears itself', async ({
+      page,
+    }) => {
+      await page.selectOption('#pr-author-select', 'claude');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        'forgejo',
+      );
+
+      await expect(page.locator('#pr-author-select')).toHaveValue('');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('Forgejo A');
+    });
+
+    test('"Group by forge" disappears once a forge is picked, and resets an active forge grouping to none', async ({
+      page,
+    }) => {
+      await page.selectOption('#pr-group-select', 'forge');
+      await expect(page.locator('#pr-rows > .group-heading')).toHaveCount(2);
+      await expect(
+        page.locator('#pr-group-select option[value="forge"]'),
+      ).toHaveJSProperty('hidden', false);
+
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        'github',
+      );
+
+      await expect(
+        page.locator('#pr-group-select option[value="forge"]'),
+      ).toHaveJSProperty('hidden', true);
+      await expect(page.locator('#pr-group-select')).toHaveValue('');
+      await expect(page.locator('#pr-rows > .group-heading')).toHaveCount(0);
+
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+        '',
+      );
+      await expect(
+        page.locator('#pr-group-select option[value="forge"]'),
+      ).toHaveJSProperty('hidden', false);
     });
   });
 

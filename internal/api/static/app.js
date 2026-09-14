@@ -280,9 +280,14 @@
   // into instead of bolting another special case onto row-hiding, which
   // is what this replaces (see issue #36).
   function matchesFilters(item, isPR, filters) {
-    var repoKey = `${item.forge} ${item.repo}`.toLowerCase();
+    // Forge-qualified and matched exactly, not by substring: the Repo
+    // <select>'s options are always a complete "forge:repo" token (never
+    // partial text a user typed), and the same repo name can exist under
+    // more than one forge — a substring match would resolve one option to
+    // both forges' copies at once, with no way to pick just one (#112).
+    var repoKey = `${item.forge}:${item.repo}`.toLowerCase();
     if (filters.forge && item.forge !== filters.forge) return false;
-    if (filters.repo && repoKey.indexOf(filters.repo) === -1) return false;
+    if (filters.repo && repoKey !== filters.repo) return false;
     if (filters.title && item.title.toLowerCase().indexOf(filters.title) === -1)
       return false;
     if (
@@ -367,15 +372,24 @@
       });
     }
 
-    // Distinct, sorted values of getValues(item) across the items
-    // currently on screen — what both a filter <select>'s options and a
-    // filter <input>'s <datalist> suggestions are populated from.
-    // getValues returns either one value (repo, author, title) or an
-    // array of them (label — an item can carry several).
-    function distinctValues(getValues) {
+    // Everything Repo/Author/Label/title-suggestions get built from —
+    // all items when no Forge filter is set, only that forge's items once
+    // one is. Picking a forge should narrow what the other controls
+    // offer, not just what rows show (#112).
+    function forgeScopedItems() {
+      if (!state.filters.forge) return state.items;
+      return state.items.filter((item) => item.forge === state.filters.forge);
+    }
+
+    // Distinct, sorted values of getValues(item) across items — what both
+    // a filter <select>'s options and a filter <input>'s <datalist>
+    // suggestions are populated from. getValues returns either one value
+    // (author, title) or an array of them (label — an item can carry
+    // several).
+    function distinctValues(getValues, items) {
       var seen = {};
       var values = [];
-      state.items.forEach((item) => {
+      items.forEach((item) => {
         var vs = getValues(item);
         (Array.isArray(vs) ? vs : [vs]).forEach((v) => {
           if (v && !seen[v]) {
@@ -388,7 +402,7 @@
       return values;
     }
 
-    // Repo and author are a small, closed set of values actually on
+    // Author and label are a small, closed set of values actually on
     // screen at any moment — the same reasoning created/updated/status
     // are already plain <select>s for. The "all" placeholder is the
     // select's own first <option>, written once in the HTML rather than
@@ -396,7 +410,14 @@
     // clear+repopulate blindly either way, or a selection survives only
     // until the next item-set refresh (a poll, an SSE push, another
     // filter narrowing what's visible) silently resets it back to "all."
-    function populateSelect(select, values) {
+    //
+    // col names which state.filters key this select drives — when the
+    // previously selected value doesn't survive the rebuild (its option
+    // is gone), the underlying filter is cleared too, not just the
+    // visible control: otherwise it keeps silently filtering out
+    // everything on a value nothing can match, with no visible cause
+    // (#112, the same shape of bug #107 fixed for the Label select).
+    function populateSelect(select, values, col) {
       if (!select) return;
       var previous = select.value;
       while (select.options.length > 1) select.remove(1);
@@ -406,7 +427,95 @@
         option.textContent = v;
         select.appendChild(option);
       });
-      if (values.indexOf(previous) !== -1) select.value = previous;
+      if (values.indexOf(previous) !== -1) {
+        select.value = previous;
+      } else if (previous) {
+        select.value = '';
+        if (state.filters[col]) {
+          state.filters[col] = '';
+          savePersistedFilters(idPrefix, state.filters);
+        }
+      }
+    }
+
+    // Repo is forge-qualified ("github:owner/name") rather than bare,
+    // since the same repo name can exist under more than one forge —
+    // picking one has to resolve to exactly that forge's copy, never
+    // both (matchesFilters matches this value exactly, not by
+    // substring). Grouped under a heading per forge (<optgroup>, the
+    // same display labels group-by-forge's own headings use) only when
+    // more than one forge is actually represented among the scoped
+    // items — a single forge (one forge configured, or the Forge filter
+    // already narrowed to one) has nothing left to disambiguate, so
+    // options stay flat. Clears the selection (control and filter) the
+    // same way populateSelect does when the previous choice doesn't
+    // survive the rebuild.
+    function populateRepoSelect(items) {
+      var select = document.getElementById(`${idPrefix}-repo-select`);
+      var byForge = {};
+      var forgeOrder = [];
+      var seen = {};
+      var previous;
+      var stillPresent = false;
+      var grouped;
+      var parent;
+      if (!select) return;
+      previous = select.value;
+
+      items.forEach((item) => {
+        var value = `${item.forge}:${item.repo}`;
+        if (!byForge[item.forge]) {
+          byForge[item.forge] = [];
+          forgeOrder.push(item.forge);
+        }
+        if (!seen[value]) {
+          seen[value] = true;
+          byForge[item.forge].push({ value: value, label: item.repo });
+        }
+      });
+      forgeOrder.sort();
+      forgeOrder.forEach((forge) => {
+        byForge[forge].sort((a, b) => a.label.localeCompare(b.label));
+      });
+
+      // Unlike populateSelect's flat options, a previous population here
+      // may have left <optgroup> wrappers behind — select.remove(), like
+      // the options collection it acts on, only ever removes <option>
+      // elements, never the (possibly now-empty) <optgroup> holding them.
+      // Drop every child but the first "All ..." option outright, so
+      // switching from grouped to ungrouped (or back) never accumulates
+      // stale, empty optgroups.
+      Array.from(select.children)
+        .slice(1)
+        .forEach((child) => {
+          child.remove();
+        });
+
+      grouped = forgeOrder.length > 1;
+      forgeOrder.forEach((forge) => {
+        parent = grouped ? document.createElement('optgroup') : select;
+        if (grouped) {
+          parent.label = FORGE_LABELS[forge] || forge;
+          select.appendChild(parent);
+        }
+        byForge[forge].forEach((entry) => {
+          var option = document.createElement('option');
+          option.value = entry.value;
+          option.textContent = entry.label;
+          parent.appendChild(option);
+          if (entry.value === previous) stillPresent = true;
+        });
+      });
+
+      if (stillPresent) {
+        select.value = previous;
+      } else if (previous) {
+        select.value = '';
+        if (state.filters.repo) {
+          state.filters.repo = '';
+          savePersistedFilters(idPrefix, state.filters);
+        }
+      }
     }
 
     // Title is the one column that's genuinely open-ended free text —
@@ -422,23 +531,46 @@
       });
     }
 
+    // "Group by forge" is a no-op once the Forge filter already narrows
+    // every visible row to one forge — grouping by it would produce
+    // exactly one cluster, telling the user nothing a flat list didn't
+    // already. Hidden in that case; resets to no grouping if it was the
+    // active mode when a forge got picked (#112).
+    function updateGroupByOptions() {
+      var forgeOption = groupSelect
+        ? groupSelect.querySelector('option[value="forge"]')
+        : null;
+      var forgeFilterActive;
+      if (!forgeOption) return;
+      forgeFilterActive = Boolean(state.filters.forge);
+      forgeOption.hidden = forgeFilterActive;
+      if (forgeFilterActive && state.groupBy === 'forge') {
+        state.groupBy = null;
+        groupSelect.value = '';
+      }
+    }
+
     function updateFilterOptions() {
-      populateSelect(
-        document.getElementById(`${idPrefix}-repo-select`),
-        distinctValues((item) => item.repo),
-      );
+      var scoped = forgeScopedItems();
+      populateRepoSelect(scoped);
       populateSelect(
         document.getElementById(`${idPrefix}-author-select`),
-        distinctValues((item) => item.author),
+        distinctValues((item) => item.author, scoped),
+        'author',
       );
       populateDatalist(
         document.getElementById(`${idPrefix}-title-options`),
-        distinctValues((item) => item.title),
+        distinctValues((item) => item.title, scoped),
       );
       populateSelect(
         document.getElementById(`${idPrefix}-label-select`),
-        distinctValues((item) => (item.labels || []).map((l) => l.name)),
+        distinctValues(
+          (item) => (item.labels || []).map((l) => l.name),
+          scoped,
+        ),
+        'label',
       );
+      updateGroupByOptions();
     }
 
     // Sets col to value, unless it's already value — then clears it. Used
@@ -635,6 +767,10 @@
       setFilter: (col, value) => {
         state.filters[col] = value;
         state.page = 1;
+        // Repo/Author/Label options (and "Group by forge") are scoped to
+        // the active forge, so a forge change has to re-narrow them right
+        // away rather than waiting for the next poll's setItems (#112).
+        if (col === 'forge') updateFilterOptions();
         savePersistedFilters(idPrefix, state.filters);
         render();
       },
