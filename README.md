@@ -13,6 +13,14 @@ acceptance criteria this was built against, and
 passwordless login, per-user tokens, sharing, and an admin role this document
 now describes the first slice of.
 
+![forge-dashboard, light mode](docs/screenshots/dashboard-light.png)
+![forge-dashboard, dark mode](docs/screenshots/dashboard-dark.png)
+
+Fixture data, not a real account's actual repositories — regenerated
+automatically by the release workflow on every release (see
+`scripts/capture-screenshots.js`), so it's never more than one release
+stale.
+
 ## Design
 
 - **Passkey login, no passwords anywhere.** Registration and sign-in are

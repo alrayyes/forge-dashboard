@@ -32,6 +32,7 @@
     "lint:api": "redocly lint",
     "lint:prose": "./scripts/lint-prose.sh",
     "lint:mechanics": "./scripts/lint-mechanics.sh",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "capture-screenshots": "node scripts/capture-screenshots.js"
   }
 }
