@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 )
@@ -158,12 +159,24 @@ func (a *Aggregator) mergeRepo(forge Forge, fullName string, prs []PullRequest, 
 		merged.Issues = append(merged.Issues, i)
 	}
 	merged.Issues = append(merged.Issues, issues...)
+	sortByRecency(merged.PullRequests, merged.Issues)
 
 	a.mu.Lock()
 	a.snap = merged
 	a.mu.Unlock()
 
 	a.notify(merged)
+}
+
+// sortByRecency orders both slices most-recently-updated first. Without
+// this, a snapshot's order was purely an accident of merge order —
+// confirmed live: the client's own paginated board (25 items per page)
+// never re-sorts either, so whichever repo a scoped refresh had just
+// appended to the tail of the list could knock a brand new issue clean
+// off page 1, real incident behind #162.
+func sortByRecency(prs []PullRequest, issues []Issue) {
+	slices.SortFunc(prs, func(a, b PullRequest) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
+	slices.SortFunc(issues, func(a, b Issue) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
 }
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
@@ -186,6 +199,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		snap.PullRequests = append(snap.PullRequests, r.PullRequests...)
 		snap.Issues = append(snap.Issues, r.Issues...)
 	}
+	sortByRecency(snap.PullRequests, snap.Issues)
 
 	a.mu.Lock()
 	a.snap = snap
