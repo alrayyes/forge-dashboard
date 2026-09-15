@@ -128,13 +128,13 @@
     return bucket ? bucket.key : AGE_BUCKETS[AGE_BUCKETS.length - 1].key;
   }
 
-  function renderAgeHistogram(pullRequests) {
-    var chart = document.getElementById('pr-age-chart');
-    var empty = document.getElementById('pr-age-empty');
-    var table = document.getElementById('pr-age-table');
+  function renderAgeHistogram(items, idPrefix) {
+    var chart = document.getElementById(`${idPrefix}-age-chart`);
+    var empty = document.getElementById(`${idPrefix}-age-empty`);
+    var table = document.getElementById(`${idPrefix}-age-table`);
     var tbody = table.querySelector('tbody');
 
-    if (pullRequests.length === 0) {
+    if (items.length === 0) {
       chart.hidden = true;
       table.hidden = true;
       empty.hidden = false;
@@ -147,8 +147,9 @@
       counts[bucket.key] = 0;
     });
     var now = Date.now();
-    pullRequests.forEach((p) => {
-      var hoursOld = (now - new Date(p.createdAt).getTime()) / (60 * 60 * 1000);
+    items.forEach((item) => {
+      var hoursOld =
+        (now - new Date(item.createdAt).getTime()) / (60 * 60 * 1000);
       counts[bucketForAge(hoursOld)]++;
     });
 
@@ -248,7 +249,8 @@
       renderCIStatus(data.pullRequests || []);
       renderRepoRanking(data.pullRequests || [], 'repo-pr');
       renderRepoRanking(data.issues || [], 'repo-issue');
-      renderAgeHistogram(data.pullRequests || []);
+      renderAgeHistogram(data.pullRequests || [], 'pr');
+      renderAgeHistogram(data.issues || [], 'issue');
       renderRateLimits(data.forges || []);
     })
     .catch(() => {
