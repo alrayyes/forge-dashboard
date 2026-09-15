@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.0](https://github.com/alrayyes/forge-dashboard/compare/v0.43.0...v0.44.0) (2026-09-15)
+
+
+### Features
+
+* **insights:** histogram open pull request age ([#191](https://github.com/alrayyes/forge-dashboard/issues/191)) ([0728420](https://github.com/alrayyes/forge-dashboard/commit/07284209513e926add371c037ceff6e9a088e039))
+
 ## [0.43.0](https://github.com/alrayyes/forge-dashboard/compare/v0.42.0...v0.43.0) (2026-09-15)
 
 
