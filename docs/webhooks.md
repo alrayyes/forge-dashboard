@@ -26,8 +26,7 @@ working; there's no separate step to "save" them.
 5. **Which events would you like to trigger this webhook?** → "Let me
    select individual events", then check **Pull requests**, **Issues**,
    **Statuses**, and **Check runs**. (Selecting "Send me everything"
-   works too — every event this handler receives is treated the same way
-   regardless, see below — it's just more traffic than needed.)
+   works too, see below — it's just more traffic than needed.)
 6. Leave **Active** checked, then **Add webhook**.
 
 GitHub POSTs a `ping` event immediately to confirm the URL is reachable;
@@ -54,10 +53,12 @@ anything acts on it — an unsigned or wrongly signed request is refused
 outright, not just ignored. GitHub signs with `X-Hub-Signature-256`;
 Forgejo signs with `X-Forgejo-Signature` (or `X-Gitea-Signature` on an
 instance whose webhook was set up with the legacy "Gitea" type) — both
-are an HMAC-SHA256 of the raw request body, keyed with your secret.
-Nothing about the payload's own contents is read: every event type these
-two forges can send here means the same thing — something changed,
-refresh — so what actually triggers is identical either way.
+are an HMAC-SHA256 of the raw request body, keyed with your secret. Once
+verified, the payload's `repository` field is read to refresh just that
+one repo instead of everything you track — a delivery whose payload
+doesn't carry one (the initial "ping", most concretely) falls back to a
+full refresh instead, so every event type still results in _something_
+refreshing either way.
 
 ## Troubleshooting
 
@@ -66,6 +67,14 @@ refresh — so what actually triggers is identical either way.
   extra whitespace — a mismatched secret is indistinguishable from an
   attacker's forged request from this endpoint's point of view, so both
   are refused the same way.
+- **A delivery arrives but the dashboard doesn't seem to reflect it**:
+  every delivery is logged, each line naming the forge, the event type,
+  and the delivery ID — `webhook accepted`, `webhook signature invalid`,
+  or `webhook token unknown`, followed by `webhook refresh dispatched`
+  once the triggered refresh actually runs. No `LOG_LEVEL` change is
+  needed to see them; each logs at its natural level (`INFO` for a
+  normal delivery, `WARN` for a rejected one) regardless of what
+  `LOG_LEVEL` is set to.
 - **You want to rotate the secret**: there's currently no way to do that
   from the dashboard — it's generated once, the first time the Settings
   page is opened, and stays fixed after that for as long as the account
