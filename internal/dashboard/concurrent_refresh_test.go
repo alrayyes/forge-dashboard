@@ -29,9 +29,26 @@ func TestManager_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 	t.Parallel()
 
 	var calls atomic.Int64
+	// The coalescing guarantee below only holds if every goroutine in the
+	// burst actually reaches coalescer.do while the first fetch is still
+	// in flight. Left ungated, the mock answers near-instantly, so on a
+	// CPU-constrained CI runner the race is between "the burst's 5
+	// goroutines all get scheduled" and "the first fetch's round trip
+	// finishes and resets coalescer.running" — a race the test lost
+	// intermittently (real incident: 4 calls instead of the asserted 2,
+	// scheduling jitter on the runner, not a coalescer bug — confirmed
+	// live with -race -count=20/50 passing locally every time). burstGate
+	// only holds open the fetch the burst itself triggers, not Ensure's
+	// own initial one, which has already completed by the time it's armed.
+	var burstGate atomic.Bool
+	var burstGateEntered atomic.Bool
+	release := make(chan struct{})
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
+		if burstGate.Load() && burstGateEntered.CompareAndSwap(false, true) {
+			<-release
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
@@ -61,6 +78,7 @@ func TestManager_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 	require.Eventually(t, func() bool { return calls.Load() >= 1 }, time.Second, 5*time.Millisecond,
 		"Ensure's own initial refresh should have completed")
 	before := calls.Load()
+	burstGate.Store(true)
 
 	// Simulate several overlapping triggers landing at once — two
 	// webhook deliveries and a third caller, all for the same user.
@@ -73,6 +91,11 @@ func TestManager_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 			manager.RefreshNow(t.Context(), userID)
 		}()
 	}
+	// Deterministic window for the burst to actually reach coalescer.do
+	// before the held fetch is allowed to complete — tens of
+	// milliseconds, not a race against runner scheduling speed.
+	time.Sleep(20 * time.Millisecond)
+	close(release)
 	wg.Wait()
 
 	// At most 2, not 1: whichever trigger acquires the in-flight slot
