@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.0](https://github.com/alrayyes/forge-dashboard/compare/v0.42.0...v0.43.0) (2026-09-15)
+
+
+### Features
+
+* **insights:** rank repos by open pull request and issue count ([#187](https://github.com/alrayyes/forge-dashboard/issues/187)) ([512489e](https://github.com/alrayyes/forge-dashboard/commit/512489ea96d0beda1625d3c8a9d8acaedab100e3))
+
 ## [0.42.0](https://github.com/alrayyes/forge-dashboard/compare/v0.41.2...v0.42.0) (2026-09-15)
 
 
