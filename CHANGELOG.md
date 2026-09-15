@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.0](https://github.com/alrayyes/forge-dashboard/compare/v0.47.0...v0.48.0) (2026-09-15)
+
+
+### Features
+
+* **insights:** mirror the main dashboard's filters on the Insights page ([#207](https://github.com/alrayyes/forge-dashboard/issues/207)) ([bdaf5e3](https://github.com/alrayyes/forge-dashboard/commit/bdaf5e3d991ddb95bb0e9d1ffd12ef56eaf6d4f3))
+
 ## [0.47.0](https://github.com/alrayyes/forge-dashboard/compare/v0.46.0...v0.47.0) (2026-09-15)
 
 
