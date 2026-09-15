@@ -967,8 +967,11 @@
     var failingCount = prs.filter((p) => p.ci === 'failure').length;
     document.getElementById('stat-failing').textContent = String(failingCount);
     // Red only once there's actually something failing — zero is good
-    // news, not a tile that reads as an alarm nobody needs to act on.
+    // news, not a tile that reads as an alarm nobody needs to act on —
+    // and green, not just neutral, since zero failing is itself the
+    // positive signal a CI status tile exists to show.
     statFailingTile.classList.toggle('critical', failingCount > 0);
+    statFailingTile.classList.toggle('ok', failingCount === 0);
     document.getElementById('stat-repos').textContent = String(
       (data.forges || []).reduce((sum, f) => sum + (f.repoCount || 0), 0),
     );
