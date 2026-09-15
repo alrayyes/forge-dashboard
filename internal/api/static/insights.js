@@ -1,4 +1,7 @@
 (() => {
+  // Same labels app.js's own FORGE_LABELS uses.
+  var FORGE_LABELS = { github: 'GitHub', forgejo: 'Forgejo' };
+
   // Same order and labels app.js's own CI_LABELS uses, so "Passing" here
   // means the same thing it means on the dashboard's own CI-failing tile.
   var CI_STATES = [
@@ -178,6 +181,60 @@
     table.hidden = false;
   }
 
+  // Status thresholds on remaining%, not forge identity — --gh/--fj
+  // don't pass as chart-mark fills (see the CSS comment above this
+  // card's rules), and "how healthy is the budget" is the actually
+  // useful signal here.
+  function rateLimitStatusClass(remaining, limit) {
+    var pct = limit > 0 ? remaining / limit : 1;
+    if (pct < 0.05) return 'rl-critical';
+    if (pct < 0.2) return 'rl-warning';
+    return 'rl-good';
+  }
+
+  function renderRateLimits(forges) {
+    var list = document.getElementById('rate-limit-list');
+    list.innerHTML = '';
+
+    forges.forEach((f) => {
+      var row = document.createElement('div');
+      row.className = 'rate-limit-row';
+      row.dataset.forge = f.forge;
+      var label = FORGE_LABELS[f.forge] || f.forge;
+
+      if (!f.rateLimit) {
+        row.innerHTML = `
+          <div class="rate-limit-head">
+            <span class="rate-limit-forge">${label}</span>
+          </div>
+          <p class="rate-limit-note">Not reported by this forge.</p>
+        `;
+        list.appendChild(row);
+        return;
+      }
+
+      var rl = f.rateLimit;
+      var pct = rl.limit > 0 ? (rl.remaining / rl.limit) * 100 : 0;
+      var statusClass = rateLimitStatusClass(rl.remaining, rl.limit);
+      var resetTime = new Date(rl.resetsAt).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      row.innerHTML = `
+        <div class="rate-limit-head">
+          <span class="rate-limit-forge">${label}</span>
+          <span class="rate-limit-count">${rl.remaining.toLocaleString()} / ${rl.limit.toLocaleString()} requests</span>
+        </div>
+        <div class="rate-limit-bar">
+          <div class="rate-limit-fill ${statusClass}" style="width: ${pct}%"></div>
+        </div>
+        <p class="rate-limit-reset">Resets ${resetTime}</p>
+      `;
+      list.appendChild(row);
+    });
+  }
+
   fetch('/api/dashboard', { headers: { Accept: 'application/json' } })
     .then((res) => {
       if (res.status === 401) {
@@ -192,6 +249,7 @@
       renderRepoRanking(data.pullRequests || [], 'repo-pr');
       renderRepoRanking(data.issues || [], 'repo-issue');
       renderAgeHistogram(data.pullRequests || []);
+      renderRateLimits(data.forges || []);
     })
     .catch(() => {
       // A transient failure here just leaves the empty state showing —
