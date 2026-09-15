@@ -8,6 +8,37 @@ shows up within seconds instead of at the next poll. Nothing about this
 is required for the dashboard to work; skip this page entirely and
 everything still functions exactly as it did before.
 
+**A webhook is only as complete as the events you tell your forge to
+send.** Ticking too few doesn't break anything — it just leaves part of
+the dashboard on the slower, polling-only path while the rest updates
+live. The one people miss is CI: a pull request's status colour is driven
+by a _different_ event than the one that shows the pull request existing
+at all, so it's easy to end up with a webhook that reacts to a new pull
+request or a comment but never to that pull request's checks finishing.
+
+| Live update you want                                                                            | GitHub events        | Forgejo events |
+| ----------------------------------------------------------------------------------------------- | -------------------- | -------------- |
+| A pull request opening, closing, or its labels/reviewers changing                               | Pull requests        | Pull Request   |
+| An issue opening, closing, or getting commented on                                              | Issues               | Issue          |
+| **CI/build status** — Actions, a third-party check, or a classic commit status, on either forge | Statuses, Check runs | Status         |
+| A commit landing outside an open pull request                                                   | not tracked          | Push           |
+
+GitHub splits CI into two separate events because it has two separate
+CI mechanisms with two separate APIs: **Statuses** is the older
+commit-status API (what most third-party CI still posts to), **Check
+runs** is GitHub Actions and any GitHub App-based check. Skip either one
+and a pull request whose only checks come from the mechanism you didn't
+select won't update its CI colour until the next poll — everything else
+about that pull request still updates live. Forgejo doesn't have this
+split: its own Actions runs post to the same combined commit-status
+endpoint external CI does, so **Status** alone covers both.
+
+Forgejo's **Push** doesn't feed anything the dashboard displays on its
+own — there's no commit feed here — but it's cheap to include: a push to
+a pull request's head branch is normally caught by the preceding
+pull-request events already, and Push is a harmless second trigger for
+the same refresh in case that doesn't fire.
+
 ## Find your webhook URL and secret
 
 Open **Settings** (`/settings.html`, linked from the dashboard header) —
@@ -62,6 +93,21 @@ refreshing either way.
 
 ## Troubleshooting
 
+- **Everything about a pull request updates live except its CI colour**:
+  the webhook is working, it's just missing the CI-specific event — see
+  the preceding table. Re-open the webhook on your forge and check
+  **Statuses**/**Check runs** (GitHub) or **Status** (Forgejo); nothing
+  else about the webhook needs changing.
+- **You configured a Forgejo webhook's events through the API or a
+  script rather than clicking through this same settings form, and
+  Status won't stick**: confirmed on a real instance running
+  `16.0.4+gitea-1.22.0` — a `PATCH` to the events list can report
+  success while silently dropping `status`, leaving CI updates on the
+  poll-only path with no error anywhere to say why. This is a bug in how
+  that instance persists the edit, not something forge-dashboard can
+  detect or work around. Open the webhook's edit page on the web UI
+  itself and confirm Status is still ticked there — if it keeps
+  reverting, that's worth reporting against your Forgejo instance.
 - **The forge shows the delivery failing, or your dashboard never
   updates from it**: re-check the secret was pasted exactly, with no
   extra whitespace — a mismatched secret is indistinguishable from an
