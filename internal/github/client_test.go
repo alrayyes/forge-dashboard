@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -35,6 +36,71 @@ func readGraphQLRequest(t *testing.T, r *http.Request) graphqlRequestBody {
 	var body graphqlRequestBody
 	assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 	return body
+}
+
+// TestFetch_QueriesNewestPullRequestsAndIssuesFirst is a regression test
+// for a real bug: GitHub's GraphQL schema defaults an issues/pullRequests
+// connection's order to CREATED_AT ascending — oldest first — when no
+// orderBy is given. itemsPerRepo (50) is a hard page cap with no further
+// pagination, so on a repo with 50+ open items, "oldest first" silently
+// drops everything newer than the 50th-oldest, including whatever a
+// webhook just fired for. Asserting on the query text itself, not a
+// fixture server's response ordering: this repo's own fake server just
+// returns whatever JSON a test hands it, so it can't reproduce GitHub's
+// real default-ordering behavior — the only way to prove the fix is to
+// confirm the client actually asks for descending order, trusting
+// GitHub's own docs for what happens without it.
+func TestFetch_QueriesNewestPullRequestsAndIssuesFirst(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		assert.Equal(t, 2, strings.Count(body.Query, "orderBy: {field: CREATED_AT, direction: DESC}"), "both pullRequests and issues should ask for newest first")
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes":    []map[string]any{},
+					},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+}
+
+func TestFetchRepo_QueriesNewestPullRequestsAndIssuesFirst(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		assert.Equal(t, 2, strings.Count(body.Query, "orderBy: {field: CREATED_AT, direction: DESC}"), "both pullRequests and issues should ask for newest first")
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"pullRequests": map[string]any{"nodes": []map[string]any{}},
+					"issues":       map[string]any{"nodes": []map[string]any{}},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	_, _, err := client.FetchRepo(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
 }
 
 func TestFetch_TokenConfigured_UsesGraphQL(t *testing.T) {
