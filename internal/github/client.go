@@ -344,7 +344,7 @@ query($cursor: String) {
         owner {
           login
         }
-        pullRequests(states: OPEN, first: %[1]d) {
+        pullRequests(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
           nodes {
             number
             title
@@ -372,7 +372,7 @@ query($cursor: String) {
             }
           }
         }
-        issues(states: OPEN, first: %[1]d) {
+        issues(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
           nodes {
             number
             title
@@ -548,7 +548,7 @@ func mapIssue(fullName string, i graphqlIssue) dashboard.Issue {
 const repoQueryTemplate = `
 query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
-    pullRequests(states: OPEN, first: %[1]d) {
+    pullRequests(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
       nodes {
         number
         title
@@ -576,7 +576,7 @@ query($owner: String!, $name: String!) {
         }
       }
     }
-    issues(states: OPEN, first: %[1]d) {
+    issues(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
       nodes {
         number
         title
