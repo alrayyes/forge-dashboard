@@ -67,6 +67,10 @@ function prsForRepo(repo, count) {
   );
 }
 
+function hoursAgo(hours) {
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
 test.describe('insights page', () => {
   test.beforeEach(async ({ page }) => {
     await registerAndSignIn(page);
@@ -214,6 +218,65 @@ test.describe('insights page', () => {
 
       await expect(page.locator('#repo-pr-ranking-empty')).toBeVisible();
       await expect(page.locator('#repo-issue-ranking-empty')).toBeVisible();
+    });
+  });
+
+  test.describe('pull request age', () => {
+    test('buckets open pull requests by age, each bar directly labeled with its count', async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        pullRequests: [
+          pr('success', { number: 1, createdAt: hoursAgo(2) }), // <1 day
+          pr('success', { number: 2, createdAt: hoursAgo(48) }), // 1-3 days
+          pr('success', { number: 3, createdAt: hoursAgo(48) }), // 1-3 days
+          pr('success', { number: 4, createdAt: hoursAgo(24 * 5) }), // 3-7 days
+          pr('success', { number: 5, createdAt: hoursAgo(24 * 15) }), // 7-30 days
+        ],
+      });
+
+      await page.goto('/insights.html');
+
+      await expect(
+        page.locator('[data-age-bucket="lt1"] .age-count'),
+      ).toHaveText('1');
+      await expect(
+        page.locator('[data-age-bucket="1to3"] .age-count'),
+      ).toHaveText('2');
+      await expect(
+        page.locator('[data-age-bucket="3to7"] .age-count'),
+      ).toHaveText('1');
+      await expect(
+        page.locator('[data-age-bucket="7to30"] .age-count'),
+      ).toHaveText('1');
+      await expect(
+        page.locator('[data-age-bucket="30plus"] .age-count'),
+      ).toHaveText('0');
+    });
+
+    test('a pull request older than every named bucket falls into the final 30+ days bucket, not dropped', async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        pullRequests: [pr('success', { createdAt: hoursAgo(24 * 400) })],
+      });
+
+      await page.goto('/insights.html');
+
+      await expect(
+        page.locator('[data-age-bucket="30plus"] .age-count'),
+      ).toHaveText('1');
+    });
+
+    test('shows an explicit empty state with no open pull requests', async ({
+      page,
+    }) => {
+      await mockDashboard(page, { pullRequests: [] });
+
+      await page.goto('/insights.html');
+
+      await expect(page.locator('#pr-age-empty')).toBeVisible();
+      await expect(page.locator('#pr-age-chart')).toBeHidden();
     });
   });
 

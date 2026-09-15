@@ -110,6 +110,74 @@
     }
   }
 
+  // Fixed age buckets, oldest-catch-all last so nothing older ever gets
+  // dropped instead of counted.
+  var AGE_BUCKETS = [
+    { key: 'lt1', label: '<1 day', maxHours: 24 },
+    { key: '1to3', label: '1-3 days', maxHours: 24 * 3 },
+    { key: '3to7', label: '3-7 days', maxHours: 24 * 7 },
+    { key: '7to30', label: '7-30 days', maxHours: 24 * 30 },
+    { key: '30plus', label: '30+ days', maxHours: Infinity },
+  ];
+
+  function bucketForAge(hoursOld) {
+    var bucket = AGE_BUCKETS.find((b) => hoursOld < b.maxHours);
+    return bucket ? bucket.key : AGE_BUCKETS[AGE_BUCKETS.length - 1].key;
+  }
+
+  function renderAgeHistogram(pullRequests) {
+    var chart = document.getElementById('pr-age-chart');
+    var empty = document.getElementById('pr-age-empty');
+    var table = document.getElementById('pr-age-table');
+    var tbody = table.querySelector('tbody');
+
+    if (pullRequests.length === 0) {
+      chart.hidden = true;
+      table.hidden = true;
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+
+    var counts = {};
+    AGE_BUCKETS.forEach((bucket) => {
+      counts[bucket.key] = 0;
+    });
+    var now = Date.now();
+    pullRequests.forEach((p) => {
+      var hoursOld = (now - new Date(p.createdAt).getTime()) / (60 * 60 * 1000);
+      counts[bucketForAge(hoursOld)]++;
+    });
+
+    var maxCount = Math.max(...AGE_BUCKETS.map((b) => counts[b.key]));
+    chart.innerHTML = '';
+    tbody.innerHTML = '';
+
+    AGE_BUCKETS.forEach((bucket) => {
+      var count = counts[bucket.key];
+      var pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+
+      var row = document.createElement('div');
+      row.className = 'age-bar-row';
+      row.dataset.ageBucket = bucket.key;
+      row.innerHTML = `
+        <span class="age-bar-label">${bucket.label}</span>
+        <div class="age-bar-track">
+          <div class="age-bar-fill" style="width: ${pct}%"></div>
+        </div>
+        <span class="age-count">${count}</span>
+      `;
+      chart.appendChild(row);
+
+      var tr = document.createElement('tr');
+      tr.innerHTML = `<td>${bucket.label}</td><td class="num">${count}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    chart.hidden = false;
+    table.hidden = false;
+  }
+
   fetch('/api/dashboard', { headers: { Accept: 'application/json' } })
     .then((res) => {
       if (res.status === 401) {
@@ -123,6 +191,7 @@
       renderCIStatus(data.pullRequests || []);
       renderRepoRanking(data.pullRequests || [], 'repo-pr');
       renderRepoRanking(data.issues || [], 'repo-issue');
+      renderAgeHistogram(data.pullRequests || []);
     })
     .catch(() => {
       // A transient failure here just leaves the empty state showing —
