@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.1](https://github.com/alrayyes/forge-dashboard/compare/v0.40.0...v0.40.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* sort pull requests and issues by most recently updated ([#163](https://github.com/alrayyes/forge-dashboard/issues/163)) ([3d4f71b](https://github.com/alrayyes/forge-dashboard/commit/3d4f71bf447a8a5ffb1f45805dcaa0ca867f0d62))
+
 ## [0.40.0](https://github.com/alrayyes/forge-dashboard/compare/v0.39.0...v0.40.0) (2026-09-14)
 
 
