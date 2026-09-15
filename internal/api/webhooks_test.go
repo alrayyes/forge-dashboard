@@ -1,11 +1,13 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -469,4 +471,43 @@ func TestWebhook_RefreshSurvivesTheTriggeringRequestEnding(t *testing.T) {
 	cancelReq()
 
 	require.Eventually(t, func() bool { return calls.Load() > before }, time.Second, 10*time.Millisecond, "the refresh should complete even after the request that triggered it ends")
+}
+
+// TestGitHubWebhook_InvalidSignature_LogsForgeEventAndDeliveryID is a
+// regression test for a real incident: webhooks were enabled and firing,
+// but there was no way to tell from the process's own logs whether a
+// delivery even arrived, let alone why it didn't visibly refresh anything
+// — the same "can't diagnose from the outside" gap LOG_LEVEL's own
+// request logging exists to close for outbound calls. Deliberately not
+// t.Parallel(): it swaps the global slog default, which only stays safe
+// while every other test in the package is still blocked at its own
+// t.Parallel() call rather than actually running (Go's testing package
+// runs every non-parallel test to completion before any parallel one's
+// body proceeds past that call), so no other test's own logging can land
+// in the captured buffer.
+func TestGitHubWebhook_InvalidSignature_LogsForgeEventAndDeliveryID(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	srvURL, _, sessionCookie := newTestServerWithCountingSource(t)
+	token, _ := webhookCredentials(t, srvURL, sessionCookie)
+
+	body := []byte(`{"action":"opened"}`)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.Header.Set("X-Hub-Signature-256", "sha256=not-the-real-signature")
+	req.Header.Set("X-GitHub-Delivery", "test-delivery-id-123")
+	req.Header.Set("X-GitHub-Event", "issues")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	logged := logs.String()
+	assert.Contains(t, logged, "webhook signature invalid")
+	assert.Contains(t, logged, "forge=github")
+	assert.Contains(t, logged, "event=issues")
+	assert.Contains(t, logged, "delivery=test-delivery-id-123")
 }

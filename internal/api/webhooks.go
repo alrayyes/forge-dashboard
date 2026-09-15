@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -24,14 +25,17 @@ const maxWebhookBodyBytes = 5 << 20 // 5 MiB
 // against its X-Hub-Signature-256 header and triggers an immediate
 // refresh for the user webhookToken identifies.
 func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager) http.HandlerFunc {
-	return handleWebhook(appCtx, store, manager, dashboard.ForgeGitHub, func(h http.Header) string {
-		const prefix = "sha256="
-		sig := h.Get("X-Hub-Signature-256")
-		if len(sig) <= len(prefix) || sig[:len(prefix)] != prefix {
-			return ""
-		}
-		return sig[len(prefix):]
-	})
+	return handleWebhook(appCtx, store, manager, dashboard.ForgeGitHub,
+		func(h http.Header) string {
+			const prefix = "sha256="
+			sig := h.Get("X-Hub-Signature-256")
+			if len(sig) <= len(prefix) || sig[:len(prefix)] != prefix {
+				return ""
+			}
+			return sig[len(prefix):]
+		},
+		githubDeliveryHeaders,
+	)
 }
 
 // handleForgejoWebhook verifies a Forgejo repository webhook delivery and
@@ -40,12 +44,39 @@ func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager 
 // set up with the "Forgejo" type or the legacy "Gitea" one — both are the
 // same raw hex HMAC-SHA256, no prefix.
 func handleForgejoWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager) http.HandlerFunc {
-	return handleWebhook(appCtx, store, manager, dashboard.ForgeForgejo, func(h http.Header) string {
-		if sig := h.Get("X-Forgejo-Signature"); sig != "" {
-			return sig
-		}
-		return h.Get("X-Gitea-Signature")
-	})
+	return handleWebhook(appCtx, store, manager, dashboard.ForgeForgejo,
+		func(h http.Header) string {
+			if sig := h.Get("X-Forgejo-Signature"); sig != "" {
+				return sig
+			}
+			return h.Get("X-Gitea-Signature")
+		},
+		forgejoDeliveryHeaders,
+	)
+}
+
+// githubDeliveryHeaders reads the two headers every real GitHub delivery
+// carries — a stable ID and the event type — purely for logging; neither
+// is trusted for anything security- or behavior-relevant.
+func githubDeliveryHeaders(h http.Header) (delivery, event string) {
+	return h.Get("X-GitHub-Delivery"), h.Get("X-GitHub-Event")
+}
+
+// forgejoDeliveryHeaders is githubDeliveryHeaders' Forgejo counterpart.
+// Forgejo sends its own X-Forgejo-Delivery/X-Forgejo-Event pair, falling
+// back to the legacy Gitea-named headers for an instance whose webhook
+// was set up with that older type — the same distinction
+// handleForgejoWebhook's own signature header already makes.
+func forgejoDeliveryHeaders(h http.Header) (delivery, event string) {
+	delivery = h.Get("X-Forgejo-Delivery")
+	if delivery == "" {
+		delivery = h.Get("X-Gitea-Delivery")
+	}
+	event = h.Get("X-Forgejo-Event")
+	if event == "" {
+		event = h.Get("X-Gitea-Event")
+	}
+	return delivery, event
 }
 
 // webhookPayload is the piece of a webhook delivery's body every event
@@ -84,6 +115,14 @@ func repoFromPayload(body []byte) (owner, name, fullName string, ok bool) {
 // their webhook secret using whatever signatureOf extracts from the
 // request's headers, and refresh on success.
 //
+// Every delivery is logged, verified or not — the only way to answer "did
+// my webhook even arrive" from the process's own logs instead of
+// reasoning about the code from the outside, the same motivation
+// LOG_LEVEL's own request logging exists for. deliveryOf's id and event
+// aren't trusted for anything security- or behavior-relevant, purely
+// diagnostic — a delivery with neither still gets handled exactly the
+// same way, just logged with them blank.
+//
 // The refresh runs in the background against appCtx (the process's own
 // long-lived context), not r.Context() — confirmed live: an account with
 // enough tracked repos can take longer to refresh than the sender is
@@ -92,33 +131,39 @@ func repoFromPayload(body []byte) (owner, name, fullName string, ok bool) {
 // forge fetch along with it. The delivery is acknowledged as soon as it's
 // verified; the refresh it triggers survives the delivery ending either
 // way.
-func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager, forge dashboard.Forge, signatureOf func(http.Header) string) http.HandlerFunc {
+func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager, forge dashboard.Forge, signatureOf func(http.Header) string, deliveryOf func(http.Header) (id, event string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("webhookToken")
+		delivery, event := deliveryOf(r.Header)
 
 		userID, secret, err := store.FindByWebhookToken(r.Context(), token)
 		if errors.Is(err, settings.ErrNotFound) {
+			slog.Warn("webhook token unknown", "forge", forge, "event", event, "delivery", delivery)
 			writeJSON(w, http.StatusNotFound, errorBody("unknown webhook token"))
 			return
 		}
 		if err != nil {
+			slog.Warn("webhook token lookup failed", "forge", forge, "event", event, "delivery", delivery, "error", err)
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not look up webhook token"))
 			return
 		}
 
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWebhookBodyBytes))
 		if err != nil {
+			slog.Warn("webhook body unreadable", "forge", forge, "event", event, "delivery", delivery, "error", err)
 			writeJSON(w, http.StatusBadRequest, errorBody("could not read request body"))
 			return
 		}
 
 		if !validSignature(body, secret, signatureOf(r.Header)) {
+			slog.Warn("webhook signature invalid", "forge", forge, "event", event, "delivery", delivery)
 			writeJSON(w, http.StatusUnauthorized, errorBody("invalid webhook signature"))
 			return
 		}
 
+		slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
 		w.WriteHeader(http.StatusNoContent)
-		go triggerRefresh(appCtx, manager, userID, forge, body)
+		go triggerRefresh(appCtx, manager, userID, forge, delivery, body)
 	}
 }
 
@@ -132,13 +177,16 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 // doesn't support a scoped fetch yet (Aggregator.RefreshRepo's own
 // RepoRefresher check) — a repo should never go unrefreshed just because
 // the scoped path couldn't be taken.
-func triggerRefresh(ctx context.Context, manager *dashboard.Manager, userID []byte, forge dashboard.Forge, body []byte) {
+func triggerRefresh(ctx context.Context, manager *dashboard.Manager, userID []byte, forge dashboard.Forge, delivery string, body []byte) {
 	if owner, name, fullName, ok := repoFromPayload(body); ok {
 		if manager.RefreshRepo(ctx, userID, forge, owner, name, fullName) {
+			slog.Info("webhook refresh dispatched", "forge", forge, "delivery", delivery, "repo", fullName, "scoped", true)
 			return
 		}
+		slog.Info("webhook scoped refresh unavailable, falling back to a full refresh", "forge", forge, "delivery", delivery, "repo", fullName)
 	}
-	manager.RefreshNow(ctx, userID)
+	ok := manager.RefreshNow(ctx, userID)
+	slog.Info("webhook refresh dispatched", "forge", forge, "delivery", delivery, "scoped", false, "ok", ok)
 }
 
 func validSignature(body []byte, secret, signatureHex string) bool {
