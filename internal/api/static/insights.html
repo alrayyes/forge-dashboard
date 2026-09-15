@@ -227,6 +227,22 @@
   </div>
 
   <div class="card">
+    <h2>Issue age</h2>
+    <p class="hint">Same idea as pull request age, for open issues.</p>
+
+    <div class="age-bars" id="issue-age-chart" hidden></div>
+    <p class="empty-state" id="issue-age-empty" hidden>No open issues.</p>
+
+    <table class="data-table" id="issue-age-table" hidden>
+      <caption class="sr-only">Open issue counts by age</caption>
+      <thead>
+        <tr><th scope="col">Age</th><th scope="col">Count</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card">
     <h2>API rate limits</h2>
     <p class="hint">How much of each forge's request budget is left before a refresh starts failing. Not every forge reports one — Forgejo doesn't by default.</p>
 

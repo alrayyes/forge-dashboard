@@ -287,6 +287,72 @@ test.describe('insights page', () => {
     });
   });
 
+  test.describe('issue age', () => {
+    test('buckets open issues by age, each bar directly labeled with its count, separately from pull request age', async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        pullRequests: [pr('success', { createdAt: hoursAgo(24 * 15) })], // 7-30 days
+        issues: [
+          issue({ number: 1, createdAt: hoursAgo(2) }), // <1 day
+          issue({ number: 2, createdAt: hoursAgo(48) }), // 1-3 days
+          issue({ number: 3, createdAt: hoursAgo(48) }), // 1-3 days
+        ],
+      });
+
+      await page.goto('/insights.html');
+
+      const issueChart = page.locator('#issue-age-chart');
+      await expect(
+        issueChart.locator('[data-age-bucket="lt1"] .age-count'),
+      ).toHaveText('1');
+      await expect(
+        issueChart.locator('[data-age-bucket="1to3"] .age-count'),
+      ).toHaveText('2');
+      await expect(
+        issueChart.locator('[data-age-bucket="7to30"] .age-count'),
+      ).toHaveText('0');
+
+      // The pull request age chart's own <1 day bucket must stay 0 — a
+      // 7-30-day pull request should never bleed into the issue chart's
+      // buckets or vice versa.
+      const prChart = page.locator('#pr-age-chart');
+      await expect(
+        prChart.locator('[data-age-bucket="lt1"] .age-count'),
+      ).toHaveText('0');
+      await expect(
+        prChart.locator('[data-age-bucket="7to30"] .age-count'),
+      ).toHaveText('1');
+    });
+
+    test('an issue older than every named bucket falls into the final 30+ days bucket, not dropped', async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        issues: [issue({ createdAt: hoursAgo(24 * 400) })],
+      });
+
+      await page.goto('/insights.html');
+
+      await expect(
+        page
+          .locator('#issue-age-chart')
+          .locator('[data-age-bucket="30plus"] .age-count'),
+      ).toHaveText('1');
+    });
+
+    test('shows an explicit empty state with no open issues', async ({
+      page,
+    }) => {
+      await mockDashboard(page, { issues: [] });
+
+      await page.goto('/insights.html');
+
+      await expect(page.locator('#issue-age-empty')).toBeVisible();
+      await expect(page.locator('#issue-age-chart')).toBeHidden();
+    });
+  });
+
   test.describe('rate-limit headroom', () => {
     test('shows remaining/limit as a proportion, directly labeled, for a forge that reports one', async ({
       page,
