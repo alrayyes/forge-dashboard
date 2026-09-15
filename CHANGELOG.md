@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.0](https://github.com/alrayyes/forge-dashboard/compare/v0.46.0...v0.47.0) (2026-09-15)
+
+
+### Features
+
+* **dashboard:** hide Renovate's Dependency Dashboard issue by default ([#203](https://github.com/alrayyes/forge-dashboard/issues/203)) ([57dd2fc](https://github.com/alrayyes/forge-dashboard/commit/57dd2fc1c3f57d31262d305c2031cd54e0583055))
+
 ## [0.46.0](https://github.com/alrayyes/forge-dashboard/compare/v0.45.0...v0.46.0) (2026-09-15)
 
 
