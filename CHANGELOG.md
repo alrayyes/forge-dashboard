@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.42.0](https://github.com/alrayyes/forge-dashboard/compare/v0.41.2...v0.42.0) (2026-09-15)
+
+
+### Features
+
+* **insights:** add an Insights page with a CI status chart ([#184](https://github.com/alrayyes/forge-dashboard/issues/184)) ([c817e32](https://github.com/alrayyes/forge-dashboard/commit/c817e32308a2fede7ea4c74622e688f2f5f0887c))
+
 ## [0.41.2](https://github.com/alrayyes/forge-dashboard/compare/v0.41.1...v0.41.2) (2026-09-15)
 
 
