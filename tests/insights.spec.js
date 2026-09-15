@@ -411,6 +411,220 @@ test.describe('insights page', () => {
     });
   });
 
+  test.describe('filters', () => {
+    test('the pull request filter row scopes CI status, PR ranking, and PR age — issue charts stay unaffected', async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        pullRequests: [
+          pr('success', { repo: 'alrayyes/one' }),
+          pr('failure', { repo: 'alrayyes/two' }),
+        ],
+        issues: [
+          issue({ repo: 'alrayyes/one', number: 10 }),
+          issue({ repo: 'alrayyes/two', number: 11 }),
+        ],
+      });
+
+      await page.goto('/insights.html');
+      await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(2);
+      await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
+        2,
+      );
+
+      await page.selectOption(
+        '[data-filter-scope="pr"] [data-col="repo"]',
+        'github:alrayyes/one',
+      );
+
+      await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(1);
+      await expect(page.locator('#repo-pr-ranking .rank-row')).toContainText(
+        'alrayyes/one',
+      );
+      await expect(
+        page.locator('[data-ci-status="success"] .ci-count'),
+      ).toHaveText('1');
+      await expect(
+        page.locator('[data-ci-status="failure"] .ci-count'),
+      ).toHaveText('0');
+
+      // Never refetched — a filter change re-renders from the snapshot
+      // already in hand.
+      await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
+        2,
+      );
+    });
+
+    test('the issue filter row scopes the Issues ranking and issue age — pull request charts stay unaffected', async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        pullRequests: [pr('success', { repo: 'alrayyes/one' })],
+        issues: [
+          issue({ repo: 'alrayyes/one', number: 10, author: 'alice' }),
+          issue({ repo: 'alrayyes/two', number: 11, author: 'bob' }),
+        ],
+      });
+
+      await page.goto('/insights.html');
+      await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
+        2,
+      );
+
+      await page.selectOption(
+        '[data-filter-scope="issue"] [data-col="author"]',
+        'alice',
+      );
+
+      await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
+        1,
+      );
+      await expect(page.locator('#repo-issue-ranking .rank-row')).toContainText(
+        'alrayyes/one',
+      );
+      await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(1);
+    });
+
+    test('repo, author, and label options are populated from the real data, per scope', async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        pullRequests: [
+          pr('success', {
+            repo: 'alrayyes/one',
+            author: 'alice',
+            labels: [{ name: 'bug', color: 'd73a4a' }],
+          }),
+        ],
+        issues: [issue({ repo: 'alrayyes/two', author: 'bob' })],
+      });
+
+      await page.goto('/insights.html');
+      await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(1);
+
+      await expect(
+        page.locator('[data-filter-scope="pr"] [data-col="repo"] option'),
+      ).toHaveText(['All repos', 'alrayyes/one']);
+      await expect(
+        page.locator('[data-filter-scope="pr"] [data-col="author"] option'),
+      ).toHaveText(['All authors', 'alice']);
+      await expect(
+        page.locator('[data-filter-scope="pr"] [data-col="label"] option'),
+      ).toHaveText(['All labels', 'bug']);
+      await expect(
+        page.locator('[data-filter-scope="issue"] [data-col="repo"] option'),
+      ).toHaveText(['All repos', 'alrayyes/two']);
+    });
+
+    test('a filter set on the main dashboard already applies here — the same cookie, not a separate preference', async ({
+      page,
+      context,
+    }) => {
+      await context.addCookies([
+        {
+          name: 'forge-board-filters',
+          value: JSON.stringify({ pr: { repo: 'github:alrayyes/one' } }),
+          domain: 'localhost',
+          path: '/',
+        },
+      ]);
+      await mockDashboard(page, {
+        pullRequests: [
+          pr('success', { repo: 'alrayyes/one' }),
+          pr('failure', { repo: 'alrayyes/two' }),
+        ],
+      });
+
+      await page.goto('/insights.html');
+
+      await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(1);
+      await expect(page.locator('#repo-pr-ranking .rank-row')).toContainText(
+        'alrayyes/one',
+      );
+      await expect(
+        page.locator('[data-filter-scope="pr"] [data-col="repo"]'),
+      ).toHaveValue('github:alrayyes/one');
+    });
+
+    test('a status/created/updated filter left in the cookie by the main dashboard has no effect here', async ({
+      page,
+      context,
+    }) => {
+      // The main dashboard's own PR board persists these — a real user
+      // could easily have filtered to "Failing" there before ever
+      // opening Insights. If this leaked through, the CI status chart
+      // (which visualizes exactly that dimension) would always render
+      // one bar and look broken.
+      await context.addCookies([
+        {
+          name: 'forge-board-filters',
+          value: JSON.stringify({ pr: { status: 'failure' } }),
+          domain: 'localhost',
+          path: '/',
+        },
+      ]);
+      await mockDashboard(page, {
+        pullRequests: [pr('success'), pr('failure'), pr('pending')],
+      });
+
+      await page.goto('/insights.html');
+
+      await expect(
+        page.locator('[data-ci-status="success"] .ci-count'),
+      ).toHaveText('1');
+      await expect(
+        page.locator('[data-ci-status="failure"] .ci-count'),
+      ).toHaveText('1');
+      await expect(
+        page.locator('[data-ci-status="pending"] .ci-count'),
+      ).toHaveText('1');
+    });
+
+    test('the Hide Dependency Dashboard checkbox defaults on, toggles both ways, and persists across a reload', async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        issues: [
+          issue({
+            number: 20,
+            title: 'Dependency Dashboard',
+            author: 'renovate[bot]',
+          }),
+          issue({ number: 21, title: 'A real issue' }),
+        ],
+      });
+
+      await page.goto('/insights.html');
+      const toggle = page.locator(
+        '[data-filter-scope="issue"] [data-col="hideDependencyDashboard"]',
+      );
+      await expect(toggle).toBeChecked();
+      await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
+        1,
+      );
+      await expect(
+        page
+          .locator('#issue-age-chart')
+          .locator('[data-age-bucket="lt1"] .age-count'),
+      ).toHaveText('1');
+
+      await toggle.uncheck();
+      await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
+        1,
+      );
+      // Still 1 row (one repo), but now its count includes both issues.
+      await expect(
+        page.locator('#repo-issue-ranking .rank-row .rank-count'),
+      ).toHaveText('2');
+
+      await page.reload();
+      await expect(toggle).not.toBeChecked();
+      await expect(
+        page.locator('#repo-issue-ranking .rank-row .rank-count'),
+      ).toHaveText('2');
+    });
+  });
+
   test('has no axe-core violations at desktop width, with real chart content present', async ({
     page,
   }) => {
