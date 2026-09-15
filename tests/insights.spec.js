@@ -46,6 +46,27 @@ function pr(ci, overrides = {}) {
   };
 }
 
+function issue(overrides = {}) {
+  return {
+    forge: 'github',
+    repo: 'alrayyes/forge-dashboard',
+    number: 1,
+    title: 'An issue',
+    url: 'https://github.com/alrayyes/forge-dashboard/issues/1',
+    author: 'someone',
+    labels: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function prsForRepo(repo, count) {
+  return Array.from({ length: count }, (_, i) =>
+    pr('success', { repo, number: i + 1 }),
+  );
+}
+
 test.describe('insights page', () => {
   test.beforeEach(async ({ page }) => {
     await registerAndSignIn(page);
@@ -119,16 +140,100 @@ test.describe('insights page', () => {
     await expect(page.locator('#ci-status-chart')).toBeHidden();
   });
 
+  test.describe('busiest repos', () => {
+    test('ranks repos by open pull request count, each row labeled with the repo name and count', async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        pullRequests: [
+          ...prsForRepo('alrayyes/one', 3),
+          ...prsForRepo('alrayyes/two', 1),
+          ...prsForRepo('alrayyes/three', 2),
+        ],
+      });
+
+      await page.goto('/insights.html');
+
+      const rows = page.locator('#repo-pr-ranking .rank-row');
+      await expect(rows).toHaveCount(3);
+      // Ranked highest count first.
+      await expect(rows.nth(0)).toContainText('alrayyes/one');
+      await expect(rows.nth(0).locator('.rank-count')).toHaveText('3');
+      await expect(rows.nth(1)).toContainText('alrayyes/three');
+      await expect(rows.nth(1).locator('.rank-count')).toHaveText('2');
+      await expect(rows.nth(2)).toContainText('alrayyes/two');
+      await expect(rows.nth(2).locator('.rank-count')).toHaveText('1');
+    });
+
+    test('ranks issues separately from pull requests, not conflated into one number', async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        pullRequests: prsForRepo('alrayyes/pr-heavy', 5),
+        issues: [
+          issue({ repo: 'alrayyes/issue-heavy', number: 1 }),
+          issue({ repo: 'alrayyes/issue-heavy', number: 2 }),
+        ],
+      });
+
+      await page.goto('/insights.html');
+
+      const prRows = page.locator('#repo-pr-ranking .rank-row');
+      await expect(prRows).toHaveCount(1);
+      await expect(prRows.first()).toContainText('alrayyes/pr-heavy');
+      await expect(prRows.first().locator('.rank-count')).toHaveText('5');
+
+      const issueRows = page.locator('#repo-issue-ranking .rank-row');
+      await expect(issueRows).toHaveCount(1);
+      await expect(issueRows.first()).toContainText('alrayyes/issue-heavy');
+      await expect(issueRows.first().locator('.rank-count')).toHaveText('2');
+    });
+
+    test('says how many more repos exist once the ranking is capped', async ({
+      page,
+    }) => {
+      const pullRequests = Array.from({ length: 12 }, (_, i) =>
+        prsForRepo(`alrayyes/repo-${i}`, 1),
+      ).flat();
+      await mockDashboard(page, { pullRequests });
+
+      await page.goto('/insights.html');
+
+      await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(10);
+      await expect(page.locator('#repo-pr-ranking-more')).toContainText(
+        '2 more',
+      );
+    });
+
+    test('shows an explicit empty state for each list independently', async ({
+      page,
+    }) => {
+      await mockDashboard(page, { pullRequests: [], issues: [] });
+
+      await page.goto('/insights.html');
+
+      await expect(page.locator('#repo-pr-ranking-empty')).toBeVisible();
+      await expect(page.locator('#repo-issue-ranking-empty')).toBeVisible();
+    });
+  });
+
   test('has no axe-core violations at desktop width, with real chart content present', async ({
     page,
   }) => {
     await mockDashboard(page, {
-      pullRequests: [pr('success'), pr('failure'), pr('pending'), pr('none')],
+      pullRequests: [
+        pr('success'),
+        pr('failure'),
+        pr('pending'),
+        pr('none', { repo: 'alrayyes/other' }),
+      ],
+      issues: [issue(), issue({ repo: 'alrayyes/other', number: 2 })],
     });
     await page.goto('/insights.html');
     await expect(
       page.locator('[data-ci-status="success"] .ci-count'),
     ).toHaveText('1');
+    await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(2);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -141,12 +246,19 @@ test.describe('insights page', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboard(page, {
-      pullRequests: [pr('success'), pr('failure'), pr('pending'), pr('none')],
+      pullRequests: [
+        pr('success'),
+        pr('failure'),
+        pr('pending'),
+        pr('none', { repo: 'alrayyes/other' }),
+      ],
+      issues: [issue(), issue({ repo: 'alrayyes/other', number: 2 })],
     });
     await page.goto('/insights.html');
     await expect(
       page.locator('[data-ci-status="success"] .ci-count'),
     ).toHaveText('1');
+    await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(2);
 
     const scrollWidth = await page.evaluate(
       () => document.documentElement.scrollWidth,

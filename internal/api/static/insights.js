@@ -59,6 +59,57 @@
     empty.hidden = true;
   }
 
+  var REPO_RANK_CAP = 10;
+
+  // Ranked by count, single neutral hue — repo identity rides the label,
+  // not a color, since a fixed categorical hue order doesn't scale past
+  // a handful of repos.
+  function renderRepoRanking(items, idPrefix) {
+    var list = document.getElementById(`${idPrefix}-ranking`);
+    var empty = document.getElementById(`${idPrefix}-ranking-empty`);
+    var more = document.getElementById(`${idPrefix}-ranking-more`);
+
+    var counts = {};
+    items.forEach((item) => {
+      counts[item.repo] = (counts[item.repo] || 0) + 1;
+    });
+    var ranked = Object.keys(counts)
+      .map((repo) => ({ repo, count: counts[repo] }))
+      .sort((a, b) => b.count - a.count);
+
+    list.innerHTML = '';
+
+    if (ranked.length === 0) {
+      empty.hidden = false;
+      more.hidden = true;
+      return;
+    }
+    empty.hidden = true;
+
+    var top = ranked.slice(0, REPO_RANK_CAP);
+    var maxCount = top[0].count;
+
+    top.forEach((entry) => {
+      var pct = maxCount > 0 ? (entry.count / maxCount) * 100 : 0;
+      var row = document.createElement('div');
+      row.className = 'rank-row';
+      row.innerHTML = `
+        <span class="rank-label" title="${entry.repo}">${entry.repo}</span>
+        <span class="rank-count">${entry.count}</span>
+        <div class="rank-track"><div class="rank-fill" style="width: ${pct}%"></div></div>
+      `;
+      list.appendChild(row);
+    });
+
+    var remaining = ranked.length - top.length;
+    if (remaining > 0) {
+      more.textContent = `+${remaining} more`;
+      more.hidden = false;
+    } else {
+      more.hidden = true;
+    }
+  }
+
   fetch('/api/dashboard', { headers: { Accept: 'application/json' } })
     .then((res) => {
       if (res.status === 401) {
@@ -70,6 +121,8 @@
     })
     .then((data) => {
       renderCIStatus(data.pullRequests || []);
+      renderRepoRanking(data.pullRequests || [], 'repo-pr');
+      renderRepoRanking(data.issues || [], 'repo-issue');
     })
     .catch(() => {
       // A transient failure here just leaves the empty state showing —

@@ -76,6 +76,44 @@
   .data-table th, .data-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
   .data-table th { color: var(--ink-2); font-weight: 500; }
   .data-table td.num { text-align: right; font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+  /* ---- repo ranking (single neutral hue — repo identity rides the
+     label, not a color, since a fixed categorical hue order doesn't
+     scale past a handful of repos) ---- */
+  .rank-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 560px) {
+    .rank-columns { grid-template-columns: 1fr; }
+  }
+  .rank-columns h3 {
+    font-size: 12px;
+    color: var(--ink-3);
+    margin: 0 0 10px;
+    font-weight: 500;
+  }
+  .rank-list { display: flex; flex-direction: column; gap: 8px; margin: 0 0 8px; }
+  .rank-row { display: grid; grid-template-columns: 1fr 28px; align-items: center; gap: 8px; }
+  .rank-label {
+    font-size: 12.5px;
+    color: var(--ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rank-track {
+    grid-column: 1 / -1;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--surface-sunken);
+    overflow: hidden;
+  }
+  .rank-fill { height: 100%; border-radius: 4px; min-width: 2px; background: var(--neutral); }
+  .rank-count {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink);
+    text-align: right;
+  }
+  .rank-more { font-size: 11.5px; color: var(--ink-3); margin: 4px 0 0; }
 </style>
 </head>
 <body>
@@ -99,6 +137,26 @@
       </thead>
       <tbody></tbody>
     </table>
+  </div>
+
+  <div class="card">
+    <h2>Busiest repos</h2>
+    <p class="hint">Tracked repos ranked by how many open pull requests and issues they currently have — up to the ten busiest of each.</p>
+
+    <div class="rank-columns">
+      <section aria-labelledby="repo-pr-ranking-heading">
+        <h3 id="repo-pr-ranking-heading">Pull requests</h3>
+        <div class="rank-list" id="repo-pr-ranking"></div>
+        <p class="empty-state" id="repo-pr-ranking-empty" hidden>No open pull requests.</p>
+        <p class="rank-more" id="repo-pr-ranking-more" hidden></p>
+      </section>
+      <section aria-labelledby="repo-issue-ranking-heading">
+        <h3 id="repo-issue-ranking-heading">Issues</h3>
+        <div class="rank-list" id="repo-issue-ranking"></div>
+        <p class="empty-state" id="repo-issue-ranking-empty" hidden>No open issues.</p>
+        <p class="rank-more" id="repo-issue-ranking-more" hidden></p>
+      </section>
+    </div>
   </div>
 
   <footer>
