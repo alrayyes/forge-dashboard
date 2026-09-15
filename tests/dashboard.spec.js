@@ -1446,6 +1446,123 @@ test.describe('dashboard page', () => {
       await expect(lightChip).toHaveCSS('color', 'rgb(0, 0, 0)');
     });
   });
+
+  test.describe('Dependency Dashboard filter', () => {
+    var DEPENDENCY_DASHBOARD_ISSUE = {
+      forge: 'github',
+      repo: 'alrayyes/forge-dashboard',
+      number: 1,
+      title: 'Dependency Dashboard',
+      url: 'https://example.com/1',
+      author: 'renovate[bot]',
+      labels: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    var REAL_ISSUE = {
+      forge: 'github',
+      repo: 'alrayyes/forge-dashboard',
+      number: 2,
+      title: 'A real bug report',
+      url: 'https://example.com/2',
+      author: 'someone',
+      labels: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    function mockDashboard(page, { pullRequests = [], issues = [] } = {}) {
+      return page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            pullRequests,
+            issues,
+          }),
+        }),
+      );
+    }
+
+    test.beforeEach(async ({ page }) => {
+      await mockDashboard(page, {
+        issues: [DEPENDENCY_DASHBOARD_ISSUE, REAL_ISSUE],
+      });
+      await page.reload();
+      // #issue-count is the raw total across the whole snapshot, same as
+      // every other column filter already leaves it — this filter only
+      // ever hides rows, the same as those.
+      await expect(page.locator('#issue-count')).toHaveText('2 open');
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+    });
+
+    test('is hidden from the issues board by default, without hiding a real issue', async ({
+      page,
+    }) => {
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#issue-rows > .row')).toContainText(
+        'A real bug report',
+      );
+      await expect(page.locator('#issue-rows')).not.toContainText(
+        'Dependency Dashboard',
+      );
+    });
+
+    test('unchecking the toggle brings it back, and checking it again hides it', async ({
+      page,
+    }) => {
+      var toggle = page.locator('#issue-hide-dependency-dashboard');
+      await expect(toggle).toBeChecked();
+
+      await toggle.uncheck();
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+
+      await toggle.check();
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+    });
+
+    test('has no effect on the pull requests board', async ({ page }) => {
+      await mockDashboard(page, {
+        pullRequests: [
+          {
+            forge: 'github',
+            repo: 'alrayyes/forge-dashboard',
+            number: 3,
+            title: 'Dependency Dashboard',
+            url: 'https://example.com/3',
+            author: 'someone',
+            draft: false,
+            labels: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            ci: 'none',
+          },
+        ],
+      });
+      await page.reload();
+
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(
+        page
+          .locator('section[aria-label="Open pull requests"]')
+          .locator('#issue-hide-dependency-dashboard'),
+      ).toHaveCount(0);
+    });
+
+    test('the choice persists across a reload', async ({ page }) => {
+      await page.locator('#issue-hide-dependency-dashboard').uncheck();
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+
+      await page.reload();
+
+      await expect(
+        page.locator('#issue-hide-dependency-dashboard'),
+      ).not.toBeChecked();
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+    });
+  });
 });
 
 test.describe('login page', () => {

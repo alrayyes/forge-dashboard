@@ -439,6 +439,20 @@ section.board {
   padding: 5px 7px;
 }
 
+.checkbox-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+.checkbox-filter input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
 .group-select {
   font-family: inherit;
   border-radius: 6px;

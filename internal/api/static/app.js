@@ -8,6 +8,7 @@
   };
   var FORGE_LABELS = { github: 'GitHub', forgejo: 'Forgejo' };
   var FORGE_CLASSES = { github: 'gh', forgejo: 'fj' };
+  var DEPENDENCY_DASHBOARD_TITLE = 'Dependency Dashboard';
 
   var lastGeneratedAt = null;
 
@@ -305,6 +306,17 @@
       !(item.labels || []).some((l) => l.name.toLowerCase() === filters.label)
     )
       return false;
+    // Renovate's one permanently-open, constantly-rewritten housekeeping
+    // issue per repo — never a pull request, so this only ever matches
+    // on the issues board. Exact title match: that's the fixed title
+    // Renovate itself always uses, not something a real issue is likely
+    // to collide with by accident.
+    if (
+      !isPR &&
+      filters.hideDependencyDashboard &&
+      item.title.trim() === DEPENDENCY_DASHBOARD_TITLE
+    )
+      return false;
     return true;
   }
 
@@ -317,9 +329,16 @@
     idPrefix,
   ) {
     var section = document.getElementById(containerId).closest('section.board');
+    // Only the issues board ever carries this key (matchesFilters gates
+    // it on !isPR too) — defaulted to hidden unless a saved preference
+    // already overrides it, so a first-time visitor doesn't have to
+    // discover the toggle just to get Renovate's Dependency Dashboard
+    // issue out of the way.
+    var defaultFilters =
+      idPrefix === 'issue' ? { hideDependencyDashboard: '1' } : {};
     var state = {
       items: [],
-      filters: Object.assign({}, loadPersistedFilters(idPrefix)),
+      filters: Object.assign(defaultFilters, loadPersistedFilters(idPrefix)),
       groupBy: null,
       page: 1,
       pageSize: 25,
@@ -749,6 +768,25 @@
       groupSelect.addEventListener('change', () => {
         state.groupBy = groupSelect.value || null;
         state.page = 1;
+        render();
+      });
+    }
+
+    // Not a generic .col-filter: it's a checkbox (driven by .checked, not
+    // .value) and its default is "on" rather than "no filter applied" —
+    // both break the generic wiring below, which every other control
+    // shares. Only the issues board's markup has this element at all.
+    var hideDependencyDashboardCheckbox = document.getElementById(
+      `${idPrefix}-hide-dependency-dashboard`,
+    );
+    if (hideDependencyDashboardCheckbox) {
+      hideDependencyDashboardCheckbox.checked =
+        state.filters.hideDependencyDashboard === '1';
+      hideDependencyDashboardCheckbox.addEventListener('change', () => {
+        state.filters.hideDependencyDashboard =
+          hideDependencyDashboardCheckbox.checked ? '1' : '';
+        state.page = 1;
+        savePersistedFilters(idPrefix, state.filters);
         render();
       });
     }
