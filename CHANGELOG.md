@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.45.0](https://github.com/alrayyes/forge-dashboard/compare/v0.44.0...v0.45.0) (2026-09-15)
+
+
+### Features
+
+* **insights:** show each forge's API rate-limit headroom ([#195](https://github.com/alrayyes/forge-dashboard/issues/195)) ([fa0bd8e](https://github.com/alrayyes/forge-dashboard/commit/fa0bd8e4be98876c929450f59beab471d9bf58e5))
+
 ## [0.44.0](https://github.com/alrayyes/forge-dashboard/compare/v0.43.0...v0.44.0) (2026-09-15)
 
 
