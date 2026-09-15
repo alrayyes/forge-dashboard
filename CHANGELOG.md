@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.2](https://github.com/alrayyes/forge-dashboard/compare/v0.41.1...v0.41.2) (2026-09-15)
+
+
+### Bug Fixes
+
+* style the "CI failing" tile green, not black, when zero in dark mode ([#173](https://github.com/alrayyes/forge-dashboard/issues/173)) ([1db2e98](https://github.com/alrayyes/forge-dashboard/commit/1db2e989cd74fdac64c693c94229d8cf0fff830b))
+
 ## [0.41.1](https://github.com/alrayyes/forge-dashboard/compare/v0.41.0...v0.41.1) (2026-09-15)
 
 
