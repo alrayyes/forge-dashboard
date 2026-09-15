@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.0](https://github.com/alrayyes/forge-dashboard/compare/v0.40.1...v0.41.0) (2026-09-15)
+
+
+### Features
+
+* **webhooks:** log every incoming delivery and its outcome ([#166](https://github.com/alrayyes/forge-dashboard/issues/166)) ([3867c16](https://github.com/alrayyes/forge-dashboard/commit/3867c16a66a5ce5db60ed00dd4e94c1cc9b3b8f9))
+
 ## [0.40.1](https://github.com/alrayyes/forge-dashboard/compare/v0.40.0...v0.40.1) (2026-09-15)
 
 
