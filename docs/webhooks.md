@@ -21,7 +21,7 @@ request or a comment but never to that pull request's checks finishing.
 | A pull request opening, closing, or its labels/reviewers changing                               | Pull requests        | Pull Request   |
 | An issue opening, closing, or getting commented on                                              | Issues               | Issue          |
 | **CI/build status** — Actions, a third-party check, or a classic commit status, on either forge | Statuses, Check runs | Status         |
-| A commit landing outside of an open pull request                                                | not tracked          | Push           |
+| A commit landing outside an open pull request                                                   | not tracked          | Push           |
 
 GitHub splits CI into two separate events because it has two separate
 CI mechanisms with two separate APIs: **Statuses** is the older
@@ -105,7 +105,7 @@ refreshing either way.
   success while silently dropping `status`, leaving CI updates on the
   poll-only path with no error anywhere to say why. This is a bug in how
   that instance persists the edit, not something forge-dashboard can
-  detect or work around. Open the webhook's edit page in the web UI
+  detect or work around. Open the webhook's edit page on the web UI
   itself and confirm Status is still ticked there — if it keeps
   reverting, that's worth reporting against your Forgejo instance.
 - **The forge shows the delivery failing, or your dashboard never
