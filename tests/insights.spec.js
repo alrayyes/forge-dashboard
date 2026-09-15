@@ -14,14 +14,21 @@ async function registerAndSignIn(page) {
   await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
 }
 
-function mockDashboard(page, { pullRequests = [], issues = [] } = {}) {
+function mockDashboard(
+  page,
+  {
+    pullRequests = [],
+    issues = [],
+    forges = [{ forge: 'github', reachable: true, repoCount: 1 }],
+  } = {},
+) {
   return page.route('**/api/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges,
         pullRequests,
         issues,
       }),
@@ -280,10 +287,81 @@ test.describe('insights page', () => {
     });
   });
 
+  test.describe('rate-limit headroom', () => {
+    test('shows remaining/limit as a proportion, directly labeled, for a forge that reports one', async ({
+      page,
+    }) => {
+      const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
+      await mockDashboard(page, {
+        forges: [
+          {
+            forge: 'github',
+            reachable: true,
+            repoCount: 3,
+            rateLimit: { limit: 5000, remaining: 4922, resetsAt },
+          },
+        ],
+      });
+
+      await page.goto('/insights.html');
+
+      const row = page.locator('[data-forge="github"]');
+      await expect(row).toContainText('4,922');
+      await expect(row).toContainText('5,000');
+    });
+
+    test("says a forge's rate limit isn't reported, rather than showing a broken or zero-looking bar", async ({
+      page,
+    }) => {
+      await mockDashboard(page, {
+        forges: [{ forge: 'forgejo', reachable: true, repoCount: 2 }],
+      });
+
+      await page.goto('/insights.html');
+
+      const row = page.locator('[data-forge="forgejo"]');
+      await expect(row).toContainText('Not reported by this forge');
+      await expect(row.locator('.rate-limit-bar')).toHaveCount(0);
+    });
+
+    test('shows when the budget resets', async ({ page }) => {
+      const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
+      await mockDashboard(page, {
+        forges: [
+          {
+            forge: 'github',
+            reachable: true,
+            repoCount: 3,
+            rateLimit: { limit: 5000, remaining: 4922, resetsAt },
+          },
+        ],
+      });
+
+      await page.goto('/insights.html');
+
+      await expect(
+        page.locator('[data-forge="github"] .rate-limit-reset'),
+      ).toContainText('Resets');
+    });
+  });
+
   test('has no axe-core violations at desktop width, with real chart content present', async ({
     page,
   }) => {
     await mockDashboard(page, {
+      forges: [
+        {
+          forge: 'github',
+          reachable: true,
+          repoCount: 3,
+          rateLimit: {
+            limit: 5000,
+            remaining: 4922,
+            resetsAt: new Date(Date.now() + 41 * 60 * 1000).toISOString(),
+          },
+        },
+        { forge: 'forgejo', reachable: true, repoCount: 1 },
+      ],
       pullRequests: [
         pr('success'),
         pr('failure'),
@@ -297,6 +375,9 @@ test.describe('insights page', () => {
       page.locator('[data-ci-status="success"] .ci-count'),
     ).toHaveText('1');
     await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(2);
+    await expect(page.locator('[data-forge="forgejo"]')).toContainText(
+      'Not reported',
+    );
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -309,6 +390,19 @@ test.describe('insights page', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboard(page, {
+      forges: [
+        {
+          forge: 'github',
+          reachable: true,
+          repoCount: 3,
+          rateLimit: {
+            limit: 5000,
+            remaining: 4922,
+            resetsAt: new Date(Date.now() + 41 * 60 * 1000).toISOString(),
+          },
+        },
+        { forge: 'forgejo', reachable: true, repoCount: 1 },
+      ],
       pullRequests: [
         pr('success'),
         pr('failure'),

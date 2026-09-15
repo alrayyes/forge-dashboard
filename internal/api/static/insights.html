@@ -133,6 +133,38 @@
     color: var(--ink);
     text-align: right;
   }
+
+  /* ---- rate-limit headroom — colored by status (how healthy the
+     budget is), never by forge identity: --gh/--fj don't pass as chart-
+     mark fills (validated against the house dataviz palette checker —
+     they were designed as badge text/background, not data marks) ---- */
+  .rate-limit-row { margin: 0 0 16px; }
+  .rate-limit-row:last-child { margin-bottom: 0; }
+  .rate-limit-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .rate-limit-forge { font-size: 12.5px; color: var(--ink-2); font-weight: 500; }
+  .rate-limit-count {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink);
+  }
+  .rate-limit-bar {
+    height: 16px;
+    border-radius: 8px;
+    background: var(--surface-sunken);
+    overflow: hidden;
+  }
+  .rate-limit-fill { height: 100%; border-radius: 8px; min-width: 2px; }
+  .rate-limit-fill.rl-good { background: var(--good); }
+  .rate-limit-fill.rl-warning { background: var(--warning); }
+  .rate-limit-fill.rl-critical { background: var(--critical); }
+  .rate-limit-reset { font-size: 11.5px; color: var(--ink-3); margin: 4px 0 0; }
+  .rate-limit-note { font-size: 12.5px; color: var(--ink-3); }
 </style>
 </head>
 <body>
@@ -192,6 +224,13 @@
       </thead>
       <tbody></tbody>
     </table>
+  </div>
+
+  <div class="card">
+    <h2>API rate limits</h2>
+    <p class="hint">How much of each forge's request budget is left before a refresh starts failing. Not every forge reports one — Forgejo doesn't by default.</p>
+
+    <div id="rate-limit-list"></div>
   </div>
 
   <footer>
