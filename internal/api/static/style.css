@@ -361,6 +361,13 @@ button.stat:focus-visible {
 }
 
 .stat .n {
+  /* Explicit, not inherited: #stat-failing-tile is the one .stat that's
+     a real <button>, and a <button> doesn't inherit text color from the
+     page the way a <div> does — with nothing set here it fell back to
+     the browser's native ButtonText system color once "critical" (below)
+     stopped overriding it, black regardless of theme. Only visible in
+     dark mode, where black-on-dark-surface reads as barely-there. */
+  color: var(--ink);
   font-family: "IBM Plex Mono", monospace;
   font-size: 26px;
   font-weight: 600;
@@ -375,6 +382,11 @@ button.stat:focus-visible {
 }
 .stat.critical .n {
   color: var(--critical);
+}
+/* Zero failing is good news, not a neutral number — same "good" green
+   already used for a passing CI pill and a success status message. */
+.stat.ok .n {
+  color: var(--good);
 }
 
 section.board {

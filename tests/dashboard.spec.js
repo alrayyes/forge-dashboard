@@ -1166,6 +1166,43 @@ test.describe('dashboard page', () => {
     );
   });
 
+  test('the "CI failing" tile reads as good news, in a themed color, when the count is zero', async ({
+    page,
+  }) => {
+    // Real bug reported live: "CI failing" is the one stat tile that's a
+    // real <button> (the other three are plain <div>s), and a <button>
+    // doesn't inherit text color from the page the way a div does — with
+    // no explicit color set, it fell back to the browser's native
+    // ButtonText system color, black regardless of theme, once the
+    // "critical" class stopped overriding it at zero. Only visible in
+    // dark mode, where black-on-dark-surface is barely readable; light
+    // mode's own default ink is dark too, so this passed unnoticed there.
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [],
+        }),
+      }),
+    );
+    await page.reload();
+    await page.click('#theme-toggle');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+    await expect(page.locator('#stat-failing')).toHaveText('0');
+    await expect(page.locator('#stat-failing-tile')).toHaveClass(/\bok\b/);
+    const color = await page
+      .locator('#stat-failing')
+      .evaluate((el) => getComputedStyle(el).color);
+    // --good in dark mode (style.css) — not black, and not the same as
+    // an ordinary stat's default ink color either.
+    expect(color).toBe('rgb(56, 201, 138)');
+  });
+
   test.describe('label click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route) =>
