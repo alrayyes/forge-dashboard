@@ -8,7 +8,9 @@
 // the same way tests/dashboard.spec.js's own route mocks work: this runs
 // in CI with no live GitHub/Forgejo credentials, and a screenshot only
 // needs to look like the real product, not show a real account's actual
-// open pull requests.
+// open pull requests — the same reason the registered display name,
+// username, and every repo except this project's own are fictional
+// rather than Ryan's real name or infrastructure (#250).
 
 const path = require('node:path');
 const { chromium } = require('@playwright/test');
@@ -34,7 +36,7 @@ const SNAPSHOT = {
       number: 142,
       title: 'feat: keep repo and author filters scoped to the active forge',
       url: 'https://github.com/alrayyes/forge-dashboard/pull/142',
-      author: 'ryankes',
+      author: 'demo-user',
       ci: 'success',
       labels: [{ name: 'enhancement', color: 'a2eeef' }],
       createdAt: daysAgo(0.2),
@@ -46,7 +48,7 @@ const SNAPSHOT = {
       number: 139,
       title: 'fix: SQLITE_BUSY under concurrent writers',
       url: 'https://github.com/alrayyes/forge-dashboard/pull/139',
-      author: 'ryankes',
+      author: 'demo-user',
       ci: 'failure',
       labels: [{ name: 'bug', color: 'd73a4a' }],
       createdAt: daysAgo(2),
@@ -54,10 +56,10 @@ const SNAPSHOT = {
     },
     {
       forge: 'forgejo',
-      repo: 'homelab/vps-docker',
+      repo: 'sandbox/vps-docker',
       number: 58,
       title: 'chore: bump traefik to v3.2',
-      url: 'https://git.higherlearning.eu/ryankes/vps-docker/pulls/58',
+      url: 'https://git.example.com/sandbox/vps-docker/pulls/58',
       author: 'claude',
       ci: 'pending',
       labels: [],
@@ -66,11 +68,11 @@ const SNAPSHOT = {
     },
     {
       forge: 'github',
-      repo: 'alrayyes/wiki',
+      repo: 'example-org/wiki',
       number: 24,
-      title: 'docs: add homelab network diagram',
-      url: 'https://github.com/alrayyes/wiki/pull/24',
-      author: 'ryankes',
+      title: 'docs: add architecture diagram',
+      url: 'https://github.com/example-org/wiki/pull/24',
+      author: 'demo-user',
       ci: 'success',
       labels: [{ name: 'documentation', color: '0075ca' }],
       createdAt: daysAgo(1),
@@ -84,17 +86,17 @@ const SNAPSHOT = {
       number: 145,
       title: 'Add a GitLab forge alongside GitHub and Forgejo',
       url: 'https://github.com/alrayyes/forge-dashboard/issues/145',
-      author: 'ryankes',
+      author: 'demo-user',
       labels: [{ name: 'enhancement', color: 'a2eeef' }],
       createdAt: daysAgo(3),
       updatedAt: daysAgo(3),
     },
     {
       forge: 'forgejo',
-      repo: 'homelab/vps-docker',
+      repo: 'sandbox/vps-docker',
       number: 52,
       title: 'Traefik dashboard occasionally 502s right after a redeploy',
-      url: 'https://git.higherlearning.eu/ryankes/vps-docker/issues/52',
+      url: 'https://git.example.com/sandbox/vps-docker/issues/52',
       author: 'claude',
       labels: [{ name: 'bug', color: 'd73a4a' }],
       createdAt: daysAgo(4),
@@ -106,7 +108,7 @@ const SNAPSHOT = {
       number: 131,
       title: 'Support saved filter presets, not just cookie persistence',
       url: 'https://github.com/alrayyes/forge-dashboard/issues/131',
-      author: 'ryankes',
+      author: 'demo-user',
       labels: [{ name: 'documentation', color: '0075ca' }],
       createdAt: daysAgo(10),
       updatedAt: daysAgo(6),
@@ -124,8 +126,8 @@ async function main() {
   await addVirtualAuthenticator(page);
   await page.goto(`${BASE_URL}/login.html`);
   await page.click('#show-register');
-  await page.fill('#register-username', 'ryankes');
-  await page.fill('#register-display-name', 'Ryan Kes');
+  await page.fill('#register-username', 'demo-user');
+  await page.fill('#register-display-name', 'Demo User');
   await page.click('#register-submit');
   await page.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
 
