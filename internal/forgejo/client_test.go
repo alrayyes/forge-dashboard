@@ -434,3 +434,90 @@ func TestListOpenPullRequests_MapsMergeableToMergeStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestHasWebhook_MatchesByURLPath(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"id": 1, "type": "discord", "config": map[string]string{"url": "https://example.com/discord"}, "active": true},
+			{"id": 2, "type": "forgejo", "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": true},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	client.SetWebhookPath("/api/webhooks/forgejo/tok123")
+
+	has, err := client.HasWebhook(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.True(t, has)
+}
+
+func TestHasWebhook_NoMatchingHook(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"id": 1, "type": "discord", "config": map[string]string{"url": "https://example.com/discord"}, "active": true},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	client.SetWebhookPath("/api/webhooks/forgejo/tok123")
+
+	has, err := client.HasWebhook(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.False(t, has)
+}
+
+func TestHasWebhook_NoWebhookPathConfiguredSkipsTheAPICallEntirely(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(_ http.ResponseWriter, _ *http.Request) {
+		t.Fatal("HasWebhook should not call the forge at all with no webhook path configured")
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	has, err := client.HasWebhook(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.False(t, has)
+}
+
+func TestHasWebhook_ForgeErrorPropagates(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	client.SetWebhookPath("/api/webhooks/forgejo/tok123")
+
+	_, err := client.HasWebhook(t.Context(), "alrayyes", "a")
+
+	require.Error(t, err)
+}
