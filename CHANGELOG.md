@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.53.0](https://github.com/alrayyes/forge-dashboard/compare/v0.52.0...v0.53.0) (2026-09-16)
+
+
+### Features
+
+* **dashboard:** show which tracked repos have a confirmed webhook ([#236](https://github.com/alrayyes/forge-dashboard/issues/236)) ([f8e1557](https://github.com/alrayyes/forge-dashboard/commit/f8e155794ceb55b1d6420ae938457d1d7b116cc1))
+
 ## [0.52.0](https://github.com/alrayyes/forge-dashboard/compare/v0.51.0...v0.52.0) (2026-09-16)
 
 
