@@ -317,6 +317,26 @@ header {
 .theme-toggle svg {
   display: block;
 }
+/* The one .theme-toggle a script disables (mid-refresh, then for a short
+   cooldown after) — a real button, not a link, is the only one of these
+   that ever needs this state at all. */
+.theme-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+#force-refresh-button.is-refreshing svg {
+  animation: spin-refresh 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  #force-refresh-button.is-refreshing svg {
+    animation: none;
+  }
+}
+@keyframes spin-refresh {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .theme-toggle .icon-moon {
   display: none;
 }

@@ -109,6 +109,41 @@ func loadAndEnsure(ctx context.Context, deps Deps, userID []byte, username strin
 	deps.Manager.Ensure(deps.AppContext, userID, deps.BuildSources(creds))
 }
 
+// handleDashboardRefresh triggers an immediate, out-of-band refresh of
+// the signed-in user's own dashboard and blocks until it completes,
+// returning the resulting snapshot — for retrying right away after a
+// forge was only briefly unreachable, instead of waiting out the rest of
+// the scheduled REFRESH_INTERVAL.
+//
+// Like handleDashboardStream, and unlike handleDashboard: no ?owner=,
+// only ever the signed-in user's own dashboard, so a user with shared
+// access to someone else's dashboard can never spend that owner's own
+// forge rate-limit budget on their own schedule.
+//
+// Passes deps.AppContext to RefreshNow, not r.Context(): coalescer.do
+// only threads the *first* caller's context into the shared fetch — every
+// later caller that arrives while a run is already in flight just waits
+// on that same run. Using the request's own context here would mean a
+// closed browser tab could cancel a refresh the scheduled ticker, or
+// another tab's own force-refresh click, is depending on.
+func handleDashboardRefresh(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+			return
+		}
+
+		if !deps.Manager.RefreshNow(deps.AppContext, u.ID) {
+			// No Aggregator running yet (Settings has never been saved) —
+			// the same condition and message handleDashboardStream uses.
+			writeJSON(w, http.StatusNotFound, errorBody("no background refresh is running yet for this user"))
+			return
+		}
+		writeJSON(w, http.StatusOK, deps.Manager.Get(u.ID))
+	}
+}
+
 // handleDashboardStream pushes the signed-in user's own dashboard
 // snapshot over Server-Sent Events every time their Aggregator produces
 // a new one — most notably right after a verified webhook delivery
