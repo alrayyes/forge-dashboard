@@ -74,11 +74,15 @@ test.describe('webhook-triggered live updates', () => {
     // failure from the forge client, not a hang, which is the point: this
     // proves the push fires off Manager.RefreshNow itself, not off
     // whichever forge actually answered.
-    await page.goto('/settings.html');
-    // settings.js populates the form from a fetch that resolves after
-    // navigation, not before it — filling immediately can race that
-    // fetch and have it stomp these values back to empty right after.
-    await page.waitForResponse((res) => res.url().includes('/api/settings'));
+    // settings.js populates the form from a fetch that fires as part of
+    // navigation, not after it — waiting for the response only after
+    // goto() resolves can miss it entirely if it was already fast enough
+    // to finish during the navigation itself. Racing the two together
+    // instead means the listener is attached before the fetch can happen.
+    await Promise.all([
+      page.waitForResponse((res) => res.url().includes('/api/settings')),
+      page.goto('/settings.html'),
+    ]);
     await page.fill('#forgejo-url', 'https://forgejo.example.invalid');
     await page.fill('#forgejo-username', 'octocat');
     await page.click('#save-button');
@@ -142,11 +146,15 @@ test.describe('webhook-triggered live updates', () => {
   test('a webhook delivery with a bad signature is refused and never triggers a refresh', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
-    // settings.js populates the form from a fetch that resolves after
-    // navigation, not before it — filling immediately can race that
-    // fetch and have it stomp these values back to empty right after.
-    await page.waitForResponse((res) => res.url().includes('/api/settings'));
+    // settings.js populates the form from a fetch that fires as part of
+    // navigation, not after it — waiting for the response only after
+    // goto() resolves can miss it entirely if it was already fast enough
+    // to finish during the navigation itself. Racing the two together
+    // instead means the listener is attached before the fetch can happen.
+    await Promise.all([
+      page.waitForResponse((res) => res.url().includes('/api/settings')),
+      page.goto('/settings.html'),
+    ]);
     await page.fill('#forgejo-url', 'https://forgejo.example.invalid');
     await page.fill('#forgejo-username', 'octocat');
     await page.click('#save-button');
@@ -179,11 +187,15 @@ test.describe('webhook-triggered live updates', () => {
     const { server, url: forgejoURL } = await startFakeForgejo(issues);
 
     try {
-      await page.goto('/settings.html');
-      // settings.js populates the form from a fetch that resolves after
-      // navigation, not before it — filling immediately can race that
-      // fetch and have it stomp these values back to empty right after.
-      await page.waitForResponse((res) => res.url().includes('/api/settings'));
+      // settings.js populates the form from a fetch that fires as part of
+      // navigation, not after it — waiting for the response only after
+      // goto() resolves can miss it entirely if it was already fast enough
+      // to finish during the navigation itself. Racing the two together
+      // instead means the listener is attached before the fetch can happen.
+      await Promise.all([
+        page.waitForResponse((res) => res.url().includes('/api/settings')),
+        page.goto('/settings.html'),
+      ]);
       await page.fill('#forgejo-url', forgejoURL);
       await page.fill('#forgejo-token', 'fj_test_token');
       await page.click('#save-button');
@@ -266,11 +278,15 @@ test.describe('webhook-triggered live updates', () => {
     const { server, url: forgejoURL } = await startFakeForgejo(issues);
 
     try {
-      await page.goto('/settings.html');
-      // settings.js populates the form from a fetch that resolves after
-      // navigation, not before it — filling immediately can race that
-      // fetch and have it stomp these values back to empty right after.
-      await page.waitForResponse((res) => res.url().includes('/api/settings'));
+      // settings.js populates the form from a fetch that fires as part of
+      // navigation, not after it — waiting for the response only after
+      // goto() resolves can miss it entirely if it was already fast enough
+      // to finish during the navigation itself. Racing the two together
+      // instead means the listener is attached before the fetch can happen.
+      await Promise.all([
+        page.waitForResponse((res) => res.url().includes('/api/settings')),
+        page.goto('/settings.html'),
+      ]);
       await page.fill('#forgejo-url', forgejoURL);
       await page.fill('#forgejo-token', 'fj_test_token');
       await page.click('#save-button');
