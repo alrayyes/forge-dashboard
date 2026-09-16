@@ -349,14 +349,19 @@ test.describe('webhooks page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
-  test('the back link returns to Settings, not the dashboard', async ({
+  test('the persistent nav highlights Webhooks and still links to Settings', async ({
     page,
   }) => {
     await mockDashboard(page, []);
     await page.goto('/webhooks.html');
 
-    await expect(
-      page.getByRole('link', { name: /back to settings/i }),
-    ).toHaveAttribute('href', '/settings.html');
+    await expect(page.locator('a[aria-label="Webhooks"]')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await expect(page.locator('a[aria-label="Settings"]')).toHaveAttribute(
+      'href',
+      '/settings.html',
+    );
   });
 });

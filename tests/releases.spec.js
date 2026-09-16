@@ -35,7 +35,9 @@ test.describe('release history page', () => {
   }) => {
     await page.goto('/releases.html');
     await expect(page).toHaveURL(/\/releases\.html$/);
-    await expect(page.locator('h1')).toHaveText('Release history');
+    await expect(page.locator('.releases-header h1')).toHaveText(
+      'Release history',
+    );
   });
 
   test('loads real release data from GitHub, or falls back to a visible link rather than breaking', async ({

@@ -88,7 +88,7 @@ test.describe('insights page', () => {
     await expect(link).toHaveCount(1);
     await link.click();
     await expect(page).toHaveURL(/\/insights\.html$/);
-    await expect(page.locator('h1')).toHaveText('Insights');
+    await expect(page.locator('.insights-header h1')).toHaveText('Insights');
   });
 
   test('fetches /api/dashboard and nothing else, and needs a session like settings.html', async ({
@@ -101,7 +101,7 @@ test.describe('insights page', () => {
     });
 
     await page.goto('/insights.html');
-    await expect(page.locator('h1')).toHaveText('Insights');
+    await expect(page.locator('.insights-header h1')).toHaveText('Insights');
     await expect.poll(() => dashboardCalls).toBeGreaterThan(0);
   });
 
