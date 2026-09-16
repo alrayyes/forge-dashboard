@@ -214,8 +214,39 @@
     return pill;
   }
 
+  var MERGE_STATUS_LABELS = { conflicting: 'Conflicting', blocked: 'Blocked' };
+
+  // Silent for "mergeable" and "unknown" — flagging every clean row would
+  // just be noise (the same restraint .forge-health-error already uses:
+  // shown only when there's actually a problem). Not a button, unlike
+  // ciPill: there's no filter dimension for this, just a fact about the
+  // row.
+  function mergeStatusPill(status) {
+    var label = MERGE_STATUS_LABELS[status];
+    if (!label) return null;
+    var pill = el('span', `merge-pill ${status}`);
+    pill.appendChild(el('span', 'dot'));
+    pill.appendChild(document.createTextNode(label));
+    return pill;
+  }
+
+  // Silent unless auto-merge is genuinely enabled — autoMergeEnabled is
+  // `null` for a forge that can't report this at all (Forgejo, today),
+  // which must never render as "not enabled": strict === true, not a
+  // truthy check.
+  function autoMergePill(autoMergeEnabled) {
+    if (autoMergeEnabled !== true) return null;
+    var pill = el('span', 'merge-pill auto-merge');
+    pill.appendChild(el('span', 'dot'));
+    pill.appendChild(document.createTextNode('Auto-merge'));
+    return pill;
+  }
+
   function buildRow(item, isPR, onStatusClick, onLabelClick, activeLabel) {
     var row = el('div', 'row');
+    var statusCell;
+    var conflictPill;
+    var mergePill;
 
     row.appendChild(repoCell(item));
     row.appendChild(titleCell(item, onLabelClick, activeLabel));
@@ -225,7 +256,16 @@
     meta.appendChild(el('div', 'created', relativeTime(item.createdAt)));
     meta.appendChild(el('div', 'updated', relativeTime(item.updatedAt)));
     if (isPR) {
-      meta.appendChild(ciPill(item.ci, onStatusClick));
+      // One cell, possibly several pills — keeps .row's fixed
+      // grid-template-columns unchanged regardless of how many of them
+      // this particular row has anything to say.
+      statusCell = el('div', 'status-cell');
+      statusCell.appendChild(ciPill(item.ci, onStatusClick));
+      conflictPill = mergeStatusPill(item.mergeStatus);
+      if (conflictPill) statusCell.appendChild(conflictPill);
+      mergePill = autoMergePill(item.autoMergeEnabled);
+      if (mergePill) statusCell.appendChild(mergePill);
+      meta.appendChild(statusCell);
     } else {
       meta.appendChild(el('div', 'empty-cell'));
     }

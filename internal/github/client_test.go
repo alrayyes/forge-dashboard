@@ -863,3 +863,192 @@ func TestFetchRepo_GraphQLError_ReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Bad credentials")
 }
+
+func TestFetch_MapsMergeStatusFromMergeStateStatus(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		mergeStateStatus string
+		want             dashboard.MergeStatus
+	}{
+		{"CLEAN", dashboard.MergeMergeable},
+		{"DIRTY", dashboard.MergeConflicting},
+		{"BLOCKED", dashboard.MergeBlocked},
+		{"BEHIND", dashboard.MergeBlocked},
+		{"UNSTABLE", dashboard.MergeBlocked},
+		{"HAS_HOOKS", dashboard.MergeBlocked},
+		{"DRAFT", dashboard.MergeUnknown},
+		{"UNKNOWN", dashboard.MergeUnknown},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.mergeStateStatus, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]any{
+					"data": map[string]any{
+						"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+						"viewer": map[string]any{
+							"repositories": map[string]any{
+								"pageInfo": map[string]any{"hasNextPage": false},
+								"nodes": []map[string]any{
+									{
+										"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+										"owner": map[string]any{"login": "alrayyes"},
+										"pullRequests": map[string]any{
+											"nodes": []map[string]any{
+												{
+													"number": 12, "title": "Add NTP alarm", "url": "https://github.com/alrayyes/a/pull/12",
+													"isDraft": false, "author": map[string]any{"login": "ryankes"},
+													"mergeStateStatus": tc.mergeStateStatus,
+													"autoMergeRequest": nil,
+													"labels":           map[string]any{"nodes": []map[string]any{}},
+													"createdAt":        "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+													"commits": map[string]any{"nodes": []map[string]any{}},
+												},
+											},
+										},
+										"issues": map[string]any{"nodes": []map[string]any{}},
+									},
+								},
+							},
+						},
+					},
+				})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("test-token", "", srv.URL)
+			result := client.Fetch(t.Context())
+
+			require.Len(t, result.PullRequests, 1)
+			assert.Equal(t, tc.want, result.PullRequests[0].MergeStatus)
+		})
+	}
+}
+
+func TestFetch_MapsAutoMergeFromAutoMergeRequest(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name             string
+		autoMergeRequest any
+		want             bool
+	}{
+		{"present means enabled", map[string]any{"mergeMethod": "SQUASH"}, true},
+		{"absent means not enabled", nil, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]any{
+					"data": map[string]any{
+						"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+						"viewer": map[string]any{
+							"repositories": map[string]any{
+								"pageInfo": map[string]any{"hasNextPage": false},
+								"nodes": []map[string]any{
+									{
+										"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+										"owner": map[string]any{"login": "alrayyes"},
+										"pullRequests": map[string]any{
+											"nodes": []map[string]any{
+												{
+													"number": 12, "title": "Add NTP alarm", "url": "https://github.com/alrayyes/a/pull/12",
+													"isDraft": false, "author": map[string]any{"login": "ryankes"},
+													"mergeStateStatus": "CLEAN",
+													"autoMergeRequest": tc.autoMergeRequest,
+													"labels":           map[string]any{"nodes": []map[string]any{}},
+													"createdAt":        "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+													"commits": map[string]any{"nodes": []map[string]any{}},
+												},
+											},
+										},
+										"issues": map[string]any{"nodes": []map[string]any{}},
+									},
+								},
+							},
+						},
+					},
+				})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("test-token", "", srv.URL)
+			result := client.Fetch(t.Context())
+
+			require.Len(t, result.PullRequests, 1)
+			require.NotNil(t, result.PullRequests[0].AutoMergeEnabled)
+			assert.Equal(t, tc.want, *result.PullRequests[0].AutoMergeEnabled)
+		})
+	}
+}
+
+// TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown documents the
+// REST-fallback path's asymmetry: AutoMerge is already on the List
+// response go-github decodes, but Mergeable/MergeableState aren't (per
+// go-github's own doc comment), and this path deliberately doesn't pay a
+// per-PR Get call to resolve them — see design.md's Open Questions in
+// openspec/changes/archive/*/show-pr-merge-status.
+func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/a", "name": "a", "owner": map[string]string{"login": "alrayyes"}},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{
+				"number": 12, "title": "Add NTP alarm", "html_url": "https://github.com/alrayyes/a/pull/12",
+				"draft": false, "user": map[string]string{"login": "ryankes"},
+				"labels":     []map[string]string{},
+				"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+				"head":       map[string]string{"sha": "cafef00d"},
+				"auto_merge": map[string]string{"merge_method": "squash"},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]string{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"state": "success"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("", "alrayyes", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	pr := result.PullRequests[0]
+	assert.Equal(t, dashboard.MergeUnknown, pr.MergeStatus)
+	require.NotNil(t, pr.AutoMergeEnabled)
+	assert.True(t, *pr.AutoMergeEnabled)
+}

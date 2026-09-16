@@ -27,6 +27,23 @@ const (
 	CINone    CIStatus = "none"
 )
 
+// MergeStatus is a pull request's mergeable/blocked state, as coarse as
+// every forge this service talks to can agree on. Matches
+// components.schemas.MergeStatus.
+type MergeStatus string
+
+// A forge only ever reports a handful of real distinctions here — GitHub's
+// own mergeStateStatus has eight values, Forgejo's SDK has one plain bool
+// — so this stays deliberately coarse rather than chasing GitHub's full
+// enum. MergeUnknown covers both "the forge itself doesn't know yet" and
+// "this service couldn't determine it."
+const (
+	MergeMergeable   MergeStatus = "mergeable"
+	MergeConflicting MergeStatus = "conflicting"
+	MergeBlocked     MergeStatus = "blocked"
+	MergeUnknown     MergeStatus = "unknown"
+)
+
 // Label matches components.schemas.Label — a label's name and its real
 // colour from the forge, not just the name.
 type Label struct {
@@ -36,17 +53,23 @@ type Label struct {
 
 // PullRequest matches components.schemas.PullRequest in api/openapi.yaml.
 type PullRequest struct {
-	Forge     Forge     `json:"forge"`
-	Repo      string    `json:"repo"`
-	Number    int       `json:"number"`
-	Title     string    `json:"title"`
-	URL       string    `json:"url"`
-	Author    string    `json:"author"`
-	Draft     bool      `json:"draft"`
-	Labels    []Label   `json:"labels"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	CI        CIStatus  `json:"ci"`
+	Forge       Forge       `json:"forge"`
+	Repo        string      `json:"repo"`
+	Number      int         `json:"number"`
+	Title       string      `json:"title"`
+	URL         string      `json:"url"`
+	Author      string      `json:"author"`
+	Draft       bool        `json:"draft"`
+	Labels      []Label     `json:"labels"`
+	CreatedAt   time.Time   `json:"createdAt"`
+	UpdatedAt   time.Time   `json:"updatedAt"`
+	CI          CIStatus    `json:"ci"`
+	MergeStatus MergeStatus `json:"mergeStatus"`
+	// AutoMergeEnabled is nil when the owning forge has no way to report
+	// this at all (Forgejo, today) — the same "doesn't report it" shape
+	// RateLimit's own nilable pointer already uses, so a forge with
+	// nothing to say here never renders as a false "not enabled."
+	AutoMergeEnabled *bool `json:"autoMergeEnabled,omitempty"`
 }
 
 // Issue matches components.schemas.Issue in api/openapi.yaml.

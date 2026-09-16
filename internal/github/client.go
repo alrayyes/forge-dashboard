@@ -241,13 +241,39 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 	}
 }
 
+// mergeStatusFromGraphQL maps GitHub's own mergeStateStatus — CLEAN is the
+// only genuinely mergeable state; DIRTY is a real conflict; BLOCKED,
+// BEHIND, UNSTABLE and HAS_HOOKS all mean something else is stopping the
+// merge without asserting a conflict; DRAFT and UNKNOWN (GitHub hasn't
+// finished computing it yet) both fall back to MergeUnknown rather than
+// guessing. See design.md's Decisions in
+// openspec/changes/archive/*/show-pr-merge-status for the mapping.
+func mergeStatusFromGraphQL(state string) dashboard.MergeStatus {
+	switch state {
+	case "CLEAN":
+		return dashboard.MergeMergeable
+	case "DIRTY":
+		return dashboard.MergeConflicting
+	case "BLOCKED", "BEHIND", "UNSTABLE", "HAS_HOOKS":
+		return dashboard.MergeBlocked
+	default:
+		return dashboard.MergeUnknown
+	}
+}
+
+type graphqlAutoMergeRequest struct {
+	MergeMethod string `json:"mergeMethod"`
+}
+
 type graphqlPullRequest struct {
-	Number  int           `json:"number"`
-	Title   string        `json:"title"`
-	URL     string        `json:"url"`
-	IsDraft bool          `json:"isDraft"`
-	Author  *graphqlActor `json:"author"`
-	Labels  struct {
+	Number           int                      `json:"number"`
+	Title            string                   `json:"title"`
+	URL              string                   `json:"url"`
+	IsDraft          bool                     `json:"isDraft"`
+	Author           *graphqlActor            `json:"author"`
+	MergeStateStatus string                   `json:"mergeStateStatus"`
+	AutoMergeRequest *graphqlAutoMergeRequest `json:"autoMergeRequest"`
+	Labels           struct {
 		Nodes []graphqlLabelNode `json:"nodes"`
 	} `json:"labels"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -352,6 +378,10 @@ query($cursor: String) {
             isDraft
             author {
               login
+            }
+            mergeStateStatus
+            autoMergeRequest {
+              mergeMethod
             }
             labels(first: 20) {
               nodes {
@@ -511,19 +541,26 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	return result
 }
 
+// boolPtr is a small local helper for filling dashboard.PullRequest's
+// AutoMergeEnabled — a *bool because Forgejo has no way to report this at
+// all (nil there), unlike GitHub, which always knows either way.
+func boolPtr(b bool) *bool { return &b }
+
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	return dashboard.PullRequest{
-		Forge:     dashboard.ForgeGitHub,
-		Repo:      fullName,
-		Number:    p.Number,
-		Title:     p.Title,
-		URL:       p.URL,
-		Author:    authorLogin(p.Author),
-		Draft:     p.IsDraft,
-		Labels:    labelsFromNodes(p.Labels.Nodes),
-		CreatedAt: p.CreatedAt,
-		UpdatedAt: p.UpdatedAt,
-		CI:        ciFromRollup(p.Commits.Nodes),
+		Forge:            dashboard.ForgeGitHub,
+		Repo:             fullName,
+		Number:           p.Number,
+		Title:            p.Title,
+		URL:              p.URL,
+		Author:           authorLogin(p.Author),
+		Draft:            p.IsDraft,
+		Labels:           labelsFromNodes(p.Labels.Nodes),
+		CreatedAt:        p.CreatedAt,
+		UpdatedAt:        p.UpdatedAt,
+		CI:               ciFromRollup(p.Commits.Nodes),
+		MergeStatus:      mergeStatusFromGraphQL(p.MergeStateStatus),
+		AutoMergeEnabled: boolPtr(p.AutoMergeRequest != nil),
 	}
 }
 
@@ -556,6 +593,10 @@ query($owner: String!, $name: String!) {
         isDraft
         author {
           login
+        }
+        mergeStateStatus
+        autoMergeRequest {
+          mergeMethod
         }
         labels(first: 20) {
           nodes {
@@ -755,6 +796,18 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				CreatedAt: p.GetCreatedAt().Time,
 				UpdatedAt: p.GetUpdatedAt().Time,
 				CI:        ci,
+				// Mergeable/MergeableState aren't populated by this List
+				// call at all (go-github's own doc comment on
+				// PullRequest) — resolving them would mean a per-PR Get,
+				// on top of the per-PR CI call this path already makes,
+				// against the unauthenticated 60-requests/hour budget
+				// this whole path exists because of. Left MergeUnknown
+				// rather than paying that cost; see design.md's Open
+				// Questions in openspec/changes/archive/*/
+				// show-pr-merge-status. AutoMerge, unlike Mergeable, *is*
+				// already on this response for free.
+				MergeStatus:      dashboard.MergeUnknown,
+				AutoMergeEnabled: boolPtr(p.GetAutoMerge() != nil),
 			})
 		}
 		if resp.NextPage == 0 {

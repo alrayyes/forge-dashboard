@@ -179,6 +179,20 @@ func posterLogin(u *gitea.User) string {
 	return u.UserName
 }
 
+// mergeStatusFromMergeable deliberately maps false to MergeBlocked, not
+// MergeConflicting: Forgejo computes this field via a background queue
+// and multiple upstream Gitea issues (go-gitea/gitea#22578, #25849) show
+// it can lag or get stuck stale, so a false here isn't confident enough
+// to assert a real conflict, only that something is stopping the merge.
+// See design.md's Decisions in
+// openspec/changes/archive/*/show-pr-merge-status.
+func mergeStatusFromMergeable(mergeable bool) dashboard.MergeStatus {
+	if mergeable {
+		return dashboard.MergeMergeable
+	}
+	return dashboard.MergeBlocked
+}
+
 // ListOpenPullRequests returns every open pull request against repo, with
 // CI already resolved. repo is owner-qualified ("alrayyes/tempus-fugit").
 func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
@@ -210,17 +224,25 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 				updated = *p.Updated
 			}
 			prs = append(prs, dashboard.PullRequest{
-				Forge:     dashboard.ForgeForgejo,
-				Repo:      repo,
-				Number:    int(p.Index),
-				Title:     p.Title,
-				URL:       p.HTMLURL,
-				Author:    posterLogin(p.Poster),
-				Draft:     p.Draft,
-				Labels:    toLabels(p.Labels),
-				CreatedAt: created,
-				UpdatedAt: updated,
-				CI:        ci,
+				Forge:       dashboard.ForgeForgejo,
+				Repo:        repo,
+				Number:      int(p.Index),
+				Title:       p.Title,
+				URL:         p.HTMLURL,
+				Author:      posterLogin(p.Poster),
+				Draft:       p.Draft,
+				Labels:      toLabels(p.Labels),
+				CreatedAt:   created,
+				UpdatedAt:   updated,
+				CI:          ci,
+				MergeStatus: mergeStatusFromMergeable(p.Mergeable),
+				// No read capability for this in the SDK at all — only
+				// write-side schedule/cancel verbs
+				// (MergePullRequestOption.MergeWhenChecksSucceed,
+				// CancelScheduledAutoMerge), nothing that reports current
+				// state. nil here means "this forge can't say," not "not
+				// enabled."
+				AutoMergeEnabled: nil,
 			})
 		}
 		if resp.NextPage == 0 {
