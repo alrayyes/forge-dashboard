@@ -106,6 +106,8 @@ func NewMux(deps Deps) *http.ServeMux {
 	mux.Handle("GET /settings.js", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /insights.html", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /insights.js", requireAuthPage(deps.AuthStore, fileServer))
+	mux.Handle("GET /webhooks.html", requireAuthPage(deps.AuthStore, fileServer))
+	mux.Handle("GET /webhooks.js", requireAuthPage(deps.AuthStore, fileServer))
 	// admin.html/js only need a session at this layer — a non-admin who
 	// navigates here directly gets bounced by the page's own JS once
 	// /api/admin/users answers 403, same as any other API call it makes.
