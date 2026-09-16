@@ -510,6 +510,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/dashboard/refresh:
+    post:
+      operationId: refreshDashboard
+      summary: Trigger an immediate refresh of the signed-in user's own dashboard
+      description: |
+        Blocks until an immediate, out-of-band refresh of the signed-in
+        user's own dashboard completes, then returns the resulting
+        snapshot — for retrying right away after a forge was only
+        briefly unreachable, instead of waiting for the next scheduled
+        background refresh.
+
+        Doesn't support `owner` the way GET /api/dashboard does — only
+        ever the signed-in user's own dashboard, never a shared one, so
+        a user with shared access to someone else's dashboard can never
+        spend that owner's own forge rate-limit budget on their own
+        schedule.
+      tags: [dashboard]
+      responses:
+        "200":
+          description: The freshly refreshed snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No background refresh is running yet for this user — Settings has never been saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/sharing:
     get:
       operationId: getSharing

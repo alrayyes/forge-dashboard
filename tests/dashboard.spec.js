@@ -1414,6 +1414,138 @@ test.describe('dashboard page', () => {
     });
   });
 
+  test.describe('force-refresh button', () => {
+    test('clicking it calls the endpoint and updates the dashboard from its response', async ({
+      page,
+    }) => {
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            pullRequests: [],
+            issues: [],
+          }),
+        }),
+      );
+      await page.reload();
+      await expect(page.locator('#stat-prs')).toHaveText('0');
+
+      let refreshCalled = false;
+      await page.route('**/api/dashboard/refresh', (route) => {
+        refreshCalled = true;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            pullRequests: [
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 1,
+                title: 'A fresh PR',
+                url: 'https://example.com/1',
+                author: 'claude',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+            issues: [],
+          }),
+        });
+      });
+
+      await page.click('#force-refresh-button');
+      expect(refreshCalled).toBe(true);
+      await expect(page.locator('#stat-prs')).toHaveText('1');
+      await expect(page.locator('#pr-rows > .row')).toContainText('A fresh PR');
+    });
+
+    test('disables itself immediately, and re-enables after the cooldown once the response has landed', async ({
+      page,
+    }) => {
+      await page.route('**/api/dashboard/refresh', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [],
+            pullRequests: [],
+            issues: [],
+          }),
+        }),
+      );
+
+      const button = page.locator('#force-refresh-button');
+      await expect(button).toBeEnabled();
+
+      await button.click();
+      await expect(button).toBeDisabled();
+      await expect(button).toHaveClass(/is-refreshing/);
+
+      // The spin class comes off once the response is in hand, but the
+      // button itself stays disabled through the cooldown that follows.
+      await expect(button).not.toHaveClass(/is-refreshing/);
+      await expect(button).toBeDisabled();
+
+      await expect(button).toBeEnabled({ timeout: 8000 });
+    });
+
+    test('a failed refresh shows the existing error banner rather than failing silently', async ({
+      page,
+    }) => {
+      await page.route('**/api/dashboard/refresh', (route) =>
+        route.fulfill({
+          status: 404,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'no background refresh is running yet for this user',
+          }),
+        }),
+      );
+
+      await page.click('#force-refresh-button');
+      await expect(page.locator('#error-banner')).toBeVisible();
+      await expect(page.locator('#error-banner')).toContainText(
+        'Could not refresh',
+      );
+    });
+
+    test('is hidden while viewing a dashboard someone else shared', async ({
+      page,
+    }) => {
+      await page.route('**/api/sharing', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            sharedWithMe: [
+              { username: 'someone-else', displayName: 'Someone Else' },
+            ],
+          }),
+        }),
+      );
+      await page.reload();
+
+      await expect(page.locator('#force-refresh-button')).toBeVisible();
+
+      await expect(page.locator('#dashboard-owner-select')).toBeVisible();
+      await page.selectOption('#dashboard-owner-select', 'someone-else');
+
+      await expect(page.locator('#force-refresh-button')).toBeHidden();
+
+      await page.selectOption('#dashboard-owner-select', '');
+      await expect(page.locator('#force-refresh-button')).toBeVisible();
+    });
+  });
+
   test.describe('label click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route) =>

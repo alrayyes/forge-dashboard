@@ -854,6 +854,41 @@
     });
   });
 
+  // ---- force-refresh: retry right now instead of waiting out the rest
+  // of the background poll's own interval ----
+  var FORCE_REFRESH_COOLDOWN_MS = 5000;
+  var forceRefreshButton = document.getElementById('force-refresh-button');
+
+  forceRefreshButton.addEventListener('click', () => {
+    forceRefreshButton.disabled = true;
+    forceRefreshButton.classList.add('is-refreshing');
+    fetch('/api/dashboard/refresh', {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          throw new Error('session expired');
+        }
+        if (!res.ok) throw new Error(`backend answered ${res.status}`);
+        return res.json();
+      })
+      .then(applySnapshot)
+      .catch((err) => {
+        showError(`Could not refresh: ${err.message}`);
+      })
+      .finally(() => {
+        forceRefreshButton.classList.remove('is-refreshing');
+        // Cooldown starts once the response is already in hand, not from
+        // the click — a user mashing the button gets one real refresh
+        // and a short pause, not a queue of them landing back to back.
+        setTimeout(() => {
+          forceRefreshButton.disabled = false;
+        }, FORCE_REFRESH_COOLDOWN_MS);
+      });
+  });
+
   // ---- switching to a dashboard someone else shared with you ----
   var currentOwner = '';
   var ownerSelect = document.getElementById('dashboard-owner-select');
@@ -876,6 +911,11 @@
 
   ownerSelect.addEventListener('change', () => {
     currentOwner = ownerSelect.value;
+    // Force-refresh only ever hits the signed-in user's own dashboard
+    // (POST /api/dashboard/refresh has no ?owner= support, same as the
+    // SSE stream) — hidden rather than left clickable-but-wrong while
+    // viewing someone else's shared one.
+    forceRefreshButton.hidden = Boolean(currentOwner);
     refresh();
   });
 
