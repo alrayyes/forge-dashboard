@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.0](https://github.com/alrayyes/forge-dashboard/compare/v0.51.0...v0.52.0) (2026-09-16)
+
+
+### Features
+
+* **dashboard:** classify unreachable-forge errors into actionable kinds ([#230](https://github.com/alrayyes/forge-dashboard/issues/230)) ([3f02b51](https://github.com/alrayyes/forge-dashboard/commit/3f02b51003f4d0205d8b7f16628964fbafdf5395))
+
 ## [0.51.0](https://github.com/alrayyes/forge-dashboard/compare/v0.50.1...v0.51.0) (2026-09-16)
 
 
