@@ -472,30 +472,6 @@ section.board {
   color: var(--ink-3);
 }
 
-.webhook-coverage {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  margin-bottom: 22px;
-  overflow: hidden;
-}
-
-.webhook-coverage-body {
-  padding: 14px 18px 16px;
-}
-
-.webhook-coverage-body a {
-  font-size: 13px;
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.webhook-coverage-body a:hover,
-.webhook-coverage-body a:focus-visible {
-  text-decoration: underline;
-}
-
 /* The forge filter doesn't correspond to one of .row's own grid columns
    (forge shows as a badge inside the repo cell, not a column of its
    own), so it lives here rather than fighting the filter-row's grid for

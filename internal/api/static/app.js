@@ -948,27 +948,6 @@
     refresh();
   });
 
-  // ---- webhook coverage ----
-  // hasWebhook is primarily a live check against the forge's own webhook
-  // list (see internal/dashboard.WebhookChecker), falling back to
-  // settings.Store's delivery table when that check errored or a repo's
-  // Source has no webhook path configured yet — either way, this card
-  // only shows the summary; the per-repo detail lives on its own page
-  // (webhooks.html) so a large "without" list doesn't push the pull
-  // request/issue boards below the fold.
-  function renderWebhookCoverage(repos) {
-    var section = document.getElementById('webhook-coverage');
-    if (!repos.length) {
-      section.hidden = true;
-      return;
-    }
-    section.hidden = false;
-
-    var withWebhook = repos.filter((r) => r.hasWebhook).length;
-    document.getElementById('webhook-coverage-count').textContent =
-      `${withWebhook} of ${repos.length} confirmed`;
-  }
-
   // ---- main fetch/render loop ----
   function applySnapshot(data) {
     clearError();
@@ -976,7 +955,6 @@
     tickRefreshedAt();
 
     renderForgeHealth(data.forges || []);
-    renderWebhookCoverage(data.repos || []);
 
     var prs = data.pullRequests || [];
     var issues = data.issues || [];

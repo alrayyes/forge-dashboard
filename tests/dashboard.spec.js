@@ -214,61 +214,7 @@ test.describe('dashboard page', () => {
     ).toContainText('0/5000 requests');
   });
 
-  test('webhook coverage card is hidden when the dashboard reports no tracked repos', async ({
-    page,
-  }) => {
-    await page.route('**/api/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [],
-          pullRequests: [],
-          issues: [],
-          repos: [],
-        }),
-      }),
-    );
-
-    await page.reload();
-
-    await expect(page.locator('#webhook-coverage')).toBeHidden();
-  });
-
-  test('webhook coverage card shows only the summary count and a link to the webhooks page', async ({
-    page,
-  }) => {
-    await page.route('**/api/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [],
-          pullRequests: [],
-          issues: [],
-          repos: [
-            { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
-            { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
-            { forge: 'forgejo', fullName: 'alrayyes/c', hasWebhook: false },
-          ],
-        }),
-      }),
-    );
-
-    await page.reload();
-
-    await expect(page.locator('#webhook-coverage')).toBeVisible();
-    await expect(page.locator('#webhook-coverage-count')).toHaveText(
-      '1 of 3 confirmed',
-    );
-    await expect(
-      page.locator('#webhook-coverage').getByRole('link'),
-    ).toHaveAttribute('href', '/webhooks.html');
-  });
-
-  test('has no axe-core violations with the webhook coverage card populated', async ({
+  test('the dashboard has no webhook coverage card — that lives in Settings now', async ({
     page,
   }) => {
     await page.route('**/api/dashboard*', (route) =>
@@ -289,13 +235,9 @@ test.describe('dashboard page', () => {
     );
 
     await page.reload();
-    await expect(page.locator('#webhook-coverage')).toBeVisible();
 
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
+    await expect(page.locator('#webhook-coverage')).toHaveCount(0);
+    await expect(page.locator('a[aria-label="Webhooks"]')).toHaveCount(0);
   });
 
   test('has no axe-core violations at desktop width', async ({ page }) => {

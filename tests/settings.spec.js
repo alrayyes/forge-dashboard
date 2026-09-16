@@ -224,6 +224,52 @@ test.describe('settings page', () => {
     expect(clipboardText).toBe(expected);
   });
 
+  test('webhook coverage summary is hidden with no tracked repos', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html');
+
+    await expect(page.locator('#webhook-coverage-summary')).toBeHidden();
+  });
+
+  test('webhook coverage summary shows the count and links to the webhooks page', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [],
+          pullRequests: [],
+          issues: [],
+          repos: [
+            { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+            { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
+            { forge: 'forgejo', fullName: 'alrayyes/c', hasWebhook: false },
+          ],
+        }),
+      }),
+    );
+    await page.goto('/settings.html');
+
+    const summary = page.locator('#webhook-coverage-summary');
+    await expect(summary).toBeVisible();
+    await expect(page.locator('#webhook-coverage-count')).toHaveText(
+      '1 of 3 confirmed',
+    );
+    await expect(summary.getByRole('link')).toHaveAttribute(
+      'href',
+      '/webhooks.html',
+    );
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await page.goto('/settings.html');
 
