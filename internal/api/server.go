@@ -36,6 +36,15 @@ type Deps struct {
 	Manager      *dashboard.Manager
 	BuildSources func(settings.Credentials) []dashboard.Source
 
+	// PublicOrigin is this instance's own externally-reachable origin
+	// (RP_ORIGIN — the same value WebAuthn's relying-party config
+	// already requires be set correctly, reused rather than adding a
+	// second "what's my own address" env var). handleWebhookEnsure uses
+	// it to build the exact URL a webhook it creates should target;
+	// nothing else here needs it, since matching an existing hook
+	// (dashboard.WebhookTargetsPath) only ever compares by path.
+	PublicOrigin string
+
 	// AppContext is the process's own long-lived context (canceled on
 	// shutdown), not any one request's — a handler that starts a
 	// Manager-owned background refresh goroutine has to root it here, not
@@ -69,6 +78,7 @@ func NewMux(deps Deps) *http.ServeMux {
 	mux.Handle("POST /api/dashboard/refresh", auth.RequireAuth(deps.AuthStore)(handleDashboardRefresh(deps)))
 	mux.Handle("GET /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
+	mux.Handle("POST /api/webhooks/ensure", auth.RequireAuth(deps.AuthStore)(handleWebhookEnsure(deps)))
 
 	mux.Handle("GET /api/sharing", auth.RequireAuth(deps.AuthStore)(handleSharingGet(deps)))
 	mux.Handle("PUT /api/sharing/{username}", auth.RequireAuth(deps.AuthStore)(handleSharingPut(deps)))

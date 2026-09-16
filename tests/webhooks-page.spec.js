@@ -59,11 +59,63 @@ test.describe('webhooks page', () => {
     await expect(rows.nth(1)).toContainText('alrayyes/b');
     await expect(rows.nth(1)).toContainText('Not yet');
     await expect(
-      rows.nth(1).getByRole('link', { name: 'Add a webhook' }),
-    ).toHaveAttribute('href', '/settings.html#webhooks');
+      rows.nth(1).getByRole('button', { name: 'Add a webhook' }),
+    ).toBeVisible();
     await expect(
-      rows.nth(0).getByRole('link', { name: 'Add a webhook' }),
+      rows.nth(0).getByRole('button', { name: 'Add a webhook' }),
     ).toHaveCount(0);
+  });
+
+  test('clicking "Add a webhook" calls the API and flips the row to confirmed on success', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: false },
+    ]);
+    let requestBody;
+    await page.route('**/api/webhooks/ensure', (route) => {
+      requestBody = route.request().postDataJSON();
+      return route.fulfill({ status: 204 });
+    });
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    await row.getByRole('button', { name: 'Add a webhook' }).click();
+
+    await expect(row).toContainText('Confirmed');
+    await expect(row.getByRole('button')).toHaveCount(0);
+    await expect(page.locator('#webhooks-status')).toContainText(
+      'Webhook added for alrayyes/a.',
+    );
+    expect(requestBody).toEqual({ forge: 'github', fullName: 'alrayyes/a' });
+  });
+
+  test('a failed create shows a specific error and re-enables the button', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: false },
+    ]);
+    await page.route('**/api/webhooks/ensure', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'github: 403 insufficient scope' }),
+      }),
+    );
+    await page.goto('/webhooks.html');
+
+    const button = page
+      .locator('#webhooks-rows tr')
+      .first()
+      .getByRole('button', { name: 'Add a webhook' });
+    await button.click();
+
+    await expect(page.locator('#webhooks-status')).toContainText(
+      'insufficient scope',
+    );
+    await expect(button).toBeEnabled();
+    await expect(button).toHaveText('Add a webhook');
   });
 
   test('paginates at 25 per page, same convention as the pull request/issue boards', async ({

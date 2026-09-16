@@ -227,9 +227,9 @@
           <button type="button" class="token-toggle" data-target="github-token" aria-pressed="false" aria-label="Show personal access token">Show</button>
         </div>
         <p class="field-hint" id="github-token-hint">
-          Needs read-only access to your repos, their issues, pull requests, and commit status, plus read access to each repo's webhook list (to show whether one's already pointed at this dashboard — see the Webhooks card below).
+          Needs read-only access to your repos, their issues, pull requests, and commit status, plus read/write access to each repo's webhooks — to show whether one's already pointed at this dashboard, and to create or fix one up when you click "Add a webhook" (see the Webhooks page).
           <a href="https://github.com/settings/tokens/new?scopes=repo&amp;description=forge-dashboard" target="_blank" rel="noopener noreferrer">Create a token with that scope already set &rarr;</a>
-          Classic tokens: the <code>repo</code> scope (or just <code>public_repo</code> if every repo you track is public) already covers this. Fine-grained tokens: grant Metadata, Issues, Pull requests, Commit statuses, and Checks, each set to Read-only, plus Webhooks set to Read-only.
+          Classic tokens: the <code>repo</code> scope (or just <code>public_repo</code> if every repo you track is public) already covers this. Fine-grained tokens: grant Metadata, Issues, Pull requests, Commit statuses, and Checks, each set to Read-only, plus Webhooks set to Read and write.
         </p>
       </div>
       <div class="field">
@@ -254,7 +254,7 @@
           <button type="button" class="token-toggle" data-target="forgejo-token" aria-pressed="false" aria-label="Show API token">Show</button>
         </div>
         <p class="field-hint" id="forgejo-token-hint">
-          Needs your repos and their issues/pull requests, plus each repo's webhook list (to show whether one's already pointed at this dashboard — see the Webhooks card below) — select the <code>write:repository</code> and <code>read:issue</code> scopes. Forgejo's webhook API has no separate read-only scope, so listing needs <code>write:repository</code> even though nothing here writes to your repo.
+          Needs your repos and their issues/pull requests, plus each repo's webhooks — to show whether one's already pointed at this dashboard, and to create or fix one up when you click "Add a webhook" (see the Webhooks page) — select the <code>write:repository</code> and <code>read:issue</code> scopes. Forgejo's webhook API has no separate read-only scope, so even just checking coverage needs <code>write:repository</code>.
           <a id="forgejo-token-link" target="_blank" rel="noopener noreferrer">Open your instance's token settings &rarr;</a>
           <span id="forgejo-token-link-disabled-hint">(fill in the instance URL above first)</span>
         </p>

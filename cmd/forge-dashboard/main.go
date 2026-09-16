@@ -89,6 +89,10 @@ func main() {
 		Manager:       manager,
 		BuildSources:  buildSourcesForUser,
 		AppContext:    ctx,
+		// Same env var buildAuth already required for WebAuthn's own
+		// RPOrigins — reused rather than adding a second "what's my own
+		// address" knob. See Deps.PublicOrigin's own doc comment.
+		PublicOrigin: envOr("RP_ORIGIN", "http://localhost:8080"),
 	}
 
 	srv := &http.Server{
