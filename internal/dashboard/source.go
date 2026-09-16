@@ -55,6 +55,19 @@ type WebhookChecker interface {
 	HasWebhook(ctx context.Context, owner, name string) (bool, error)
 }
 
+// WebhookManager is implemented by a ForgeClient (or, for github.Client,
+// a Source directly) that can create or update this app's own webhook
+// on one of its tracked repos — checked via a type assertion, the same
+// optional-capability pattern RepoRefresher uses. A single method
+// rather than separate Create/Edit ones: the caller doesn't know or
+// care whether a matching hook already exists, only that one ends up
+// correctly configured — deciding that, and finding an existing one via
+// WebhookTargetsPath rather than creating a duplicate, is the client's
+// own job.
+type WebhookManager interface {
+	EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error
+}
+
 // WebhookTargetsPath reports whether rawURL's path component is exactly
 // path — how a Source recognizes "this hook is the one forge-dashboard
 // itself would have created," regardless of the scheme or host a webhook

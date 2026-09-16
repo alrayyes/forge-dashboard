@@ -208,3 +208,49 @@ func TestGenericSource_Fetch_WebhookCheckFails_StillReportsReachableWithHasWebho
 	require.Len(t, result.Repos, 1)
 	assert.False(t, result.Repos[0].HasWebhook)
 }
+
+type fakeWebhookManagerClient struct {
+	fakeForgeClient
+	ensureCalls []string
+	ensureErr   error
+}
+
+func (f *fakeWebhookManagerClient) EnsureWebhook(_ context.Context, owner, name, targetURL, secret string) error {
+	f.ensureCalls = append(f.ensureCalls, owner+"/"+name+" "+targetURL+" "+secret)
+	return f.ensureErr
+}
+
+func TestGenericSource_EnsureWebhook_DelegatesToClient(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeWebhookManagerClient{}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	err := source.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok", "sekret")
+
+	require.NoError(t, err)
+	require.Len(t, client.ensureCalls, 1)
+	assert.Equal(t, "alrayyes/a https://dashboard.example/api/webhooks/forgejo/tok sekret", client.ensureCalls[0])
+}
+
+func TestGenericSource_EnsureWebhook_PropagatesClientError(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeWebhookManagerClient{ensureErr: errors.New("boom")}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	err := source.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok", "sekret")
+
+	require.Error(t, err)
+}
+
+func TestGenericSource_EnsureWebhook_ClientWithoutSupport_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeForgeClient{}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	err := source.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok", "sekret")
+
+	require.Error(t, err)
+}
