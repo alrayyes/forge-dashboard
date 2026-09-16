@@ -51,8 +51,11 @@ else
 fi
 
 # CHANGELOG.md is written by the release job; correcting it is not this
-# script's business.
-files=$(git ls-files '*.md' | grep -v '^CHANGELOG.md$' | grep -v '^\.claude/')
+# script's business. openspec/changes/** and openspec/specs/** excluded for
+# the same reason as scripts/lint-prose.sh: OpenSpec's own content, not this
+# repo's house style — American spelling throughout (this repo runs British)
+# and technical vocabulary (groupBy, globals) neither dictionary knows.
+files=$(git ls-files '*.md' | grep -v '^CHANGELOG.md$' | grep -v '^\.claude/' | grep -v '^openspec/changes/' | grep -v '^openspec/specs/')
 
 echo "Checking:"
 echo "$files"

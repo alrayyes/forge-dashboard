@@ -14,6 +14,18 @@ async function registerAndSignIn(page) {
   await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
 }
 
+// The forge filter is a segmented control (radio inputs, visually hidden
+// in favor of their <label>) rather than a <select> — clicking the label
+// is what a real user (or a screen reader's activation gesture) does,
+// same as any other radio group.
+function forgeRadio(page, value) {
+  return page.locator(`.filter-bar input[data-col="forge"][value="${value}"]`);
+}
+
+async function selectForge(page, value) {
+  await forgeRadio(page, value).check();
+}
+
 test.describe('dashboard page', () => {
   test.beforeEach(async ({ page }) => {
     await registerAndSignIn(page);
@@ -268,7 +280,7 @@ test.describe('dashboard page', () => {
     // than erroring. Title, not repo/author: those are now <select>s
     // with nothing to pick from an empty board.
     const titleFilter = page.locator(
-      'section[aria-label="Open pull requests"] .col-filter[data-col="title"]',
+      '.filter-bar .col-filter[data-col="title"]',
     );
     await titleFilter.fill('nonexistent-title');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(0);
@@ -318,17 +330,11 @@ test.describe('dashboard page', () => {
     await page.reload();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
-    await page.selectOption(
-      'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-      'forgejo',
-    );
+    await selectForge(page, 'forgejo');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     await expect(page.locator('#pr-rows > .row')).toContainText('A Forgejo PR');
 
-    await page.selectOption(
-      'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-      '',
-    );
+    await selectForge(page, '');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   });
 
@@ -389,10 +395,7 @@ test.describe('dashboard page', () => {
     test('a select filter survives a reload, both in state and visibly in the control', async ({
       page,
     }) => {
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-        'forgejo',
-      );
+      await selectForge(page, 'forgejo');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
       await page.reload();
@@ -400,16 +403,12 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toContainText(
         'A Forgejo PR',
       );
-      await expect(
-        page.locator(
-          'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-        ),
-      ).toHaveValue('forgejo');
+      await expect(forgeRadio(page, 'forgejo')).toBeChecked();
     });
 
     test('the free-text title filter survives a reload', async ({ page }) => {
       const titleFilter = page.locator(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="title"]',
+        '.filter-bar .col-filter[data-col="title"]',
       );
       await titleFilter.fill('github');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
@@ -419,25 +418,99 @@ test.describe('dashboard page', () => {
       await expect(titleFilter).toHaveValue('github');
     });
 
-    test('the two boards persist their filters independently', async ({
+    test('the shared forge filter persists and applies to both boards, while CI status stays scoped to pull requests only', async ({
       page,
     }) => {
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-        'github',
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              { forge: 'github', reachable: true, repoCount: 1 },
+              { forge: 'forgejo', reachable: true, repoCount: 1 },
+            ],
+            pullRequests: [
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 1,
+                title: 'A GitHub PR',
+                url: 'https://example.com/1',
+                author: 'claude',
+                ci: 'failure',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'forgejo',
+                repo: 'homelab/vps-docker',
+                number: 2,
+                title: 'A Forgejo PR',
+                url: 'https://example.com/2',
+                author: 'ryan',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+            issues: [
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 3,
+                title: 'A GitHub issue',
+                url: 'https://example.com/3',
+                author: 'claude',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'forgejo',
+                repo: 'homelab/vps-docker',
+                number: 4,
+                title: 'A Forgejo issue',
+                url: 'https://example.com/4',
+                author: 'ryan',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+          }),
+        }),
       );
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+
+      // Forge is shared: picking one narrows both boards at once.
+      await selectForge(page, 'github');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+
+      // CI status has no equivalent on issues, so it stays scoped to the
+      // pull requests board only.
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
+        'failure',
+      );
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
       await page.reload();
+      await expect(forgeRadio(page, 'github')).toBeChecked();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
       await expect(
         page.locator(
-          'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
+          'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
         ),
-      ).toHaveValue('github');
-      await expect(
-        page.locator(
-          'section[aria-label="Open issues"] .col-filter[data-col="forge"]',
-        ),
-      ).toHaveValue('');
+      ).toHaveValue('failure');
     });
   });
 
@@ -503,7 +576,7 @@ test.describe('dashboard page', () => {
     test('group by repo clusters rows under a real heading per repo, alphabetically, with a count', async ({
       page,
     }) => {
-      await page.selectOption('#pr-group-select', 'repo');
+      await page.selectOption('#shared-group-select', 'repo');
 
       const headings = page.locator('#pr-rows > h3.group-heading');
       await expect(headings).toHaveCount(2);
@@ -519,11 +592,8 @@ test.describe('dashboard page', () => {
     test('a filter combined with grouping only clusters the repos that still have matches — no empty headings', async ({
       page,
     }) => {
-      await page.selectOption('#pr-group-select', 'repo');
-      await page.fill(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="title"]',
-        'Dashboard',
-      );
+      await page.selectOption('#shared-group-select', 'repo');
+      await page.fill('.filter-bar .col-filter[data-col="title"]', 'Dashboard');
 
       await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(1);
       await expect(page.locator('#pr-rows > h3.group-heading')).toContainText(
@@ -535,10 +605,10 @@ test.describe('dashboard page', () => {
     test('switching back to no grouping returns to the flat list', async ({
       page,
     }) => {
-      await page.selectOption('#pr-group-select', 'repo');
+      await page.selectOption('#shared-group-select', 'repo');
       await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(2);
 
-      await page.selectOption('#pr-group-select', '');
+      await page.selectOption('#shared-group-select', '');
       await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(0);
       await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
     });
@@ -604,7 +674,7 @@ test.describe('dashboard page', () => {
       test('clusters rows under a real heading per forge, using the display label, alphabetically, with a count', async ({
         page,
       }) => {
-        await page.selectOption('#pr-group-select', 'forge');
+        await page.selectOption('#shared-group-select', 'forge');
 
         const headings = page.locator('#pr-rows > h3.group-heading');
         await expect(headings).toHaveCount(2);
@@ -625,11 +695,8 @@ test.describe('dashboard page', () => {
         // every visible row already shares one forge once the Forge
         // filter narrows to it, so a single cluster would tell the user
         // nothing a flat list didn't already (#112).
-        await page.selectOption('#pr-group-select', 'forge');
-        await page.selectOption(
-          'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-          'github',
-        );
+        await page.selectOption('#shared-group-select', 'forge');
+        await selectForge(page, 'github');
 
         await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(
           0,
@@ -690,30 +757,34 @@ test.describe('dashboard page', () => {
     }) => {
       // Only one forge represented here, so options stay flat — no
       // <optgroup> — but the value is still forge-qualified (#112).
-      const options = page.locator('#pr-repo-select option');
+      const options = page.locator('#shared-repo-select option');
       await expect(options).toHaveCount(3); // "All repos" plus the two.
-      await expect(page.locator('#pr-repo-select optgroup')).toHaveCount(0);
+      await expect(page.locator('#shared-repo-select optgroup')).toHaveCount(0);
       await expect(
-        page.locator('#pr-repo-select option[value="github:alrayyes/wiki"]'),
+        page.locator(
+          '#shared-repo-select option[value="github:alrayyes/wiki"]',
+        ),
       ).toHaveCount(1);
       await expect(
-        page.locator('#pr-repo-select option[value="github:alrayyes/wiki"]'),
+        page.locator(
+          '#shared-repo-select option[value="github:alrayyes/wiki"]',
+        ),
       ).toHaveText('alrayyes/wiki');
 
-      await page.selectOption('#pr-repo-select', 'github:alrayyes/wiki');
+      await page.selectOption('#shared-repo-select', 'github:alrayyes/wiki');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Two');
 
-      await page.selectOption('#pr-repo-select', '');
+      await page.selectOption('#shared-repo-select', '');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     });
 
     test('the author select lists authors actually on screen, and picking one filters to it', async ({
       page,
     }) => {
-      await expect(page.locator('#pr-author-select option')).toHaveCount(3); // "All authors" plus the two.
+      await expect(page.locator('#shared-author-select option')).toHaveCount(3); // "All authors" plus the two.
 
-      await page.selectOption('#pr-author-select', 'ryan');
+      await page.selectOption('#shared-author-select', 'ryan');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Two');
     });
@@ -721,18 +792,15 @@ test.describe('dashboard page', () => {
     test('the title filter offers suggestions from what is on screen, but still accepts free text', async ({
       page,
     }) => {
-      const suggestions = page.locator('#pr-title-options option');
+      const suggestions = page.locator('#shared-title-options option');
       await expect(suggestions).toHaveCount(2);
       await expect(
-        page.locator('#pr-title-options option[value="Two"]'),
+        page.locator('#shared-title-options option[value="Two"]'),
       ).toHaveCount(1);
 
       // Free text still works — the datalist only adds suggestions, it
       // doesn't restrict what can be typed.
-      await page.fill(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="title"]',
-        'wo',
-      );
+      await page.fill('.filter-bar .col-filter[data-col="title"]', 'wo');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Two');
     });
@@ -799,18 +867,18 @@ test.describe('dashboard page', () => {
     test('the repo select groups options by forge when a repo name is shared, and resolves each to exactly one forge', async ({
       page,
     }) => {
-      const groups = page.locator('#pr-repo-select optgroup');
+      const groups = page.locator('#shared-repo-select optgroup');
       await expect(groups).toHaveCount(2);
       // Alphabetical by display label, same as group-by-forge's headings:
       // "Forgejo" before "GitHub".
       await expect(groups.nth(0)).toHaveAttribute('label', 'Forgejo');
       await expect(groups.nth(1)).toHaveAttribute('label', 'GitHub');
 
-      await page.selectOption('#pr-repo-select', 'github:shared/tools');
+      await page.selectOption('#shared-repo-select', 'github:shared/tools');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('GitHub A');
 
-      await page.selectOption('#pr-repo-select', 'forgejo:shared/tools');
+      await page.selectOption('#shared-repo-select', 'forgejo:shared/tools');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Forgejo A');
     });
@@ -818,49 +886,40 @@ test.describe('dashboard page', () => {
     test('picking a forge narrows the repo, author, and label selects to that forge only, ungrouped', async ({
       page,
     }) => {
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-        'forgejo',
-      );
+      await selectForge(page, 'forgejo');
 
-      await expect(page.locator('#pr-repo-select optgroup')).toHaveCount(0);
-      await expect(page.locator('#pr-repo-select option')).toHaveCount(2); // All repos + shared/tools.
-      await expect(page.locator('#pr-author-select option')).toHaveCount(2); // All authors + ryan.
-      await expect(page.locator('#pr-label-select option')).toHaveCount(2); // All labels + enhancement.
+      await expect(page.locator('#shared-repo-select optgroup')).toHaveCount(0);
+      await expect(page.locator('#shared-repo-select option')).toHaveCount(2); // All repos + shared/tools.
+      await expect(page.locator('#shared-author-select option')).toHaveCount(2); // All authors + ryan.
+      await expect(page.locator('#shared-label-select option')).toHaveCount(2); // All labels + enhancement.
     });
 
     test('clearing the forge filter widens the repo, author, and label options back out', async ({
       page,
     }) => {
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-        'forgejo',
-      );
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-        '',
-      );
+      await selectForge(page, 'forgejo');
+      await selectForge(page, '');
 
-      await expect(page.locator('#pr-repo-select optgroup')).toHaveCount(2);
-      await expect(page.locator('#pr-author-select option')).toHaveCount(3); // All + claude + ryan.
-      await expect(page.locator('#pr-label-select option')).toHaveCount(3); // All + bug + enhancement.
+      await expect(page.locator('#shared-repo-select optgroup')).toHaveCount(2);
+      await expect(page.locator('#shared-author-select option')).toHaveCount(3); // All + claude + ryan.
+      await expect(page.locator('#shared-label-select option')).toHaveCount(3); // All + bug + enhancement.
     });
 
     test('a repo selection that no longer exists once the forge filter narrows clears itself, not just the control', async ({
       page,
     }) => {
-      await page.selectOption('#pr-repo-select', 'github:alrayyes/only-here');
+      await page.selectOption(
+        '#shared-repo-select',
+        'github:alrayyes/only-here',
+      );
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-        'forgejo',
-      );
+      await selectForge(page, 'forgejo');
 
       // "alrayyes/only-here" doesn't exist under Forgejo — the stale
       // selection has to clear, or this would silently show zero rows
       // with no visible reason why.
-      await expect(page.locator('#pr-repo-select')).toHaveValue('');
+      await expect(page.locator('#shared-repo-select')).toHaveValue('');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Forgejo A');
     });
@@ -868,15 +927,12 @@ test.describe('dashboard page', () => {
     test('an author selection that no longer exists once the forge filter narrows clears itself', async ({
       page,
     }) => {
-      await page.selectOption('#pr-author-select', 'claude');
+      await page.selectOption('#shared-author-select', 'claude');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-        'forgejo',
-      );
+      await selectForge(page, 'forgejo');
 
-      await expect(page.locator('#pr-author-select')).toHaveValue('');
+      await expect(page.locator('#shared-author-select')).toHaveValue('');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Forgejo A');
     });
@@ -884,29 +940,23 @@ test.describe('dashboard page', () => {
     test('"Group by forge" disappears once a forge is picked, and resets an active forge grouping to none', async ({
       page,
     }) => {
-      await page.selectOption('#pr-group-select', 'forge');
+      await page.selectOption('#shared-group-select', 'forge');
       await expect(page.locator('#pr-rows > .group-heading')).toHaveCount(2);
       await expect(
-        page.locator('#pr-group-select option[value="forge"]'),
+        page.locator('#shared-group-select option[value="forge"]'),
       ).toHaveJSProperty('hidden', false);
 
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-        'github',
-      );
+      await selectForge(page, 'github');
 
       await expect(
-        page.locator('#pr-group-select option[value="forge"]'),
+        page.locator('#shared-group-select option[value="forge"]'),
       ).toHaveJSProperty('hidden', true);
-      await expect(page.locator('#pr-group-select')).toHaveValue('');
+      await expect(page.locator('#shared-group-select')).toHaveValue('');
       await expect(page.locator('#pr-rows > .group-heading')).toHaveCount(0);
 
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="forge"]',
-        '',
-      );
+      await selectForge(page, '');
       await expect(
-        page.locator('#pr-group-select option[value="forge"]'),
+        page.locator('#shared-group-select option[value="forge"]'),
       ).toHaveJSProperty('hidden', false);
     });
   });
@@ -1012,7 +1062,7 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-pagination')).toBeVisible();
 
       await page.fill(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="title"]',
+        '.filter-bar .col-filter[data-col="title"]',
         'the only match',
       );
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
@@ -1281,16 +1331,84 @@ test.describe('dashboard page', () => {
       expect(navigated).toBe(false);
     });
 
-    test('label filtering on the issues board never touches the pull requests board', async ({
+    test('label filtering is shared: clicking a chip on the issues board also filters the pull requests board', async ({
       page,
     }) => {
+      // Label is one of the shared fields now — override the fixture with
+      // a matching-labeled PR so this actually exercises the cross-board
+      // effect, not just an already-empty PR board staying empty.
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            pullRequests: [
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 3,
+                title: 'A PR fixing a bug',
+                url: 'https://example.com/3',
+                author: 'claude',
+                ci: 'success',
+                labels: [{ name: 'kind/bug', color: 'd73a4a' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 4,
+                title: 'An unrelated PR',
+                url: 'https://example.com/4',
+                author: 'claude',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+            issues: [
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 1,
+                title: 'A bug report',
+                url: 'https://example.com/1',
+                author: 'claude',
+                labels: [{ name: 'kind/bug', color: 'd73a4a' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 2,
+                title: 'A feature request',
+                url: 'https://example.com/2',
+                author: 'claude',
+                labels: [{ name: 'kind/feature', color: 'a2eeef' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+          }),
+        }),
+      );
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+
       await page
         .locator('#issue-rows .label-chip', { hasText: 'kind/bug' })
         .click();
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
-      // No pull requests in this fixture at all — still renders its own
-      // empty state rather than erroring because a sibling board filtered.
-      await expect(page.locator('#pr-empty')).toBeVisible();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText(
+        'A PR fixing a bug',
+      );
     });
 
     test('has no axe-core violations with real label chips rendered', async ({
@@ -1305,10 +1423,10 @@ test.describe('dashboard page', () => {
     test('the label select lists labels actually on screen, and picking one filters and marks the matching chip active', async ({
       page,
     }) => {
-      const options = page.locator('#issue-label-select option');
+      const options = page.locator('#shared-label-select option');
       await expect(options).toHaveCount(3); // "All labels" plus the two.
 
-      await page.selectOption('#issue-label-select', 'kind/bug');
+      await page.selectOption('#shared-label-select', 'kind/bug');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
       await expect(page.locator('#issue-rows > .row')).toContainText(
         'A bug report',
@@ -1318,7 +1436,7 @@ test.describe('dashboard page', () => {
         .locator('.label-chip', { hasText: 'kind/bug' });
       await expect(bugChip).toHaveClass(/active/);
 
-      await page.selectOption('#issue-label-select', '');
+      await page.selectOption('#shared-label-select', '');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
     });
 
@@ -1326,12 +1444,14 @@ test.describe('dashboard page', () => {
       await page
         .locator('#issue-rows .label-chip', { hasText: 'kind/bug' })
         .click();
-      await expect(page.locator('#issue-label-select')).toHaveValue('kind/bug');
+      await expect(page.locator('#shared-label-select')).toHaveValue(
+        'kind/bug',
+      );
 
       await page
         .locator('#issue-rows .label-chip', { hasText: 'kind/bug' })
         .click();
-      await expect(page.locator('#issue-label-select')).toHaveValue('');
+      await expect(page.locator('#shared-label-select')).toHaveValue('');
     });
 
     test('a label beyond the first three chips on an item is still clearable via the select, even with no chip on screen to click', async ({
@@ -1374,7 +1494,7 @@ test.describe('dashboard page', () => {
       await page.reload();
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
-      await page.selectOption('#issue-label-select', 'kind/buried');
+      await page.selectOption('#shared-label-select', 'kind/buried');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
       // Only the first three labels render a chip — the filtered-on one
       // genuinely has no chip anywhere on screen right now.
@@ -1383,8 +1503,8 @@ test.describe('dashboard page', () => {
       ).toHaveCount(0);
 
       // Still clearable, with no chip to click.
-      await page.selectOption('#issue-label-select', '');
-      await expect(page.locator('#issue-label-select')).toHaveValue('');
+      await page.selectOption('#shared-label-select', '');
+      await expect(page.locator('#shared-label-select')).toHaveValue('');
     });
   });
 
@@ -1491,10 +1611,10 @@ test.describe('dashboard page', () => {
         issues: [DEPENDENCY_DASHBOARD_ISSUE, REAL_ISSUE],
       });
       await page.reload();
-      // #issue-count is the raw total across the whole snapshot, same as
-      // every other column filter already leaves it — this filter only
-      // ever hides rows, the same as those.
-      await expect(page.locator('#issue-count')).toHaveText('2 open');
+      // The default-on Hide Dependency Dashboard filter is already
+      // narrowing the board, so the count reads "shown of total" rather
+      // than the raw total — same as any other active filter.
+      await expect(page.locator('#issue-count')).toHaveText('1 of 2 shown');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
     });
 

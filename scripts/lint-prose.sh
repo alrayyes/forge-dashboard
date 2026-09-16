@@ -22,8 +22,13 @@ fi
 
 # The prose this repository wrote. A bare `vale .` also reads the generated
 # changelog and the README of every downloaded style package, and holds all of
-# them to house rules they were never written to.
-files=$(git ls-files '*.md' | grep -v '^CHANGELOG.md$' | grep -v '^\.claude/')
+# them to house rules they were never written to. openspec/changes/** and
+# openspec/specs/** are excluded for the same reason .claude/** is: OpenSpec's
+# own template, not this repo's prose — its required "### Requirement: <Name>"
+# and "#### Scenario: <Name>" headings trip Google.Colons on every one of
+# them, and the technical vocabulary (groupBy, bundler, globals) isn't
+# something to keep re-arguing with a spell checker on every future change.
+files=$(git ls-files '*.md' | grep -v '^CHANGELOG.md$' | grep -v '^\.claude/' | grep -v '^openspec/changes/' | grep -v '^openspec/specs/')
 
 echo "Checking:"
 echo "$files"

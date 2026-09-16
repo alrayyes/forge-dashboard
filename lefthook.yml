@@ -58,6 +58,10 @@ pre-commit:
       exclude:
         - "CHANGELOG.md"
         - ".claude/**"
+        # OpenSpec's own change/spec templates — see scripts/lint-prose.sh's
+        # comment for why.
+        - "openspec/changes/**"
+        - "openspec/specs/**"
       run: vale {staged_files}
 
     # Reads only, so it changes nothing to restage. Invoked bare rather than
