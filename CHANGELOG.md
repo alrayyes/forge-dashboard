@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.1](https://github.com/alrayyes/forge-dashboard/compare/v0.59.0...v0.59.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* **tests:** stop racing page.goto against its own waitForResponse ([#274](https://github.com/alrayyes/forge-dashboard/issues/274)) ([608dc94](https://github.com/alrayyes/forge-dashboard/commit/608dc94c490c91628ea7f61fc74f199f9d27f341)), closes [#273](https://github.com/alrayyes/forge-dashboard/issues/273)
+
 ## [0.59.0](https://github.com/alrayyes/forge-dashboard/compare/v0.58.0...v0.59.0) (2026-09-16)
 
 
