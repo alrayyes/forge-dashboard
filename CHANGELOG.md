@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.51.0](https://github.com/alrayyes/forge-dashboard/compare/v0.50.1...v0.51.0) (2026-09-16)
+
+
+### Features
+
+* **dashboard:** add a force-refresh button ([#225](https://github.com/alrayyes/forge-dashboard/issues/225)) ([ecbd4c8](https://github.com/alrayyes/forge-dashboard/commit/ecbd4c84390660ce03dd74144b35db1364f4632d)), closes [#219](https://github.com/alrayyes/forge-dashboard/issues/219)
+
 ## [0.50.1](https://github.com/alrayyes/forge-dashboard/compare/v0.50.0...v0.50.1) (2026-09-16)
 
 
