@@ -1353,3 +1353,90 @@ func TestFetch_HooksAPIFails_DegradesToFalseWithoutFailingFetch(t *testing.T) {
 	require.Len(t, result.Repos, 1)
 	assert.False(t, result.Repos[0].HasWebhook)
 }
+
+func TestEnsureWebhook_CreatesWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	var createBody map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			writeJSON(t, w, []map[string]any{
+				{"id": 1, "config": map[string]any{"url": "https://elsewhere.example/hook"}},
+			})
+		case http.MethodPost:
+			assert.NoError(t, json.NewDecoder(r.Body).Decode(&createBody))
+			writeJSON(t, w, map[string]any{"id": 2})
+		default:
+			t.Fatalf("unexpected method %s", r.Method)
+		}
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/tok123", "sekret")
+
+	require.NoError(t, err)
+	require.NotNil(t, createBody)
+	config, ok := createBody["config"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://dashboard.example/api/webhooks/github/tok123", config["url"])
+	assert.Equal(t, "sekret", config["secret"])
+	assert.Equal(t, "json", config["content_type"])
+	assert.Equal(t, true, createBody["active"])
+	assert.ElementsMatch(t, []any{"pull_request", "issues", "status", "check_run"}, createBody["events"])
+}
+
+func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
+	t.Parallel()
+
+	var editBody map[string]any
+	var editedPath string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		writeJSON(t, w, []map[string]any{
+			{"id": 7, "config": map[string]any{"url": "https://dashboard.example/api/webhooks/github/tok123"}, "active": false},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks/7", func(w http.ResponseWriter, r *http.Request) {
+		editedPath = r.URL.Path
+		require.Equal(t, http.MethodPatch, r.Method)
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&editBody))
+		writeJSON(t, w, map[string]any{"id": 7})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.Equal(t, "/repos/alrayyes/a/hooks/7", editedPath)
+	assert.Equal(t, true, editBody["active"])
+}
+
+func TestEnsureWebhook_ForgeErrorPropagates(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		t.Fatalf("unexpected method %s", r.Method)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/tok123", "sekret")
+
+	require.Error(t, err)
+}

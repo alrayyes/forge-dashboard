@@ -108,6 +108,20 @@ func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, erro
 	if c.webhookPath == "" {
 		return false, nil
 	}
+	hook, err := c.findOwnHook(ctx, owner, name, c.webhookPath)
+	if err != nil {
+		return false, err
+	}
+	return hook != nil, nil
+}
+
+// findOwnHook returns the hook among owner/name's own hooks whose target
+// URL's path matches wantPath (dashboard.WebhookTargetsPath), or nil if
+// none does — shared by HasWebhook (always against c.webhookPath) and
+// EnsureWebhook (against whatever path its own targetURL argument
+// carries, independent of whether SetWebhookPath was ever called on
+// this Client at all).
+func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) (*ghsdk.Hook, error) {
 	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
 	opts := &ghsdk.ListOptions{PerPage: perPage}
 
@@ -115,11 +129,11 @@ func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, erro
 		slog.Debug("github request", "method", http.MethodGet, "url", path)
 		hooks, resp, err := c.restClient.Repositories.ListHooks(ctx, owner, name, opts)
 		if err != nil {
-			return false, restError(http.MethodGet, path, err)
+			return nil, restError(http.MethodGet, path, err)
 		}
 		for _, h := range hooks {
-			if h.Config != nil && dashboard.WebhookTargetsPath(h.Config.GetURL(), c.webhookPath) {
-				return true, nil
+			if h.Config != nil && dashboard.WebhookTargetsPath(h.Config.GetURL(), wantPath) {
+				return h, nil
 			}
 		}
 		if resp.NextPage == 0 {
@@ -127,7 +141,59 @@ func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, erro
 		}
 		opts.Page = resp.NextPage
 	}
-	return false, nil
+	return nil, nil
+}
+
+// githubWebhookEvents mirrors what docs/webhooks.md's manual GitHub
+// steps have a user tick by hand — Pull requests, Issues, Statuses,
+// Check runs — so a webhook created here covers the same ground.
+var githubWebhookEvents = []string{"pull_request", "issues", "status", "check_run"}
+
+// EnsureWebhook implements dashboard.WebhookManager: create a webhook
+// targeting targetURL if owner/name has none yet, or bring an existing
+// one (found by matching targetURL's own path, not c.webhookPath — this
+// method is self-contained even if SetWebhookPath was never called)
+// back to active with the right config rather than creating a second,
+// duplicate hook — GitHub, unlike Forgejo, allows several hooks with
+// the identical URL, so nothing stops a duplicate except checking first.
+func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return fmt.Errorf("github: invalid webhook target URL: %w", err)
+	}
+
+	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
+	if err != nil {
+		return err
+	}
+
+	contentType := "json"
+	active := true
+	hook := &ghsdk.Hook{
+		Config: &ghsdk.HookConfig{
+			URL:         &targetURL,
+			ContentType: &contentType,
+			Secret:      &secret,
+		},
+		Events: githubWebhookEvents,
+		Active: &active,
+	}
+
+	if existing != nil {
+		path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, existing.GetID())
+		slog.Debug("github request", "method", http.MethodPatch, "url", path)
+		if _, _, err := c.restClient.Repositories.EditHook(ctx, owner, name, existing.GetID(), hook); err != nil {
+			return restError(http.MethodPatch, path, err)
+		}
+		return nil
+	}
+
+	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
+	slog.Debug("github request", "method", http.MethodPost, "url", path)
+	if _, _, err := c.restClient.Repositories.CreateHook(ctx, owner, name, hook); err != nil {
+		return restError(http.MethodPost, path, err)
+	}
+	return nil
 }
 
 // Fetch implements dashboard.Source directly — GitHub drives its own
