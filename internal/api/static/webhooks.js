@@ -26,12 +26,102 @@
     statusEl.className = `status${kind ? ` ${kind}` : ''}`;
   }
 
-  var state = { repos: [], page: 1, pageSize: 25 };
+  var state = {
+    repos: [],
+    page: 1,
+    pageSize: 25,
+    filters: { forge: '', repo: '', status: '' },
+    sort: { key: 'fullName', dir: 'asc' },
+  };
 
   function setPage(page) {
     state.page = page;
     render();
   }
+
+  // filteredRepos applies every active filter as an AND — narrower with
+  // each one, matching the main dashboard's own filter-bar behavior.
+  function filteredRepos() {
+    return state.repos.filter((r) => {
+      if (state.filters.forge && r.forge !== state.filters.forge) {
+        return false;
+      }
+      if (
+        state.filters.repo &&
+        !r.fullName.toLowerCase().includes(state.filters.repo.toLowerCase())
+      ) {
+        return false;
+      }
+      if (state.filters.status === 'confirmed' && !r.hasWebhook) {
+        return false;
+      }
+      if (state.filters.status === 'pending' && r.hasWebhook) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  function sortValue(repo, key) {
+    if (key === 'hasWebhook') return repo.hasWebhook ? 1 : 0;
+    return repo[key];
+  }
+
+  function sortedRepos(repos) {
+    var key = state.sort.key;
+    var dir = state.sort.dir === 'desc' ? -1 : 1;
+    return repos.slice().sort((a, b) => {
+      var av = sortValue(a, key);
+      var bv = sortValue(b, key);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }
+
+  // updateSortIndicators keeps every header's aria-sort and arrow in
+  // sync with state.sort — the one column currently driving order gets
+  // an arrow and a real ascending/descending value; every other header
+  // goes back to "none" rather than lying about being sorted too.
+  function updateSortIndicators() {
+    document.querySelectorAll('.sort-button').forEach((button) => {
+      var th = button.closest('th');
+      var arrow = button.querySelector('.sort-arrow');
+      if (button.dataset.sortKey === state.sort.key) {
+        th.setAttribute(
+          'aria-sort',
+          state.sort.dir === 'desc' ? 'descending' : 'ascending',
+        );
+        arrow.textContent = state.sort.dir === 'desc' ? '▼' : '▲';
+      } else {
+        th.setAttribute('aria-sort', 'none');
+        arrow.textContent = '';
+      }
+    });
+  }
+
+  document.querySelectorAll('.sort-button').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (state.sort.key === button.dataset.sortKey) {
+        state.sort.dir = state.sort.dir === 'desc' ? 'asc' : 'desc';
+      } else {
+        state.sort.key = button.dataset.sortKey;
+        state.sort.dir = 'asc';
+      }
+      updateSortIndicators();
+      state.page = 1;
+      render();
+    });
+  });
+
+  document.querySelectorAll('.webhooks-filter').forEach((input) => {
+    var eventName = input.type === 'text' ? 'input' : 'change';
+    input.addEventListener(eventName, () => {
+      state.filters[input.dataset.filter] = input.value;
+      state.page = 1;
+      render();
+    });
+  });
 
   function renderPagination(totalPages) {
     var wrap = document.getElementById('webhooks-pagination');
@@ -123,23 +213,35 @@
   function render() {
     var empty = document.getElementById('webhooks-empty');
     var table = document.getElementById('webhooks-table');
+    var filterBar = document.getElementById('webhooks-filter-bar');
+    var noResults = document.getElementById('webhooks-no-results');
 
     if (!state.repos.length) {
       empty.hidden = false;
+      filterBar.hidden = true;
       table.hidden = true;
+      noResults.hidden = true;
       document.getElementById('webhooks-pagination').hidden = true;
       return;
     }
     empty.hidden = true;
+    filterBar.hidden = false;
+
+    var visible = sortedRepos(filteredRepos());
+
+    if (!visible.length) {
+      table.hidden = true;
+      noResults.hidden = false;
+      document.getElementById('webhooks-pagination').hidden = true;
+      return;
+    }
+    noResults.hidden = true;
     table.hidden = false;
 
-    var totalPages = Math.max(
-      1,
-      Math.ceil(state.repos.length / state.pageSize),
-    );
+    var totalPages = Math.max(1, Math.ceil(visible.length / state.pageSize));
     if (state.page > totalPages) state.page = totalPages;
     var start = (state.page - 1) * state.pageSize;
-    var pageItems = state.repos.slice(start, start + state.pageSize);
+    var pageItems = visible.slice(start, start + state.pageSize);
 
     var tbody = document.getElementById('webhooks-rows');
     tbody.innerHTML = '';
@@ -189,9 +291,8 @@
       return res.json();
     })
     .then((data) => {
-      state.repos = (data.repos || [])
-        .slice()
-        .sort((a, b) => a.fullName.localeCompare(b.fullName));
+      state.repos = data.repos || [];
+      updateSortIndicators();
       render();
     })
     .catch(() => {

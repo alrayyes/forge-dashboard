@@ -66,6 +66,169 @@ test.describe('webhooks page', () => {
     ).toHaveCount(0);
   });
 
+  test.describe('filters and sorting', () => {
+    function repoFilter(page) {
+      return page.locator('#webhooks-repo-filter');
+    }
+
+    function forgeRadio(page, value) {
+      return page.locator(
+        `.webhooks-filter-bar input[data-filter="forge"][value="${value}"]`,
+      );
+    }
+
+    async function seedRepos(page) {
+      await mockDashboard(page, [
+        { forge: 'github', fullName: 'alrayyes/b', hasWebhook: true },
+        { forge: 'forgejo', fullName: 'alrayyes/a', hasWebhook: false },
+        { forge: 'github', fullName: 'alrayyes/c', hasWebhook: false },
+      ]);
+      await page.goto('/webhooks.html');
+    }
+
+    function rowRepoNames(page) {
+      return page
+        .locator('#webhooks-rows tr td:nth-child(2)')
+        .allTextContents();
+    }
+
+    test('the forge filter narrows the list to one forge', async ({ page }) => {
+      await seedRepos(page);
+      await forgeRadio(page, 'forgejo').check();
+
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+      await expect(page.locator('#webhooks-rows tr')).toContainText(
+        'alrayyes/a',
+      );
+    });
+
+    test('the repo text filter narrows the list, case-insensitively', async ({
+      page,
+    }) => {
+      await seedRepos(page);
+      await repoFilter(page).fill('B');
+
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+      await expect(page.locator('#webhooks-rows tr')).toContainText(
+        'alrayyes/b',
+      );
+    });
+
+    test('the status filter narrows to confirmed or not-yet repos', async ({
+      page,
+    }) => {
+      await seedRepos(page);
+      await page.selectOption('#webhooks-status-filter', 'confirmed');
+
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+      await expect(page.locator('#webhooks-rows tr')).toContainText(
+        'alrayyes/b',
+      );
+
+      await page.selectOption('#webhooks-status-filter', 'pending');
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(2);
+    });
+
+    test('combined filters narrow further than either alone', async ({
+      page,
+    }) => {
+      await seedRepos(page);
+      await forgeRadio(page, 'github').check();
+      await page.selectOption('#webhooks-status-filter', 'pending');
+
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+      await expect(page.locator('#webhooks-rows tr')).toContainText(
+        'alrayyes/c',
+      );
+    });
+
+    test('no results shows a message instead of an empty table', async ({
+      page,
+    }) => {
+      await seedRepos(page);
+      await repoFilter(page).fill('nothing-matches-this');
+
+      await expect(page.locator('#webhooks-table')).toBeHidden();
+      await expect(page.locator('#webhooks-no-results')).toBeVisible();
+    });
+
+    test('clicking the Repo header reverses sort direction, updating aria-sort', async ({
+      page,
+    }) => {
+      await seedRepos(page);
+      // Default: ascending by full name already.
+      await expect(rowRepoNames(page)).resolves.toEqual([
+        'alrayyes/a',
+        'alrayyes/b',
+        'alrayyes/c',
+      ]);
+      const repoHeader = page.locator('th', {
+        has: page.locator('[data-sort-key="fullName"]'),
+      });
+      await expect(repoHeader).toHaveAttribute('aria-sort', 'ascending');
+
+      await page.click('[data-sort-key="fullName"]');
+
+      await expect(rowRepoNames(page)).resolves.toEqual([
+        'alrayyes/c',
+        'alrayyes/b',
+        'alrayyes/a',
+      ]);
+      await expect(repoHeader).toHaveAttribute('aria-sort', 'descending');
+    });
+
+    test('clicking the Webhook header sorts by status, and resets the Repo header to unsorted', async ({
+      page,
+    }) => {
+      await seedRepos(page);
+      await page.click('[data-sort-key="hasWebhook"]');
+
+      // Not yet (false) sorts before Confirmed (true) ascending.
+      await expect(rowRepoNames(page)).resolves.toEqual([
+        'alrayyes/a',
+        'alrayyes/c',
+        'alrayyes/b',
+      ]);
+      const webhookHeader = page.locator('th', {
+        has: page.locator('[data-sort-key="hasWebhook"]'),
+      });
+      await expect(webhookHeader).toHaveAttribute('aria-sort', 'ascending');
+      const repoHeader = page.locator('th', {
+        has: page.locator('[data-sort-key="fullName"]'),
+      });
+      await expect(repoHeader).toHaveAttribute('aria-sort', 'none');
+    });
+
+    test('a filter change resets to page 1', async ({ page }) => {
+      const repos = Array.from({ length: 30 }, (_, i) => ({
+        forge: i < 26 ? 'github' : 'forgejo',
+        fullName: `alrayyes/repo-${String(i).padStart(2, '0')}`,
+        hasWebhook: false,
+      }));
+      await mockDashboard(page, repos);
+      await page.goto('/webhooks.html');
+      await page.locator('.pagination-page', { hasText: '2' }).click();
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(5);
+
+      await forgeRadio(page, 'forgejo').check();
+
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(4);
+      await expect(page.locator('#webhooks-pagination')).toBeHidden();
+    });
+
+    test('has no axe-core violations with the filter bar and a sorted table rendered', async ({
+      page,
+    }) => {
+      await seedRepos(page);
+      await page.click('[data-sort-key="hasWebhook"]');
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
+
   test('clicking "Add a webhook" calls the API and flips the row to confirmed on success', async ({
     page,
   }) => {
