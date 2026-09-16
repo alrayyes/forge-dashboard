@@ -225,6 +225,59 @@ func TestListRepos_RetryAfterIncludedWhenPresent(t *testing.T) {
 	assert.Contains(t, err.Error(), "retry after 30s")
 }
 
+func TestListRepos_ClassifiesErrorKind(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		statusCode int
+		wantKind   dashboard.ForgeErrorKind
+	}{
+		{"unauthorized", http.StatusUnauthorized, dashboard.ForgeErrorUnauthorized},
+		{"forbidden", http.StatusForbidden, dashboard.ForgeErrorUnauthorized},
+		{"not found", http.StatusNotFound, dashboard.ForgeErrorNotFound},
+		{"too many requests", http.StatusTooManyRequests, dashboard.ForgeErrorRateLimited},
+		{"server error", http.StatusInternalServerError, dashboard.ForgeErrorUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				writeJSON(t, w, map[string]string{"message": "boom"})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := forgejo.NewClient(srv.URL, "test-token", "")
+			_, err := client.ListRepos(t.Context())
+
+			require.Error(t, err)
+			var clientErr *dashboard.ClientError
+			require.ErrorAs(t, err, &clientErr)
+			assert.Equal(t, tt.wantKind, clientErr.Kind)
+		})
+	}
+}
+
+func TestListRepos_ClassifiesConnectionFailureAsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.NewServeMux())
+	srv.Close() // nothing is listening on this URL anymore
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	_, err := client.ListRepos(t.Context())
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorUnreachable, clientErr.Kind)
+}
+
 func TestListOpenPullRequests_MapsFieldsAndResolvesCI(t *testing.T) {
 	t.Parallel()
 

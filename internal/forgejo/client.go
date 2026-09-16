@@ -73,15 +73,35 @@ func (c *Client) setContext(ctx context.Context) {
 // fronting proxy or the instance itself sent one — Forgejo has no
 // built-in rate limiting of its own, but this still covers an instance
 // sitting behind one that does. The SDK's *Response is populated even on
-// a failed request, which is what makes the header still readable here.
+// a failed request, which is what makes the header still readable here;
+// a nil resp means the request never got a response at all.
 func forgejoError(method, path string, resp *gitea.Response, err error) error {
 	msg := err.Error()
+	kind := dashboard.ForgeErrorUnreachable
 	if resp != nil {
 		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
 			msg += fmt.Sprintf(" (retry after %ss)", retryAfter)
 		}
+		kind = forgeErrorKind(resp.StatusCode)
 	}
-	return fmt.Errorf("forgejo: %s %s: %s", method, path, msg)
+	wrapped := fmt.Errorf("forgejo: %s %s: %s", method, path, msg)
+	return &dashboard.ClientError{Kind: kind, Err: wrapped}
+}
+
+// forgeErrorKind classifies an HTTP status code from a response that was
+// actually received — callers pass ForgeErrorUnreachable directly when
+// there was no response at all, since there's no status code to read.
+func forgeErrorKind(statusCode int) dashboard.ForgeErrorKind {
+	switch statusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return dashboard.ForgeErrorUnauthorized
+	case http.StatusNotFound:
+		return dashboard.ForgeErrorNotFound
+	case http.StatusTooManyRequests:
+		return dashboard.ForgeErrorRateLimited
+	default:
+		return dashboard.ForgeErrorUnknown
+	}
 }
 
 // ListRepos returns the repositories this Client is configured to track —

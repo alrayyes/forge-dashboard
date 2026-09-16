@@ -130,6 +130,7 @@ func rateLimitFromHeaders(h http.Header) *dashboard.RateLimit {
 type apiError struct {
 	msg       string
 	rateLimit *dashboard.RateLimit
+	kind      dashboard.ForgeErrorKind
 }
 
 func (e *apiError) Error() string { return e.msg }
@@ -158,6 +159,42 @@ func rateLimitShortMessage(h http.Header) (msg string, ok bool) {
 		return fmt.Sprintf("rate limited, retry after %ss", retryAfter), true
 	}
 	return "", false
+}
+
+// forgeErrorKindFromStatus classifies an HTTP status code from a response
+// GitHub actually sent back. Rate limiting is classified from headers
+// first (rateLimitShortMessage) wherever that's checked before this, since
+// GitHub doesn't always use 429 for it (403 with a zero remaining budget
+// is the more common shape) — this is the fallback for the rest.
+func forgeErrorKindFromStatus(statusCode int) dashboard.ForgeErrorKind {
+	switch statusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return dashboard.ForgeErrorUnauthorized
+	case http.StatusNotFound:
+		return dashboard.ForgeErrorNotFound
+	case http.StatusTooManyRequests:
+		return dashboard.ForgeErrorRateLimited
+	default:
+		return dashboard.ForgeErrorUnknown
+	}
+}
+
+// graphqlErrorKind classifies a GraphQL query-level error (an HTTP 200
+// with a populated "errors" array, so there's no status code to key off)
+// by the extension type GitHub's own GraphQL errors carry. Not formally
+// versioned API, so an unrecognized or absent type falls back to unknown
+// rather than guessing.
+func graphqlErrorKind(extensionType string) dashboard.ForgeErrorKind {
+	switch extensionType {
+	case "FORBIDDEN", "UNAUTHENTICATED", "INSUFFICIENT_SCOPES":
+		return dashboard.ForgeErrorUnauthorized
+	case "NOT_FOUND":
+		return dashboard.ForgeErrorNotFound
+	case "RATE_LIMITED":
+		return dashboard.ForgeErrorRateLimited
+	default:
+		return dashboard.ForgeErrorUnknown
+	}
 }
 
 // apiErrorDetail turns a failed response into the reason a person reading
@@ -434,7 +471,10 @@ type graphqlRequestBody struct {
 }
 
 type graphqlErrorEntry struct {
-	Message string `json:"message"`
+	Message    string `json:"message"`
+	Extensions struct {
+		Type string `json:"type"`
+	} `json:"extensions"`
 }
 
 // graphqlDo posts one GraphQL request and decodes its data into out.
@@ -458,13 +498,20 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	slog.Debug("github request", "method", http.MethodPost, "url", c.graphqlURL, "cursor", variables["cursor"])
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return &apiError{
+			msg:  fmt.Sprintf("github: POST /graphql: %s", err),
+			kind: dashboard.ForgeErrorUnreachable,
+		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		msg, rl := apiErrorDetail(resp)
-		return &apiError{msg: fmt.Sprintf("github: POST /graphql: %s", msg), rateLimit: rl}
+		kind := dashboard.ForgeErrorRateLimited
+		if _, ok := rateLimitShortMessage(resp.Header); !ok {
+			kind = forgeErrorKindFromStatus(resp.StatusCode)
+		}
+		return &apiError{msg: fmt.Sprintf("github: POST /graphql: %s", msg), rateLimit: rl, kind: kind}
 	}
 
 	var envelope struct {
@@ -477,14 +524,16 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	if len(envelope.Errors) > 0 {
 		rl := rateLimitFromHeaders(resp.Header)
 		msg := envelope.Errors[0].Message
+		kind := graphqlErrorKind(envelope.Errors[0].Extensions.Type)
 		// GitHub sometimes reports rate limiting as a query-level error in
 		// a 200 response rather than rejecting the request outright — the
 		// same headers are still there, so it gets the same short message
 		// and the same RateLimit reporting as the HTTP-status failure path.
 		if short, ok := rateLimitShortMessage(resp.Header); ok {
 			msg = short
+			kind = dashboard.ForgeErrorRateLimited
 		}
-		return &apiError{msg: fmt.Sprintf("github: graphql: %s", msg), rateLimit: rl}
+		return &apiError{msg: fmt.Sprintf("github: graphql: %s", msg), rateLimit: rl, kind: kind}
 	}
 	if out == nil {
 		return nil
@@ -501,10 +550,14 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		var resp reposQueryResponse
 		if err := c.graphqlDo(ctx, reposQuery, map[string]any{"cursor": cursor}, &resp); err != nil {
 			slog.Warn("forge unreachable", "forge", dashboard.ForgeGitHub, "error", err)
-			health := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: err.Error()}
+			health := dashboard.ForgeHealth{
+				Forge: dashboard.ForgeGitHub, Reachable: false,
+				Error: err.Error(), ErrorKind: dashboard.ForgeErrorUnknown,
+			}
 			var apiErr *apiError
 			if errors.As(err, &apiErr) {
 				health.RateLimit = apiErr.rateLimit
+				health.ErrorKind = apiErr.kind
 			}
 			return dashboard.Result{Health: health}
 		}
@@ -692,24 +745,48 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 func restError(method, path string, err error) error {
 	var rateLimitErr *ghsdk.RateLimitError
 	if errors.As(err, &rateLimitErr) {
-		return fmt.Errorf("github: %s %s: rate limit exceeded", method, path)
+		return &apiError{
+			msg:  fmt.Sprintf("github: %s %s: rate limit exceeded", method, path),
+			kind: dashboard.ForgeErrorRateLimited,
+		}
 	}
 	var abuseErr *ghsdk.AbuseRateLimitError
 	if errors.As(err, &abuseErr) {
-		return fmt.Errorf("github: %s %s: rate limited", method, path)
+		return &apiError{
+			msg:  fmt.Sprintf("github: %s %s: rate limited", method, path),
+			kind: dashboard.ForgeErrorRateLimited,
+		}
 	}
 	var errResp *ghsdk.ErrorResponse
 	if errors.As(err, &errResp) {
-		return fmt.Errorf("github: %s %s: %s", method, path, errResp.Message)
+		kind := dashboard.ForgeErrorUnknown
+		if errResp.Response != nil {
+			kind = forgeErrorKindFromStatus(errResp.Response.StatusCode)
+		}
+		return &apiError{
+			msg:  fmt.Sprintf("github: %s %s: %s", method, path, errResp.Message),
+			kind: kind,
+		}
 	}
-	return fmt.Errorf("github: %s %s: %w", method, path, err)
+	return &apiError{
+		msg:  fmt.Sprintf("github: %s %s: %s", method, path, err),
+		kind: dashboard.ForgeErrorUnreachable,
+	}
 }
 
 func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
 	repos, err := c.listPublicRepos(ctx)
 	if err != nil {
 		slog.Warn("forge unreachable", "forge", dashboard.ForgeGitHub, "error", err)
-		return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: err.Error()}}
+		health := dashboard.ForgeHealth{
+			Forge: dashboard.ForgeGitHub, Reachable: false,
+			Error: err.Error(), ErrorKind: dashboard.ForgeErrorUnknown,
+		}
+		var apiErr *apiError
+		if errors.As(err, &apiErr) {
+			health.ErrorKind = apiErr.kind
+		}
+		return dashboard.Result{Health: health}
 	}
 
 	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: len(repos)}}

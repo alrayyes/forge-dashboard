@@ -772,6 +772,24 @@
     );
   }
 
+  // One friendly, actionable line per ForgeErrorKind, taking precedence
+  // over the raw error string as the primary visible text. "unreachable"
+  // names the refresh button as the way to retry now, not just "wait."
+  var ERROR_HEADLINES = {
+    unreachable:
+      'Temporarily unreachable — try the refresh button above, or it’ll retry automatically.',
+    unauthorized: 'Check the token in Settings.',
+    not_found: 'Check the instance URL in Settings.',
+    rate_limited: 'Rate limit exceeded.',
+  };
+
+  function forgeErrorHeadline(f) {
+    return (
+      ERROR_HEADLINES[f.errorKind] ||
+      `Something went wrong talking to ${FORGE_LABELS[f.forge] || f.forge}.`
+    );
+  }
+
   function renderForgeHealth(forges) {
     var container = document.getElementById('forge-health');
     container.innerHTML = '';
@@ -786,10 +804,21 @@
       item.appendChild(chip);
       // The reason has to be real text, not just chip.title — a hover
       // tooltip never reaches a touch device and isn't reliably announced
-      // by a screen reader either.
+      // by a screen reader either. The raw technical string stays available
+      // in a native, keyboard-accessible <details> disclosure instead.
+      var details;
+      var summary;
       if (!f.reachable && f.error) {
-        chip.title = f.error;
-        item.appendChild(el('span', 'forge-health-error', f.error));
+        item.appendChild(
+          el('span', 'forge-health-error', forgeErrorHeadline(f)),
+        );
+        details = document.createElement('details');
+        details.className = 'forge-health-detail';
+        summary = document.createElement('summary');
+        summary.textContent = 'Show details';
+        details.appendChild(summary);
+        details.appendChild(document.createTextNode(f.error));
+        item.appendChild(details);
       }
       // Shown whenever this forge reports one, reachable or not — the
       // point is seeing the budget before it's already the reason

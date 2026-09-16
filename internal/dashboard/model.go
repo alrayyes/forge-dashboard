@@ -96,13 +96,52 @@ type RateLimit struct {
 	ResetsAt  time.Time `json:"resetsAt"`
 }
 
+// ForgeErrorKind classifies why a forge is unreachable into a small,
+// coarse set of actionable categories. Matches
+// components.schemas.ForgeErrorKind. Empty string is the zero value:
+// "nothing to classify," only ever meaningful alongside a non-empty
+// ForgeHealth.Error.
+type ForgeErrorKind string
+
+// A forge failure only needs to tell the user one of a handful of things
+// to do about it — retry, check a token, check a URL, wait out a rate
+// limit — so this stays as coarse as MergeStatus does, rather than
+// chasing every status code a forge can return.
+const (
+	ForgeErrorUnreachable  ForgeErrorKind = "unreachable"
+	ForgeErrorUnauthorized ForgeErrorKind = "unauthorized"
+	ForgeErrorNotFound     ForgeErrorKind = "not_found"
+	ForgeErrorRateLimited  ForgeErrorKind = "rate_limited"
+	ForgeErrorUnknown      ForgeErrorKind = "unknown"
+)
+
 // ForgeHealth matches components.schemas.ForgeHealth.
 type ForgeHealth struct {
-	Forge     Forge      `json:"forge"`
-	Reachable bool       `json:"reachable"`
-	Error     string     `json:"error,omitempty"`
-	RepoCount int        `json:"repoCount"`
-	RateLimit *RateLimit `json:"rateLimit,omitempty"`
+	Forge     Forge          `json:"forge"`
+	Reachable bool           `json:"reachable"`
+	Error     string         `json:"error,omitempty"`
+	ErrorKind ForgeErrorKind `json:"errorKind,omitempty"`
+	RepoCount int            `json:"repoCount"`
+	RateLimit *RateLimit     `json:"rateLimit,omitempty"`
+}
+
+// ClientError carries a ForgeErrorKind classification alongside the
+// underlying error, the same "structured data alongside a message
+// string" shape internal/github's own apiError.rateLimit already uses —
+// promoted to this package because GenericSource.Fetch, which builds
+// ForgeHealth for any ForgeClient-driven forge, can't see an unexported
+// type in the client package that produced the error.
+type ClientError struct {
+	Kind ForgeErrorKind
+	Err  error
+}
+
+func (e *ClientError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *ClientError) Unwrap() error {
+	return e.Err
 }
 
 // Snapshot matches components.schemas.Dashboard — the whole body

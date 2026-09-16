@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 )
@@ -64,7 +65,12 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 	repos, err := s.client.ListRepos(ctx)
 	if err != nil {
 		slog.Warn("forge unreachable", "forge", s.forge, "error", err)
-		return Result{Health: ForgeHealth{Forge: s.forge, Reachable: false, Error: err.Error()}}
+		health := ForgeHealth{Forge: s.forge, Reachable: false, Error: err.Error(), ErrorKind: ForgeErrorUnknown}
+		var clientErr *ClientError
+		if errors.As(err, &clientErr) {
+			health.ErrorKind = clientErr.Kind
+		}
+		return Result{Health: health}
 	}
 
 	type repoResult struct {
