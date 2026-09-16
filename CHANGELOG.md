@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.55.0](https://github.com/alrayyes/forge-dashboard/compare/v0.54.0...v0.55.0) (2026-09-16)
+
+
+### Features
+
+* **dashboard:** give webhook coverage its own paginated page ([#246](https://github.com/alrayyes/forge-dashboard/issues/246)) ([63e98cb](https://github.com/alrayyes/forge-dashboard/commit/63e98cba45df27c5444aebf4c601815e39e40f14))
+
 ## [0.54.0](https://github.com/alrayyes/forge-dashboard/compare/v0.53.0...v0.54.0) (2026-09-16)
 
 
