@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.55.1](https://github.com/alrayyes/forge-dashboard/compare/v0.55.0...v0.55.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* stop the README screenshots from leaking a real name and repos ([#252](https://github.com/alrayyes/forge-dashboard/issues/252)) ([0f6b009](https://github.com/alrayyes/forge-dashboard/commit/0f6b0096a82714664cf8a7e3705efe371803da0f))
+
 ## [0.55.0](https://github.com/alrayyes/forge-dashboard/compare/v0.54.0...v0.55.0) (2026-09-16)
 
 
