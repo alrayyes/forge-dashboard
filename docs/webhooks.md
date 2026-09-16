@@ -8,10 +8,12 @@ shows up within seconds instead of at the next poll. Nothing about this
 is required for the dashboard to work; skip this page entirely and
 everything still functions exactly as it did before.
 
-The dashboard itself shows a "Webhook coverage" summary once you're
-tracking any repos, linking to its own page (`/webhooks.html`) that
-lists every tracked repo and whether this dashboard has confirmed a
-webhook for it. It checks the forge's own webhook list directly, so a
+Settings' own Webhooks card shows a "Webhook coverage" summary once
+you're tracking any repos, linking to its own page (`/webhooks.html`)
+that lists every tracked repo and whether this dashboard has confirmed
+a webhook for it — setup status lives with the rest of setup, not on
+the main dashboard next to the pull request/issue boards it has
+nothing to do with. It checks the forge's own webhook list directly, so a
 repo with one already pointed at this dashboard shows as confirmed
 immediately, not once something happens to trigger it — no waiting on
 a real event to arrive. That live check can fail (rate limiting, an

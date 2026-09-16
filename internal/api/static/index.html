@@ -49,9 +49,6 @@
       <a class="theme-toggle" href="/insights.html" aria-label="Insights" title="Insights" style="text-decoration:none;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7l-3-3L4 16.7"/></svg>
       </a>
-      <a class="theme-toggle" href="/webhooks.html" aria-label="Webhooks" title="Webhooks" style="text-decoration:none;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-      </a>
       <a class="theme-toggle" href="/settings.html" aria-label="Settings" title="Settings" style="text-decoration:none;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </a>
@@ -67,16 +64,6 @@
     <button type="button" class="stat" id="stat-failing-tile" aria-label="Filter pull requests by CI status: Failing"><div class="n" id="stat-failing">&ndash;</div><div class="label">CI failing</div></button>
     <div class="stat"><div class="n" id="stat-repos">&ndash;</div><div class="label">Repos tracked</div></div>
   </div>
-
-  <section class="webhook-coverage" id="webhook-coverage" hidden>
-    <div class="board-head">
-      <h2>Webhook coverage</h2>
-      <span class="count" id="webhook-coverage-count"></span>
-    </div>
-    <div class="webhook-coverage-body">
-      <a href="/webhooks.html">See which repos, and add a webhook &rarr;</a>
-    </div>
-  </section>
 
   <div class="filter-bar" role="search" aria-label="Filter pull requests and issues">
     <fieldset class="forge-segmented">

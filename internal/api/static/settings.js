@@ -210,6 +210,31 @@
       setStatus(err.message || 'Could not load settings.', 'error');
     });
 
+  // ---- webhook coverage summary ----
+  // hasWebhook is primarily a live check against the forge's own webhook
+  // list, falling back to settings.Store's delivery table when that
+  // check errored or a repo's Source has no webhook path configured yet
+  // — see internal/dashboard.WebhookChecker. Only the summary lives
+  // here; the per-repo detail is /webhooks.html.
+  fetch('/api/dashboard', { headers: { Accept: 'application/json' } })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      var repos = data?.repos || [];
+      var summary = document.getElementById('webhook-coverage-summary');
+      if (!repos.length) {
+        summary.hidden = true;
+        return;
+      }
+      var withWebhook = repos.filter((r) => r.hasWebhook).length;
+      document.getElementById('webhook-coverage-count').textContent =
+        `${withWebhook} of ${repos.length} confirmed`;
+      summary.hidden = false;
+    })
+    .catch(() => {
+      // A transient failure here just leaves the summary hidden — this
+      // page's own settings form is where a real error banner belongs.
+    });
+
   // ---- save ----
   document.getElementById('settings-form').addEventListener('submit', (e) => {
     e.preventDefault();

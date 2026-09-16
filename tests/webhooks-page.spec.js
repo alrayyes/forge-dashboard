@@ -186,9 +186,14 @@ test.describe('webhooks page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
-  test('the dashboard header links to the webhooks page', async ({ page }) => {
-    await page.goto('/');
-    await page.click('a[aria-label="Webhooks"]');
-    await expect(page).toHaveURL(/\/webhooks\.html$/);
+  test('the back link returns to Settings, not the dashboard', async ({
+    page,
+  }) => {
+    await mockDashboard(page, []);
+    await page.goto('/webhooks.html');
+
+    await expect(
+      page.getByRole('link', { name: /back to settings/i }),
+    ).toHaveAttribute('href', '/settings.html');
   });
 });
