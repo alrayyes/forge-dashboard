@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.50.1](https://github.com/alrayyes/forge-dashboard/compare/v0.50.0...v0.50.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* **dashboard:** stat tiles reflect the active filter, not just the total ([#222](https://github.com/alrayyes/forge-dashboard/issues/222)) ([e376c8e](https://github.com/alrayyes/forge-dashboard/commit/e376c8edab3df7c45e4330da77c8f7e701a57d43)), closes [#221](https://github.com/alrayyes/forge-dashboard/issues/221)
+
 ## [0.50.0](https://github.com/alrayyes/forge-dashboard/compare/v0.49.0...v0.50.0) (2026-09-16)
 
 
