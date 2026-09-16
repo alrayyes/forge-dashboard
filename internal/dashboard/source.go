@@ -11,6 +11,11 @@ type Result struct {
 	Health       ForgeHealth
 	PullRequests []PullRequest
 	Issues       []Issue
+	// Repos is every repo this forge is tracking, regardless of whether
+	// it currently has anything open — RepoCount alone can't name them,
+	// and a repo with zero open pull requests/issues would otherwise
+	// never appear in PullRequests/Issues' own Repo fields either.
+	Repos []Repo
 }
 
 // Source is one forge's half of the aggregate. github.Source and

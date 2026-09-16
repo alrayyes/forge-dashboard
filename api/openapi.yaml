@@ -1069,7 +1069,7 @@ components:
 
     Dashboard:
       type: object
-      required: [generatedAt, forges, pullRequests, issues]
+      required: [generatedAt, forges, pullRequests, issues, repos]
       properties:
         generatedAt:
           type: string
@@ -1087,3 +1087,30 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Issue"
+        repos:
+          type: array
+          items:
+            $ref: "#/components/schemas/RepoStatus"
+
+    RepoStatus:
+      type: object
+      required: [forge, fullName, hasWebhook]
+      description: |
+        One tracked repository, whether or not it currently has anything
+        open — repoCount alone can't name it, and it wouldn't otherwise
+        appear anywhere pullRequests/issues don't already mention it.
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          examples: [alrayyes/forge-dashboard]
+        hasWebhook:
+          type: boolean
+          description: |
+            Whether this app has ever recorded a signature-verified
+            webhook delivery for this repo. Passive: it reflects a real
+            delivery having arrived, not whether a webhook object exists
+            on the forge — a correctly configured webhook that just
+            hasn't fired yet still reads false here, the same as a
+            misconfigured one would.

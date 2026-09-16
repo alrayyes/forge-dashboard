@@ -214,6 +214,128 @@ test.describe('dashboard page', () => {
     ).toContainText('0/5000 requests');
   });
 
+  test('webhook coverage card is hidden when the dashboard reports no tracked repos', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [],
+          pullRequests: [],
+          issues: [],
+          repos: [],
+        }),
+      }),
+    );
+
+    await page.reload();
+
+    await expect(page.locator('#webhook-coverage')).toBeHidden();
+  });
+
+  test('webhook coverage card lists only the repos without a confirmed webhook, linking to Settings', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [],
+          pullRequests: [],
+          issues: [],
+          repos: [
+            { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+            { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
+            { forge: 'forgejo', fullName: 'alrayyes/c', hasWebhook: false },
+          ],
+        }),
+      }),
+    );
+
+    await page.reload();
+
+    await expect(page.locator('#webhook-coverage')).toBeVisible();
+    await expect(page.locator('#webhook-coverage-count')).toHaveText(
+      '1 of 3 confirmed',
+    );
+    await expect(page.locator('#webhook-coverage-all-set')).toBeHidden();
+
+    const items = page.locator('#webhook-coverage-list li');
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(0)).toContainText('alrayyes/b');
+    await expect(items.nth(1)).toContainText('alrayyes/c');
+    await expect(
+      items.nth(0).getByRole('link', { name: 'Add a webhook' }),
+    ).toHaveAttribute('href', '/settings.html#webhooks');
+  });
+
+  test('webhook coverage card shows an all-set message once every tracked repo has a confirmed webhook', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [],
+          pullRequests: [],
+          issues: [],
+          repos: [
+            { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+          ],
+        }),
+      }),
+    );
+
+    await page.reload();
+
+    await expect(page.locator('#webhook-coverage-count')).toHaveText(
+      '1 of 1 confirmed',
+    );
+    await expect(page.locator('#webhook-coverage-all-set')).toBeVisible();
+    await expect(page.locator('#webhook-coverage-list li')).toHaveCount(0);
+  });
+
+  test('has no axe-core violations with the webhook coverage card populated', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [],
+          pullRequests: [],
+          issues: [],
+          // Both "github" here, deliberately, not one of each forge: the
+          // light theme's .forge-badge.fj (Forgejo) fails axe's own
+          // color-contrast check on its own, unrelated to this card —
+          // filed as #235 rather than worked around here.
+          repos: [
+            { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+            { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
+          ],
+        }),
+      }),
+    );
+
+    await page.reload();
+    await expect(page.locator('#webhook-coverage-list li')).toHaveCount(1);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    expect(results.violations).toEqual([]);
+  });
+
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await expect(page.locator('#stat-prs')).not.toHaveText('–');
 

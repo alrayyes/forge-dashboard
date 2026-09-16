@@ -65,6 +65,17 @@
     <div class="stat"><div class="n" id="stat-repos">&ndash;</div><div class="label">Repos tracked</div></div>
   </div>
 
+  <section class="webhook-coverage" id="webhook-coverage" hidden>
+    <div class="board-head">
+      <h2>Webhook coverage</h2>
+      <span class="count" id="webhook-coverage-count"></span>
+    </div>
+    <div class="webhook-coverage-body">
+      <p class="webhook-coverage-hint" id="webhook-coverage-all-set" hidden>Every tracked repo has a confirmed webhook — nothing here is waiting on the 30-second poll.</p>
+      <ul class="webhook-coverage-list" id="webhook-coverage-list" aria-label="Tracked repos without a confirmed webhook"></ul>
+    </div>
+  </section>
+
   <div class="filter-bar" role="search" aria-label="Filter pull requests and issues">
     <fieldset class="forge-segmented">
       <legend class="sr-only">Filter by forge</legend>

@@ -7,10 +7,62 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
+
+// repoStatus is one tracked repo plus whether this app has ever recorded
+// a signature-verified webhook delivery for it — settings.Store's own
+// concern, folded in here rather than on dashboard.Snapshot itself, since
+// the dashboard package has no reason to know settings exists (see the
+// issue this shipped against for why a live forge API check isn't used
+// instead).
+type repoStatus struct {
+	Forge      dashboard.Forge `json:"forge"`
+	FullName   string          `json:"fullName"`
+	HasWebhook bool            `json:"hasWebhook"`
+}
+
+// dashboardResponse is the wire shape for /api/dashboard and its SSE
+// stream: dashboard.Snapshot's own fields, with Repos replaced by the
+// richer repoStatus shape above.
+type dashboardResponse struct {
+	GeneratedAt  time.Time               `json:"generatedAt"`
+	Forges       []dashboard.ForgeHealth `json:"forges"`
+	PullRequests []dashboard.PullRequest `json:"pullRequests"`
+	Issues       []dashboard.Issue       `json:"issues"`
+	Repos        []repoStatus            `json:"repos"`
+}
+
+// buildDashboardResponse merges snap's tracked-repo list with userID's
+// recorded webhook deliveries. A store failure degrades to every repo
+// reporting HasWebhook: false rather than failing the whole dashboard —
+// the same "one broken piece doesn't take down the rest" resilience the
+// rest of this package already applies to a single unreachable forge.
+func buildDashboardResponse(ctx context.Context, store *settings.Store, userID []byte, snap dashboard.Snapshot) dashboardResponse {
+	deliveries, err := store.WebhookDeliveries(ctx, userID)
+	if err != nil {
+		slog.Warn("could not load webhook deliveries for dashboard response", "error", err)
+		deliveries = nil
+	}
+
+	repos := make([]repoStatus, 0, len(snap.Repos))
+	for _, r := range snap.Repos {
+		_, hasWebhook := deliveries[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
+		repos = append(repos, repoStatus{Forge: r.Forge, FullName: r.FullName, HasWebhook: hasWebhook})
+	}
+
+	return dashboardResponse{
+		GeneratedAt:  snap.GeneratedAt,
+		Forges:       snap.Forges,
+		PullRequests: snap.PullRequests,
+		Issues:       snap.Issues,
+		Repos:        repos,
+	}
+}
 
 // handleDashboard answers the requested dashboard: the signed-in user's
 // own by default, or another user's — passed as ?owner=username — when
@@ -32,7 +84,7 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 		ownerUsername := r.URL.Query().Get("owner")
 		if ownerUsername == "" || ownerUsername == u.Username {
 			warmUpAggregator(r.Context(), deps, u.ID, u.Username)
-			writeJSON(w, http.StatusOK, deps.Manager.Get(u.ID))
+			writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, deps.Manager.Get(u.ID)))
 			return
 		}
 
@@ -57,7 +109,7 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 		}
 
 		warmUpAggregator(r.Context(), deps, owner.ID, owner.Username)
-		writeJSON(w, http.StatusOK, deps.Manager.Get(owner.ID))
+		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps.SettingsStore, owner.ID, deps.Manager.Get(owner.ID)))
 	}
 }
 
@@ -140,7 +192,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 			writeJSON(w, http.StatusNotFound, errorBody("no background refresh is running yet for this user"))
 			return
 		}
-		writeJSON(w, http.StatusOK, deps.Manager.Get(u.ID))
+		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, deps.Manager.Get(u.ID)))
 	}
 }
 
@@ -196,7 +248,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 				if !open {
 					return
 				}
-				data, err := json.Marshal(snap)
+				data, err := json.Marshal(buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, snap))
 				if err != nil {
 					return
 				}

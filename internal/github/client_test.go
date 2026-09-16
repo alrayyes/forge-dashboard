@@ -207,6 +207,10 @@ func TestFetch_ExcludesArchivedForkedAndReadOnlyRepos(t *testing.T) {
 
 	require.True(t, result.Health.Reachable)
 	assert.Equal(t, 2, result.Health.RepoCount, "only \"active\" (WRITE) and \"admin\" (ADMIN) should count")
+	assert.ElementsMatch(t, []dashboard.Repo{
+		{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/active"},
+		{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/admin"},
+	}, result.Repos)
 }
 
 func TestFetch_MapsPullRequestFieldsAndCIFromStatusCheckRollup(t *testing.T) {
@@ -783,6 +787,7 @@ func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 	require.True(t, result.Health.Reachable)
 	assert.Equal(t, 1, result.Health.RepoCount)
 	assert.Nil(t, result.Health.RateLimit, "the REST fallback has no rate-limit reporting")
+	assert.Equal(t, []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/tempus-fugit"}}, result.Repos)
 }
 
 func TestFetch_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {

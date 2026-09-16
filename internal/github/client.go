@@ -583,6 +583,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		}
 		result.Health.RepoCount++
 		fullName := r.Owner.Login + "/" + r.Name
+		result.Repos = append(result.Repos, dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: fullName})
 
 		for _, p := range r.PullRequests.Nodes {
 			result.PullRequests = append(result.PullRequests, mapPullRequest(fullName, p))
@@ -792,6 +793,7 @@ func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
 	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: len(repos)}}
 	for _, repo := range repos {
 		owner, name, fullName := repo.GetOwner().GetLogin(), repo.GetName(), repo.GetFullName()
+		result.Repos = append(result.Repos, dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: fullName})
 		prs, err := c.listOpenPullRequestsREST(ctx, owner, name, fullName)
 		if err != nil {
 			slog.Warn("list pull requests failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)

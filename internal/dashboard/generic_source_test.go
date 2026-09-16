@@ -68,6 +68,10 @@ func TestGenericSource_Fetch_AggregatesAcrossRepos(t *testing.T) {
 	assert.Equal(t, 2, result.Health.RepoCount)
 	assert.Len(t, result.PullRequests, 3, "pull requests across both repos")
 	assert.Len(t, result.Issues, 1)
+	assert.ElementsMatch(t, []dashboard.Repo{
+		{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a"},
+		{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/b"},
+	}, result.Repos)
 }
 
 func TestGenericSource_Fetch_OneRepoFails_OthersStillReported(t *testing.T) {

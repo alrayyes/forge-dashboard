@@ -143,7 +143,7 @@ func (a *Aggregator) mergeRepo(forge Forge, fullName string, prs []PullRequest, 
 	current := a.snap
 	a.mu.Unlock()
 
-	merged := Snapshot{Forges: current.Forges, GeneratedAt: time.Now().UTC()}
+	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
 		if pr.Forge == forge && pr.Repo == fullName {
 			continue
@@ -198,6 +198,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		snap.Forges = append(snap.Forges, r.Health)
 		snap.PullRequests = append(snap.PullRequests, r.PullRequests...)
 		snap.Issues = append(snap.Issues, r.Issues...)
+		snap.Repos = append(snap.Repos, r.Repos...)
 	}
 	sortByRecency(snap.PullRequests, snap.Issues)
 

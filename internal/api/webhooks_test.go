@@ -84,7 +84,10 @@ func (s *repoCountingSource) Forge() dashboard.Forge { return dashboard.ForgeGit
 
 func (s *repoCountingSource) Fetch(_ context.Context) dashboard.Result {
 	n := s.fetchCalls.Add(1)
-	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: int(n)}}
+	return dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: int(n)},
+		Repos:  []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/tempus-fugit"}},
+	}
 }
 
 func (s *repoCountingSource) FetchRepo(_ context.Context, _, _, fullName string) ([]dashboard.PullRequest, []dashboard.Issue, error) {
@@ -222,6 +225,59 @@ func TestGitHubWebhook_ValidSignature_TriggersRefreshAndReturns204(t *testing.T)
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	require.Eventually(t, func() bool { return calls.Load() > before }, time.Second, 10*time.Millisecond, "a verified webhook delivery should trigger an immediate refresh")
+}
+
+// dashboardRepoStatus mirrors the API's per-repo shape on
+// GET /api/dashboard's own "repos" field — a local copy rather than an
+// import from internal/api, since that field lives on a response DTO the
+// api package builds, not on dashboard.Snapshot itself.
+type dashboardRepoStatus struct {
+	Forge      string `json:"forge"`
+	FullName   string `json:"fullName"`
+	HasWebhook bool   `json:"hasWebhook"`
+}
+
+func dashboardRepos(t *testing.T, srvURL string, sessionCookie *http.Cookie) []dashboardRepoStatus {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard", nil)
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	var body struct {
+		Repos []dashboardRepoStatus `json:"repos"`
+	}
+	require.NoError(t, readJSON(resp, &body))
+	return body.Repos
+}
+
+func TestGitHubWebhook_VerifiedDelivery_MarksRepoAsHavingAWebhookOnTheDashboard(t *testing.T) {
+	t.Parallel()
+
+	source := &repoCountingSource{fetchCalls: &atomic.Int64{}}
+	srvURL, sessionCookie := newTestServerWithSource(t, source)
+	token, secret := webhookCredentials(t, srvURL, sessionCookie)
+
+	require.Eventually(t, func() bool {
+		repos := dashboardRepos(t, srvURL, sessionCookie)
+		return assert.ObjectsAreEqual([]dashboardRepoStatus{{Forge: "github", FullName: "alrayyes/tempus-fugit", HasWebhook: false}}, repos)
+	}, time.Second, 10*time.Millisecond, "the tracked repo should start out without a confirmed webhook")
+
+	body := []byte(`{"action":"opened","repository":{"full_name":"alrayyes/tempus-fugit","name":"tempus-fugit","owner":{"login":"alrayyes"}}}`)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	require.Eventually(t, func() bool {
+		repos := dashboardRepos(t, srvURL, sessionCookie)
+		return assert.ObjectsAreEqual([]dashboardRepoStatus{{Forge: "github", FullName: "alrayyes/tempus-fugit", HasWebhook: true}}, repos)
+	}, time.Second, 10*time.Millisecond, "a verified delivery for the repo should flip it to having a confirmed webhook")
 }
 
 func TestGitHubWebhook_MissingSignature_Refused(t *testing.T) {
