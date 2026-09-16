@@ -9,6 +9,25 @@
   var target = document.getElementById('footer-version');
   if (!target) return;
 
+  // Disclaimer/Privacy links, appended to the footer itself rather than
+  // into #footer-version: that span's own content depends on
+  // /api/version resolving (and the dev-build branch below replaces its
+  // textContent wholesale), so anything appended inside it could be
+  // wiped out or never show at all on a slow/failed request. These two
+  // are static local pages with nothing to wait on.
+  var footer = target.parentElement;
+  [
+    ['/disclaimer.html', 'Disclaimer'],
+    ['/privacy.html', 'Privacy'],
+  ].forEach(([href, text]) => {
+    if (window.location.pathname === href) return;
+    var link = document.createElement('a');
+    link.href = href;
+    link.textContent = text;
+    footer.appendChild(document.createTextNode(' · '));
+    footer.appendChild(link);
+  });
+
   function addReleaseHistoryLink() {
     if (window.location.pathname === '/releases.html') return;
     var link = document.createElement('a');
