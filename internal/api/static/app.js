@@ -88,6 +88,33 @@
     return e;
   }
 
+  // Used by each board's own small count next to its heading — the full
+  // phrase reads fine at that size. The top stat tile below gets its own,
+  // more compact treatment: shownCountText would wrap a 26px bold number
+  // onto two lines.
+  function shownCountText(shown, total) {
+    return shown === total ? `${total} open` : `${shown} of ${total} shown`;
+  }
+
+  // idPrefix ('pr'/'issue') -> the top stat tile for that entity type.
+  var STAT_TILE_IDS = { pr: 'stat-prs', issue: 'stat-issues' };
+
+  // The stat tile's headline number is the filtered count — what's
+  // actually visible in the board below it right now — with a small
+  // muted "/ total" only when a filter is actually narrowing it, so an
+  // unfiltered tile looks exactly as it always has. Without this, the
+  // tile kept showing the raw total forever, which read as though it
+  // had stopped updating the moment any filter got applied.
+  function renderStatTile(tileId, shown, total) {
+    var tile = document.getElementById(tileId);
+    if (!tile) return;
+    tile.innerHTML = '';
+    tile.appendChild(document.createTextNode(String(shown)));
+    if (shown !== total) {
+      tile.appendChild(el('span', 'n-total', ` / ${total}`));
+    }
+  }
+
   // ---- row rendering ----
   function repoCell(item) {
     var wrap = el('div', 'repo');
@@ -596,12 +623,13 @@
         noResults.hidden = visible.length !== 0 || state.items.length === 0;
 
       var count = document.getElementById(`${idPrefix}-count`);
-      if (count) {
-        count.textContent =
-          visible.length === state.items.length
-            ? `${state.items.length} open`
-            : `${visible.length} of ${state.items.length} shown`;
-      }
+      if (count)
+        count.textContent = shownCountText(visible.length, state.items.length);
+      renderStatTile(
+        STAT_TILE_IDS[idPrefix],
+        visible.length,
+        state.items.length,
+      );
     }
 
     var pageSizeSelect = document.getElementById(`${idPrefix}-page-size`);
@@ -868,11 +896,12 @@
       sharedControlsRestored = true;
       syncSharedControlsToState();
     }
+    // Each board's own render() sets its stat tile's text too (the same
+    // filtered-vs-total wording its own count already uses), so the tile
+    // never disagrees with the board sitting right below it.
     prBoard.setItems(prs);
     issueBoard.setItems(issues);
 
-    document.getElementById('stat-prs').textContent = String(prs.length);
-    document.getElementById('stat-issues').textContent = String(issues.length);
     var failingCount = prs.filter((p) => p.ci === 'failure').length;
     document.getElementById('stat-failing').textContent = String(failingCount);
     // Red only once there's actually something failing — zero is good

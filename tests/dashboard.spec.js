@@ -338,6 +338,65 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   });
 
+  test('the "Open pull requests" stat tile reflects the active filter, not just the raw total', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [
+            { forge: 'github', reachable: true, repoCount: 1 },
+            { forge: 'forgejo', reachable: true, repoCount: 1 },
+          ],
+          pullRequests: [
+            {
+              forge: 'github',
+              repo: 'alrayyes/forge-dashboard',
+              number: 1,
+              title: 'A GitHub PR',
+              url: 'https://example.com/1',
+              author: 'claude',
+              ci: 'success',
+              labels: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            {
+              forge: 'forgejo',
+              repo: 'homelab/vps-docker',
+              number: 2,
+              title: 'A Forgejo PR',
+              url: 'https://example.com/2',
+              author: 'claude',
+              ci: 'success',
+              labels: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ],
+          issues: [],
+        }),
+      }),
+    );
+    await page.reload();
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+
+    // Unfiltered: just the total, same as before this behavior existed.
+    await expect(page.locator('#stat-prs')).toHaveText('2');
+
+    await selectForge(page, 'forgejo');
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+    // Filtered: the shown count out front, the total trailing it — not
+    // silently still "2", which is what made this confusing before.
+    await expect(page.locator('#stat-prs')).toHaveText('1 / 2');
+
+    await selectForge(page, '');
+    await expect(page.locator('#stat-prs')).toHaveText('2');
+  });
+
   test.describe('theme and filters persist across a reload', () => {
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route) =>
