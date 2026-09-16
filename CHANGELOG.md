@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.0](https://github.com/alrayyes/forge-dashboard/compare/v0.58.0...v0.59.0) (2026-09-16)
+
+
+### Features
+
+* **dashboard:** add a persistent top nav, shared across every page ([#270](https://github.com/alrayyes/forge-dashboard/issues/270)) ([df308da](https://github.com/alrayyes/forge-dashboard/commit/df308da0b87bf6d99038536ff049fcd4072819bd)), closes [#269](https://github.com/alrayyes/forge-dashboard/issues/269)
+
 ## [0.58.0](https://github.com/alrayyes/forge-dashboard/compare/v0.57.0...v0.58.0) (2026-09-16)
 
 
