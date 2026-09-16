@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.50.0](https://github.com/alrayyes/forge-dashboard/compare/v0.49.0...v0.50.0) (2026-09-16)
+
+
+### Features
+
+* **dashboard:** show merge conflicts/blockers and auto-merge status ([#216](https://github.com/alrayyes/forge-dashboard/issues/216)) ([41c3207](https://github.com/alrayyes/forge-dashboard/commit/41c3207d46fd0aff503bc596b9bc8068832f851a)), closes [#214](https://github.com/alrayyes/forge-dashboard/issues/214)
+
 ## [0.49.0](https://github.com/alrayyes/forge-dashboard/compare/v0.48.0...v0.49.0) (2026-09-16)
 
 
