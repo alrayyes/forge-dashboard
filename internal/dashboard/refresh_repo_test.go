@@ -59,8 +59,9 @@ func (f *fakeRepoRefresherSource) Fetch(_ context.Context) dashboard.Result {
 	f.fetchCalls++
 
 	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true, RepoCount: len(f.byRepo)}}
-	for _, prs := range f.byRepo {
+	for fullName, prs := range f.byRepo {
 		result.PullRequests = append(result.PullRequests, prs...)
+		result.Repos = append(result.Repos, dashboard.Repo{Forge: f.forge, FullName: fullName})
 	}
 	for _, issues := range f.issues {
 		result.Issues = append(result.Issues, issues...)
@@ -126,6 +127,10 @@ func TestAggregator_RefreshRepo_OnlyRefetchesAndReplacesTheNamedRepo(t *testing.
 	}
 	assert.ElementsMatch(t, []string{"old a", "new a"}, repoATitles)
 	assert.ElementsMatch(t, []string{"b"}, repoBTitles, "repo b's data should be untouched by a's scoped refresh")
+	assert.ElementsMatch(t, []dashboard.Repo{
+		{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a"},
+		{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/b"},
+	}, snap.Repos, "a scoped refresh should leave the tracked-repo list as the last full refresh reported it")
 }
 
 func TestAggregator_RefreshRepo_NoSourceForForge_ReturnsFalse(t *testing.T) {

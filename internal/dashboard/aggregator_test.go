@@ -42,8 +42,10 @@ func TestAggregator_GetBeforeRefresh_ReturnsEmptyNotNil(t *testing.T) {
 	require.NotNil(t, snap.PullRequests)
 	require.NotNil(t, snap.Issues)
 	require.NotNil(t, snap.Forges)
+	require.NotNil(t, snap.Repos)
 	assert.Empty(t, snap.PullRequests)
 	assert.Empty(t, snap.Issues)
+	assert.Empty(t, snap.Repos)
 }
 
 func TestAggregator_Refresh_MergesAllSources(t *testing.T) {
@@ -53,11 +55,13 @@ func TestAggregator_Refresh_MergesAllSources(t *testing.T) {
 		Health:       dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 2},
 		PullRequests: []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1}},
 		Issues:       []dashboard.Issue{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2}},
+		Repos:        []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a"}},
 	}}
 	fj := &fakeSource{result: dashboard.Result{
 		Health:       dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true, RepoCount: 1},
 		PullRequests: []dashboard.PullRequest{{Forge: dashboard.ForgeForgejo, Repo: "alrayyes/b", Number: 3}},
 		Issues:       []dashboard.Issue{{Forge: dashboard.ForgeForgejo, Repo: "alrayyes/b", Number: 4}},
+		Repos:        []dashboard.Repo{{Forge: dashboard.ForgeForgejo, FullName: "alrayyes/b"}},
 	}}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{gh, fj})
@@ -76,6 +80,13 @@ func TestAggregator_Refresh_MergesAllSources(t *testing.T) {
 	t.Run("a health entry per source", func(t *testing.T) {
 		t.Parallel()
 		assert.Len(t, snap.Forges, 2)
+	})
+	t.Run("repos from both sources", func(t *testing.T) {
+		t.Parallel()
+		assert.ElementsMatch(t, []dashboard.Repo{
+			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a"},
+			{Forge: dashboard.ForgeForgejo, FullName: "alrayyes/b"},
+		}, snap.Repos)
 	})
 	t.Run("generatedAt is recent", func(t *testing.T) {
 		t.Parallel()

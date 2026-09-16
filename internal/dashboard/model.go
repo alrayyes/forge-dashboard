@@ -144,6 +144,16 @@ func (e *ClientError) Unwrap() error {
 	return e.Err
 }
 
+// Repo names one tracked repository, independent of whether it currently
+// has any open pull request or issue — RepoCount alone can only answer
+// "how many," and some consumers (webhook-coverage reporting) need
+// "which," including a repo with nothing open at all right now. Matches
+// components.schemas.Repo.
+type Repo struct {
+	Forge    Forge  `json:"forge"`
+	FullName string `json:"fullName"`
+}
+
 // Snapshot matches components.schemas.Dashboard — the whole body
 // GET /api/dashboard answers with.
 type Snapshot struct {
@@ -151,6 +161,7 @@ type Snapshot struct {
 	Forges       []ForgeHealth `json:"forges"`
 	PullRequests []PullRequest `json:"pullRequests"`
 	Issues       []Issue       `json:"issues"`
+	Repos        []Repo        `json:"repos"`
 }
 
 // newEmptySnapshot never has nil slices: the API contract promises arrays,
@@ -160,5 +171,6 @@ func newEmptySnapshot() Snapshot {
 		Forges:       []ForgeHealth{},
 		PullRequests: []PullRequest{},
 		Issues:       []Issue{},
+		Repos:        []Repo{},
 	}
 }

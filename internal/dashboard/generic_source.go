@@ -103,6 +103,9 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 	wg.Wait()
 
 	result := Result{Health: ForgeHealth{Forge: s.forge, Reachable: true, RepoCount: len(repos)}}
+	for _, repo := range repos {
+		result.Repos = append(result.Repos, Repo{Forge: s.forge, FullName: repo.FullName})
+	}
 	if rl, ok := s.client.(RateLimiter); ok {
 		limit, err := rl.RateLimit(ctx)
 		if err != nil {
