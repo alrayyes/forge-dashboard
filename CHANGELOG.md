@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.54.0](https://github.com/alrayyes/forge-dashboard/compare/v0.53.0...v0.54.0) (2026-09-16)
+
+
+### Features
+
+* **dashboard:** check a repo's webhook via the forge API, ahead of the delivery table ([#243](https://github.com/alrayyes/forge-dashboard/issues/243)) ([3ddb094](https://github.com/alrayyes/forge-dashboard/commit/3ddb094b87b654637617ba2d632584f153613a10))
+* **footer:** add a Disclaimer and Privacy page ([#242](https://github.com/alrayyes/forge-dashboard/issues/242)) ([07ef7ba](https://github.com/alrayyes/forge-dashboard/commit/07ef7ba2fc2607de0f10eb312a163b9fee28682e))
+
 ## [0.53.0](https://github.com/alrayyes/forge-dashboard/compare/v0.52.0...v0.53.0) (2026-09-16)
 
 
