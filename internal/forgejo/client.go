@@ -27,9 +27,10 @@ const pageLimit = 50
 // user (a token) or anonymously against one user's public repositories on
 // that instance (a username, no token at all).
 type Client struct {
-	sdk      *gitea.Client
-	token    string
-	username string
+	sdk         *gitea.Client
+	token       string
+	username    string
+	webhookPath string
 }
 
 // NewClient returns a Client against instanceURL (e.g.
@@ -64,6 +65,49 @@ func NewClient(instanceURL, token, username string) *Client {
 
 func (c *Client) setContext(ctx context.Context) {
 	c.sdk.SetContext(ctx)
+}
+
+// SetWebhookPath tells Client the path (not the full URL — see
+// dashboard.WebhookTargetsPath) this account's own Forgejo webhook
+// endpoint lives at, e.g. "/api/webhooks/forgejo/<token>". Left unset,
+// HasWebhook always reports false without calling the forge at all —
+// the same "optional, degrades quietly" shape RateLimit's nil pointer
+// already uses elsewhere in this codebase.
+func (c *Client) SetWebhookPath(path string) {
+	c.webhookPath = path
+}
+
+// HasWebhook implements dashboard.WebhookChecker: does repo owner/name
+// already have a webhook whose target URL is this account's own
+// webhook endpoint. Forgejo's hooks API has no separate read-only
+// scope — listing needs the same write:repository scope creating one
+// does (see #234's research, cited on settings.html's token
+// instructions).
+func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, error) {
+	if c.webhookPath == "" {
+		return false, nil
+	}
+	c.setContext(ctx)
+	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
+	opt := gitea.ListHooksOptions{ListOptions: gitea.ListOptions{PageSize: pageLimit}}
+
+	for {
+		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+		hooks, resp, err := c.sdk.ListRepoHooks(owner, name, opt)
+		if err != nil {
+			return false, forgejoError(http.MethodGet, path, resp, err)
+		}
+		for _, h := range hooks {
+			if dashboard.WebhookTargetsPath(h.Config["url"], c.webhookPath) {
+				return true, nil
+			}
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return false, nil
 }
 
 // forgejoError turns a failed gitea SDK call into the reason a person
