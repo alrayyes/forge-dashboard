@@ -925,6 +925,16 @@ components:
           pattern: "^[0-9a-fA-F]{6}$"
           examples: [d73a4a]
 
+    ForgeErrorKind:
+      type: string
+      enum: [unreachable, unauthorized, not_found, rate_limited, unknown]
+      description: |
+        Why a forge is unreachable, as coarse as every forge this service
+        talks to can agree on. "unauthorized" covers both a bad token and a
+        forbidden request; "not_found" usually means a wrong instance URL.
+        "unknown" covers a signal this service doesn't recognize, rather
+        than a guessed-at specific cause.
+
     ForgeHealth:
       type: object
       required: [forge, reachable, repoCount]
@@ -937,6 +947,8 @@ components:
         error:
           type: string
           description: The last error, if reachable is false. Omitted when reachable.
+        errorKind:
+          $ref: "#/components/schemas/ForgeErrorKind"
         repoCount:
           type: integer
           minimum: 0

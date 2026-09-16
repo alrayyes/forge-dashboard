@@ -64,13 +64,17 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#footer-version')).toContainText('· dev build');
   });
 
-  test('an unreachable forge shows the real reason as visible text, not just a hover tooltip', async ({
+  test('an unreachable forge shows a friendly reason, not the raw technical string', async ({
     page,
   }) => {
     // Real incident: a rate-limited GitHub source showed only "GitHub
     // unreachable", with the actual reason (rate limited, bad token, a
     // real outage — all look identical from here) buried in a title
-    // attribute nothing but a mouse hover ever reaches.
+    // attribute nothing but a mouse hover ever reaches. Fixed once by
+    // showing the raw string as visible text; #229 found that raw string
+    // itself unfriendly and impossible to act on, so it now sits behind a
+    // details disclosure and a classified, actionable headline is what's
+    // primary.
     await page.route('**/api/dashboard*', (route) =>
       route.fulfill({
         status: 200,
@@ -84,6 +88,7 @@ test.describe('dashboard page', () => {
               repoCount: 0,
               error:
                 'github: GET /user/repos: API rate limit exceeded for user ID 511318. (resets 2026-09-14T14:00:00Z)',
+              errorKind: 'rate_limited',
             },
           ],
           pullRequests: [],
@@ -94,9 +99,56 @@ test.describe('dashboard page', () => {
 
     await page.reload();
 
-    await expect(page.locator('#forge-health')).toContainText(
+    const forgeHealth = page.locator('#forge-health');
+    await expect(forgeHealth).toContainText('Rate limit exceeded.');
+
+    // The raw string is present in the DOM either way (a <details>'s
+    // collapsed content is still in textContent, just not rendered), so
+    // "not shown by default" is asserted on the disclosure's own open
+    // state, not by searching for the text's absence.
+    const details = forgeHealth.locator('details.forge-health-detail');
+    await expect(details).not.toHaveAttribute('open');
+
+    await details.locator('summary').click();
+    await expect(details).toHaveAttribute('open');
+    await expect(forgeHealth).toContainText(
       'API rate limit exceeded for user ID 511318.',
     );
+  });
+
+  test('an unreachable forge with no recognized error kind still shows a friendly, forge-named reason', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [
+            {
+              forge: 'forgejo',
+              reachable: false,
+              repoCount: 0,
+              error: 'forgejo: GET /user/repos: unexpected EOF',
+              errorKind: 'unknown',
+            },
+          ],
+          pullRequests: [],
+          issues: [],
+        }),
+      }),
+    );
+
+    await page.reload();
+
+    const forgeHealth = page.locator('#forge-health');
+    await expect(forgeHealth).toContainText(
+      'Something went wrong talking to Forgejo.',
+    );
+    await expect(
+      forgeHealth.locator('details.forge-health-detail'),
+    ).not.toHaveAttribute('open');
   });
 
   test('a forge reporting a rate-limit budget shows it, even while reachable', async ({

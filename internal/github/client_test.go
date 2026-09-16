@@ -465,6 +465,165 @@ func TestFetch_GraphQLErrorsArray_RateLimitReportedAsHTTP200_StillGetsShortMessa
 	assert.Equal(t, 0, result.Health.RateLimit.Remaining)
 }
 
+func TestFetch_GraphQL_ClassifiesErrorKindFromStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		statusCode int
+		wantKind   dashboard.ForgeErrorKind
+	}{
+		{"unauthorized", http.StatusUnauthorized, dashboard.ForgeErrorUnauthorized},
+		{"forbidden", http.StatusForbidden, dashboard.ForgeErrorUnauthorized},
+		{"not found", http.StatusNotFound, dashboard.ForgeErrorNotFound},
+		{"server error", http.StatusInternalServerError, dashboard.ForgeErrorUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				writeJSON(t, w, map[string]string{"message": "boom"})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("test-token", "", srv.URL)
+			result := client.Fetch(t.Context())
+
+			require.False(t, result.Health.Reachable)
+			assert.Equal(t, tt.wantKind, result.Health.ErrorKind)
+		})
+	}
+}
+
+func TestFetch_GraphQL_RateLimitHeadersOverrideStatusClassification(t *testing.T) {
+	t.Parallel()
+
+	// A 403 with an exhausted budget is rate limiting, not "unauthorized" —
+	// the header check has to win over the plain status-code mapping.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]string{"message": "API rate limit exceeded."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Equal(t, dashboard.ForgeErrorRateLimited, result.Health.ErrorKind)
+}
+
+func TestFetch_GraphQL_ClassifiesErrorKindFromExtensionsType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		extensionType string
+		wantKind      dashboard.ForgeErrorKind
+	}{
+		{"forbidden", "FORBIDDEN", dashboard.ForgeErrorUnauthorized},
+		{"unauthenticated", "UNAUTHENTICATED", dashboard.ForgeErrorUnauthorized},
+		{"insufficient scopes", "INSUFFICIENT_SCOPES", dashboard.ForgeErrorUnauthorized},
+		{"not found", "NOT_FOUND", dashboard.ForgeErrorNotFound},
+		{"rate limited", "RATE_LIMITED", dashboard.ForgeErrorRateLimited},
+		{"unrecognized", "SOMETHING_NEW", dashboard.ForgeErrorUnknown},
+		{"absent", "", dashboard.ForgeErrorUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+				entry := map[string]any{"message": "boom"}
+				if tt.extensionType != "" {
+					entry["extensions"] = map[string]string{"type": tt.extensionType}
+				}
+				writeJSON(t, w, map[string]any{"errors": []map[string]any{entry}})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("test-token", "", srv.URL)
+			result := client.Fetch(t.Context())
+
+			require.False(t, result.Health.Reachable)
+			assert.Equal(t, tt.wantKind, result.Health.ErrorKind)
+		})
+	}
+}
+
+func TestFetch_GraphQL_TransportFailure_ClassifiesAsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.NewServeMux())
+	srv.Close() // nothing is listening on this URL anymore
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Equal(t, dashboard.ForgeErrorUnreachable, result.Health.ErrorKind)
+	assert.Contains(t, result.Health.Error, "github: POST /graphql:")
+}
+
+func TestFetch_NoToken_ClassifiesErrorKindFromStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		statusCode int
+		wantKind   dashboard.ForgeErrorKind
+	}{
+		{"unauthorized", http.StatusUnauthorized, dashboard.ForgeErrorUnauthorized},
+		{"not found", http.StatusNotFound, dashboard.ForgeErrorNotFound},
+		{"too many requests", http.StatusTooManyRequests, dashboard.ForgeErrorRateLimited},
+		{"server error", http.StatusInternalServerError, dashboard.ForgeErrorUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				writeJSON(t, w, map[string]string{"message": "boom"})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("", "alrayyes", srv.URL)
+			result := client.Fetch(t.Context())
+
+			require.False(t, result.Health.Reachable)
+			assert.Equal(t, tt.wantKind, result.Health.ErrorKind)
+		})
+	}
+}
+
+func TestFetch_NoToken_TransportFailure_ClassifiesAsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.NewServeMux())
+	srv.Close() // nothing is listening on this URL anymore
+
+	client := github.NewClient("", "alrayyes", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Equal(t, dashboard.ForgeErrorUnreachable, result.Health.ErrorKind)
+}
+
 func TestFetch_ErrorIncludesAPIMessage(t *testing.T) {
 	t.Parallel()
 

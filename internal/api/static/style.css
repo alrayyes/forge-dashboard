@@ -217,6 +217,21 @@ header {
   max-width: 320px;
 }
 
+.forge-health-detail {
+  font-size: 11px;
+  color: var(--ink-3);
+  max-width: 320px;
+}
+
+.forge-health-detail summary {
+  cursor: pointer;
+  color: var(--ink-2);
+}
+
+.forge-health-detail[open] summary {
+  margin-bottom: 2px;
+}
+
 .forge-health-ratelimit {
   font-size: 11px;
   color: var(--ink-3);
