@@ -330,6 +330,25 @@ header {
 .theme-toggle[hidden] {
   display: none;
 }
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* aria-current="page" (nav.js) is the WAI-ARIA Authoring Practices way
+   to mark the current nav item (ARIA26) — this is the visual half,
+   kept in sync with the same attribute rather than a separate class,
+   so a screen reader and a sighted user get the same "you are here"
+   signal. Same treatment .pagination-page.active already uses below. */
+.theme-toggle[aria-current="page"],
+.theme-toggle[aria-current="page"]:hover,
+.theme-toggle[aria-current="page"]:focus-visible {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
 .theme-toggle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

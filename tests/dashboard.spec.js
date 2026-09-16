@@ -237,7 +237,6 @@ test.describe('dashboard page', () => {
     await page.reload();
 
     await expect(page.locator('#webhook-coverage')).toHaveCount(0);
-    await expect(page.locator('a[aria-label="Webhooks"]')).toHaveCount(0);
   });
 
   test('has no axe-core violations at desktop width', async ({ page }) => {

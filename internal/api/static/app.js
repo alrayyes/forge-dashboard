@@ -859,29 +859,8 @@
     if (existing) existing.remove();
   }
 
-  // ---- who's signed in, and signing out ----
-  fetch('/api/auth/session', { headers: { Accept: 'application/json' } })
-    .then((res) => {
-      if (res.status === 401) {
-        window.location.href = '/login.html';
-        return null;
-      }
-      return res.ok ? res.json() : null;
-    })
-    .then((session) => {
-      if (!session) return;
-      document.getElementById('whoami').textContent = session.displayName;
-      document.getElementById('admin-link').hidden = !session.isAdmin;
-    })
-    .catch(() => {
-      /* a transient failure here isn't worth blocking the page over */
-    });
-
-  document.getElementById('logout-button').addEventListener('click', () => {
-    fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
-      window.location.href = '/login.html';
-    });
-  });
+  // Session/admin-link/logout are nav.js's job now — shared by every
+  // page's header, not just the dashboard's own.
 
   // ---- force-refresh: retry right now instead of waiting out the rest
   // of the background poll's own interval ----

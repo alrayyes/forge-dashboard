@@ -75,6 +75,10 @@ test.describe('webhook-triggered live updates', () => {
     // proves the push fires off Manager.RefreshNow itself, not off
     // whichever forge actually answered.
     await page.goto('/settings.html');
+    // settings.js populates the form from a fetch that resolves after
+    // navigation, not before it — filling immediately can race that
+    // fetch and have it stomp these values back to empty right after.
+    await page.waitForResponse((res) => res.url().includes('/api/settings'));
     await page.fill('#forgejo-url', 'https://forgejo.example.invalid');
     await page.fill('#forgejo-username', 'octocat');
     await page.click('#save-button');
@@ -139,6 +143,10 @@ test.describe('webhook-triggered live updates', () => {
     page,
   }) => {
     await page.goto('/settings.html');
+    // settings.js populates the form from a fetch that resolves after
+    // navigation, not before it — filling immediately can race that
+    // fetch and have it stomp these values back to empty right after.
+    await page.waitForResponse((res) => res.url().includes('/api/settings'));
     await page.fill('#forgejo-url', 'https://forgejo.example.invalid');
     await page.fill('#forgejo-username', 'octocat');
     await page.click('#save-button');
@@ -172,6 +180,10 @@ test.describe('webhook-triggered live updates', () => {
 
     try {
       await page.goto('/settings.html');
+      // settings.js populates the form from a fetch that resolves after
+      // navigation, not before it — filling immediately can race that
+      // fetch and have it stomp these values back to empty right after.
+      await page.waitForResponse((res) => res.url().includes('/api/settings'));
       await page.fill('#forgejo-url', forgejoURL);
       await page.fill('#forgejo-token', 'fj_test_token');
       await page.click('#save-button');
@@ -255,6 +267,10 @@ test.describe('webhook-triggered live updates', () => {
 
     try {
       await page.goto('/settings.html');
+      // settings.js populates the form from a fetch that resolves after
+      // navigation, not before it — filling immediately can race that
+      // fetch and have it stomp these values back to empty right after.
+      await page.waitForResponse((res) => res.url().includes('/api/settings'));
       await page.fill('#forgejo-url', forgejoURL);
       await page.fill('#forgejo-token', 'fj_test_token');
       await page.click('#save-button');

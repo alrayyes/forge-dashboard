@@ -37,7 +37,7 @@ test.describe('settings page', () => {
   }) => {
     await page.click('a[href="/settings.html"]');
     await expect(page).toHaveURL(/\/settings\.html$/);
-    await expect(page.locator('h1')).toHaveText('Settings');
+    await expect(page.locator('.settings-header h1')).toHaveText('Settings');
   });
 
   test('saved settings persist across a reload, and the token never comes back', async ({

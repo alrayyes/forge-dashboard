@@ -11,7 +11,7 @@ test.describe('disclaimer and privacy pages', () => {
     test(`${path} is reachable without a session`, async ({ page }) => {
       await page.goto(path);
       await expect(page).toHaveURL(new RegExp(`${path.replace('.', '\\.')}$`));
-      await expect(page.locator('h1')).toHaveText(title);
+      await expect(page.locator('.legal-header h1')).toHaveText(title);
     });
 
     test(`${path} has no axe-core violations at desktop width`, async ({
