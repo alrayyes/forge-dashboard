@@ -35,7 +35,12 @@
 
   --gh: #24292f;
   --gh-bg: #e7e9ec;
-  --fj: #c2410c;
+  /* #c2410c (the obvious Forgejo orange) passed against nothing text
+     ever rendered it on until a real .forge-badge.fj went through
+     axe-core (#235): 4.35:1 against --fj-bg, short of the 4.5:1 floor.
+     Darkened, same proportions, until it clears with room to spare —
+     same move --good/--critical already went through above. */
+  --fj: #b63d0b;
   --fj-bg: #fbe8dc;
 
   --shadow:
