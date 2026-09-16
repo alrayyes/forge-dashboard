@@ -60,6 +60,31 @@
     cursor: default;
     text-decoration: none;
   }
+  .sort-button {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-weight: 500;
+    color: var(--ink-2);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .sort-button:hover,
+  .sort-button:focus-visible {
+    color: var(--ink);
+  }
+  .sort-arrow { font-size: 9px; }
+  .webhooks-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
 </style>
 </head>
 <body>
@@ -74,13 +99,43 @@
     <p class="empty-state" id="webhooks-empty" hidden>Nothing tracked yet — save GitHub or Forgejo credentials in Settings first.</p>
     <p class="status" id="webhooks-status" role="status" aria-live="polite"></p>
 
+    <div class="webhooks-filter-bar" id="webhooks-filter-bar" role="search" aria-label="Filter webhooks" hidden>
+      <fieldset class="forge-segmented">
+        <legend class="sr-only">Filter by forge</legend>
+        <label>
+          <input type="radio" name="webhooks-forge" class="webhooks-filter" data-filter="forge" value="" checked>
+          <span>All</span>
+        </label>
+        <label>
+          <input type="radio" name="webhooks-forge" class="webhooks-filter" data-filter="forge" value="github">
+          <span>GitHub</span>
+        </label>
+        <label>
+          <input type="radio" name="webhooks-forge" class="webhooks-filter" data-filter="forge" value="forgejo">
+          <span>Forgejo</span>
+        </label>
+      </fieldset>
+      <input class="col-filter webhooks-filter" data-filter="repo" type="text" id="webhooks-repo-filter" placeholder="Repo" aria-label="Filter by repo name" autocomplete="off">
+      <select class="col-filter webhooks-filter" data-filter="status" id="webhooks-status-filter" aria-label="Filter by webhook status">
+        <option value="">All statuses</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="pending">Not yet</option>
+      </select>
+    </div>
+
     <table class="data-table" id="webhooks-table" hidden>
       <caption class="sr-only">Every tracked repo's webhook status</caption>
       <thead>
-        <tr><th scope="col">Forge</th><th scope="col">Repo</th><th scope="col">Webhook</th><th scope="col"></th></tr>
+        <tr>
+          <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort-key="forge">Forge<span class="sort-arrow"></span></button></th>
+          <th scope="col" aria-sort="ascending"><button type="button" class="sort-button" data-sort-key="fullName">Repo<span class="sort-arrow">&#9650;</span></button></th>
+          <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort-key="hasWebhook">Webhook<span class="sort-arrow"></span></button></th>
+          <th scope="col"></th>
+        </tr>
       </thead>
       <tbody id="webhooks-rows"></tbody>
     </table>
+    <p class="empty-state" id="webhooks-no-results" hidden>No repos match these filters.</p>
 
     <div class="pagination" id="webhooks-pagination" hidden>
       <div class="pagination-pages" id="webhooks-pagination-pages"></div>
