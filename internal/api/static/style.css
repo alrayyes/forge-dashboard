@@ -375,6 +375,16 @@ button.stat:focus-visible {
   line-height: 1.1;
 }
 
+/* The "/ total" trailing a filtered stat tile's own headline number —
+   deliberately smaller and muted rather than matching .n's own 26px bold,
+   so the filtered count everyone actually cares about right now still
+   reads as the number, not a compound phrase. */
+.stat .n .n-total {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
 .stat .label {
   font-size: 12px;
   color: var(--ink-3);
