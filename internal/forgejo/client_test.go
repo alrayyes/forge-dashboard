@@ -324,3 +324,60 @@ func TestListOpenIssues_UsesTypeIssuesFilter(t *testing.T) {
 	require.Len(t, issues, 1)
 	assert.Equal(t, 7, issues[0].Number)
 }
+
+// TestListOpenPullRequests_MapsMergeableToMergeStatus asserts the
+// deliberately coarse mapping: false becomes MergeBlocked, never
+// MergeConflicting — Forgejo computes this field via a background queue
+// that upstream issues (go-gitea/gitea#22578, #25849) show can lag or get
+// stuck stale, so this service can't confidently call it a real conflict.
+// See design.md's Decisions in
+// openspec/changes/archive/*/show-pr-merge-status. AutoMergeEnabled is
+// always nil: the SDK has no read capability for that at all.
+func TestListOpenPullRequests_MapsMergeableToMergeStatus(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		mergeable bool
+		want      dashboard.MergeStatus
+	}{
+		{"mergeable true maps to Mergeable", true, dashboard.MergeMergeable},
+		{"mergeable false maps to Blocked, not Conflicting", false, dashboard.MergeBlocked},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Query().Get("page") != "1" {
+					writeJSON(t, w, []map[string]any{})
+					return
+				}
+				writeJSON(t, w, []map[string]any{
+					{
+						"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
+						"draft": false, "user": map[string]string{"login": "ryankes"},
+						"labels": []map[string]string{}, "mergeable": tc.mergeable,
+						"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+						"head": map[string]string{"sha": "cafef00d"},
+					},
+				})
+			})
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]string{"state": "success"})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := forgejo.NewClient(srv.URL, "test-token", "")
+			prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+			require.NoError(t, err)
+			require.Len(t, prs, 1)
+			assert.Equal(t, tc.want, prs[0].MergeStatus)
+			assert.Nil(t, prs[0].AutoMergeEnabled)
+		})
+	}
+}

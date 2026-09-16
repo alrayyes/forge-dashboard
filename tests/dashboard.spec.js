@@ -1253,6 +1253,108 @@ test.describe('dashboard page', () => {
     expect(color).toBe('rgb(56, 201, 138)');
   });
 
+  test.describe('merge status and auto-merge pills', () => {
+    function pr(overrides = {}) {
+      return {
+        forge: 'github',
+        repo: 'alrayyes/forge-dashboard',
+        number: 1,
+        title: 'A pull request',
+        url: 'https://example.com/1',
+        author: 'claude',
+        ci: 'success',
+        labels: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        mergeStatus: 'mergeable',
+        ...overrides,
+      };
+    }
+
+    function mockDashboard(page, pullRequests) {
+      return page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            pullRequests,
+            issues: [],
+          }),
+        }),
+      );
+    }
+
+    test('a clean, non-auto-merge pull request shows neither pill', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [pr()]);
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+
+      await expect(page.locator('.merge-pill')).toHaveCount(0);
+    });
+
+    test('a conflicting pull request shows the blocked/conflict pill', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [pr({ mergeStatus: 'conflicting' })]);
+      await page.reload();
+
+      const pill = page.locator('#pr-rows .merge-pill.conflicting');
+      await expect(pill).toHaveCount(1);
+      await expect(pill).toContainText('Conflicting');
+    });
+
+    test('a blocked pull request shows the blocked pill', async ({ page }) => {
+      await mockDashboard(page, [pr({ mergeStatus: 'blocked' })]);
+      await page.reload();
+
+      const pill = page.locator('#pr-rows .merge-pill.blocked');
+      await expect(pill).toHaveCount(1);
+      await expect(pill).toContainText('Blocked');
+    });
+
+    test('a pull request with auto-merge enabled shows the auto-merge pill', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [pr({ autoMergeEnabled: true })]);
+      await page.reload();
+
+      const pill = page.locator('#pr-rows .merge-pill.auto-merge');
+      await expect(pill).toHaveCount(1);
+      await expect(pill).toContainText('Auto-merge');
+    });
+
+    test('auto-merge not reported by the forge shows no pill, not a false "not enabled"', async ({
+      page,
+    }) => {
+      // autoMergeEnabled omitted entirely — the Forgejo case, since the
+      // SDK has no read capability for it at all.
+      await mockDashboard(page, [pr({ forge: 'forgejo' })]);
+      await page.reload();
+
+      await expect(page.locator('.merge-pill.auto-merge')).toHaveCount(0);
+    });
+
+    test('has no axe-core violations with both pills rendered', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        pr({ number: 1, mergeStatus: 'conflicting' }),
+        pr({ number: 2, autoMergeEnabled: true }),
+      ]);
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
+
   test.describe('label click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route) =>

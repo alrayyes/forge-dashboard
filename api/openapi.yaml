@@ -861,6 +861,18 @@ components:
         request's head commit. "none" means neither forge reported any
         check at all, not that one failed.
 
+    MergeStatus:
+      type: string
+      enum: [mergeable, conflicting, blocked, unknown]
+      description: |
+        A pull request's mergeable/blocked state, as coarse as every forge
+        this service talks to can agree on. "blocked" covers anything
+        stopping a merge that isn't confirmed to be a real conflict —
+        including Forgejo's own mergeable flag reporting false, since its
+        server computes that asynchronously and can report it stale.
+        "unknown" covers both a forge that hasn't determined this yet and
+        this service being unable to determine it.
+
     Label:
       type: object
       required: [name, color]
@@ -932,6 +944,7 @@ components:
           createdAt,
           updatedAt,
           ci,
+          mergeStatus,
         ]
       properties:
         forge:
@@ -964,6 +977,15 @@ components:
           format: date-time
         ci:
           $ref: "#/components/schemas/CIStatus"
+        mergeStatus:
+          $ref: "#/components/schemas/MergeStatus"
+        autoMergeEnabled:
+          type: boolean
+          description: |
+            Whether auto-merge is currently scheduled on this pull request.
+            Omitted when the owning forge has no way to report this at all
+            (Forgejo, today) — never false in that case, since this service
+            genuinely doesn't know.
 
     Issue:
       type: object
