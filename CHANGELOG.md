@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.56.0](https://github.com/alrayyes/forge-dashboard/compare/v0.55.1...v0.56.0) (2026-09-16)
+
+
+### Features
+
+* **dashboard:** wire "Add a webhook" into a real API-backed button ([#255](https://github.com/alrayyes/forge-dashboard/issues/255)) ([7ae76b8](https://github.com/alrayyes/forge-dashboard/commit/7ae76b82b292ed1543f2a5ac300c3b045fd4ab64))
+
 ## [0.55.1](https://github.com/alrayyes/forge-dashboard/compare/v0.55.0...v0.55.1) (2026-09-16)
 
 
