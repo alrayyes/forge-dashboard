@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
@@ -87,6 +88,20 @@ func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, erro
 	if c.webhookPath == "" {
 		return false, nil
 	}
+	hook, err := c.findOwnHook(ctx, owner, name, c.webhookPath)
+	if err != nil {
+		return false, err
+	}
+	return hook != nil, nil
+}
+
+// findOwnHook returns the hook among owner/name's own hooks whose target
+// URL's path matches wantPath (dashboard.WebhookTargetsPath), or nil if
+// none does — shared by HasWebhook (which always matches against
+// c.webhookPath) and EnsureWebhook (which matches against whatever
+// path its own targetURL argument carries, independent of whether
+// SetWebhookPath was ever called on this Client at all).
+func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) (*gitea.Hook, error) {
 	c.setContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
 	opt := gitea.ListHooksOptions{ListOptions: gitea.ListOptions{PageSize: pageLimit}}
@@ -95,11 +110,11 @@ func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, erro
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 		hooks, resp, err := c.sdk.ListRepoHooks(owner, name, opt)
 		if err != nil {
-			return false, forgejoError(http.MethodGet, path, resp, err)
+			return nil, forgejoError(http.MethodGet, path, resp, err)
 		}
 		for _, h := range hooks {
-			if dashboard.WebhookTargetsPath(h.Config["url"], c.webhookPath) {
-				return true, nil
+			if dashboard.WebhookTargetsPath(h.Config["url"], wantPath) {
+				return h, nil
 			}
 		}
 		if resp.NextPage == 0 {
@@ -107,7 +122,69 @@ func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, erro
 		}
 		opt.Page = resp.NextPage
 	}
-	return false, nil
+	return nil, nil
+}
+
+// forgejoWebhookEvents mirrors what docs/webhooks.md's manual Forgejo
+// steps have a user tick by hand — Pull Request, Issue, Push, and
+// Status — so a webhook created here covers the same ground.
+var forgejoWebhookEvents = []string{"pull_request", "issues", "push", "status"}
+
+// EnsureWebhook implements dashboard.WebhookManager: create a webhook
+// targeting targetURL if owner/name has none yet, or bring an existing
+// one (found by matching targetURL's own path, not c.webhookPath — this
+// method is self-contained even if SetWebhookPath was never called)
+// back to active with the right config rather than creating a second,
+// duplicate hook.
+func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return fmt.Errorf("forgejo: invalid webhook target URL: %w", err)
+	}
+
+	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
+	if err != nil {
+		return err
+	}
+
+	config := map[string]string{
+		"url":          targetURL,
+		"content_type": "json",
+		"secret":       secret,
+	}
+
+	c.setContext(ctx)
+	if existing != nil {
+		path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, existing.ID)
+		slog.Debug("forgejo request", "method", http.MethodPatch, "url", path)
+		active := true
+		resp, err := c.sdk.EditRepoHook(owner, name, existing.ID, gitea.EditHookOption{
+			Config: config,
+			Events: forgejoWebhookEvents,
+			Active: &active,
+		})
+		if err != nil {
+			return forgejoError(http.MethodPatch, path, resp, err)
+		}
+		return nil
+	}
+
+	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
+	slog.Debug("forgejo request", "method", http.MethodPost, "url", path)
+	// HookTypeGitea, not a "forgejo" one: this SDK version has no such
+	// constant, and Forgejo's API accepts the Gitea-compatible type
+	// name the same way it accepts X-Gitea-Signature as a fallback for
+	// deliveries (see handleForgejoWebhook's own doc comment).
+	_, resp, err := c.sdk.CreateRepoHook(owner, name, gitea.CreateHookOption{
+		Type:   gitea.HookTypeGitea,
+		Config: config,
+		Events: forgejoWebhookEvents,
+		Active: true,
+	})
+	if err != nil {
+		return forgejoError(http.MethodPost, path, resp, err)
+	}
+	return nil
 }
 
 // forgejoError turns a failed gitea SDK call into the reason a person

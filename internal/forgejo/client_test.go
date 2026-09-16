@@ -521,3 +521,99 @@ func TestHasWebhook_ForgeErrorPropagates(t *testing.T) {
 
 	require.Error(t, err)
 }
+
+func TestEnsureWebhook_CreatesWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	var createBody map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			if r.URL.Query().Get("page") != "1" {
+				writeJSON(t, w, []map[string]any{})
+				return
+			}
+			writeJSON(t, w, []map[string]any{
+				{"id": 1, "type": "discord", "config": map[string]string{"url": "https://elsewhere.example/hook"}, "active": true},
+			})
+		case http.MethodPost:
+			assert.NoError(t, json.NewDecoder(r.Body).Decode(&createBody))
+			writeJSON(t, w, map[string]any{"id": 2})
+		default:
+			t.Fatalf("unexpected method %s", r.Method)
+		}
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	client.SetWebhookPath("/api/webhooks/forgejo/tok123")
+
+	err := client.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok123", "sekret")
+
+	require.NoError(t, err)
+	require.NotNil(t, createBody)
+	config, ok := createBody["config"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://dashboard.example/api/webhooks/forgejo/tok123", config["url"])
+	assert.Equal(t, "sekret", config["secret"])
+	assert.Equal(t, true, createBody["active"])
+	assert.ElementsMatch(t, []any{"pull_request", "issues", "push", "status"}, createBody["events"])
+}
+
+func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
+	t.Parallel()
+
+	var editBody map[string]any
+	var editedID string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"id": 7, "type": "forgejo", "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": false},
+		})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks/7", func(w http.ResponseWriter, r *http.Request) {
+		editedID = "7"
+		require.Equal(t, http.MethodPatch, r.Method)
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&editBody))
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	client.SetWebhookPath("/api/webhooks/forgejo/tok123")
+
+	err := client.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.Equal(t, "7", editedID)
+	assert.Equal(t, true, editBody["active"])
+}
+
+func TestEnsureWebhook_ForgeErrorPropagates(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		t.Fatalf("unexpected method %s", r.Method)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	client.SetWebhookPath("/api/webhooks/forgejo/tok123")
+
+	err := client.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok123", "sekret")
+
+	require.Error(t, err)
+}
