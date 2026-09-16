@@ -280,6 +280,34 @@ func TestGitHubWebhook_VerifiedDelivery_MarksRepoAsHavingAWebhookOnTheDashboard(
 	}, time.Second, 10*time.Millisecond, "a verified delivery for the repo should flip it to having a confirmed webhook")
 }
 
+// staticHasWebhookSource reports one repo with HasWebhook already true
+// straight from Fetch — the shape a live forge-API check (#238) reports,
+// as opposed to repoCountingSource's zero-value false that only flips
+// once settings.Store records a real delivery. Used to prove
+// buildDashboardResponse treats the two signals as an OR, not "delivery
+// table only."
+type staticHasWebhookSource struct{}
+
+func (s *staticHasWebhookSource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
+
+func (s *staticHasWebhookSource) Fetch(_ context.Context) dashboard.Result {
+	return dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1},
+		Repos:  []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/tempus-fugit", HasWebhook: true}},
+	}
+}
+
+func TestDashboard_LiveDetectedWebhook_ReportsHasWebhookTrueWithNoDeliveryRecorded(t *testing.T) {
+	t.Parallel()
+
+	srvURL, sessionCookie := newTestServerWithSource(t, &staticHasWebhookSource{})
+
+	require.Eventually(t, func() bool {
+		repos := dashboardRepos(t, srvURL, sessionCookie)
+		return assert.ObjectsAreEqual([]dashboardRepoStatus{{Forge: "github", FullName: "alrayyes/tempus-fugit", HasWebhook: true}}, repos)
+	}, time.Second, 10*time.Millisecond, "a live-detected webhook should report as confirmed even with zero deliveries ever recorded")
+}
+
 func TestGitHubWebhook_MissingSignature_Refused(t *testing.T) {
 	t.Parallel()
 

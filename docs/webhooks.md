@@ -9,11 +9,15 @@ is required for the dashboard to work; skip this page entirely and
 everything still functions exactly as it did before.
 
 The dashboard itself shows a "Webhook coverage" card once you're tracking
-any repos — how many have actually delivered a signature-verified event
-so far, and a list of the rest with a link back here. It's a passive
-signal: it goes green the first time a real event arrives, not the
-moment you save a webhook on the forge side, so a freshly configured one
-still reads as "without" until something happens to trigger it.
+any repos, and a list of the rest with a link back here. It checks the
+forge's own webhook list directly, so a repo with one already pointed at
+this dashboard shows as "with" immediately, not once something happens
+to trigger it — no waiting on a real event to arrive. That live check
+can fail (rate limiting, an unreachable forge, a token missing the
+webhook-list scope — see Settings' own field hints for what that is per
+forge), in which case it falls back to whether this app has ever
+actually received a signature-verified delivery for that repo, the same
+passive signal this whole page is otherwise about.
 
 **A webhook is only as complete as the events you tell your forge to
 send.** Ticking too few doesn't break anything — it just leaves part of

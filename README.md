@@ -41,9 +41,14 @@ stale.
   into the binary with `//go:embed`. `go build` is the whole pipeline — no
   Node toolchain needed to run the service, only to run its own lint/test
   tooling (see [CONTRIBUTING.md](CONTRIBUTING.md)).
-- **Read-only against both forges.** Nothing here writes back to GitHub or
-  Forgejo. It aggregates and displays; every row links out to the real
-  thing.
+- **Read-only against both forges, with one caveat.** Nothing here writes
+  back to GitHub or Forgejo — it aggregates and displays, and every row
+  links out to the real thing. The caveat: checking whether a repo's
+  webhook is already pointed at this dashboard (the Webhooks card, and the
+  dashboard's own coverage summary) needs a token scope that includes
+  write access on Forgejo, since its hooks API has no separate read-only
+  scope — this app still only reads that list, never creates or edits a
+  hook itself.
 
 ### Where this stands against #3
 

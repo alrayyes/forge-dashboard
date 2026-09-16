@@ -38,10 +38,15 @@ type dashboardResponse struct {
 }
 
 // buildDashboardResponse merges snap's tracked-repo list with userID's
-// recorded webhook deliveries. A store failure degrades to every repo
-// reporting HasWebhook: false rather than failing the whole dashboard —
-// the same "one broken piece doesn't take down the rest" resilience the
-// rest of this package already applies to a single unreachable forge.
+// recorded webhook deliveries. HasWebhook is an OR of two signals: r's
+// own live check (dashboard.WebhookChecker, against the forge's actual
+// webhook list — see #238) and the delivery table below, so a repo
+// whose live check errored or whose Source has no webhook path
+// configured still reports true once a real delivery has ever arrived.
+// A store failure degrades to the live signal alone rather than failing
+// the whole dashboard — the same "one broken piece doesn't take down the
+// rest" resilience the rest of this package already applies to a single
+// unreachable forge.
 func buildDashboardResponse(ctx context.Context, store *settings.Store, userID []byte, snap dashboard.Snapshot) dashboardResponse {
 	deliveries, err := store.WebhookDeliveries(ctx, userID)
 	if err != nil {
@@ -51,7 +56,10 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 
 	repos := make([]repoStatus, 0, len(snap.Repos))
 	for _, r := range snap.Repos {
-		_, hasWebhook := deliveries[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
+		hasWebhook := r.HasWebhook
+		if !hasWebhook {
+			_, hasWebhook = deliveries[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
+		}
 		repos = append(repos, repoStatus{Forge: r.Forge, FullName: r.FullName, HasWebhook: hasWebhook})
 	}
 

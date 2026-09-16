@@ -117,6 +117,14 @@ func main() {
 // configuration for. A forge with nothing set is skipped entirely — the
 // per-user equivalent of v1's buildSources, now driven by a Settings save
 // instead of GITHUB_TOKEN/FORGEJO_* environment variables.
+//
+// c.WebhookToken (settings.Store.EnsureWebhookCredentials, generated the
+// first time Settings is opened) is what lets each client recognize its
+// own webhook among a repo's — see dashboard.WebhookTargetsPath. Left
+// blank (a user who saved forge credentials but has never opened
+// Settings yet), both clients skip the live check entirely rather than
+// erroring; the delivery-table signal in buildDashboardResponse still
+// covers them once they do.
 func buildSourcesForUser(c settings.Credentials) []dashboard.Source {
 	var sources []dashboard.Source
 
@@ -125,7 +133,11 @@ func buildSourcesForUser(c settings.Credentials) []dashboard.Source {
 		// github.Client implements dashboard.Source itself (GraphQL, one
 		// request per refresh) rather than going through GenericSource's
 		// one-REST-call-per-repo model.
-		sources = append(sources, github.NewClient(c.GitHubToken, "", ""))
+		client := github.NewClient(c.GitHubToken, "", "")
+		if c.WebhookToken != "" {
+			client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
+		}
+		sources = append(sources, client)
 	case c.GitHubUsername != "":
 		sources = append(sources, github.NewClient("", c.GitHubUsername, ""))
 	}
@@ -135,6 +147,9 @@ func buildSourcesForUser(c settings.Credentials) []dashboard.Source {
 		// nothing configured for Forgejo at all
 	case c.ForgejoToken != "":
 		client := forgejo.NewClient(c.ForgejoURL, c.ForgejoToken, "")
+		if c.WebhookToken != "" {
+			client.SetWebhookPath("/api/webhooks/forgejo/" + c.WebhookToken)
+		}
 		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
 	case c.ForgejoUsername != "":
 		client := forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername)
