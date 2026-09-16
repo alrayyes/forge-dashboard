@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.0](https://github.com/alrayyes/forge-dashboard/compare/v0.56.1...v0.57.0) (2026-09-16)
+
+
+### Features
+
+* **settings:** move webhook coverage out of the main dashboard ([#261](https://github.com/alrayyes/forge-dashboard/issues/261)) ([d9bcaf8](https://github.com/alrayyes/forge-dashboard/commit/d9bcaf8b34e2fd1588913e88fd5a3d447a0b72f0))
+
 ## [0.56.1](https://github.com/alrayyes/forge-dashboard/compare/v0.56.0...v0.56.1) (2026-09-16)
 
 
