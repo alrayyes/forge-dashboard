@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.0](https://github.com/alrayyes/forge-dashboard/compare/v0.57.0...v0.58.0) (2026-09-16)
+
+
+### Features
+
+* **dashboard:** add filters and sorting to the webhooks page ([#266](https://github.com/alrayyes/forge-dashboard/issues/266)) ([63f524e](https://github.com/alrayyes/forge-dashboard/commit/63f524e4bdcae434ecc937234e2fd1475adf8840))
+
 ## [0.57.0](https://github.com/alrayyes/forge-dashboard/compare/v0.56.1...v0.57.0) (2026-09-16)
 
 
