@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.56.1](https://github.com/alrayyes/forge-dashboard/compare/v0.56.0...v0.56.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* darken the Forgejo forge badge for WCAG AA contrast in light theme ([#257](https://github.com/alrayyes/forge-dashboard/issues/257)) ([8c1487c](https://github.com/alrayyes/forge-dashboard/commit/8c1487cec57990cededbbadfc01a326c4027b118))
+
 ## [0.56.0](https://github.com/alrayyes/forge-dashboard/compare/v0.55.1...v0.56.0) (2026-09-16)
 
 
