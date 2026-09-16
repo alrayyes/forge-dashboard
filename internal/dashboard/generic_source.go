@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 )
@@ -129,6 +130,20 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 		result.Issues = append(result.Issues, r.issues...)
 	}
 	return result
+}
+
+// EnsureWebhook implements WebhookManager at the Source level by
+// delegating to the underlying client — the same "Source unwraps to its
+// ForgeClient" pattern FetchRepo doesn't need, since ForgeClient's own
+// method set already matches what RepoRefresher wants, but which
+// WebhookManager does need since EnsureWebhook isn't part of the plain
+// ForgeClient interface every client implements.
+func (s *GenericSource) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
+	manager, ok := s.client.(WebhookManager)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't manage webhooks", s.forge)
+	}
+	return manager.EnsureWebhook(ctx, owner, name, targetURL, secret)
 }
 
 // FetchRepo implements RepoRefresher: the same per-repo calls Fetch

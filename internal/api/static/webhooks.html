@@ -38,12 +38,28 @@
   }
   .card .hint { font-size: 12.5px; color: var(--ink-3); margin: 0 0 14px; }
   .empty-state { font-size: 12.5px; color: var(--ink-3); margin: 0; }
+  .status { font-size: 12.5px; min-height: 1.4em; margin: 0 0 12px; }
+  .status.error { color: var(--critical); }
   .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .data-table th, .data-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
   .data-table th { color: var(--ink-2); font-weight: 500; }
   .data-table td.status-confirmed { color: var(--good); }
   .data-table td.status-pending { color: var(--ink-3); }
-  .data-table td.action a { color: var(--accent); font-size: 12.5px; }
+  .data-table td.action { white-space: nowrap; }
+  .data-table td.action button {
+    font-size: 12.5px;
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .data-table td.action button:disabled {
+    color: var(--ink-3);
+    cursor: default;
+    text-decoration: none;
+  }
 </style>
 </head>
 <body>
@@ -56,6 +72,7 @@
   <div class="card">
     <p class="hint" id="webhooks-hint">Every tracked repo, and whether this dashboard has confirmed a webhook for it. <a href="/settings.html#webhooks">Webhook setup</a></p>
     <p class="empty-state" id="webhooks-empty" hidden>Nothing tracked yet — save GitHub or Forgejo credentials in Settings first.</p>
+    <p class="status" id="webhooks-status" role="status" aria-live="polite"></p>
 
     <table class="data-table" id="webhooks-table" hidden>
       <caption class="sr-only">Every tracked repo's webhook status</caption>

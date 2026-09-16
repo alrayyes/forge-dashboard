@@ -21,6 +21,23 @@ falls back to whether this app has ever actually received a
 signature-verified delivery for that repo, the same passive signal this
 whole page is otherwise about.
 
+## The easy way: "Add a webhook"
+
+On the Webhooks page, a repo without a confirmed webhook gets an "Add a
+webhook" button — it creates one via the forge's own API, pointed at
+this dashboard's URL and secret, subscribed to every event the table
+below recommends. If a forge-dashboard webhook already exists there but
+is turned off or missing an event, clicking it fixes that one up in place
+rather than creating a second, duplicate hook.
+
+This needs a broader token scope than just reading your repos — GitHub's
+fine-grained tokens need the Webhooks permission set to **Read and
+write**, and Forgejo's `write:repository` (already required just to
+check coverage, since Forgejo's webhook API has no separate read-only
+scope). See Settings' own field hints for the exact scope per forge. If
+your token can't or won't take that scope, the manual steps below are
+still the fallback — nothing here requires the button.
+
 **A webhook is only as complete as the events you tell your forge to
 send.** Ticking too few doesn't break anything — it just leaves part of
 the dashboard on the slower, polling-only path while the rest updates

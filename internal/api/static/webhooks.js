@@ -20,6 +20,12 @@
     return wrap;
   }
 
+  function setStatus(message, kind) {
+    var statusEl = document.getElementById('webhooks-status');
+    statusEl.textContent = message || '';
+    statusEl.className = `status${kind ? ` ${kind}` : ''}`;
+  }
+
   var state = { repos: [], page: 1, pageSize: 25 };
 
   function setPage(page) {
@@ -68,6 +74,52 @@
     pages.appendChild(next);
   }
 
+  // addWebhookButton is a real <button>, not a styled link — its own
+  // click drives the create/fix-up call, so it needs the keyboard
+  // activation and focus behaviour a link would have to fake.
+  function addWebhookButton(repo) {
+    var button = el('button', '', 'Add a webhook');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      button.disabled = true;
+      button.textContent = 'Adding…';
+      setStatus(`Adding a webhook for ${repo.fullName}…`);
+
+      fetch('/api/webhooks/ensure', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ forge: repo.forge, fullName: repo.fullName }),
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = '/login.html';
+            throw new Error('session expired');
+          }
+          if (res.status === 204) return null;
+          return res.json().then((body) => {
+            throw new Error(body?.error || `backend answered ${res.status}`);
+          });
+        })
+        .then(() => {
+          repo.hasWebhook = true;
+          setStatus(`Webhook added for ${repo.fullName}.`);
+          render();
+        })
+        .catch((err) => {
+          button.disabled = false;
+          button.textContent = 'Add a webhook';
+          setStatus(
+            `Couldn't add a webhook for ${repo.fullName}: ${err.message}`,
+            'error',
+          );
+        });
+    });
+    return button;
+  }
+
   function render() {
     var empty = document.getElementById('webhooks-empty');
     var table = document.getElementById('webhooks-table');
@@ -109,11 +161,8 @@
 
       var actionTd = document.createElement('td');
       actionTd.className = 'action';
-      var link;
       if (!repo.hasWebhook) {
-        link = el('a', '', 'Add a webhook');
-        link.href = '/settings.html#webhooks';
-        actionTd.appendChild(link);
+        actionTd.appendChild(addWebhookButton(repo));
       }
       tr.appendChild(actionTd);
 
