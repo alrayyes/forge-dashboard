@@ -161,6 +161,12 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 			return
 		}
 
+		if _, _, fullName, ok := repoFromPayload(body); ok {
+			if err := store.RecordWebhookDelivery(r.Context(), userID, string(forge), fullName); err != nil {
+				slog.Warn("recording webhook delivery failed", "forge", forge, "repo", fullName, "error", err)
+			}
+		}
+
 		slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
 		w.WriteHeader(http.StatusNoContent)
 		go triggerRefresh(appCtx, manager, userID, forge, delivery, body)

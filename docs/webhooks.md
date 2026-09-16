@@ -8,6 +8,13 @@ shows up within seconds instead of at the next poll. Nothing about this
 is required for the dashboard to work; skip this page entirely and
 everything still functions exactly as it did before.
 
+The dashboard itself shows a "Webhook coverage" card once you're tracking
+any repos — how many have actually delivered a signature-verified event
+so far, and a list of the rest with a link back here. It's a passive
+signal: it goes green the first time a real event arrives, not the
+moment you save a webhook on the forge side, so a freshly configured one
+still reads as "without" until something happens to trigger it.
+
 **A webhook is only as complete as the events you tell your forge to
 send.** Ticking too few doesn't break anything — it just leaves part of
 the dashboard on the slower, polling-only path while the rest updates
