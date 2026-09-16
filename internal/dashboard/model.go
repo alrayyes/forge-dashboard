@@ -152,6 +152,13 @@ func (e *ClientError) Unwrap() error {
 type Repo struct {
 	Forge    Forge  `json:"forge"`
 	FullName string `json:"fullName"`
+	// HasWebhook is a live signal from the Source itself — the forge's
+	// own webhook list, matched against this app's expected URL — not
+	// the settings.Store delivery table. False here doesn't mean "no
+	// webhook confirmed at all": the API layer ORs this with the
+	// delivery-based signal, since a Source with no webhook path
+	// configured, or whose live check failed, always reports false.
+	HasWebhook bool `json:"hasWebhook"`
 }
 
 // Snapshot matches components.schemas.Dashboard — the whole body

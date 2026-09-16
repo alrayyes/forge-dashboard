@@ -74,9 +74,12 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 	}
 
 	type repoResult struct {
-		prs    []PullRequest
-		issues []Issue
+		prs        []PullRequest
+		issues     []Issue
+		hasWebhook bool
 	}
+
+	checker, checksWebhooks := s.client.(WebhookChecker)
 
 	results := make([]repoResult, len(repos))
 	sem := make(chan struct{}, s.maxConcurrency)
@@ -97,14 +100,21 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 			if err != nil {
 				slog.Warn("list issues failed", "forge", s.forge, "repo", repo.FullName, "error", err)
 			}
-			results[i] = repoResult{prs: prs, issues: issues}
+			var hasWebhook bool
+			if checksWebhooks {
+				hasWebhook, err = checker.HasWebhook(ctx, repo.Owner, repo.Name)
+				if err != nil {
+					slog.Warn("webhook check failed", "forge", s.forge, "repo", repo.FullName, "error", err)
+				}
+			}
+			results[i] = repoResult{prs: prs, issues: issues, hasWebhook: hasWebhook}
 		}(i, repo)
 	}
 	wg.Wait()
 
 	result := Result{Health: ForgeHealth{Forge: s.forge, Reachable: true, RepoCount: len(repos)}}
-	for _, repo := range repos {
-		result.Repos = append(result.Repos, Repo{Forge: s.forge, FullName: repo.FullName})
+	for i, repo := range repos {
+		result.Repos = append(result.Repos, Repo{Forge: s.forge, FullName: repo.FullName, HasWebhook: results[i].hasWebhook})
 	}
 	if rl, ok := s.client.(RateLimiter); ok {
 		limit, err := rl.RateLimit(ctx)

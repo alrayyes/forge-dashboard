@@ -141,3 +141,70 @@ func TestGenericSource_Fetch_RateLimitCheckFails_StillReportsReachable(t *testin
 	assert.True(t, result.Health.Reachable, "a failed rate-limit check shouldn't fail the whole forge")
 	assert.Nil(t, result.Health.RateLimit)
 }
+
+type fakeWebhookCheckerClient struct {
+	fakeForgeClient
+	hasWebhookByFullName map[string]bool
+	errByFullName        map[string]error
+}
+
+func (f *fakeWebhookCheckerClient) HasWebhook(_ context.Context, owner, name string) (bool, error) {
+	fullName := owner + "/" + name
+	if err := f.errByFullName[fullName]; err != nil {
+		return false, err
+	}
+	return f.hasWebhookByFullName[fullName], nil
+}
+
+func TestGenericSource_Fetch_ClientWithNoWebhookChecker_LeavesHasWebhookFalse(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeForgeClient{
+		repos: []dashboard.RepoRef{{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a"}},
+	}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+	result := source.Fetch(t.Context())
+
+	require.Len(t, result.Repos, 1)
+	assert.False(t, result.Repos[0].HasWebhook)
+}
+
+func TestGenericSource_Fetch_ClientWithWebhookChecker_ReportsPerRepo(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeWebhookCheckerClient{
+		fakeForgeClient: fakeForgeClient{
+			repos: []dashboard.RepoRef{
+				{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a"},
+				{FullName: "alrayyes/b", Owner: "alrayyes", Name: "b"},
+			},
+		},
+		hasWebhookByFullName: map[string]bool{"alrayyes/a": true},
+	}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+	result := source.Fetch(t.Context())
+
+	byName := map[string]bool{}
+	for _, r := range result.Repos {
+		byName[r.FullName] = r.HasWebhook
+	}
+	assert.True(t, byName["alrayyes/a"])
+	assert.False(t, byName["alrayyes/b"])
+}
+
+func TestGenericSource_Fetch_WebhookCheckFails_StillReportsReachableWithHasWebhookFalse(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeWebhookCheckerClient{
+		fakeForgeClient: fakeForgeClient{
+			repos: []dashboard.RepoRef{{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a"}},
+		},
+		errByFullName: map[string]error{"alrayyes/a": errors.New("boom")},
+	}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+	result := source.Fetch(t.Context())
+
+	assert.True(t, result.Health.Reachable)
+	require.Len(t, result.Repos, 1)
+	assert.False(t, result.Repos[0].HasWebhook)
+}

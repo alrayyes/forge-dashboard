@@ -1,6 +1,9 @@
 package dashboard
 
-import "context"
+import (
+	"context"
+	"net/url"
+)
 
 // Result is what one forge contributes to a Snapshot. Health.Reachable is
 // false only for a fetch that failed outright (couldn't list repositories
@@ -39,4 +42,35 @@ type Source interface {
 // delivery.
 type RepoRefresher interface {
 	FetchRepo(ctx context.Context, owner, name, fullName string) (prs []PullRequest, issues []Issue, err error)
+}
+
+// WebhookChecker is implemented by a ForgeClient (or, for github.Client,
+// a Source directly) that can report whether a repo already has a
+// webhook pointed at this app — checked via a type assertion, the same
+// optional-capability pattern RateLimiter uses. A client with no webhook
+// path configured reports false for every repo without making an API
+// call at all, not an error — the same "optional, degrades quietly"
+// shape RateLimit's own nil pointer already uses.
+type WebhookChecker interface {
+	HasWebhook(ctx context.Context, owner, name string) (bool, error)
+}
+
+// WebhookTargetsPath reports whether rawURL's path component is exactly
+// path — how a Source recognizes "this hook is the one forge-dashboard
+// itself would have created," regardless of the scheme or host a webhook
+// was configured against. Matching on the path alone, not the full URL,
+// is deliberate: this process may sit behind a reverse proxy whose
+// public origin it has no independent way to know, and the webhook
+// token in the path is already unique enough (256 bits of randomness)
+// that a path match carries no real collision risk. An unparseable
+// rawURL, or an empty path, never matches.
+func WebhookTargetsPath(rawURL, path string) bool {
+	if path == "" {
+		return false
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return u.Path == path
 }
