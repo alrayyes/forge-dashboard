@@ -8,16 +8,18 @@ shows up within seconds instead of at the next poll. Nothing about this
 is required for the dashboard to work; skip this page entirely and
 everything still functions exactly as it did before.
 
-The dashboard itself shows a "Webhook coverage" card once you're tracking
-any repos, and a list of the rest with a link back here. It checks the
-forge's own webhook list directly, so a repo with one already pointed at
-this dashboard shows as "with" immediately, not once something happens
-to trigger it — no waiting on a real event to arrive. That live check
-can fail (rate limiting, an unreachable forge, a token missing the
-webhook-list scope — see Settings' own field hints for what that is per
-forge), in which case it falls back to whether this app has ever
-actually received a signature-verified delivery for that repo, the same
-passive signal this whole page is otherwise about.
+The dashboard itself shows a "Webhook coverage" summary once you're
+tracking any repos, linking to its own page (`/webhooks.html`) that
+lists every tracked repo and whether this dashboard has confirmed a
+webhook for it. It checks the forge's own webhook list directly, so a
+repo with one already pointed at this dashboard shows as confirmed
+immediately, not once something happens to trigger it — no waiting on
+a real event to arrive. That live check can fail (rate limiting, an
+unreachable forge, a token missing the webhook-list scope — see
+Settings' own field hints for what that is per forge), in which case it
+falls back to whether this app has ever actually received a
+signature-verified delivery for that repo, the same passive signal this
+whole page is otherwise about.
 
 **A webhook is only as complete as the events you tell your forge to
 send.** Ticking too few doesn't break anything — it just leaves part of

@@ -480,38 +480,14 @@ section.board {
   padding: 14px 18px 16px;
 }
 
-.webhook-coverage-hint {
-  margin: 0;
+.webhook-coverage-body a {
   font-size: 13px;
-  color: var(--ink-2);
-}
-
-.webhook-coverage-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.webhook-coverage-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.webhook-coverage-list a {
-  font-size: 12.5px;
   color: var(--accent);
   text-decoration: none;
-  white-space: nowrap;
 }
 
-.webhook-coverage-list a:hover,
-.webhook-coverage-list a:focus-visible {
+.webhook-coverage-body a:hover,
+.webhook-coverage-body a:focus-visible {
   text-decoration: underline;
 }
 

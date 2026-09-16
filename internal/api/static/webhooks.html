@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webhooks — Forge Board</title>
+<script src="theme.js"></script>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  .webhooks-wrap { max-width: 720px; margin: 0 auto; padding: 28px 0 64px; }
+  .webhooks-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .webhooks-header h1 { font-size: 19px; margin: 0; }
+  .back-link {
+    font-size: 13px;
+    color: var(--ink-2);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .back-link:hover { color: var(--ink); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 18px 16px;
+    margin-bottom: 18px;
+  }
+  .card .hint { font-size: 12.5px; color: var(--ink-3); margin: 0 0 14px; }
+  .empty-state { font-size: 12.5px; color: var(--ink-3); margin: 0; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data-table th, .data-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+  .data-table th { color: var(--ink-2); font-weight: 500; }
+  .data-table td.status-confirmed { color: var(--good); }
+  .data-table td.status-pending { color: var(--ink-3); }
+  .data-table td.action a { color: var(--accent); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="webhooks-wrap">
+  <div class="webhooks-header">
+    <h1>Webhooks</h1>
+    <a class="back-link" href="/">&larr; Back to dashboard</a>
+  </div>
+
+  <div class="card">
+    <p class="hint" id="webhooks-hint">Every tracked repo, and whether this dashboard has confirmed a webhook for it. <a href="/settings.html#webhooks">Webhook setup</a></p>
+    <p class="empty-state" id="webhooks-empty" hidden>Nothing tracked yet — save GitHub or Forgejo credentials in Settings first.</p>
+
+    <table class="data-table" id="webhooks-table" hidden>
+      <caption class="sr-only">Every tracked repo's webhook status</caption>
+      <thead>
+        <tr><th scope="col">Forge</th><th scope="col">Repo</th><th scope="col">Webhook</th><th scope="col"></th></tr>
+      </thead>
+      <tbody id="webhooks-rows"></tbody>
+    </table>
+
+    <div class="pagination" id="webhooks-pagination" hidden>
+      <div class="pagination-pages" id="webhooks-pagination-pages"></div>
+      <label class="pagination-size">
+        Per page
+        <select id="webhooks-page-size" aria-label="Results per page">
+          <option value="10">10</option>
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <footer>
+    Read-only mirror of both forges &middot; credentials never leave <span class="mono">forge-dashboard</span>'s backend
+    &middot; <a href="https://github.com/alrayyes/forge-dashboard" target="_blank" rel="noopener noreferrer">Source</a>
+    <span id="footer-version"></span>
+  </footer>
+</div>
+
+<script src="footer.js"></script>
+<script src="filters.js"></script>
+<script src="webhooks.js"></script>
+</body>
+</html>
