@@ -329,6 +329,48 @@ test.describe('dashboard page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
+  test('has no axe-core violations with a real Forgejo forge badge rendered, light theme', async ({
+    page,
+  }) => {
+    // Regression test for #235: every other axe-scanned fixture in this
+    // file only ever used forge: 'github' rows, so a real .forge-badge.fj
+    // element never actually got scanned until this one.
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+          pullRequests: [
+            {
+              forge: 'forgejo',
+              repo: 'alrayyes/a',
+              number: 1,
+              title: 'A pull request',
+              url: 'https://example.com/1',
+              author: 'claude',
+              ci: 'success',
+              labels: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              mergeStatus: 'mergeable',
+            },
+          ],
+          issues: [],
+        }),
+      }),
+    );
+    await page.reload();
+    await expect(page.locator('.forge-badge.fj')).toBeVisible();
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    expect(results.violations).toEqual([]);
+  });
+
   test('a non-admin user never sees the Admin link, not just in the DOM but actually rendered', async ({
     page,
   }) => {
