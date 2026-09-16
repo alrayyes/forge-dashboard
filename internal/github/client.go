@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -47,12 +48,13 @@ const itemsPerRepo = 50
 // requests — same wire calls, typed responses and typed rate-limit errors
 // instead of reparsing JSON bodies by hand.
 type Client struct {
-	httpClient *http.Client
-	baseURL    string
-	graphqlURL string
-	token      string
-	username   string
-	restClient *ghsdk.Client
+	httpClient  *http.Client
+	baseURL     string
+	graphqlURL  string
+	token       string
+	username    string
+	restClient  *ghsdk.Client
+	webhookPath string
 }
 
 // NewClient returns a Client. With token set, Fetch queries GraphQL for
@@ -86,6 +88,47 @@ func NewClient(token, username, baseURL string) *Client {
 
 // Forge implements dashboard.Source.
 func (c *Client) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
+
+// SetWebhookPath tells Client the path (not the full URL — see
+// dashboard.WebhookTargetsPath) this account's own GitHub webhook
+// endpoint lives at, e.g. "/api/webhooks/github/<token>". Left unset,
+// HasWebhook always reports false without calling GitHub at all — the
+// same "optional, degrades quietly" shape RateLimit's nil pointer
+// already uses elsewhere in this codebase.
+func (c *Client) SetWebhookPath(path string) {
+	c.webhookPath = path
+}
+
+// HasWebhook implements dashboard.WebhookChecker: does repo owner/name
+// already have a webhook whose target URL is this account's own
+// webhook endpoint. REST-only — GitHub's GraphQL schema doesn't expose
+// webhook configuration — so this is one extra REST call per repo,
+// outside GraphQL's own separate rate-limit budget.
+func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, error) {
+	if c.webhookPath == "" {
+		return false, nil
+	}
+	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
+	opts := &ghsdk.ListOptions{PerPage: perPage}
+
+	for {
+		slog.Debug("github request", "method", http.MethodGet, "url", path)
+		hooks, resp, err := c.restClient.Repositories.ListHooks(ctx, owner, name, opts)
+		if err != nil {
+			return false, restError(http.MethodGet, path, err)
+		}
+		for _, h := range hooks {
+			if h.Config != nil && dashboard.WebhookTargetsPath(h.Config.GetURL(), c.webhookPath) {
+				return true, nil
+			}
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	return false, nil
+}
 
 // Fetch implements dashboard.Source directly — GitHub drives its own
 // fetch strategy (GraphQL vs. the REST fallback) rather than going
@@ -576,14 +619,19 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		cursor = &endCursor
 	}
 
-	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RateLimit: rateLimit}}
+	tracked := make([]graphqlRepo, 0, len(repos))
 	for _, r := range repos {
 		if r.IsArchived || r.IsFork || !hasWriteAccess(r.ViewerPermission) {
 			continue
 		}
-		result.Health.RepoCount++
+		tracked = append(tracked, r)
+	}
+	hasWebhook := c.checkWebhooks(ctx, tracked)
+
+	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RateLimit: rateLimit, RepoCount: len(tracked)}}
+	for _, r := range tracked {
 		fullName := r.Owner.Login + "/" + r.Name
-		result.Repos = append(result.Repos, dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: fullName})
+		result.Repos = append(result.Repos, dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: fullName, HasWebhook: hasWebhook[fullName]})
 
 		for _, p := range r.PullRequests.Nodes {
 			result.PullRequests = append(result.PullRequests, mapPullRequest(fullName, p))
@@ -592,6 +640,44 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 			result.Issues = append(result.Issues, mapIssue(fullName, i))
 		}
 	}
+	return result
+}
+
+// checkWebhooks calls HasWebhook for every tracked repo concurrently,
+// bounded the same way GenericSource.Fetch bounds its own per-repo
+// calls — GraphQL already batched PRs/issues into the single query
+// above, so this is the one place fetchViaGraphQL still makes a REST
+// call per repo. Returns an empty map without calling GitHub at all
+// when no webhook path is configured.
+func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[string]bool {
+	result := make(map[string]bool, len(repos))
+	if c.webhookPath == "" {
+		return result
+	}
+
+	var mu sync.Mutex
+	sem := make(chan struct{}, dashboard.DefaultMaxConcurrency)
+	var wg sync.WaitGroup
+
+	for _, r := range repos {
+		wg.Add(1)
+		go func(r graphqlRepo) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			fullName := r.Owner.Login + "/" + r.Name
+			has, err := c.HasWebhook(ctx, r.Owner.Login, r.Name)
+			if err != nil {
+				slog.Warn("webhook check failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
+				return
+			}
+			mu.Lock()
+			result[fullName] = has
+			mu.Unlock()
+		}(r)
+	}
+	wg.Wait()
 	return result
 }
 

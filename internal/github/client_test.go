@@ -1216,3 +1216,140 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	require.NotNil(t, pr.AutoMergeEnabled)
 	assert.True(t, *pr.AutoMergeEnabled)
 }
+
+func repoNodeWithOwnerName(owner, name string) map[string]any {
+	return map[string]any{
+		"name": name, "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+		"owner":        map[string]any{"login": owner},
+		"pullRequests": map[string]any{"nodes": []map[string]any{}},
+		"issues":       map[string]any{"nodes": []map[string]any{}},
+	}
+}
+
+func TestFetch_SetWebhookPath_MarksRepoWithMatchingHookAsHasWebhook(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+					},
+				},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{
+			{"id": 1, "config": map[string]any{"url": "https://elsewhere.example/hook"}},
+			{"id": 2, "config": map[string]any{"url": "https://dashboard.example/api/webhooks/github/tok123"}},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+	require.Len(t, result.Repos, 1)
+	assert.True(t, result.Repos[0].HasWebhook)
+}
+
+func TestFetch_SetWebhookPath_NoMatchingHook(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+					},
+				},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{
+			{"id": 1, "config": map[string]any{"url": "https://elsewhere.example/hook"}},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+	require.Len(t, result.Repos, 1)
+	assert.False(t, result.Repos[0].HasWebhook)
+}
+
+func TestFetch_NoWebhookPathConfigured_SkipsHookCheckEntirely(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+					},
+				},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(_ http.ResponseWriter, _ *http.Request) {
+		t.Fatal("the hooks endpoint should not be called with no webhook path configured")
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+	require.Len(t, result.Repos, 1)
+	assert.False(t, result.Repos[0].HasWebhook)
+}
+
+func TestFetch_HooksAPIFails_DegradesToFalseWithoutFailingFetch(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+					},
+				},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+	require.Len(t, result.Repos, 1)
+	assert.False(t, result.Repos[0].HasWebhook)
+}
