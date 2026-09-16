@@ -6,9 +6,8 @@
     pending: 'Running',
     none: 'No checks',
   };
-  var FORGE_LABELS = { github: 'GitHub', forgejo: 'Forgejo' };
+  var FORGE_LABELS = Filters.FORGE_LABELS;
   var FORGE_CLASSES = { github: 'gh', forgejo: 'fj' };
-  var DEPENDENCY_DASHBOARD_TITLE = 'Dependency Dashboard';
 
   var lastGeneratedAt = null;
 
@@ -17,10 +16,8 @@
   // the page, and it's the one storage mechanism shared identically by
   // this file and theme.js (a separate script, loaded synchronously in
   // <head> on other pages, with no module system to share state through).
-  // One year is long enough that "log back in later" always finds it;
-  // SameSite=Lax (not Strict, and no Secure — this also has to work over
-  // plain http://localhost in local/CI testing) so a link in from outside
-  // an already-authenticated tab still carries it.
+  // Filter persistence has its own copy of this in filters.js — this one
+  // is only for the theme cookie now.
   function getCookie(name) {
     var match = document.cookie.match(
       new RegExp(
@@ -34,37 +31,6 @@
     var maxAgeSeconds = 365 * 24 * 60 * 60;
     // biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API isn't in Safari yet, and this repo targets more than just Chromium (browser-compat.md).
     document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
-  }
-
-  // ---- persisted per-column filters ----
-  // Both boards share one cookie, keyed by idPrefix ('pr'/'issue'), so
-  // persisting one board's filters never clobbers the other's.
-  var FILTERS_COOKIE = 'forge-board-filters';
-
-  function loadAllPersistedFilters() {
-    var raw = getCookie(FILTERS_COOKIE);
-    var parsed;
-    if (!raw) return {};
-    try {
-      parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch (_e) {
-      return {};
-    }
-  }
-
-  function loadPersistedFilters(idPrefix) {
-    return loadAllPersistedFilters()[idPrefix] || {};
-  }
-
-  function savePersistedFilters(idPrefix, filters) {
-    var all = loadAllPersistedFilters();
-    all[idPrefix] = filters;
-    try {
-      setCookie(FILTERS_COOKIE, JSON.stringify(all));
-    } catch (_e) {
-      /* ignore */
-    }
   }
 
   // ---- theme toggle ----
@@ -105,15 +71,8 @@
   })();
 
   // ---- formatting ----
-  function minutesAgo(iso) {
-    return Math.max(
-      0,
-      Math.round((Date.now() - new Date(iso).getTime()) / 60000),
-    );
-  }
-
   function relativeTime(iso) {
-    var mins = minutesAgo(iso);
+    var mins = Filters.minutesAgo(iso);
     if (mins < 1) return 'just now';
     if (mins < 60) return `${mins}m ago`;
     var hours = Math.round(mins / 60);
@@ -184,10 +143,11 @@
   function labelChip(label, onLabelClick, activeLabel) {
     var chip = document.createElement('button');
     chip.type = 'button';
-    // activeLabel (state.filters.label) is always lowercase — set that
-    // way by both the chip click below and the Label <select>'s generic
-    // .col-filter wiring, which lowercases every filter value uniformly
-    // — so the comparison here has to lowercase label.name to match.
+    // activeLabel (the shared label filter) is always lowercase — set
+    // that way by both a chip click and the shared Label <select>'s
+    // generic .col-filter wiring, which lowercases every filter value
+    // uniformly — so the comparison here has to lowercase label.name to
+    // match.
     var isActive = label.name.toLowerCase() === activeLabel;
     chip.className = `label-chip${isActive ? ' active' : ''}`;
     chip.textContent = label.name;
@@ -274,52 +234,169 @@
     return row;
   }
 
-  // ---- board state + render ----
-  // Each board (pull requests, issues) owns one state object — the raw
-  // items last fetched, the active per-column filters, and placeholders
-  // for grouping/pagination so those features have a state shape to slot
-  // into instead of bolting another special case onto row-hiding, which
-  // is what this replaces (see issue #36).
-  function matchesFilters(item, isPR, filters) {
-    // Forge-qualified and matched exactly, not by substring: the Repo
-    // <select>'s options are always a complete "forge:repo" token (never
-    // partial text a user typed), and the same repo name can exist under
-    // more than one forge — a substring match would resolve one option to
-    // both forges' copies at once, with no way to pick just one (#112).
-    var repoKey = `${item.forge}:${item.repo}`.toLowerCase();
-    if (filters.forge && item.forge !== filters.forge) return false;
-    if (filters.repo && repoKey !== filters.repo) return false;
-    if (filters.title && item.title.toLowerCase().indexOf(filters.title) === -1)
-      return false;
-    if (
-      filters.author &&
-      (item.author || '').toLowerCase().indexOf(filters.author) === -1
-    )
-      return false;
-    if (filters.created && minutesAgo(item.createdAt) > Number(filters.created))
-      return false;
-    if (filters.updated && minutesAgo(item.updatedAt) > Number(filters.updated))
-      return false;
-    if (filters.status && isPR && item.ci !== filters.status) return false;
-    if (
-      filters.label &&
-      !(item.labels || []).some((l) => l.name.toLowerCase() === filters.label)
-    )
-      return false;
-    // Renovate's one permanently-open, constantly-rewritten housekeeping
-    // issue per repo — never a pull request, so this only ever matches
-    // on the issues board. Exact title match: that's the fixed title
-    // Renovate itself always uses, not something a real issue is likely
-    // to collide with by accident.
-    if (
-      !isPR &&
-      filters.hideDependencyDashboard &&
-      item.title.trim() === DEPENDENCY_DASHBOARD_TITLE
-    )
-      return false;
-    return true;
+  // ---- shared filter state ----
+  // One object for forge/repo/label/author/title/created/updated/groupBy,
+  // applied to both boards at once, plus the two fields with no
+  // equivalent on the other entity type (status, hideDependencyDashboard)
+  // — see design.md's "one shared filter object, plus two board-owned
+  // extra fields" decision. allPRs/allIssues is the pool the shared
+  // bar's dynamic controls (repo/author/label/title) are populated from —
+  // both entity types combined, forge-scoped, not just one board's own
+  // items, since picking "author: alice" should narrow both boards.
+  var sharedState = Filters.loadState();
+  var allPRs = [];
+  var allIssues = [];
+  var sharedControlsRestored = false;
+
+  function forgeScopedItems() {
+    var items = allPRs.concat(allIssues);
+    if (!sharedState.shared.forge) return items;
+    return items.filter((item) => item.forge === sharedState.shared.forge);
   }
 
+  // "Group by forge" is a no-op once the Forge filter already narrows
+  // every visible row to one forge — grouping by it would produce
+  // exactly one cluster, telling the user nothing a flat list didn't
+  // already. Hidden in that case; resets to no grouping if it was the
+  // active mode when a forge got picked (#112).
+  function updateGroupByOptions() {
+    var groupSelect = document.getElementById('shared-group-select');
+    var forgeOption = groupSelect
+      ? groupSelect.querySelector('option[value="forge"]')
+      : null;
+    var forgeFilterActive;
+    if (!forgeOption) return;
+    forgeFilterActive = Boolean(sharedState.shared.forge);
+    forgeOption.hidden = forgeFilterActive;
+    if (forgeFilterActive && sharedState.shared.groupBy === 'forge') {
+      sharedState.shared.groupBy = '';
+      if (groupSelect) groupSelect.value = '';
+    }
+  }
+
+  // Repopulates the shared bar's dynamic controls (repo/author/label/
+  // title suggestions) from the combined, forge-scoped item pool. A
+  // filter left pointing at a value that no longer exists gets cleared
+  // here too — otherwise it keeps silently filtering out everything on a
+  // value nothing can match, with no visible cause (#112).
+  function updateSharedFilterOptions() {
+    var scoped = forgeScopedItems();
+    var staleRepo = Filters.populateRepoSelect(
+      document.getElementById('shared-repo-select'),
+      scoped,
+    );
+    var staleAuthor = Filters.populateSelect(
+      document.getElementById('shared-author-select'),
+      Filters.distinctValues((item) => item.author, scoped),
+      sharedState.shared.author,
+    );
+    Filters.populateDatalist(
+      document.getElementById('shared-title-options'),
+      Filters.distinctValues((item) => item.title, scoped),
+    );
+    var staleLabel = Filters.populateSelect(
+      document.getElementById('shared-label-select'),
+      Filters.distinctValues(
+        (item) => (item.labels || []).map((l) => l.name),
+        scoped,
+      ),
+      sharedState.shared.label,
+    );
+    updateGroupByOptions();
+    if (staleRepo) sharedState.shared.repo = '';
+    if (staleAuthor) sharedState.shared.author = '';
+    if (staleLabel) sharedState.shared.label = '';
+    if (staleRepo || staleAuthor || staleLabel) Filters.saveState(sharedState);
+  }
+
+  // Restores the shared bar's controls to match the filters just loaded
+  // from the cookie. Only meaningful once real items exist: repo/author/
+  // label are dynamic <select>s populated from what's on screen, and
+  // setting a <select>'s value to one it has no matching <option> for yet
+  // is silently dropped rather than queued. Runs once, right after the
+  // first combined item set — a later refresh must never repeat it, or it
+  // would stomp the title filter back to its lowercase canonical form
+  // over whatever case the user is mid-typing.
+  function syncSharedControlsToState() {
+    var bar = document.querySelector('.filter-bar');
+    if (!bar) return;
+    bar.querySelectorAll('.col-filter').forEach((c) => {
+      var value = sharedState.shared[c.dataset.col];
+      var option;
+      if (c.type === 'radio') {
+        c.checked = c.value === (value || '');
+        return;
+      }
+      if (!value) return;
+      if (c.tagName === 'SELECT') {
+        option = Array.from(c.options).find(
+          (o) => o.value.toLowerCase() === value,
+        );
+        if (option) c.value = option.value;
+      } else {
+        c.value = value;
+      }
+    });
+    var groupSelect = document.getElementById('shared-group-select');
+    if (groupSelect) groupSelect.value = sharedState.shared.groupBy || '';
+  }
+
+  function renderBoth() {
+    prBoard.render();
+    issueBoard.render();
+  }
+
+  // Toggles the one shared label filter and re-renders both boards — a
+  // chip click on either board's rows affects the other board too, the
+  // same as the Label <select> in the shared bar does.
+  function handleLabelClick(label) {
+    // The shared label filter is always lowercase (Filters.matchesFilters
+    // and labelChip's active check both expect that) — but a real
+    // <option>'s value keeps its real case, so select.value can't just be
+    // assigned next directly; the browser only accepts an exact
+    // (case-sensitive) option value, silently clearing the selection on
+    // any case mismatch otherwise.
+    var lower = label.toLowerCase();
+    var next = sharedState.shared.label === lower ? '' : lower;
+    sharedState.shared.label = next;
+    prBoard.resetPage();
+    issueBoard.resetPage();
+    Filters.saveState(sharedState);
+    var select = document.getElementById('shared-label-select');
+    var option;
+    if (select) {
+      option = Array.from(select.options).find(
+        (o) => o.value.toLowerCase() === next,
+      );
+      select.value = option ? option.value : '';
+    }
+    renderBoth();
+  }
+
+  // Clicking a CI pill or the "CI failing" stat tile jumps to the pull
+  // requests board filtered to that status — declared before prBoard is
+  // assigned below since it's only ever called later, after a user click,
+  // by which point prBoard exists (function declarations hoist, so this
+  // is safe to reference here). Status has no equivalent on the issues
+  // board, so this only ever re-renders the Pull Requests board.
+  function handleStatusClick(status) {
+    var next = prBoard.toggleStatus(status);
+    var select = document.querySelector(
+      'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
+    );
+    if (select) select.value = next;
+    var section = document.querySelector(
+      'section[aria-label="Open pull requests"]',
+    );
+    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---- board state + render ----
+  // Each board (pull requests, issues) owns its own items, pagination,
+  // and — for the one field with no equivalent on the other entity type —
+  // its own extraState (status for pull requests, hideDependencyDashboard
+  // for issues). Everything else it filters and groups by comes from the
+  // shared state above.
   function createBoard(
     containerId,
     emptyId,
@@ -327,23 +404,14 @@
     isPR,
     onStatusClick,
     idPrefix,
+    extraState,
   ) {
     var section = document.getElementById(containerId).closest('section.board');
-    // Only the issues board ever carries this key (matchesFilters gates
-    // it on !isPR too) — defaulted to hidden unless a saved preference
-    // already overrides it, so a first-time visitor doesn't have to
-    // discover the toggle just to get Renovate's Dependency Dashboard
-    // issue out of the way.
-    var defaultFilters =
-      idPrefix === 'issue' ? { hideDependencyDashboard: '1' } : {};
     var state = {
       items: [],
-      filters: Object.assign(defaultFilters, loadPersistedFilters(idPrefix)),
-      groupBy: null,
       page: 1,
       pageSize: 25,
     };
-    var filtersRestoredToControls = false;
 
     // Grouped by repo or by forge, alphabetically (forge by its display
     // label, not the raw "github"/"forgejo" value, since that's what a
@@ -384,278 +452,11 @@
               isPR,
               onStatusClick,
               handleLabelClick,
-              state.filters.label,
+              sharedState.shared.label,
             ),
           );
         });
       });
-    }
-
-    // Everything Repo/Author/Label/title-suggestions get built from —
-    // all items when no Forge filter is set, only that forge's items once
-    // one is. Picking a forge should narrow what the other controls
-    // offer, not just what rows show (#112).
-    function forgeScopedItems() {
-      if (!state.filters.forge) return state.items;
-      return state.items.filter((item) => item.forge === state.filters.forge);
-    }
-
-    // Distinct, sorted values of getValues(item) across items — what both
-    // a filter <select>'s options and a filter <input>'s <datalist>
-    // suggestions are populated from. getValues returns either one value
-    // (author, title) or an array of them (label — an item can carry
-    // several).
-    function distinctValues(getValues, items) {
-      var seen = {};
-      var values = [];
-      items.forEach((item) => {
-        var vs = getValues(item);
-        (Array.isArray(vs) ? vs : [vs]).forEach((v) => {
-          if (v && !seen[v]) {
-            seen[v] = true;
-            values.push(v);
-          }
-        });
-      });
-      values.sort();
-      return values;
-    }
-
-    // Author and label are a small, closed set of values actually on
-    // screen at any moment — the same reasoning created/updated/status
-    // are already plain <select>s for. The "all" placeholder is the
-    // select's own first <option>, written once in the HTML rather than
-    // rebuilt here; only the options after it get replaced. Can't just
-    // clear+repopulate blindly either way, or a selection survives only
-    // until the next item-set refresh (a poll, an SSE push, another
-    // filter narrowing what's visible) silently resets it back to "all."
-    //
-    // col names which state.filters key this select drives — when the
-    // previously selected value doesn't survive the rebuild (its option
-    // is gone), the underlying filter is cleared too, not just the
-    // visible control: otherwise it keeps silently filtering out
-    // everything on a value nothing can match, with no visible cause
-    // (#112, the same shape of bug #107 fixed for the Label select).
-    function populateSelect(select, values, col) {
-      if (!select) return;
-      var previous = select.value;
-      while (select.options.length > 1) select.remove(1);
-      values.forEach((v) => {
-        var option = document.createElement('option');
-        option.value = v;
-        option.textContent = v;
-        select.appendChild(option);
-      });
-      if (values.indexOf(previous) !== -1) {
-        select.value = previous;
-      } else if (previous) {
-        select.value = '';
-        if (state.filters[col]) {
-          state.filters[col] = '';
-          savePersistedFilters(idPrefix, state.filters);
-        }
-      }
-    }
-
-    // Repo is forge-qualified ("github:owner/name") rather than bare,
-    // since the same repo name can exist under more than one forge —
-    // picking one has to resolve to exactly that forge's copy, never
-    // both (matchesFilters matches this value exactly, not by
-    // substring). Grouped under a heading per forge (<optgroup>, the
-    // same display labels group-by-forge's own headings use) only when
-    // more than one forge is actually represented among the scoped
-    // items — a single forge (one forge configured, or the Forge filter
-    // already narrowed to one) has nothing left to disambiguate, so
-    // options stay flat. Clears the selection (control and filter) the
-    // same way populateSelect does when the previous choice doesn't
-    // survive the rebuild.
-    function populateRepoSelect(items) {
-      var select = document.getElementById(`${idPrefix}-repo-select`);
-      var byForge = {};
-      var forgeOrder = [];
-      var seen = {};
-      var previous;
-      var stillPresent = false;
-      var grouped;
-      var parent;
-      if (!select) return;
-      previous = select.value;
-
-      items.forEach((item) => {
-        var value = `${item.forge}:${item.repo}`;
-        if (!byForge[item.forge]) {
-          byForge[item.forge] = [];
-          forgeOrder.push(item.forge);
-        }
-        if (!seen[value]) {
-          seen[value] = true;
-          byForge[item.forge].push({ value: value, label: item.repo });
-        }
-      });
-      forgeOrder.sort();
-      forgeOrder.forEach((forge) => {
-        byForge[forge].sort((a, b) => a.label.localeCompare(b.label));
-      });
-
-      // Unlike populateSelect's flat options, a previous population here
-      // may have left <optgroup> wrappers behind — select.remove(), like
-      // the options collection it acts on, only ever removes <option>
-      // elements, never the (possibly now-empty) <optgroup> holding them.
-      // Drop every child but the first "All ..." option outright, so
-      // switching from grouped to ungrouped (or back) never accumulates
-      // stale, empty optgroups.
-      Array.from(select.children)
-        .slice(1)
-        .forEach((child) => {
-          child.remove();
-        });
-
-      grouped = forgeOrder.length > 1;
-      forgeOrder.forEach((forge) => {
-        parent = grouped ? document.createElement('optgroup') : select;
-        if (grouped) {
-          parent.label = FORGE_LABELS[forge] || forge;
-          select.appendChild(parent);
-        }
-        byForge[forge].forEach((entry) => {
-          var option = document.createElement('option');
-          option.value = entry.value;
-          option.textContent = entry.label;
-          parent.appendChild(option);
-          if (entry.value === previous) stillPresent = true;
-        });
-      });
-
-      if (stillPresent) {
-        select.value = previous;
-      } else if (previous) {
-        select.value = '';
-        if (state.filters.repo) {
-          state.filters.repo = '';
-          savePersistedFilters(idPrefix, state.filters);
-        }
-      }
-    }
-
-    // Title is the one column that's genuinely open-ended free text —
-    // the datalist only adds suggestions from what's on screen, it
-    // doesn't restrict what can still be typed and substring-matched.
-    function populateDatalist(datalist, values) {
-      if (!datalist) return;
-      datalist.innerHTML = '';
-      values.forEach((v) => {
-        var option = document.createElement('option');
-        option.value = v;
-        datalist.appendChild(option);
-      });
-    }
-
-    // "Group by forge" is a no-op once the Forge filter already narrows
-    // every visible row to one forge — grouping by it would produce
-    // exactly one cluster, telling the user nothing a flat list didn't
-    // already. Hidden in that case; resets to no grouping if it was the
-    // active mode when a forge got picked (#112).
-    function updateGroupByOptions() {
-      var forgeOption = groupSelect
-        ? groupSelect.querySelector('option[value="forge"]')
-        : null;
-      var forgeFilterActive;
-      if (!forgeOption) return;
-      forgeFilterActive = Boolean(state.filters.forge);
-      forgeOption.hidden = forgeFilterActive;
-      if (forgeFilterActive && state.groupBy === 'forge') {
-        state.groupBy = null;
-        groupSelect.value = '';
-      }
-    }
-
-    function updateFilterOptions() {
-      var scoped = forgeScopedItems();
-      populateRepoSelect(scoped);
-      populateSelect(
-        document.getElementById(`${idPrefix}-author-select`),
-        distinctValues((item) => item.author, scoped),
-        'author',
-      );
-      populateDatalist(
-        document.getElementById(`${idPrefix}-title-options`),
-        distinctValues((item) => item.title, scoped),
-      );
-      populateSelect(
-        document.getElementById(`${idPrefix}-label-select`),
-        distinctValues(
-          (item) => (item.labels || []).map((l) => l.name),
-          scoped,
-        ),
-        'label',
-      );
-      updateGroupByOptions();
-    }
-
-    // Sets col to value, unless it's already value — then clears it. Used
-    // by a click on something that represents one specific value (a CI
-    // pill, a label chip, the "CI failing" stat tile) rather than the
-    // free-choice dropdown, where a second click meaning "never mind" is
-    // the expected behavior. Returns the filter's new value so a caller
-    // can sync a visible control (the status <select>) to match.
-    function toggleFilter(col, value) {
-      var next = state.filters[col] === value ? '' : value;
-      state.filters[col] = next;
-      state.page = 1;
-      savePersistedFilters(idPrefix, state.filters);
-      render();
-      return next;
-    }
-
-    // Restores each visible .col-filter control to match the filters just
-    // loaded from the cookie. Only meaningful once real items exist:
-    // repo/author/label are dynamic <select>s populated from what's on
-    // screen, and setting a <select>'s value to one it has no matching
-    // <option> for yet is silently dropped rather than queued — the same
-    // trap handleLabelClick works around. Runs once, right after the
-    // first setItems — a later refresh must never repeat it, or it would
-    // stomp the title filter back to its lowercase canonical form (what
-    // state.filters holds) over whatever case the user is mid-typing.
-    function syncControlsToFilters() {
-      if (!section) return;
-      section.querySelectorAll('.col-filter').forEach((c) => {
-        var value = state.filters[c.dataset.col];
-        var option;
-        if (!value) return;
-        if (c.tagName === 'SELECT') {
-          option = Array.from(c.options).find(
-            (o) => o.value.toLowerCase() === value,
-          );
-          if (option) c.value = option.value;
-        } else {
-          c.value = value;
-        }
-      });
-    }
-
-    // Each board filters its own labels independently — a click here
-    // never touches the other board's state. Keeps the Label select's
-    // displayed value in sync, the same pattern handleStatusClick uses
-    // for the CI-status select — a chip is one way to set this filter,
-    // the select is the other, and either always reflects what's
-    // actually active regardless of which one drove the change.
-    function handleLabelClick(label) {
-      // state.filters.label is always lowercase (matchesFilters and
-      // labelChip's active check both expect that, matching the Label
-      // <select>'s own generic .col-filter wiring, which lowercases
-      // uniformly) — but a real <option>'s value keeps its real case,
-      // so select.value can't just be assigned next directly; the
-      // browser only accepts an exact (case-sensitive) option value,
-      // silently clearing the selection on any case mismatch otherwise.
-      var next = toggleFilter('label', label.toLowerCase());
-      var select = document.getElementById(`${idPrefix}-label-select`);
-      var option;
-      if (select) {
-        option = Array.from(select.options).find(
-          (o) => o.value.toLowerCase() === next,
-        );
-        select.value = option ? option.value : '';
-      }
     }
 
     function setPage(page) {
@@ -712,21 +513,22 @@
     function render() {
       var container = document.getElementById(containerId);
       var visible = state.items.filter((item) =>
-        matchesFilters(item, isPR, state.filters),
+        Filters.matchesFilters(item, isPR, sharedState.shared, extraState),
       );
 
       container.innerHTML = '';
 
+      var groupBy = sharedState.shared.groupBy;
       var groupedPagination;
       var totalPages;
       var start;
       var pageItems;
-      if (state.groupBy) {
+      if (groupBy) {
         // Grouping and pagination stay mutually exclusive — paginating
         // grouped clusters coherently is a bigger problem than either
         // feature's own acceptance criteria asked for, so grouped mode
         // just renders the whole filtered set and the pager hides.
-        renderGrouped(container, visible, state.groupBy);
+        renderGrouped(container, visible, groupBy);
         groupedPagination = document.getElementById(`${idPrefix}-pagination`);
         if (groupedPagination) groupedPagination.hidden = true;
       } else {
@@ -741,7 +543,7 @@
               isPR,
               onStatusClick,
               handleLabelClick,
-              state.filters.label,
+              sharedState.shared.label,
             ),
           );
         });
@@ -752,6 +554,14 @@
       var noResults = document.getElementById(noResultsId);
       if (noResults)
         noResults.hidden = visible.length !== 0 || state.items.length === 0;
+
+      var count = document.getElementById(`${idPrefix}-count`);
+      if (count) {
+        count.textContent =
+          visible.length === state.items.length
+            ? `${state.items.length} open`
+            : `${visible.length} of ${state.items.length} shown`;
+      }
     }
 
     var pageSizeSelect = document.getElementById(`${idPrefix}-page-size`);
@@ -763,30 +573,41 @@
       });
     }
 
-    var groupSelect = document.getElementById(`${idPrefix}-group-select`);
-    if (groupSelect) {
-      groupSelect.addEventListener('change', () => {
-        state.groupBy = groupSelect.value || null;
-        state.page = 1;
-        render();
-      });
+    // CI status has no equivalent on the issues board, so it's wired
+    // locally here rather than through the shared bar — a change only
+    // ever re-renders this one board.
+    var statusSelect;
+    if (isPR) {
+      statusSelect = section
+        ? section.querySelector('.col-filter[data-col="status"]')
+        : null;
+      if (statusSelect) {
+        statusSelect.value = extraState.status || '';
+        statusSelect.addEventListener('change', () => {
+          extraState.status = statusSelect.value.trim().toLowerCase();
+          state.page = 1;
+          Filters.saveState(sharedState);
+          render();
+        });
+      }
     }
 
     // Not a generic .col-filter: it's a checkbox (driven by .checked, not
     // .value) and its default is "on" rather than "no filter applied" —
-    // both break the generic wiring below, which every other control
-    // shares. Only the issues board's markup has this element at all.
+    // both break the generic wiring the shared bar's own controls share.
+    // Only the issues board's markup has this element at all, and it has
+    // no equivalent on the pull requests board.
     var hideDependencyDashboardCheckbox = document.getElementById(
       `${idPrefix}-hide-dependency-dashboard`,
     );
     if (hideDependencyDashboardCheckbox) {
       hideDependencyDashboardCheckbox.checked =
-        state.filters.hideDependencyDashboard === '1';
+        extraState.hideDependencyDashboard === '1';
       hideDependencyDashboardCheckbox.addEventListener('change', () => {
-        state.filters.hideDependencyDashboard =
+        extraState.hideDependencyDashboard =
           hideDependencyDashboardCheckbox.checked ? '1' : '';
         state.page = 1;
-        savePersistedFilters(idPrefix, state.filters);
+        Filters.saveState(sharedState);
         render();
       });
     }
@@ -795,42 +616,23 @@
       setItems: (items) => {
         state.items = items;
         state.page = 1;
-        updateFilterOptions();
-        if (!filtersRestoredToControls) {
-          filtersRestoredToControls = true;
-          syncControlsToFilters();
-        }
         render();
       },
-      setFilter: (col, value) => {
-        state.filters[col] = value;
+      render: render,
+      resetPage: () => {
         state.page = 1;
-        // Repo/Author/Label options (and "Group by forge") are scoped to
-        // the active forge, so a forge change has to re-narrow them right
-        // away rather than waiting for the next poll's setItems (#112).
-        if (col === 'forge') updateFilterOptions();
-        savePersistedFilters(idPrefix, state.filters);
-        render();
       },
-      toggleFilter: toggleFilter,
+      toggleStatus: isPR
+        ? (value) => {
+            var next = extraState.status === value ? '' : value;
+            extraState.status = next;
+            state.page = 1;
+            Filters.saveState(sharedState);
+            render();
+            return next;
+          }
+        : undefined,
     };
-  }
-
-  // Clicking a CI pill or the "CI failing" stat tile jumps to the pull
-  // requests board filtered to that status — declared before prBoard is
-  // assigned below since it's only ever called later, after a user click,
-  // by which point prBoard exists (function declarations hoist, so this
-  // is safe to reference here).
-  function handleStatusClick(status) {
-    var next = prBoard.toggleFilter('status', status);
-    var select = document.querySelector(
-      'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
-    );
-    if (select) select.value = next;
-    var section = document.querySelector(
-      'section[aria-label="Open pull requests"]',
-    );
-    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   var prBoard = createBoard(
@@ -840,6 +642,7 @@
     true,
     handleStatusClick,
     'pr',
+    sharedState.pr,
   );
   var issueBoard = createBoard(
     'issue-rows',
@@ -848,6 +651,7 @@
     false,
     undefined,
     'issue',
+    sharedState.issue,
   );
 
   var statFailingTile = document.getElementById('stat-failing-tile');
@@ -856,16 +660,36 @@
       handleStatusClick('failure');
     });
 
-  document.querySelectorAll('section.board').forEach((board) => {
-    var target = board.querySelector('#issue-rows') ? issueBoard : prBoard;
-    board.querySelectorAll('.col-filter').forEach((c) => {
-      var apply = () => {
-        target.setFilter(c.dataset.col, c.value.trim().toLowerCase());
-      };
-      c.addEventListener('input', apply);
-      c.addEventListener('change', apply);
-    });
+  // The shared bar's own controls (forge, group-by, repo, title, author,
+  // label, created, updated) apply to both boards at once — a single
+  // wiring loop, not one per board.
+  document.querySelectorAll('.filter-bar .col-filter').forEach((c) => {
+    var apply = () => {
+      var value = c.type === 'radio' ? c.value : c.value.trim().toLowerCase();
+      sharedState.shared[c.dataset.col] = value;
+      prBoard.resetPage();
+      issueBoard.resetPage();
+      // Repo/Author/Label options (and "Group by forge") are scoped to
+      // the active forge, so a forge change has to re-narrow them right
+      // away rather than waiting for the next poll's setItems (#112).
+      if (c.dataset.col === 'forge') updateSharedFilterOptions();
+      Filters.saveState(sharedState);
+      renderBoth();
+    };
+    c.addEventListener('input', apply);
+    c.addEventListener('change', apply);
   });
+
+  var sharedGroupSelect = document.getElementById('shared-group-select');
+  if (sharedGroupSelect) {
+    sharedGroupSelect.addEventListener('change', () => {
+      sharedState.shared.groupBy = sharedGroupSelect.value || '';
+      prBoard.resetPage();
+      issueBoard.resetPage();
+      Filters.saveState(sharedState);
+      renderBoth();
+    });
+  }
 
   // ---- forge health ----
   function rateLimitChip(rl) {
@@ -997,6 +821,13 @@
 
     var prs = data.pullRequests || [];
     var issues = data.issues || [];
+    allPRs = prs;
+    allIssues = issues;
+    updateSharedFilterOptions();
+    if (!sharedControlsRestored) {
+      sharedControlsRestored = true;
+      syncSharedControlsToState();
+    }
     prBoard.setItems(prs);
     issueBoard.setItems(issues);
 
@@ -1013,9 +844,6 @@
     document.getElementById('stat-repos').textContent = String(
       (data.forges || []).reduce((sum, f) => sum + (f.repoCount || 0), 0),
     );
-    document.getElementById('pr-count').textContent = `${prs.length} open`;
-    document.getElementById('issue-count').textContent =
-      `${issues.length} open`;
   }
 
   function refresh() {

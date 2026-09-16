@@ -412,7 +412,7 @@ test.describe('insights page', () => {
   });
 
   test.describe('filters', () => {
-    test('the pull request filter row scopes CI status, PR ranking, and PR age — issue charts stay unaffected', async ({
+    test('the shared repo filter scopes both the pull request and issue charts at once', async ({
       page,
     }) => {
       await mockDashboard(page, {
@@ -433,12 +433,20 @@ test.describe('insights page', () => {
       );
 
       await page.selectOption(
-        '[data-filter-scope="pr"] [data-col="repo"]',
+        '.filter-bar [data-col="repo"]',
         'github:alrayyes/one',
       );
 
+      // Repo is shared — narrowing it scopes both entity types together,
+      // not just the one whose chart happens to visualize it.
       await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(1);
       await expect(page.locator('#repo-pr-ranking .rank-row')).toContainText(
+        'alrayyes/one',
+      );
+      await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
+        1,
+      );
+      await expect(page.locator('#repo-issue-ranking .rank-row')).toContainText(
         'alrayyes/one',
       );
       await expect(
@@ -450,16 +458,16 @@ test.describe('insights page', () => {
 
       // Never refetched — a filter change re-renders from the snapshot
       // already in hand.
-      await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
-        2,
-      );
     });
 
-    test('the issue filter row scopes the Issues ranking and issue age — pull request charts stay unaffected', async ({
+    test('the shared author filter scopes both the pull request and issue charts at once', async ({
       page,
     }) => {
       await mockDashboard(page, {
-        pullRequests: [pr('success', { repo: 'alrayyes/one' })],
+        pullRequests: [
+          pr('success', { repo: 'alrayyes/one', author: 'alice' }),
+          pr('success', { repo: 'alrayyes/two', author: 'bob' }),
+        ],
         issues: [
           issue({ repo: 'alrayyes/one', number: 10, author: 'alice' }),
           issue({ repo: 'alrayyes/two', number: 11, author: 'bob' }),
@@ -470,11 +478,9 @@ test.describe('insights page', () => {
       await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
         2,
       );
+      await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(2);
 
-      await page.selectOption(
-        '[data-filter-scope="issue"] [data-col="author"]',
-        'alice',
-      );
+      await page.selectOption('.filter-bar [data-col="author"]', 'alice');
 
       await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
         1,
@@ -483,9 +489,12 @@ test.describe('insights page', () => {
         'alrayyes/one',
       );
       await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(1);
+      await expect(page.locator('#repo-pr-ranking .rank-row')).toContainText(
+        'alrayyes/one',
+      );
     });
 
-    test('repo, author, and label options are populated from the real data, per scope', async ({
+    test('repo, author, and label options are populated from the combined pull request and issue data', async ({
       page,
     }) => {
       await mockDashboard(page, {
@@ -503,17 +512,14 @@ test.describe('insights page', () => {
       await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(1);
 
       await expect(
-        page.locator('[data-filter-scope="pr"] [data-col="repo"] option'),
-      ).toHaveText(['All repos', 'alrayyes/one']);
+        page.locator('.filter-bar [data-col="repo"] option'),
+      ).toHaveText(['All repos', 'alrayyes/one', 'alrayyes/two']);
       await expect(
-        page.locator('[data-filter-scope="pr"] [data-col="author"] option'),
-      ).toHaveText(['All authors', 'alice']);
+        page.locator('.filter-bar [data-col="author"] option'),
+      ).toHaveText(['All authors', 'alice', 'bob']);
       await expect(
-        page.locator('[data-filter-scope="pr"] [data-col="label"] option'),
+        page.locator('.filter-bar [data-col="label"] option'),
       ).toHaveText(['All labels', 'bug']);
-      await expect(
-        page.locator('[data-filter-scope="issue"] [data-col="repo"] option'),
-      ).toHaveText(['All repos', 'alrayyes/two']);
     });
 
     test('a filter set on the main dashboard already applies here — the same cookie, not a separate preference', async ({
@@ -523,7 +529,7 @@ test.describe('insights page', () => {
       await context.addCookies([
         {
           name: 'forge-board-filters',
-          value: JSON.stringify({ pr: { repo: 'github:alrayyes/one' } }),
+          value: JSON.stringify({ shared: { repo: 'github:alrayyes/one' } }),
           domain: 'localhost',
           path: '/',
         },
@@ -541,30 +547,38 @@ test.describe('insights page', () => {
       await expect(page.locator('#repo-pr-ranking .rank-row')).toContainText(
         'alrayyes/one',
       );
-      await expect(
-        page.locator('[data-filter-scope="pr"] [data-col="repo"]'),
-      ).toHaveValue('github:alrayyes/one');
+      await expect(page.locator('.filter-bar [data-col="repo"]')).toHaveValue(
+        'github:alrayyes/one',
+      );
     });
 
     test('a status/created/updated filter left in the cookie by the main dashboard has no effect here', async ({
       page,
       context,
     }) => {
-      // The main dashboard's own PR board persists these — a real user
-      // could easily have filtered to "Failing" there before ever
-      // opening Insights. If this leaked through, the CI status chart
-      // (which visualizes exactly that dimension) would always render
-      // one bar and look broken.
+      // The main dashboard's own shared bar and PR board persist these —
+      // a real user could easily have filtered to "Failing", or to
+      // recently-created, there before ever opening Insights. If any of
+      // this leaked through, the CI status chart and the age histograms
+      // (which each already visualize one of these exact dimensions)
+      // would look broken instead of useful.
       await context.addCookies([
         {
           name: 'forge-board-filters',
-          value: JSON.stringify({ pr: { status: 'failure' } }),
+          value: JSON.stringify({
+            shared: { created: '1440', updated: '1440' },
+            pr: { status: 'failure' },
+          }),
           domain: 'localhost',
           path: '/',
         },
       ]);
       await mockDashboard(page, {
-        pullRequests: [pr('success'), pr('failure'), pr('pending')],
+        pullRequests: [
+          pr('success', { createdAt: hoursAgo(24 * 60) }),
+          pr('failure', { createdAt: hoursAgo(24 * 60) }),
+          pr('pending', { createdAt: hoursAgo(24 * 60) }),
+        ],
       });
 
       await page.goto('/insights.html');
@@ -578,6 +592,12 @@ test.describe('insights page', () => {
       await expect(
         page.locator('[data-ci-status="pending"] .ci-count'),
       ).toHaveText('1');
+      // 60 days old, well past every named bucket — if "updated: 1440"
+      // (< 24h) had leaked through as a created-at filter too, this would
+      // show 0 instead.
+      await expect(
+        page.locator('[data-age-bucket="30plus"] .age-count'),
+      ).toHaveText('3');
     });
 
     test('the Hide Dependency Dashboard checkbox defaults on, toggles both ways, and persists across a reload', async ({
@@ -595,9 +615,7 @@ test.describe('insights page', () => {
       });
 
       await page.goto('/insights.html');
-      const toggle = page.locator(
-        '[data-filter-scope="issue"] [data-col="hideDependencyDashboard"]',
-      );
+      const toggle = page.locator('#issue-hide-dependency-dashboard');
       await expect(toggle).toBeChecked();
       await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
         1,

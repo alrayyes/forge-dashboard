@@ -538,6 +538,83 @@ select.col-filter {
   outline-offset: 1px;
 }
 
+/* One shared bar above both boards, driving them from the same values —
+   see the .board-head-controls comment above for why forge used to live
+   there instead; it's page-level now, not per-board. */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 18px;
+  margin-bottom: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.filter-bar .col-filter,
+.filter-bar .group-select {
+  width: auto;
+  flex: 1 1 130px;
+  min-width: 120px;
+}
+
+/* A segmented control, not tabs — it reshapes what's already on screen
+   rather than navigating anywhere, and stays fully visible at rest so the
+   active forge is never hidden behind a closed dropdown the way the old
+   <select> could be. Real radio inputs, visually hidden rather than
+   removed, so keyboard navigation, focus and screen-reader semantics come
+   from the browser instead of a hand-rolled role="radiogroup". */
+.forge-segmented {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 2px;
+  margin: 0;
+  gap: 2px;
+  flex: none;
+}
+.forge-segmented label {
+  position: relative;
+  display: inline-flex;
+}
+/* Covers the whole label rather than shrinking to 1x1px — a near-zero
+   size is its own trap for hit-testing (confirmed live: the containing
+   <fieldset> ended up as the actual click target instead of the input)
+   and for some assistive tech, which can treat a vanishingly small
+   target as not interactable at all. .filter-bar .forge-segmented,
+   not just .forge-segmented: these inputs also carry .col-filter for
+   the shared wiring loop, and .filter-bar .col-filter's own min-width
+   (two classes) otherwise outranks a single-class-plus-type selector on
+   specificity, ballooning each input past its own label and over its
+   neighbors' — confirmed live as exactly that: each input measuring
+   120px wide regardless of its label's real size. */
+.filter-bar .forge-segmented input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  min-width: 0;
+  opacity: 0;
+}
+.forge-segmented span {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.forge-segmented input:checked + span {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.forge-segmented input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .repo {
   display: flex;
   align-items: center;

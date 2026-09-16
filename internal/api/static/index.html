@@ -62,58 +62,67 @@
     <div class="stat"><div class="n" id="stat-repos">&ndash;</div><div class="label">Repos tracked</div></div>
   </div>
 
+  <div class="filter-bar" role="search" aria-label="Filter pull requests and issues">
+    <fieldset class="forge-segmented">
+      <legend class="sr-only">Filter by forge</legend>
+      <label>
+        <input type="radio" name="forge" class="col-filter" data-col="forge" value="" checked>
+        <span>All</span>
+      </label>
+      <label>
+        <input type="radio" name="forge" class="col-filter" data-col="forge" value="github">
+        <span>GitHub</span>
+      </label>
+      <label>
+        <input type="radio" name="forge" class="col-filter" data-col="forge" value="forgejo">
+        <span>Forgejo</span>
+      </label>
+    </fieldset>
+    <select class="group-select" id="shared-group-select" aria-label="Group rows by">
+      <option value="">No grouping</option>
+      <option value="repo">Group by repo</option>
+      <option value="forge">Group by forge</option>
+    </select>
+    <select class="col-filter" data-col="repo" id="shared-repo-select" aria-label="Filter by repo">
+      <option value="">All repos</option>
+    </select>
+    <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title" list="shared-title-options" autocomplete="off">
+    <datalist id="shared-title-options"></datalist>
+    <select class="col-filter" data-col="author" id="shared-author-select" aria-label="Filter by author">
+      <option value="">All authors</option>
+    </select>
+    <select class="col-filter" data-col="label" id="shared-label-select" aria-label="Filter by label">
+      <option value="">All labels</option>
+    </select>
+    <select class="col-filter" data-col="created" aria-label="Filter by created">
+      <option value="">Created</option>
+      <option value="60">&lt; 1 hour</option>
+      <option value="1440">&lt; 24 hours</option>
+      <option value="10080">&lt; 7 days</option>
+      <option value="43200">&lt; 30 days</option>
+    </select>
+    <select class="col-filter" data-col="updated" aria-label="Filter by updated">
+      <option value="">Updated</option>
+      <option value="60">&lt; 1 hour</option>
+      <option value="1440">&lt; 24 hours</option>
+      <option value="10080">&lt; 7 days</option>
+      <option value="43200">&lt; 30 days</option>
+    </select>
+  </div>
+
   <section class="board" aria-label="Open pull requests">
     <div class="board-head">
       <h2>Pull requests</h2>
       <div class="board-head-controls">
-        <select class="group-select" id="pr-group-select" aria-label="Group rows by">
-          <option value="">No grouping</option>
-          <option value="repo">Group by repo</option>
-          <option value="forge">Group by forge</option>
-        </select>
-        <select class="col-filter" data-col="forge" aria-label="Filter by forge">
-          <option value="">All forges</option>
-          <option value="github">GitHub</option>
-          <option value="forgejo">Forgejo</option>
-        </select>
-        <select class="col-filter" data-col="label" id="pr-label-select" aria-label="Filter by label">
-          <option value="">All labels</option>
+        <select class="col-filter" data-col="status" aria-label="Filter by CI status">
+          <option value="">CI status</option>
+          <option value="success">Passing</option>
+          <option value="failure">Failing</option>
+          <option value="pending">Running</option>
+          <option value="none">No checks</option>
         </select>
         <span class="count" id="pr-count">&ndash;</span>
       </div>
-    </div>
-
-    <div class="row filter-row" role="search" aria-label="Filter pull requests by column">
-      <select class="col-filter" data-col="repo" id="pr-repo-select" aria-label="Filter by repo">
-        <option value="">All repos</option>
-      </select>
-      <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title" list="pr-title-options" autocomplete="off">
-      <datalist id="pr-title-options"></datalist>
-      <select class="col-filter" data-col="author" id="pr-author-select" aria-label="Filter by author">
-        <option value="">All authors</option>
-      </select>
-      <select class="col-filter" data-col="created" aria-label="Filter by created">
-        <option value="">Created</option>
-        <option value="60">&lt; 1 hour</option>
-        <option value="1440">&lt; 24 hours</option>
-        <option value="10080">&lt; 7 days</option>
-        <option value="43200">&lt; 30 days</option>
-      </select>
-      <select class="col-filter" data-col="updated" aria-label="Filter by updated">
-        <option value="">Updated</option>
-        <option value="60">&lt; 1 hour</option>
-        <option value="1440">&lt; 24 hours</option>
-        <option value="10080">&lt; 7 days</option>
-        <option value="43200">&lt; 30 days</option>
-      </select>
-      <select class="col-filter" data-col="status" aria-label="Filter by CI status">
-        <option value="">CI status</option>
-        <option value="success">Passing</option>
-        <option value="failure">Failing</option>
-        <option value="pending">Running</option>
-        <option value="none">No checks</option>
-      </select>
-      <div class="empty-cell"></div>
     </div>
 
     <div id="pr-rows"></div>
@@ -137,52 +146,12 @@
     <div class="board-head">
       <h2>Issues</h2>
       <div class="board-head-controls">
-        <select class="group-select" id="issue-group-select" aria-label="Group rows by">
-          <option value="">No grouping</option>
-          <option value="repo">Group by repo</option>
-          <option value="forge">Group by forge</option>
-        </select>
-        <select class="col-filter" data-col="forge" aria-label="Filter by forge">
-          <option value="">All forges</option>
-          <option value="github">GitHub</option>
-          <option value="forgejo">Forgejo</option>
-        </select>
-        <select class="col-filter" data-col="label" id="issue-label-select" aria-label="Filter by label">
-          <option value="">All labels</option>
-        </select>
         <label class="checkbox-filter">
           <input type="checkbox" id="issue-hide-dependency-dashboard" checked>
           Hide Dependency Dashboard
         </label>
         <span class="count" id="issue-count">&ndash;</span>
       </div>
-    </div>
-
-    <div class="row filter-row" role="search" aria-label="Filter issues by column">
-      <select class="col-filter" data-col="repo" id="issue-repo-select" aria-label="Filter by repo">
-        <option value="">All repos</option>
-      </select>
-      <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title" list="issue-title-options" autocomplete="off">
-      <datalist id="issue-title-options"></datalist>
-      <select class="col-filter" data-col="author" id="issue-author-select" aria-label="Filter by author">
-        <option value="">All authors</option>
-      </select>
-      <select class="col-filter" data-col="created" aria-label="Filter by created">
-        <option value="">Created</option>
-        <option value="60">&lt; 1 hour</option>
-        <option value="1440">&lt; 24 hours</option>
-        <option value="10080">&lt; 7 days</option>
-        <option value="43200">&lt; 30 days</option>
-      </select>
-      <select class="col-filter" data-col="updated" aria-label="Filter by updated">
-        <option value="">Updated</option>
-        <option value="60">&lt; 1 hour</option>
-        <option value="1440">&lt; 24 hours</option>
-        <option value="10080">&lt; 7 days</option>
-        <option value="43200">&lt; 30 days</option>
-      </select>
-      <div class="empty-cell"></div>
-      <div class="empty-cell"></div>
     </div>
 
     <div id="issue-rows"></div>
@@ -210,6 +179,7 @@
 </div>
 
 <script src="footer.js"></script>
+<script src="filters.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

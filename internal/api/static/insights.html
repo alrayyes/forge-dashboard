@@ -167,29 +167,9 @@
   .rate-limit-note { font-size: 12.5px; color: var(--ink-3); }
 
   /* ---- filters — one row above the content it scopes, same as the
-     dataviz house rule, split into the same two scopes (pull requests /
-     issues) the main dashboard's own two boards already use, rather
-     than one bar pretending they share every column. ---- */
-  .filter-scope { margin-bottom: 14px; }
-  .filter-scope:last-child { margin-bottom: 0; }
-  .filter-scope h3 {
-    font-size: 12px;
-    color: var(--ink-3);
-    margin: 0 0 8px;
-    font-weight: 500;
-  }
-  .filter-scope .filter-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    border-radius: var(--radius);
-  }
-  .filter-scope .col-filter {
-    width: auto;
-    flex: 1 1 140px;
-    min-width: 120px;
-  }
+     dataviz house rule. .filter-bar and .forge-segmented themselves come
+     from style.css, shared with the main dashboard's own filter bar. ---- */
+  .issue-only-filter { margin: 10px 0 0; }
 </style>
 </head>
 <body>
@@ -201,53 +181,41 @@
 
   <div class="card">
     <h2>Filters</h2>
-    <p class="hint">Scope every chart below — shared with the main dashboard's own filters, so a choice made either place carries over.</p>
+    <p class="hint">Scope every chart below — shared with the main dashboard's own filters, so a choice made either place carries over. Created, updated, CI status, and grouping aren't here: each of the first three already has its own chart below, and grouping has no equivalent for a chart.</p>
 
-    <div class="filter-scope" data-filter-scope="pr">
-      <h3 id="pr-filter-heading">Pull request charts</h3>
-      <div class="filter-row" role="search" aria-labelledby="pr-filter-heading">
-        <select class="col-filter" data-col="forge" aria-label="Filter pull request charts by forge">
-          <option value="">All forges</option>
-          <option value="github">GitHub</option>
-          <option value="forgejo">Forgejo</option>
-        </select>
-        <select class="col-filter" data-col="repo" aria-label="Filter pull request charts by repo">
-          <option value="">All repos</option>
-        </select>
-        <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter pull request charts by title" autocomplete="off">
-        <select class="col-filter" data-col="author" aria-label="Filter pull request charts by author">
-          <option value="">All authors</option>
-        </select>
-        <select class="col-filter" data-col="label" aria-label="Filter pull request charts by label">
-          <option value="">All labels</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="filter-scope" data-filter-scope="issue">
-      <h3 id="issue-filter-heading">Issue charts</h3>
-      <div class="filter-row" role="search" aria-labelledby="issue-filter-heading">
-        <select class="col-filter" data-col="forge" aria-label="Filter issue charts by forge">
-          <option value="">All forges</option>
-          <option value="github">GitHub</option>
-          <option value="forgejo">Forgejo</option>
-        </select>
-        <select class="col-filter" data-col="repo" aria-label="Filter issue charts by repo">
-          <option value="">All repos</option>
-        </select>
-        <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter issue charts by title" autocomplete="off">
-        <select class="col-filter" data-col="author" aria-label="Filter issue charts by author">
-          <option value="">All authors</option>
-        </select>
-        <select class="col-filter" data-col="label" aria-label="Filter issue charts by label">
-          <option value="">All labels</option>
-        </select>
-        <label class="checkbox-filter">
-          <input type="checkbox" data-col="hideDependencyDashboard" checked>
-          Hide Dependency Dashboard
+    <div class="filter-bar" role="search" aria-label="Filter Insights charts">
+      <fieldset class="forge-segmented">
+        <legend class="sr-only">Filter by forge</legend>
+        <label>
+          <input type="radio" name="forge" class="col-filter" data-col="forge" value="" checked>
+          <span>All</span>
         </label>
-      </div>
+        <label>
+          <input type="radio" name="forge" class="col-filter" data-col="forge" value="github">
+          <span>GitHub</span>
+        </label>
+        <label>
+          <input type="radio" name="forge" class="col-filter" data-col="forge" value="forgejo">
+          <span>Forgejo</span>
+        </label>
+      </fieldset>
+      <select class="col-filter" data-col="repo" id="shared-repo-select" aria-label="Filter by repo">
+        <option value="">All repos</option>
+      </select>
+      <input class="col-filter" data-col="title" type="text" placeholder="Title" aria-label="Filter by title" list="shared-title-options" autocomplete="off">
+      <datalist id="shared-title-options"></datalist>
+      <select class="col-filter" data-col="author" id="shared-author-select" aria-label="Filter by author">
+        <option value="">All authors</option>
+      </select>
+      <select class="col-filter" data-col="label" id="shared-label-select" aria-label="Filter by label">
+        <option value="">All labels</option>
+      </select>
     </div>
+
+    <label class="checkbox-filter issue-only-filter">
+      <input type="checkbox" id="issue-hide-dependency-dashboard" checked>
+      Hide Dependency Dashboard (issue charts only)
+    </label>
   </div>
 
   <div class="card">
@@ -333,6 +301,7 @@
 </div>
 
 <script src="footer.js"></script>
+<script src="filters.js"></script>
 <script src="insights.js"></script>
 </body>
 </html>

@@ -16,6 +16,14 @@ ignores:
   # `openspec init`'s generated skill/command docs. Also somebody else's
   # docs — OpenSpec's own house style, not this repo's.
   - ".claude/**"
+  # OpenSpec's own change/spec templates: proposal.md, design.md, tasks.md
+  # and a capability's spec.md all start at H2 by the CLI's own template
+  # (MD041 wants H1), and tasks.md's one-checkbox-per-line format runs long
+  # on purpose — wrapping it would break the checkbox-per-line parsing the
+  # apply workflow relies on. Same reasoning as .claude/** above: this is
+  # OpenSpec's house style, not this repo's.
+  - "openspec/changes/**"
+  - "openspec/specs/**"
 config:
   # markdownlint/style/prettier drops MD013 because Prettier reflows prose on
   # proseWrap "always"/"never" — this repo runs "preserve", so Prettier never

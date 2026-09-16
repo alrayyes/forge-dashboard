@@ -1,274 +1,28 @@
 (() => {
-  // Same labels app.js's own FORGE_LABELS uses.
-  var FORGE_LABELS = { github: 'GitHub', forgejo: 'Forgejo' };
-  var DEPENDENCY_DASHBOARD_TITLE = 'Dependency Dashboard';
+  var FORGE_LABELS = Filters.FORGE_LABELS;
 
-  // ---- cookies — same shape app.js's own persisted filters use, not a
-  // separate preference store. There's no module system to share code
-  // through (the same reason theme.js duplicates app.js's cookie
-  // helpers instead of importing them), but the *cookie itself* is
-  // shared: filtering to a repo here or on the main dashboard is one
-  // choice, not two independent ones. ----
-  var FILTERS_COOKIE = 'forge-board-filters';
+  // ---- shared filter state — the same cookie/object app.js reads and
+  // writes, not a separate preference store: filtering to a repo here or
+  // on the main dashboard is one choice, not two independent ones. Only
+  // sharedState.shared (forge/repo/label/author/title) and
+  // sharedState.issue.hideDependencyDashboard apply here — created,
+  // updated, and CI status are masked out below since each already has
+  // its own chart on this page, and group-by never applied to Insights at
+  // all (it's a row-layout choice with no equivalent for a chart). ----
+  var sharedState = Filters.loadState();
 
-  function getCookie(name) {
-    var match = document.cookie.match(
-      new RegExp(
-        `(?:^|; )${name.replace(/[-.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]*)`,
-      ),
-    );
-    return match ? decodeURIComponent(match[1]) : null;
+  // Never lets created/updated leak into a chart just because the main
+  // dashboard's own board has a value stored for them — see design.md's
+  // "Insights keeps masking fields it doesn't display" decision.
+  function chartFilters() {
+    return Object.assign({}, sharedState.shared, { created: '', updated: '' });
   }
 
-  function setCookie(name, value) {
-    var maxAgeSeconds = 365 * 24 * 60 * 60;
-    // biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API isn't in Safari yet, and this repo targets more than just Chromium (browser-compat.md).
-    document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
-  }
-
-  function loadAllPersistedFilters() {
-    var raw = getCookie(FILTERS_COOKIE);
-    var parsed;
-    if (!raw) return {};
-    try {
-      parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch (_e) {
-      return {};
-    }
-  }
-
-  function loadPersistedFilters(cookieKey) {
-    return loadAllPersistedFilters()[cookieKey] || {};
-  }
-
-  function savePersistedFilters(cookieKey, filters) {
-    var all = loadAllPersistedFilters();
-    all[cookieKey] = filters;
-    try {
-      setCookie(FILTERS_COOKIE, JSON.stringify(all));
-    } catch (_e) {
-      /* ignore */
-    }
-  }
-
-  // Same checks app.js's own matchesFilters runs. created/updated/status
-  // are never actually set from this page (see PR_FILTER_COLS/
-  // ISSUE_FILTER_COLS below), so those branches are dead weight here
-  // rather than a risk — kept for the one piece that does matter:
-  // hideDependencyDashboard, gated on !isPR the same way app.js gates it.
-  function matchesFilters(item, isPR, filters) {
-    var repoKey = `${item.forge}:${item.repo}`.toLowerCase();
-    if (filters.forge && item.forge !== filters.forge) return false;
-    if (filters.repo && repoKey !== filters.repo) return false;
-    if (filters.title && item.title.toLowerCase().indexOf(filters.title) === -1)
-      return false;
-    if (
-      filters.author &&
-      (item.author || '').toLowerCase().indexOf(filters.author) === -1
-    )
-      return false;
-    if (
-      filters.label &&
-      !(item.labels || []).some((l) => l.name.toLowerCase() === filters.label)
-    )
-      return false;
-    if (
-      !isPR &&
-      filters.hideDependencyDashboard &&
-      item.title.trim() === DEPENDENCY_DASHBOARD_TITLE
-    )
-      return false;
-    return true;
-  }
-
-  // getEntry(item) -> {value, label} | {value, label}[] | null. Options
-  // are deduped by value and sorted by label — the reverse of app.js's
-  // populateRepoSelect, which sorts by value inside per-forge optgroups;
-  // this page skips the optgroup split (same repo name on both forges is
-  // rare enough not to earn that complexity here) so a plain label sort
-  // is what actually reads right.
-  function distinctOptions(getEntry, items) {
-    var seen = {};
-    var options = [];
-    items.forEach((item) => {
-      var entries = getEntry(item);
-      (Array.isArray(entries) ? entries : [entries]).forEach((e) => {
-        if (e?.value && !seen[e.value]) {
-          seen[e.value] = true;
-          options.push(e);
-        }
-      });
-    });
-    options.sort((a, b) => a.label.localeCompare(b.label));
-    return options;
-  }
-
-  // Restores desiredValue (the filter's own tracked value, not
-  // select.value — this runs before the fetch that gives the select
-  // anything to match against, so select.value is never the source of
-  // truth here) if it's still among the new options; otherwise clears
-  // the select and reports back that the underlying filter needs
-  // clearing too, so a stale selection never keeps silently filtering
-  // out everything (the same trap app.js's own populateSelect avoids).
-  function populateSelect(select, options, desiredValue) {
-    if (!select) return false;
-    while (select.options.length > 1) select.remove(1);
-    var stillPresent = false;
-    options.forEach((opt) => {
-      var el = document.createElement('option');
-      el.value = opt.value;
-      el.textContent = opt.label;
-      if (opt.value === desiredValue) stillPresent = true;
-      select.appendChild(el);
-    });
-    if (stillPresent) {
-      select.value = desiredValue;
-      return false;
-    }
-    select.value = '';
-    return Boolean(desiredValue);
-  }
-
-  // One scope per entity type (pr/issue), each owning its own masked
-  // filter state and its own row of controls — mirrors the main
-  // dashboard's two independent boards rather than one universal filter
-  // bar, since pull requests and issues are different columns. Masked to
-  // allowedCols so a status/created/updated filter left over in the
-  // cookie from the main dashboard's own board never silently applies to
-  // a chart here built to show exactly that dimension (CI status,
-  // either age histogram).
-  function createFilterScope(
-    cookieKey,
-    allowedCols,
-    isPR,
-    containerSelector,
-    onChange,
-    defaultFilters,
-  ) {
-    var container = document.querySelector(containerSelector);
-    // Object.assign, not a truthy-only copy: an explicit "" (the user
-    // unchecked Hide Dependency Dashboard) has to win over the default
-    // just as much as a real value does — a truthy check would let the
-    // default silently reassert itself over that explicit "off".
-    var merged = Object.assign(
-      {},
-      defaultFilters,
-      loadPersistedFilters(cookieKey),
-    );
-    var filters = {};
-    var hideCheckbox;
-    allowedCols.forEach((col) => {
-      if (Object.hasOwn(merged, col)) filters[col] = merged[col];
-    });
-
-    // Always assigns, never deletes — matching app.js's own setFilter.
-    // hideDependencyDashboard needs "" to persist as a real, explicit
-    // override rather than vanish back to unset, or the default merge
-    // above would silently reassert itself on the next load: unset means
-    // "apply the default," "" means "the default was turned off," and
-    // deleting the key on clear would erase that distinction.
-    function setFilter(col, value) {
-      filters[col] = value;
-      var full = loadPersistedFilters(cookieKey);
-      full[col] = value;
-      savePersistedFilters(cookieKey, full);
-      onChange();
-    }
-
-    if (container) {
-      container.querySelectorAll('.col-filter').forEach((control) => {
-        var col = control.dataset.col;
-        if (allowedCols.indexOf(col) === -1) return;
-        // Selects get their value from the first updateOptions call
-        // (see populateSelect above) — only the plain text input has no
-        // dynamic options to wait for.
-        if (control.tagName !== 'SELECT' && filters[col]) {
-          control.value = filters[col];
-        }
-        var apply = () => setFilter(col, control.value.trim().toLowerCase());
-        control.addEventListener('input', apply);
-        control.addEventListener('change', apply);
-      });
-
-      hideCheckbox = container.querySelector(
-        '[data-col="hideDependencyDashboard"]',
-      );
-      if (hideCheckbox) {
-        hideCheckbox.checked = filters.hideDependencyDashboard !== '';
-        hideCheckbox.addEventListener('change', () => {
-          setFilter('hideDependencyDashboard', hideCheckbox.checked ? '1' : '');
-        });
-      }
-    }
-
-    return {
-      matches: (item) => matchesFilters(item, isPR, filters),
-      updateOptions: (items) => {
-        if (!container) return;
-        var repoSelect = container.querySelector('[data-col="repo"]');
-        if (
-          populateSelect(
-            repoSelect,
-            distinctOptions(
-              (i) => ({
-                value: `${i.forge}:${i.repo}`.toLowerCase(),
-                label: i.repo,
-              }),
-              items,
-            ),
-            filters.repo,
-          )
-        ) {
-          setFilter('repo', '');
-        }
-
-        var authorSelect = container.querySelector('[data-col="author"]');
-        if (
-          populateSelect(
-            authorSelect,
-            distinctOptions(
-              (i) =>
-                i.author
-                  ? { value: i.author.toLowerCase(), label: i.author }
-                  : null,
-              items,
-            ),
-            filters.author,
-          )
-        ) {
-          setFilter('author', '');
-        }
-
-        var labelSelect = container.querySelector('[data-col="label"]');
-        if (
-          populateSelect(
-            labelSelect,
-            distinctOptions(
-              (i) =>
-                (i.labels || []).map((l) => ({
-                  value: l.name.toLowerCase(),
-                  label: l.name,
-                })),
-              items,
-            ),
-            filters.label,
-          )
-        ) {
-          setFilter('label', '');
-        }
-      },
-    };
-  }
-
-  var PR_FILTER_COLS = ['forge', 'repo', 'title', 'author', 'label'];
-  var ISSUE_FILTER_COLS = [
-    'forge',
-    'repo',
-    'title',
-    'author',
-    'label',
-    'hideDependencyDashboard',
+  var CI_STATES = [
+    { key: 'success', label: 'Passing', className: 'ci-good' },
+    { key: 'failure', label: 'Failing', className: 'ci-critical' },
+    { key: 'pending', label: 'Running', className: 'ci-warning' },
+    { key: 'none', label: 'No checks', className: 'ci-neutral' },
   ];
 
   function renderCIStatus(pullRequests) {
@@ -276,16 +30,6 @@
     var empty = document.getElementById('ci-status-empty');
     var table = document.getElementById('ci-status-table');
     var tbody = table.querySelector('tbody');
-
-    // Same order and labels app.js's own CI_LABELS uses, so "Passing"
-    // here means the same thing it means on the dashboard's own
-    // CI-failing tile.
-    var CI_STATES = [
-      { key: 'success', label: 'Passing', className: 'ci-good' },
-      { key: 'failure', label: 'Failing', className: 'ci-critical' },
-      { key: 'pending', label: 'Running', className: 'ci-warning' },
-      { key: 'none', label: 'No checks', className: 'ci-neutral' },
-    ];
 
     if (pullRequests.length === 0) {
       chart.hidden = true;
@@ -507,10 +251,19 @@
   }
 
   var lastSnapshot = { pullRequests: [], issues: [], forges: [] };
+  var sharedControlsRestored = false;
 
+  // Every chart re-renders instantly from the already-fetched snapshot —
+  // no refetch on a filter change, so there's no "hold the previous
+  // render while reloading" case to handle.
   function renderAll() {
-    var prItems = lastSnapshot.pullRequests.filter(prScope.matches);
-    var issueItems = lastSnapshot.issues.filter(issueScope.matches);
+    var filters = chartFilters();
+    var prItems = lastSnapshot.pullRequests.filter((item) =>
+      Filters.matchesFilters(item, true, filters, undefined),
+    );
+    var issueItems = lastSnapshot.issues.filter((item) =>
+      Filters.matchesFilters(item, false, filters, sharedState.issue),
+    );
 
     renderCIStatus(prItems);
     renderRepoRanking(prItems, 'repo-pr');
@@ -520,24 +273,92 @@
     renderRateLimits(lastSnapshot.forges);
   }
 
-  // Every chart re-renders instantly from the already-fetched snapshot —
-  // no refetch on a filter change, so there's no "hold the previous
-  // render while reloading" case to handle.
-  var prScope = createFilterScope(
-    'pr',
-    PR_FILTER_COLS,
-    true,
-    '[data-filter-scope="pr"]',
-    renderAll,
+  function forgeScopedItems() {
+    var items = lastSnapshot.pullRequests.concat(lastSnapshot.issues);
+    if (!sharedState.shared.forge) return items;
+    return items.filter((item) => item.forge === sharedState.shared.forge);
+  }
+
+  function updateSharedFilterOptions() {
+    var scoped = forgeScopedItems();
+    var staleRepo = Filters.populateRepoSelect(
+      document.getElementById('shared-repo-select'),
+      scoped,
+    );
+    var staleAuthor = Filters.populateSelect(
+      document.getElementById('shared-author-select'),
+      Filters.distinctValues((item) => item.author, scoped),
+      sharedState.shared.author,
+    );
+    Filters.populateDatalist(
+      document.getElementById('shared-title-options'),
+      Filters.distinctValues((item) => item.title, scoped),
+    );
+    var staleLabel = Filters.populateSelect(
+      document.getElementById('shared-label-select'),
+      Filters.distinctValues(
+        (item) => (item.labels || []).map((l) => l.name),
+        scoped,
+      ),
+      sharedState.shared.label,
+    );
+    if (staleRepo) sharedState.shared.repo = '';
+    if (staleAuthor) sharedState.shared.author = '';
+    if (staleLabel) sharedState.shared.label = '';
+    if (staleRepo || staleAuthor || staleLabel) Filters.saveState(sharedState);
+  }
+
+  function syncSharedControlsToState() {
+    var bar = document.querySelector('.filter-bar');
+    if (!bar) return;
+    bar.querySelectorAll('.col-filter').forEach((c) => {
+      var value = sharedState.shared[c.dataset.col];
+      var option;
+      if (c.type === 'radio') {
+        c.checked = c.value === (value || '');
+        return;
+      }
+      if (!value) return;
+      if (c.tagName === 'SELECT') {
+        option = Array.from(c.options).find(
+          (o) => o.value.toLowerCase() === value,
+        );
+        if (option) c.value = option.value;
+      } else {
+        c.value = value;
+      }
+    });
+  }
+
+  document.querySelectorAll('.filter-bar .col-filter').forEach((c) => {
+    var apply = () => {
+      var value = c.type === 'radio' ? c.value : c.value.trim().toLowerCase();
+      sharedState.shared[c.dataset.col] = value;
+      if (c.dataset.col === 'forge') updateSharedFilterOptions();
+      Filters.saveState(sharedState);
+      renderAll();
+    };
+    c.addEventListener('input', apply);
+    c.addEventListener('change', apply);
+  });
+
+  // hideDependencyDashboard has no equivalent on the pull requests side,
+  // so it's wired locally here rather than through the shared bar's
+  // generic .col-filter loop above — the same reason app.js wires it
+  // locally on the issues board instead.
+  var hideDependencyDashboardCheckbox = document.getElementById(
+    'issue-hide-dependency-dashboard',
   );
-  var issueScope = createFilterScope(
-    'issue',
-    ISSUE_FILTER_COLS,
-    false,
-    '[data-filter-scope="issue"]',
-    renderAll,
-    { hideDependencyDashboard: '1' },
-  );
+  if (hideDependencyDashboardCheckbox) {
+    hideDependencyDashboardCheckbox.checked =
+      sharedState.issue.hideDependencyDashboard === '1';
+    hideDependencyDashboardCheckbox.addEventListener('change', () => {
+      sharedState.issue.hideDependencyDashboard =
+        hideDependencyDashboardCheckbox.checked ? '1' : '';
+      Filters.saveState(sharedState);
+      renderAll();
+    });
+  }
 
   fetch('/api/dashboard', { headers: { Accept: 'application/json' } })
     .then((res) => {
@@ -552,8 +373,11 @@
       lastSnapshot.pullRequests = data.pullRequests || [];
       lastSnapshot.issues = data.issues || [];
       lastSnapshot.forges = data.forges || [];
-      prScope.updateOptions(lastSnapshot.pullRequests);
-      issueScope.updateOptions(lastSnapshot.issues);
+      updateSharedFilterOptions();
+      if (!sharedControlsRestored) {
+        sharedControlsRestored = true;
+        syncSharedControlsToState();
+      }
       renderAll();
     })
     .catch(() => {
