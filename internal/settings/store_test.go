@@ -263,3 +263,49 @@ func TestStore_FindByWebhookToken_TwoUsers_EachResolvesToTheirOwn(t *testing.T) 
 	assert.Equal(t, []byte("user-b"), gotUserIDB)
 	assert.Equal(t, secretB, gotSecretB)
 }
+
+func TestStore_WebhookDeliveries_NeverRecorded_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	got, err := store.WebhookDeliveries(t.Context(), []byte("user-1"))
+
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestStore_RecordWebhookDelivery_ThenWebhookDeliveries_ReturnsIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.RecordWebhookDelivery(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.WebhookDeliveries(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Contains(t, got, settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard"))
+}
+
+func TestStore_RecordWebhookDelivery_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	require.NoError(t, store.RecordWebhookDelivery(t.Context(), []byte("user-a"), "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.WebhookDeliveries(t.Context(), []byte("user-b"))
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestStore_Delete_RemovesWebhookDeliveries(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.RecordWebhookDelivery(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	require.NoError(t, store.Delete(t.Context(), userID))
+
+	got, err := store.WebhookDeliveries(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
