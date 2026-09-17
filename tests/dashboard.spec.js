@@ -1488,12 +1488,17 @@ test.describe('dashboard page', () => {
     test('has no axe-core violations with both pills rendered', async ({
       page,
     }) => {
+      // Regression test for #305: mergeStatus: 'blocked' was never
+      // actually included here, so its pill's real WCAG AA contrast
+      // failure went uncaught until a different test happened to combine
+      // it with a scan.
       await mockDashboard(page, [
         pr({ number: 1, mergeStatus: 'conflicting' }),
         pr({ number: 2, autoMergeEnabled: true }),
+        pr({ number: 3, mergeStatus: 'blocked' }),
       ]);
       await page.reload();
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
