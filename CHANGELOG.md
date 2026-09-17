@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.63.0](https://github.com/alrayyes/forge-dashboard/compare/v0.62.0...v0.63.0) (2026-09-17)
+
+
+### Features
+
+* **web:** add an Update branch button to pull requests behind base ([#306](https://github.com/alrayyes/forge-dashboard/issues/306)) ([040f069](https://github.com/alrayyes/forge-dashboard/commit/040f0690abf761737693bce90598b5fd15507f24)), closes [#300](https://github.com/alrayyes/forge-dashboard/issues/300)
+
 ## [0.62.0](https://github.com/alrayyes/forge-dashboard/compare/v0.61.0...v0.62.0) (2026-09-17)
 
 
