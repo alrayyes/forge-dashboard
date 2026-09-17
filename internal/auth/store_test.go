@@ -264,6 +264,25 @@ func TestStore_RevokeUser_ClearsCredentialsAndSessions(t *testing.T) {
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
+// TestStore_RevokeUser_AlsoRevokesAPITokens is a regression test for the
+// same "signed out everywhere" gap DeleteUser already had to cover for
+// sessions — an API token is another way to authenticate as this user,
+// so revoking has to reach it too, not just the session-cookie path.
+func TestStore_RevokeUser_AlsoRevokesAPITokens(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	require.NoError(t, err)
+
+	require.NoError(t, store.RevokeUser(t.Context(), u.ID))
+
+	_, err = store.UserForAPIToken(t.Context(), rawToken)
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
 func TestStore_DeleteUser_RemovesTheAccountAndItsSessions(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
@@ -280,4 +299,155 @@ func TestStore_DeleteUser_RemovesTheAccountAndItsSessions(t *testing.T) {
 
 	_, err = store.UserForSession(t.Context(), token)
 	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+// TestStore_DeleteUser_AlsoRemovesAPITokens is the same regression
+// coverage TestStore_RevokeUser_AlsoRevokesAPITokens is, for the
+// account-deletion path instead of the revoke-in-place one.
+func TestStore_DeleteUser_AlsoRemovesAPITokens(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	require.NoError(t, err)
+
+	require.NoError(t, store.DeleteUser(t.Context(), u.ID))
+
+	_, err = store.UserForAPIToken(t.Context(), rawToken)
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_APIToken_CreateThenResolve_ReturnsTheOwner(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+
+	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	require.NoError(t, err)
+	require.NotEmpty(t, rawToken)
+	assert.Equal(t, "laptop", tok.Label)
+	assert.Nil(t, tok.LastUsedAt)
+
+	got, err := store.UserForAPIToken(t.Context(), rawToken)
+	require.NoError(t, err)
+	assert.Equal(t, u.Username, got.Username)
+}
+
+// TestStore_APIToken_RawValueNeverStored is the actual security property
+// this feature exists for: the raw token can't be recovered from
+// anything CreateAPIToken/ListAPITokens hand back except the one create
+// response, so a database dump doesn't hand out live credentials.
+func TestStore_APIToken_RawValueNeverStored(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	require.NoError(t, err)
+
+	tokens, err := store.ListAPITokens(t.Context(), u.ID)
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	assert.Equal(t, tok.ID, tokens[0].ID)
+	assert.NotEqual(t, rawToken, tokens[0].ID, "the id is not, and must never be, the raw token")
+}
+
+func TestStore_APIToken_UnknownToken_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.UserForAPIToken(t.Context(), "fdb_not-a-real-token")
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_APIToken_Use_RecordsLastUsedAt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	require.NoError(t, err)
+
+	_, err = store.UserForAPIToken(t.Context(), rawToken)
+	require.NoError(t, err)
+
+	tokens, err := store.ListAPITokens(t.Context(), u.ID)
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	require.NotNil(t, tokens[0].LastUsedAt)
+	assert.WithinDuration(t, time.Now().UTC(), *tokens[0].LastUsedAt, 5*time.Second)
+}
+
+func TestStore_APIToken_Delete_StopsItAuthenticating(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	require.NoError(t, err)
+
+	require.NoError(t, store.DeleteAPIToken(t.Context(), u.ID, tok.ID))
+
+	_, err = store.UserForAPIToken(t.Context(), rawToken)
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+// TestStore_APIToken_Delete_ScopedToOwner is the real security property
+// of the "scoped to userID" delete — one user's own valid token id must
+// be un-guessable-into by another, not just filtered from their own list.
+func TestStore_APIToken_Delete_ScopedToOwner(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	attacker, err := store.CreateUser(t.Context(), "mallory", "Mallory", false)
+	require.NoError(t, err)
+	rawToken, tok, err := store.CreateAPIToken(t.Context(), owner.ID, "laptop")
+	require.NoError(t, err)
+
+	require.NoError(t, store.DeleteAPIToken(t.Context(), attacker.ID, tok.ID))
+
+	got, err := store.UserForAPIToken(t.Context(), rawToken)
+	require.NoError(t, err, "the owner's token must survive another user's delete attempt")
+	assert.Equal(t, owner.Username, got.Username)
+}
+
+func TestStore_APIToken_Delete_UnknownID_IsIdempotent(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+
+	err = store.DeleteAPIToken(t.Context(), u.ID, "not-a-real-id")
+
+	assert.NoError(t, err)
+}
+
+func TestStore_APIToken_List_OrderedOldestFirst(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	_, first, err := store.CreateAPIToken(t.Context(), u.ID, "first")
+	require.NoError(t, err)
+	_, second, err := store.CreateAPIToken(t.Context(), u.ID, "second")
+	require.NoError(t, err)
+
+	tokens, err := store.ListAPITokens(t.Context(), u.ID)
+
+	require.NoError(t, err)
+	require.Len(t, tokens, 2)
+	assert.Equal(t, first.ID, tokens[0].ID)
+	assert.Equal(t, second.ID, tokens[1].ID)
 }

@@ -270,6 +270,139 @@ test.describe('settings page', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test.describe('API tokens', () => {
+    test('no tokens yet shows the empty state, not a blank list', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+
+      await expect(page.locator('#api-token-empty')).toBeVisible();
+      await expect(page.locator('#api-token-list li')).toHaveCount(0);
+    });
+
+    test('generating a token reveals it once, and lists it without the raw value', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+
+      await page.fill('#token-label', 'ci script');
+      await page.click('#token-form button[type="submit"]');
+
+      await expect(page.locator('#token-status')).toHaveText(
+        'Generated "ci script".',
+      );
+      const reveal = page.locator('#token-reveal-value');
+      await expect(page.locator('#token-reveal-field')).toBeVisible();
+      const rawToken = await reveal.inputValue();
+      expect(rawToken).toMatch(/^fdb_/);
+
+      const item = page.locator('#api-token-list li').first();
+      await expect(item).toContainText('ci script');
+      await expect(item).not.toContainText(rawToken);
+      await expect(page.locator('#api-token-empty')).toBeHidden();
+    });
+
+    test('reloading no longer shows the raw token, only its metadata', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+      await page.fill('#token-label', 'ci script');
+      await page.click('#token-form button[type="submit"]');
+      await expect(page.locator('#token-reveal-field')).toBeVisible();
+
+      await page.reload();
+
+      await expect(page.locator('#token-reveal-field')).toBeHidden();
+      await expect(page.locator('#api-token-list li').first()).toContainText(
+        'ci script',
+      );
+    });
+
+    test('a generated token actually authenticates a real API request as a Bearer credential', async ({
+      page,
+      request,
+    }) => {
+      await page.goto('/settings.html');
+      await page.fill('#token-label', 'ci script');
+      await page.click('#token-form button[type="submit"]');
+      await expect(page.locator('#token-reveal-field')).toBeVisible();
+      const rawToken = await page.locator('#token-reveal-value').inputValue();
+
+      const resp = await request.get('/api/tokens', {
+        headers: { Authorization: `Bearer ${rawToken}` },
+      });
+
+      expect(resp.status()).toBe(200);
+    });
+
+    test('revoking a token removes it from the list and stops it authenticating', async ({
+      page,
+      request,
+    }) => {
+      await page.goto('/settings.html');
+      await page.fill('#token-label', 'ci script');
+      await page.click('#token-form button[type="submit"]');
+      await expect(page.locator('#token-reveal-field')).toBeVisible();
+      const rawToken = await page.locator('#token-reveal-value').inputValue();
+      await expect(page.locator('#api-token-list li')).toHaveCount(1);
+
+      // Confirms the token actually worked before revoking it — otherwise
+      // the 401 assertion below would trivially pass even for a broken
+      // or empty token, proving nothing about revocation specifically.
+      const beforeRevoke = await request.get('/api/tokens', {
+        headers: { Authorization: `Bearer ${rawToken}` },
+      });
+      expect(beforeRevoke.status()).toBe(200);
+
+      await page.click('#api-token-list button.btn-remove');
+
+      await expect(page.locator('#token-status')).toHaveText('Revoked.');
+      await expect(page.locator('#api-token-list li')).toHaveCount(0);
+      await expect(page.locator('#api-token-empty')).toBeVisible();
+
+      const resp = await request.get('/api/tokens', {
+        headers: { Authorization: `Bearer ${rawToken}` },
+      });
+      expect(resp.status()).toBe(401);
+    });
+
+    test('copying the revealed token confirms it in the token status line', async ({
+      page,
+      context,
+    }) => {
+      await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+      await page.goto('/settings.html');
+      await page.fill('#token-label', 'ci script');
+      await page.click('#token-form button[type="submit"]');
+      await expect(page.locator('#token-reveal-field')).toBeVisible();
+
+      await page.click(
+        '.token-copy-button[data-copy-target="token-reveal-value"]',
+      );
+
+      await expect(page.locator('#token-status')).toHaveText('Copied.');
+      const clipboardText = await page.evaluate(() =>
+        navigator.clipboard.readText(),
+      );
+      const expected = await page.locator('#token-reveal-value').inputValue();
+      expect(clipboardText).toBe(expected);
+    });
+
+    test('has no axe-core violations with a token generated and listed', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+      await page.fill('#token-label', 'ci script');
+      await page.click('#token-form button[type="submit"]');
+      await expect(page.locator('#token-reveal-field')).toBeVisible();
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
+
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await page.goto('/settings.html');
 

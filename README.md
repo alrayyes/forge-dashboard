@@ -103,20 +103,39 @@ afterward — see `internal/auth` and `api/openapi.yaml`'s `auth` tag.
   passkey is cryptographically bound to the origin it was created for,
   not something this service can paper over after the fact.
 
+### API tokens
+
+A script can authenticate the same way a signed-in browser does, without
+a WebAuthn ceremony of its own to perform: generate a personal API token
+from Settings' "API tokens" card, then send it as a Bearer credential —
+
+```sh
+curl -H "Authorization: Bearer fdb_<the-generated-token>" \
+  http://localhost:8080/api/dashboard
+```
+
+against any endpoint the frontend itself calls, `RequireAuth` accepts
+either credential (session cookie or a live token) the same way. The raw
+value is shown exactly once, right after generating it — only its hash
+is stored, so losing it means generating a new one, same as any other
+bearer credential. Settings lists every live token (label, created date,
+last-used date) with a one-click **Revoke** that stops it authenticating
+immediately.
+
 ## Admin area
 
 Whoever registers first gets an Admin link in the dashboard header,
 leading to `/admin.html`: a list of every registered user, with two
 actions per row.
 
-- **Revoke** signs a user out everywhere and clears every passkey they've
-  registered, without touching their account or saved forge credentials
-  — they have to register a new passkey from scratch to get back in.
-  Useful for a lost device or a compromised passkey manager, short of
-  removing the person entirely.
-- **Remove** deletes the account outright — passkeys, sessions, and
-  saved forge credentials all go with it, and the username becomes
-  available for a fresh registration. Irreversible.
+- **Revoke** signs a user out everywhere — clears every passkey and every
+  API token they've generated — without touching their account or saved
+  forge credentials. They have to register a new passkey from scratch to
+  get back in. Useful for a lost device, a compromised passkey manager,
+  or a leaked API token, short of removing the person entirely.
+- **Remove** deletes the account outright — passkeys, sessions, API
+  tokens, and saved forge credentials all go with it, and the username
+  becomes available for a fresh registration. Irreversible.
 
 Neither action works on the admin's own account (the backend refuses it
 with a 400, and the frontend disables both buttons on that row) — there's
