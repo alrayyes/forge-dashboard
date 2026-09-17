@@ -76,3 +76,12 @@ ceremonies
 goroutines?
 plaintext
 else's
+SvelteKit
+Svelte
+prerenders?
+prerendered
+prerendering
+Vite('s)?
+dev
+README('s)?
+svelte-check

@@ -501,6 +501,7 @@ type graphqlIssue struct {
 
 type graphqlRepo struct {
 	Name             string `json:"name"`
+	URL              string `json:"url"`
 	IsArchived       bool   `json:"isArchived"`
 	IsFork           bool   `json:"isFork"`
 	ViewerPermission string `json:"viewerPermission"`
@@ -525,6 +526,15 @@ func hasWriteAccess(permission string) bool {
 	default:
 		return false
 	}
+}
+
+// canManageWebhooks mirrors GitHub's own requirement for its hooks
+// endpoints: admin on the repo, not merely write access — anything less
+// than ADMIN gets a 404 from GET .../hooks (see Client.HasWebhook's doc
+// comment), which without this check reads as a broken "Add a webhook"
+// button instead of a permission this app already knew about.
+func canManageWebhooks(permission string) bool {
+	return permission == "ADMIN"
 }
 
 type repoConnection struct {
@@ -568,6 +578,7 @@ query($cursor: String) {
       }
       nodes {
         name
+        url
         isArchived
         isFork
         viewerPermission
@@ -755,7 +766,13 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RateLimit: rateLimit, RepoCount: len(tracked)}}
 	for _, r := range tracked {
 		fullName := r.Owner.Login + "/" + r.Name
-		result.Repos = append(result.Repos, dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: fullName, HasWebhook: hasWebhook[fullName]})
+		result.Repos = append(result.Repos, dashboard.Repo{
+			Forge:             dashboard.ForgeGitHub,
+			FullName:          fullName,
+			URL:               r.URL,
+			HasWebhook:        hasWebhook[fullName],
+			CanManageWebhooks: canManageWebhooks(r.ViewerPermission),
+		})
 
 		for _, p := range r.PullRequests.Nodes {
 			result.PullRequests = append(result.PullRequests, mapPullRequest(fullName, p))
@@ -1004,7 +1021,9 @@ func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
 	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: len(repos)}}
 	for _, repo := range repos {
 		owner, name, fullName := repo.GetOwner().GetLogin(), repo.GetName(), repo.GetFullName()
-		result.Repos = append(result.Repos, dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: fullName})
+		// CanManageWebhooks stays false: an unauthenticated, username-only
+		// listing has no credential to manage anything with.
+		result.Repos = append(result.Repos, dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: fullName, URL: repo.GetHTMLURL()})
 		prs, err := c.listOpenPullRequestsREST(ctx, owner, name, fullName)
 		if err != nil {
 			slog.Warn("list pull requests failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)

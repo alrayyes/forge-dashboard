@@ -29,3 +29,17 @@ CHANGELOG.md
 # Vale's style packages, downloaded by `vale sync`.
 /styles/Google/
 /styles/proselint/
+
+# SvelteKit build tooling's own generated output — never hand-edited, and
+# rebuilt fresh (`bun run build:web`) before every `go build`, so nothing
+# here is worth committing. See web/vite.config.ts's own comment for why
+# the build lands in web/build rather than internal/api/static directly.
+/web/.svelte-kit/
+/web/build/
+
+# The merged output of a migrated Svelte page — scripts/sync-web-build.sh
+# writes these paths into internal/api/static, which //go:embed reads at
+# compile time; not committed, same as any other build output. A page not
+# yet migrated has no entry here and stays a tracked, hand-written file.
+/internal/api/static/webhooks.html
+/internal/api/static/_app/

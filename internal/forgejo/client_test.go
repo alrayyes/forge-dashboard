@@ -73,6 +73,37 @@ func TestListRepos_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	assert.Equal(t, "alrayyes/active", repos[0].FullName)
 }
 
+func TestListRepos_CanManageWebhooksRequiresAdminNotJustPush(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/push-only", "name": "push-only", "html_url": "https://forge.example/alrayyes/push-only", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true, "admin": false}},
+			{"full_name": "alrayyes/admin", "name": "admin", "html_url": "https://forge.example/alrayyes/admin", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true, "admin": true}},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	repos, err := client.ListRepos(t.Context())
+
+	require.NoError(t, err)
+	require.Len(t, repos, 2)
+	byName := make(map[string]dashboard.RepoRef, len(repos))
+	for _, r := range repos {
+		byName[r.FullName] = r
+	}
+	assert.False(t, byName["alrayyes/push-only"].CanManageWebhooks, "push access alone shouldn't grant webhook management")
+	assert.True(t, byName["alrayyes/admin"].CanManageWebhooks)
+	assert.Equal(t, "https://forge.example/alrayyes/admin", byName["alrayyes/admin"].URL)
+}
+
 func TestListRepos_ExcludesMirroredRepos(t *testing.T) {
 	t.Parallel()
 

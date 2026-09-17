@@ -33,7 +33,7 @@ pre-commit:
     # produced. The other order has markdownlint fixing something Prettier is
     # about to overwrite.
     - name: prettier
-      glob: "*.{md,yml,yaml}"
+      glob: "*.{md,yml,yaml,svelte}"
       run: bunx prettier --write {staged_files}
       stage_fixed: true
 
@@ -149,6 +149,12 @@ pre-push:
 
     - name: biome
       run: bun run lint:js
+
+    # Biome excludes .svelte entirely (biome.json) -- this is that file
+    # type's own check, same reasoning ci.yml's svelte-check job comment
+    # gives.
+    - name: svelte-check
+      run: bun run check:web
 
     # Proves the image still builds before anyone pushes, without publishing
     # anything.

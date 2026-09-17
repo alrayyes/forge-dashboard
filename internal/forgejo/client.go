@@ -305,7 +305,13 @@ func repoRef(r *gitea.Repository) dashboard.RepoRef {
 	if r.Owner != nil {
 		owner = r.Owner.UserName
 	}
-	return dashboard.RepoRef{FullName: r.FullName, Owner: owner, Name: r.Name}
+	return dashboard.RepoRef{
+		FullName:          r.FullName,
+		Owner:             owner,
+		Name:              r.Name,
+		URL:               r.HTMLURL,
+		CanManageWebhooks: r.Permissions != nil && r.Permissions.Admin,
+	}
 }
 
 func hasPushAccess(r *gitea.Repository) bool {

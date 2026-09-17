@@ -1532,7 +1532,7 @@ components:
 
     RepoStatus:
       type: object
-      required: [forge, fullName, hasWebhook]
+      required: [forge, fullName, url, hasWebhook, canManageWebhooks]
       description: |
         One tracked repository, whether or not it currently has anything
         open — repoCount alone can't name it, and it wouldn't otherwise
@@ -1543,6 +1543,11 @@ components:
         fullName:
           type: string
           examples: [alrayyes/forge-dashboard]
+        url:
+          type: string
+          format: uri
+          description: The repo's own page on its forge, for linking out.
+          examples: ["https://github.com/alrayyes/forge-dashboard"]
         hasWebhook:
           type: boolean
           description: |
@@ -1552,3 +1557,15 @@ components:
             on the forge — a correctly configured webhook that just
             hasn't fired yet still reads false here, the same as a
             misconfigured one would.
+        canManageWebhooks:
+          type: boolean
+          description: |
+            Whether the signed-in user's own permission on this repo is
+            enough to list/create its webhooks — GitHub requires admin
+            specifically (write/maintain can push but still 404 on the
+            hooks endpoint, by GitHub's own design); Forgejo's equivalent
+            is its own admin permission flag. Always false for a repo
+            reached through an unauthenticated, username-only listing.
+            A point-in-time snapshot: a permission change since the last
+            refresh can still make a following ensure-webhook call fail
+            despite this having said true.

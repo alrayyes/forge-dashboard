@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/*.html", "!**/*.svg"]
+    "includes": ["**", "!**/*.html", "!**/*.svg", "!**/*.svelte"]
   },
   "formatter": {
     "enabled": true,
