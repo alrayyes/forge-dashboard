@@ -67,9 +67,23 @@ function mockDashboardCustom(page, forges, prs) {
   );
 }
 
+// The dashboard page fetches /api/settings/bot-pr-updates once at load —
+// mocked here for every test, not just the bot-managed-PR ones below,
+// the same way /api/dashboard always is.
+function mockSettings(page, allowBotPrUpdates) {
+  return page.route('**/api/settings/bot-pr-updates', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ allowBotPrUpdates }),
+    }),
+  );
+}
+
 test.describe('pull request update-branch button', () => {
   test.beforeEach(async ({ page }) => {
     await registerAndSignIn(page);
+    await mockSettings(page, false);
   });
 
   test('a pull request reported as behind shows an Update branch button', async ({
@@ -336,6 +350,72 @@ test.describe('pull request update-branch button', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  test.describe('bot-managed PRs', () => {
+    test('a release-please PR (autorelease label) shows no Update branch button by default', async ({
+      page,
+    }) => {
+      await mockDashboard(
+        page,
+        makePR({ labels: [{ name: 'autorelease: pending', color: 'fbca04' }] }),
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'Update branch' }),
+      ).toHaveCount(0);
+    });
+
+    test('a Dependabot PR (app/dependabot author) shows no Update branch button by default', async ({
+      page,
+    }) => {
+      await mockDashboard(page, makePR({ author: 'app/dependabot' }));
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'Update branch' }),
+      ).toHaveCount(0);
+    });
+
+    test('a Renovate PR (renovate[bot] author) shows no Update branch button by default', async ({
+      page,
+    }) => {
+      await mockDashboard(page, makePR({ author: 'renovate[bot]' }));
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'Update branch' }),
+      ).toHaveCount(0);
+    });
+
+    test('a bot-managed PR shows Update branch once the setting is on', async ({
+      page,
+    }) => {
+      await mockSettings(page, true);
+      await mockDashboard(page, makePR({ author: 'app/dependabot' }));
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'Update branch' }),
+      ).toBeVisible();
+    });
+
+    test('a non-bot-managed PR still shows Update branch regardless of the setting', async ({
+      page,
+    }) => {
+      await mockDashboard(page, makePR());
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'Update branch' }),
+      ).toBeVisible();
+    });
   });
 
   test.describe('proactive locking, before any click', () => {

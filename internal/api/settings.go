@@ -44,6 +44,39 @@ func settingsResponseOf(c settings.Credentials) SettingsResponse {
 	}
 }
 
+// BotPrUpdatesResponse matches components.schemas.BotPrUpdatesResponse.
+// Deliberately not folded into SettingsResponse's own GET: the dashboard
+// page (app.js) needs only this one field on every load, and reusing
+// handleSettingsGet for that would carry its EnsureWebhookCredentials
+// side effect along too — silently provisioning webhook credentials (and
+// flipping GET /api/dashboard/stream from 404 to 200) for a user who
+// only ever visited the dashboard and never opened Settings at all. This
+// handler reads the saved row without ever creating one.
+type BotPrUpdatesResponse struct {
+	AllowBotPrUpdates bool `json:"allowBotPrUpdates"`
+}
+
+func handleBotPrUpdatesGet(store *settings.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+			return
+		}
+
+		creds, err := store.Get(r.Context(), u.ID)
+		if err != nil && !errors.Is(err, settings.ErrNotFound) {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+			return
+		}
+		// ErrNotFound leaves creds at its zero value — AllowBotPrUpdates
+		// false, the same default a user who has saved settings but never
+		// touched this toggle gets from settings.Store.Get itself.
+
+		writeJSON(w, http.StatusOK, BotPrUpdatesResponse{AllowBotPrUpdates: creds.AllowBotPrUpdates})
+	}
+}
+
 func handleSettingsGet(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := auth.UserFromContext(r.Context())

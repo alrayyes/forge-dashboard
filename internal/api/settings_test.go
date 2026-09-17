@@ -50,6 +50,47 @@ func TestSettingsGet_NothingSavedYet_ReturnsAllUnset(t *testing.T) {
 	assert.Empty(t, got.GitHubUsername)
 }
 
+func TestBotPrUpdatesGet_NothingSavedYet_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/bot-pr-updates", "", sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got api.BotPrUpdatesResponse
+	require.NoError(t, readJSON(resp, &got))
+	assert.False(t, got.AllowBotPrUpdates)
+}
+
+// Regression test for a real bug: handleSettingsGet's EnsureWebhookCredentials
+// side effect silently provisioning a settings row (and, with it, flipping
+// GET /api/dashboard/stream from 404 to 200) for a user who never opened
+// Settings at all — surfaced when the dashboard page started calling a
+// settings endpoint on every load. This endpoint exists specifically to
+// read without that side effect; this proves it doesn't happen here.
+func TestBotPrUpdatesGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/bot-pr-updates", "", sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	streamReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
+	require.NoError(t, err)
+	streamReq.AddCookie(sessionCookie)
+	streamResp, err := http.DefaultClient.Do(streamReq)
+	require.NoError(t, err)
+	defer func() { _ = streamResp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, streamResp.StatusCode)
+}
+
 func TestSettingsPut_ThenGet_RoundTripsNonSecretFieldsAndNeverReturnsTheToken(t *testing.T) {
 	t.Parallel()
 
