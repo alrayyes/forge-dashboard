@@ -168,11 +168,14 @@ token too.
 ### GitHub
 
 - **Token**: a personal access token with read access to the
-  repositories you want tracked.
-  - Classic token: the `repo` scope.
-  - Fine-grained token: **Contents**, **Issues**, **Pull requests**
-    (Read-only), plus **Metadata** (Read-only, mandatory on every
-    fine-grained token regardless).
+  repositories you want tracked, plus write access to their webhooks if
+  you ever plan to use the Webhooks page's "Add a webhook" button. The
+  exact scope, classic and fine-grained, lives in Settings' own field
+  hint next to the token field — one place, kept current with what the
+  app actually requests, rather than a second copy here that can drift
+  out of sync with it (and did: an earlier version of this section
+  named a `Contents` scope Settings' own hint has never actually
+  required).
 - **Username only** (token left blank): shows that account's public
   repositories, fully unauthenticated — the same data anyone gets
   landing on `github.com/<username>?tab=repositories`. Verified live
@@ -183,13 +186,13 @@ token too.
 
 ### Forgejo
 
-- **Token**: `Settings → Applications → Generate New Token`, with
-  **`read:repository`**, **`read:issue`**, and **`read:user`** all
-  checked. `read:user` is easy to miss — it isn't obviously related to
-  repos, but `GET /user/repos` (how repository discovery works) refuses
-  a token without it: confirmed live against a real instance, `403
-token does not have at least one of required scope(s): [read:user]`,
-  before `read:user` was added to the token.
+- **Token**: `Settings → Applications → Generate New Token`. Same
+  "see Settings' own field hint" pointer the GitHub token entry gives
+  — it lists every scope, including `read:user`, easy to miss since it isn't
+  obviously related to repos, but `GET /user/repos` (how repository
+  discovery works) refuses a token without it: confirmed live against a
+  real instance, `403 token does not have at least one of required
+scope(s): [read:user]`, before it was added to the token.
 - **Username only** (token left blank, instance URL still set): shows
   that account's public repositories on the configured instance,
   unauthenticated — same trade-off as GitHub's username mode. Verified
