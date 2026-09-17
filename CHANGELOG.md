@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.60.1](https://github.com/alrayyes/forge-dashboard/compare/v0.60.0...v0.60.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* **github:** apply the token to the REST client used for webhooks ([#280](https://github.com/alrayyes/forge-dashboard/issues/280)) ([f609f8d](https://github.com/alrayyes/forge-dashboard/commit/f609f8dd2d99635923291964082389dab06c1039))
+
 ## [0.60.0](https://github.com/alrayyes/forge-dashboard/compare/v0.59.1...v0.60.0) (2026-09-17)
 
 
