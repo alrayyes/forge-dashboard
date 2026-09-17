@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.60.3](https://github.com/alrayyes/forge-dashboard/compare/v0.60.2...v0.60.3) (2026-09-17)
+
+
+### Bug Fixes
+
+* **web:** remove the home page's duplicate rate-limit chip ([#294](https://github.com/alrayyes/forge-dashboard/issues/294)) ([8884bc7](https://github.com/alrayyes/forge-dashboard/commit/8884bc78c2a98053b52c4709c6b3fa1207e73004)), closes [#292](https://github.com/alrayyes/forge-dashboard/issues/292)
+
 ## [0.60.2](https://github.com/alrayyes/forge-dashboard/compare/v0.60.1...v0.60.2) (2026-09-17)
 
 
