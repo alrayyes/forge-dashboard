@@ -96,11 +96,11 @@ type RateLimit struct {
 	ResetsAt  time.Time `json:"resetsAt"`
 }
 
-// ForgeErrorKind classifies why a forge is unreachable into a small,
-// coarse set of actionable categories. Matches
-// components.schemas.ForgeErrorKind. Empty string is the zero value:
-// "nothing to classify," only ever meaningful alongside a non-empty
-// ForgeHealth.Error.
+// ForgeErrorKind classifies why a forge is unreachable, or why a write to
+// it was rejected, into a small, coarse set of actionable categories.
+// Matches components.schemas.ForgeErrorKind. Empty string is the zero
+// value: "nothing to classify," only ever meaningful alongside a
+// non-empty ForgeHealth.Error.
 type ForgeErrorKind string
 
 // A forge failure only needs to tell the user one of a handful of things
@@ -112,7 +112,12 @@ const (
 	ForgeErrorUnauthorized ForgeErrorKind = "unauthorized"
 	ForgeErrorNotFound     ForgeErrorKind = "not_found"
 	ForgeErrorRateLimited  ForgeErrorKind = "rate_limited"
-	ForgeErrorUnknown      ForgeErrorKind = "unknown"
+	// ForgeErrorConflict is only ever returned from a pull-request write —
+	// the forge reports the PR itself isn't currently mergeable, either a
+	// real conflict or a state that changed since the dashboard's last
+	// refresh.
+	ForgeErrorConflict ForgeErrorKind = "conflict"
+	ForgeErrorUnknown  ForgeErrorKind = "unknown"
 )
 
 // ForgeHealth matches components.schemas.ForgeHealth.

@@ -50,8 +50,8 @@
   // reactiveLockReason maps a failed /api/webhooks/ensure response to a
   // reason worth locking the button over, or null for anything retrying
   // might fix (a genuine outage, say) — the two status codes
-  // webhookEnsureErrorStatus (internal/api/webhook_ensure.go) hands back
-  // for a cause a click can't do anything about.
+  // clientErrorStatus (internal/api/webhook_ensure.go) hands back for a
+  // cause a click can't do anything about.
   function reactiveLockReason(status) {
     if (status === 403)
       return 'Missing permission — check your token in Settings.';

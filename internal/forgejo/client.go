@@ -220,9 +220,56 @@ func forgeErrorKind(statusCode int) dashboard.ForgeErrorKind {
 		return dashboard.ForgeErrorNotFound
 	case http.StatusTooManyRequests:
 		return dashboard.ForgeErrorRateLimited
+	// MethodNotAllowed is what Gitea/Forgejo's own merge endpoint returns
+	// for a PR that isn't currently mergeable; Conflict covers the same
+	// case on any endpoint that uses the more conventional status.
+	case http.StatusMethodNotAllowed, http.StatusConflict:
+		return dashboard.ForgeErrorConflict
 	default:
 		return dashboard.ForgeErrorUnknown
 	}
+}
+
+// MergePullRequest implements dashboard.PullRequestMerger: merges
+// owner/name#number using the repo's own configured default merge style.
+// Unlike GitHub, Forgejo's merge API has no "use the repo default"
+// sentinel — MergePullRequestOption.Style is a required field on the
+// wire — so this looks the repo's DefaultMergeStyle up first rather than
+// hardcoding one style for every repo regardless of its own settings.
+func (c *Client) MergePullRequest(ctx context.Context, owner, name string, number int) error {
+	c.setContext(ctx)
+
+	repoPath := fmt.Sprintf("/repos/%s/%s", owner, name)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", repoPath)
+	repo, resp, err := c.sdk.GetRepo(owner, name)
+	if err != nil {
+		return forgejoError(http.MethodGet, repoPath, resp, err)
+	}
+	style := repo.DefaultMergeStyle
+	if style == "" {
+		style = gitea.MergeStyleMerge
+	}
+
+	mergePath := fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, name, number)
+	slog.Debug("forgejo request", "method", http.MethodPost, "url", mergePath)
+	merged, resp, err := c.sdk.MergePullRequest(owner, name, int64(number), gitea.MergePullRequestOption{Style: style})
+	if err != nil {
+		return forgejoError(http.MethodPost, mergePath, resp, err)
+	}
+	// getStatusCode (what MergePullRequest is built on) reports a
+	// non-2xx status as merged == false with a nil error rather than an
+	// error — the body's own reason is already gone by the time this
+	// sees resp, since getStatusCode closes it. All that's left to
+	// classify by is the status code itself.
+	if !merged {
+		status := http.StatusBadGateway
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		wrapped := fmt.Errorf("forgejo: %s %s: merge rejected (status %d)", http.MethodPost, mergePath, status)
+		return &dashboard.ClientError{Kind: forgeErrorKind(status), Err: wrapped}
+	}
+	return nil
 }
 
 // ListRepos returns the repositories this Client is configured to track —

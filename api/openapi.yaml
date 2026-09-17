@@ -60,6 +60,10 @@ tags:
       signature (computed with that user's webhook secret) is what proves
       it actually came from their forge; `POST /api/webhooks/ensure` is a
       normal session-authenticated endpoint like the rest of this API.
+  - name: pull-requests
+    description: |
+      Actions against a pull request already listed on the dashboard,
+      taken on the signed-in user's own behalf.
 
 paths:
   /api/auth/register/begin:
@@ -286,8 +290,9 @@ paths:
         back to active with the right events instead of creating a
         duplicate.
 
-        The one endpoint in this API that writes to a forge rather than
-        just reading from it.
+        One of a small number of endpoints in this API that write to a
+        forge rather than just reading from it — see also the
+        pull-requests tag.
       tags: [webhooks]
       requestBody:
         required: true
@@ -321,6 +326,74 @@ paths:
                 $ref: "#/components/schemas/Error"
         "404":
           description: The forge reported the repo itself doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/pull-requests/merge:
+    post:
+      operationId: mergePullRequest
+      summary: Merge one pull request, on the signed-in user's behalf
+      description: |
+        Merges the named pull request using its repo's own configured
+        default merge method — GitHub is asked to pick its own repo
+        default; Forgejo's API has no such default built in, so this
+        looks up the repo's configured default merge style first and
+        passes that explicitly. Neither takes a method override here;
+        picking one is out of scope for this endpoint.
+      tags: [pull-requests]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestActionRequest"
+      responses:
+        "204":
+          description: Merged.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", no credentials are saved for that forge, or
+            that forge's client doesn't support merging pull requests at
+            all.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized — the saved token's scope doesn't cover merging, or it isn't allowed to merge on that repo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: The forge rejected the merge because the pull request isn't currently mergeable — a real conflict, or its state changed since the dashboard's last refresh.
           content:
             application/json:
               schema:
@@ -965,6 +1038,20 @@ components:
           type: string
           description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
 
+    PullRequestActionRequest:
+      type: object
+      required: [forge, fullName, number]
+      description: Which pull request to act on.
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+        number:
+          type: integer
+          description: Matching a PullRequest.number from GET /api/dashboard.
+
     Forge:
       type: string
       enum: [github, forgejo]
@@ -1006,13 +1093,16 @@ components:
 
     ForgeErrorKind:
       type: string
-      enum: [unreachable, unauthorized, not_found, rate_limited, unknown]
+      enum:
+        [unreachable, unauthorized, not_found, rate_limited, conflict, unknown]
       description: |
-        Why a forge is unreachable, as coarse as every forge this service
-        talks to can agree on. "unauthorized" covers both a bad token and a
-        forbidden request; "not_found" usually means a wrong instance URL.
-        "unknown" covers a signal this service doesn't recognize, rather
-        than a guessed-at specific cause.
+        Why a forge is unreachable, or why a write to it was rejected, as
+        coarse as every forge this service talks to can agree on.
+        "unauthorized" covers both a bad token and a forbidden request;
+        "not_found" usually means a wrong instance URL. "conflict" is only
+        ever returned from a pull-request write — the forge reports the PR
+        itself isn't currently mergeable. "unknown" covers a signal this
+        service doesn't recognize, rather than a guessed-at specific cause.
 
     ForgeHealth:
       type: object

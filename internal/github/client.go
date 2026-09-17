@@ -199,6 +199,18 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 	return nil
 }
 
+// MergePullRequest implements dashboard.PullRequestMerger: merges
+// owner/name#number, passing no PullRequestOptions so GitHub applies its
+// own default merge method rather than this app picking one.
+func (c *Client) MergePullRequest(ctx context.Context, owner, name string, number int) error {
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, name, number)
+	slog.Debug("github request", "method", http.MethodPut, "url", path)
+	if _, _, err := c.restClient.PullRequests.Merge(ctx, owner, name, number, "", nil); err != nil {
+		return asClientError(restError(http.MethodPut, path, err))
+	}
+	return nil
+}
+
 // Fetch implements dashboard.Source directly — GitHub drives its own
 // fetch strategy (GraphQL vs. the REST fallback) rather than going
 // through dashboard.GenericSource's one-call-per-repo model, which is
@@ -304,6 +316,11 @@ func forgeErrorKindFromStatus(statusCode int) dashboard.ForgeErrorKind {
 		return dashboard.ForgeErrorNotFound
 	case http.StatusTooManyRequests:
 		return dashboard.ForgeErrorRateLimited
+	// MethodNotAllowed is what GitHub's own merge endpoint returns for a
+	// PR that isn't currently mergeable; Conflict covers the sha-mismatch
+	// case the same endpoint also uses.
+	case http.StatusMethodNotAllowed, http.StatusConflict:
+		return dashboard.ForgeErrorConflict
 	default:
 		return dashboard.ForgeErrorUnknown
 	}

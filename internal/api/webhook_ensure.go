@@ -27,11 +27,12 @@ func splitFullName(fullName string) (owner, name string, ok bool) {
 	return parts[0], parts[1], true
 }
 
-// webhookEnsureErrorStatus maps a forge error's Kind to the HTTP status
-// a caller should see — the same coarse categories ForgeHealth.ErrorKind
-// already classifies forge failures into elsewhere, applied here to a
-// single write instead of a whole snapshot.
-func webhookEnsureErrorStatus(err error) int {
+// clientErrorStatus maps a forge error's Kind to the HTTP status a caller
+// should see — the same coarse categories ForgeHealth.ErrorKind already
+// classifies forge failures into elsewhere, applied here to a single
+// write instead of a whole snapshot. Shared by every endpoint that writes
+// to a forge (webhook ensure, pull-request actions), not just this one.
+func clientErrorStatus(err error) int {
 	var clientErr *dashboard.ClientError
 	if !errors.As(err, &clientErr) {
 		return http.StatusBadGateway
@@ -41,6 +42,8 @@ func webhookEnsureErrorStatus(err error) int {
 		return http.StatusForbidden
 	case dashboard.ForgeErrorNotFound:
 		return http.StatusNotFound
+	case dashboard.ForgeErrorConflict:
+		return http.StatusConflict
 	case dashboard.ForgeErrorRateLimited:
 		return http.StatusTooManyRequests
 	default:
@@ -107,7 +110,7 @@ func handleWebhookEnsure(deps Deps) http.HandlerFunc {
 		targetURL := deps.PublicOrigin + "/api/webhooks/" + req.Forge + "/" + token
 		if err := manager.EnsureWebhook(r.Context(), owner, name, targetURL, secret); err != nil {
 			slog.Warn("webhook ensure failed", "forge", req.Forge, "repo", req.FullName, "error", err)
-			writeJSON(w, webhookEnsureErrorStatus(err), errorBody(err.Error()))
+			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
 			return
 		}
 

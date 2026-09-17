@@ -984,6 +984,67 @@ select.col-filter {
   background: var(--good);
 }
 
+/* Same "above .title::after's stretched-link overlay" reasoning .ci-pill
+   already needs — a real button, not a badge, so it gets the same
+   cursor/focus-visible treatment too. */
+.row-action {
+  position: relative;
+  z-index: 1;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.row-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.row-action.confirm {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.row-action.confirm:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+.row-action.cancel {
+  background: var(--neutral-bg);
+  color: var(--ink-3);
+}
+.row-action-group {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  gap: 6px;
+}
+/* Same "real, visible, wired-up reason text over a title-only tooltip or a
+   native-disabled button" shape webhooks.html's own .webhook-locked uses —
+   see lockedMergeButton's own comment in app.js. */
+.row-action-locked {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 220px;
+}
+.row-action-locked .row-action {
+  cursor: default;
+  background: var(--neutral-bg);
+  color: var(--ink-3);
+}
+.row-action-reason {
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: normal;
+}
+
 .go {
   color: var(--ink-3);
   display: flex;

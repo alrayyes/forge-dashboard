@@ -1482,8 +1482,8 @@ func TestEnsureWebhook_ForgeErrorPropagates(t *testing.T) {
 // unexported apiError, which carries a Kind classification internally but
 // was never promoted to dashboard.ClientError at this method's own
 // boundary — unlike internal/forgejo's client, which always wraps at its
-// equivalent boundary (forgejoError). webhookEnsureErrorStatus (internal/
-// api/webhook_ensure.go) classifies purely via errors.As(err,
+// equivalent boundary (forgejoError). clientErrorStatus (internal/api/
+// webhook_ensure.go) classifies purely via errors.As(err,
 // &dashboard.ClientError{}), so a real GitHub rate-limit response here fell
 // through to the generic 502 default instead of 429 — indistinguishable
 // from a genuine outage. This reproduces the real shape GitHub sends for
@@ -1510,4 +1510,46 @@ func TestEnsureWebhook_RateLimited_ClassifiesAsDashboardClientError(t *testing.T
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorRateLimited, clientErr.Kind)
+}
+
+func TestMergePullRequest_CallsTheMergeEndpoint(t *testing.T) {
+	t.Parallel()
+
+	var mergedPath string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, r *http.Request) {
+		mergedPath = r.URL.Path
+		require.Equal(t, http.MethodPut, r.Method)
+		writeJSON(t, w, map[string]any{"merged": true, "message": "Pull Request successfully merged"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "/repos/alrayyes/a/pulls/5/merge", mergedPath)
+}
+
+func TestMergePullRequest_NotMergeable_ClassifiesAsForgeErrorConflict(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeJSON(t, w, map[string]any{"message": "Pull Request is not mergeable"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
 }
