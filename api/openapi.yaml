@@ -1164,6 +1164,8 @@ components:
           forgejoTokenSet,
           webhookToken,
           webhookSecret,
+          allowBotPrUpdates,
+          renovateRebaseLabel,
         ]
       properties:
         githubUsername:
@@ -1193,6 +1195,23 @@ components:
             verify the signature header on incoming webhook deliveries
             (`X-Hub-Signature-256` on GitHub, `X-Forgejo-Signature` on
             Forgejo). Never appears in the webhook URL itself.
+        allowBotPrUpdates:
+          type: boolean
+          description: |
+            Overrides the default restraint the Update branch/Dependabot/
+            Renovate action buttons apply to a pull request opened by
+            release-please, Dependabot, or Renovate — those tools already
+            keep their own PRs current on their own schedule. False (the
+            default) leaves bot-managed PRs alone; true treats them the
+            same as any other PR.
+        renovateRebaseLabel:
+          type: string
+          description: |
+            The label Renovate's own rebase/retry trigger listens for on
+            a repo (Renovate's own `rebaseLabel` config option — genuinely
+            per-repo configurable, so this is a user-set override rather
+            than a hardcoded constant). Empty means Renovate's own
+            documented default, `rebase`.
 
     SettingsRequest:
       type: object
@@ -1212,6 +1231,10 @@ components:
         forgejoToken:
           type: string
         forgejoUsername:
+          type: string
+        allowBotPrUpdates:
+          type: boolean
+        renovateRebaseLabel:
           type: string
 
     APIToken:

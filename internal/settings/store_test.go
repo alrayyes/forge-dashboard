@@ -50,6 +50,35 @@ func TestStore_SetThenGet_RoundTrips(t *testing.T) {
 	assert.False(t, got.UpdatedAt.IsZero())
 }
 
+func TestStore_SetThenGet_RoundTripsAllowBotPrUpdatesAndRenovateRebaseLabel(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	want := settings.Credentials{
+		AllowBotPrUpdates:   true,
+		RenovateRebaseLabel: "retry",
+	}
+	require.NoError(t, store.Set(t.Context(), userID, want))
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.True(t, got.AllowBotPrUpdates)
+	assert.Equal(t, "retry", got.RenovateRebaseLabel)
+}
+
+func TestCredentials_RenovateRebaseLabelOrDefault_EmptyFallsBackToRenovatesOwnDefault(t *testing.T) {
+	t.Parallel()
+	c := settings.Credentials{}
+	assert.Equal(t, "rebase", c.RenovateRebaseLabelOrDefault())
+}
+
+func TestCredentials_RenovateRebaseLabelOrDefault_UsesSavedValueWhenSet(t *testing.T) {
+	t.Parallel()
+	c := settings.Credentials{RenovateRebaseLabel: "needs-rebase"}
+	assert.Equal(t, "needs-rebase", c.RenovateRebaseLabelOrDefault())
+}
+
 func TestStore_Get_NeverSaved_ReturnsErrNotFound(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)

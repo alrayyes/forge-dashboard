@@ -78,6 +78,27 @@ func TestSettingsPut_ThenGet_RoundTripsNonSecretFieldsAndNeverReturnsTheToken(t 
 	assert.True(t, got.ForgejoTokenSet)
 }
 
+func TestSettingsPut_ThenGet_RoundTripsAllowBotPrUpdatesAndRenovateRebaseLabel(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+		`{"allowBotPrUpdates":true,"renovateRebaseLabel":"retry"}`,
+		sessionCookie)
+	defer func() { _ = putResp.Body.Close() }()
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	defer func() { _ = getResp.Body.Close() }()
+
+	var got api.SettingsResponse
+	require.NoError(t, readJSON(getResp, &got))
+	assert.True(t, got.AllowBotPrUpdates)
+	assert.Equal(t, "retry", got.RenovateRebaseLabel)
+}
+
 func TestSettingsGet_FirstVisit_GeneratesWebhookCredentials(t *testing.T) {
 	t.Parallel()
 

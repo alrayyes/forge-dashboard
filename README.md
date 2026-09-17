@@ -198,6 +198,25 @@ scope(s): [read:user]`, before it was added to the token.
   unauthenticated — same trade-off as GitHub's username mode. Verified
   against a real Forgejo instance's `GET /users/<username>/repos`.
 
+## Pull request actions
+
+Merge and Update branch appear on a pull request row when the forge
+reports it's actually possible — a merge conflict, a token missing the
+right permission, or the forge being unreachable all hide or lock the
+button instead of letting the click fail. Merge asks for confirmation
+first; Update branch doesn't, since a merge from the base branch is
+easy to reverse and a merge itself isn't.
+
+A pull request opened by release-please, Dependabot, or Renovate keeps
+itself current on its own schedule — for release-please specifically,
+a manual Update branch click can fight its own next run, since it
+regenerates the branch and changelog together on every push to the base
+branch. Update branch stays hidden on a PR any of them opened unless
+"Allow updating bot-managed PR branches" is turned on in Settings, which
+also reveals a field for the label Renovate's own rebase/retry trigger
+listens for on your repos (its own `rebaseLabel` config option, genuinely
+per-repo configurable — leave blank for Renovate's own default, `rebase`).
+
 ## Webhooks
 
 Optional. Without one, the dashboard still refreshes on its own schedule
