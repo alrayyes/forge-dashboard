@@ -1,3 +1,21 @@
+# The SvelteKit frontend (web/) builds to plain static files that
+# //go:embed reads at Go compile time — this has to run and land in
+# internal/api/static before the Go build stage below, not after.
+# scripts/sync-web-build.sh does the merge; see its own header comment
+# for why it's a merge and not a directory replace.
+FROM oven/bun:1.3.14-slim@sha256:d56a2534ffd262e92c12fd3249d3924d296d97086da773f821d7d0477435ea04 AS web-build
+
+WORKDIR /src
+
+COPY package.json bun.lock bunfig.toml ./
+COPY web/package.json web/
+RUN bun install --frozen-lockfile --ignore-scripts
+
+COPY web/ web/
+COPY scripts/sync-web-build.sh scripts/
+COPY internal/api/static/ internal/api/static/
+RUN bun run --filter web build && ./scripts/sync-web-build.sh
+
 # Multi-stage: compile in a full toolchain image, copy only the binary into
 # the runtime stage. Distroless because the build is static — there's no libc
 # to bring along, and nothing left in the image to exec into if it's ever
@@ -10,6 +28,11 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
+# Overwrite with the real build — the COPY above already has this
+# directory's hand-written pages, plus whatever stale merge output a
+# previous local build left there; web-build's output is the source of
+# truth for anything Svelte owns.
+COPY --from=web-build /src/internal/api/static/ internal/api/static/
 
 # Static, so the distroless base below is enough. -trimpath keeps build
 # machine paths out of the binary.

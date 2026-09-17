@@ -1,4 +1,8 @@
 {
   "proseWrap": "preserve",
-  "overrides": [{ "files": "*.md", "options": { "tabWidth": 2 } }]
+  "plugins": ["prettier-plugin-svelte"],
+  "overrides": [
+    { "files": "*.md", "options": { "tabWidth": 2 } },
+    { "files": "*.svelte", "options": { "parser": "svelte" } }
+  ]
 }

@@ -66,7 +66,14 @@
       "plaintext",
       "ENCRYPTION_KEY",
       "copy-pasteable",
-      "POSTs"
+      "POSTs",
+      "SvelteKit",
+      "Svelte",
+      "svelte-check",
+      "Vite",
+      "prerenders",
+      "prerendered",
+      "prerendering"
     ]
   },
   "ltex.disabledRules": {

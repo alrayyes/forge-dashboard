@@ -47,7 +47,12 @@ test.describe('webhooks page', () => {
     page,
   }) => {
     await mockDashboard(page, [
-      { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
+      {
+        forge: 'github',
+        fullName: 'alrayyes/b',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
       { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
     ]);
     await page.goto('/webhooks.html');
@@ -233,7 +238,12 @@ test.describe('webhooks page', () => {
     page,
   }) => {
     await mockDashboard(page, [
-      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: false },
+      {
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
     ]);
     let requestBody;
     await page.route('**/api/webhooks/ensure', (route) => {
@@ -257,7 +267,12 @@ test.describe('webhooks page', () => {
     page,
   }) => {
     await mockDashboard(page, [
-      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: false },
+      {
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
     ]);
     await page.route('**/api/webhooks/ensure', (route) =>
       route.fulfill({
@@ -288,7 +303,14 @@ test.describe('webhooks page', () => {
     const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
     await mockDashboard(
       page,
-      [{ forge: 'github', fullName: 'alrayyes/a', hasWebhook: false }],
+      [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: false,
+          canManageWebhooks: true,
+        },
+      ],
       [
         {
           forge: 'github',
@@ -320,7 +342,12 @@ test.describe('webhooks page', () => {
     page,
   }) => {
     await mockDashboard(page, [
-      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: false },
+      {
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
     ]);
     await page.route('**/api/webhooks/ensure', (route) =>
       route.fulfill({
@@ -338,8 +365,12 @@ test.describe('webhooks page', () => {
     const button = row.getByRole('button', { name: 'Add a webhook' });
     await button.click();
 
+    // The locked-button reason (asserted below via `row`) already says
+    // why in plain language — the status line doesn't also need the raw
+    // API string as its primary text. The +page.svelte's setStatus only
+    // attaches a details disclosure for failures the lock doesn't cover.
     await expect(page.locator('#webhooks-status')).toContainText(
-      'Resource not accessible',
+      "Couldn't add a webhook for alrayyes/a.",
     );
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/token|permission/i);
@@ -349,7 +380,12 @@ test.describe('webhooks page', () => {
     page,
   }) => {
     await mockDashboard(page, [
-      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: false },
+      {
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
     ]);
     await page.route('**/api/webhooks/ensure', (route) =>
       route.fulfill({
@@ -374,7 +410,14 @@ test.describe('webhooks page', () => {
     const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
     await mockDashboard(
       page,
-      [{ forge: 'github', fullName: 'alrayyes/a', hasWebhook: false }],
+      [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: false,
+          canManageWebhooks: true,
+        },
+      ],
       [
         {
           forge: 'github',
@@ -431,7 +474,12 @@ test.describe('webhooks page', () => {
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await mockDashboard(page, [
       { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
-      { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
+      {
+        forge: 'github',
+        fullName: 'alrayyes/b',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
     ]);
     await page.goto('/webhooks.html');
     await expect(page.locator('#webhooks-table')).toBeVisible();
@@ -448,7 +496,12 @@ test.describe('webhooks page', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboard(page, [
       { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
-      { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
+      {
+        forge: 'github',
+        fullName: 'alrayyes/b',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
     ]);
     await page.goto('/webhooks.html');
     await expect(page.locator('#webhooks-table')).toBeVisible();
@@ -465,6 +518,70 @@ test.describe('webhooks page', () => {
       () => document.documentElement.clientWidth,
     );
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  });
+
+  test('a repo the user lacks admin access to explains itself instead of showing a broken button', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'github',
+        fullName: 'SSVAPEX/apex-website',
+        hasWebhook: false,
+        canManageWebhooks: false,
+      },
+    ]);
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    await expect(
+      row.getByRole('button', { name: 'Add a webhook' }),
+    ).toHaveCount(0);
+    await expect(row).toContainText(/admin access/i);
+    await expect(
+      row.getByRole('link', { name: 'set it up manually' }),
+    ).toHaveAttribute('href', '/settings.html#webhooks');
+  });
+
+  test('a permission-denied repo has no axe-core violations', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'github',
+        fullName: 'SSVAPEX/apex-website',
+        hasWebhook: false,
+        canManageWebhooks: false,
+      },
+    ]);
+    await page.goto('/webhooks.html');
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('the repo name links out to the repo on its forge', async ({ page }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        url: 'https://github.com/alrayyes/forge-dashboard',
+        hasWebhook: true,
+      },
+    ]);
+    await page.goto('/webhooks.html');
+
+    const link = page.getByRole('link', {
+      name: 'alrayyes/forge-dashboard',
+    });
+    await expect(link).toHaveAttribute(
+      'href',
+      'https://github.com/alrayyes/forge-dashboard',
+    );
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   test('the persistent nav highlights Webhooks and still links to Settings', async ({

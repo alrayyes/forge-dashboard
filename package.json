@@ -1,8 +1,11 @@
 {
   "name": "forge-dashboard-tooling",
   "private": true,
-  "description": "The Go backend is the real application; this covers its static vanilla-JS/CSS frontend (linted and formatted by Biome) and the surrounding tooling -- commitlint's shared config, Prettier, markdownlint, Redocly, and the Playwright accessibility journey tests run against the built binary.",
+  "description": "The Go backend is the real application; this covers its frontend -- a SvelteKit app (see web/) being migrated to incrementally, alongside the vanilla-JS/CSS pages it hasn't replaced yet -- and the surrounding tooling: commitlint's shared config, Prettier, markdownlint, Redocly, and the Playwright accessibility journey tests run against the built binary.",
   "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "web"
+  ],
   "browserslist": [
     "last 2 Chrome versions",
     "last 2 Firefox versions",
@@ -19,6 +22,7 @@
     "lefthook": "2.1.12",
     "markdownlint-cli2": "0.23.2",
     "prettier": "3.9.6",
+    "prettier-plugin-svelte": "4.1.1",
     "wait-on": "9.1.0"
   },
   "trustedDependencies": [
@@ -26,13 +30,15 @@
   ],
   "scripts": {
     "prepare": "lefthook install",
-    "format:check": "prettier --check \"**/*.{md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{md,yml,yaml,svelte}\"",
     "lint:md": "markdownlint-cli2",
     "lint:js": "biome check",
     "lint:api": "redocly lint",
     "lint:prose": "./scripts/lint-prose.sh",
     "lint:mechanics": "./scripts/lint-mechanics.sh",
     "test:e2e": "playwright test",
-    "capture-screenshots": "node scripts/capture-screenshots.js"
+    "capture-screenshots": "node scripts/capture-screenshots.js",
+    "build:web": "bun run --filter web build && ./scripts/sync-web-build.sh",
+    "check:web": "bun run --filter web check"
   }
 }

@@ -20,6 +20,10 @@ type RepoRef struct {
 	FullName string
 	Owner    string
 	Name     string
+	// URL is the repo's own page on its forge — see Repo.URL.
+	URL string
+	// CanManageWebhooks — see Repo.CanManageWebhooks.
+	CanManageWebhooks bool
 }
 
 // ForgeClient is what a forge-specific client (internal/github,
@@ -115,7 +119,13 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 
 	result := Result{Health: ForgeHealth{Forge: s.forge, Reachable: true, RepoCount: len(repos)}}
 	for i, repo := range repos {
-		result.Repos = append(result.Repos, Repo{Forge: s.forge, FullName: repo.FullName, HasWebhook: results[i].hasWebhook})
+		result.Repos = append(result.Repos, Repo{
+			Forge:             s.forge,
+			FullName:          repo.FullName,
+			URL:               repo.URL,
+			HasWebhook:        results[i].hasWebhook,
+			CanManageWebhooks: repo.CanManageWebhooks,
+		})
 	}
 	if rl, ok := s.client.(RateLimiter); ok {
 		limit, err := rl.RateLimit(ctx)

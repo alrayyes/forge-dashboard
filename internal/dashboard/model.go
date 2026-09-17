@@ -169,6 +169,12 @@ func (e *ClientError) Unwrap() error {
 type Repo struct {
 	Forge    Forge  `json:"forge"`
 	FullName string `json:"fullName"`
+	// URL is the repo's own page on its forge, for linking out — GitHub's
+	// is always github.com/<fullName> (this app has no GitHub Enterprise
+	// support to point elsewhere); Forgejo's comes straight from the
+	// forge's own API response, since the instance URL isn't otherwise
+	// tracked per repo.
+	URL string `json:"url"`
 	// HasWebhook is a live signal from the Source itself — the forge's
 	// own webhook list, matched against this app's expected URL — not
 	// the settings.Store delivery table. False here doesn't mean "no
@@ -176,6 +182,18 @@ type Repo struct {
 	// delivery-based signal, since a Source with no webhook path
 	// configured, or whose live check failed, always reports false.
 	HasWebhook bool `json:"hasWebhook"`
+	// CanManageWebhooks reports whether the signed-in user's own
+	// permission on this repo is enough to list/create its webhooks —
+	// GitHub requires ADMIN specifically (WRITE/MAINTAIN can push but
+	// still 404 on GET .../hooks, indistinguishable from the repo not
+	// existing, by GitHub's own design); Forgejo's equivalent is
+	// Permissions.Admin. False for every repo reached through an
+	// unauthenticated, username-only listing, since there's no
+	// credential to manage anything with. This is a point-in-time
+	// snapshot from the same listing call HasWebhook comes from — a
+	// permission change since the last refresh can still make a
+	// following EnsureWebhook call fail despite this having said true.
+	CanManageWebhooks bool `json:"canManageWebhooks"`
 }
 
 // Snapshot matches components.schemas.Dashboard — the whole body
