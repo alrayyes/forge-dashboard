@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.64.0](https://github.com/alrayyes/forge-dashboard/compare/v0.63.2...v0.64.0) (2026-09-17)
+
+
+### Features
+
+* **auth:** add personal API tokens alongside passkey sessions ([#316](https://github.com/alrayyes/forge-dashboard/issues/316)) ([3968284](https://github.com/alrayyes/forge-dashboard/commit/396828429abe7d5feb90861b20e98d54b835d26b)), closes [#301](https://github.com/alrayyes/forge-dashboard/issues/301)
+
 ## [0.63.2](https://github.com/alrayyes/forge-dashboard/compare/v0.63.1...v0.63.2) (2026-09-17)
 
 
