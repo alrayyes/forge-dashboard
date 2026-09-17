@@ -30,7 +30,6 @@
   .data-table th { color: var(--ink-2); font-weight: 500; }
   .data-table td.status-confirmed { color: var(--good); }
   .data-table td.status-pending { color: var(--ink-3); }
-  .data-table td.action { white-space: nowrap; }
   .data-table td.action button {
     font-size: 12.5px;
     color: var(--accent);
@@ -40,10 +39,22 @@
     cursor: pointer;
     text-decoration: underline;
   }
-  .data-table td.action button:disabled {
+  .data-table td.action button:disabled,
+  .data-table td.action button[aria-disabled="true"] {
     color: var(--ink-3);
     cursor: default;
     text-decoration: none;
+  }
+  .webhook-locked {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 220px;
+  }
+  .webhook-locked-reason {
+    font-size: 11px;
+    color: var(--ink-3);
+    white-space: normal;
   }
   .sort-button {
     background: none;
