@@ -133,6 +133,42 @@ test.describe('pull request update-branch button', () => {
     });
   });
 
+  test('shows an in-progress status while updating, then a success status', async ({
+    page,
+  }) => {
+    const pr = makePR();
+    await mockDashboard(page, pr);
+    await page.route('**/api/pull-requests/update-branch', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return route.fulfill({ status: 204 });
+    });
+    await page.route('**/api/dashboard/refresh', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [{ ...pr, behind: false }],
+          issues: [],
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Update branch' }).click();
+
+    const status = page.locator('#status-banner');
+    await expect(status).toContainText(
+      'Updating the branch for alrayyes/forge-dashboard#42…',
+    );
+    await expect(status).toHaveAttribute('aria-live', 'polite');
+    await expect(status).toContainText(
+      'Updated the branch for alrayyes/forge-dashboard#42.',
+    );
+  });
+
   test('a 202 (scheduled as a background job) is treated as success, not a failure', async ({
     page,
   }) => {
@@ -179,6 +215,7 @@ test.describe('pull request update-branch button', () => {
     await button.click();
 
     await expect(page.locator('#error-banner')).toContainText('EOF');
+    await expect(page.locator('#status-banner')).toHaveCount(0);
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
