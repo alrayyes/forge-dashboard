@@ -5,7 +5,6 @@
 
 ### Features
 
-* **web:** hide Update branch on bot-managed PRs unless overridden ([a30ec36](https://github.com/alrayyes/forge-dashboard/commit/a30ec360b5014842a3b7e7408c936e9aab8b5163))
 * **web:** hide Update branch on bot-managed PRs unless overridden ([475a336](https://github.com/alrayyes/forge-dashboard/commit/475a3364007d3a796fb7cb989448f7eecaa748c8)), closes [#331](https://github.com/alrayyes/forge-dashboard/issues/331)
 
 ## [0.66.0](https://github.com/alrayyes/forge-dashboard/compare/v0.65.0...v0.66.0) (2026-09-17)
@@ -13,9 +12,7 @@
 
 ### Features
 
-* **settings:** add toggle for allowing bot-managed PR branch updates ([f9c68a1](https://github.com/alrayyes/forge-dashboard/commit/f9c68a100df8967395818ad678fdec71c614ea77))
 * **settings:** add toggle for allowing bot-managed PR branch updates ([d5003c0](https://github.com/alrayyes/forge-dashboard/commit/d5003c036506d7308326f3a8510392ec81e8f060)), closes [#330](https://github.com/alrayyes/forge-dashboard/issues/330)
-* **web:** explain permission-denied repos on Webhooks, migrate the page to SvelteKit ([e390f01](https://github.com/alrayyes/forge-dashboard/commit/e390f01524274074ac4c51d16a03e5b41b475083))
 * **web:** explain permission-denied repos on Webhooks, migrate the page to SvelteKit ([75763ba](https://github.com/alrayyes/forge-dashboard/commit/75763ba08679528d957c8516f35b77e03443d918)), closes [#325](https://github.com/alrayyes/forge-dashboard/issues/325)
 
 ## [0.65.0](https://github.com/alrayyes/forge-dashboard/compare/v0.64.0...v0.65.0) (2026-09-17)
