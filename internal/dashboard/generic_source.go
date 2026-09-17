@@ -157,6 +157,17 @@ func (s *GenericSource) MergePullRequest(ctx context.Context, owner, name string
 	return merger.MergePullRequest(ctx, owner, name, number)
 }
 
+// UpdateBranch implements BranchUpdater at the Source level by delegating
+// to the underlying client, the same "Source unwraps to its ForgeClient"
+// shape EnsureWebhook/MergePullRequest already use.
+func (s *GenericSource) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
+	updater, ok := s.client.(BranchUpdater)
+	if !ok {
+		return false, fmt.Errorf("dashboard: %s's client can't update pull request branches", s.forge)
+	}
+	return updater.UpdateBranch(ctx, owner, name, number)
+}
+
 // FetchRepo implements RepoRefresher: the same per-repo calls Fetch
 // already makes for every tracked repo, but for just the one a caller
 // (a webhook delivery) already knows the identity of — no ListRepos

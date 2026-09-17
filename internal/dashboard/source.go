@@ -80,6 +80,19 @@ type PullRequestMerger interface {
 	MergePullRequest(ctx context.Context, owner, name string, number int) error
 }
 
+// BranchUpdater is implemented by a ForgeClient (or, for github.Client, a
+// Source directly) that can bring one of its own pull requests' head
+// branch up to date with its base — checked via a type assertion, the
+// same optional-capability pattern PullRequestMerger uses. accepted is
+// true only for GitHub's async case (the update was scheduled as a
+// background job, not finished yet, per GitHub's own PullRequestsService
+// .UpdateBranch doc comment); every other outcome — Forgejo's own
+// synchronous update, or GitHub's synchronous 200/201 case — returns
+// false, since the update had already finished by the time this returns.
+type BranchUpdater interface {
+	UpdateBranch(ctx context.Context, owner, name string, number int) (accepted bool, err error)
+}
+
 // WebhookTargetsPath reports whether rawURL's path component is exactly
 // path — how a Source recognizes "this hook is the one forge-dashboard
 // itself would have created," regardless of the scheme or host a webhook

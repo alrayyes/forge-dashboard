@@ -211,6 +211,26 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	return nil
 }
 
+// UpdateBranch implements dashboard.BranchUpdater: merges owner/name#number's
+// base branch into its head branch. GitHub can schedule this as a
+// background job and answer 202 before it's actually done — go-github
+// surfaces that as a *github.AcceptedError rather than a real failure
+// (see its own doc comment), so that specific case is unwrapped into
+// accepted=true instead of being treated as an error.
+func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/update-branch", owner, name, number)
+	slog.Debug("github request", "method", http.MethodPut, "url", path)
+	_, _, err := c.restClient.PullRequests.UpdateBranch(ctx, owner, name, number, nil)
+	if err != nil {
+		var accepted *ghsdk.AcceptedError
+		if errors.As(err, &accepted) {
+			return true, nil
+		}
+		return false, asClientError(restError(http.MethodPut, path, err))
+	}
+	return false, nil
+}
+
 // Fetch implements dashboard.Source directly — GitHub drives its own
 // fetch strategy (GraphQL vs. the REST fallback) rather than going
 // through dashboard.GenericSource's one-call-per-repo model, which is
@@ -804,6 +824,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		UpdatedAt:        p.UpdatedAt,
 		CI:               ciFromRollup(p.Commits.Nodes),
 		MergeStatus:      mergeStatusFromGraphQL(p.MergeStateStatus),
+		Behind:           p.MergeStateStatus == "BEHIND",
 		AutoMergeEnabled: boolPtr(p.AutoMergeRequest != nil),
 	}
 }

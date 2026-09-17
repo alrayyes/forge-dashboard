@@ -272,6 +272,21 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	return nil
 }
 
+// UpdateBranch implements dashboard.BranchUpdater: merges owner/name#number's
+// base branch into its head branch, bringing it up to date. Forgejo's SDK
+// call is synchronous — accepted is always false here — unlike GitHub's
+// async equivalent.
+func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
+	c.setContext(ctx)
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/update", owner, name, number)
+	slog.Debug("forgejo request", "method", http.MethodPost, "url", path)
+	resp, err := c.sdk.UpdatePullRequest(owner, name, int64(number))
+	if err != nil {
+		return false, forgejoError(http.MethodPost, path, resp, err)
+	}
+	return false, nil
+}
+
 // ListRepos returns the repositories this Client is configured to track —
 // see NewClient for the two modes.
 func (c *Client) ListRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
@@ -381,6 +396,20 @@ func mergeStatusFromMergeable(mergeable bool) dashboard.MergeStatus {
 	return dashboard.MergeBlocked
 }
 
+// isBehind reports whether p's base branch has moved since p's own
+// merge-base was computed — Base.Sha is refetched live on every request
+// (confirmed against a real instance: it changed after pushing a new
+// commit to the base branch), while MergeBase stays fixed at the original
+// common ancestor, so the two diverging is exactly "behind." Deliberately
+// not read from p.Mergeable: that field didn't flip to false in the same
+// experiment, so it's not a reliable signal for this on its own.
+func isBehind(p *gitea.PullRequest) bool {
+	if p.Base == nil || p.Base.Sha == "" || p.MergeBase == "" {
+		return false
+	}
+	return p.Base.Sha != p.MergeBase
+}
+
 // ListOpenPullRequests returns every open pull request against repo, with
 // CI already resolved. repo is owner-qualified ("alrayyes/tempus-fugit").
 func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
@@ -424,6 +453,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 				UpdatedAt:   updated,
 				CI:          ci,
 				MergeStatus: mergeStatusFromMergeable(p.Mergeable),
+				Behind:      isBehind(p),
 				// No read capability for this in the SDK at all — only
 				// write-side schedule/cancel verbs
 				// (MergePullRequestOption.MergeWhenChecksSucceed,

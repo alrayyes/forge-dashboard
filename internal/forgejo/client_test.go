@@ -435,6 +435,66 @@ func TestListOpenPullRequests_MapsMergeableToMergeStatus(t *testing.T) {
 	}
 }
 
+// TestListOpenPullRequests_MapsBehindFromBaseShaVsMergeBase is a
+// regression test for a real finding: confirmed live against a Forgejo
+// instance, mergeable stays true after a new commit lands on the base
+// branch — Forgejo doesn't recompute it synchronously. Base.Sha (fetched
+// live on every request) diverging from MergeBase (fixed at the PR's
+// original common ancestor) is what actually reflects it, so Behind has
+// to be derived from those, and it has to work even when mergeable is
+// still (staleness-)reporting true.
+func TestListOpenPullRequests_MapsBehindFromBaseShaVsMergeBase(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		baseSha   string
+		mergeBase string
+		want      bool
+	}{
+		{"base unchanged since merge-base: not behind", "abc123", "abc123", false},
+		{"base has moved since merge-base: behind, even though mergeable", "def456", "abc123", true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Query().Get("page") != "1" {
+					writeJSON(t, w, []map[string]any{})
+					return
+				}
+				writeJSON(t, w, []map[string]any{
+					{
+						"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
+						"draft": false, "user": map[string]string{"login": "ryankes"},
+						"labels": []map[string]string{}, "mergeable": true,
+						"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+						"head":       map[string]string{"sha": "cafef00d"},
+						"base":       map[string]string{"sha": tc.baseSha},
+						"merge_base": tc.mergeBase,
+					},
+				})
+			})
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]string{"state": "success"})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := forgejo.NewClient(srv.URL, "test-token", "")
+			prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+			require.NoError(t, err)
+			require.Len(t, prs, 1)
+			assert.Equal(t, dashboard.MergeMergeable, prs[0].MergeStatus)
+			assert.Equal(t, tc.want, prs[0].Behind)
+		})
+	}
+}
+
 func TestHasWebhook_MatchesByURLPath(t *testing.T) {
 	t.Parallel()
 
@@ -708,4 +768,46 @@ func TestMergePullRequest_RepoLookupFails_PropagatesTheError(t *testing.T) {
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+}
+
+func TestUpdateBranch_CallsTheUpdateEndpoint(t *testing.T) {
+	t.Parallel()
+
+	var updatedPath string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5/update", func(w http.ResponseWriter, r *http.Request) {
+		updatedPath = r.URL.Path
+		require.Equal(t, http.MethodPost, r.Method)
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	accepted, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.False(t, accepted, "Forgejo's update is synchronous, never scheduled")
+	assert.Equal(t, "/api/v1/repos/alrayyes/a/pulls/5/update", updatedPath)
+}
+
+func TestUpdateBranch_CannotMergeCleanly_ClassifiesAsForgeErrorConflict(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5/update", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	_, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
 }

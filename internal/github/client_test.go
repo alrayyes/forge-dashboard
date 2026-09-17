@@ -1094,6 +1094,77 @@ func TestFetch_MapsMergeStatusFromMergeStateStatus(t *testing.T) {
 	}
 }
 
+// TestFetch_MapsBehindFromMergeStateStatus proves Behind is derived
+// straight from mergeStateStatus, independent of MergeStatus's own coarser
+// bucketing — BEHIND is true here despite also mapping to MergeBlocked
+// (see TestFetch_MapsMergeStatusFromMergeStateStatus), and every other
+// value in the MergeBlocked bucket (BLOCKED, UNSTABLE, HAS_HOOKS) is
+// false, since "something's blocking this" isn't the same claim as
+// "specifically because the base moved."
+func TestFetch_MapsBehindFromMergeStateStatus(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		mergeStateStatus string
+		want             bool
+	}{
+		{"CLEAN", false},
+		{"BEHIND", true},
+		{"BLOCKED", false},
+		{"UNSTABLE", false},
+		{"HAS_HOOKS", false},
+		{"DIRTY", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.mergeStateStatus, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]any{
+					"data": map[string]any{
+						"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+						"viewer": map[string]any{
+							"repositories": map[string]any{
+								"pageInfo": map[string]any{"hasNextPage": false},
+								"nodes": []map[string]any{
+									{
+										"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+										"owner": map[string]any{"login": "alrayyes"},
+										"pullRequests": map[string]any{
+											"nodes": []map[string]any{
+												{
+													"number": 12, "title": "Add NTP alarm", "url": "https://github.com/alrayyes/a/pull/12",
+													"isDraft": false, "author": map[string]any{"login": "ryankes"},
+													"mergeStateStatus": tc.mergeStateStatus,
+													"autoMergeRequest": nil,
+													"labels":           map[string]any{"nodes": []map[string]any{}},
+													"createdAt":        "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+													"commits": map[string]any{"nodes": []map[string]any{}},
+												},
+											},
+										},
+										"issues": map[string]any{"nodes": []map[string]any{}},
+									},
+								},
+							},
+						},
+					},
+				})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("test-token", "", srv.URL)
+			result := client.Fetch(t.Context())
+
+			require.Len(t, result.PullRequests, 1)
+			assert.Equal(t, tc.want, result.PullRequests[0].Behind)
+		})
+	}
+}
+
 func TestFetch_MapsAutoMergeFromAutoMergeRequest(t *testing.T) {
 	t.Parallel()
 
@@ -1547,6 +1618,67 @@ func TestMergePullRequest_NotMergeable_ClassifiesAsForgeErrorConflict(t *testing
 	client := github.NewClient("test-token", "", srv.URL)
 
 	err := client.MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+}
+
+func TestUpdateBranch_CallsTheUpdateEndpoint(t *testing.T) {
+	t.Parallel()
+
+	var updatedPath string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, r *http.Request) {
+		updatedPath = r.URL.Path
+		require.Equal(t, http.MethodPut, r.Method)
+		writeJSON(t, w, map[string]any{"message": "Updating pull request branch."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	accepted, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.False(t, accepted)
+	assert.Equal(t, "/repos/alrayyes/a/pulls/5/update-branch", updatedPath)
+}
+
+func TestUpdateBranch_ScheduledAsBackgroundJob_ReportsAcceptedNotAnError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	accepted, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.True(t, accepted)
+}
+
+func TestUpdateBranch_CannotMergeCleanly_ClassifiesAsForgeErrorConflict(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		writeJSON(t, w, map[string]any{"message": "Merge conflict"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	_, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
 
 	require.Error(t, err)
 	var clientErr *dashboard.ClientError

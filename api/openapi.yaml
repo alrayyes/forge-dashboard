@@ -411,6 +411,76 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/pull-requests/update-branch:
+    post:
+      operationId: updatePullRequestBranch
+      summary: Bring one pull request's branch up to date with its base, on the signed-in user's behalf
+      description: |
+        Merges the named pull request's base branch into its own head
+        branch. GitHub can schedule this as a background job rather than
+        finishing it inline — a 202 here means exactly that, not a
+        failure; a follow-up refresh a moment later reflects the result.
+        Forgejo's equivalent is always synchronous, so it only ever
+        answers 204.
+      tags: [pull-requests]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestActionRequest"
+      responses:
+        "204":
+          description: Updated.
+        "202":
+          description: The forge scheduled the update as a background job rather than finishing it inline. Not a failure — a follow-up refresh reflects the result once it lands.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", no credentials are saved for that forge, or
+            that forge's client doesn't support updating pull request
+            branches at all.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized — the saved token's scope doesn't cover updating the branch, or it isn't allowed to push on that repo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: The forge rejected the update because the branches can't be merged cleanly — a real conflict updating would need to resolve by hand.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/admin/users:
     get:
       operationId: listUsers
@@ -1163,6 +1233,7 @@ components:
           updatedAt,
           ci,
           mergeStatus,
+          behind,
         ]
       properties:
         forge:
@@ -1197,6 +1268,16 @@ components:
           $ref: "#/components/schemas/CIStatus"
         mergeStatus:
           $ref: "#/components/schemas/MergeStatus"
+        behind:
+          type: boolean
+          description: |
+            Whether this pull request's base branch has moved since its
+            merge-base was computed. Deliberately its own field rather
+            than a mergeStatus value: on Forgejo a pull request can be
+            both mergeable and behind at once (its mergeable flag doesn't
+            get recomputed just because the base moved), so folding this
+            into mergeStatus would force picking one and losing the
+            other.
         autoMergeEnabled:
           type: boolean
           description: |
