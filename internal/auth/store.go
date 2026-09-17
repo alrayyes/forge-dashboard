@@ -3,11 +3,14 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -57,6 +60,15 @@ func (s *Store) Init(ctx context.Context) error {
 		user_id TEXT NOT NULL REFERENCES users(id),
 		expires_at TIMESTAMP NOT NULL,
 		created_at TIMESTAMP NOT NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS api_tokens (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL REFERENCES users(id),
+		label TEXT NOT NULL,
+		token_hash TEXT NOT NULL UNIQUE,
+		created_at TIMESTAMP NOT NULL,
+		last_used_at TIMESTAMP
 	);
 	`
 	_, err := s.db.ExecContext(ctx, schema)
@@ -343,12 +355,17 @@ func (s *Store) DeleteSession(ctx context.Context, token string) error {
 // RevokeUser signs userID out everywhere and clears every registered
 // passkey, without deleting the account itself — they have to register a
 // new passkey from scratch to get back in, same as BeginRegistration
-// reclaiming an abandoned one.
+// reclaiming an abandoned one. Also revokes every API token: "signed out
+// everywhere" has to mean everywhere a request can authenticate as this
+// user, not just the session-cookie path.
 func (s *Store) RevokeUser(ctx context.Context, userID []byte) error {
 	if _, err := s.db.ExecContext(ctx, `UPDATE users SET credentials_json = '[]' WHERE id = ?`, encodeID(userID)); err != nil {
 		return err
 	}
-	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, encodeID(userID))
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, encodeID(userID)); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE user_id = ?`, encodeID(userID))
 	return err
 }
 
@@ -359,7 +376,123 @@ func (s *Store) DeleteUser(ctx context.Context, userID []byte) error {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, encodeID(userID)); err != nil {
 		return err
 	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE user_id = ?`, encodeID(userID)); err != nil {
+		return err
+	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, encodeID(userID))
+	return err
+}
+
+// apiTokenPrefix marks a generated token as forge-dashboard's own at a
+// glance, the same recognizability GitHub's ghp_/github_pat_ prefixes
+// give a secret scanner — nothing here ever parses it back out, since
+// UserForAPIToken looks a token up by the hash of the whole string.
+const apiTokenPrefix = "fdb_"
+
+// hashAPIToken is what's actually stored and compared, never the raw
+// token — unlike a session cookie (store.go's own CreateSession/
+// UserForSession, stored and compared raw), a personal API token is a
+// long-lived, copy-pasted, exportable secret, closer in risk to a
+// password than to an HttpOnly cookie that never leaves the browser.
+// SHA-256 alone (no per-token salt) is enough here specifically because
+// the input is already a uniformly random 256-bit secret, not a
+// human-chosen password an attacker could feasibly enumerate.
+func hashAPIToken(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+// CreateAPIToken generates a brand-new personal API token for userID,
+// labeled label. raw is the only time the actual credential is ever
+// returned — only its hash is stored, so losing it means generating a
+// new one, the same "show once" handling a real secret needs.
+func (s *Store) CreateAPIToken(ctx context.Context, userID []byte, label string) (raw string, tok *APIToken, err error) {
+	idBytes := make([]byte, 16)
+	if _, err := rand.Read(idBytes); err != nil {
+		return "", nil, fmt.Errorf("auth: generate api token id: %w", err)
+	}
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return "", nil, fmt.Errorf("auth: generate api token: %w", err)
+	}
+	raw = apiTokenPrefix + base64.RawURLEncoding.EncodeToString(secret)
+
+	tok = &APIToken{
+		ID:        encodeID(idBytes),
+		Label:     label,
+		CreatedAt: time.Now().UTC(),
+	}
+	_, err = s.db.ExecContext(ctx,
+		`INSERT INTO api_tokens (id, user_id, label, token_hash, created_at) VALUES (?, ?, ?, ?, ?)`,
+		tok.ID, encodeID(userID), label, hashAPIToken(raw), tok.CreatedAt,
+	)
+	if err != nil {
+		return "", nil, err
+	}
+	return raw, tok, nil
+}
+
+// ListAPITokens returns userID's own live tokens, oldest first.
+func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, label, created_at, last_used_at FROM api_tokens WHERE user_id = ? ORDER BY created_at, id`,
+		encodeID(userID),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var tokens []*APIToken
+	for rows.Next() {
+		var (
+			tok        APIToken
+			lastUsedAt sql.NullTime
+		)
+		if err := rows.Scan(&tok.ID, &tok.Label, &tok.CreatedAt, &lastUsedAt); err != nil {
+			return nil, err
+		}
+		if lastUsedAt.Valid {
+			t := lastUsedAt.Time
+			tok.LastUsedAt = &t
+		}
+		tokens = append(tokens, &tok)
+	}
+	return tokens, rows.Err()
+}
+
+// UserForAPIToken returns the user raw belongs to, or ErrNotFound — the
+// Bearer-token equivalent of UserForSession. Also records this as the
+// token's most recent use, best-effort: a failure to persist that
+// doesn't fail a request the token has already authenticated.
+func (s *Store) UserForAPIToken(ctx context.Context, raw string) (*User, error) {
+	hash := hashAPIToken(raw)
+	var userIDStr string
+	err := s.db.QueryRowContext(ctx, `SELECT user_id FROM api_tokens WHERE token_hash = ?`, hash).Scan(&userIDStr)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := s.db.ExecContext(ctx, `UPDATE api_tokens SET last_used_at = ? WHERE token_hash = ?`, time.Now().UTC(), hash); err != nil {
+		slog.Warn("could not record api token use", "error", err)
+	}
+
+	id, err := decodeID(userIDStr)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetUserByID(ctx, id)
+}
+
+// DeleteAPIToken revokes id, scoped to userID so one user can never
+// revoke another's token by guessing an id — idempotent, same as
+// DeleteUser's own sessions cleanup: deleting one that's already gone,
+// or never belonged to userID, is not an error.
+func (s *Store) DeleteAPIToken(ctx context.Context, userID []byte, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE id = ? AND user_id = ?`, id, encodeID(userID))
 	return err
 }
 

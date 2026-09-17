@@ -310,4 +310,139 @@
         saveButton.disabled = false;
       });
   });
+
+  // ---- API tokens ----
+  var tokenStatusEl = document.getElementById('token-status');
+  function setTokenStatus(message, kind) {
+    tokenStatusEl.textContent = message || '';
+    tokenStatusEl.className = `status${kind ? ` ${kind}` : ''}`;
+  }
+
+  function renderTokenList(tokens) {
+    var listEl = document.getElementById('api-token-list');
+    var emptyEl = document.getElementById('api-token-empty');
+    listEl.innerHTML = '';
+    emptyEl.hidden = tokens.length > 0;
+    tokens.forEach((tok) => {
+      var created = new Date(tok.createdAt).toLocaleDateString();
+      var lastUsed = tok.lastUsedAt
+        ? new Date(tok.lastUsedAt).toLocaleDateString()
+        : 'never used';
+      var li = document.createElement('li');
+      li.innerHTML =
+        '<span>' +
+        escapeHTML(tok.label) +
+        '<br><span class="api-token-meta">Created ' +
+        created +
+        ' &middot; Last used ' +
+        lastUsed +
+        '</span></span><button class="btn-remove" type="button" data-token-id="' +
+        escapeHTML(tok.id) +
+        '">Revoke</button>';
+      listEl.appendChild(li);
+    });
+  }
+
+  function loadTokens() {
+    return fetch('/api/tokens', { headers: { Accept: 'application/json' } })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          return null;
+        }
+        return res.ok
+          ? res.json()
+          : Promise.reject(
+              new Error(`could not load api tokens (${res.status})`),
+            );
+      })
+      .then((tokens) => {
+        if (!tokens) return;
+        renderTokenList(tokens);
+      });
+  }
+
+  loadTokens().catch((err) => {
+    setTokenStatus(err.message || 'Could not load API tokens.', 'error');
+  });
+
+  document.getElementById('token-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    var labelInput = document.getElementById('token-label');
+    var label = labelInput.value.trim();
+    if (!label) return;
+
+    setTokenStatus('Generating…');
+    fetch('/api/tokens', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ label: label }),
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          return null;
+        }
+        if (!res.ok) {
+          return res.json().then((data) => {
+            throw new Error(data.error || 'could not generate token');
+          });
+        }
+        return res.json();
+      })
+      .then((created) => {
+        if (!created) return;
+        labelInput.value = '';
+        document.getElementById('token-reveal-value').value = created.token;
+        document.getElementById('token-reveal-field').hidden = false;
+        setTokenStatus(`Generated "${created.label}".`, 'ok');
+        return loadTokens();
+      })
+      .catch((err) => {
+        setTokenStatus(err.message || 'Could not generate token.', 'error');
+      });
+  });
+
+  document.getElementById('api-token-list').addEventListener('click', (e) => {
+    var button = e.target.closest('button.btn-remove');
+    if (!button) return;
+    var id = button.getAttribute('data-token-id');
+
+    setTokenStatus('Revoking…');
+    fetch(`/api/tokens/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          return;
+        }
+        if (!res.ok) throw new Error('could not revoke token');
+        setTokenStatus('Revoked.', 'ok');
+        return loadTokens();
+      })
+      .catch((err) => {
+        setTokenStatus(err.message || 'Could not revoke token.', 'error');
+      });
+  });
+
+  // Not swept up by the generic .copy-button loop above on purpose — see
+  // the .token-copy-button CSS comment in settings.html for why.
+  document.querySelectorAll('.token-copy-button').forEach((button) => {
+    button.addEventListener('click', () => {
+      var input = document.getElementById(button.dataset.copyTarget);
+      navigator.clipboard
+        .writeText(input.value)
+        .then(() => {
+          setTokenStatus('Copied.', 'ok');
+        })
+        .catch(() => {
+          setTokenStatus(
+            'Could not copy — select and copy the token by hand.',
+            'error',
+          );
+        });
+    });
+  });
 })();

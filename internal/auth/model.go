@@ -32,3 +32,17 @@ func (u *User) WebAuthnDisplayName() string { return u.DisplayName }
 
 // WebAuthnCredentials satisfies webauthn.User with every passkey on file.
 func (u *User) WebAuthnCredentials() []webauthn.Credential { return u.Credentials }
+
+// APIToken is a personal API token's own metadata — never the raw value,
+// which only Store.CreateAPIToken ever returns, once, at creation time.
+// Matches components.schemas.APIToken.
+type APIToken struct {
+	ID        string
+	Label     string
+	CreatedAt time.Time
+	// LastUsedAt is nil until the token first authenticates a request —
+	// the same "hasn't happened yet, not zero-value" shape
+	// dashboard.RateLimit's own nilable fields use elsewhere in this
+	// codebase.
+	LastUsedAt *time.Time
+}

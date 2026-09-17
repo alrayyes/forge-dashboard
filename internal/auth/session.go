@@ -2,6 +2,7 @@ package auth
 
 import (
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -50,6 +51,18 @@ func SessionToken(r *http.Request) (string, bool) {
 		return "", false
 	}
 	return c.Value, true
+}
+
+// BearerToken reads an "Authorization: Bearer <token>" header from r, if
+// any — a personal API token, checked by RequireAuth as a fallback when
+// there's no session cookie, so a script can authenticate the same way a
+// signed-in browser does with no WebAuthn ceremony to perform.
+func BearerToken(r *http.Request) (string, bool) {
+	value, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || value == "" {
+		return "", false
+	}
+	return value, true
 }
 
 // IsHTTPS reports whether r itself arrived over TLS, directly or via a

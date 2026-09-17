@@ -43,7 +43,19 @@ tags:
   - name: dashboard
     description: The aggregated view across both forges.
   - name: auth
-    description: Passkey (WebAuthn) registration, login and session management.
+    description: |
+      Passkey (WebAuthn) registration, login and session management.
+
+      Every endpoint elsewhere in this API described as requiring "a
+      valid session" accepts either of two credentials, checked in that
+      order: the session cookie a passkey login sets, or an
+      `Authorization: Bearer <token>` header carrying a personal API
+      token from this tag's own token endpoints (see `bearerAuth` in
+      `components.securitySchemes`) — a script can use the same API a
+      signed-in browser does, with no WebAuthn ceremony of its own to
+      perform. Their 401 response is identical either way: "no valid
+      session cookie was presented" in an individual endpoint's own
+      description below means neither credential was.
   - name: settings
     description: The signed-in user's own GitHub/Forgejo credentials.
   - name: admin
@@ -64,6 +76,11 @@ tags:
     description: |
       Actions against a pull request already listed on the dashboard,
       taken on the signed-in user's own behalf.
+  - name: tokens
+    description: |
+      Personal API tokens — a Bearer credential a script can use instead
+      of a browser's passkey session cookie. See the `auth` tag's own
+      description for how a token authenticates once generated here.
 
 paths:
   /api/auth/register/begin:
@@ -270,6 +287,87 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/tokens:
+    get:
+      operationId: listAPITokens
+      summary: List the signed-in user's own personal API tokens
+      description: Metadata only, per APIToken's own description — a raw value never reappears once created.
+      tags: [tokens]
+      # Applied here, not retroactively on every pre-existing
+      # session-authenticated endpoint elsewhere in this spec (a bigger,
+      # separate change) — see the auth tag's own description for why an
+      # endpoint without this still accepts the same Bearer token.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Every live token, oldest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/APIToken"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createAPIToken
+      summary: Generate a new personal API token
+      tags: [tokens]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/APITokenCreateRequest"
+      responses:
+        "201":
+          description: Created — the only response that ever carries the raw token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APITokenCreateResponse"
+        "400":
+          description: The request body wasn't valid JSON, or label was blank.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/tokens/{id}:
+    delete:
+      operationId: deleteAPIToken
+      summary: Revoke a personal API token
+      description: |
+        Stops the token authenticating immediately. Idempotent — deleting
+        an id that's already gone (or never belonged to the signed-in
+        user) still answers 204, the same as any other delete-by-id
+        endpoint here (compare DELETE /api/sharing/{username}), so a
+        double-click or a retried request isn't an error.
+      tags: [tokens]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/PathTokenID"
+      responses:
+        "204":
+          description: Revoked (or already gone).
         "401":
           description: No valid session cookie was presented.
           content:
@@ -908,6 +1006,18 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 components:
+  securitySchemes:
+    # Documented, but never applied via a `security:` block on individual
+    # operations here — see the auth tag's own description for why: every
+    # authenticated endpoint already accepts this or the session cookie,
+    # and the existing per-endpoint 401 descriptions cover both rather
+    # than this spec modeling two parallel security requirements per
+    # operation.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: A personal API token from POST /api/tokens, as an alternative to the session cookie.
+
   parameters:
     PathUsername:
       name: username
@@ -918,6 +1028,13 @@ components:
 
     PathWebhookToken:
       name: webhookToken
+      in: path
+      required: true
+      schema:
+        type: string
+
+    PathTokenID:
+      name: id
       in: path
       required: true
       schema:
@@ -1096,6 +1213,54 @@ components:
           type: string
         forgejoUsername:
           type: string
+
+    APIToken:
+      type: object
+      description: |
+        A personal API token's own metadata — never the token value
+        itself, which only ever appears once, in
+        APITokenCreateResponse's own response body at creation time.
+      required: [id, label, createdAt]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+          description: The name given at creation time, so a list of several is tellable apart.
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+          description: Omitted if this token has never authenticated a request yet.
+
+    APITokenCreateRequest:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+
+    APITokenCreateResponse:
+      type: object
+      description: |
+        The one and only response that ever carries the raw token value
+        — shown to the user once, at creation time; only its hash is
+        stored, so it can't be recovered from here again. Losing it
+        means generating a new one.
+      required: [id, label, createdAt, token]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        token:
+          type: string
+          description: "The raw Bearer credential: `Authorization: Bearer <token>`."
 
     WebhookEnsureRequest:
       type: object

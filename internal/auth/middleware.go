@@ -21,18 +21,28 @@ func UserFromContext(ctx context.Context) (*User, bool) {
 }
 
 // RequireAuth wraps next so it only ever runs for a request carrying a
-// valid, unexpired session — everyone else gets a 401 JSON body, never
-// the handler underneath.
+// valid, unexpired session cookie or a valid personal API token
+// (Authorization: Bearer <token>) — everyone else gets a 401 JSON body,
+// never the handler underneath. Cookie checked first, Bearer as the
+// fallback: the common case (a browser) never pays for a second lookup,
+// and a script sending both would be unusual enough that "cookie wins"
+// is a fine tiebreak rather than something worth its own rule.
 func RequireAuth(store *Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token, ok := SessionToken(r)
-			if !ok {
+			var (
+				u   *User
+				err error
+			)
+			if token, ok := SessionToken(r); ok {
+				u, err = store.UserForSession(r.Context(), token)
+			} else if token, ok := BearerToken(r); ok {
+				u, err = store.UserForAPIToken(r.Context(), token)
+			} else {
 				unauthorized(w)
 				return
 			}
 
-			u, err := store.UserForSession(r.Context(), token)
 			if err != nil {
 				if !errors.Is(err, ErrNotFound) {
 					http.Error(w, "internal error", http.StatusInternalServerError)
