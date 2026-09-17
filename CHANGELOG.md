@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.65.0](https://github.com/alrayyes/forge-dashboard/compare/v0.64.0...v0.65.0) (2026-09-17)
+
+
+### Features
+
+* **web:** pre-emptively lock Merge/Update branch before a doomed click ([f70c417](https://github.com/alrayyes/forge-dashboard/commit/f70c417487f05b06494439999b10bf9b35ccd2ce))
+* **web:** pre-emptively lock Merge/Update branch before a doomed click ([b7b9cda](https://github.com/alrayyes/forge-dashboard/commit/b7b9cdaf10d2d45b1dfe767450fc67a320106721)), closes [#319](https://github.com/alrayyes/forge-dashboard/issues/319)
+
 ## [0.64.0](https://github.com/alrayyes/forge-dashboard/compare/v0.63.2...v0.64.0) (2026-09-17)
 
 
