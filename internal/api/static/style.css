@@ -28,7 +28,14 @@
      untouched. */
   --critical: #c52f37;
   --critical-bg: #fbe9e9;
-  --warning: #b8790a;
+  /* Same story as --good/--critical above: #b8790a cleared --surface but
+     not --warning-bg itself (3.2:1, short of 4.5:1) — caught live by
+     axe-core the first time a real .merge-pill.blocked rendered in a
+     scanned page (#305; .ci-pill.pending and .row-action.confirm both use
+     this same pair as text too). Darkened until it clears --warning-bg
+     with room to spare; dark mode's own --warning already clears both and
+     is untouched. */
+  --warning: #8f5f09;
   --warning-bg: #faf0da;
   --neutral: #7d8a9a;
   --neutral-bg: #eef1f5;
