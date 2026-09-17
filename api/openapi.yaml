@@ -294,6 +294,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/settings/bot-pr-updates:
+    get:
+      operationId: getBotPrUpdatesSetting
+      summary: Whether bot-managed pull request branches can be updated
+      description: |
+        A lightweight, side-effect-free read of one field —
+        allowBotPrUpdates — for the dashboard page to check on every
+        load. Deliberately not GET /api/settings itself: that handler
+        also provisions webhook credentials on first call
+        (EnsureWebhookCredentials), which the dashboard visiting on a
+        user's behalf shouldn't trigger for someone who's never opened
+        Settings at all.
+      tags: [settings]
+      responses:
+        "200":
+          description: The current value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotPrUpdatesResponse"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/tokens:
     get:
       operationId: listAPITokens
@@ -1236,6 +1263,14 @@ components:
           type: boolean
         renovateRebaseLabel:
           type: string
+
+    BotPrUpdatesResponse:
+      type: object
+      description: See GET /api/settings/bot-pr-updates's own description.
+      required: [allowBotPrUpdates]
+      properties:
+        allowBotPrUpdates:
+          type: boolean
 
     APIToken:
       type: object

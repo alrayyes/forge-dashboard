@@ -329,6 +329,42 @@
     return key.replace(/[^a-zA-Z0-9_-]/g, '-');
   }
 
+  // ---- bot-managed PR detection ----
+  // release-please, Dependabot, and Renovate all keep their own pull
+  // requests current on their own schedule — a manual Update branch click
+  // is redundant at best and, for release-please specifically (which
+  // regenerates the branch and changelog together on every push to the
+  // base branch), a genuine risk of fighting its own next run. Detection
+  // signals verified live against this account's own repos (Settings'
+  // own field hint links the research); Renovate's author login is
+  // best-effort, unconfirmed against a live Renovate PR in this account.
+
+  // release-please labels every PR it manages with "autorelease: pending"
+  // or "autorelease: tagged" — the author is a human in this account's
+  // setup, not release-please itself, so the label is the only signal.
+  function isReleasePleasePr(item) {
+    return (item.labels || []).some((l) => l.name.startsWith('autorelease:'));
+  }
+
+  // Dependabot's author login is its GitHub App identity, "app/dependabot"
+  // — not "dependabot[bot]", which is the older, now-secondary identity.
+  function isDependabotPr(item) {
+    return item.author === 'app/dependabot';
+  }
+
+  // Renovate's author login varies by how it's installed (a GitHub App vs.
+  // a classic bot account) — checking both forms this account has seen
+  // documented, rather than picking one and risking silent non-detection.
+  function isRenovatePr(item) {
+    return item.author === 'renovate[bot]' || item.author === 'app/renovate';
+  }
+
+  function isBotManagedPr(item) {
+    return (
+      isReleasePleasePr(item) || isDependabotPr(item) || isRenovatePr(item)
+    );
+  }
+
   // Mirrors webhooks.js's reactiveLockReason, plus 409 — the forge itself
   // reports the PR is no longer mergeable (a real conflict, or its state
   // changed since the dashboard's last refresh), which a retry can't fix
@@ -628,6 +664,7 @@
   // button rather than instead of it.
   function updateBranchActionCell(item) {
     if (!item.behind) return null;
+    if (isBotManagedPr(item) && !allowBotPrUpdates) return null;
 
     var key = prKey(item);
     var entry = updateBranchState[key] || { phase: 'idle' };
@@ -675,6 +712,9 @@
   // click" check addWebhookButton already does from ForgeHealth.
   var lastForges = [];
   var sharedControlsRestored = false;
+  // Fetched once at startup below — updateBranchActionCell reads this to
+  // decide whether a bot-managed PR's row gets the button at all.
+  var allowBotPrUpdates = false;
 
   function forgeScopedItems() {
     var items = allPRs.concat(allIssues);
@@ -1276,6 +1316,32 @@
       });
   });
 
+  // ---- bot-managed PR update setting, fetched once at startup ----
+  // /api/settings/bot-pr-updates, not /api/settings itself — that GET
+  // also provisions webhook credentials on first call
+  // (EnsureWebhookCredentials), which the dashboard silently triggering
+  // on behalf of a user who's never opened Settings would be a real,
+  // surprising side effect (confirmed live: it flips
+  // GET /api/dashboard/stream from 404 to 200 for that user).
+  //
+  // The first refresh() call below waits on this (settingsLoaded.then
+  // (refresh)) rather than firing independently and re-rendering a
+  // second time on its own resolve — both requests still go out
+  // concurrently, so this doesn't add a real sequential round trip, and
+  // it means there's exactly one render trigger for the first paint
+  // instead of two independent promise chains racing to call render().
+  var settingsLoaded = fetch('/api/settings/bot-pr-updates', {
+    headers: { Accept: 'application/json' },
+  })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (data) allowBotPrUpdates = !!data.allowBotPrUpdates;
+    })
+    .catch(() => {
+      // A transient failure here just leaves bot-managed PRs suppressed
+      // (the safer default) rather than blocking the page over it.
+    });
+
   // ---- switching to a dashboard someone else shared with you ----
   var currentOwner = '';
   var ownerSelect = document.getElementById('dashboard-owner-select');
@@ -1362,7 +1428,7 @@
       });
   }
 
-  refresh();
+  settingsLoaded.then(refresh);
   setInterval(refresh, REFRESH_INTERVAL_MS);
 
   // ---- live updates over Server-Sent Events, on top of the poll above ----
