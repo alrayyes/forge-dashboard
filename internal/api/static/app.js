@@ -274,6 +274,7 @@
     var statusCell;
     var conflictPill;
     var mergePill;
+    var mergeAction;
 
     row.appendChild(repoCell(item));
     row.appendChild(titleCell(item, onLabelClick, activeLabel));
@@ -292,6 +293,8 @@
       if (conflictPill) statusCell.appendChild(conflictPill);
       mergePill = autoMergePill(item.autoMergeEnabled);
       if (mergePill) statusCell.appendChild(mergePill);
+      mergeAction = mergeActionCell(item);
+      if (mergeAction) statusCell.appendChild(mergeAction);
       meta.appendChild(statusCell);
     } else {
       meta.appendChild(el('div', 'empty-cell'));
@@ -299,6 +302,166 @@
     row.appendChild(meta);
     row.appendChild(el('div', 'go', '→'));
     return row;
+  }
+
+  // ---- pull request merge action ----
+  // mergeState persists per-PR merge-button UI state across renders — the
+  // dashboard polls and pushes fresh snapshots (applySnapshot) that rebuild
+  // every row from scratch, unlike the webhooks page's one-shot render, so
+  // a lock earned from a real permission/rate-limit/conflict failure has to
+  // live outside the DOM node itself, or the next poll would silently hand
+  // back a re-clickable button and undo the whole point of locking it (see
+  // webhooks.js's own reactiveLockReason/lockedButton, the same pattern
+  // this mirrors).
+  var mergeState = {};
+
+  function prKey(item) {
+    return `${item.forge}:${item.repo}#${item.number}`;
+  }
+
+  // Mirrors webhooks.js's reactiveLockReason, plus 409 — the forge itself
+  // reports the PR is no longer mergeable (a real conflict, or its state
+  // changed since the dashboard's last refresh), which a retry can't fix
+  // any more than a missing permission or an exhausted rate limit can.
+  function reactiveMergeLockReason(status) {
+    if (status === 403)
+      return 'Missing permission — check your token in Settings.';
+    if (status === 429)
+      return 'Rate limit exceeded — try again once it resets.';
+    if (status === 409)
+      return 'No longer mergeable — refresh to see the current state.';
+    return null;
+  }
+
+  var mergeLockReasonCounter = 0;
+
+  // Same aria-disabled + visible, wired-up reason shape webhooks.js's own
+  // lockedButton uses, not a native disabled attribute or a title-only
+  // tooltip — native disabled would drop it from the tab order and hide
+  // the reason from keyboard and screen-reader users.
+  function lockedMergeButton(reasonText) {
+    var wrap = el('span', 'row-action-locked');
+    var button = el('button', 'row-action', 'Merge');
+    button.type = 'button';
+    button.setAttribute('aria-disabled', 'true');
+    var reasonId = `merge-locked-reason-${mergeLockReasonCounter++}`;
+    button.setAttribute('aria-describedby', reasonId);
+    wrap.appendChild(button);
+    var reason = el('span', 'row-action-reason', reasonText);
+    reason.id = reasonId;
+    wrap.appendChild(reason);
+    return wrap;
+  }
+
+  // Actually calls the merge endpoint, once the confirm click lands —
+  // mergeActionCell's own click handler only ever flips into "confirming",
+  // so a single accidental click can never merge anything.
+  function doMerge(item, confirmButton) {
+    var key = prKey(item);
+    mergeState[key] = { phase: 'merging' };
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Merging…';
+
+    fetch('/api/pull-requests/merge', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        forge: item.forge,
+        fullName: item.repo,
+        number: item.number,
+      }),
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          throw new Error('session expired');
+        }
+        if (res.status === 204) return null;
+        return res.json().then((body) => {
+          var err = new Error(body?.error || `backend answered ${res.status}`);
+          err.status = res.status;
+          throw err;
+        });
+      })
+      .then(() => {
+        delete mergeState[key];
+        // Pulls a fresh snapshot right away rather than waiting out the
+        // rest of the background poll's own interval — the same call the
+        // "Refresh now" button makes — so the just-merged PR drops off
+        // the board as soon as the forge itself reflects the merge.
+        return fetch('/api/dashboard/refresh', {
+          method: 'POST',
+          headers: { Accept: 'application/json' },
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data) applySnapshot(data);
+          });
+      })
+      .catch((err) => {
+        var lockReason = reactiveMergeLockReason(err.status);
+        mergeState[key] = lockReason
+          ? { phase: 'locked', reason: lockReason }
+          : { phase: 'idle' };
+        showError(`Couldn't merge ${item.repo}#${item.number}: ${err.message}`);
+        prBoard.render();
+      });
+  }
+
+  // Only rendered at all when mergeStatus is "mergeable" — the same
+  // restraint mergeStatusPill/autoMergePill already use for a row that has
+  // nothing to say. First click only arms a confirm step (doMerge is never
+  // reachable from it directly); merging is a real, hard-to-reverse write
+  // to the real repo, not a filter toggle like the CI pill next to it.
+  function mergeActionCell(item) {
+    if (item.mergeStatus !== 'mergeable') return null;
+
+    var key = prKey(item);
+    var entry = mergeState[key] || { phase: 'idle' };
+
+    if (entry.phase === 'locked') return lockedMergeButton(entry.reason);
+
+    var wrap = el('span', 'row-action-group');
+
+    var confirming = entry.phase === 'confirming';
+    var cancelButton;
+    var confirmButton;
+    if (confirming || entry.phase === 'merging') {
+      confirmButton = el(
+        'button',
+        'row-action confirm',
+        confirming ? 'Confirm merge?' : 'Merging…',
+      );
+      confirmButton.type = 'button';
+      confirmButton.disabled = !confirming;
+      confirmButton.addEventListener('click', () => {
+        doMerge(item, confirmButton);
+      });
+      wrap.appendChild(confirmButton);
+
+      if (confirming) {
+        cancelButton = el('button', 'row-action cancel', 'Cancel');
+        cancelButton.type = 'button';
+        cancelButton.addEventListener('click', () => {
+          delete mergeState[key];
+          prBoard.render();
+        });
+        wrap.appendChild(cancelButton);
+      }
+      return wrap;
+    }
+
+    var mergeButton = el('button', 'row-action', 'Merge');
+    mergeButton.type = 'button';
+    mergeButton.addEventListener('click', () => {
+      mergeState[key] = { phase: 'confirming' };
+      prBoard.render();
+    });
+    wrap.appendChild(mergeButton);
+    return wrap;
   }
 
   // ---- shared filter state ----

@@ -68,6 +68,18 @@ type WebhookManager interface {
 	EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error
 }
 
+// PullRequestMerger is implemented by a ForgeClient (or, for github.Client,
+// a Source directly) that can merge one of its own pull requests —
+// checked via a type assertion, the same optional-capability pattern
+// WebhookManager uses. Takes no merge-method override: the caller always
+// wants the repo's own configured default, and picking a method is each
+// implementation's own job (GitHub asks the forge to pick its default;
+// Forgejo's API has no such default and needs it looked up and passed
+// explicitly).
+type PullRequestMerger interface {
+	MergePullRequest(ctx context.Context, owner, name string, number int) error
+}
+
 // WebhookTargetsPath reports whether rawURL's path component is exactly
 // path — how a Source recognizes "this hook is the one forge-dashboard
 // itself would have created," regardless of the scheme or host a webhook
