@@ -1420,6 +1420,42 @@ func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
 	assert.Equal(t, true, editBody["active"])
 }
 
+// TestEnsureWebhook_SendsAuthorizationHeader is a regression test for a
+// real bug: the REST client used for webhook calls was built from a bare
+// http.Client and never had the token applied to it, so every request
+// went out with no Authorization header at all. Real GitHub rejects that
+// with 401 "Requires authentication" — reproduced here by having the
+// fake server do the same, rather than asserting on the header directly,
+// so the test fails the same way a live call against github.com would.
+func TestEnsureWebhook_SendsAuthorizationHeader(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			writeJSON(t, w, map[string]any{"message": "Requires authentication"})
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			writeJSON(t, w, []map[string]any{})
+		case http.MethodPost:
+			writeJSON(t, w, map[string]any{"id": 2})
+		default:
+			t.Fatalf("unexpected method %s", r.Method)
+		}
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/tok123", "sekret")
+
+	require.NoError(t, err)
+}
+
 func TestEnsureWebhook_ForgeErrorPropagates(t *testing.T) {
 	t.Parallel()
 

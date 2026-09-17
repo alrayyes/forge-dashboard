@@ -1,9 +1,12 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -196,6 +199,37 @@ func TestWebhookEnsure_ClientErrorPropagatesAsASpecificMessage(t *testing.T) {
 	var body map[string]string
 	require.NoError(t, readJSON(resp, &body))
 	assert.Contains(t, body["error"], assert.AnError.Error())
+}
+
+// TestWebhookEnsure_EnsureWebhookFails_LogsTheError is a regression test
+// for the same "can't diagnose from the outside" gap
+// TestGitHubWebhook_InvalidSignature_LogsForgeEventAndDeliveryID
+// (webhooks_test.go) closed for inbound deliveries: EnsureWebhook's own
+// error only reached the HTTP response, so a failed webhook creation —
+// like the real "Requires authentication" GitHub returned for a REST
+// call missing its Authorization header — left nothing in the process's
+// own logs to diagnose it from. Deliberately not t.Parallel(), for the
+// same reason that test isn't: it swaps the global slog default.
+func TestWebhookEnsure_EnsureWebhookFails_LogsTheError(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	source := &fakeWebhookManagerSource{
+		forge:     dashboard.ForgeGitHub,
+		ensureErr: errors.New("github: GET /repos/alrayyes/a/hooks: Requires authentication"),
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postEnsureWebhook(t, srvURL, sessionCookie, "github", "alrayyes/a")
+	defer func() { _ = resp.Body.Close() }()
+
+	logged := logs.String()
+	assert.Contains(t, logged, "webhook ensure failed")
+	assert.Contains(t, logged, "forge=github")
+	assert.Contains(t, logged, "repo=alrayyes/a")
+	assert.Contains(t, logged, "Requires authentication")
 }
 
 func TestWebhookEnsure_ForgeWithNoWebhookSupport_Returns400(t *testing.T) {

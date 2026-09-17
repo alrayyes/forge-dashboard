@@ -72,6 +72,9 @@ func NewClient(token, username, baseURL string) *Client {
 
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 	restClient := ghsdk.NewClient(httpClient)
+	if token != "" {
+		restClient = restClient.WithAuthToken(token)
+	}
 	if u, err := url.Parse(baseURL + "/"); err == nil {
 		restClient.BaseURL = u
 	}
