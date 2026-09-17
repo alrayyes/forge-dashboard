@@ -28,11 +28,60 @@
 
   var state = {
     repos: [],
+    forges: [],
     page: 1,
     pageSize: 25,
     filters: { forge: '', repo: '', status: '' },
     sort: { key: 'fullName', dir: 'asc' },
   };
+
+  function forgeRateLimit(forge) {
+    var f = state.forges.find((f) => f.forge === forge);
+    return f?.rateLimit;
+  }
+
+  function resetTimeLabel(iso) {
+    return new Date(iso).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  // reactiveLockReason maps a failed /api/webhooks/ensure response to a
+  // reason worth locking the button over, or null for anything retrying
+  // might fix (a genuine outage, say) — the two status codes
+  // webhookEnsureErrorStatus (internal/api/webhook_ensure.go) hands back
+  // for a cause a click can't do anything about.
+  function reactiveLockReason(status) {
+    if (status === 403)
+      return 'Missing permission — check your token in Settings.';
+    if (status === 429)
+      return 'Rate limit exceeded — try again once it resets.';
+    return null;
+  }
+
+  var lockedReasonCounter = 0;
+
+  // lockedButton renders the same button, visually, but aria-disabled
+  // rather than natively disabled — a native disabled attribute drops a
+  // control from the tab order, which would hide the reason from a
+  // keyboard or screen-reader user entirely. The reason is real, visible
+  // text wired up with aria-describedby, not a title-only tooltip, for
+  // the same reason the forge-health error on the home page uses a
+  // <details> disclosure instead of one.
+  function lockedButton(reasonText) {
+    var wrap = el('span', 'webhook-locked');
+    var button = el('button', '', 'Add a webhook');
+    button.type = 'button';
+    button.setAttribute('aria-disabled', 'true');
+    var reasonId = `webhook-locked-reason-${lockedReasonCounter++}`;
+    button.setAttribute('aria-describedby', reasonId);
+    wrap.appendChild(button);
+    var reason = el('span', 'webhook-locked-reason', reasonText);
+    reason.id = reasonId;
+    wrap.appendChild(reason);
+    return wrap;
+  }
 
   function setPage(page) {
     state.page = page;
@@ -168,6 +217,13 @@
   // click drives the create/fix-up call, so it needs the keyboard
   // activation and focus behaviour a link would have to fake.
   function addWebhookButton(repo) {
+    var rl = forgeRateLimit(repo.forge);
+    if (rl && rl.remaining === 0) {
+      return lockedButton(
+        `Rate limit exhausted · resets ${resetTimeLabel(rl.resetsAt)}`,
+      );
+    }
+
     var button = el('button', '', 'Add a webhook');
     button.type = 'button';
     button.addEventListener('click', () => {
@@ -190,7 +246,11 @@
           }
           if (res.status === 204) return null;
           return res.json().then((body) => {
-            throw new Error(body?.error || `backend answered ${res.status}`);
+            var err = new Error(
+              body?.error || `backend answered ${res.status}`,
+            );
+            err.status = res.status;
+            throw err;
           });
         })
         .then(() => {
@@ -199,12 +259,17 @@
           render();
         })
         .catch((err) => {
-          button.disabled = false;
-          button.textContent = 'Add a webhook';
           setStatus(
             `Couldn't add a webhook for ${repo.fullName}: ${err.message}`,
             'error',
           );
+          var lockReason = reactiveLockReason(err.status);
+          if (lockReason) {
+            button.replaceWith(lockedButton(lockReason));
+            return;
+          }
+          button.disabled = false;
+          button.textContent = 'Add a webhook';
         });
     });
     return button;
@@ -292,6 +357,7 @@
     })
     .then((data) => {
       state.repos = data.repos || [];
+      state.forges = data.forges || [];
       updateSortIndicators();
       render();
     })

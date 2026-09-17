@@ -14,14 +14,14 @@ async function registerAndSignIn(page) {
   await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
 }
 
-function mockDashboard(page, repos) {
+function mockDashboard(page, repos, forges) {
   return page.route('**/api/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [],
+        forges: forges || [],
         pullRequests: [],
         issues: [],
         repos,
@@ -253,7 +253,7 @@ test.describe('webhooks page', () => {
     expect(requestBody).toEqual({ forge: 'github', fullName: 'alrayyes/a' });
   });
 
-  test('a failed create shows a specific error and re-enables the button', async ({
+  test('a transient failure shows a specific error and re-enables the button for another try', async ({
     page,
   }) => {
     await mockDashboard(page, [
@@ -261,9 +261,11 @@ test.describe('webhooks page', () => {
     ]);
     await page.route('**/api/webhooks/ensure', (route) =>
       route.fulfill({
-        status: 403,
+        status: 502,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: 403 insufficient scope' }),
+        body: JSON.stringify({
+          error: 'github: GET /repos/alrayyes/a/hooks: EOF',
+        }),
       }),
     );
     await page.goto('/webhooks.html');
@@ -274,11 +276,127 @@ test.describe('webhooks page', () => {
       .getByRole('button', { name: 'Add a webhook' });
     await button.click();
 
-    await expect(page.locator('#webhooks-status')).toContainText(
-      'insufficient scope',
-    );
+    await expect(page.locator('#webhooks-status')).toContainText('EOF');
     await expect(button).toBeEnabled();
+    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
     await expect(button).toHaveText('Add a webhook');
+  });
+
+  test('a forge whose rate limit is already exhausted shows a disabled button with the reset time, not a clickable one', async ({
+    page,
+  }) => {
+    const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
+    await mockDashboard(
+      page,
+      [{ forge: 'github', fullName: 'alrayyes/a', hasWebhook: false }],
+      [
+        {
+          forge: 'github',
+          reachable: true,
+          repoCount: 1,
+          rateLimit: { limit: 5000, remaining: 0, resetsAt },
+        },
+      ],
+    );
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    const button = row.getByRole('button', { name: 'Add a webhook' });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row).toContainText('resets');
+
+    // The row's own click handler never fires for a disabled control — no
+    // request should go out even if something did click it.
+    let requested = false;
+    await page.route('**/api/webhooks/ensure', (route) => {
+      requested = true;
+      return route.fulfill({ status: 204 });
+    });
+    await button.click({ force: true });
+    expect(requested).toBe(false);
+  });
+
+  test('a permission-denied failure disables the button for good instead of inviting another try', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: false },
+    ]);
+    await page.route('**/api/webhooks/ensure', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error:
+            'github: GET /repos/alrayyes/a/hooks: Resource not accessible by personal access token',
+        }),
+      }),
+    );
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    const button = row.getByRole('button', { name: 'Add a webhook' });
+    await button.click();
+
+    await expect(page.locator('#webhooks-status')).toContainText(
+      'Resource not accessible',
+    );
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row).toContainText(/token|permission/i);
+  });
+
+  test('a rate-limited failure disables the button for good, same as a known-exhausted budget', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: false },
+    ]);
+    await page.route('**/api/webhooks/ensure', (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+      }),
+    );
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    const button = row.getByRole('button', { name: 'Add a webhook' });
+    await button.click();
+
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row).toContainText(/rate limit/i);
+  });
+
+  test('a locked button is reachable by keyboard and has no axe-core violations', async ({
+    page,
+  }) => {
+    const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
+    await mockDashboard(
+      page,
+      [{ forge: 'github', fullName: 'alrayyes/a', hasWebhook: false }],
+      [
+        {
+          forge: 'github',
+          reachable: true,
+          repoCount: 1,
+          rateLimit: { limit: 5000, remaining: 0, resetsAt },
+        },
+      ],
+    );
+    await page.goto('/webhooks.html');
+
+    const button = page
+      .locator('#webhooks-rows tr')
+      .first()
+      .getByRole('button', { name: 'Add a webhook' });
+    await button.focus();
+    await expect(button).toBeFocused();
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test('paginates at 25 per page, same convention as the pull request/issue boards', async ({
