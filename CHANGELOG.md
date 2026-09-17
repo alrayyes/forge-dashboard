@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.63.1](https://github.com/alrayyes/forge-dashboard/compare/v0.63.0...v0.63.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* **web:** make the merge button's confirm step and outcome visible ([#310](https://github.com/alrayyes/forge-dashboard/issues/310)) ([723d07f](https://github.com/alrayyes/forge-dashboard/commit/723d07fc73b1c076ff5c48da9a12c3a429e73c8f)), closes [#308](https://github.com/alrayyes/forge-dashboard/issues/308)
+
 ## [0.63.0](https://github.com/alrayyes/forge-dashboard/compare/v0.62.0...v0.63.0) (2026-09-17)
 
 
