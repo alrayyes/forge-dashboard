@@ -106,6 +106,13 @@
   .field .field-hint a:not([href]) { color: var(--ink-3); pointer-events: none; }
   .field .field-hint #forgejo-token-link-disabled-hint { display: none; }
   .field .field-hint a#forgejo-token-link:not([href]) + #forgejo-token-link-disabled-hint { display: inline; }
+  /* A hint that's grown into several sentences plus a permission list
+     reads as one unreadable run-on line without this — each sentence its
+     own paragraph, the permissions a real list, not more prose. */
+  .field .field-hint p { margin: 0 0 6px; }
+  .field .field-hint p:last-child { margin-bottom: 0; }
+  .field .field-hint ul { margin: 2px 0 6px; padding-left: 18px; }
+  .field .field-hint li { margin-bottom: 2px; }
   .actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
   .btn {
     font-family: inherit;
@@ -273,11 +280,25 @@
           <input id="github-token" name="githubToken" type="password" autocomplete="off" placeholder="ghp_…" aria-describedby="github-token-hint">
           <button type="button" class="token-toggle" data-target="github-token" aria-pressed="false" aria-label="Show personal access token">Show</button>
         </div>
-        <p class="field-hint" id="github-token-hint">
-          Needs read-only access to your repos, their issues, pull requests, and commit status, plus read/write access to each repo's webhooks — to show whether one's already pointed at this dashboard, and to create or fix one up when you click "Add a webhook" (see the Webhooks page).
-          <a href="https://github.com/settings/tokens/new?scopes=repo&amp;description=forge-dashboard" target="_blank" rel="noopener noreferrer">Create a token with that scope already set &rarr;</a>
-          Classic tokens: the <code>repo</code> scope (or just <code>public_repo</code> if every repo you track is public) already covers this. Fine-grained tokens: grant Metadata, Issues, Pull requests, Commit statuses, and Checks, each set to Read-only, plus Webhooks set to Read and write &mdash; and make sure the repo is actually in this token's own repository list (or that it's set to "All repositories"), separately from those permissions. A repo left out of that list fails with "Resource not accessible by personal access token" even though every permission above is granted correctly, and that's easy to hit for a repo created after the token, or a token deliberately scoped to a subset of repos.
-        </p>
+        <div class="field-hint" id="github-token-hint">
+          <p>
+            Needs read-only access to your repos, their issues, pull requests, and commit status, plus read/write access to each repo's webhooks — to show whether one's already pointed at this dashboard, and to create or fix one up when you click "Add a webhook" (see the Webhooks page).
+            <a href="https://github.com/settings/tokens/new?scopes=repo&amp;description=forge-dashboard" target="_blank" rel="noopener noreferrer">Create a token with that scope already set &rarr;</a>
+          </p>
+          <p>Classic token: the <code>repo</code> scope (or just <code>public_repo</code> if every repo you track is public) already covers this.</p>
+          <p>Fine-grained token, grant all of:</p>
+          <ul>
+            <li>Metadata — Read-only (mandatory on every fine-grained token regardless)</li>
+            <li>Issues — Read-only</li>
+            <li>Pull requests — Read-only</li>
+            <li>Commit statuses — Read-only</li>
+            <li>Checks — Read-only</li>
+            <li>Webhooks — Read and write</li>
+          </ul>
+          <p>
+            And make sure the repo is actually in this token's own repository list (or that it's set to "All repositories"), separately from those permissions — a repo left out fails with "Resource not accessible by personal access token" even though every permission above is granted correctly. Easy to hit for a repo created after the token, or a token deliberately scoped to a subset of repos.
+          </p>
+        </div>
       </div>
       <div class="field">
         <label for="github-username">Username (used only when no token is set)</label>
@@ -300,11 +321,19 @@
           <input id="forgejo-token" name="forgejoToken" type="password" autocomplete="off" placeholder="Leave blank to keep the saved token" aria-describedby="forgejo-token-hint">
           <button type="button" class="token-toggle" data-target="forgejo-token" aria-pressed="false" aria-label="Show API token">Show</button>
         </div>
-        <p class="field-hint" id="forgejo-token-hint">
-          Needs your repos and their issues/pull requests, plus each repo's webhooks — to show whether one's already pointed at this dashboard, and to create or fix one up when you click "Add a webhook" (see the Webhooks page) — select the <code>write:repository</code> and <code>read:issue</code> scopes. Forgejo's webhook API has no separate read-only scope, so even just checking coverage needs <code>write:repository</code>.
-          <a id="forgejo-token-link" target="_blank" rel="noopener noreferrer">Open your instance's token settings &rarr;</a>
-          <span id="forgejo-token-link-disabled-hint">(fill in the instance URL above first)</span>
-        </p>
+        <div class="field-hint" id="forgejo-token-hint">
+          <p>
+            Needs your repos and their issues/pull requests, plus each repo's webhooks — to show whether one's already pointed at this dashboard, and to create or fix one up when you click "Add a webhook" (see the Webhooks page).
+            <a id="forgejo-token-link" target="_blank" rel="noopener noreferrer">Open your instance's token settings &rarr;</a>
+            <span id="forgejo-token-link-disabled-hint">(fill in the instance URL above first)</span>
+          </p>
+          <p>Select all of:</p>
+          <ul>
+            <li><code>write:repository</code> — Forgejo's webhook API has no separate read-only scope, so even just checking coverage needs write, not just <code>read:repository</code></li>
+            <li><code>read:issue</code></li>
+            <li><code>read:user</code> — easy to miss since it isn't obviously related to repos, but <code>GET /user/repos</code> (how repository discovery works) refuses a token without it</li>
+          </ul>
+        </div>
       </div>
       <div class="field">
         <label for="forgejo-username">Username (used only when no token is set)</label>

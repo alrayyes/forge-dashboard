@@ -132,6 +132,34 @@ test.describe('settings page', () => {
     );
   });
 
+  test('the GitHub fine-grained permissions are a real list, not one run-on line', async ({
+    page,
+  }) => {
+    // Regression test for a real readability complaint: this hint used
+    // to be a single <p>, every sentence and every permission run
+    // together with no visual break at all.
+    await page.goto('/settings.html');
+
+    const items = page.locator('#github-token-hint ul li');
+    await expect(items).toHaveCount(6);
+    await expect(items.nth(0)).toContainText('Metadata');
+    await expect(items.nth(5)).toContainText('Webhooks');
+  });
+
+  test('the Forgejo permission list includes read:user, easy to leave out and silently break repo discovery', async ({
+    page,
+  }) => {
+    // Regression test: the hint's old prose form named write:repository
+    // and read:issue but never read:user, even though GET /user/repos —
+    // the README's own Credentials section documents this with a real
+    // 403 it hit live — refuses a token missing it.
+    await page.goto('/settings.html');
+
+    await expect(page.locator('#forgejo-token-hint')).toContainText(
+      'read:user',
+    );
+  });
+
   test('webhook URLs and secret are populated, and the secret starts masked', async ({
     page,
   }) => {
