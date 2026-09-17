@@ -167,7 +167,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 
 	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
 	if err != nil {
-		return err
+		return asClientError(err)
 	}
 
 	contentType := "json"
@@ -186,7 +186,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 		path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, existing.GetID())
 		slog.Debug("github request", "method", http.MethodPatch, "url", path)
 		if _, _, err := c.restClient.Repositories.EditHook(ctx, owner, name, existing.GetID(), hook); err != nil {
-			return restError(http.MethodPatch, path, err)
+			return asClientError(restError(http.MethodPatch, path, err))
 		}
 		return nil
 	}
@@ -194,7 +194,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
 	slog.Debug("github request", "method", http.MethodPost, "url", path)
 	if _, _, err := c.restClient.Repositories.CreateHook(ctx, owner, name, hook); err != nil {
-		return restError(http.MethodPost, path, err)
+		return asClientError(restError(http.MethodPost, path, err))
 	}
 	return nil
 }
@@ -246,6 +246,24 @@ type apiError struct {
 }
 
 func (e *apiError) Error() string { return e.msg }
+
+// asClientError promotes an *apiError to *dashboard.ClientError, the same
+// boundary-crossing wrap internal/forgejo's client always applies
+// (forgejoError) — apiError's own Kind is otherwise invisible to a caller
+// outside this package, since dashboard.WebhookManager and the API
+// handler that calls through it only know how to classify the exported
+// type. err that isn't an *apiError (the url.Parse failure in
+// EnsureWebhook, say) passes through unchanged.
+func asClientError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *apiError
+	if errors.As(err, &apiErr) {
+		return &dashboard.ClientError{Kind: apiErr.kind, Err: err}
+	}
+	return err
+}
 
 // rateLimitShortMessage reports a short reason instead of GitHub's own
 // message whenever the response's headers say rate limiting is the

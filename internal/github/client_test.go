@@ -1476,3 +1476,38 @@ func TestEnsureWebhook_ForgeErrorPropagates(t *testing.T) {
 
 	require.Error(t, err)
 }
+
+// TestEnsureWebhook_RateLimited_ClassifiesAsDashboardClientError is a
+// regression test for a real bug: EnsureWebhook returns the package's own
+// unexported apiError, which carries a Kind classification internally but
+// was never promoted to dashboard.ClientError at this method's own
+// boundary — unlike internal/forgejo's client, which always wraps at its
+// equivalent boundary (forgejoError). webhookEnsureErrorStatus (internal/
+// api/webhook_ensure.go) classifies purely via errors.As(err,
+// &dashboard.ClientError{}), so a real GitHub rate-limit response here fell
+// through to the generic 502 default instead of 429 — indistinguishable
+// from a genuine outage. This reproduces the real shape GitHub sends for
+// core rate limiting: 403 with X-RateLimit-Remaining: 0 (go-github's own
+// CheckResponse is what turns that into a *github.RateLimitError).
+func TestEnsureWebhook_RateLimited_ClassifiesAsDashboardClientError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]any{"message": "API rate limit exceeded"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/tok123", "sekret")
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorRateLimited, clientErr.Kind)
+}
