@@ -1008,6 +1008,29 @@ select.col-filter {
 .row-action.confirm {
   background: var(--warning-bg);
   color: var(--warning);
+  /* A fresh DOM node every time (prBoard.render() rebuilds the row from
+     scratch), so this replays on each state swap into "confirm" — brief
+     enough that "Merge" then "Confirm merge?" then "Merging…" each get
+     their own small cue instead of relying on the reader's peripheral
+     vision catching a plain, static swap. Focus already moves here too
+     (see mergeActionCell's own idle-click handler); this is the part
+     that reaches someone not looking at that exact spot. */
+  animation: row-action-confirm-appear 0.18s ease-out;
+}
+@keyframes row-action-confirm-appear {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-action.confirm {
+    animation: none;
+  }
 }
 .row-action.confirm:disabled {
   opacity: 0.7;
@@ -1143,6 +1166,18 @@ select.col-filter {
 .error-banner {
   background: var(--critical-bg);
   color: var(--critical);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+/* Same shape as .error-banner — a row action's own in-progress/success
+   text, not a failure, so it uses the neutral tokens rather than the
+   critical ones. */
+.status-banner {
+  background: var(--neutral-bg);
+  color: var(--ink-2);
   border-radius: var(--radius);
   padding: 12px 16px;
   margin-bottom: 16px;

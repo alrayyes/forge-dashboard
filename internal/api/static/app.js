@@ -322,6 +322,13 @@
     return `${item.forge}:${item.repo}#${item.number}`;
   }
 
+  // A stable, DOM-safe id derived from a PR's own key — used to find a
+  // just-re-rendered action button again after prBoard.render() rebuilds
+  // every row from scratch, so a click handler can move focus to it.
+  function domSafeId(key) {
+    return key.replace(/[^a-zA-Z0-9_-]/g, '-');
+  }
+
   // Mirrors webhooks.js's reactiveLockReason, plus 409 — the forge itself
   // reports the PR is no longer mergeable (a real conflict, or its state
   // changed since the dashboard's last refresh), which a retry can't fix
@@ -366,6 +373,7 @@
     mergeState[key] = { phase: 'merging' };
     confirmButton.disabled = true;
     confirmButton.textContent = 'Merging…';
+    showStatus(`Merging ${item.repo}#${item.number}…`);
 
     fetch('/api/pull-requests/merge', {
       method: 'POST',
@@ -393,6 +401,7 @@
       })
       .then(() => {
         delete mergeState[key];
+        showStatus(`Merged ${item.repo}#${item.number}.`);
         // Pulls a fresh snapshot right away rather than waiting out the
         // rest of the background poll's own interval — the same call the
         // "Refresh now" button makes — so the just-merged PR drops off
@@ -411,6 +420,7 @@
         mergeState[key] = lockReason
           ? { phase: 'locked', reason: lockReason }
           : { phase: 'idle' };
+        clearStatus();
         showError(`Couldn't merge ${item.repo}#${item.number}: ${err.message}`);
         prBoard.render();
       });
@@ -442,6 +452,7 @@
         confirming ? 'Confirm merge?' : 'Merging…',
       );
       confirmButton.type = 'button';
+      confirmButton.id = `merge-confirm-${domSafeId(key)}`;
       confirmButton.disabled = !confirming;
       confirmButton.addEventListener('click', () => {
         doMerge(item, confirmButton);
@@ -465,6 +476,16 @@
     mergeButton.addEventListener('click', () => {
       mergeState[key] = { phase: 'confirming' };
       prBoard.render();
+      // Moves focus to the confirm button that render() just built —
+      // the browser's own scroll-into-view + focus ring is what actually
+      // makes this state change noticeable, not just relying on someone
+      // watching the exact pixels the button occupies. Real bug this
+      // guards against: a click on "Merge" reading as doing nothing at
+      // all, confirmed live.
+      var justConfirmed = document.getElementById(
+        `merge-confirm-${domSafeId(key)}`,
+      );
+      if (justConfirmed) justConfirmed.focus();
     });
     wrap.appendChild(mergeButton);
     return wrap;
@@ -501,6 +522,7 @@
     updateBranchState[key] = { phase: 'updating' };
     button.disabled = true;
     button.textContent = 'Updating…';
+    showStatus(`Updating the branch for ${item.repo}#${item.number}…`);
 
     fetch('/api/pull-requests/update-branch', {
       method: 'POST',
@@ -530,6 +552,7 @@
       })
       .then(() => {
         delete updateBranchState[key];
+        showStatus(`Updated the branch for ${item.repo}#${item.number}.`);
         // Same immediate-refresh pattern doMerge uses, for the same
         // reason: reflect the real state as soon as the forge has it,
         // not up to 30 seconds later.
@@ -547,6 +570,7 @@
         updateBranchState[key] = lockReason
           ? { phase: 'locked', reason: lockReason }
           : { phase: 'idle' };
+        clearStatus();
         showError(
           `Couldn't update the branch for ${item.repo}#${item.number}: ${err.message}`,
         );
@@ -1112,6 +1136,10 @@
     if (existing) existing.remove();
     var banner = el('div', 'error-banner', message);
     banner.id = 'error-banner';
+    // role="alert" carries an implicit aria-live="assertive" — this was
+    // never actually wired up to announce to a screen reader before,
+    // despite being the one place a failed write to a forge surfaces.
+    banner.setAttribute('role', 'alert');
     document
       .querySelector('.wrap')
       .insertBefore(banner, document.querySelector('.stats'));
@@ -1119,6 +1147,36 @@
 
   function clearError() {
     var existing = document.getElementById('error-banner');
+    if (existing) existing.remove();
+  }
+
+  // showStatus/clearStatus: the same shape as showError/clearError, for a
+  // row action's own in-progress/success text rather than a failure — a
+  // real click otherwise had nothing to show for it beyond the row
+  // silently vanishing on the next refresh (or not, if the click did
+  // nothing at all, indistinguishable from a genuine bug from here).
+  // aria-live="polite" rather than showError's role="alert": routine
+  // progress/success isn't urgent enough to interrupt a screen reader the
+  // way a failure is.
+  function showStatus(message) {
+    var existing = document.getElementById('status-banner');
+    if (existing) existing.remove();
+    var banner = el('div', 'status-banner', message);
+    banner.id = 'status-banner';
+    banner.setAttribute('aria-live', 'polite');
+    document
+      .querySelector('.wrap')
+      .insertBefore(banner, document.querySelector('.stats'));
+    // Auto-dismisses — unlike the error banner, which stays until the
+    // next successful action clears it, a routine "Merged x#42." isn't
+    // meant to linger.
+    setTimeout(() => {
+      if (banner.parentNode) banner.remove();
+    }, 4000);
+  }
+
+  function clearStatus() {
+    var existing = document.getElementById('status-banner');
     if (existing) existing.remove();
   }
 
