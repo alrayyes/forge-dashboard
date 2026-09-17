@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.60.0](https://github.com/alrayyes/forge-dashboard/compare/v0.59.1...v0.60.0) (2026-09-17)
+
+
+### Features
+
+* **dashboard:** make the brand logo/wordmark link to home ([#278](https://github.com/alrayyes/forge-dashboard/issues/278)) ([f845533](https://github.com/alrayyes/forge-dashboard/commit/f845533314c81d17cb5baedec218449f70a643b3)), closes [#277](https://github.com/alrayyes/forge-dashboard/issues/277)
+
 ## [0.59.1](https://github.com/alrayyes/forge-dashboard/compare/v0.59.0...v0.59.1) (2026-09-16)
 
 
