@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -105,6 +106,7 @@ func handleWebhookEnsure(deps Deps) http.HandlerFunc {
 
 		targetURL := deps.PublicOrigin + "/api/webhooks/" + req.Forge + "/" + token
 		if err := manager.EnsureWebhook(r.Context(), owner, name, targetURL, secret); err != nil {
+			slog.Warn("webhook ensure failed", "forge", req.Forge, "repo", req.FullName, "error", err)
 			writeJSON(w, webhookEnsureErrorStatus(err), errorBody(err.Error()))
 			return
 		}
