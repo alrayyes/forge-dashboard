@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.63.2](https://github.com/alrayyes/forge-dashboard/compare/v0.63.1...v0.63.2) (2026-09-17)
+
+
+### Bug Fixes
+
+* **web:** darken --warning so it clears WCAG AA contrast on its own bg ([#311](https://github.com/alrayyes/forge-dashboard/issues/311)) ([1e12997](https://github.com/alrayyes/forge-dashboard/commit/1e12997afc04c6178a53196ac26bbd3a47377e9b)), closes [#305](https://github.com/alrayyes/forge-dashboard/issues/305)
+
 ## [0.63.1](https://github.com/alrayyes/forge-dashboard/compare/v0.63.0...v0.63.1) (2026-09-17)
 
 
