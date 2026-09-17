@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.67.0](https://github.com/alrayyes/forge-dashboard/compare/v0.66.0...v0.67.0) (2026-09-17)
+
+
+### Features
+
+* **web:** hide Update branch on bot-managed PRs unless overridden ([a30ec36](https://github.com/alrayyes/forge-dashboard/commit/a30ec360b5014842a3b7e7408c936e9aab8b5163))
+* **web:** hide Update branch on bot-managed PRs unless overridden ([475a336](https://github.com/alrayyes/forge-dashboard/commit/475a3364007d3a796fb7cb989448f7eecaa748c8)), closes [#331](https://github.com/alrayyes/forge-dashboard/issues/331)
+
 ## [0.66.0](https://github.com/alrayyes/forge-dashboard/compare/v0.65.0...v0.66.0) (2026-09-17)
 
 
