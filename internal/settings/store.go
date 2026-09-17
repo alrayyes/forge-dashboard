@@ -30,7 +30,38 @@ type Credentials struct {
 	// are, so neither is encrypted at rest — see EnsureWebhookCredentials.
 	WebhookToken  string
 	WebhookSecret string
-	UpdatedAt     time.Time
+	// AllowBotPrUpdates overrides the default restraint the Update
+	// branch/Dependabot/Renovate action buttons apply to a pull request
+	// opened by release-please, Dependabot, or Renovate: those tools
+	// already keep their own PRs current on their own schedule, so a
+	// manual "Update branch" click is redundant at best and, for
+	// release-please specifically (which regenerates the PR's branch
+	// and changelog together on every push to the base branch), a
+	// genuine risk of fighting its own next run. False (the default,
+	// Go's zero value) is "leave bot-managed PRs alone"; true opts back
+	// into treating them the same as any other PR.
+	AllowBotPrUpdates bool
+	// RenovateRebaseLabel is the label Renovate's own rebase/retry
+	// trigger listens for on a given repo (Renovate's own rebaseLabel
+	// config option — "rebase" is Renovate's own default, but this is
+	// genuinely per-repo configurable, so it's a user-set override
+	// rather than a hardcoded constant). Empty means "use Renovate's own
+	// default" — see renovateRebaseLabelOrDefault.
+	RenovateRebaseLabel string
+	UpdatedAt           time.Time
+}
+
+// renovateRebaseLabelDefault is Renovate's own documented default for its
+// rebaseLabel config option — https://docs.renovatebot.com/configuration-options/#rebaselabel.
+const renovateRebaseLabelDefault = "rebase"
+
+// RenovateRebaseLabelOrDefault resolves c's own saved label, falling back
+// to Renovate's documented default when the user has never set one.
+func (c Credentials) RenovateRebaseLabelOrDefault() string {
+	if c.RenovateRebaseLabel == "" {
+		return renovateRebaseLabelDefault
+	}
+	return c.RenovateRebaseLabel
 }
 
 // Store persists Credentials, encrypted at rest, one row per user.
@@ -58,6 +89,8 @@ func (s *Store) Init(ctx context.Context) error {
 		forgejo_username TEXT NOT NULL DEFAULT '',
 		webhook_token TEXT NOT NULL DEFAULT '',
 		webhook_secret TEXT NOT NULL DEFAULT '',
+		allow_bot_pr_updates BOOLEAN NOT NULL DEFAULT 0,
+		renovate_rebase_label TEXT NOT NULL DEFAULT '',
 		updated_at TIMESTAMP NOT NULL
 	);
 	CREATE TABLE IF NOT EXISTS webhook_deliveries (
@@ -71,20 +104,21 @@ func (s *Store) Init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return err
 	}
-	return s.addWebhookColumnsIfMissing(ctx)
+	return s.addColumnsIfMissing(ctx)
 }
 
-// addWebhookColumnsIfMissing exists for a database that already had this
-// table before webhook_token/webhook_secret were added — CREATE TABLE IF
-// NOT EXISTS above is a no-op against it, so the columns need adding here
-// instead. SQLite has no ADD COLUMN IF NOT EXISTS, so a "duplicate column
-// name" error is the expected, ignored outcome on a database that already
-// has them (including every fresh one, which got them from the CREATE
-// TABLE above already).
-func (s *Store) addWebhookColumnsIfMissing(ctx context.Context) error {
+// addColumnsIfMissing exists for a database that already had this table
+// before a column below was added — CREATE TABLE IF NOT EXISTS above is a
+// no-op against it, so the column needs adding here instead. SQLite has no
+// ADD COLUMN IF NOT EXISTS, so a "duplicate column name" error is the
+// expected, ignored outcome on a database that already has it (including
+// every fresh one, which got it from the CREATE TABLE above already).
+func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 	migrations := []string{
 		`ALTER TABLE user_credentials ADD COLUMN webhook_token TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE user_credentials ADD COLUMN webhook_secret TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE user_credentials ADD COLUMN allow_bot_pr_updates BOOLEAN NOT NULL DEFAULT 0`,
+		`ALTER TABLE user_credentials ADD COLUMN renovate_rebase_label TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, stmt := range migrations {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
@@ -111,16 +145,18 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO user_credentials
-			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, allow_bot_pr_updates, renovate_rebase_label, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (user_id) DO UPDATE SET
 			github_token = excluded.github_token,
 			github_username = excluded.github_username,
 			forgejo_url = excluded.forgejo_url,
 			forgejo_token = excluded.forgejo_token,
 			forgejo_username = excluded.forgejo_username,
+			allow_bot_pr_updates = excluded.allow_bot_pr_updates,
+			renovate_rebase_label = excluded.renovate_rebase_label,
 			updated_at = excluded.updated_at`,
-		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, time.Now().UTC(),
+		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.AllowBotPrUpdates, c.RenovateRebaseLabel, time.Now().UTC(),
 	)
 	return err
 }
@@ -132,10 +168,10 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 		encGitHubToken, encForgejoToken string
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, updated_at
+		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, allow_bot_pr_updates, renovate_rebase_label, updated_at
 		FROM user_credentials WHERE user_id = ?`,
 		encodeUserID(userID),
-	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.UpdatedAt)
+	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.AllowBotPrUpdates, &c.RenovateRebaseLabel, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Credentials{}, ErrNotFound
 	}

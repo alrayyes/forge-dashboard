@@ -23,17 +23,24 @@ type SettingsResponse struct {
 	// the forge's own webhook setup, so a "set" flag alone wouldn't do.
 	WebhookToken  string `json:"webhookToken"`
 	WebhookSecret string `json:"webhookSecret"`
+	// AllowBotPrUpdates and RenovateRebaseLabel — see settings.Credentials'
+	// own doc comments; both round-trip as plain values, unlike the forge
+	// tokens above, since neither is a secret.
+	AllowBotPrUpdates   bool   `json:"allowBotPrUpdates"`
+	RenovateRebaseLabel string `json:"renovateRebaseLabel"`
 }
 
 func settingsResponseOf(c settings.Credentials) SettingsResponse {
 	return SettingsResponse{
-		GitHubUsername:  c.GitHubUsername,
-		GitHubTokenSet:  c.GitHubToken != "",
-		ForgejoURL:      c.ForgejoURL,
-		ForgejoUsername: c.ForgejoUsername,
-		ForgejoTokenSet: c.ForgejoToken != "",
-		WebhookToken:    c.WebhookToken,
-		WebhookSecret:   c.WebhookSecret,
+		GitHubUsername:      c.GitHubUsername,
+		GitHubTokenSet:      c.GitHubToken != "",
+		ForgejoURL:          c.ForgejoURL,
+		ForgejoUsername:     c.ForgejoUsername,
+		ForgejoTokenSet:     c.ForgejoToken != "",
+		WebhookToken:        c.WebhookToken,
+		WebhookSecret:       c.WebhookSecret,
+		AllowBotPrUpdates:   c.AllowBotPrUpdates,
+		RenovateRebaseLabel: c.RenovateRebaseLabel,
 	}
 }
 
@@ -70,11 +77,13 @@ func handleSettingsGet(store *settings.Store) http.HandlerFunc {
 // Every other field is a plain replace: an intentionally blanked
 // GitHubUsername, say, really does clear it.
 type settingsPutRequest struct {
-	GitHubToken     string `json:"githubToken"`
-	GitHubUsername  string `json:"githubUsername"`
-	ForgejoURL      string `json:"forgejoUrl"`
-	ForgejoToken    string `json:"forgejoToken"`
-	ForgejoUsername string `json:"forgejoUsername"`
+	GitHubToken         string `json:"githubToken"`
+	GitHubUsername      string `json:"githubUsername"`
+	ForgejoURL          string `json:"forgejoUrl"`
+	ForgejoToken        string `json:"forgejoToken"`
+	ForgejoUsername     string `json:"forgejoUsername"`
+	AllowBotPrUpdates   bool   `json:"allowBotPrUpdates"`
+	RenovateRebaseLabel string `json:"renovateRebaseLabel"`
 }
 
 func handleSettingsPut(deps Deps) http.HandlerFunc {
@@ -98,11 +107,13 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		}
 
 		merged := settings.Credentials{
-			GitHubToken:     coalesce(req.GitHubToken, existing.GitHubToken),
-			GitHubUsername:  req.GitHubUsername,
-			ForgejoURL:      req.ForgejoURL,
-			ForgejoToken:    coalesce(req.ForgejoToken, existing.ForgejoToken),
-			ForgejoUsername: req.ForgejoUsername,
+			GitHubToken:         coalesce(req.GitHubToken, existing.GitHubToken),
+			GitHubUsername:      req.GitHubUsername,
+			ForgejoURL:          req.ForgejoURL,
+			ForgejoToken:        coalesce(req.ForgejoToken, existing.ForgejoToken),
+			ForgejoUsername:     req.ForgejoUsername,
+			AllowBotPrUpdates:   req.AllowBotPrUpdates,
+			RenovateRebaseLabel: req.RenovateRebaseLabel,
 			// Set doesn't touch these columns (see settings.Store.Set) —
 			// carried over here only so this response reflects them
 			// too, rather than reporting them blank until the next GET.

@@ -179,6 +179,15 @@
     .getElementById('forgejo-url')
     .addEventListener('input', updateForgejoTokenLink);
 
+  // ---- Renovate rebase label: only relevant once bot-PR updates are allowed ----
+  function updateRenovateRebaseLabelVisibility() {
+    document.getElementById('renovate-rebase-label-field').hidden =
+      !document.getElementById('allow-bot-pr-updates').checked;
+  }
+  document
+    .getElementById('allow-bot-pr-updates')
+    .addEventListener('change', updateRenovateRebaseLabelVisibility);
+
   // ---- load whatever's already saved ----
   fetch('/api/settings', { headers: { Accept: 'application/json' } })
     .then((res) => {
@@ -205,6 +214,11 @@
       document.getElementById('webhook-url-forgejo').value =
         `${window.location.origin}/api/webhooks/forgejo/${data.webhookToken}`;
       document.getElementById('webhook-secret').value = data.webhookSecret;
+      document.getElementById('allow-bot-pr-updates').checked =
+        !!data.allowBotPrUpdates;
+      document.getElementById('renovate-rebase-label').value =
+        data.renovateRebaseLabel || '';
+      updateRenovateRebaseLabelVisibility();
     })
     .catch((err) => {
       setStatus(err.message || 'Could not load settings.', 'error');
@@ -273,6 +287,11 @@
       forgejoUrl: forgejoUrl,
       forgejoToken: forgejoToken,
       forgejoUsername: forgejoUsername,
+      allowBotPrUpdates: document.getElementById('allow-bot-pr-updates')
+        .checked,
+      renovateRebaseLabel: document
+        .getElementById('renovate-rebase-label')
+        .value.trim(),
     };
 
     fetch('/api/settings', {
