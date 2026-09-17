@@ -40,6 +40,14 @@ scope). See Settings' own field hints for the exact scope per forge. If
 your token can't or won't take that scope, the manual steps below are
 still the fallback — nothing here requires the button.
 
+A GitHub fine-grained token also gates _which_ repos it can see at all,
+separately from the preceding permissions — set at token creation, either
+"All repositories" or an explicit list. A repo left out of that list fails
+with "Resource not accessible by personal access token" even with every
+permission granted correctly, which reads like a scope problem but isn't
+one. This is easy to hit for a repo created after the token, or a token
+deliberately scoped to a subset of repos.
+
 **A webhook is only as complete as the events you tell your forge to
 send.** Ticking too few doesn't break anything — it just leaves part of
 the dashboard on the slower, polling-only path while the rest updates

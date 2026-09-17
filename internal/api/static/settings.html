@@ -259,7 +259,7 @@
         <p class="field-hint" id="github-token-hint">
           Needs read-only access to your repos, their issues, pull requests, and commit status, plus read/write access to each repo's webhooks — to show whether one's already pointed at this dashboard, and to create or fix one up when you click "Add a webhook" (see the Webhooks page).
           <a href="https://github.com/settings/tokens/new?scopes=repo&amp;description=forge-dashboard" target="_blank" rel="noopener noreferrer">Create a token with that scope already set &rarr;</a>
-          Classic tokens: the <code>repo</code> scope (or just <code>public_repo</code> if every repo you track is public) already covers this. Fine-grained tokens: grant Metadata, Issues, Pull requests, Commit statuses, and Checks, each set to Read-only, plus Webhooks set to Read and write.
+          Classic tokens: the <code>repo</code> scope (or just <code>public_repo</code> if every repo you track is public) already covers this. Fine-grained tokens: grant Metadata, Issues, Pull requests, Commit statuses, and Checks, each set to Read-only, plus Webhooks set to Read and write &mdash; and make sure the repo is actually in this token's own repository list (or that it's set to "All repositories"), separately from those permissions. A repo left out of that list fails with "Resource not accessible by personal access token" even though every permission above is granted correctly, and that's easy to hit for a repo created after the token, or a token deliberately scoped to a subset of repos.
         </p>
       </div>
       <div class="field">
