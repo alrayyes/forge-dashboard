@@ -151,7 +151,7 @@ test.describe('dashboard page', () => {
     ).not.toHaveAttribute('open');
   });
 
-  test('a forge reporting a rate-limit budget shows it, even while reachable', async ({
+  test('a forge reporting a rate-limit budget does not show it here — that lives on Insights', async ({
     page,
   }) => {
     const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
@@ -177,41 +177,10 @@ test.describe('dashboard page', () => {
 
     await page.reload();
 
-    await expect(page.locator('#forge-health')).toContainText(
+    await expect(page.locator('#forge-health')).not.toContainText(
       '4922/5000 requests',
     );
-  });
-
-  test('an exhausted rate-limit budget is styled as a warning, not neutral text', async ({
-    page,
-  }) => {
-    const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
-    await page.route('**/api/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [
-            {
-              forge: 'github',
-              reachable: false,
-              repoCount: 0,
-              error: 'github: GET /user/repos: API rate limit exceeded.',
-              rateLimit: { limit: 5000, remaining: 0, resetsAt },
-            },
-          ],
-          pullRequests: [],
-          issues: [],
-        }),
-      }),
-    );
-
-    await page.reload();
-
-    await expect(
-      page.locator('.forge-health-ratelimit.exhausted'),
-    ).toContainText('0/5000 requests');
+    await expect(page.locator('.forge-health-ratelimit')).toHaveCount(0);
   });
 
   test('the dashboard has no webhook coverage card — that lives in Settings now', async ({

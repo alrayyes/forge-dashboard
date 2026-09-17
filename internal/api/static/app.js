@@ -760,18 +760,6 @@
   }
 
   // ---- forge health ----
-  function rateLimitChip(rl) {
-    var resetTime = new Date(rl.resetsAt).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    return el(
-      'span',
-      `forge-health-ratelimit${rl.remaining === 0 ? ' exhausted' : ''}`,
-      `${rl.remaining}/${rl.limit} requests · resets ${resetTime}`,
-    );
-  }
-
   // One friendly, actionable line per ForgeErrorKind, taking precedence
   // over the raw error string as the primary visible text. "unreachable"
   // names the refresh button as the way to retry now, not just "wait."
@@ -820,10 +808,6 @@
         details.appendChild(document.createTextNode(f.error));
         item.appendChild(details);
       }
-      // Shown whenever this forge reports one, reachable or not — the
-      // point is seeing the budget before it's already the reason
-      // something looks unreachable, not just explaining it after.
-      if (f.rateLimit) item.appendChild(rateLimitChip(f.rateLimit));
       container.appendChild(item);
     });
     document.getElementById('forge-names').innerHTML = forges

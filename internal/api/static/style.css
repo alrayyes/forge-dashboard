@@ -248,15 +248,6 @@ header {
   margin-bottom: 2px;
 }
 
-.forge-health-ratelimit {
-  font-size: 11px;
-  color: var(--ink-3);
-}
-
-.forge-health-ratelimit.exhausted {
-  color: var(--critical);
-}
-
 .forge-health {
   display: flex;
   align-items: center;
