@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.67.1](https://github.com/alrayyes/forge-dashboard/compare/v0.67.0...v0.67.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* **docker:** exclude nested node_modules from the build context ([60d16a8](https://github.com/alrayyes/forge-dashboard/commit/60d16a8826231b2e7c9faf6c33445f0340004fe0))
+* remove duplicate CHANGELOG entries for v0.66.0 and v0.67.0 ([c4d3eee](https://github.com/alrayyes/forge-dashboard/commit/c4d3eee50e94bc6d97f758fd2cfb5224cdf2e521)), closes [#342](https://github.com/alrayyes/forge-dashboard/issues/342)
+* remove duplicate CHANGELOG entries, fix local docker-build node_modules bug ([afef530](https://github.com/alrayyes/forge-dashboard/commit/afef53078e78712dde23aebb22f8b405b92a734e))
+
 ## [0.67.0](https://github.com/alrayyes/forge-dashboard/compare/v0.66.0...v0.67.0) (2026-09-17)
 
 
