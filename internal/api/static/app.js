@@ -365,6 +365,40 @@
     return wrap;
   }
 
+  // Set once any merge/update-branch call against a forge comes back 403
+  // — a token's write permission is an account-wide property, not a
+  // per-PR one, so a permission failure on one PR means every other PR
+  // on that same forge is doomed the same way, not just the one that
+  // happened to be tried first. Persists for the session, the same
+  // lifetime mergeState/updateBranchState's own per-PR locks have —
+  // cleared only by a full page reload, never automatically, since nothing
+  // here re-checks whether the token changed.
+  var forgePermissionDenied = {};
+
+  // Known-doomed before ever calling the API, the same pre-click check
+  // addWebhookButton (webhooks.js) already does from ForgeHealth — a
+  // forge that's currently unreachable or already out of rate-limit
+  // budget will fail the exact same way after a real, wasted request as
+  // it would before one.
+  function proactiveActionLockReason(forgeName) {
+    var health = lastForges.find((f) => f.forge === forgeName);
+    var resetTime;
+    if (health && health.reachable === false) {
+      return `${FORGE_LABELS[forgeName] || forgeName} is currently unreachable.`;
+    }
+    if (health && health.rateLimit && health.rateLimit.remaining === 0) {
+      resetTime = new Date(health.rateLimit.resetsAt).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return `Rate limit exhausted · resets ${resetTime}`;
+    }
+    if (forgePermissionDenied[forgeName]) {
+      return 'Missing permission — check your token in Settings.';
+    }
+    return null;
+  }
+
   // Actually calls the merge endpoint, once the confirm click lands —
   // mergeActionCell's own click handler only ever flips into "confirming",
   // so a single accidental click can never merge anything.
@@ -420,6 +454,7 @@
         mergeState[key] = lockReason
           ? { phase: 'locked', reason: lockReason }
           : { phase: 'idle' };
+        if (err.status === 403) forgePermissionDenied[item.forge] = true;
         clearStatus();
         showError(`Couldn't merge ${item.repo}#${item.number}: ${err.message}`);
         prBoard.render();
@@ -436,9 +471,18 @@
 
     var key = prKey(item);
     var entry = mergeState[key] || { phase: 'idle' };
+    var proactiveReason;
 
     if (entry.phase === 'locked')
       return lockedActionButton('Merge', entry.reason);
+
+    // Only checked from idle — once a confirm/merge is already in
+    // flight, let it finish and report its own real outcome rather than
+    // yanking the button out from under a click that's already landed.
+    if (entry.phase === 'idle') {
+      proactiveReason = proactiveActionLockReason(item.forge);
+      if (proactiveReason) return lockedActionButton('Merge', proactiveReason);
+    }
 
     var wrap = el('span', 'row-action-group');
 
@@ -570,6 +614,7 @@
         updateBranchState[key] = lockReason
           ? { phase: 'locked', reason: lockReason }
           : { phase: 'idle' };
+        if (err.status === 403) forgePermissionDenied[item.forge] = true;
         clearStatus();
         showError(
           `Couldn't update the branch for ${item.repo}#${item.number}: ${err.message}`,
@@ -586,9 +631,16 @@
 
     var key = prKey(item);
     var entry = updateBranchState[key] || { phase: 'idle' };
+    var proactiveReason;
 
     if (entry.phase === 'locked')
       return lockedActionButton('Update branch', entry.reason);
+
+    if (entry.phase === 'idle') {
+      proactiveReason = proactiveActionLockReason(item.forge);
+      if (proactiveReason)
+        return lockedActionButton('Update branch', proactiveReason);
+    }
 
     var updating = entry.phase === 'updating';
     var button = el(
@@ -616,6 +668,12 @@
   var sharedState = Filters.loadState();
   var allPRs = [];
   var allIssues = [];
+  // The latest snapshot's own forges array — mergeActionCell/
+  // updateBranchActionCell read this to pre-emptively lock a row's
+  // action button when its forge is unreachable or its rate-limit
+  // budget is already exhausted, the same "known-doomed before the
+  // click" check addWebhookButton already does from ForgeHealth.
+  var lastForges = [];
   var sharedControlsRestored = false;
 
   function forgeScopedItems() {
@@ -1255,6 +1313,7 @@
     tickRefreshedAt();
 
     renderForgeHealth(data.forges || []);
+    lastForges = data.forges || [];
 
     var prs = data.pullRequests || [];
     var issues = data.issues || [];
