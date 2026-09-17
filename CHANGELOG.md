@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.0](https://github.com/alrayyes/forge-dashboard/compare/v0.61.0...v0.62.0) (2026-09-17)
+
+
+### Features
+
+* **web:** add a Merge button to mergeable pull request rows ([#302](https://github.com/alrayyes/forge-dashboard/issues/302)) ([96bdfef](https://github.com/alrayyes/forge-dashboard/commit/96bdfef715b1e77d6c69a30d4695195bbf8adb89)), closes [#299](https://github.com/alrayyes/forge-dashboard/issues/299)
+
 ## [0.61.0](https://github.com/alrayyes/forge-dashboard/compare/v0.60.3...v0.61.0) (2026-09-17)
 
 
