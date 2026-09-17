@@ -47,6 +47,25 @@ function mockDashboard(page, pr) {
   );
 }
 
+// mockDashboardCustom, unlike mockDashboard above, takes its own forges
+// array and a real list of pull requests — for the proactive-lock tests,
+// which need to control ForgeHealth directly and (for the forge-wide
+// permission-lock test) more than one row.
+function mockDashboardCustom(page, forges, prs) {
+  return page.route('**/api/dashboard*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges,
+        pullRequests: prs,
+        issues: [],
+      }),
+    }),
+  );
+}
+
 test.describe('pull request merge button', () => {
   test.beforeEach(async ({ page }) => {
     await registerAndSignIn(page);
@@ -365,5 +384,84 @@ test.describe('pull request merge button', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  test.describe('proactive locking, before any click', () => {
+    test('a mergeable PR on an unreachable forge shows a locked Merge button, no click needed', async ({
+      page,
+    }) => {
+      await mockDashboardCustom(
+        page,
+        [{ forge: 'github', reachable: false, repoCount: 0 }],
+        [makePR()],
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      const button = row.getByRole('button', { name: 'Merge' });
+      await expect(button).toHaveAttribute('aria-disabled', 'true');
+      await expect(row).toContainText(/unreachable/i);
+    });
+
+    test('a mergeable PR on a forge with an exhausted rate-limit budget shows a locked Merge button', async ({
+      page,
+    }) => {
+      const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
+      await mockDashboardCustom(
+        page,
+        [
+          {
+            forge: 'github',
+            reachable: true,
+            repoCount: 1,
+            rateLimit: { limit: 5000, remaining: 0, resetsAt },
+          },
+        ],
+        [makePR()],
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      const button = row.getByRole('button', { name: 'Merge' });
+      await expect(button).toHaveAttribute('aria-disabled', 'true');
+      await expect(row).toContainText(/rate limit exhausted/i);
+    });
+
+    test('a permission failure on one PR also locks Merge for a different, not-yet-tried PR on the same forge', async ({
+      page,
+    }) => {
+      const first = makePR({ number: 1 });
+      const second = makePR({ number: 2 });
+      await mockDashboardCustom(
+        page,
+        [{ forge: 'github', reachable: true, repoCount: 2 }],
+        [first, second],
+      );
+      await page.route('**/api/pull-requests/merge', (route) =>
+        route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'github: PUT .../merge: Forbidden',
+          }),
+        }),
+      );
+      await page.reload();
+
+      const rows = page.locator('#pr-rows .row');
+      await rows.nth(0).getByRole('button', { name: 'Merge' }).click();
+      await rows.nth(0).getByRole('button', { name: 'Confirm merge?' }).click();
+      await expect(
+        rows.nth(0).getByRole('button', { name: 'Merge' }),
+      ).toHaveAttribute('aria-disabled', 'true');
+
+      // The second PR's own Merge button was never clicked, and never
+      // itself made a request — it's locked purely from the first PR's
+      // failure, because a token's write permission is an account-wide
+      // property, not a per-PR one.
+      const secondButton = rows.nth(1).getByRole('button', { name: 'Merge' });
+      await expect(secondButton).toHaveAttribute('aria-disabled', 'true');
+      await expect(rows.nth(1)).toContainText(/permission/i);
+    });
   });
 });
