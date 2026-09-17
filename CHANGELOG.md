@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.60.2](https://github.com/alrayyes/forge-dashboard/compare/v0.60.1...v0.60.2) (2026-09-17)
+
+
+### Bug Fixes
+
+* **github:** classify EnsureWebhook errors as dashboard.ClientError ([#287](https://github.com/alrayyes/forge-dashboard/issues/287)) ([f126a13](https://github.com/alrayyes/forge-dashboard/commit/f126a13be0ea052008e399f303d9203f6516c26d))
+
 ## [0.60.1](https://github.com/alrayyes/forge-dashboard/compare/v0.60.0...v0.60.1) (2026-09-17)
 
 
