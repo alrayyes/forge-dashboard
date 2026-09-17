@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.61.0](https://github.com/alrayyes/forge-dashboard/compare/v0.60.3...v0.61.0) (2026-09-17)
+
+
+### Features
+
+* **web:** don't offer a doomed "Add a webhook" click ([#295](https://github.com/alrayyes/forge-dashboard/issues/295)) ([365bcae](https://github.com/alrayyes/forge-dashboard/commit/365bcaef9d1f9e8cdac622048e85352349103b0f)), closes [#289](https://github.com/alrayyes/forge-dashboard/issues/289)
+
 ## [0.60.3](https://github.com/alrayyes/forge-dashboard/compare/v0.60.2...v0.60.3) (2026-09-17)
 
 
