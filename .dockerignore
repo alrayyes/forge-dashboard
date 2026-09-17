@@ -1,12 +1,27 @@
 # Everything the Go build doesn't need. Without this the build context pulled
 # in node_modules and Vale's style packages — tens of megabytes docker has to
 # hash and send to the daemon before the first instruction even runs.
+#
+# node_modules/ (bare, no leading **/) only matches at the context root — it
+# does NOT also match web/node_modules, unlike a .gitignore pattern of the
+# same shape. Left that way once, COPY web/ web/ in the web-build stage
+# still pulled in a locally-installed web/node_modules -- bun hoists
+# packages there as symlinks into the repo root's own node_modules/.bun
+# store, which the web-build stage never copies, so every symlink dangled
+# once inside the container and silently overwrote the fresh, working
+# node_modules RUN bun install had just produced. Never reproduced in CI
+# (a fresh checkout has no local node_modules to begin with to collide),
+# only on a dev machine that already ran bun install -- which is the
+# ordinary local workflow, so this broke `docker build` under the
+# pre-push hook specifically, the one place it's most likely to be hit.
 .git/
 .github/
-node_modules/
+**/node_modules/
 .bun-cache/
 styles/Google/
 styles/proselint/
 dist/
 coverage.out
 *.md
+web/.svelte-kit/
+web/build/
