@@ -1,0 +1,8 @@
+/* TEAM */
+Developer: alrayyes (https://github.com/alrayyes)
+
+/* SITE */
+Last update: 2026/09/17
+Standards: HTML5, CSS3
+Components: Go
+Software: Neovim
