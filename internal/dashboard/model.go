@@ -65,6 +65,18 @@ type PullRequest struct {
 	UpdatedAt   time.Time   `json:"updatedAt"`
 	CI          CIStatus    `json:"ci"`
 	MergeStatus MergeStatus `json:"mergeStatus"`
+	// Behind is deliberately its own field, not folded into MergeStatus,
+	// because the two aren't mutually exclusive on every forge: confirmed
+	// live against a real Forgejo instance (a PR's own Mergeable field
+	// stayed true after a new commit landed on its base, since Forgejo
+	// doesn't recompute it synchronously — see mergeStatusFromMergeable's
+	// own doc comment) — so a Forgejo PR can be both "mergeable" and
+	// "behind" at once, and folding this into MergeStatus would force
+	// picking one and losing the other. GitHub's mergeStateStatus is a
+	// single enum where BEHIND and CLEAN can't both be true, but this
+	// field stays orthogonal there too, for the same reason CI sits
+	// beside MergeStatus rather than inside it: one fact per field.
+	Behind bool `json:"behind"`
 	// AutoMergeEnabled is nil when the owning forge has no way to report
 	// this at all (Forgejo, today) — the same "doesn't report it" shape
 	// RateLimit's own nilable pointer already uses, so a forge with

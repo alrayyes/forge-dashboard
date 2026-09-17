@@ -255,3 +255,52 @@ func TestForgejoClient_AgainstARealInstance(t *testing.T) {
 	require.Len(t, publicRepos, 1)
 	require.Equal(t, "testadmin/widgets", publicRepos[0].FullName)
 }
+
+// TestForgejoClient_PullRequestBehindBase_AgainstARealInstance is what
+// justified dashboard.PullRequest.Behind being its own field instead of a
+// MergeStatus value in the first place: probed live against this same
+// image, a real Forgejo pull request's own `mergeable` flag stayed true
+// after a new commit landed on its base branch — Forgejo doesn't
+// recompute it synchronously — so Behind has to come from somewhere else
+// (Base.Sha, refetched live on every request, diverging from MergeBase,
+// fixed at the PR's original common ancestor) and has to keep working
+// even while `mergeable` is still reporting true.
+func TestForgejoClient_PullRequestBehindBase_AgainstARealInstance(t *testing.T) {
+	ctx := t.Context()
+
+	baseURL, container := startForgejo(t)
+	token := createAdminToken(t, container)
+	fixture := &forgejoFixture{baseURL: baseURL, token: token}
+
+	fixture.createRepo(t, "gadgets")
+	fixture.request(t, http.MethodPost, "/repos/testadmin/gadgets/branches", map[string]any{
+		"new_branch_name": "feature", "old_branch_name": "main",
+	})
+	fixture.request(t, http.MethodPost, "/repos/testadmin/gadgets/contents/feature.txt", map[string]any{
+		"branch": "feature", "content": base64.StdEncoding.EncodeToString([]byte("feature")), "message": "feature commit",
+	})
+	fixture.request(t, http.MethodPost, "/repos/testadmin/gadgets/pulls", map[string]any{
+		"head": "feature", "base": "main", "title": "Add feature.txt",
+	})
+
+	client := forgejo.NewClient(baseURL, token, "")
+
+	before, err := client.ListOpenPullRequests(ctx, "testadmin", "gadgets", "testadmin/gadgets")
+	require.NoError(t, err)
+	require.Len(t, before, 1)
+	require.False(t, before[0].Behind, "a pull request branched directly off its base isn't behind yet")
+	require.Equal(t, dashboard.MergeMergeable, before[0].MergeStatus)
+
+	// A new commit on main, untouched by the pull request itself — this is
+	// what "behind" means.
+	fixture.request(t, http.MethodPost, "/repos/testadmin/gadgets/contents/main-only.txt", map[string]any{
+		"branch": "main", "content": base64.StdEncoding.EncodeToString([]byte("main-only")), "message": "main-only commit",
+	})
+
+	after, err := client.ListOpenPullRequests(ctx, "testadmin", "gadgets", "testadmin/gadgets")
+	require.NoError(t, err)
+	require.Len(t, after, 1)
+	require.True(t, after[0].Behind, "the base branch moved, so this pull request should now report behind")
+	require.Equal(t, dashboard.MergeMergeable, after[0].MergeStatus,
+		"mergeable shouldn't have flipped just because the base moved — this is the real staleness this test guards against being relied on")
+}

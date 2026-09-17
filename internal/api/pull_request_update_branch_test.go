@@ -1,0 +1,173 @@
+package api_test
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// fakeBranchUpdaterSource implements both dashboard.Source and
+// dashboard.BranchUpdater directly — the shape github.Client has;
+// GenericSource's own delegation to a ForgeClient is covered by
+// internal/dashboard's own tests, so this is enough to exercise the
+// handler without a second copy of that coverage.
+type fakeBranchUpdaterSource struct {
+	forge      dashboard.Forge
+	accepted   bool
+	updateErr  error
+	lastOwner  string
+	lastName   string
+	lastNumber int
+}
+
+func (f *fakeBranchUpdaterSource) Forge() dashboard.Forge { return f.forge }
+
+func (f *fakeBranchUpdaterSource) Fetch(_ context.Context) dashboard.Result {
+	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true}}
+}
+
+func (f *fakeBranchUpdaterSource) UpdateBranch(_ context.Context, owner, name string, number int) (bool, error) {
+	f.lastOwner, f.lastName, f.lastNumber = owner, name, number
+	return f.accepted, f.updateErr
+}
+
+// fakeSourceWithoutBranchUpdateSupport implements dashboard.Source only —
+// the shape a forge with no branch-update support at all would have.
+type fakeSourceWithoutBranchUpdateSupport struct{ forge dashboard.Forge }
+
+func (f *fakeSourceWithoutBranchUpdateSupport) Forge() dashboard.Forge { return f.forge }
+
+func (f *fakeSourceWithoutBranchUpdateSupport) Fetch(_ context.Context) dashboard.Result {
+	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true}}
+}
+
+func postUpdatePullRequestBranch(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName string, number int) *http.Response {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"forge": forge, "fullName": fullName, "number": number})
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/update-branch", strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	return resp
+}
+
+func TestPullRequestUpdateBranch_CallsUpdateBranchWithOwnerNameAndNumber(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, "alrayyes", source.lastOwner)
+	assert.Equal(t, "tempus-fugit", source.lastName)
+	assert.Equal(t, 42, source.lastNumber)
+}
+
+func TestPullRequestUpdateBranch_Accepted_Returns202NotAFailure(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeGitHub, accepted: true}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+}
+
+func TestPullRequestUpdateBranch_ForgejoDispatchesToTheForgejoSource(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeForgejo}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 7)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, 7, source.lastNumber)
+}
+
+func TestPullRequestUpdateBranch_CantMergeCleanly_ClassifiesAs409(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchUpdaterSource{
+		forge: dashboard.ForgeGitHub,
+		updateErr: &dashboard.ClientError{
+			Kind: dashboard.ForgeErrorConflict,
+			Err:  assert.AnError,
+		},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	var body map[string]string
+	require.NoError(t, readJSON(resp, &body))
+	assert.Contains(t, body["error"], assert.AnError.Error())
+}
+
+func TestPullRequestUpdateBranch_ForgeWithNoSupport_Returns400(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestPullRequestUpdateBranch_NoCredentialsSavedForThatForge_Returns400(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestPullRequestUpdateBranch_MalformedFullName_Returns400(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestPullRequestUpdateBranch_Unauthenticated_Returns401(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeGitHub}
+	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1})
+	require.NoError(t, err)
+	resp, err := http.Post(srvURL+"/api/pull-requests/update-branch", "application/json", strings.NewReader(string(body)))
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}

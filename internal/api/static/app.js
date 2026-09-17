@@ -274,6 +274,7 @@
     var statusCell;
     var conflictPill;
     var mergePill;
+    var updateBranchAction;
     var mergeAction;
 
     row.appendChild(repoCell(item));
@@ -293,6 +294,8 @@
       if (conflictPill) statusCell.appendChild(conflictPill);
       mergePill = autoMergePill(item.autoMergeEnabled);
       if (mergePill) statusCell.appendChild(mergePill);
+      updateBranchAction = updateBranchActionCell(item);
+      if (updateBranchAction) statusCell.appendChild(updateBranchAction);
       mergeAction = mergeActionCell(item);
       if (mergeAction) statusCell.appendChild(mergeAction);
       meta.appendChild(statusCell);
@@ -333,18 +336,20 @@
     return null;
   }
 
-  var mergeLockReasonCounter = 0;
+  var actionLockReasonCounter = 0;
 
   // Same aria-disabled + visible, wired-up reason shape webhooks.js's own
   // lockedButton uses, not a native disabled attribute or a title-only
   // tooltip — native disabled would drop it from the tab order and hide
-  // the reason from keyboard and screen-reader users.
-  function lockedMergeButton(reasonText) {
+  // the reason from keyboard and screen-reader users. Shared by every
+  // row action that can lock for good (merge, update branch), not just
+  // one of them.
+  function lockedActionButton(label, reasonText) {
     var wrap = el('span', 'row-action-locked');
-    var button = el('button', 'row-action', 'Merge');
+    var button = el('button', 'row-action', label);
     button.type = 'button';
     button.setAttribute('aria-disabled', 'true');
-    var reasonId = `merge-locked-reason-${mergeLockReasonCounter++}`;
+    var reasonId = `action-locked-reason-${actionLockReasonCounter++}`;
     button.setAttribute('aria-describedby', reasonId);
     wrap.appendChild(button);
     var reason = el('span', 'row-action-reason', reasonText);
@@ -422,7 +427,8 @@
     var key = prKey(item);
     var entry = mergeState[key] || { phase: 'idle' };
 
-    if (entry.phase === 'locked') return lockedMergeButton(entry.reason);
+    if (entry.phase === 'locked')
+      return lockedActionButton('Merge', entry.reason);
 
     var wrap = el('span', 'row-action-group');
 
@@ -462,6 +468,116 @@
     });
     wrap.appendChild(mergeButton);
     return wrap;
+  }
+
+  // ---- pull request update-branch action ----
+  // Its own state map, parallel to mergeState — a Forgejo pull request can
+  // be mergeable and behind at once (see dashboard.PullRequest.Behind's
+  // own doc comment), so both actions can legitimately show on the same
+  // row at the same time and need independent lock/in-flight state rather
+  // than sharing one.
+  var updateBranchState = {};
+
+  // Mirrors reactiveMergeLockReason's 403/429 handling exactly; 409 reads
+  // differently here since the forge is reporting the two branches can't
+  // be merged cleanly, not that the pull request itself stopped being
+  // mergeable.
+  function reactiveUpdateBranchLockReason(status) {
+    if (status === 403)
+      return 'Missing permission — check your token in Settings.';
+    if (status === 429)
+      return 'Rate limit exceeded — try again once it resets.';
+    if (status === 409)
+      return "Can't update cleanly — resolve the conflict on the forge.";
+    return null;
+  }
+
+  // No confirm step, unlike doMerge — bringing a branch up to date is
+  // routine and reversible in a way completing the pull request isn't, so
+  // a single click matches the webhook button's own one-click pattern
+  // instead of the merge button's two-step one.
+  function doUpdateBranch(item, button) {
+    var key = prKey(item);
+    updateBranchState[key] = { phase: 'updating' };
+    button.disabled = true;
+    button.textContent = 'Updating…';
+
+    fetch('/api/pull-requests/update-branch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        forge: item.forge,
+        fullName: item.repo,
+        number: item.number,
+      }),
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          throw new Error('session expired');
+        }
+        // 202: the forge scheduled the update as a background job rather
+        // than finishing it inline (GitHub) — not a failure, same as 204.
+        if (res.status === 204 || res.status === 202) return null;
+        return res.json().then((body) => {
+          var err = new Error(body?.error || `backend answered ${res.status}`);
+          err.status = res.status;
+          throw err;
+        });
+      })
+      .then(() => {
+        delete updateBranchState[key];
+        // Same immediate-refresh pattern doMerge uses, for the same
+        // reason: reflect the real state as soon as the forge has it,
+        // not up to 30 seconds later.
+        return fetch('/api/dashboard/refresh', {
+          method: 'POST',
+          headers: { Accept: 'application/json' },
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data) applySnapshot(data);
+          });
+      })
+      .catch((err) => {
+        var lockReason = reactiveUpdateBranchLockReason(err.status);
+        updateBranchState[key] = lockReason
+          ? { phase: 'locked', reason: lockReason }
+          : { phase: 'idle' };
+        showError(
+          `Couldn't update the branch for ${item.repo}#${item.number}: ${err.message}`,
+        );
+        prBoard.render();
+      });
+  }
+
+  // Only rendered when the forge reports this pull request as behind its
+  // base — independent of mergeStatus, so it can show alongside the merge
+  // button rather than instead of it.
+  function updateBranchActionCell(item) {
+    if (!item.behind) return null;
+
+    var key = prKey(item);
+    var entry = updateBranchState[key] || { phase: 'idle' };
+
+    if (entry.phase === 'locked')
+      return lockedActionButton('Update branch', entry.reason);
+
+    var updating = entry.phase === 'updating';
+    var button = el(
+      'button',
+      'row-action',
+      updating ? 'Updating…' : 'Update branch',
+    );
+    button.type = 'button';
+    button.disabled = updating;
+    button.addEventListener('click', () => {
+      doUpdateBranch(item, button);
+    });
+    return button;
   }
 
   // ---- shared filter state ----
