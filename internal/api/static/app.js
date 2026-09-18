@@ -11,64 +11,8 @@
 
   var lastGeneratedAt = null;
 
-  // ---- cookies ----
-  // A cookie, not localStorage: it rides along on the request that renders
-  // the page, and it's the one storage mechanism shared identically by
-  // this file and theme.js (a separate script, loaded synchronously in
-  // <head> on other pages, with no module system to share state through).
-  // Filter persistence has its own copy of this in filters.js — this one
-  // is only for the theme cookie now.
-  function getCookie(name) {
-    var match = document.cookie.match(
-      new RegExp(
-        `(?:^|; )${name.replace(/[-.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]*)`,
-      ),
-    );
-    return match ? decodeURIComponent(match[1]) : null;
-  }
-
-  function setCookie(name, value) {
-    var maxAgeSeconds = 365 * 24 * 60 * 60;
-    // biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API isn't in Safari yet, and this repo targets more than just Chromium (browser-compat.md).
-    document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
-  }
-
-  // ---- theme toggle ----
-  (function initTheme() {
-    var root = document.documentElement;
-    var toggle = document.getElementById('theme-toggle');
-    var THEME_COOKIE = 'forge-board-theme';
-
-    function systemPrefersDark() {
-      return window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-    }
-
-    function applyTheme(theme) {
-      if (theme === 'dark' || theme === 'light') {
-        root.setAttribute('data-theme', theme);
-      } else {
-        root.removeAttribute('data-theme');
-      }
-      var isDark =
-        theme === 'dark' || (theme !== 'light' && systemPrefersDark());
-      toggle.setAttribute('aria-pressed', String(isDark));
-      toggle.setAttribute(
-        'aria-label',
-        isDark ? 'Switch to light theme' : 'Switch to dark theme',
-      );
-    }
-
-    applyTheme(getCookie(THEME_COOKIE));
-
-    toggle.addEventListener('click', () => {
-      var currentlyDark =
-        root.getAttribute('data-theme') === 'dark' ||
-        (!root.getAttribute('data-theme') && systemPrefersDark());
-      var next = currentlyDark ? 'light' : 'dark';
-      applyTheme(next);
-      setCookie(THEME_COOKIE, next);
-    });
-  })();
+  // Theme toggle wiring lives in theme-toggle.js now, shared with every
+  // other page instead of duplicated here -- see index.html's script tag.
 
   // ---- formatting ----
   function relativeTime(iso) {

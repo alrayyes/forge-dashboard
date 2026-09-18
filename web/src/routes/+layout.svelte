@@ -8,7 +8,7 @@
   // written directly in the markup below, since Svelte only allows one
   // top-level <script> per component (svelte.dev/e/script_duplicate).
   onMount(() => {
-    for (const src of ["/footer.js", "/nav.js"]) {
+    for (const src of ["/footer.js", "/nav.js", "/theme-toggle.js"]) {
       const script = document.createElement("script");
       script.src = src;
       document.body.appendChild(script);
