@@ -108,7 +108,9 @@ func NewClient(token, username, baseURL string) *Client {
 		baseURL = defaultBaseURL
 	}
 
-	httpClient := &http.Client{Timeout: 30 * time.Second}
+	// etagTransport only ever touches a GET, so it's safe to share with
+	// graphqlDo's own POST calls on the same httpClient (#381).
+	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: newETagTransport(nil)}
 	restClient := ghsdk.NewClient(httpClient)
 	if token != "" {
 		restClient = restClient.WithAuthToken(token)
