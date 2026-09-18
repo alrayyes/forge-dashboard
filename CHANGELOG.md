@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.69.0](https://github.com/alrayyes/forge-dashboard/compare/v0.68.0...v0.69.0) (2026-09-18)
+
+
+### Features
+
+* add a Renovate rebase button to pull request rows ([7f3d9aa](https://github.com/alrayyes/forge-dashboard/commit/7f3d9aad8b161dd0eaf54aaaf0faa62aada3da3d))
+
 ## [0.68.0](https://github.com/alrayyes/forge-dashboard/compare/v0.67.1...v0.68.0) (2026-09-18)
 
 
