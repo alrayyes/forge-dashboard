@@ -307,7 +307,16 @@
     // already uses: shown only when there's actually a problem). Not a
     // button, unlike ciPill: there's no filter dimension for this, just
     // a fact about the row.
-    function mergeStatusPill(status: string): HTMLElement | null {
+    //
+    // #418: "blocked" specifically is also silent while ci is still
+    // "pending" — GitHub's own mergeStateStatus reports BLOCKED whenever
+    // required checks haven't *completed*, not only once one has
+    // actually failed, the same root cause #385 already fixed for the
+    // Merge button's own clickability. "conflicting" gets no such
+    // exception: a real merge conflict is true regardless of CI state,
+    // not a completion gate the way an incomplete "blocked" is.
+    function mergeStatusPill(status: string, ci: string): HTMLElement | null {
+      if (status === "blocked" && ci === "pending") return null;
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
       const pill = el("span", `merge-pill ${status}`);
@@ -353,7 +362,7 @@
         // them this particular row has anything to say.
         const statusCell = el("div", "status-cell");
         statusCell.appendChild(ciPill(pr.ci, onStatusClick));
-        const conflictPill = mergeStatusPill(pr.mergeStatus);
+        const conflictPill = mergeStatusPill(pr.mergeStatus, pr.ci);
         if (conflictPill) statusCell.appendChild(conflictPill);
         const mergePill = autoMergePill(pr.autoMergeEnabled);
         if (mergePill) statusCell.appendChild(mergePill);
