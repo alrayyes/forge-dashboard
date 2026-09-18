@@ -321,6 +321,67 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/settings/filter-state:
+    get:
+      operationId: getFilterState
+      summary: The signed-in user's own saved dashboard/Insights filter state
+      description: |
+        A lightweight read of one opaque blob (#353), the same
+        "deliberately not GET /api/settings itself" restraint
+        GET /api/settings/bot-pr-updates already uses, for the same
+        reason: this loads on every dashboard/Insights visit and
+        shouldn't provision webhook credentials as a side effect.
+        `{}` for a user who's never saved any filters yet, not a 404.
+      tags: [settings]
+      responses:
+        "200":
+          description: The saved state, or `{}` if none has ever been saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FilterState"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: setFilterState
+      summary: Save the signed-in user's own dashboard/Insights filter state
+      description: |
+        A dedicated, lightweight save separate from the main
+        PUT /api/settings — filters change on nearly every click, a
+        mismatch for that endpoint's "always a full form submit"
+        convention (#353). The body replaces the saved state entirely,
+        the same "always a full submit, just of a much smaller and
+        much more frequent thing" shape as the main settings PUT, not a
+        partial patch. Filters.js's own client-side code decides when
+        to call this: immediately for a discrete control, debounced
+        while the user is still typing in the free-text Title filter.
+      tags: [settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FilterState"
+      responses:
+        "204":
+          description: Saved.
+        "400":
+          description: The request body wasn't valid JSON, or exceeded the size this endpoint accepts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/tokens:
     get:
       operationId: listAPITokens
@@ -1255,6 +1316,20 @@ components:
         (the finish request bodies) — passed through to and from the
         browser's own `navigator.credentials` API untouched, so this
         contract intentionally doesn't re-model WebAuthn's own schema.
+      additionalProperties: true
+
+    FilterState:
+      type: object
+      description: |
+        The dashboard/Insights filter bar's own saved shape (#353) —
+        whatever `filters.js`'s `loadState`/`saveState` already produce
+        client-side (shared forge/repo/label/author/title/created/
+        updated/groupBy, plus the two board-owned extras with no
+        equivalent on the other entity type). This server stores and
+        returns it verbatim, byte for byte, and never parses or
+        validates its shape — the same "opaque blob, not this layer's
+        concern" treatment WebAuthnCeremonyOptions above gets, so a
+        client-side shape change here never needs a matching spec change.
       additionalProperties: true
 
     SessionUser:

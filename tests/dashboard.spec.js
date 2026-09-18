@@ -661,6 +661,148 @@ test.describe('dashboard page', () => {
     });
   });
 
+  test.describe('server-synced filter state (#353)', () => {
+    function mockTwoForges(page) {
+      return page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              { forge: 'github', reachable: true, repoCount: 1 },
+              { forge: 'forgejo', reachable: true, repoCount: 1 },
+            ],
+            pullRequests: [
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 1,
+                title: 'A GitHub PR',
+                url: 'https://example.com/1',
+                author: 'claude',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'forgejo',
+                repo: 'homelab/vps-docker',
+                number: 2,
+                title: 'A Forgejo PR',
+                url: 'https://example.com/2',
+                author: 'ryan',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+            issues: [],
+          }),
+        }),
+      );
+    }
+
+    test.beforeEach(async ({ page }) => {
+      await mockTwoForges(page);
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    });
+
+    test('a discrete filter change saves to the server immediately, not just the cookie', async ({
+      page,
+    }) => {
+      await selectForge(page, 'forgejo');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+
+      await expect
+        .poll(
+          async () => {
+            const resp = await page.request.get('/api/settings/filter-state');
+            const body = await resp.json();
+            return body?.shared?.forge;
+          },
+          { timeout: 1000 },
+        )
+        .toBe('forgejo');
+    });
+
+    test('typing in the Title filter debounces the server save, but the local cookie updates on every keystroke', async ({
+      page,
+    }) => {
+      const titleFilter = page.locator(
+        '.filter-bar .col-filter[data-col="title"]',
+      );
+      await titleFilter.pressSequentially('git', { delay: 20 });
+
+      // The cookie (this page's own fast local cache) already has it,
+      // synchronously, on every keystroke — checked directly rather than
+      // via a reload, which would tear down the page's own pending
+      // debounce timer below before it ever got to fire.
+      await expect(async () => {
+        const cookie = await page.evaluate(() => document.cookie);
+        expect(cookie).toContain('forge-board-filters=');
+      }).toPass({ timeout: 1000 });
+      const cookieValue = await page.evaluate(() => {
+        const match = document.cookie.match(/forge-board-filters=([^;]*)/);
+        return match ? JSON.parse(decodeURIComponent(match[1])) : null;
+      });
+      expect(cookieValue?.shared?.title).toBe('git');
+
+      // The server write is what's still debounced — shortly after the
+      // last keystroke it hasn't landed yet...
+      const soonAfter = await page.request.get('/api/settings/filter-state');
+      const soonBody = await soonAfter.json();
+      expect(soonBody?.shared?.title).not.toBe('git');
+
+      // ...but does land once the debounce window passes.
+      await expect
+        .poll(
+          async () => {
+            const resp = await page.request.get('/api/settings/filter-state');
+            const body = await resp.json();
+            return body?.shared?.title;
+          },
+          { timeout: 2000 },
+        )
+        .toBe('git');
+    });
+
+    test('a filter set with no local cookie present still applies once the server value loads — a new browser, same account', async ({
+      page,
+    }) => {
+      await selectForge(page, 'forgejo');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect
+        .poll(
+          async () => {
+            const resp = await page.request.get('/api/settings/filter-state');
+            const body = await resp.json();
+            return body?.shared?.forge;
+          },
+          { timeout: 1000 },
+        )
+        .toBe('forgejo');
+
+      // A brand-new browser for this same account has a valid session
+      // but never had this page's own forge-board-filters cookie — only
+      // the session cookie (who the server thinks this is) survives.
+      await page.evaluate(() => {
+        // biome-ignore lint/suspicious/noDocumentCookie: matches filters.js's own setCookie, which this test is deliberately bypassing to simulate a fresh browser.
+        document.cookie = 'forge-board-filters=; max-age=0; path=/';
+      });
+      await page.reload();
+
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText(
+        'A Forgejo PR',
+      );
+      await expect(forgeRadio(page, 'forgejo')).toBeChecked();
+    });
+  });
+
   test.describe('grouping', () => {
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route) =>

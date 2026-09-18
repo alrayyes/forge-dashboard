@@ -91,6 +91,7 @@ func (s *Store) Init(ctx context.Context) error {
 		webhook_secret TEXT NOT NULL DEFAULT '',
 		allow_bot_pr_updates BOOLEAN NOT NULL DEFAULT 0,
 		renovate_rebase_label TEXT NOT NULL DEFAULT '',
+		filter_state TEXT NOT NULL DEFAULT '{}',
 		updated_at TIMESTAMP NOT NULL
 	);
 	CREATE TABLE IF NOT EXISTS webhook_deliveries (
@@ -119,6 +120,7 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 		`ALTER TABLE user_credentials ADD COLUMN webhook_secret TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE user_credentials ADD COLUMN allow_bot_pr_updates BOOLEAN NOT NULL DEFAULT 0`,
 		`ALTER TABLE user_credentials ADD COLUMN renovate_rebase_label TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE user_credentials ADD COLUMN filter_state TEXT NOT NULL DEFAULT '{}'`,
 	}
 	for _, stmt := range migrations {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
@@ -263,6 +265,50 @@ func (s *Store) FindByWebhookToken(ctx context.Context, token string) (userID []
 		return nil, "", err
 	}
 	return userID, secret, nil
+}
+
+// GetFilterState returns userID's own saved dashboard/Insights filter
+// state as a raw JSON blob (#353) — "{}" for a user who's never saved
+// any, the same empty-object shape Filters.defaultState() already
+// treats as "nothing set" client-side, not ErrNotFound: no filters
+// saved yet is the normal starting state, not a missing-row error the
+// way Get's own ErrNotFound is for forge credentials.
+func (s *Store) GetFilterState(ctx context.Context, userID []byte) (string, error) {
+	var state string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT filter_state FROM user_credentials WHERE user_id = ?`, encodeUserID(userID),
+	).Scan(&state)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "{}", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return state, nil
+}
+
+// SetFilterState replaces userID's own saved filter state with stateJSON
+// verbatim — this Store never parses or validates its shape, the same
+// "opaque blob, not this layer's concern" treatment WebAuthnCeremonyOptions
+// gets in api/openapi.yaml. Doesn't touch any other field, including on a
+// user with no saved row at all yet (EnsureWebhookCredentials' own
+// "insert just this one field" shape, not Set's full-row replace — #353's
+// whole point is that this saves far more often than a real Settings
+// submit does, so it can't wait on one having happened first).
+func (s *Store) SetFilterState(ctx context.Context, userID []byte, stateJSON string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO user_credentials (user_id, filter_state, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT (user_id) DO UPDATE SET filter_state = excluded.filter_state`,
+		// updated_at is only ever used for the fresh-row INSERT case above
+		// (the ON CONFLICT clause deliberately leaves it out) — the same
+		// "this column means a real Settings form save happened" convention
+		// EnsureWebhookCredentials already established; a filter-state-only
+		// write shouldn't make Settings look more recently touched than it
+		// really was.
+		encodeUserID(userID), stateJSON, time.Now().UTC(),
+	)
+	return err
 }
 
 // randomWebhookValue returns 256 bits of randomness as a URL-safe string —
