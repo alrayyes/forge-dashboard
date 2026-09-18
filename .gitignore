@@ -43,4 +43,8 @@ CHANGELOG.md
 # yet migrated has no entry here and stays a tracked, hand-written file.
 /internal/api/static/webhooks.html
 /internal/api/static/settings.html
+/internal/api/static/privacy.html
+/internal/api/static/disclaimer.html
+/internal/api/static/releases.html
+/internal/api/static/login.html
 /internal/api/static/_app/

@@ -345,6 +345,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    put:
+      operationId: setTheme
+      summary: Save the signed-in user's own theme preference
+      description: |
+        A dedicated, instant save (#352) — deliberately not routed
+        through the main PUT /api/settings, whose every other field is
+        a plain replace rather than a per-field merge: a request
+        carrying only theme through that handler would blank every
+        other saved setting. Picking a theme applies immediately, the
+        same "set once and forget" convention the ticket's own research
+        cites, rather than waiting on the rest of the settings form's
+        own Save button.
+      tags: [settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThemeRequest"
+      responses:
+        "200":
+          description: The saved value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThemeResponse"
+        "400":
+          description: theme wasn't "", "light", or "dark".
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/settings/filter-state:
     get:
@@ -1490,7 +1528,8 @@ components:
         A blank `githubToken` or `forgejoToken` keeps whatever token is
         already saved for that forge rather than clearing it — this is
         the only way to update the username fields without having to
-        resubmit a token you don't want to re-paste.
+        resubmit a token you don't want to re-paste. Theme isn't
+        settable here at all — see PUT /api/settings/theme.
       properties:
         githubToken:
           type: string
@@ -1506,9 +1545,6 @@ components:
           type: boolean
         renovateRebaseLabel:
           type: string
-        theme:
-          type: string
-          enum: ["", light, dark]
 
     BotPrUpdatesResponse:
       type: object
@@ -1521,6 +1557,15 @@ components:
     ThemeResponse:
       type: object
       description: See GET /api/settings/theme's own description.
+      required: [theme]
+      properties:
+        theme:
+          type: string
+          enum: ["", light, dark]
+
+    ThemeRequest:
+      type: object
+      description: See PUT /api/settings/theme's own description.
       required: [theme]
       properties:
         theme:
