@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.70.2](https://github.com/alrayyes/forge-dashboard/compare/v0.70.1...v0.70.2) (2026-09-18)
+
+
+### Bug Fixes
+
+* make GitHub merges respect the repo's allowed merge methods ([#376](https://github.com/alrayyes/forge-dashboard/issues/376)) ([2995195](https://github.com/alrayyes/forge-dashboard/commit/2995195edfb3865c710d061799d1542a79579fde)), closes [#349](https://github.com/alrayyes/forge-dashboard/issues/349)
+* show the real forge message for a merge's 409, not a guess ([#379](https://github.com/alrayyes/forge-dashboard/issues/379)) ([270be23](https://github.com/alrayyes/forge-dashboard/commit/270be236b2645a50968782d8e140df6bf7d5dfca)), closes [#350](https://github.com/alrayyes/forge-dashboard/issues/350)
+
 ## [0.70.1](https://github.com/alrayyes/forge-dashboard/compare/v0.70.0...v0.70.1) (2026-09-18)
 
 
