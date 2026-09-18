@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.77.1](https://github.com/alrayyes/forge-dashboard/compare/v0.77.0...v0.77.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* hide the blocked merge-status pill while CI is still running ([#421](https://github.com/alrayyes/forge-dashboard/issues/421)) ([66bbebf](https://github.com/alrayyes/forge-dashboard/commit/66bbebfdda53eaaf3f5af0b81d9552201f8eff52))
+
 ## [0.77.0](https://github.com/alrayyes/forge-dashboard/compare/v0.76.2...v0.77.0) (2026-09-18)
 
 
