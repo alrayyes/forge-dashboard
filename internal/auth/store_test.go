@@ -274,7 +274,7 @@ func TestStore_RevokeUser_AlsoRevokesAPITokens(t *testing.T) {
 
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
 	require.NoError(t, err)
-	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 
 	require.NoError(t, store.RevokeUser(t.Context(), u.ID))
@@ -310,7 +310,7 @@ func TestStore_DeleteUser_AlsoRemovesAPITokens(t *testing.T) {
 
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
 	require.NoError(t, err)
-	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 
 	require.NoError(t, store.DeleteUser(t.Context(), u.ID))
@@ -326,7 +326,7 @@ func TestStore_APIToken_CreateThenResolve_ReturnsTheOwner(t *testing.T) {
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
 	require.NoError(t, err)
 
-	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 	require.NotEmpty(t, rawToken)
 	assert.Equal(t, "laptop", tok.Label)
@@ -347,7 +347,7 @@ func TestStore_APIToken_RawValueNeverStored(t *testing.T) {
 
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
 	require.NoError(t, err)
-	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 
 	tokens, err := store.ListAPITokens(t.Context(), u.ID)
@@ -372,7 +372,7 @@ func TestStore_APIToken_Use_RecordsLastUsedAt(t *testing.T) {
 
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
 	require.NoError(t, err)
-	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 
 	_, err = store.UserForAPIToken(t.Context(), rawToken)
@@ -391,7 +391,7 @@ func TestStore_APIToken_Delete_StopsItAuthenticating(t *testing.T) {
 
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
 	require.NoError(t, err)
-	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 
 	require.NoError(t, store.DeleteAPIToken(t.Context(), u.ID, tok.ID))
@@ -411,7 +411,7 @@ func TestStore_APIToken_Delete_ScopedToOwner(t *testing.T) {
 	require.NoError(t, err)
 	attacker, err := store.CreateUser(t.Context(), "mallory", "Mallory", false)
 	require.NoError(t, err)
-	rawToken, tok, err := store.CreateAPIToken(t.Context(), owner.ID, "laptop")
+	rawToken, tok, err := store.CreateAPIToken(t.Context(), owner.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 
 	require.NoError(t, store.DeleteAPIToken(t.Context(), attacker.ID, tok.ID))
@@ -439,9 +439,9 @@ func TestStore_APIToken_List_OrderedOldestFirst(t *testing.T) {
 
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
 	require.NoError(t, err)
-	_, first, err := store.CreateAPIToken(t.Context(), u.ID, "first")
+	_, first, err := store.CreateAPIToken(t.Context(), u.ID, "first", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
-	_, second, err := store.CreateAPIToken(t.Context(), u.ID, "second")
+	_, second, err := store.CreateAPIToken(t.Context(), u.ID, "second", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 
 	tokens, err := store.ListAPITokens(t.Context(), u.ID)
@@ -450,4 +450,73 @@ func TestStore_APIToken_List_OrderedOldestFirst(t *testing.T) {
 	require.Len(t, tokens, 2)
 	assert.Equal(t, first.ID, tokens[0].ID)
 	assert.Equal(t, second.ID, tokens[1].ID)
+}
+
+// TestStore_APIToken_ExpiresAt_RoundTrips is #356's own acceptance
+// criterion that Settings shows each token's expiration alongside its
+// other metadata.
+func TestStore_APIToken_ExpiresAt_RoundTrips(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	wantExpiry := time.Now().Add(90 * 24 * time.Hour)
+
+	_, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", wantExpiry)
+	require.NoError(t, err)
+	assert.WithinDuration(t, wantExpiry, tok.ExpiresAt, time.Second)
+
+	tokens, err := store.ListAPITokens(t.Context(), u.ID)
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	assert.WithinDuration(t, wantExpiry, tokens[0].ExpiresAt, time.Second)
+}
+
+// TestStore_APIToken_Expired_RejectedLikeAnInvalidToken is #356's core
+// security property: an expired token stops authenticating, the same
+// ErrNotFound an unknown or already-deleted one gets — not a distinct
+// "expired" error a caller could special-case into still trusting it.
+func TestStore_APIToken_Expired_RejectedLikeAnInvalidToken(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(-time.Minute))
+	require.NoError(t, err)
+
+	_, err = store.UserForAPIToken(t.Context(), rawToken)
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+// TestStore_APIToken_LegacyRowWithNoExpiry_RejectedNotGrandfathered is
+// the migration case: a token row that predates this column (expires_at
+// NULL) must not be silently treated as permanently valid just because
+// the schema changed underneath it — #356's whole point is that no
+// token gets to be non-expiring, including one that already existed.
+// Simulated by creating a real token the normal way, then reaching past
+// the Store's own API to null out expires_at directly — the shape a row
+// written before this migration would already be in, not something this
+// package's own public methods can produce on their own anymore.
+func TestStore_APIToken_LegacyRowWithNoExpiry_RejectedNotGrandfathered(t *testing.T) {
+	t.Parallel()
+
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "auth.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "old laptop", time.Now().Add(30*24*time.Hour))
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `UPDATE api_tokens SET expires_at = NULL`)
+	require.NoError(t, err)
+
+	_, err = store.UserForAPIToken(t.Context(), rawToken)
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
 }

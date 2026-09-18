@@ -46,7 +46,7 @@ func TestRequireAuth_BearerToken_AuthenticatesWithNoSessionCookie(t *testing.T) 
 	store := newTestStore(t)
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
 	require.NoError(t, err)
-	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -69,7 +69,7 @@ func TestRequireAuth_SessionCookiePreferredOverBearerWhenBothPresent(t *testing.
 
 	bearerUser, err := store.CreateUser(t.Context(), "mallory", "Mallory", false)
 	require.NoError(t, err)
-	rawToken, _, err := store.CreateAPIToken(t.Context(), bearerUser.ID, "laptop")
+	rawToken, _, err := store.CreateAPIToken(t.Context(), bearerUser.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -113,7 +113,7 @@ func TestRequireAuth_RevokedBearerToken_Returns401(t *testing.T) {
 	store := newTestStore(t)
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
 	require.NoError(t, err)
-	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop")
+	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
 	require.NoError(t, store.DeleteAPIToken(t.Context(), u.ID, tok.ID))
 
