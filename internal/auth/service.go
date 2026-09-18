@@ -15,6 +15,14 @@ import (
 // is already taken.
 var ErrAlreadyRegistered = errors.New("auth: username already registered")
 
+// initialCredentialLabel is what the very first passkey on a brand-new
+// account is labeled — #355's required-nickname prompt only applies to
+// BeginAddCredential's own flow (a user who already has one deciding to
+// add another); account creation's own signup form isn't part of this
+// feature's scope, so its one credential gets a sensible default rather
+// than an empty label with nothing to show in Settings' own list.
+const initialCredentialLabel = "Initial passkey"
+
 // ceremonyTTL bounds how long a registration or login ceremony can sit
 // unfinished — long enough for a passkey prompt, short enough that a
 // stale one isn't sitting in the database forever.
@@ -110,8 +118,55 @@ func (s *Service) FinishRegistration(ctx context.Context, username string, r *ht
 	if err := s.store.AddCredential(ctx, u.ID, *cred); err != nil {
 		return nil, err
 	}
+	if err := s.store.SetCredentialLabel(ctx, u.ID, cred.ID, initialCredentialLabel); err != nil {
+		return nil, err
+	}
 	u.Credentials = append(u.Credentials, *cred)
 	return u, nil
+}
+
+// BeginAddCredential starts a registration ceremony for an additional
+// passkey on u's already-authenticated account (#355) — the same
+// underlying WebAuthn ceremony BeginRegistration drives for a brand-new
+// account, but against a user that already exists and, critically,
+// already has credentials: the library's own excludeCredentials (built
+// from u.WebAuthnCredentials()) is what stops a browser from letting
+// someone re-register the same authenticator as a second, redundant
+// entry.
+func (s *Service) BeginAddCredential(ctx context.Context, u *User) (*protocol.CredentialCreation, error) {
+	creation, session, err := s.webauthn.BeginRegistration(u)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.store.SaveCeremony(ctx, u.Username, kindRegister, *session, ceremonyTTL); err != nil {
+		return nil, err
+	}
+	return creation, nil
+}
+
+// FinishAddCredential completes a ceremony BeginAddCredential started,
+// attaching a new passkey labeled label to u's account. label is
+// required — #355's whole point is that a nickname is prompted for at
+// registration time, not derived from the authenticator.
+func (s *Service) FinishAddCredential(ctx context.Context, u *User, label string, r *http.Request) (*Credential, error) {
+	session, err := s.store.LoadCeremony(ctx, u.Username, kindRegister)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = s.store.DeleteCeremony(ctx, u.Username, kindRegister) }()
+
+	cred, err := s.webauthn.FinishRegistration(u, session, r)
+	if err != nil {
+		return nil, fmt.Errorf("auth: finish add credential: %w", err)
+	}
+	if err := s.store.AddCredential(ctx, u.ID, *cred); err != nil {
+		return nil, err
+	}
+	createdAt := time.Now().UTC()
+	if err := s.store.setCredentialLabelAt(ctx, u.ID, cred.ID, label, createdAt); err != nil {
+		return nil, err
+	}
+	return &Credential{ID: credentialIDKey(cred.ID), Label: label, CreatedAt: createdAt}, nil
 }
 
 // BeginLogin starts a login ceremony for an existing username.

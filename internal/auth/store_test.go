@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,15 @@ import (
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )
+
+// credentialIDKeyForTest mirrors the unexported encoding
+// Store.RemoveCredential's own credID string parameter expects — the
+// same base64url a real Credential.ID (from ListCredentials) already
+// carries, not something a test outside this package can otherwise
+// produce without reaching past AddCredential's own []byte ID.
+func credentialIDKeyForTest(id []byte) string {
+	return base64.RawURLEncoding.EncodeToString(id)
+}
 
 func newTestStore(t *testing.T) *auth.Store {
 	t.Helper()
@@ -519,4 +529,184 @@ func TestStore_APIToken_LegacyRowWithNoExpiry_RejectedNotGrandfathered(t *testin
 	_, err = store.UserForAPIToken(t.Context(), rawToken)
 
 	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_ListCredentials_NoneYet_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+
+	creds, err := store.ListCredentials(t.Context(), u.ID)
+
+	require.NoError(t, err)
+	assert.Empty(t, creds)
+}
+
+func TestStore_SetCredentialLabel_ThenListCredentials_ReturnsIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	credID := []byte("cred-1")
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: credID, PublicKey: []byte("pk")}))
+	require.NoError(t, store.SetCredentialLabel(t.Context(), u.ID, credID, "MacBook"))
+
+	creds, err := store.ListCredentials(t.Context(), u.ID)
+
+	require.NoError(t, err)
+	require.Len(t, creds, 1)
+	assert.Equal(t, "MacBook", creds[0].Label)
+	assert.False(t, creds[0].CreatedAt.IsZero())
+}
+
+func TestStore_SetCredentialLabel_Twice_ReplacesIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	credID := []byte("cred-1")
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: credID, PublicKey: []byte("pk")}))
+	require.NoError(t, store.SetCredentialLabel(t.Context(), u.ID, credID, "MacBook"))
+
+	require.NoError(t, store.SetCredentialLabel(t.Context(), u.ID, credID, "Work Laptop"))
+
+	creds, err := store.ListCredentials(t.Context(), u.ID)
+	require.NoError(t, err)
+	require.Len(t, creds, 1)
+	assert.Equal(t, "Work Laptop", creds[0].Label)
+}
+
+// TestStore_ListCredentials_NoMetadataRow_FallsBackRatherThanVanishing
+// is the migration case: a credential AddCredential ever attached
+// without a matching SetCredentialLabel call (a row from before this
+// feature existed) must still appear in the list, not silently vanish
+// just because its label is missing.
+func TestStore_ListCredentials_NoMetadataRow_FallsBackRatherThanVanishing(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	creds, err := store.ListCredentials(t.Context(), u.ID)
+
+	require.NoError(t, err)
+	require.Len(t, creds, 1)
+	assert.NotEmpty(t, creds[0].Label)
+}
+
+func TestStore_ListCredentials_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	a, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), a.ID, webauthn.Credential{ID: []byte("cred-a"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.SetCredentialLabel(t.Context(), a.ID, []byte("cred-a"), "Ryan's key"))
+	b, err := store.CreateUser(t.Context(), "mallory", "Mallory", false)
+	require.NoError(t, err)
+
+	creds, err := store.ListCredentials(t.Context(), b.ID)
+
+	require.NoError(t, err)
+	assert.Empty(t, creds)
+}
+
+func TestStore_RemoveCredential_WithAnotherRemaining_RemovesIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.SetCredentialLabel(t.Context(), u.ID, []byte("cred-1"), "MacBook"))
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk2")}))
+	require.NoError(t, store.SetCredentialLabel(t.Context(), u.ID, []byte("cred-2"), "YubiKey"))
+
+	require.NoError(t, store.RemoveCredential(t.Context(), u.ID, credentialIDKeyForTest([]byte("cred-1"))))
+
+	got, err := store.GetUserByID(t.Context(), u.ID)
+	require.NoError(t, err)
+	require.Len(t, got.Credentials, 1)
+	assert.Equal(t, []byte("cred-2"), got.Credentials[0].ID)
+
+	creds, err := store.ListCredentials(t.Context(), u.ID)
+	require.NoError(t, err)
+	require.Len(t, creds, 1)
+	assert.Equal(t, "YubiKey", creds[0].Label)
+}
+
+// TestStore_RemoveCredential_LastOne_RefusedWithErrLastCredential is
+// #355's core safety property: this app has no password fallback, so
+// deleting the account's only passkey would lock it out entirely.
+func TestStore_RemoveCredential_LastOne_RefusedWithErrLastCredential(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	err = store.RemoveCredential(t.Context(), u.ID, credentialIDKeyForTest([]byte("cred-1")))
+
+	assert.ErrorIs(t, err, auth.ErrLastCredential)
+	got, getErr := store.GetUserByID(t.Context(), u.ID)
+	require.NoError(t, getErr)
+	assert.Len(t, got.Credentials, 1, "the credential must survive a refused delete")
+}
+
+func TestStore_RemoveCredential_UnknownID_IsIdempotent(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	err = store.RemoveCredential(t.Context(), u.ID, "not-a-real-credential-id")
+
+	assert.NoError(t, err)
+}
+
+func TestStore_RemoveCredential_ScopedToOwner(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), owner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddCredential(t.Context(), owner.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk2")}))
+	attacker, err := store.CreateUser(t.Context(), "mallory", "Mallory", false)
+	require.NoError(t, err)
+
+	require.NoError(t, store.RemoveCredential(t.Context(), attacker.ID, credentialIDKeyForTest([]byte("cred-1"))))
+
+	got, err := store.GetUserByID(t.Context(), owner.ID)
+	require.NoError(t, err)
+	assert.Len(t, got.Credentials, 2, "the owner's credential must survive another user's delete attempt")
+}
+
+func TestStore_RevokeUser_AlsoClearsCredentialMetadata(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.SetCredentialLabel(t.Context(), u.ID, []byte("cred-1"), "MacBook"))
+
+	require.NoError(t, store.RevokeUser(t.Context(), u.ID))
+	// A revoked account can register fresh credentials again without an
+	// old label resurfacing against a same-valued new credential ID.
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk-new")}))
+
+	creds, err := store.ListCredentials(t.Context(), u.ID)
+	require.NoError(t, err)
+	require.Len(t, creds, 1)
+	assert.NotEqual(t, "MacBook", creds[0].Label)
 }

@@ -372,6 +372,103 @@ test.describe('settings page', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test.describe('Passkeys (#355)', () => {
+    test('the initial passkey from registration is already listed, with its Remove button disabled', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+
+      const items = page.locator('#passkey-list li');
+      await expect(items).toHaveCount(1);
+      await expect(items.first()).toContainText('Initial passkey');
+      await expect(items.first()).toContainText('Created');
+      await expect(
+        items.first().getByRole('button', { name: 'Remove' }),
+      ).toBeDisabled();
+      await expect(page.locator('#passkey-empty')).toBeHidden();
+    });
+
+    test('adding a second passkey lists both, and the Remove button becomes enabled', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+
+      await page.fill('#passkey-label', 'YubiKey');
+      await page.click('#passkey-form button[type="submit"]');
+
+      await expect(page.locator('#passkey-status')).toHaveText(
+        'Added "YubiKey".',
+      );
+      const items = page.locator('#passkey-list li');
+      await expect(items).toHaveCount(2);
+      await expect(items.nth(1)).toContainText('YubiKey');
+      await expect(
+        items.first().getByRole('button', { name: 'Remove' }),
+      ).toBeEnabled();
+      await expect(
+        items.nth(1).getByRole('button', { name: 'Remove' }),
+      ).toBeEnabled();
+    });
+
+    test('removing a passkey when more than one exists removes just that one', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+      await page.fill('#passkey-label', 'YubiKey');
+      await page.click('#passkey-form button[type="submit"]');
+      await expect(page.locator('#passkey-list li')).toHaveCount(2);
+
+      await page
+        .locator('#passkey-list li')
+        .nth(1)
+        .getByRole('button', { name: 'Remove' })
+        .click();
+
+      await expect(page.locator('#passkey-status')).toHaveText('Removed.');
+      const items = page.locator('#passkey-list li');
+      await expect(items).toHaveCount(1);
+      await expect(items.first()).toContainText('Initial passkey');
+      await expect(
+        items.first().getByRole('button', { name: 'Remove' }),
+      ).toBeDisabled();
+    });
+
+    // The button being disabled is a client-side convenience — this
+    // proves the real guard lives server-side too, not just in the UI,
+    // by calling the endpoint directly, bypassing the disabled button
+    // entirely.
+    test('the server itself refuses to remove the last remaining passkey', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+      const passkeyId = await page
+        .locator('#passkey-list li button.btn-remove')
+        .first()
+        .getAttribute('data-passkey-id');
+
+      const resp = await page.request.delete(
+        `/api/auth/credentials/${passkeyId}`,
+      );
+
+      expect(resp.status()).toBe(400);
+      await expect(page.locator('#passkey-list li')).toHaveCount(1);
+    });
+
+    test('has no axe-core violations with two passkeys listed', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+      await page.fill('#passkey-label', 'YubiKey');
+      await page.click('#passkey-form button[type="submit"]');
+      await expect(page.locator('#passkey-list li')).toHaveCount(2);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
+
   test.describe('API tokens', () => {
     test('no tokens yet shows the empty state, not a blank list', async ({
       page,
