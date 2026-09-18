@@ -34,21 +34,35 @@ import (
 // built off an unknown tree.
 var version = "dev"
 
-const defaultRefreshInterval = 5 * time.Minute
+// defaultRefreshInterval was 5 minutes, sized around polling being the
+// only way an update ever arrived. Every tracked repo gets a real webhook
+// now (#361's own prerequisite), so the poll is a reconciliation safety
+// net, not the primary channel — standard webhook-plus-reconciliation-
+// polling practice recommends 15-60 minutes for that role, and 20 sits
+// in the middle of it (#381).
+const defaultRefreshInterval = 20 * time.Minute
+
+// resolveRefreshInterval parses v (REFRESH_INTERVAL's raw value) as a Go
+// duration, falling back to defaultRefreshInterval for an empty or
+// unparseable value — split out from main so the fallback behavior is
+// unit-testable without standing up the rest of the process.
+func resolveRefreshInterval(v string) time.Duration {
+	if v == "" {
+		return defaultRefreshInterval
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		slog.Error("invalid REFRESH_INTERVAL, using default", "value", v, "default", defaultRefreshInterval, "error", err)
+		return defaultRefreshInterval
+	}
+	return d
+}
 
 func main() {
 	configureLogging()
 
 	addr := envOr("ADDR", ":8080")
-	refreshInterval := defaultRefreshInterval
-	if v := os.Getenv("REFRESH_INTERVAL"); v != "" {
-		d, err := time.ParseDuration(v)
-		if err != nil {
-			slog.Error("invalid REFRESH_INTERVAL, using default", "value", v, "default", defaultRefreshInterval, "error", err)
-		} else {
-			refreshInterval = d
-		}
-	}
+	refreshInterval := resolveRefreshInterval(os.Getenv("REFRESH_INTERVAL"))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

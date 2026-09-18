@@ -6,10 +6,31 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// TestResolveRefreshInterval_NoEnv_UsesDefault pins the raised default
+// (#381): five minutes was sized around polling being the only way an
+// update ever arrived, which stopped being true once every tracked repo
+// got a real webhook — a reconciliation poll this frequent spends most of
+// its GraphQL budget confirming nothing changed.
+func TestResolveRefreshInterval_NoEnv_UsesDefault(t *testing.T) {
+	got := resolveRefreshInterval("")
+	assert.Equal(t, defaultRefreshInterval, got)
+}
+
+func TestResolveRefreshInterval_ValidEnv_Overrides(t *testing.T) {
+	got := resolveRefreshInterval("2m30s")
+	assert.Equal(t, 2*time.Minute+30*time.Second, got)
+}
+
+func TestResolveRefreshInterval_InvalidEnv_FallsBackToDefault(t *testing.T) {
+	got := resolveRefreshInterval("not-a-duration")
+	assert.Equal(t, defaultRefreshInterval, got)
+}
 
 // TestOpenDatabase_SurvivesConcurrentWriters is a regression test for
 // forge-dashboard#82: without a busy_timeout, SQLite fails a write
