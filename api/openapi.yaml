@@ -233,6 +233,133 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/auth/credentials:
+    get:
+      operationId: listCredentials
+      summary: List the signed-in user's own passkeys
+      description: |
+        Every passkey on the account (#355), oldest first — not just the
+        one used to establish the current session.
+      tags: [auth]
+      responses:
+        "200":
+          description: Every registered passkey.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Credential"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/credentials/begin:
+    post:
+      operationId: beginAddCredential
+      summary: Start a ceremony to add another passkey to the signed-in account
+      description: |
+        The authenticated counterpart to POST /api/auth/register/begin —
+        that one only ever works for a brand-new, credential-less
+        account; this is how an already-registered user adds a second
+        (or third...) passkey, e.g. a laptop and a security key (#355).
+      tags: [auth]
+      responses:
+        "200":
+          description: |
+            WebAuthn credential creation options, passed straight to the
+            browser's `navigator.credentials.create()`. `excludeCredentials`
+            already lists every passkey the account has, so re-registering
+            the same authenticator is refused by the browser itself.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebAuthnCeremonyOptions"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/credentials/finish:
+    post:
+      operationId: finishAddCredential
+      summary: Complete an add-credential ceremony
+      tags: [auth]
+      parameters:
+        - name: label
+          in: query
+          required: true
+          description: |
+            A name the user recognizes, e.g. "MacBook" or "YubiKey"
+            (#355) — prompted for at registration time, never derived
+            from the authenticator itself.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        description: |
+          The raw response from `navigator.credentials.create()`, exactly as
+          the browser produced it — forwarded to the server untouched.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebAuthnCeremonyOptions"
+      responses:
+        "201":
+          description: The new passkey is now registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Credential"
+        "400":
+          description: label was blank, or the ceremony failed verification, or had already expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/credentials/{id}:
+    delete:
+      operationId: deleteCredential
+      summary: Remove one of the signed-in user's own passkeys
+      description: |
+        Refused on the account's last remaining passkey (#355) — this
+        app is WebAuthn-only with no password fallback, so deleting it
+        would lock the account out entirely.
+      tags: [auth]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Removed.
+        "400":
+          description: This is the account's last remaining passkey.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/settings:
     get:
       operationId: getSettings
@@ -1571,6 +1698,25 @@ components:
         theme:
           type: string
           enum: ["", light, dark]
+
+    Credential:
+      type: object
+      description: |
+        A registered passkey's own metadata (#355) — never the
+        credential itself, which never leaves the authenticator that
+        created it; WebAuthn's whole design is that the server only ever
+        sees a public key and signed assertions, not a secret to lose.
+      required: [id, label, createdAt]
+      properties:
+        id:
+          type: string
+          description: This passkey's own credential ID (base64url), distinct from the account's user ID.
+        label:
+          type: string
+          description: The name given at registration time, so a list of several is tellable apart.
+        createdAt:
+          type: string
+          format: date-time
 
     APIToken:
       type: object

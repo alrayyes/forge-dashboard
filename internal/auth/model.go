@@ -33,6 +33,18 @@ func (u *User) WebAuthnDisplayName() string { return u.DisplayName }
 // WebAuthnCredentials satisfies webauthn.User with every passkey on file.
 func (u *User) WebAuthnCredentials() []webauthn.Credential { return u.Credentials }
 
+// Credential is one registered passkey's own display metadata (#355) —
+// never the credential itself, which stays on the authenticator that
+// created it and never reaches this server at all. ID is base64url of
+// the underlying webauthn.Credential.ID, matching how a credential ID
+// already appears everywhere else in a WebAuthn ceremony (excludeCredentials,
+// allowCredentials) rather than inventing a second encoding.
+type Credential struct {
+	ID        string
+	Label     string
+	CreatedAt time.Time
+}
+
 // APIToken is a personal API token's own metadata — never the raw value,
 // which only Store.CreateAPIToken ever returns, once, at creation time.
 // Matches components.schemas.APIToken.

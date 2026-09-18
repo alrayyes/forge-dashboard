@@ -26,9 +26,73 @@
     expiresAt: string;
     lastUsedAt?: string;
   };
+  type Passkey = {
+    id: string;
+    label: string;
+    createdAt: string;
+  };
 
   function escapeHTML(s: string): string {
     return s;
+  }
+
+  // ---- WebAuthn: base64url <-> ArrayBuffer, browser object <-> server
+  // JSON — the same shapes login.js's own registration flow already
+  // uses (#355's add-credential ceremony reuses the exact WebAuthn
+  // ceremony, just against an already-authenticated account instead of
+  // a brand-new one), duplicated here rather than sharing a module: this
+  // is the only vanilla-page script this Svelte page reaches into, and
+  // login.js is never loaded on /settings.html in the first place.
+  function base64urlToBuffer(base64url: string): ArrayBuffer {
+    const padded = base64url.replace(/-/g, "+").replace(/_/g, "/");
+    const padding =
+      padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
+    const binary = atob(padded + padding);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  function bufferToBase64url(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++)
+      binary += String.fromCharCode(bytes[i]);
+    return btoa(binary)
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  }
+
+  function prepareCreationOptions(
+    options: any,
+  ): PublicKeyCredentialCreationOptions {
+    options.publicKey.challenge = base64urlToBuffer(
+      options.publicKey.challenge,
+    );
+    options.publicKey.user.id = base64urlToBuffer(options.publicKey.user.id);
+    if (options.publicKey.excludeCredentials) {
+      options.publicKey.excludeCredentials.forEach((c: any) => {
+        c.id = base64urlToBuffer(c.id);
+      });
+    }
+    return options.publicKey;
+  }
+
+  function creationCredentialToJSON(cred: PublicKeyCredential): unknown {
+    const response = cred.response as AuthenticatorAttestationResponse;
+    return {
+      id: cred.id,
+      rawId: bufferToBase64url(cred.rawId),
+      type: cred.type,
+      response: {
+        clientDataJSON: bufferToBase64url(response.clientDataJSON),
+        attestationObject: bufferToBase64url(response.attestationObject),
+      },
+      clientExtensionResults: cred.getClientExtensionResults
+        ? cred.getClientExtensionResults()
+        : {},
+    };
   }
 
   // ---- sharing ----
@@ -281,6 +345,123 @@
     });
   }
 
+  // ---- passkeys ----
+  let passkeys = $state<Passkey[]>([]);
+  let passkeyLabel = $state("");
+  let passkeyBusy = $state(false);
+  let passkeyStatus = $state("");
+  let passkeyStatusKind = $state<"" | "error" | "ok">("");
+
+  function loadPasskeys(): Promise<void> {
+    return fetch("/api/auth/credentials", {
+      headers: { Accept: "application/json" },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          return null;
+        }
+        return res.ok
+          ? res.json()
+          : Promise.reject(
+              new Error(`could not load passkeys (${res.status})`),
+            );
+      })
+      .then((got: Passkey[] | null) => {
+        if (!got) return;
+        passkeys = got;
+      });
+  }
+
+  async function submitAddPasskey(e: SubmitEvent) {
+    e.preventDefault();
+    const label = passkeyLabel.trim();
+    if (!label) return;
+    if (!window.PublicKeyCredential) {
+      passkeyStatus = "This browser does not support passkeys.";
+      passkeyStatusKind = "error";
+      return;
+    }
+
+    passkeyBusy = true;
+    passkeyStatus = "Follow your browser or device prompt to create a passkey…";
+    passkeyStatusKind = "";
+    try {
+      const beginRes = await fetch("/api/auth/credentials/begin", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      if (beginRes.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (!beginRes.ok) {
+        const body = await beginRes.json().catch(() => ({}));
+        throw new Error(body.error || "could not start passkey registration");
+      }
+      const options = await beginRes.json();
+      const publicKey = prepareCreationOptions(options);
+      const credential = (await navigator.credentials.create({
+        publicKey,
+      })) as PublicKeyCredential;
+      const credentialJSON = creationCredentialToJSON(credential);
+
+      const finishRes = await fetch(
+        `/api/auth/credentials/finish?label=${encodeURIComponent(label)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(credentialJSON),
+        },
+      );
+      if (!finishRes.ok) {
+        const body = await finishRes.json().catch(() => ({}));
+        throw new Error(body.error || "passkey registration failed");
+      }
+
+      passkeyLabel = "";
+      passkeyStatus = `Added "${label}".`;
+      passkeyStatusKind = "ok";
+      await loadPasskeys();
+    } catch (err) {
+      passkeyStatus = (err as Error).message || "Could not add passkey.";
+      passkeyStatusKind = "error";
+    } finally {
+      passkeyBusy = false;
+    }
+  }
+
+  async function removePasskey(id: string) {
+    passkeyStatus = "Removing…";
+    passkeyStatusKind = "";
+    try {
+      const res = await fetch(
+        `/api/auth/credentials/${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+          headers: { Accept: "application/json" },
+        },
+      );
+      if (res.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "could not remove passkey");
+      }
+      passkeyStatus = "Removed.";
+      passkeyStatusKind = "ok";
+      await loadPasskeys();
+    } catch (err) {
+      passkeyStatus = (err as Error).message || "Could not remove passkey.";
+      passkeyStatusKind = "error";
+    }
+  }
+
   // ---- API tokens ----
   let apiTokens = $state<ApiToken[]>([]);
   let tokenLabel = $state("");
@@ -493,6 +674,11 @@
     loadTokens().catch((err) => {
       tokenStatus = err.message || "Could not load API tokens.";
       tokenStatusKind = "error";
+    });
+
+    loadPasskeys().catch((err) => {
+      passkeyStatus = err.message || "Could not load passkeys.";
+      passkeyStatusKind = "error";
     });
   });
 </script>
@@ -1319,6 +1505,61 @@
       <span id="webhook-coverage-count">{webhookCoverageCount}</span>
       &middot;
       <a href="/webhooks.html">See which repos, and add a webhook &rarr;</a>
+    </p>
+  </div>
+
+  <div class="card" id="passkeys">
+    <h2>Passkeys</h2>
+    <p class="hint">
+      Every passkey that can sign in to this account &mdash; add one per device
+      (e.g. a laptop and a security key) so losing access to any single one
+      doesn't lock you out.
+    </p>
+    <form id="passkey-form" class="share-form" onsubmit={submitAddPasskey}>
+      <label for="passkey-label" class="sr-only">Name for the new passkey</label
+      >
+      <input
+        id="passkey-label"
+        type="text"
+        autocomplete="off"
+        placeholder="name, e.g. MacBook"
+        required
+        bind:value={passkeyLabel}
+      />
+      <button type="submit" class="btn btn-primary" disabled={passkeyBusy}
+        >{passkeyBusy ? "Waiting for your passkey…" : "Add passkey"}</button
+      >
+    </form>
+    <ul class="share-list" id="passkey-list">
+      {#each passkeys as key (key.id)}
+        <li>
+          <span>
+            {escapeHTML(key.label)}<br />
+            <span class="api-token-meta"
+              >Created {formatDate(key.createdAt)}</span
+            >
+          </span>
+          <button
+            class="btn-remove"
+            type="button"
+            data-passkey-id={key.id}
+            disabled={passkeys.length <= 1}
+            title={passkeys.length <= 1 ? "Can't remove your only passkey" : ""}
+            onclick={() => removePasskey(key.id)}>Remove</button
+          >
+        </li>
+      {/each}
+    </ul>
+    <p class="empty-state" id="passkey-empty" hidden={passkeys.length > 0}>
+      No passkeys yet.
+    </p>
+    <p
+      class={`status${passkeyStatusKind ? ` ${passkeyStatusKind}` : ""}`}
+      id="passkey-status"
+      role="status"
+      aria-live="polite"
+    >
+      {passkeyStatus}
     </p>
   </div>
 

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -71,6 +72,14 @@ func (s *Store) Init(ctx context.Context) error {
 		created_at TIMESTAMP NOT NULL,
 		expires_at TIMESTAMP,
 		last_used_at TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS credential_metadata (
+		user_id TEXT NOT NULL,
+		credential_id TEXT NOT NULL,
+		label TEXT NOT NULL,
+		created_at TIMESTAMP NOT NULL,
+		PRIMARY KEY (user_id, credential_id)
 	);
 	`
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
@@ -274,6 +283,133 @@ func (s *Store) saveCredentials(ctx context.Context, u *User) error {
 	return err
 }
 
+// credentialIDKey is how a webauthn.Credential.ID becomes the key
+// credential_metadata's own credential_id column stores and
+// ListCredentials/Credential.ID hands back to a caller — base64url,
+// the same encoding a credential ID already uses everywhere else in a
+// WebAuthn ceremony (excludeCredentials, allowCredentials), not a
+// second one invented just for this table.
+func credentialIDKey(id []byte) string {
+	return base64.RawURLEncoding.EncodeToString(id)
+}
+
+// SetCredentialLabel names credID (userID's own passkey) label — called
+// once, right after AddCredential, for both the very first passkey a
+// brand-new account registers and every one added afterward (#355), so
+// Settings always has something to show even for an account that
+// predates this feature having a UI of its own.
+func (s *Store) SetCredentialLabel(ctx context.Context, userID []byte, credID []byte, label string) error {
+	return s.setCredentialLabelAt(ctx, userID, credID, label, time.Now().UTC())
+}
+
+// setCredentialLabelAt is SetCredentialLabel with an explicit createdAt
+// — used by Service.FinishAddCredential so the timestamp it hands back
+// to a caller in the same response matches exactly what got persisted,
+// rather than a fresh time.Now() taken moments later disagreeing with
+// it by however long the write itself took.
+func (s *Store) setCredentialLabelAt(ctx context.Context, userID []byte, credID []byte, label string, createdAt time.Time) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO credential_metadata (user_id, credential_id, label, created_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (user_id, credential_id) DO UPDATE SET label = excluded.label`,
+		encodeID(userID), credentialIDKey(credID), label, createdAt,
+	)
+	return err
+}
+
+// ListCredentials returns userID's own passkeys, oldest first — driven
+// by the account's real webauthn.Credential list (the source of truth
+// for what can actually authenticate), not credential_metadata alone,
+// so a credential somehow missing its label row still appears rather
+// than silently vanishing from the list. defaultLabel fills that gap:
+// a credential from before this feature existed reads back with no
+// metadata row at all.
+func (s *Store) ListCredentials(ctx context.Context, userID []byte) ([]*Credential, error) {
+	u, err := s.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT credential_id, label, created_at FROM credential_metadata WHERE user_id = ?`,
+		encodeID(userID),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	type meta struct {
+		label     string
+		createdAt time.Time
+	}
+	byCredID := make(map[string]meta)
+	for rows.Next() {
+		var credID, label string
+		var createdAt time.Time
+		if err := rows.Scan(&credID, &label, &createdAt); err != nil {
+			return nil, err
+		}
+		byCredID[credID] = meta{label: label, createdAt: createdAt}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]*Credential, 0, len(u.Credentials))
+	for _, cred := range u.Credentials {
+		key := credentialIDKey(cred.ID)
+		m, ok := byCredID[key]
+		if !ok {
+			m = meta{label: "Unnamed passkey", createdAt: u.CreatedAt}
+		}
+		out = append(out, &Credential{ID: key, Label: m.label, CreatedAt: m.createdAt})
+	}
+	slices.SortFunc(out, func(a, b *Credential) int { return a.CreatedAt.Compare(b.CreatedAt) })
+	return out, nil
+}
+
+// ErrLastCredential is returned by RemoveCredential when credID is
+// userID's only remaining passkey — this app is WebAuthn-only with no
+// password fallback, so deleting it would lock the account out
+// entirely (#355).
+var ErrLastCredential = errors.New("auth: can't remove the account's last remaining passkey")
+
+// RemoveCredential deletes credID from userID's account, scoped to that
+// user so one account's own credential id can never be guessed into
+// deleting another's — the same shape DeleteAPIToken's own scoping
+// uses. Idempotent for an id that's unknown or already gone (matching
+// DeleteAPIToken), but never for the account's last one: that's always
+// ErrLastCredential, not silently skipped, so a caller (or a stale
+// list somehow down to one) can't accidentally lock the account out.
+func (s *Store) RemoveCredential(ctx context.Context, userID []byte, credID string) error {
+	u, err := s.GetUserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	idx := -1
+	for i, cred := range u.Credentials {
+		if credentialIDKey(cred.ID) == credID {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return nil
+	}
+	if len(u.Credentials) <= 1 {
+		return ErrLastCredential
+	}
+
+	u.Credentials = slices.Delete(u.Credentials, idx, idx+1)
+	if err := s.saveCredentials(ctx, u); err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ? AND credential_id = ?`, encodeID(userID), credID)
+	return err
+}
+
 // SaveCeremony records the in-flight WebAuthn session data for username's
 // registration or login attempt, replacing any earlier one of the same
 // kind — a user can only ever be partway through one ceremony at a time.
@@ -388,6 +524,9 @@ func (s *Store) RevokeUser(ctx context.Context, userID []byte) error {
 	if _, err := s.db.ExecContext(ctx, `UPDATE users SET credentials_json = '[]' WHERE id = ?`, encodeID(userID)); err != nil {
 		return err
 	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ?`, encodeID(userID)); err != nil {
+		return err
+	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, encodeID(userID)); err != nil {
 		return err
 	}
@@ -403,6 +542,9 @@ func (s *Store) DeleteUser(ctx context.Context, userID []byte) error {
 		return err
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE user_id = ?`, encodeID(userID)); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ?`, encodeID(userID)); err != nil {
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, encodeID(userID))
