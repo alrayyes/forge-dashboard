@@ -1843,8 +1843,15 @@ test.describe('dashboard page', () => {
     test('disables itself immediately, and re-enables after the cooldown once the response has landed', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard/refresh', (route) =>
-        route.fulfill({
+      await page.route('**/api/dashboard/refresh', async (route) => {
+        // Held open briefly so the "is-refreshing" spin class — added
+        // synchronously on click, removed once the response is in hand
+        // — has a real window to be observed before it's gone again.
+        // Without this, a mocked route can resolve within the same
+        // tick as the click, and the assertion below races the class's
+        // own removal instead of ever seeing it (#413).
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
@@ -1853,8 +1860,8 @@ test.describe('dashboard page', () => {
             pullRequests: [],
             issues: [],
           }),
-        }),
-      );
+        });
+      });
 
       const button = page.locator('#force-refresh-button');
       await expect(button).toBeEnabled();
