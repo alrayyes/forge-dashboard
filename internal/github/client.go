@@ -503,10 +503,17 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 
 // mergeStatusFromGraphQL maps GitHub's own mergeStateStatus — CLEAN is the
 // only genuinely mergeable state; DIRTY is a real conflict; BLOCKED,
-// BEHIND, UNSTABLE and HAS_HOOKS all mean something else is stopping the
-// merge without asserting a conflict; DRAFT and UNKNOWN (GitHub hasn't
-// finished computing it yet) both fall back to MergeUnknown rather than
-// guessing. See design.md's Decisions in
+// UNSTABLE and HAS_HOOKS all mean something else is stopping the merge
+// without asserting a conflict, and none of the three has any other
+// dedicated UI signal, so they stay MergeBlocked (#359's acceptance
+// criteria: narrow what triggers the pill, don't remove it). BEHIND is
+// deliberately its own case, not folded in with them: Behind (set
+// alongside this from the same mergeStateStatus, see FetchRepo) already
+// carries that exact fact and drives the Update-branch button, a more
+// specific and actionable signal than a generic "Blocked" pill saying the
+// same thing again — see dashboard.PullRequest.Behind's own doc comment.
+// DRAFT and UNKNOWN (GitHub hasn't finished computing it yet) both fall
+// back to MergeUnknown rather than guessing. See design.md's Decisions in
 // openspec/changes/archive/*/show-pr-merge-status for the mapping.
 func mergeStatusFromGraphQL(state string) dashboard.MergeStatus {
 	switch state {
@@ -514,7 +521,7 @@ func mergeStatusFromGraphQL(state string) dashboard.MergeStatus {
 		return dashboard.MergeMergeable
 	case "DIRTY":
 		return dashboard.MergeConflicting
-	case "BLOCKED", "BEHIND", "UNSTABLE", "HAS_HOOKS":
+	case "BLOCKED", "UNSTABLE", "HAS_HOOKS":
 		return dashboard.MergeBlocked
 	default:
 		return dashboard.MergeUnknown
