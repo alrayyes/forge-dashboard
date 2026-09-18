@@ -385,16 +385,6 @@ header {
     transform: rotate(360deg);
   }
 }
-.theme-toggle .icon-moon {
-  display: none;
-}
-:root[data-theme="dark"] .theme-toggle .icon-sun {
-  display: none;
-}
-:root[data-theme="dark"] .theme-toggle .icon-moon {
-  display: block;
-}
-
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

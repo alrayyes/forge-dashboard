@@ -26,12 +26,15 @@ export default defineConfig({
         strict: true,
       }),
 
-      // The layout links to every other page (nav, footer, brand) —
-      // most of those are still hand-written HTML this SvelteKit app
-      // doesn't serve at all yet, so the prerender crawler 404s
-      // following them out of this app's own dev-preview server.
-      // That's expected until each one migrates too; only a broken
-      // link *inside* this app's own route tree is a real error.
+      // Every page has migrated (#352) — the layout's own links (nav,
+      // footer, brand) now all resolve inside this app's own route
+      // tree, so a broken one is a real error again. The one standing
+      // exception is style.css/favicon.svg: plain static assets that
+      // live in internal/api/static and were never part of this
+      // SvelteKit build at all (merged in later by
+      // scripts/sync-web-build.sh) — the prerender crawler's own
+      // dev-preview server has nothing to answer them with and never
+      // will, regardless of how complete the migration is.
       prerender: {
         handleHttpError: ({
           path,
@@ -40,7 +43,8 @@ export default defineConfig({
           path: string;
           message: string;
         }) => {
-          if (path.startsWith('/webhooks')) throw new Error(message);
+          if (path === '/style.css' || path === '/favicon.svg') return;
+          throw new Error(message);
         },
       },
     }),
