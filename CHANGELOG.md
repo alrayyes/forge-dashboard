@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.74.0](https://github.com/alrayyes/forge-dashboard/compare/v0.73.0...v0.74.0) (2026-09-18)
+
+
+### Features
+
+* split GitHub rate-limit gauges, add exceeded-budget banner ([#404](https://github.com/alrayyes/forge-dashboard/issues/404)) ([58c2dd6](https://github.com/alrayyes/forge-dashboard/commit/58c2dd6ac46b43b96abced38fa749300ab08e32e))
+
 ## [0.73.0](https://github.com/alrayyes/forge-dashboard/compare/v0.72.0...v0.73.0) (2026-09-18)
 
 
