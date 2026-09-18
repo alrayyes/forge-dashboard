@@ -14,10 +14,12 @@ export default defineConfig({
       // The Go binary embeds this app's build output via go:embed and
       // serves it itself — no Node runtime at request time, so every
       // route has to be prerenderable to plain files. Output goes to
-      // build/ here, not straight into ../internal/api/static: the
-      // hand-written pages that haven't migrated yet still live
-      // there, and scripts/sync-web-build.sh merges this build into
-      // that directory rather than letting the adapter's own
+      // build/ here, not straight into ../internal/api/static: that
+      // directory also holds hand-maintained static assets this
+      // SvelteKit build doesn't own at all (style.css, favicon.svg,
+      // theme.js, filters.js, nav.js, footer.js — see this repo's own
+      // CONTRIBUTING.md), and scripts/sync-web-build.sh merges this
+      // build into it rather than letting the adapter's own
       // directory-clearing behavior touch files it doesn't own.
       adapter: adapter({
         pages: 'build',
