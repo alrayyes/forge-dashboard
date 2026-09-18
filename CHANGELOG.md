@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.76.1](https://github.com/alrayyes/forge-dashboard/compare/v0.76.0...v0.76.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* collapse the webhooks table to a stacked list at phone width ([#412](https://github.com/alrayyes/forge-dashboard/issues/412)) ([12999da](https://github.com/alrayyes/forge-dashboard/commit/12999da847ec60509ebccb80ade52fd81c38765b))
+
 ## [0.76.0](https://github.com/alrayyes/forge-dashboard/compare/v0.75.0...v0.76.0) (2026-09-18)
 
 
