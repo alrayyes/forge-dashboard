@@ -650,7 +650,16 @@
     // hard-to-reverse write to the real repo, not a filter toggle like
     // the CI pill next to it.
     function mergeActionCell(item: PullRequestItem): HTMLElement | null {
-      if (item.mergeStatus !== "mergeable") return null;
+      // #385: GitHub's own mergeStateStatus reports CLEAN (mapped to
+      // "mergeable" here) whenever branch protection doesn't mark a
+      // given check as required, even while that check is still
+      // running — so a PR whose CI hasn't finished could otherwise show
+      // a fully clickable Merge button. CI failure is deliberately left
+      // unchanged: a required check already blocks mergeStatus itself,
+      // and GitHub lets a one-click merge over a non-required failure
+      // anyway, so there's nothing extra to enforce here for that case.
+      if (item.mergeStatus !== "mergeable" || item.ci === "pending")
+        return null;
 
       const key = prKey(item);
       const entry = mergeState[key] || { phase: "idle" };
