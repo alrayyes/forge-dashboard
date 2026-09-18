@@ -15,15 +15,16 @@ import (
 )
 
 // repoStatus is one tracked repo plus whether this app has ever recorded
-// a signature-verified webhook delivery for it — settings.Store's own
-// concern, folded in here rather than on dashboard.Snapshot itself, since
-// the dashboard package has no reason to know settings exists (see the
-// issue this shipped against for why a live forge API check isn't used
-// instead).
+// a signature-verified webhook delivery for it, and whether the signed-in
+// user has ignored it (#363) — both settings.Store's own concern, folded
+// in here rather than on dashboard.Snapshot itself, since the dashboard
+// package has no reason to know settings exists (see the issue this
+// shipped against for why a live forge API check isn't used instead).
 type repoStatus struct {
 	Forge      dashboard.Forge `json:"forge"`
 	FullName   string          `json:"fullName"`
 	HasWebhook bool            `json:"hasWebhook"`
+	Ignored    bool            `json:"ignored"`
 }
 
 // dashboardResponse is the wire shape for /api/dashboard and its SSE
@@ -38,20 +39,31 @@ type dashboardResponse struct {
 }
 
 // buildDashboardResponse merges snap's tracked-repo list with userID's
-// recorded webhook deliveries. HasWebhook is an OR of two signals: r's
-// own live check (dashboard.WebhookChecker, against the forge's actual
-// webhook list — see #238) and the delivery table below, so a repo
-// whose live check errored or whose Source has no webhook path
-// configured still reports true once a real delivery has ever arrived.
-// A store failure degrades to the live signal alone rather than failing
-// the whole dashboard — the same "one broken piece doesn't take down the
-// rest" resilience the rest of this package already applies to a single
+// recorded webhook deliveries and ignored repos. HasWebhook is an OR of
+// two signals: r's own live check (dashboard.WebhookChecker, against the
+// forge's actual webhook list — see #238) and the delivery table below,
+// so a repo whose live check errored or whose Source has no webhook path
+// configured still reports true once a real delivery has ever arrived. A
+// store failure degrades to the live signal alone (webhook coverage) or
+// to "nothing ignored" (repo filtering) rather than failing the whole
+// dashboard — the same "one broken piece doesn't take down the rest"
+// resilience the rest of this package already applies to a single
 // unreachable forge.
+//
+// An ignored repo (#363) is deliberately not excluded from Repos itself
+// — only from PullRequests/Issues — so it still appears on the Webhooks
+// page with accurate coverage status and can still be un-ignored; see
+// the issue's own "reversible, not destructive" design decision.
 func buildDashboardResponse(ctx context.Context, store *settings.Store, userID []byte, snap dashboard.Snapshot) dashboardResponse {
 	deliveries, err := store.WebhookDeliveries(ctx, userID)
 	if err != nil {
 		slog.Warn("could not load webhook deliveries for dashboard response", "error", err)
 		deliveries = nil
+	}
+	ignored, err := store.IgnoredRepos(ctx, userID)
+	if err != nil {
+		slog.Warn("could not load ignored repos for dashboard response", "error", err)
+		ignored = nil
 	}
 
 	repos := make([]repoStatus, 0, len(snap.Repos))
@@ -60,14 +72,28 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 		if !hasWebhook {
 			_, hasWebhook = deliveries[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
 		}
-		repos = append(repos, repoStatus{Forge: r.Forge, FullName: r.FullName, HasWebhook: hasWebhook})
+		_, isIgnored := ignored[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
+		repos = append(repos, repoStatus{Forge: r.Forge, FullName: r.FullName, HasWebhook: hasWebhook, Ignored: isIgnored})
+	}
+
+	pullRequests := make([]dashboard.PullRequest, 0, len(snap.PullRequests))
+	for _, pr := range snap.PullRequests {
+		if _, isIgnored := ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)]; !isIgnored {
+			pullRequests = append(pullRequests, pr)
+		}
+	}
+	issues := make([]dashboard.Issue, 0, len(snap.Issues))
+	for _, issue := range snap.Issues {
+		if _, isIgnored := ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)]; !isIgnored {
+			issues = append(issues, issue)
+		}
 	}
 
 	return dashboardResponse{
 		GeneratedAt:  snap.GeneratedAt,
 		Forges:       snap.Forges,
-		PullRequests: snap.PullRequests,
-		Issues:       snap.Issues,
+		PullRequests: pullRequests,
+		Issues:       issues,
 		Repos:        repos,
 	}
 }

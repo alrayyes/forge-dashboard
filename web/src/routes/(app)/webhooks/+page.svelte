@@ -9,6 +9,7 @@
     url?: string;
     hasWebhook: boolean;
     canManageWebhooks?: boolean;
+    ignored: boolean;
   };
 
   // Kept local rather than reaching into the vanilla pages' shared
@@ -92,8 +93,15 @@
     return rowState[rowKey(repo)]?.lockReason ?? rateLimitLock(repo.forge);
   }
 
+  // Ignored repos (#363) have their own "Ignored (N)" disclosure below
+  // rather than cluttering this table's default view alongside every
+  // repo that still matters day to day — un-ignoring one is what brings
+  // it back here, not a filter toggle.
+  const ignoredRepos = $derived(repos.filter((r) => r.ignored));
+
   const filteredRepos = $derived(
     repos.filter((r) => {
+      if (r.ignored) return false;
       if (filterForge && r.forge !== filterForge) return false;
       if (
         filterRepo &&
@@ -200,6 +208,50 @@
         "error",
         (err as Error).message,
       );
+    }
+  }
+
+  let ignoreBusy = $state<Record<string, boolean>>({});
+
+  // Reversible, not destructive (#363's own design decision): no confirm
+  // step, the same as addWebhook above — a pure local write, never
+  // touching the forge, so there's nothing here a retry can't undo.
+  async function setIgnored(repo: Repo, ignored: boolean) {
+    const key = rowKey(repo);
+    ignoreBusy[key] = true;
+    const verb = ignored ? "Ignoring" : "Un-ignoring";
+    setStatus(`${verb} ${repo.fullName}…`);
+
+    try {
+      const res = await fetch(`/api/repos/${ignored ? "ignore" : "unignore"}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ forge: repo.forge, fullName: repo.fullName }),
+      });
+      if (res.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (res.status !== 204) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `backend answered ${res.status}`);
+      }
+      repo.ignored = ignored;
+      setStatus(
+        ignored
+          ? `${repo.fullName} is now ignored — its pull requests and issues won't show on the dashboard or Insights.`
+          : `${repo.fullName} is no longer ignored.`,
+      );
+    } catch (err) {
+      setStatus(
+        `Couldn't ${ignored ? "ignore" : "un-ignore"} ${repo.fullName}: ${(err as Error).message}`,
+        "error",
+      );
+    } finally {
+      delete ignoreBusy[key];
     }
   }
 
@@ -355,6 +407,44 @@
       align-items: center;
       gap: 10px;
       margin-bottom: 14px;
+    }
+    .ignored-disclosure {
+      margin-top: 18px;
+      font-size: 12.5px;
+      color: var(--ink-2);
+    }
+    .ignored-disclosure summary {
+      cursor: pointer;
+      color: var(--ink-2);
+      font-weight: 500;
+    }
+    .ignored-disclosure ul {
+      list-style: none;
+      margin: 10px 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ignored-disclosure li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .ignored-disclosure button {
+      font-size: 12.5px;
+      color: var(--accent);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-left: auto;
+    }
+    .ignored-disclosure button:disabled {
+      color: var(--ink-3);
+      cursor: default;
+      text-decoration: none;
     }
   </style>
 </svelte:head>
@@ -547,6 +637,7 @@
                 >
               </th>
               <th scope="col"></th>
+              <th scope="col"></th>
             </tr>
           </thead>
           <tbody id="webhooks-rows">
@@ -617,6 +708,14 @@
                     {/if}
                   {/if}
                 </td>
+                <td class="action">
+                  <button
+                    type="button"
+                    disabled={ignoreBusy[rowKey(repo)]}
+                    onclick={() => setIgnored(repo, true)}
+                    >{ignoreBusy[rowKey(repo)] ? "Ignoring…" : "Ignore"}</button
+                  >
+                </td>
               </tr>
             {/each}
           </tbody>
@@ -663,6 +762,40 @@
             </label>
           </div>
         {/if}
+      {/if}
+
+      {#if ignoredRepos.length > 0}
+        <details class="ignored-disclosure" id="webhooks-ignored">
+          <summary>Ignored ({ignoredRepos.length})</summary>
+          <ul>
+            {#each ignoredRepos as repo (rowKey(repo))}
+              <li>
+                <span class={`forge-badge ${FORGE_CLASSES[repo.forge] ?? ""}`}>
+                  <span class="dot"></span>
+                  {FORGE_LABELS[repo.forge] ?? repo.forge}
+                </span>
+                {#if repo.url}
+                  <a
+                    class="repo-link"
+                    href={repo.url}
+                    target="_blank"
+                    rel="noopener noreferrer">{repo.fullName}</a
+                  >
+                {:else}
+                  {repo.fullName}
+                {/if}
+                <button
+                  type="button"
+                  disabled={ignoreBusy[rowKey(repo)]}
+                  onclick={() => setIgnored(repo, false)}
+                  >{ignoreBusy[rowKey(repo)]
+                    ? "Un-ignoring…"
+                    : "Un-ignore"}</button
+                >
+              </li>
+            {/each}
+          </ul>
+        </details>
       {/if}
     {/if}
   </div>

@@ -256,7 +256,9 @@ test.describe('webhooks page', () => {
     await row.getByRole('button', { name: 'Add a webhook' }).click();
 
     await expect(row).toContainText('Confirmed');
-    await expect(row.getByRole('button')).toHaveCount(0);
+    await expect(
+      row.getByRole('button', { name: 'Add a webhook' }),
+    ).toHaveCount(0);
     await expect(page.locator('#webhooks-status')).toContainText(
       'Webhook added for alrayyes/a.',
     );
@@ -582,6 +584,155 @@ test.describe('webhooks page', () => {
     );
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  test.describe('ignoring a repo (#363)', () => {
+    test('clicking "Ignore" calls the API and moves the repo into the Ignored disclosure', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+      ]);
+      let requestBody;
+      await page.route('**/api/repos/ignore', (route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+      await page
+        .locator('#webhooks-rows tr')
+        .first()
+        .getByRole('button', { name: 'Ignore' })
+        .click();
+
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(0);
+      await expect(page.locator('#webhooks-no-results')).toBeVisible();
+      const disclosure = page.locator('#webhooks-ignored');
+      await expect(disclosure.locator('summary')).toContainText('Ignored (1)');
+      await expect(disclosure).toContainText('alrayyes/a');
+      await expect(page.locator('#webhooks-status')).toContainText(
+        'alrayyes/a is now ignored',
+      );
+      expect(requestBody).toEqual({ forge: 'github', fullName: 'alrayyes/a' });
+    });
+
+    test('no repos ignored shows no disclosure at all', async ({ page }) => {
+      await mockDashboard(page, [
+        { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+      ]);
+      await page.goto('/webhooks.html');
+
+      await expect(page.locator('#webhooks-ignored')).toHaveCount(0);
+    });
+
+    test('an already-ignored repo starts inside the disclosure, not the main table', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          ignored: true,
+        },
+        { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
+      ]);
+      await page.goto('/webhooks.html');
+
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+      await expect(page.locator('#webhooks-rows tr')).toContainText(
+        'alrayyes/b',
+      );
+      const disclosure = page.locator('#webhooks-ignored');
+      await expect(disclosure.locator('summary')).toContainText('Ignored (1)');
+      await expect(disclosure).toContainText('alrayyes/a');
+    });
+
+    test('clicking "Un-ignore" calls the API and moves the repo back into the main table', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          ignored: true,
+        },
+      ]);
+      let requestBody;
+      await page.route('**/api/repos/unignore', (route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      await page.locator('#webhooks-ignored summary').click();
+      await page
+        .locator('#webhooks-ignored')
+        .getByRole('button', { name: 'Un-ignore' })
+        .click();
+
+      await expect(page.locator('#webhooks-ignored')).toHaveCount(0);
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+      await expect(page.locator('#webhooks-rows tr')).toContainText(
+        'alrayyes/a',
+      );
+      await expect(page.locator('#webhooks-status')).toContainText(
+        'alrayyes/a is no longer ignored.',
+      );
+      expect(requestBody).toEqual({ forge: 'github', fullName: 'alrayyes/a' });
+    });
+
+    test('a failed ignore shows an error and leaves the repo in the main table', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+      ]);
+      await page.route('**/api/repos/ignore', (route) =>
+        route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'could not save' }),
+        }),
+      );
+      await page.goto('/webhooks.html');
+
+      await page
+        .locator('#webhooks-rows tr')
+        .first()
+        .getByRole('button', { name: 'Ignore' })
+        .click();
+
+      await expect(page.locator('#webhooks-status')).toContainText(
+        "Couldn't ignore alrayyes/a",
+      );
+      await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+      await expect(page.locator('#webhooks-ignored')).toHaveCount(0);
+    });
+
+    test('has no axe-core violations with the Ignored disclosure expanded', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          ignored: true,
+        },
+        { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
+      ]);
+      await page.goto('/webhooks.html');
+      await page.locator('#webhooks-ignored summary').click();
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
   });
 
   test('the persistent nav highlights Webhooks and still links to Settings', async ({
