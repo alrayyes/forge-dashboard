@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.76.2](https://github.com/alrayyes/forge-dashboard/compare/v0.76.1...v0.76.2) (2026-09-18)
+
+
+### Bug Fixes
+
+* hide the Merge button while a PR's CI is still running ([#415](https://github.com/alrayyes/forge-dashboard/issues/415)) ([8bc56ce](https://github.com/alrayyes/forge-dashboard/commit/8bc56ceff7a84da992950bf6353f77e5e85e3089))
+* stop the force-refresh test racing its own mocked response ([#416](https://github.com/alrayyes/forge-dashboard/issues/416)) ([8c320a7](https://github.com/alrayyes/forge-dashboard/commit/8c320a77b10f0740d760cb8fba29f787884758ca))
+
 ## [0.76.1](https://github.com/alrayyes/forge-dashboard/compare/v0.76.0...v0.76.1) (2026-09-18)
 
 
