@@ -449,3 +449,85 @@ func TestStore_FilterState_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "{}", got)
 }
+
+func TestStore_IgnoredRepos_NoneIgnored_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	got, err := store.IgnoredRepos(t.Context(), []byte("user-1"))
+
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestStore_IgnoreRepo_ThenIgnoredRepos_ReturnsIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.IgnoredRepos(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Contains(t, got, settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard"))
+}
+
+func TestStore_IgnoreRepo_Twice_IsANoOp(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.IgnoredRepos(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Len(t, got, 1)
+}
+
+func TestStore_UnignoreRepo_RemovesIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	require.NoError(t, store.UnignoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.IgnoredRepos(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestStore_UnignoreRepo_NeverIgnored_IsANoOp(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	err := store.UnignoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard")
+
+	require.NoError(t, err)
+}
+
+func TestStore_IgnoreRepo_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	require.NoError(t, store.IgnoreRepo(t.Context(), []byte("user-a"), "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.IgnoredRepos(t.Context(), []byte("user-b"))
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestStore_Delete_RemovesIgnoredRepos(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	require.NoError(t, store.Delete(t.Context(), userID))
+
+	got, err := store.IgnoredRepos(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}

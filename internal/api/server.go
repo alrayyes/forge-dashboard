@@ -91,6 +91,8 @@ func NewMux(deps Deps) *http.ServeMux {
 	mux.Handle("POST /api/tokens", auth.RequireAuth(deps.AuthStore)(handleTokensPost(deps.AuthStore)))
 	mux.Handle("DELETE /api/tokens/{id}", auth.RequireAuth(deps.AuthStore)(handleTokensDelete(deps.AuthStore)))
 	mux.Handle("POST /api/webhooks/ensure", auth.RequireAuth(deps.AuthStore)(handleWebhookEnsure(deps)))
+	mux.Handle("POST /api/repos/ignore", auth.RequireAuth(deps.AuthStore)(handleRepoIgnore(deps)))
+	mux.Handle("POST /api/repos/unignore", auth.RequireAuth(deps.AuthStore)(handleRepoUnignore(deps)))
 	mux.Handle("POST /api/pull-requests/merge", auth.RequireAuth(deps.AuthStore)(handlePullRequestMerge(deps)))
 	mux.Handle("POST /api/pull-requests/update-branch", auth.RequireAuth(deps.AuthStore)(handlePullRequestUpdateBranch(deps)))
 	mux.Handle("POST /api/pull-requests/dependabot-action", auth.RequireAuth(deps.AuthStore)(handlePullRequestDependabotAction(deps)))
