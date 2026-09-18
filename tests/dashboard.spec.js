@@ -790,6 +790,7 @@ test.describe('dashboard page', () => {
       // but never had this page's own forge-board-filters cookie — only
       // the session cookie (who the server thinks this is) survives.
       await page.evaluate(() => {
+        // biome-ignore lint/suspicious/noDocumentCookie: matches filters.js's own setCookie, which this test is deliberately bypassing to simulate a fresh browser.
         document.cookie = 'forge-board-filters=; max-age=0; path=/';
       });
       await page.reload();
