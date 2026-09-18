@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.76.0](https://github.com/alrayyes/forge-dashboard/compare/v0.75.0...v0.76.0) (2026-09-18)
+
+
+### Features
+
+* cache ETags for this client's own REST GET calls ([#408](https://github.com/alrayyes/forge-dashboard/issues/408)) ([13dce95](https://github.com/alrayyes/forge-dashboard/commit/13dce952c61e3ec0923a7ce931551f030f994c3d))
+* filter the issues query by since on repeat polls, reconcile the delta ([#409](https://github.com/alrayyes/forge-dashboard/issues/409)) ([eb37350](https://github.com/alrayyes/forge-dashboard/commit/eb37350cc354738c4df1eff9afde95dad2a29a89))
+
 ## [0.75.0](https://github.com/alrayyes/forge-dashboard/compare/v0.74.0...v0.75.0) (2026-09-18)
 
 
