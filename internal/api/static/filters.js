@@ -60,12 +60,102 @@ var Filters = (() => {
     return state;
   }
 
-  function saveState(state) {
+  var FILTER_STATE_ENDPOINT = '/api/settings/filter-state';
+  // Long enough that a fast typist's keystrokes coalesce into one write,
+  // short enough that a real pause reads as "done typing," matching the
+  // "debounce free text, not discrete controls" split #353 asks for —
+  // see saveState's own comment for which callers hit which path.
+  var TITLE_SAVE_DEBOUNCE_MS = 500;
+  var titleSaveTimer = null;
+
+  function putFilterStateToServer(state) {
+    fetch(FILTER_STATE_ENDPOINT, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state),
+    }).catch(() => {
+      // Best-effort, the same restraint RecordWebhookDelivery's own
+      // server-side "a failure to persist this doesn't fail the request
+      // it's riding along with" gets — the cookie already has this
+      // value locally regardless, so a lost sync here just means the
+      // next device to load stays on its own last-synced state instead
+      // of today's, not a broken filter bar.
+    });
+  }
+
+  // Writes the cookie synchronously and immediately, every call — the
+  // same fast local cache theme's own cookie already is, and what lets
+  // loadState() below stay synchronous for the page's very first paint.
+  // The server sync is what debouncedCol controls: pass the column that
+  // just changed when it was a free-text keystroke (only "title" today)
+  // to delay that one; omit it (every discrete control — a <select>, a
+  // radio, a checkbox, "Clear filters," a label chip click) to sync
+  // immediately, flushing any debounced title write still pending first
+  // so the two can never land out of order.
+  function saveState(state, debouncedCol) {
     try {
       setCookie(FILTERS_COOKIE, JSON.stringify(state));
     } catch (_e) {
       /* ignore */
     }
+
+    if (debouncedCol === 'title') {
+      if (titleSaveTimer) clearTimeout(titleSaveTimer);
+      titleSaveTimer = setTimeout(() => {
+        titleSaveTimer = null;
+        putFilterStateToServer(state);
+      }, TITLE_SAVE_DEBOUNCE_MS);
+      return;
+    }
+    if (titleSaveTimer) {
+      clearTimeout(titleSaveTimer);
+      titleSaveTimer = null;
+    }
+    putFilterStateToServer(state);
+  }
+
+  // Fetches the signed-in user's own saved filter state from the server
+  // (#353) — a separate, async step from loadState's own synchronous
+  // cookie read, called once at page load right after it so the first
+  // paint isn't blocked on a round trip. Returns null on any failure or
+  // for a user who's never saved anything server-side yet (the {}
+  // GET /api/settings/filter-state answers with either way), the
+  // caller's own signal to leave the cookie-derived state as it is
+  // rather than overwriting it with nothing.
+  function loadStateFromServer() {
+    return fetch(FILTER_STATE_ENDPOINT, {
+      headers: { Accept: 'application/json' },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((parsed) => {
+        if (!parsed || typeof parsed !== 'object') return null;
+        if (
+          (!parsed.shared || Object.keys(parsed.shared).length === 0) &&
+          (!parsed.pr || Object.keys(parsed.pr).length === 0) &&
+          (!parsed.issue || Object.keys(parsed.issue).length === 0)
+        ) {
+          return null;
+        }
+        return parsed;
+      })
+      .catch(() => null);
+  }
+
+  // Merges got (a real server response from loadStateFromServer, already
+  // known non-null) into state in place — mutated, not reassigned, since
+  // callers close over this exact state object (createBoard's own
+  // extraState, every listener that reads sharedState.shared) and a
+  // reassignment here would leave them all pointing at the stale one.
+  // Same per-key merge shape loadState's own cookie-parsing already
+  // uses, so a field the server never reports (an older save, before a
+  // field existed) doesn't clobber a default that already has something
+  // sensible.
+  function applyServerState(state, got) {
+    if (got.shared && typeof got.shared === 'object')
+      Object.assign(state.shared, got.shared);
+    if (got.pr && typeof got.pr === 'object') Object.assign(state.pr, got.pr);
+    if (got.issue && typeof got.issue === 'object')
+      Object.assign(state.issue, got.issue);
   }
 
   function minutesAgo(iso) {
@@ -245,6 +335,8 @@ var Filters = (() => {
     FORGE_LABELS: FORGE_LABELS,
     DEPENDENCY_DASHBOARD_TITLE: DEPENDENCY_DASHBOARD_TITLE,
     loadState: loadState,
+    loadStateFromServer: loadStateFromServer,
+    applyServerState: applyServerState,
     saveState: saveState,
     minutesAgo: minutesAgo,
     matchesFilters: matchesFilters,

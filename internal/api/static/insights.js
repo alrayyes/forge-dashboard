@@ -253,6 +253,19 @@
   var lastSnapshot = { pullRequests: [], issues: [], forges: [] };
   var sharedControlsRestored = false;
 
+  // #353: the same cross-device reconciliation app.js's own copy of this
+  // does — see its comment for the full reasoning. Insights and the main
+  // dashboard share the one saved filter state, so this page has to pull
+  // it too rather than only ever seeing whatever the cookie already has.
+  Filters.loadStateFromServer().then((got) => {
+    if (got) Filters.applyServerState(sharedState, got);
+    if (sharedControlsRestored) {
+      updateSharedFilterOptions();
+      syncSharedControlsToState();
+      renderAll();
+    }
+  });
+
   // Every chart re-renders instantly from the already-fetched snapshot —
   // no refetch on a filter change, so there's no "hold the previous
   // render while reloading" case to handle.
@@ -335,7 +348,7 @@
       var value = c.type === 'radio' ? c.value : c.value.trim().toLowerCase();
       sharedState.shared[c.dataset.col] = value;
       if (c.dataset.col === 'forge') updateSharedFilterOptions();
-      Filters.saveState(sharedState);
+      Filters.saveState(sharedState, c.dataset.col);
       renderAll();
     };
     c.addEventListener('input', apply);
