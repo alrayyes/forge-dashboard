@@ -1,0 +1,163 @@
+package api_test
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// fakeLabelerSource implements both dashboard.Source and
+// dashboard.PullRequestLabeler directly — the shape github.Client and
+// forgejo.Client both have.
+type fakeLabelerSource struct {
+	forge      dashboard.Forge
+	labelErr   error
+	lastOwner  string
+	lastName   string
+	lastNumber int
+	lastLabel  string
+}
+
+func (f *fakeLabelerSource) Forge() dashboard.Forge { return f.forge }
+
+func (f *fakeLabelerSource) Fetch(_ context.Context) dashboard.Result {
+	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true}}
+}
+
+func (f *fakeLabelerSource) AddLabel(_ context.Context, owner, name string, number int, label string) error {
+	f.lastOwner, f.lastName, f.lastNumber, f.lastLabel = owner, name, number, label
+	return f.labelErr
+}
+
+func postRenovateRebase(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName string, number int) *http.Response {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"forge": forge, "fullName": fullName, "number": number})
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/renovate-rebase", strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	return resp
+}
+
+func putRenovateRebaseLabel(t *testing.T, srvURL string, sessionCookie *http.Cookie, label string) {
+	t.Helper()
+	body := `{"githubToken":"placeholder-token","forgejoUrl":"https://git.example","forgejoToken":"placeholder-token","allowBotPrUpdates":true,"renovateRebaseLabel":"` + label + `"}`
+	req, err := http.NewRequest(http.MethodPut, srvURL+"/api/settings", strings.NewReader(body))
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestPullRequestRenovateRebase_UsesDefaultLabelWhenNoneConfigured(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeLabelerSource{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, "alrayyes", source.lastOwner)
+	assert.Equal(t, "tempus-fugit", source.lastName)
+	assert.Equal(t, 42, source.lastNumber)
+	assert.Equal(t, "rebase", source.lastLabel)
+}
+
+func TestPullRequestRenovateRebase_UsesTheConfiguredLabel(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeLabelerSource{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	putRenovateRebaseLabel(t, srvURL, sessionCookie, "retry")
+
+	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, "retry", source.lastLabel)
+}
+
+func TestPullRequestRenovateRebase_ForgejoDispatchesToTheForgejoSource(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeLabelerSource{forge: dashboard.ForgeForgejo}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := postRenovateRebase(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 7)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, 7, source.lastNumber)
+	assert.Equal(t, "rebase", source.lastLabel)
+}
+
+func TestPullRequestRenovateRebase_LabelingFails_ClassifiesByError(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeLabelerSource{
+		forge: dashboard.ForgeGitHub,
+		labelErr: &dashboard.ClientError{
+			Kind: dashboard.ForgeErrorNotFound,
+			Err:  assert.AnError,
+		},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestPullRequestRenovateRebase_ForgeWithNoSupport_Returns400(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestPullRequestRenovateRebase_MalformedFullName_Returns400(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeLabelerSource{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestPullRequestRenovateRebase_Unauthenticated_Returns401(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeLabelerSource{forge: dashboard.ForgeGitHub}
+	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1})
+	require.NoError(t, err)
+	resp, err := http.Post(srvURL+"/api/pull-requests/renovate-rebase", "application/json", strings.NewReader(string(body)))
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}

@@ -224,6 +224,15 @@ Dependabot's own [comment commands](https://docs.github.com/en/code-security/dep
 the forge to type them yourself. GitHub only — Dependabot doesn't run on
 Forgejo.
 
+A Renovate-authored pull request, on either forge, gets a `Renovate:
+Rebase` button that adds the configured `rebase` label (Settings' own
+`Renovate rebase label` field, described earlier) instead of you finding
+and adding it yourself — Renovate's own rebase/retry trigger is a label,
+not a comment command. On Forgejo the label has to already exist on the
+repo (its labels API takes an existing label's ID, not an arbitrary
+name); the button reports that plainly instead of silently doing
+nothing if it doesn't.
+
 ## Webhooks
 
 Optional. Without one, the dashboard still refreshes on its own schedule

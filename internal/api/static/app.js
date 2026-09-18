@@ -221,6 +221,7 @@
     var updateBranchAction;
     var mergeAction;
     var dependabotAction;
+    var renovateRebaseAction;
 
     row.appendChild(repoCell(item));
     row.appendChild(titleCell(item, onLabelClick, activeLabel));
@@ -245,6 +246,8 @@
       if (mergeAction) statusCell.appendChild(mergeAction);
       dependabotAction = dependabotActionCell(item);
       if (dependabotAction) statusCell.appendChild(dependabotAction);
+      renovateRebaseAction = renovateRebaseActionCell(item);
+      if (renovateRebaseAction) statusCell.appendChild(renovateRebaseAction);
       meta.appendChild(statusCell);
     } else {
       meta.appendChild(el('div', 'empty-cell'));
@@ -772,6 +775,107 @@
     wrap.appendChild(dependabotActionButton(item, 'rebase'));
     wrap.appendChild(dependabotActionButton(item, 'recreate'));
     return wrap;
+  }
+
+  // ---- Renovate rebase action ----
+  // Unlike Dependabot, Renovate runs on both forges and has only the one
+  // trigger (no separate "recreate") — the server resolves which label to
+  // add from the signed-in user's own saved setting
+  // (RenovateRebaseLabelOrDefault), so the request here carries no action
+  // field the way the Dependabot one does.
+  var renovateRebaseState = {};
+
+  // Same 403/429 handling as reactiveDependabotActionLockReason; 404 reads
+  // as the configured label not existing on this repo (Forgejo requires
+  // the label to already exist — see forgejo.Client.AddLabel) rather than
+  // the pull request itself being missing.
+  function reactiveRenovateRebaseLockReason(status) {
+    if (status === 403)
+      return 'Missing permission — check your token in Settings.';
+    if (status === 429)
+      return 'Rate limit exceeded — try again once it resets.';
+    if (status === 404) return "Rebase label doesn't exist on this repo.";
+    return null;
+  }
+
+  function doRenovateRebase(item, button) {
+    var key = prKey(item);
+    renovateRebaseState[key] = { phase: 'requesting' };
+    button.disabled = true;
+    button.textContent = 'Requesting rebase…';
+    showStatus(`Asking Renovate to rebase ${item.repo}#${item.number}…`);
+
+    fetch('/api/pull-requests/renovate-rebase', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        forge: item.forge,
+        fullName: item.repo,
+        number: item.number,
+      }),
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          throw new Error('session expired');
+        }
+        if (res.status === 204) return null;
+        return res.json().then((body) => {
+          var err = new Error(body?.error || `backend answered ${res.status}`);
+          err.status = res.status;
+          throw err;
+        });
+      })
+      .then(() => {
+        delete renovateRebaseState[key];
+        showStatus(`Asked Renovate to rebase ${item.repo}#${item.number}.`);
+        prBoard.render();
+      })
+      .catch((err) => {
+        var lockReason = reactiveRenovateRebaseLockReason(err.status);
+        renovateRebaseState[key] = lockReason
+          ? { phase: 'locked', reason: lockReason }
+          : { phase: 'idle' };
+        if (err.status === 403) forgePermissionDenied[item.forge] = true;
+        clearStatus();
+        showError(
+          `Couldn't ask Renovate to rebase ${item.repo}#${item.number}: ${err.message}`,
+        );
+        prBoard.render();
+      });
+  }
+
+  function renovateRebaseActionCell(item) {
+    if (!isRenovatePr(item)) return null;
+
+    var key = prKey(item);
+    var entry = renovateRebaseState[key] || { phase: 'idle' };
+    var proactiveReason;
+
+    if (entry.phase === 'locked')
+      return lockedActionButton('Renovate: Rebase', entry.reason);
+
+    if (entry.phase === 'idle') {
+      proactiveReason = proactiveActionLockReason(item.forge);
+      if (proactiveReason)
+        return lockedActionButton('Renovate: Rebase', proactiveReason);
+    }
+
+    var requesting = entry.phase === 'requesting';
+    var button = el(
+      'button',
+      'row-action',
+      requesting ? 'Requesting rebase…' : 'Renovate: Rebase',
+    );
+    button.type = 'button';
+    button.disabled = requesting;
+    button.addEventListener('click', () => {
+      doRenovateRebase(item, button);
+    });
+    return button;
   }
 
   // ---- shared filter state ----

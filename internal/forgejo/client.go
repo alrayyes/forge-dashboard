@@ -287,6 +287,45 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 	return false, nil
 }
 
+// AddLabel implements dashboard.PullRequestLabeler: adds label to
+// owner/name#number — Renovate's own rebase/retry trigger on this forge.
+// Forgejo's AddIssueLabels takes label IDs, not names (unlike GitHub's
+// equivalent), so this looks the repo's own labels up first to resolve
+// label to its ID. A repo with no label by that name fails informatively
+// rather than silently doing nothing — Renovate doesn't create the label
+// itself, the repo owner (or Renovate's own onboarding) does.
+func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, label string) error {
+	c.setContext(ctx)
+
+	labelsPath := fmt.Sprintf("/repos/%s/%s/labels", owner, name)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", labelsPath)
+	labels, resp, err := c.sdk.ListRepoLabels(owner, name, gitea.ListLabelsOptions{})
+	if err != nil {
+		return forgejoError(http.MethodGet, labelsPath, resp, err)
+	}
+
+	var id int64
+	found := false
+	for _, l := range labels {
+		if l.Name == label {
+			id = l.ID
+			found = true
+			break
+		}
+	}
+	if !found {
+		wrapped := fmt.Errorf("forgejo: no label %q on %s/%s — create it on the repo first", label, owner, name)
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorNotFound, Err: wrapped}
+	}
+
+	addPath := fmt.Sprintf("/repos/%s/%s/issues/%d/labels", owner, name, number)
+	slog.Debug("forgejo request", "method", http.MethodPost, "url", addPath)
+	if _, resp, err := c.sdk.AddIssueLabels(owner, name, int64(number), gitea.IssueLabelsOption{Labels: []int64{id}}); err != nil {
+		return forgejoError(http.MethodPost, addPath, resp, err)
+	}
+	return nil
+}
+
 // ListRepos returns the repositories this Client is configured to track —
 // see NewClient for the two modes.
 func (c *Client) ListRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
