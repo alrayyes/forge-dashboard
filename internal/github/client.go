@@ -71,6 +71,12 @@ type Client struct {
 	// per repo), and a fetch only ever reads the latest value once, so
 	// there's no multi-field invariant a mutex would need to protect.
 	lastRESTRate atomic.Pointer[dashboard.RateLimit]
+
+	// issueState tracks the last known open-issue set per repo and when
+	// this Client last polled successfully, for the since-filtered
+	// reconciliation fetchViaGraphQL runs on every repeat poll (#381) —
+	// see issue_reconciliation.go.
+	issueState issueState
 }
 
 // recordRESTRate updates lastRESTRate from rate, ignoring a zero Rate —
@@ -620,6 +626,13 @@ type graphqlRepo struct {
 	PullRequests struct {
 		Nodes []graphqlPullRequest `json:"nodes"`
 	} `json:"pullRequests"`
+	// IssuesTotal is the repo's own true current open-issue count,
+	// queried unfiltered alongside Issues' own since-filtered delta
+	// (#381) — what mergeIssueDelta reconciles a merge against. See
+	// reposQueryTemplate's own "issuesTotal:" alias.
+	IssuesTotal struct {
+		TotalCount int `json:"totalCount"`
+	} `json:"issuesTotal"`
 	Issues struct {
 		Nodes []graphqlIssue `json:"nodes"`
 	} `json:"issues"`
@@ -673,7 +686,7 @@ type reposQueryResponse struct {
 // REST's single endpoint — no client-side "is this actually a PR"
 // filtering needed.
 const reposQueryTemplate = `
-query($cursor: String) {
+query($cursor: String, $since: DateTime) {
   rateLimit {
     limit
     remaining
@@ -726,7 +739,10 @@ query($cursor: String) {
             }
           }
         }
-        issues(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
+        issuesTotal: issues(states: OPEN) {
+          totalCount
+        }
+        issues(states: OPEN, first: %[1]d, filterBy: {since: $since}, orderBy: {field: CREATED_AT, direction: DESC}) {
           nodes {
             number
             title
@@ -831,14 +847,34 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	return json.Unmarshal(envelope.Data, out)
 }
 
+// sinceVariable formats since for the issues connection's own
+// filterBy: {since: $since} argument — nil (not the zero time.Time)
+// signals "no prior poll" all the way through to the GraphQL request,
+// so a first-ever Fetch's $since is JSON null rather than some
+// zero-value date that would filter almost every real issue out.
+func sinceVariable(since *time.Time) any {
+	if since == nil {
+		return nil
+	}
+	return since.Format(time.RFC3339)
+}
+
 func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
+	// Captured before the query runs, not after: an issue that changes
+	// mid-poll needs an updatedAt at or after the *next* poll's own
+	// since, or it's silently missed forever — using the end time
+	// instead would leave exactly that gap.
+	pollStartedAt := time.Now().UTC()
+	since := c.issueState.since()
+
 	var repos []graphqlRepo
 	var rateLimit *dashboard.RateLimit
 	var cursor *string
 
 	for {
 		var resp reposQueryResponse
-		if err := c.graphqlDo(ctx, reposQuery, map[string]any{"cursor": cursor}, &resp); err != nil {
+		vars := map[string]any{"cursor": cursor, "since": sinceVariable(since)}
+		if err := c.graphqlDo(ctx, reposQuery, vars, &resp); err != nil {
 			slog.Warn("forge unreachable", "forge", dashboard.ForgeGitHub, "error", err)
 			health := dashboard.ForgeHealth{
 				Forge: dashboard.ForgeGitHub, Reachable: false,
@@ -875,6 +911,8 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		tracked = append(tracked, r)
 	}
 	hasWebhook := c.checkWebhooks(ctx, tracked)
+	issuesByRepo := c.reconcileIssues(ctx, tracked, since != nil)
+	c.issueState.commit(pollStartedAt, issuesByRepo)
 
 	result := dashboard.Result{Health: dashboard.ForgeHealth{
 		Forge:            dashboard.ForgeGitHub,
@@ -896,9 +934,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		for _, p := range r.PullRequests.Nodes {
 			result.PullRequests = append(result.PullRequests, mapPullRequest(fullName, p))
 		}
-		for _, i := range r.Issues.Nodes {
-			result.Issues = append(result.Issues, mapIssue(fullName, i))
-		}
+		result.Issues = append(result.Issues, issuesByRepo[fullName]...)
 	}
 	return result
 }
