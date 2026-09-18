@@ -37,16 +37,15 @@ stale.
   browser's network tab and watch it call nothing but `/api/dashboard`,
   `/api/settings`, `/api/auth/*` and `/healthz` — and that `/api/settings`
   never echoes a token back, only whether one is set.
-- **One Go binary.** Every page, plain HTML/CSS/JS or SvelteKit, ends up
-  embedded into the binary with `//go:embed` — a released binary needs
-  nothing but `go build` to run. Building from source needs one extra
-  step first, `bun run build:web`, to produce the SvelteKit pages
-  `internal/api/static` embeds — run automatically in CI and the
-  Docker build's own `web-build` stage, a manual step before a local
-  `go build` otherwise. The frontend is migrating to SvelteKit
-  incrementally, one page at a time (see #326), so this step's share of
-  the app grows over time rather than staying fixed. See
-  [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain either half needs.
+- **One Go binary.** The frontend — SvelteKit throughout, migrated
+  incrementally one page at a time (see #326) — ends up embedded into
+  the binary with `//go:embed`; a released binary needs nothing but
+  `go build` to run. Building from source needs one extra step first,
+  `bun run build:web`, to produce the pages `internal/api/static`
+  embeds — run automatically in CI and the Docker build's own
+  `web-build` stage, a manual step before a local `go build` otherwise.
+  See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain either half
+  needs.
 - **Read-only against both forges, with one caveat.** Nothing here writes
   back to GitHub or Forgejo — it aggregates and displays, and every row
   links out to the real thing. The caveat: checking whether a repo's

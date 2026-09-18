@@ -5,10 +5,9 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
 		<!-- Synchronous, before first paint, so there's no flash of the
-		     wrong theme — theme.js reads the cookie app.js's toggle writes
-		     and applies it immediately. Same contract every vanilla page
-		     still uses (see rules/architecture-docs.md-worthy note in
-		     theme.js's own header comment). -->
+		     wrong theme — theme.js reads the cookie $lib/theme.ts writes
+		     (from Settings, the only place theme is ever set — #352) and
+		     applies it immediately. See theme.js's own header comment. -->
 		<script src="/theme.js"></script>
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
