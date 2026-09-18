@@ -1216,6 +1216,44 @@ select.col-filter {
   font-size: 13px;
 }
 
+/* Prominent alert banner (#361) for an exhausted GitHub API budget — the
+   same critical, unmissable-at-the-top-of-the-page weight as the "CI
+   failing" stat tile (.stat.critical), rather than .error-banner's
+   quieter treatment, since this blocks real actions (merge, update
+   branch, Dependabot/Renovate triggers) silently until the reset window
+   passes. */
+.rate-limit-banner {
+  background: var(--critical-bg);
+  border: 1px solid var(--critical);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rate-limit-banner-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rate-limit-banner-label {
+  color: var(--critical);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.rate-limit-banner-timer {
+  color: var(--critical);
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
 footer {
   text-align: center;
   font-size: 12px;

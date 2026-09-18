@@ -152,7 +152,7 @@ test.describe('dashboard page', () => {
     ).not.toHaveAttribute('open');
   });
 
-  test('a forge reporting a rate-limit budget does not show it here — that lives on Insights', async ({
+  test('a forge reporting a healthy rate-limit budget does not show the numeric gauge here — that lives on Insights — nor the exceeded banner', async ({
     page,
   }) => {
     const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
@@ -167,7 +167,7 @@ test.describe('dashboard page', () => {
               forge: 'github',
               reachable: true,
               repoCount: 3,
-              rateLimit: { limit: 5000, remaining: 4922, resetsAt },
+              rateLimitREST: { limit: 5000, remaining: 4922, resetsAt },
             },
           ],
           pullRequests: [],
@@ -182,6 +182,146 @@ test.describe('dashboard page', () => {
       '4922/5000 requests',
     );
     await expect(page.locator('.forge-health-ratelimit')).toHaveCount(0);
+    await expect(page.locator('#rate-limit-banner')).toHaveCount(0);
+  });
+
+  test.describe('rate-limit-exceeded banner (#361)', () => {
+    test('an exhausted budget shows a prominent banner at the top with a live countdown', async ({
+      page,
+    }) => {
+      const resetsAt = new Date(Date.now() + 90 * 1000).toISOString();
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              {
+                forge: 'github',
+                reachable: true,
+                repoCount: 3,
+                rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
+              },
+            ],
+            pullRequests: [],
+            issues: [],
+          }),
+        }),
+      );
+
+      await page.reload();
+
+      const banner = page.locator('#rate-limit-banner');
+      await expect(banner).toBeVisible();
+      await expect(banner).toContainText('Rate limit exceeded');
+      await expect(banner).toContainText('GitHub REST');
+      await expect(banner).toContainText(/resets in 1m \d+s/);
+
+      function totalSeconds(text) {
+        const match = text.match(/resets in (?:(\d+)m )?(\d+)s/);
+        expect(match).not.toBeNull();
+        return Number(match[1] || 0) * 60 + Number(match[2]);
+      }
+
+      const firstSeconds = totalSeconds(await banner.textContent());
+
+      // The countdown ticks down on its own, same interval the
+      // "refreshed Xs ago" clock already uses — no need for a fresh
+      // snapshot to land for the displayed time to move.
+      await expect(async () => {
+        const seconds = totalSeconds(await banner.textContent());
+        expect(seconds).toBeLessThan(firstSeconds);
+      }).toPass({ timeout: 3000 });
+    });
+
+    test('reports each exhausted budget separately when both REST and GraphQL are out', async ({
+      page,
+    }) => {
+      const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              {
+                forge: 'github',
+                reachable: true,
+                repoCount: 3,
+                rateLimitGraphQL: { limit: 5000, remaining: 0, resetsAt },
+                rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
+              },
+            ],
+            pullRequests: [],
+            issues: [],
+          }),
+        }),
+      );
+
+      await page.reload();
+
+      const banner = page.locator('#rate-limit-banner');
+      await expect(banner.locator('.rate-limit-banner-row')).toHaveCount(2);
+      await expect(banner).toContainText('GitHub GraphQL');
+      await expect(banner).toContainText('GitHub REST');
+    });
+
+    test('clears once a fresh snapshot reports the budget recovered', async ({
+      page,
+    }) => {
+      const resetsAt = new Date(Date.now() + 60 * 1000).toISOString();
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              {
+                forge: 'github',
+                reachable: true,
+                repoCount: 3,
+                rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
+              },
+            ],
+            pullRequests: [],
+            issues: [],
+          }),
+        }),
+      );
+
+      await page.reload();
+      await expect(page.locator('#rate-limit-banner')).toBeVisible();
+
+      await page.route('**/api/dashboard/refresh', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              {
+                forge: 'github',
+                reachable: true,
+                repoCount: 3,
+                rateLimitREST: {
+                  limit: 5000,
+                  remaining: 5000,
+                  resetsAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+                },
+              },
+            ],
+            pullRequests: [],
+            issues: [],
+          }),
+        }),
+      );
+      await page.click('#force-refresh-button');
+
+      await expect(page.locator('#rate-limit-banner')).toHaveCount(0);
+    });
   });
 
   test('the dashboard has no webhook coverage card — that lives in Settings now', async ({

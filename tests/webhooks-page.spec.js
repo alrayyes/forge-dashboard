@@ -318,7 +318,7 @@ test.describe('webhooks page', () => {
           forge: 'github',
           reachable: true,
           repoCount: 1,
-          rateLimit: { limit: 5000, remaining: 0, resetsAt },
+          rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
         },
       ],
     );
@@ -425,7 +425,7 @@ test.describe('webhooks page', () => {
           forge: 'github',
           reachable: true,
           repoCount: 1,
-          rateLimit: { limit: 5000, remaining: 0, resetsAt },
+          rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
         },
       ],
     );

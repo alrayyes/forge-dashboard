@@ -24,13 +24,18 @@
     number: number;
     url: string;
   };
+  type RateLimit = { limit: number; remaining: number; resetsAt: string };
   type Forge = {
     forge: string;
     reachable: boolean;
     repoCount: number;
     errorKind?: string;
     error?: string;
-    rateLimit?: { limit: number; remaining: number; resetsAt: string };
+    // Two independent GitHub budgets (#361) — see api/openapi.yaml's own
+    // ForgeHealth.rateLimitGraphQL/rateLimitREST doc comment for which
+    // is which and when each is reported.
+    rateLimitGraphQL?: RateLimit;
+    rateLimitREST?: RateLimit;
   };
   type DashboardSnapshot = {
     generatedAt: string;
@@ -553,9 +558,14 @@
         // (#360).
         return "See the forge status above.";
       }
-      if (health?.rateLimit && health.rateLimit.remaining === 0) {
+      // #361: every action this locks (Merge, Update branch, Dependabot,
+      // Renovate) is a REST call — checking rateLimitGraphQL here would
+      // have kept a REST-exhausted row looking clickable right up until
+      // the click itself failed, since GraphQL's own budget is a
+      // completely separate allowance that says nothing about REST's.
+      if (health?.rateLimitREST && health.rateLimitREST.remaining === 0) {
         const resetTime = new Date(
-          health.rateLimit.resetsAt,
+          health.rateLimitREST.resetsAt,
         ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         return `Rate limit exhausted · resets ${resetTime}`;
       }
@@ -1752,7 +1762,88 @@
       if (!lastGeneratedAt || !target) return;
       target.textContent = relativeTime(lastGeneratedAt);
     }
-    setInterval(tickRefreshedAt, 1000);
+
+    // ---- rate-limit-exceeded banner (#361) ----
+    // An exhausted REST or GraphQL budget silently locks every proactive
+    // action it drives (merge, update branch, Dependabot/Renovate
+    // triggers) until the forge's own reset window passes — that's
+    // already surfaced per-row via proactiveActionLockReason, but easy to
+    // miss buried in a board below the fold. This mirrors it at the top
+    // of the page, with the same critical prominence as the "CI failing"
+    // stat tile, so it's visible at a glance.
+    type ExhaustedBudget = { label: string; resetsAt: string };
+    let exhaustedBudgets: ExhaustedBudget[] = [];
+
+    function computeExhaustedBudgets(forges: Forge[]): ExhaustedBudget[] {
+      const out: ExhaustedBudget[] = [];
+      for (const f of forges) {
+        const name = FORGE_LABELS[f.forge] || f.forge;
+        if (f.rateLimitGraphQL && f.rateLimitGraphQL.remaining === 0) {
+          out.push({
+            label: `${name} GraphQL`,
+            resetsAt: f.rateLimitGraphQL.resetsAt,
+          });
+        }
+        if (f.rateLimitREST && f.rateLimitREST.remaining === 0) {
+          out.push({
+            label: `${name} REST`,
+            resetsAt: f.rateLimitREST.resetsAt,
+          });
+        }
+      }
+      return out;
+    }
+
+    // Same rounding/format as Insights' own countdown (#361) — kept as a
+    // separate copy rather than a shared import, since this page's own
+    // architecture is a near-literal imperative-TS translation of the
+    // pre-migration dashboard, not reactive Svelte state like Insights.
+    function countdownLabel(resetsAt: string): string {
+      const msLeft = new Date(resetsAt).getTime() - Date.now();
+      if (msLeft <= 0) return "resets any moment";
+      const totalSeconds = Math.floor(msLeft / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return minutes > 0
+        ? `resets in ${minutes}m ${seconds}s`
+        : `resets in ${seconds}s`;
+    }
+
+    function renderRateLimitBanner() {
+      document.getElementById("rate-limit-banner")?.remove();
+      if (exhaustedBudgets.length === 0) return;
+      const banner = el("div", "rate-limit-banner");
+      banner.id = "rate-limit-banner";
+      banner.setAttribute("role", "alert");
+      for (const budget of exhaustedBudgets) {
+        const row = el("div", "rate-limit-banner-row");
+        row.appendChild(
+          el(
+            "span",
+            "rate-limit-banner-label",
+            `Rate limit exceeded — ${budget.label}`,
+          ),
+        );
+        row.appendChild(
+          el(
+            "span",
+            "rate-limit-banner-timer",
+            countdownLabel(budget.resetsAt),
+          ),
+        );
+        banner.appendChild(row);
+      }
+      document
+        .querySelector(".wrap")
+        ?.insertBefore(banner, document.querySelector(".stats"));
+    }
+
+    setInterval(() => {
+      tickRefreshedAt();
+      // Cheap to call unconditionally — it removes and, only if there's
+      // still something exhausted, redraws a handful of rows.
+      renderRateLimitBanner();
+    }, 1000);
 
     function showError(message: string) {
       document.getElementById("error-banner")?.remove();
@@ -1925,6 +2016,8 @@
 
       renderForgeHealth(data.forges || []);
       lastForges = data.forges || [];
+      exhaustedBudgets = computeExhaustedBudgets(lastForges);
+      renderRateLimitBanner();
 
       // A locked merge/update-branch reason only reflects what the
       // forge said at the moment of the last attempt — re-derived here
