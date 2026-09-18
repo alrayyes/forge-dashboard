@@ -60,7 +60,7 @@ type Deps struct {
 // The dashboard itself, and the page that renders it, require a valid
 // session; registration, login and the handful of static assets a login
 // page needs (its own HTML/JS, the shared stylesheet, the favicon) don't.
-func NewMux(deps Deps) *http.ServeMux {
+func NewMux(deps Deps) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", handleHealth)
@@ -143,7 +143,7 @@ func NewMux(deps Deps) *http.ServeMux {
 	mux.Handle("GET /admin.js", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /", fileServer)
 
-	return mux
+	return accessLogMiddleware(mux)
 }
 
 // requireAuthPage is RequireAuth's page-navigation counterpart: a redirect

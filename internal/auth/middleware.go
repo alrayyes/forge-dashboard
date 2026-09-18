@@ -9,7 +9,10 @@ import (
 
 type contextKey int
 
-const userContextKey contextKey = 0
+const (
+	userContextKey contextKey = iota
+	accessLogUsernameKey
+)
 
 // UserFromContext returns the authenticated user a RequireAuth-wrapped
 // handler is running for. Only ever called from inside such a handler, so
@@ -18,6 +21,25 @@ const userContextKey contextKey = 0
 func UserFromContext(ctx context.Context) (*User, bool) {
 	u, ok := ctx.Value(userContextKey).(*User)
 	return u, ok
+}
+
+// WithAccessLogUsername returns a context carrying a pointer RequireAuth
+// fills in with the resolved username, once it resolves one, plus that
+// same pointer for the caller to read back later (#371).
+//
+// An access-log middleware has to wrap outside RequireAuth — a rejected or
+// unauthenticated request still needs logging — so by the time it can log
+// anything, whatever RequireAuth put in *its own* request's context is
+// already gone: r.WithContext returns a new *http.Request rather than
+// mutating the caller's, so a value added deeper in the chain never
+// becomes visible on the outer handler's own (now-stale) request. What
+// does survive the round trip is a pointer carried through that context:
+// writing to what it points at is visible to anyone still holding the
+// same pointer, however many WithContext copies sit in between — which is
+// exactly what the caller here keeps hold of.
+func WithAccessLogUsername(ctx context.Context) (context.Context, *string) {
+	slot := new(string)
+	return context.WithValue(ctx, accessLogUsernameKey, slot), slot
 }
 
 // RequireAuth wraps next so it only ever runs for a request carrying a
@@ -50,6 +72,10 @@ func RequireAuth(store *Store) func(http.Handler) http.Handler {
 				}
 				unauthorized(w)
 				return
+			}
+
+			if slot, ok := r.Context().Value(accessLogUsernameKey).(*string); ok {
+				*slot = u.Username
 			}
 
 			ctx := context.WithValue(r.Context(), userContextKey, u)

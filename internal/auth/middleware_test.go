@@ -125,3 +125,50 @@ func TestRequireAuth_RevokedBearerToken_Returns401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
+
+// TestWithAccessLogUsername_RequireAuthFillsTheSlot is #371's own
+// mechanism for letting an access-log middleware — which has to wrap
+// *outside* RequireAuth, so a rejected/unauthenticated request still gets
+// logged — observe the username RequireAuth resolves *inside* itself.
+// r.WithContext returns a new *http.Request rather than mutating the
+// caller's own, so the outer middleware's own request/context never sees
+// values a downstream handler adds to its context normally; the slot this
+// returns is a pointer carried *through* that context instead, so writing
+// to what it points at is visible to whoever's still holding the same
+// pointer, regardless of how many WithContext copies sit in between.
+func TestWithAccessLogUsername_RequireAuthFillsTheSlot(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	require.NoError(t, err)
+	token, err := store.CreateSession(t.Context(), u.ID, time.Hour)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	// #nosec G124 -- a request Cookie header being simulated here, not a response Set-Cookie; Secure/HttpOnly/SameSite are response-only attributes gosec cannot tell don't apply.
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+
+	ctx, slot := auth.WithAccessLogUsername(req.Context())
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	auth.RequireAuth(store)(handlerEchoingUsername()).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "ryan", *slot)
+}
+
+func TestWithAccessLogUsername_RejectedRequest_SlotStaysEmpty(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	ctx, slot := auth.WithAccessLogUsername(req.Context())
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	auth.RequireAuth(store)(handlerEchoingUsername()).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Empty(t, *slot)
+}
