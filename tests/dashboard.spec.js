@@ -1743,6 +1743,49 @@ test.describe('dashboard page', () => {
       await expect(pill).toContainText('Blocked');
     });
 
+    // #418: GitHub's own mergeStateStatus reports BLOCKED whenever
+    // required checks haven't *completed*, not only once one has
+    // actually failed — the same root cause #385 already fixed for the
+    // Merge button's own clickability. This is the separate status pill
+    // sitting next to the CI pill, showing the exact same false "Blocked"
+    // signal while CI just hasn't finished yet.
+    test('a blocked pull request whose CI is still running shows no blocked pill', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        pr({ mergeStatus: 'blocked', ci: 'pending' }),
+      ]);
+      await page.reload();
+
+      await expect(page.locator('#pr-rows .merge-pill.blocked')).toHaveCount(0);
+    });
+
+    test('the blocked pill appears once CI resolves to a real block', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        pr({ mergeStatus: 'blocked', ci: 'failure' }),
+      ]);
+      await page.reload();
+
+      const pill = page.locator('#pr-rows .merge-pill.blocked');
+      await expect(pill).toHaveCount(1);
+      await expect(pill).toContainText('Blocked');
+    });
+
+    test('a conflicting pull request shows the conflict pill even while CI is still running — a real conflict, not a completion gate', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        pr({ mergeStatus: 'conflicting', ci: 'pending' }),
+      ]);
+      await page.reload();
+
+      const pill = page.locator('#pr-rows .merge-pill.conflicting');
+      await expect(pill).toHaveCount(1);
+      await expect(pill).toContainText('Conflicting');
+    });
+
     test('a pull request with auto-merge enabled shows the auto-merge pill', async ({
       page,
     }) => {
