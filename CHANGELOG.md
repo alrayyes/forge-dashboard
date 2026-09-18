@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.69.1](https://github.com/alrayyes/forge-dashboard/compare/v0.69.0...v0.69.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* remove duplicate CHANGELOG entries for v0.68.0 ([#368](https://github.com/alrayyes/forge-dashboard/issues/368)) ([d5e87ba](https://github.com/alrayyes/forge-dashboard/commit/d5e87ba7c3943dc7fbe798d5e9e3542908fdfdba)), closes [#342](https://github.com/alrayyes/forge-dashboard/issues/342)
+
 ## [0.69.0](https://github.com/alrayyes/forge-dashboard/compare/v0.68.0...v0.69.0) (2026-09-18)
 
 
