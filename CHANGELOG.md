@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.71.0](https://github.com/alrayyes/forge-dashboard/compare/v0.70.3...v0.71.0) (2026-09-18)
+
+
+### Features
+
+* persist dashboard/Insights filter state server-side ([#396](https://github.com/alrayyes/forge-dashboard/issues/396)) ([be060d0](https://github.com/alrayyes/forge-dashboard/commit/be060d02efc385262122874577790c525ba96276))
+
 ## [0.70.3](https://github.com/alrayyes/forge-dashboard/compare/v0.70.2...v0.70.3) (2026-09-18)
 
 
