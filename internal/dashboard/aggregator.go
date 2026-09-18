@@ -209,21 +209,74 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.notify(snap)
 }
 
-// Run refreshes immediately, then again every interval, until ctx is
-// canceled. Meant to run in its own goroutine for the lifetime of the
-// process.
+// Run refreshes immediately, then again roughly every interval, until ctx
+// is canceled — "roughly" because each cycle's actual delay comes from
+// NextRefreshDelay against the snapshot that refresh just produced, so a
+// critically low rate-limit budget pushes the next one out past its own
+// reset instead of firing on schedule into an already-exhausted quota
+// (#381). A plain Timer, not a Ticker, since the delay changes cycle to
+// cycle rather than staying fixed. Meant to run in its own goroutine for
+// the lifetime of the process.
 func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 	a.Refresh(ctx)
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	timer := time.NewTimer(NextRefreshDelay(a.Get(), interval))
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			a.Refresh(ctx)
+			timer.Reset(NextRefreshDelay(a.Get(), interval))
 		}
 	}
+}
+
+// criticalRateLimitFraction matches the frontend's own "rl-critical"
+// threshold (web/src/routes/(app)/insights/+page.svelte's
+// rateLimitStatusClass) — below 5% remaining is critical there too, so
+// backoff kicks in at the same point a user would already see the gauge
+// turn red.
+const criticalRateLimitFraction = 0.05
+
+// backoffBuffer pads past a critically-low budget's own ResetsAt, so the
+// next scheduled refresh doesn't fire the instant the window resets and
+// race a response that hasn't actually rolled the counter over yet.
+const backoffBuffer = 30 * time.Second
+
+// maxBackoff caps how long a single delay can stretch, so a bogus or
+// far-future ResetsAt — a skewed forge clock, a zero value from a source
+// that doesn't actually report one — can't stall polling indefinitely.
+const maxBackoff = time.Hour
+
+// criticallyLow reports whether rl has less than criticalRateLimitFraction
+// of its budget left. A nil rl (the forge didn't report one, or made no
+// call of that kind this cycle) is never critical — there's nothing to
+// back off from.
+func criticallyLow(rl *RateLimit) bool {
+	return rl != nil && rl.Limit > 0 && float64(rl.Remaining)/float64(rl.Limit) < criticalRateLimitFraction
+}
+
+// NextRefreshDelay returns how long to wait before the next scheduled
+// refresh, given the snapshot the most recent one just produced. interval
+// unchanged unless some forge's REST or GraphQL budget is critically low,
+// in which case it delays until that budget's own reset (plus
+// backoffBuffer, capped at maxBackoff) instead — never shorter than
+// interval, so a stale or already-past ResetsAt can't speed polling up.
+// The worse of several critical budgets wins.
+func NextRefreshDelay(snap Snapshot, interval time.Duration) time.Duration {
+	delay := interval
+	now := time.Now()
+	for _, f := range snap.Forges {
+		for _, rl := range [2]*RateLimit{f.RateLimitGraphQL, f.RateLimitREST} {
+			if !criticallyLow(rl) {
+				continue
+			}
+			untilReset := min(rl.ResetsAt.Sub(now)+backoffBuffer, maxBackoff)
+			delay = max(delay, untilReset)
+		}
+	}
+	return delay
 }

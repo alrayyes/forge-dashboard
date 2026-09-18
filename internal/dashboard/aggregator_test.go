@@ -208,3 +208,113 @@ func TestAggregator_Run_RefreshesOnIntervalUntilCanceled(t *testing.T) {
 
 	assert.GreaterOrEqual(t, src.callCount(), 2, "expected multiple refreshes over 50ms at a 10ms interval")
 }
+
+// TestAggregator_Run_CriticallyLowBudget_DelaysNextRefresh is the backoff
+// regression test #381's own definition of done calls for: a fixed-ticker
+// Run firing on schedule into an already-exhausted budget is what turns
+// one rate-limit hit into a recurring one, so a critically low budget
+// (reported by the source's own Result, the same shape a real GitHub
+// client reports) has to push the next refresh out past its own reset
+// instead of firing at the normal fast interval.
+func TestAggregator_Run_CriticallyLowBudget_DelaysNextRefresh(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{
+			Forge:     dashboard.ForgeGitHub,
+			Reachable: true,
+			RateLimitREST: &dashboard.RateLimit{
+				Limit: 5000, Remaining: 10, // <1%, well under the 5% critical threshold
+				ResetsAt: time.Now().Add(time.Hour), // far beyond this test's own patience
+			},
+		},
+	}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		agg.Run(ctx, 10*time.Millisecond)
+		close(done)
+	}()
+
+	// At the normal 10ms interval this would see 5+ calls; backed off
+	// against an hour-away reset, it should still be sitting at the one
+	// immediate refresh Run always does on entry.
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return after context cancellation")
+	}
+
+	assert.Equal(t, 1, src.callCount(), "a critically low budget should have suppressed every scheduled refresh after the initial one")
+}
+
+func TestNextRefreshDelay(t *testing.T) {
+	t.Parallel()
+
+	const interval = time.Minute
+
+	t.Run("no rate limit reported", func(t *testing.T) {
+		t.Parallel()
+		snap := dashboard.Snapshot{Forges: []dashboard.ForgeHealth{{Forge: dashboard.ForgeGitHub}}}
+		assert.Equal(t, interval, dashboard.NextRefreshDelay(snap, interval))
+	})
+
+	t.Run("healthy budget", func(t *testing.T) {
+		t.Parallel()
+		snap := dashboard.Snapshot{Forges: []dashboard.ForgeHealth{{
+			Forge:         dashboard.ForgeGitHub,
+			RateLimitREST: &dashboard.RateLimit{Limit: 5000, Remaining: 4000, ResetsAt: time.Now().Add(time.Hour)},
+		}}}
+		assert.Equal(t, interval, dashboard.NextRefreshDelay(snap, interval))
+	})
+
+	t.Run("critically low budget delays until its own reset", func(t *testing.T) {
+		t.Parallel()
+		resetsAt := time.Now().Add(2 * time.Minute)
+		snap := dashboard.Snapshot{Forges: []dashboard.ForgeHealth{{
+			Forge:         dashboard.ForgeGitHub,
+			RateLimitREST: &dashboard.RateLimit{Limit: 5000, Remaining: 10, ResetsAt: resetsAt},
+		}}}
+		got := dashboard.NextRefreshDelay(snap, interval)
+		assert.Greater(t, got, interval)
+		assert.LessOrEqual(t, got, time.Until(resetsAt)+time.Minute)
+	})
+
+	t.Run("reset already in the past never shortens the interval", func(t *testing.T) {
+		t.Parallel()
+		snap := dashboard.Snapshot{Forges: []dashboard.ForgeHealth{{
+			Forge:         dashboard.ForgeGitHub,
+			RateLimitREST: &dashboard.RateLimit{Limit: 5000, Remaining: 1, ResetsAt: time.Now().Add(-time.Hour)},
+		}}}
+		assert.Equal(t, interval, dashboard.NextRefreshDelay(snap, interval))
+	})
+
+	t.Run("a far-future reset is capped rather than stalling indefinitely", func(t *testing.T) {
+		t.Parallel()
+		snap := dashboard.Snapshot{Forges: []dashboard.ForgeHealth{{
+			Forge:         dashboard.ForgeGitHub,
+			RateLimitREST: &dashboard.RateLimit{Limit: 5000, Remaining: 0, ResetsAt: time.Now().Add(24 * time.Hour)},
+		}}}
+		got := dashboard.NextRefreshDelay(snap, interval)
+		assert.LessOrEqual(t, got, time.Hour)
+		assert.Greater(t, got, interval)
+	})
+
+	t.Run("the worse of two budgets wins", func(t *testing.T) {
+		t.Parallel()
+		soon := time.Now().Add(90 * time.Second)
+		later := time.Now().Add(10 * time.Minute)
+		snap := dashboard.Snapshot{Forges: []dashboard.ForgeHealth{{
+			Forge:            dashboard.ForgeGitHub,
+			RateLimitGraphQL: &dashboard.RateLimit{Limit: 5000, Remaining: 10, ResetsAt: soon},
+			RateLimitREST:    &dashboard.RateLimit{Limit: 5000, Remaining: 5, ResetsAt: later},
+		}}}
+		got := dashboard.NextRefreshDelay(snap, interval)
+		assert.GreaterOrEqual(t, got, time.Until(later))
+	})
+}
