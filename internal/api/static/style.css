@@ -993,17 +993,27 @@ select.col-filter {
 
 /* Same "above .title::after's stretched-link overlay" reasoning .ci-pill
    already needs — a real button, not a badge, so it gets the same
-   cursor/focus-visible treatment too. */
+   cursor/focus-visible treatment too.
+   Deliberately NOT full-pill/borderless like .ci-pill and .merge-pill
+   (#358): a rounded-rect with a real border, the same shape every other
+   real control in this file already uses (.pagination-nav, .col-filter),
+   so an actionable button reads as structurally different from a status
+   badge even where a variant happens to share a color pair with one
+   (.row-action.confirm and .merge-pill.blocked both use --warning) —
+   shape/border, not color alone, since color-only fails colorblind users
+   too. border: currentColor rather than a new token, so every variant
+   below gets a border in its own already-contrast-checked text color for
+   free, with nothing new to verify. */
 .row-action {
   position: relative;
   z-index: 1;
   font-size: 11.5px;
   font-weight: 500;
   padding: 4px 9px;
-  border-radius: 999px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
   white-space: nowrap;
   font-family: inherit;
-  border: none;
   cursor: pointer;
   background: var(--accent);
   color: var(--accent-ink);
