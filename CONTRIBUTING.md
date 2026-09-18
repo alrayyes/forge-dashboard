@@ -101,7 +101,7 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
   anyone with a session but functionally gated by every API call it
   makes 403ing for a non-admin.
 - `cmd/forge-dashboard` is the composition root: reads environment
-  variables, wires the auth service, the settings store and the
+  variables, wires the auth service, the settings store, and the
   dashboard manager, and serves the API and static files. A session's
   own `AppContext` (not the request's — see `internal/api.Deps`'s own
   comment) roots each user's background refresh goroutine so it outlives
