@@ -95,6 +95,79 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
   });
 
+  // #385: GitHub's own mergeStateStatus reports CLEAN (mapped to
+  // "mergeable" here) whenever branch protection doesn't mark a given
+  // check as required, even while that check is still running — so a
+  // PR with CI still pending could show a fully clickable Merge button
+  // despite its own checks not having finished.
+  test('a mergeable pull request whose CI is still running shows no Merge button', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'mergeable', ci: 'pending' }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+  });
+
+  test('the Merge button appears once CI resolves, without a page reload', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'mergeable', ci: 'pending' }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+
+    await page.route('**/api/dashboard/refresh', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [makePR({ mergeStatus: 'mergeable', ci: 'success' })],
+          issues: [],
+        }),
+      }),
+    );
+    await page.click('#force-refresh-button');
+
+    await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
+  });
+
+  test('a mergeable pull request whose CI already succeeded still shows a Merge button', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'mergeable', ci: 'success' }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
+  });
+
+  test('a mergeable pull request whose CI failed still shows a Merge button — unchanged, deliberately out of scope for #385', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'mergeable', ci: 'failure' }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
+  });
+
   test('clicking Merge arms a confirm step instead of merging immediately', async ({
     page,
   }) => {
