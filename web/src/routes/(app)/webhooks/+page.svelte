@@ -11,9 +11,10 @@
     canManageWebhooks?: boolean;
   };
 
-  // Kept local rather than reaching into the vanilla pages' shared
-  // /filters.js global — it's a two-entry map, and duplicating that is
-  // cheaper than an ambient `window.Filters` type just for this.
+  // Kept local rather than reaching into the shared /filters.js global
+  // (window.Filters.FORGE_LABELS, loaded by the dashboard and Insights
+  // pages) — it's a two-entry map, and duplicating that is cheaper than
+  // depending on that ambient type just for this.
   const FORGE_LABELS: Record<string, string> = {
     github: "GitHub",
     forgejo: "Forgejo",

@@ -1,13 +1,16 @@
-// Applies whatever theme was last chosen (via theme-toggle.js's click
-// handler, on any page) before first paint, so there's no flash of the
-// wrong theme. Loaded synchronously in <head>; theme-toggle.js itself
-// loads later, at the bottom of the body, and does the actual toggling.
+// Applies whatever theme was last chosen — in Settings, the only place
+// it's ever set (#352) — before first paint, so there's no flash of the
+// wrong theme. Loaded synchronously in <head> on every page.
 //
-// Reads the same forge-board-theme cookie app.js writes — a cookie, not
-// localStorage, because it rides along on every request (surviving a
-// login on a fresh tab the same way a session cookie does) and because
-// this file and app.js are separate scripts with no shared module state
-// to keep a single source of truth in otherwise.
+// Reads the same forge-board-theme cookie $lib/theme.ts writes — a
+// cookie, not localStorage, because it rides along on every request
+// (surviving a login on a fresh tab the same way a session cookie does)
+// and because this file and the SvelteKit app have no shared module
+// state to keep a single source of truth in otherwise. Every
+// authenticated page also reconciles this cookie against the server on
+// load (syncThemeFromServer) so a theme picked on one device shows up
+// on another; this script only ever applies whatever the cookie already
+// has, before that reconciliation has a chance to run.
 (() => {
   var COOKIE_NAME = 'forge-board-theme';
   var match;
