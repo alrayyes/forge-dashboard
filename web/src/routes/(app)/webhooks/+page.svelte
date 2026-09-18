@@ -452,6 +452,64 @@
       cursor: default;
       text-decoration: none;
     }
+
+    /* Below ~600px, .data-table's 5 columns don't fit — an owner/repo
+       full name has no natural wrap point, and the "Needs admin
+       access…" sentence adds real width on top of it, together
+       forcing the table wider than the viewport. Collapsed into a
+       stacked card per row instead of scrolling horizontally: the
+       established pattern for a table whose rows don't need
+       side-by-side comparison against each other (CSS-Tricks,
+       "Accessible, Simple, Responsive Tables"). The role="table"/
+       "rowgroup"/"row"/"columnheader"/"cell" attributes on the markup
+       exist for exactly this rule — restoring the ARIA table
+       semantics browsers drop once display moves off table/table-row/
+       table-cell, since an explicit role (unlike the implicit one)
+       isn't tied to computed display. */
+    @media (max-width: 600px) {
+      .data-table,
+      .data-table thead,
+      .data-table tbody,
+      .data-table tr,
+      .data-table th,
+      .data-table td {
+        display: block;
+      }
+      .data-table thead tr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      .data-table tbody tr {
+        border-bottom: 1px solid var(--border);
+        padding: 8px 0;
+      }
+      .data-table td {
+        border-bottom: none;
+        padding: 3px 0;
+      }
+      /* Only the value-only cells (Forge/Repo/Webhook) get a label —
+         the two action cells already read fine on their own: a
+         button's own text ("Add a webhook", "Ignore") or the "Needs
+         admin access…" sentence doesn't need a heading repeating what
+         it already says, the same restraint their desktop <th> already
+         takes (both are header-less there too). */
+      .data-table td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 11px;
+        color: var(--ink-3);
+      }
+      .webhook-locked {
+        max-width: 100%;
+      }
+    }
   </style>
 </svelte:head>
 
@@ -572,12 +630,21 @@
           No repos match these filters.
         </p>
       {:else}
-        <table class="data-table" id="webhooks-table">
+        <!-- svelte-ignore a11y_no_redundant_roles -- not redundant once
+             the phone-width media query below sets display: block on
+             every table element: that drops the implicit table/
+             rowgroup/row roles the browser would otherwise infer from
+             display, but an explicit role attribute isn't tied to
+             computed display and survives -->
+        <table class="data-table" id="webhooks-table" role="table">
           <caption class="sr-only">Every tracked repo's webhook status</caption>
-          <thead>
-            <tr>
+          <!-- svelte-ignore a11y_no_redundant_roles -->
+          <thead role="rowgroup">
+            <!-- svelte-ignore a11y_no_redundant_roles -->
+            <tr role="row">
               <th
                 scope="col"
+                role="columnheader"
                 aria-sort={sortKey === "forge"
                   ? sortDir === "desc"
                     ? "descending"
@@ -600,6 +667,7 @@
               </th>
               <th
                 scope="col"
+                role="columnheader"
                 aria-sort={sortKey === "fullName"
                   ? sortDir === "desc"
                     ? "descending"
@@ -622,6 +690,7 @@
               </th>
               <th
                 scope="col"
+                role="columnheader"
                 aria-sort={sortKey === "hasWebhook"
                   ? sortDir === "desc"
                     ? "descending"
@@ -642,14 +711,16 @@
                   ></button
                 >
               </th>
-              <th scope="col"></th>
-              <th scope="col"></th>
+              <th scope="col" role="columnheader"></th>
+              <th scope="col" role="columnheader"></th>
             </tr>
           </thead>
-          <tbody id="webhooks-rows">
+          <!-- svelte-ignore a11y_no_redundant_roles -->
+          <tbody id="webhooks-rows" role="rowgroup">
             {#each pageItems as repo (rowKey(repo))}
-              <tr>
-                <td>
+              <!-- svelte-ignore a11y_no_redundant_roles -->
+              <tr role="row">
+                <td role="cell" data-label="Forge">
                   <span class="repo">
                     <span
                       class={`forge-badge ${FORGE_CLASSES[repo.forge] ?? ""}`}
@@ -659,7 +730,7 @@
                     </span>
                   </span>
                 </td>
-                <td>
+                <td role="cell" data-label="Repo">
                   {#if repo.url}
                     <a
                       class="repo-link"
@@ -672,13 +743,15 @@
                   {/if}
                 </td>
                 <td
+                  role="cell"
+                  data-label="Webhook"
                   class={repo.hasWebhook
                     ? "status-confirmed"
                     : "status-pending"}
                 >
                   {repo.hasWebhook ? "Confirmed" : "Not yet"}
                 </td>
-                <td class="action">
+                <td class="action" role="cell">
                   {#if !repo.hasWebhook}
                     {#if !repo.canManageWebhooks}
                       <span class="webhook-locked">
@@ -714,7 +787,7 @@
                     {/if}
                   {/if}
                 </td>
-                <td class="action">
+                <td class="action" role="cell">
                   <button
                     type="button"
                     disabled={ignoreBusy[rowKey(repo)]}
