@@ -107,6 +107,26 @@ func TestGenericSource_Fetch_ListReposFails_ReportsUnreachable(t *testing.T) {
 	assert.NotEmpty(t, result.Health.Error)
 }
 
+// TestGenericSource_Fetch_ListReposFails_ErrorIsHumanized proves the
+// underlying client error's own text never reaches ForgeHealth.Error
+// (#360) — only humanizeForgeError's mapped sentence does, regardless of
+// what the failing ForgeClient's own error actually says.
+func TestGenericSource_Fetch_ListReposFails_ErrorIsHumanized(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeForgeClient{
+		listReposErr: errors.New("dial tcp 10.0.0.1:3000: connect: connection refused"),
+	}
+
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+	result := source.Fetch(t.Context())
+
+	assert.False(t, result.Health.Reachable)
+	assert.NotContains(t, result.Health.Error, "dial tcp")
+	assert.NotContains(t, result.Health.Error, "10.0.0.1")
+	assert.Equal(t, dashboard.HumanizeForgeError(dashboard.ForgeErrorUnknown), result.Health.Error)
+}
+
 func TestGenericSource_Fetch_ClientWithNoRateLimiter_LeavesRateLimitNil(t *testing.T) {
 	t.Parallel()
 

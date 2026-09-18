@@ -70,11 +70,18 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 	repos, err := s.client.ListRepos(ctx)
 	if err != nil {
 		slog.Warn("forge unreachable", "forge", s.forge, "error", err)
-		health := ForgeHealth{Forge: s.forge, Reachable: false, Error: err.Error(), ErrorKind: ForgeErrorUnknown}
+		kind := ForgeErrorUnknown
 		var clientErr *ClientError
 		if errors.As(err, &clientErr) {
-			health.ErrorKind = clientErr.Kind
+			kind = clientErr.Kind
 		}
+		// err's own text never reaches the client (#360) — logged above
+		// for whoever operates this instance, but ForgeHealth.Error
+		// carries HumanizeForgeError's mapped sentence instead, the same
+		// "small, explicit mapping over a raw passthrough" app.js's own
+		// ERROR_HEADLINES already uses for the headline shown alongside
+		// this.
+		health := ForgeHealth{Forge: s.forge, Reachable: false, Error: HumanizeForgeError(kind), ErrorKind: kind}
 		return Result{Health: health}
 	}
 

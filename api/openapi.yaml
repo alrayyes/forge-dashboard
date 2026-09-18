@@ -1632,7 +1632,10 @@ components:
           description: Whether the last refresh attempt against this forge succeeded.
         error:
           type: string
-          description: The last error, if reachable is false. Omitted when reachable.
+          description: >-
+            A human-readable explanation of the last failure, if reachable is
+            false. Mapped from errorKind, not the raw underlying error text.
+            Omitted when reachable.
         errorKind:
           $ref: "#/components/schemas/ForgeErrorKind"
         repoCount:

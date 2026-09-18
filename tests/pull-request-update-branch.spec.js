@@ -483,7 +483,7 @@ test.describe('pull request update-branch button', () => {
   });
 
   test.describe('proactive locking, before any click', () => {
-    test('a behind PR on an unreachable forge shows a locked Update branch button, no click needed', async ({
+    test('a behind PR on an unreachable forge shows a locked Update branch button pointing at the forge status above, not its own repeated reason (#360)', async ({
       page,
     }) => {
       await mockDashboardCustom(
@@ -497,7 +497,8 @@ test.describe('pull request update-branch button', () => {
       const button = row.getByRole('button', { name: 'Retry' });
       await expect(button).toBeVisible();
       await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-      await expect(row).toContainText(/unreachable/i);
+      await expect(row).toContainText('See the forge status above.');
+      await expect(row).not.toContainText(/unreachable/i);
     });
 
     test('a behind PR on a forge with an exhausted rate-limit budget shows a locked Update branch button', async ({

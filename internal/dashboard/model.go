@@ -132,6 +132,34 @@ const (
 	ForgeErrorUnknown  ForgeErrorKind = "unknown"
 )
 
+// forgeErrorDetails maps each ForgeErrorKind to a plain-language sentence
+// safe to show behind the forge-health panel's "Show details" disclosure —
+// the counterpart to app.js's own ERROR_HEADLINES map, one level more
+// detailed but never the raw wire-format error text (#360: a real
+// incident showed a raw "github: graphql: API rate limit exceeded for
+// user ID 511318" string there, internal phrasing including a numeric
+// account ID nobody outside this codebase should see).
+var forgeErrorDetails = map[ForgeErrorKind]string{
+	ForgeErrorUnreachable:  "The forge didn't respond, or the connection to it failed.",
+	ForgeErrorUnauthorized: "The saved credential was rejected — it may be missing, expired, or revoked.",
+	ForgeErrorNotFound:     "The configured instance URL doesn't match anything reachable.",
+	ForgeErrorRateLimited:  "This account's request budget with the forge is used up for now.",
+	ForgeErrorConflict:     "The forge reported the change is no longer possible as requested.",
+}
+
+// HumanizeForgeError returns forgeErrorDetails' sentence for kind, or a
+// generic fallback for ForgeErrorUnknown and any kind this map hasn't
+// been taught yet — never the underlying error's own text. The real
+// error is still logged server-side (see GenericSource.Fetch's own
+// slog.Warn call) for whoever operates this instance; it just never
+// reaches a client.
+func HumanizeForgeError(kind ForgeErrorKind) string {
+	if msg, ok := forgeErrorDetails[kind]; ok {
+		return msg
+	}
+	return "An unexpected error occurred talking to the forge."
+}
+
 // ForgeHealth matches components.schemas.ForgeHealth.
 type ForgeHealth struct {
 	Forge     Forge          `json:"forge"`

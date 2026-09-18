@@ -428,7 +428,11 @@
     var health = lastForges.find((f) => f.forge === forgeName);
     var resetTime;
     if (health && health.reachable === false) {
-      return `${FORGE_LABELS[forgeName] || forgeName} is currently unreachable.`;
+      // The specific reason (unreachable, rate-limited, ...) is already
+      // stated once in the forge-health panel above, via
+      // forgeErrorHeadline -- repeating the same system-wide fact under
+      // every affected row read as noise, not information (#360).
+      return 'See the forge status above.';
     }
     if (health && health.rateLimit && health.rateLimit.remaining === 0) {
       resetTime = new Date(health.rateLimit.resetsAt).toLocaleTimeString([], {
