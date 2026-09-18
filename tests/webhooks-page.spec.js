@@ -504,6 +504,15 @@ test.describe('webhooks page', () => {
         hasWebhook: false,
         canManageWebhooks: true,
       },
+      // The one row shape most likely to overflow: a long repo name
+      // paired with the "Needs admin access…" explanatory sentence,
+      // the widest thing this table ever renders.
+      {
+        forge: 'github',
+        fullName: 'HilmarDouma/Meldpunt-incidenten.nl',
+        hasWebhook: false,
+        canManageWebhooks: false,
+      },
     ]);
     await page.goto('/webhooks.html');
     await expect(page.locator('#webhooks-table')).toBeVisible();
