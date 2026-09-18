@@ -200,15 +200,45 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 }
 
 // MergePullRequest implements dashboard.PullRequestMerger: merges
-// owner/name#number, passing no PullRequestOptions so GitHub applies its
-// own default merge method rather than this app picking one.
+// owner/name#number using a method the repo actually allows. GitHub's
+// merge endpoint defaults to a real merge commit when no MergeMethod is
+// given, regardless of the repo's own allow_merge_commit/allow_squash_
+// merge/allow_rebase_merge settings — confirmed live, "Merge commits are
+// not allowed on this repository" against a squash-only repo — so this
+// looks the repo up first and picks one it'll actually accept, the same
+// shape forgejo.Client's own DefaultMergeStyle lookup already has.
 func (c *Client) MergePullRequest(ctx context.Context, owner, name string, number int) error {
+	repoPath := fmt.Sprintf("/repos/%s/%s", owner, name)
+	slog.Debug("github request", "method", http.MethodGet, "url", repoPath)
+	repo, _, err := c.restClient.Repositories.Get(ctx, owner, name)
+	if err != nil {
+		return asClientError(restError(http.MethodGet, repoPath, err))
+	}
+
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPut, "url", path)
-	if _, _, err := c.restClient.PullRequests.Merge(ctx, owner, name, number, "", nil); err != nil {
+	opts := &ghsdk.PullRequestOptions{MergeMethod: mergeMethodFor(repo)}
+	if _, _, err := c.restClient.PullRequests.Merge(ctx, owner, name, number, "", opts); err != nil {
 		return asClientError(restError(http.MethodPut, path, err))
 	}
 	return nil
+}
+
+// mergeMethodFor picks a merge method repo actually allows — "merge"
+// first (the previous, implicit default) when it's still enabled, then
+// "squash", then "rebase". GitHub requires at least one of the three
+// enabled on any repo, so this always resolves to something real.
+func mergeMethodFor(repo *ghsdk.Repository) string {
+	switch {
+	case repo.GetAllowMergeCommit():
+		return "merge"
+	case repo.GetAllowSquashMerge():
+		return "squash"
+	case repo.GetAllowRebaseMerge():
+		return "rebase"
+	default:
+		return "merge"
+	}
 }
 
 // UpdateBranch implements dashboard.BranchUpdater: merges owner/name#number's
