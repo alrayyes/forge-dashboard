@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.70.3](https://github.com/alrayyes/forge-dashboard/compare/v0.70.2...v0.70.3) (2026-09-18)
+
+
+### Bug Fixes
+
+* give action buttons a real border, not a pill shape ([#383](https://github.com/alrayyes/forge-dashboard/issues/383)) ([1098d33](https://github.com/alrayyes/forge-dashboard/commit/1098d3323413f259b9242e4bffd20c0558a9b5e7)), closes [#358](https://github.com/alrayyes/forge-dashboard/issues/358)
+* merge/update-branch lock state self-clears on a fresh poll ([#386](https://github.com/alrayyes/forge-dashboard/issues/386)) ([cf43a48](https://github.com/alrayyes/forge-dashboard/commit/cf43a48a87df7411b05f74c1ce659cc457b9c43f)), closes [#351](https://github.com/alrayyes/forge-dashboard/issues/351)
+
 ## [0.70.2](https://github.com/alrayyes/forge-dashboard/compare/v0.70.1...v0.70.2) (2026-09-18)
 
 
