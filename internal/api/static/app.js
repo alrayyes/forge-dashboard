@@ -315,17 +315,38 @@
     );
   }
 
-  // Mirrors webhooks.js's reactiveLockReason, plus 409 — the forge itself
-  // reports the PR is no longer mergeable (a real conflict, or its state
-  // changed since the dashboard's last refresh), which a retry can't fix
-  // any more than a missing permission or an exhausted rate limit can.
-  function reactiveMergeLockReason(status) {
+  // Strips the "github: <method> <path>: " / "forgejo: <method> <path>: "
+  // diagnostic prefix restError/forgejoError wrap every message in —
+  // useful in the full error banner, just noise in a locked-row reason
+  // read right next to the button it's locking.
+  function forgeMessageOnly(message) {
+    var match = /^(?:github|forgejo): \S+ \S+: (.+)$/.exec(message || '');
+    return match ? match[1] : message;
+  }
+
+  // Mirrors webhooks.js's reactiveLockReason, plus 409 — GitHub's merge
+  // endpoint uses that one status for two different causes: a PR that's
+  // genuinely no longer mergeable, and a merge method the repo doesn't
+  // allow (#349, collapsed into the same status by forgeErrorKindFromStatus
+  // — see its own comment). The forge's own message, already reaching the
+  // client (see the error banner this same catch block also shows), is
+  // what decides which reason to show, rather than a second,
+  // independently-authored guess keyed only on the status code. The
+  // genuine case keeps its existing wording; anything else surfaces the
+  // forge's own message.
+  function reactiveMergeLockReason(status, message) {
+    var real;
     if (status === 403)
       return 'Missing permission — check your token in Settings.';
     if (status === 429)
       return 'Rate limit exceeded — try again once it resets.';
-    if (status === 409)
-      return 'No longer mergeable — refresh to see the current state.';
+    if (status === 409) {
+      real = forgeMessageOnly(message);
+      if (!real || /not mergeable/i.test(real)) {
+        return 'No longer mergeable — refresh to see the current state.';
+      }
+      return real;
+    }
     return null;
   }
 
@@ -436,7 +457,7 @@
           });
       })
       .catch((err) => {
-        var lockReason = reactiveMergeLockReason(err.status);
+        var lockReason = reactiveMergeLockReason(err.status, err.message);
         mergeState[key] = lockReason
           ? { phase: 'locked', reason: lockReason }
           : { phase: 'idle' };

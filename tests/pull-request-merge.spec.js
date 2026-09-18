@@ -303,6 +303,38 @@ test.describe('pull request merge button', () => {
     await expect(row).toContainText(/no longer mergeable/i);
   });
 
+  test('a 409 caused by a disallowed merge method shows the real forge message, not a generic "no longer mergeable" guess', async ({
+    page,
+  }) => {
+    // Real bug: GitHub's merge endpoint uses the same 409 for two
+    // different causes (a PR that's genuinely not mergeable, and a merge
+    // method the repo doesn't allow — #349) — the old hardcoded "no
+    // longer mergeable" text was simply wrong for this one.
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/merge', (route) =>
+      route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error:
+            'github: PUT .../merge: Merge commits are not allowed on this repository.',
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Merge' }).click();
+    await row.getByRole('button', { name: 'Confirm merge?' }).click();
+
+    const button = row.getByRole('button', { name: 'Merge' });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row).toContainText(
+      'Merge commits are not allowed on this repository.',
+    );
+    await expect(row).not.toContainText(/no longer mergeable/i);
+  });
+
   test('a rate-limited (429) failure locks the button for good', async ({
     page,
   }) => {
