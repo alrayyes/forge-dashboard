@@ -466,7 +466,7 @@ test.describe('pull request merge button', () => {
   });
 
   test.describe('proactive locking, before any click', () => {
-    test('a mergeable PR on an unreachable forge shows a locked Merge button, no click needed', async ({
+    test('a mergeable PR on an unreachable forge shows a locked Merge button pointing at the forge status above, not its own repeated reason (#360)', async ({
       page,
     }) => {
       await mockDashboardCustom(
@@ -480,7 +480,8 @@ test.describe('pull request merge button', () => {
       const button = row.getByRole('button', { name: 'Retry' });
       await expect(button).toBeVisible();
       await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-      await expect(row).toContainText(/unreachable/i);
+      await expect(row).toContainText('See the forge status above.');
+      await expect(row).not.toContainText(/unreachable/i);
     });
 
     test('a mergeable PR on a forge with an exhausted rate-limit budget shows a locked Merge button', async ({

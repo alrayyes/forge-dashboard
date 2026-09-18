@@ -634,6 +634,31 @@ func TestFetch_ErrorIncludesAPIMessage(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]string{"message": "Repository access blocked"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Contains(t, result.Health.Error, "Repository access blocked")
+}
+
+// TestFetch_RateLimitMessageSanitizedEvenWithoutHeaders is #360's own
+// repro: a real incident this session also hit independently showed
+// "API rate limit exceeded for user ID 511318." reaching a client
+// verbatim, account ID included — a secondary/abuse-limit rejection
+// GitHub sent with none of the usual X-RateLimit-* headers, so the
+// header-based check in rateLimitShortMessage never got a chance to
+// sanitize it. The message's own content is the fallback.
+func TestFetch_RateLimitMessageSanitizedEvenWithoutHeaders(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
 		writeJSON(t, w, map[string]string{"message": "API rate limit exceeded for user ID 511318."})
 	})
 	srv := httptest.NewServer(mux)
@@ -643,7 +668,9 @@ func TestFetch_ErrorIncludesAPIMessage(t *testing.T) {
 	result := client.Fetch(t.Context())
 
 	require.False(t, result.Health.Reachable)
-	assert.Contains(t, result.Health.Error, "API rate limit exceeded for user ID 511318.")
+	assert.Equal(t, dashboard.ForgeErrorRateLimited, result.Health.ErrorKind)
+	assert.Equal(t, "github: POST /graphql: rate limit exceeded", result.Health.Error)
+	assert.NotContains(t, result.Health.Error, "511318")
 }
 
 func TestFetch_RateLimitExceeded_ShortMessage_NotGitHubsBoilerplate(t *testing.T) {
