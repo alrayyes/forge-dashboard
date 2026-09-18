@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.72.0](https://github.com/alrayyes/forge-dashboard/compare/v0.71.0...v0.72.0) (2026-09-18)
+
+
+### Features
+
+* add a Clear filters button to the shared filter bar ([#389](https://github.com/alrayyes/forge-dashboard/issues/389)) ([e0d4fbd](https://github.com/alrayyes/forge-dashboard/commit/e0d4fbdd4bbdb6d8ce689b85f037d10b1035131d)), closes [#354](https://github.com/alrayyes/forge-dashboard/issues/354)
+* let a user set an expiration on personal API tokens ([#394](https://github.com/alrayyes/forge-dashboard/issues/394)) ([03ab7c5](https://github.com/alrayyes/forge-dashboard/commit/03ab7c5b7a64b14d60989ede3015b2803be8b747)), closes [#356](https://github.com/alrayyes/forge-dashboard/issues/356)
+* move theme toggle to Settings, persist server-side ([#352](https://github.com/alrayyes/forge-dashboard/issues/352)) ([#400](https://github.com/alrayyes/forge-dashboard/issues/400)) ([03f623f](https://github.com/alrayyes/forge-dashboard/commit/03f623f7e7abffa7d26de0e81d0daf2b30dd21fc))
+
 ## [0.71.0](https://github.com/alrayyes/forge-dashboard/compare/v0.70.3...v0.71.0) (2026-09-18)
 
 
