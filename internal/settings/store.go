@@ -109,6 +109,12 @@ func (s *Store) Init(ctx context.Context) error {
 		last_seen_at TIMESTAMP NOT NULL,
 		PRIMARY KEY (user_id, forge, repo_full_name)
 	);
+	CREATE TABLE IF NOT EXISTS ignored_repos (
+		user_id TEXT NOT NULL,
+		forge TEXT NOT NULL,
+		repo_full_name TEXT NOT NULL,
+		PRIMARY KEY (user_id, forge, repo_full_name)
+	);
 	`
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return err
@@ -342,15 +348,68 @@ func (s *Store) Delete(ctx context.Context, userID []byte) error {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM webhook_deliveries WHERE user_id = ?`, encodedID); err != nil {
 		return err
 	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM ignored_repos WHERE user_id = ?`, encodedID); err != nil {
+		return err
+	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM user_credentials WHERE user_id = ?`, encodedID)
 	return err
 }
 
 // WebhookDeliveryKey is how a repo's forge and full name combine into
 // the key WebhookDeliveries' returned set uses — exported so a caller
-// never has to know or reproduce the separator itself.
+// never has to know or reproduce the separator itself. IgnoredRepos'
+// returned set is keyed the same way, rather than inventing a second,
+// differently-shaped helper for an identical (forge, repoFullName) pair.
 func WebhookDeliveryKey(forge, repoFullName string) string {
 	return forge + "/" + repoFullName
+}
+
+// IgnoreRepo marks forge/repoFullName as ignored for userID — its pull
+// requests and issues stop appearing in that user's dashboard/Insights
+// (see internal/api's buildDashboardResponse), though the repo itself
+// keeps being fetched and tracked (#363). Idempotent: ignoring an
+// already-ignored repo is a no-op, not an error.
+func (s *Store) IgnoreRepo(ctx context.Context, userID []byte, forge, repoFullName string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO ignored_repos (user_id, forge, repo_full_name)
+		VALUES (?, ?, ?)
+		ON CONFLICT (user_id, forge, repo_full_name) DO NOTHING`,
+		encodeUserID(userID), forge, repoFullName,
+	)
+	return err
+}
+
+// UnignoreRepo reverses IgnoreRepo. Idempotent: un-ignoring a repo that
+// was never ignored is a no-op, not an error.
+func (s *Store) UnignoreRepo(ctx context.Context, userID []byte, forge, repoFullName string) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM ignored_repos WHERE user_id = ? AND forge = ? AND repo_full_name = ?`,
+		encodeUserID(userID), forge, repoFullName,
+	)
+	return err
+}
+
+// IgnoredRepos returns the set of forge/repo pairs (keyed by
+// WebhookDeliveryKey) userID has ignored — empty, never an error, for a
+// user who's never ignored anything.
+func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]struct{}, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT forge, repo_full_name FROM ignored_repos WHERE user_id = ?`, encodeUserID(userID),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	ignored := make(map[string]struct{})
+	for rows.Next() {
+		var forge, repoFullName string
+		if err := rows.Scan(&forge, &repoFullName); err != nil {
+			return nil, err
+		}
+		ignored[WebhookDeliveryKey(forge, repoFullName)] = struct{}{}
+	}
+	return ignored, rows.Err()
 }
 
 // RecordWebhookDelivery notes that userID's webhook for forge/repoFullName

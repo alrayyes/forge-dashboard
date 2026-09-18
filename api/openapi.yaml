@@ -594,6 +594,70 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/repos/ignore:
+    post:
+      operationId: ignoreRepo
+      summary: Hide one tracked repo's pull requests and issues from the dashboard and Insights
+      description: |
+        Reversible, not destructive (#363): the repo itself keeps
+        appearing in GET /api/dashboard's `repos` array with accurate
+        webhook-coverage status, and keeps being fetched and counted —
+        only its pullRequests/issues entries stop appearing there and on
+        Insights. Idempotent: ignoring an already-ignored repo is a
+        no-op, not an error.
+      tags: [dashboard]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEnsureRequest"
+      responses:
+        "204":
+          description: The repo is now ignored (or already was).
+        "400":
+          description: The request body wasn't valid JSON, or `fullName` wasn't "owner/repo".
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/repos/unignore:
+    post:
+      operationId: unignoreRepo
+      summary: Stop ignoring one tracked repo
+      description: |
+        The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
+        repo that was never ignored is a no-op, not an error.
+      tags: [dashboard]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEnsureRequest"
+      responses:
+        "204":
+          description: The repo is no longer ignored (or never was).
+        "400":
+          description: The request body wasn't valid JSON, or `fullName` wasn't "owner/repo".
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/pull-requests/merge:
     post:
       operationId: mergePullRequest
@@ -1908,7 +1972,7 @@ components:
 
     RepoStatus:
       type: object
-      required: [forge, fullName, url, hasWebhook, canManageWebhooks]
+      required: [forge, fullName, url, hasWebhook, canManageWebhooks, ignored]
       description: |
         One tracked repository, whether or not it currently has anything
         open — repoCount alone can't name it, and it wouldn't otherwise
@@ -1924,6 +1988,13 @@ components:
           format: uri
           description: The repo's own page on its forge, for linking out.
           examples: ["https://github.com/alrayyes/forge-dashboard"]
+        ignored:
+          type: boolean
+          description: |
+            Whether the signed-in user has ignored this repo (#363) — its
+            pullRequests/issues entries are excluded from this same
+            response and from Insights, but the repo itself still
+            appears here with accurate hasWebhook/canManageWebhooks.
         hasWebhook:
           type: boolean
           description: |

@@ -72,10 +72,13 @@ func TestDashboard_WithASessionButNoSettingsSaved_SerializesEmptyArraysNotNull(t
 // tests for that.
 type fakeConfiguredSource struct {
 	health dashboard.ForgeHealth
+	prs    []dashboard.PullRequest
+	issues []dashboard.Issue
+	repos  []dashboard.Repo
 }
 
 func (s *fakeConfiguredSource) Fetch(_ context.Context) dashboard.Result {
-	return dashboard.Result{Health: s.health}
+	return dashboard.Result{Health: s.health, PullRequests: s.prs, Issues: s.issues, Repos: s.repos}
 }
 
 func (s *fakeConfiguredSource) Forge() dashboard.Forge { return s.health.Forge }
