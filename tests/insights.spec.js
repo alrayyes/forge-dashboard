@@ -354,7 +354,7 @@ test.describe('insights page', () => {
   });
 
   test.describe('rate-limit headroom', () => {
-    test('shows remaining/limit as a proportion, directly labeled, for a forge that reports one', async ({
+    test('shows remaining/limit as a proportion, directly labeled, for each budget a forge reports', async ({
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
@@ -364,7 +364,8 @@ test.describe('insights page', () => {
             forge: 'github',
             reachable: true,
             repoCount: 3,
-            rateLimit: { limit: 5000, remaining: 4922, resetsAt },
+            rateLimitGraphQL: { limit: 5000, remaining: 4321, resetsAt },
+            rateLimitREST: { limit: 5000, remaining: 4922, resetsAt },
           },
         ],
       });
@@ -372,13 +373,20 @@ test.describe('insights page', () => {
       await page.goto('/insights.html');
 
       const row = page.locator('[data-forge="github"]');
-      await expect(row).toContainText('4,922');
-      await expect(row).toContainText('5,000');
+      const graphqlBudget = row.locator('[data-rate-limit-kind="GraphQL"]');
+      const restBudget = row.locator('[data-rate-limit-kind="REST"]');
+      await expect(graphqlBudget).toContainText('4,321');
+      await expect(graphqlBudget).toContainText('5,000');
+      await expect(restBudget).toContainText('4,922');
+      await expect(restBudget).toContainText('5,000');
     });
 
-    test("says a forge's rate limit isn't reported, rather than showing a broken or zero-looking bar", async ({
+    test("says a budget isn't reported, rather than showing a broken or zero-looking bar", async ({
       page,
     }) => {
+      // Forgejo forges (GenericSource) only ever populate rateLimitREST —
+      // they make no GraphQL calls (#361) — so GraphQL reads as "not
+      // reported" here even though the forge itself is otherwise healthy.
       await mockDashboard(page, {
         forges: [{ forge: 'forgejo', reachable: true, repoCount: 2 }],
       });
@@ -386,11 +394,17 @@ test.describe('insights page', () => {
       await page.goto('/insights.html');
 
       const row = page.locator('[data-forge="forgejo"]');
-      await expect(row).toContainText('Not reported by this forge');
+      const graphqlBudget = row.locator('[data-rate-limit-kind="GraphQL"]');
+      const restBudget = row.locator('[data-rate-limit-kind="REST"]');
+      await expect(row).toContainText('Not reported.');
+      await expect(graphqlBudget).toHaveCount(0);
+      await expect(restBudget).toHaveCount(0);
       await expect(row.locator('.rate-limit-bar')).toHaveCount(0);
     });
 
-    test('shows when the budget resets', async ({ page }) => {
+    test('shows a live countdown to when the budget resets', async ({
+      page,
+    }) => {
       const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
       await mockDashboard(page, {
         forges: [
@@ -398,16 +412,55 @@ test.describe('insights page', () => {
             forge: 'github',
             reachable: true,
             repoCount: 3,
-            rateLimit: { limit: 5000, remaining: 4922, resetsAt },
+            rateLimitREST: { limit: 5000, remaining: 4922, resetsAt },
           },
         ],
       });
 
       await page.goto('/insights.html');
 
-      await expect(
-        page.locator('[data-forge="github"] .rate-limit-reset'),
-      ).toContainText('Resets');
+      const reset = page.locator(
+        '[data-forge="github"] [data-rate-limit-kind="REST"] .rate-limit-reset',
+      );
+      await expect(reset).toContainText(/resets in \d+m \d+s/);
+
+      function totalSeconds(text) {
+        const match = text.match(/resets in (\d+)m (\d+)s/);
+        expect(match).not.toBeNull();
+        return Number(match[1]) * 60 + Number(match[2]);
+      }
+
+      const firstSeconds = totalSeconds(await reset.textContent());
+      await expect(async () => {
+        const seconds = totalSeconds(await reset.textContent());
+        expect(seconds).toBeLessThan(firstSeconds);
+      }).toPass({ timeout: 3000 });
+    });
+
+    test('an exhausted budget is called out as exceeded, styled distinctly from a merely low one', async ({
+      page,
+    }) => {
+      const resetsAt = new Date(Date.now() + 90 * 1000).toISOString();
+      await mockDashboard(page, {
+        forges: [
+          {
+            forge: 'github',
+            reachable: true,
+            repoCount: 3,
+            rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
+          },
+        ],
+      });
+
+      await page.goto('/insights.html');
+
+      const budget = page.locator(
+        '[data-forge="github"] [data-rate-limit-kind="REST"]',
+      );
+      await expect(budget).toHaveClass(/rl-exhausted/);
+      await expect(budget.locator('.rate-limit-reset')).toContainText(
+        'Rate limit exceeded',
+      );
     });
   });
 
@@ -652,7 +705,7 @@ test.describe('insights page', () => {
           forge: 'github',
           reachable: true,
           repoCount: 3,
-          rateLimit: {
+          rateLimitREST: {
             limit: 5000,
             remaining: 4922,
             resetsAt: new Date(Date.now() + 41 * 60 * 1000).toISOString(),
@@ -693,7 +746,7 @@ test.describe('insights page', () => {
           forge: 'github',
           reachable: true,
           repoCount: 3,
-          rateLimit: {
+          rateLimitREST: {
             limit: 5000,
             remaining: 4922,
             resetsAt: new Date(Date.now() + 41 * 60 * 1000).toISOString(),

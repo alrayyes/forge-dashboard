@@ -1,11 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
+  type RateLimit = { limit: number; remaining: number; resetsAt: string };
   type Forge = {
     forge: string;
     reachable: boolean;
     repoCount: number;
-    rateLimit?: { limit: number; remaining: number; resetsAt: string };
+    // GitHub tracks REST and GraphQL as two independent 5000/hour
+    // budgets (#361) — this client spends both (the main repo/PR/issue
+    // query is GraphQL; checkWebhooks and every write action are REST),
+    // so one gauge was always only ever showing half the picture.
+    rateLimitGraphQL?: RateLimit;
+    rateLimitREST?: RateLimit;
   };
 
   // ---- shared filter state — the same cookie/object app.js reads and
@@ -85,12 +91,38 @@
   // Status thresholds on remaining%, not forge identity — --gh/--fj
   // don't pass as chart-mark fills (see the CSS comment on this card's
   // rules), and "how healthy is the budget" is the actually useful
-  // signal here.
+  // signal here. Matches the 80%/95%-used amber/red split standard
+  // rate-limit-UI guidance recommends (Speakeasy's rate-limiting
+  // write-up, among others).
   function rateLimitStatusClass(remaining: number, limit: number): string {
     const pct = limit > 0 ? remaining / limit : 1;
     if (pct < 0.05) return "rl-critical";
     if (pct < 0.2) return "rl-warning";
     return "rl-good";
+  }
+
+  // Ticks once a second so "resets in Xm Ys" counts down live rather
+  // than showing a fixed clock time a reader has to do their own
+  // subtraction against — the same live-countdown pattern rate-limit
+  // UIs are generally built around (a 429 dialog's own MM:SS retry
+  // timer), not specific to this app.
+  let now = $state(Date.now());
+  onMount(() => {
+    const timer = setInterval(() => {
+      now = Date.now();
+    }, 1000);
+    return () => clearInterval(timer);
+  });
+
+  function countdownLabel(resetsAt: string): string {
+    const msLeft = new Date(resetsAt).getTime() - now;
+    if (msLeft <= 0) return "resets any moment";
+    const totalSeconds = Math.floor(msLeft / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return minutes > 0
+      ? `resets in ${minutes}m ${seconds}s`
+      : `resets in ${seconds}s`;
   }
 
   let lastSnapshot = $state<{
@@ -512,10 +544,38 @@
        checker — they were designed as badge text/background, not data
        marks) ---- */
     .rate-limit-row {
-      margin: 0 0 16px;
+      margin: 0 0 18px;
     }
     .rate-limit-row:last-child {
       margin-bottom: 0;
+    }
+    .rate-limit-forge-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0 0 8px;
+    }
+    .rate-limit-budgets {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 480px) {
+      .rate-limit-budgets {
+        grid-template-columns: 1fr;
+      }
+    }
+    .rate-limit-budget {
+      border-radius: 8px;
+    }
+    /* Exhausted reads as an alert, not just a colored bar — the same
+       "more prominent than a subtle fill" treatment the dashboard's own
+       CI-failing stat tile gets, borrowed here since a fully drained
+       budget is exactly as actionable as CI failing is. */
+    .rate-limit-budget.rl-exhausted {
+      background: var(--critical-bg);
+      border: 1px solid var(--critical);
+      padding: 8px 10px;
     }
     .rate-limit-head {
       display: flex;
@@ -525,14 +585,21 @@
       margin-bottom: 6px;
     }
     .rate-limit-forge {
-      font-size: 12.5px;
-      color: var(--ink-2);
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--ink-3);
       font-weight: 500;
     }
     .rate-limit-count {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
       font-size: 12.5px;
       color: var(--ink);
+    }
+    .rate-limit-budget.rl-exhausted .rate-limit-forge,
+    .rate-limit-budget.rl-exhausted .rate-limit-count {
+      color: var(--critical);
+      font-weight: 600;
     }
     .rate-limit-bar {
       height: 16px;
@@ -558,6 +625,10 @@
       font-size: 11.5px;
       color: var(--ink-3);
       margin: 4px 0 0;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    .rate-limit-budget.rl-exhausted .rate-limit-reset {
+      color: var(--critical);
     }
     .rate-limit-note {
       font-size: 12.5px;
@@ -893,38 +964,52 @@
       failing. Not every forge reports one — Forgejo doesn't by default.
     </p>
 
+    {#snippet rateLimitBudget(kind: string, rl: RateLimit | undefined)}
+      {#if !rl}
+        <div class="rate-limit-budget">
+          <div class="rate-limit-head">
+            <span class="rate-limit-forge">{kind}</span>
+          </div>
+          <p class="rate-limit-note">Not reported.</p>
+        </div>
+      {:else}
+        {@const pct = rl.limit > 0 ? (rl.remaining / rl.limit) * 100 : 0}
+        {@const statusClass = rateLimitStatusClass(rl.remaining, rl.limit)}
+        {@const exhausted = rl.remaining === 0}
+        <div
+          class={`rate-limit-budget${exhausted ? " rl-exhausted" : ""}`}
+          data-rate-limit-kind={kind}
+        >
+          <div class="rate-limit-head">
+            <span class="rate-limit-forge">{kind}</span>
+            <span class="rate-limit-count"
+              >{rl.remaining.toLocaleString()} / {rl.limit.toLocaleString()} requests</span
+            >
+          </div>
+          <div class="rate-limit-bar">
+            <div
+              class={`rate-limit-fill ${statusClass}`}
+              style={`width: ${pct}%`}
+            ></div>
+          </div>
+          <p class="rate-limit-reset">
+            {exhausted ? "Rate limit exceeded — " : ""}{countdownLabel(
+              rl.resetsAt,
+            )}
+          </p>
+        </div>
+      {/if}
+    {/snippet}
+
     <div id="rate-limit-list">
       {#each lastSnapshot.forges as f (f.forge)}
         {@const label = window.Filters?.FORGE_LABELS[f.forge] || f.forge}
         <div class="rate-limit-row" data-forge={f.forge}>
-          {#if !f.rateLimit}
-            <div class="rate-limit-head">
-              <span class="rate-limit-forge">{label}</span>
-            </div>
-            <p class="rate-limit-note">Not reported by this forge.</p>
-          {:else}
-            {@const rl = f.rateLimit}
-            {@const pct = rl.limit > 0 ? (rl.remaining / rl.limit) * 100 : 0}
-            {@const statusClass = rateLimitStatusClass(rl.remaining, rl.limit)}
-            <div class="rate-limit-head">
-              <span class="rate-limit-forge">{label}</span>
-              <span class="rate-limit-count"
-                >{rl.remaining.toLocaleString()} / {rl.limit.toLocaleString()} requests</span
-              >
-            </div>
-            <div class="rate-limit-bar">
-              <div
-                class={`rate-limit-fill ${statusClass}`}
-                style={`width: ${pct}%`}
-              ></div>
-            </div>
-            <p class="rate-limit-reset">
-              Resets {new Date(rl.resetsAt).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-          {/if}
+          <h3 class="rate-limit-forge-name">{label}</h3>
+          <div class="rate-limit-budgets">
+            {@render rateLimitBudget("GraphQL", f.rateLimitGraphQL)}
+            {@render rateLimitBudget("REST", f.rateLimitREST)}
+          </div>
         </div>
       {/each}
     </div>

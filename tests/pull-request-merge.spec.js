@@ -495,7 +495,7 @@ test.describe('pull request merge button', () => {
             forge: 'github',
             reachable: true,
             repoCount: 1,
-            rateLimit: { limit: 5000, remaining: 0, resetsAt },
+            rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
           },
         ],
         [makePR()],

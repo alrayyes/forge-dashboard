@@ -1966,17 +1966,34 @@ components:
           type: integer
           minimum: 0
           description: Repositories with write access this forge reported.
-        rateLimit:
-          $ref: "#/components/schemas/RateLimit"
+        rateLimitGraphQL:
+          allOf:
+            - $ref: "#/components/schemas/RateLimit"
+          description: >-
+            GitHub's GraphQL budget (#361) — a completely separate
+            5000/hour allowance from rateLimitREST, populated from the
+            rateLimit block GitHub embeds in every GraphQL response.
+            Never set for a forge with no GraphQL API (Forgejo).
+        rateLimitREST:
+          allOf:
+            - $ref: "#/components/schemas/RateLimit"
+          description: >-
+            The forge's REST budget, from real X-RateLimit-* response
+            headers. For GitHub, this is checkWebhooks and every write
+            action (merge, update branch, comment, label) — a different
+            5000/hour allowance from rateLimitGraphQL, not a duplicate of
+            it. Omitted on a poll that made no REST call at all (no
+            webhook path configured). For Forgejo, or any forge reached
+            through GenericSource, this is the only budget there is to
+            report — GenericSource makes exclusively REST-style calls.
 
     RateLimit:
       type: object
       required: [limit, remaining, resetsAt]
       description: >-
-        The forge API's own request budget for the credential the last
-        refresh used. Only reported where the forge exposes one — GitHub
-        does; Forgejo has no rate limiting of its own by default, so this
-        is omitted there.
+        One of a forge API's own request budgets for the credential the
+        last refresh used — see ForgeHealth.rateLimitGraphQL/rateLimitREST
+        for which budget this is and when each is (or isn't) reported.
       properties:
         limit:
           type: integer

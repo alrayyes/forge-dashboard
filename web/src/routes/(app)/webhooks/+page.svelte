@@ -2,7 +2,12 @@
   import { onMount } from "svelte";
 
   type RateLimit = { limit: number; remaining: number; resetsAt: string };
-  type ForgeHealthEntry = { forge: string; rateLimit?: RateLimit };
+  // Webhook management (list/create/edit a hook) is REST-only (#361) —
+  // rateLimitGraphQL exists on the real ForgeHealth this page reads but
+  // is deliberately not modeled here at all, the same restraint that
+  // kept this page's own FORGE_LABELS local instead of reaching for the
+  // shared window.Filters one.
+  type ForgeHealthEntry = { forge: string; rateLimitREST?: RateLimit };
   type Repo = {
     forge: string;
     fullName: string;
@@ -84,8 +89,8 @@
 
   function rateLimitLock(forge: string): string | null {
     const f = forges.find((f) => f.forge === forge);
-    if (f?.rateLimit && f.rateLimit.remaining === 0) {
-      return `Rate limit exhausted · resets ${resetTimeLabel(f.rateLimit.resetsAt)}`;
+    if (f?.rateLimitREST && f.rateLimitREST.remaining === 0) {
+      return `Rate limit exhausted · resets ${resetTimeLabel(f.rateLimitREST.resetsAt)}`;
     }
     return null;
   }
