@@ -12,13 +12,11 @@
 
 ### Features
 
-* add Dependabot rebase/recreate buttons to pull request rows ([99f093e](https://github.com/alrayyes/forge-dashboard/commit/99f093e1eec66e04b8201cc7cfbf7dd372ba265e))
 * add Dependabot rebase/recreate buttons to pull request rows ([bee0b7c](https://github.com/alrayyes/forge-dashboard/commit/bee0b7c7e5ef0240f12c9a45936087acdd02b05c)), closes [#332](https://github.com/alrayyes/forge-dashboard/issues/332)
 
 
 ### Bug Fixes
 
-* wire the theme toggle button on every page, not just the dashboard ([2485e98](https://github.com/alrayyes/forge-dashboard/commit/2485e985b20fe81203ff4f8e74f5d44b3e5f4edb))
 * wire the theme toggle button on every page, not just the dashboard ([3b26156](https://github.com/alrayyes/forge-dashboard/commit/3b26156714063d7f0e347bdc0a5caf67d2feeb3e)), closes [#327](https://github.com/alrayyes/forge-dashboard/issues/327)
 
 ## [0.67.1](https://github.com/alrayyes/forge-dashboard/compare/v0.67.0...v0.67.1) (2026-09-17)
