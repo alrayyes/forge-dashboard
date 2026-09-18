@@ -231,6 +231,20 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 	return false, nil
 }
 
+// CommentPullRequest implements dashboard.PullRequestCommenter: posts body
+// as a plain comment on owner/name#number. GitHub has no separate
+// pull-request-comment endpoint for a top-level comment — it's the same
+// Issues API a regular issue comment uses, since every pull request is
+// also an issue.
+func (c *Client) CommentPullRequest(ctx context.Context, owner, name string, number int, body string) error {
+	path := fmt.Sprintf("/repos/%s/%s/issues/%d/comments", owner, name, number)
+	slog.Debug("github request", "method", http.MethodPost, "url", path)
+	if _, _, err := c.restClient.Issues.CreateComment(ctx, owner, name, number, &ghsdk.IssueComment{Body: &body}); err != nil {
+		return asClientError(restError(http.MethodPost, path, err))
+	}
+	return nil
+}
+
 // Fetch implements dashboard.Source directly — GitHub drives its own
 // fetch strategy (GraphQL vs. the REST fallback) rather than going
 // through dashboard.GenericSource's one-call-per-repo model, which is
