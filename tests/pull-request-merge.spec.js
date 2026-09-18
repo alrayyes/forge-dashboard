@@ -257,7 +257,7 @@ test.describe('pull request merge button', () => {
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('a permission-denied failure locks the button for good instead of inviting another try', async ({
+  test('a permission-denied failure locks the button with a real Retry, not a dead end', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -274,8 +274,9 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    const button = row.getByRole('button', { name: 'Retry' });
+    await expect(button).toBeVisible();
+    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/permission/i);
   });
 
@@ -298,8 +299,8 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    const button = row.getByRole('button', { name: 'Retry' });
+    await expect(button).toBeVisible();
     await expect(row).toContainText(/no longer mergeable/i);
   });
 
@@ -327,15 +328,14 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row.getByRole('button', { name: 'Retry' })).toBeVisible();
     await expect(row).toContainText(
       'Merge commits are not allowed on this repository.',
     );
     await expect(row).not.toContainText(/no longer mergeable/i);
   });
 
-  test('a rate-limited (429) failure locks the button for good', async ({
+  test('a rate-limited (429) failure locks the button with a real Retry', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -352,9 +352,56 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    const button = row.getByRole('button', { name: 'Retry' });
+    await expect(button).toBeVisible();
+    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/rate limit/i);
+  });
+
+  test('clicking Retry re-fetches the dashboard, and a stale lock clears once the fresh data no longer justifies it', async ({
+    page,
+  }) => {
+    // The actual bug (#351): mergeState used to latch 'locked' forever —
+    // only a full page reload cleared it, even after a real refresh
+    // brought back data that no longer justified the lock. This is the
+    // regression test for the fix, not just for the Retry button's own
+    // click wiring.
+    const pr = makePR();
+    await mockDashboard(page, pr);
+    await page.route('**/api/pull-requests/merge', (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Merge' }).click();
+    await row.getByRole('button', { name: 'Confirm merge?' }).click();
+    await expect(row.getByRole('button', { name: 'Retry' })).toBeVisible();
+
+    let refreshCalled = false;
+    await page.route('**/api/dashboard/refresh', (route) => {
+      refreshCalled = true;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [pr],
+          issues: [],
+        }),
+      });
+    });
+
+    await row.getByRole('button', { name: 'Retry' }).click();
+
+    expect(refreshCalled).toBe(true);
+    await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
   });
 
   test('a locked Merge button is reachable by keyboard and has no axe-core violations', async ({
@@ -374,8 +421,8 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    const button = row.getByRole('button', { name: 'Retry' });
+    await expect(button).toBeVisible();
     await button.focus();
     await expect(button).toBeFocused();
 
@@ -430,8 +477,9 @@ test.describe('pull request merge button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', { name: 'Merge' });
-      await expect(button).toHaveAttribute('aria-disabled', 'true');
+      const button = row.getByRole('button', { name: 'Retry' });
+      await expect(button).toBeVisible();
+      await expect(button).not.toHaveAttribute('aria-disabled', 'true');
       await expect(row).toContainText(/unreachable/i);
     });
 
@@ -454,8 +502,8 @@ test.describe('pull request merge button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', { name: 'Merge' });
-      await expect(button).toHaveAttribute('aria-disabled', 'true');
+      const button = row.getByRole('button', { name: 'Retry' });
+      await expect(button).toBeVisible();
       await expect(row).toContainText(/rate limit exhausted/i);
     });
 
@@ -484,15 +532,15 @@ test.describe('pull request merge button', () => {
       await rows.nth(0).getByRole('button', { name: 'Merge' }).click();
       await rows.nth(0).getByRole('button', { name: 'Confirm merge?' }).click();
       await expect(
-        rows.nth(0).getByRole('button', { name: 'Merge' }),
-      ).toHaveAttribute('aria-disabled', 'true');
+        rows.nth(0).getByRole('button', { name: 'Retry' }),
+      ).toBeVisible();
 
       // The second PR's own Merge button was never clicked, and never
       // itself made a request — it's locked purely from the first PR's
       // failure, because a token's write permission is an account-wide
       // property, not a per-PR one.
-      const secondButton = rows.nth(1).getByRole('button', { name: 'Merge' });
-      await expect(secondButton).toHaveAttribute('aria-disabled', 'true');
+      const secondButton = rows.nth(1).getByRole('button', { name: 'Retry' });
+      await expect(secondButton).toBeVisible();
       await expect(rows.nth(1)).toContainText(/permission/i);
     });
   });

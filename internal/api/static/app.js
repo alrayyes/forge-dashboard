@@ -356,20 +356,57 @@
   // lockedButton uses, not a native disabled attribute or a title-only
   // tooltip — native disabled would drop it from the tab order and hide
   // the reason from keyboard and screen-reader users. Shared by every
-  // row action that can lock for good (merge, update branch), not just
-  // one of them.
-  function lockedActionButton(label, reasonText) {
+  // row action that can lock for good (merge, update branch, Dependabot,
+  // Renovate), not just one of them.
+  //
+  // onRetry, when given, makes this a real clickable "Retry" instead of
+  // a dead end — merge/update-branch's own lock reasons used to say
+  // "refresh" with nothing on the button that actually did that. Left
+  // undefined for the actions that don't pass it (Dependabot/Renovate),
+  // which keep today's plain disabled-button behavior.
+  function lockedActionButton(label, reasonText, onRetry) {
     var wrap = el('span', 'row-action-locked');
-    var button = el('button', 'row-action', label);
+    var button = el('button', 'row-action', onRetry ? 'Retry' : label);
     button.type = 'button';
-    button.setAttribute('aria-disabled', 'true');
     var reasonId = `action-locked-reason-${actionLockReasonCounter++}`;
     button.setAttribute('aria-describedby', reasonId);
+    if (onRetry) {
+      button.addEventListener('click', onRetry);
+    } else {
+      button.setAttribute('aria-disabled', 'true');
+    }
     wrap.appendChild(button);
     var reason = el('span', 'row-action-reason', reasonText);
     reason.id = reasonId;
     wrap.appendChild(reason);
     return wrap;
+  }
+
+  // Clears every "locked for good" entry in a merge/update-branch state
+  // map — called on every fresh snapshot (applySnapshot), so a lock only
+  // ever reflects the most recent data instead of latching until a full
+  // page reload. Leaves in-flight phases ('confirming', 'merging',
+  // 'updating') alone; those track a request actually in progress, not a
+  // stale conclusion from a previous one.
+  function clearStaleLocks(stateMap) {
+    Object.keys(stateMap).forEach((key) => {
+      if (stateMap[key].phase === 'locked') delete stateMap[key];
+    });
+  }
+
+  // The "Retry" click every locked merge/update-branch button now has —
+  // re-fetches the dashboard for real (not from a cache) so the lock
+  // re-derives from current data immediately (clearStaleLocks, inside
+  // applySnapshot) instead of waiting out the rest of the poll interval.
+  function retryLockedAction(item) {
+    showStatus(`Checking ${item.repo}#${item.number}…`);
+    refreshDashboardNow()
+      .then(() => {
+        clearStatus();
+      })
+      .catch((err) => {
+        showError(`Could not refresh: ${err.message}`);
+      });
   }
 
   // Set once any merge/update-branch call against a forge comes back 403
@@ -481,14 +518,19 @@
     var proactiveReason;
 
     if (entry.phase === 'locked')
-      return lockedActionButton('Merge', entry.reason);
+      return lockedActionButton('Merge', entry.reason, () =>
+        retryLockedAction(item),
+      );
 
     // Only checked from idle — once a confirm/merge is already in
     // flight, let it finish and report its own real outcome rather than
     // yanking the button out from under a click that's already landed.
     if (entry.phase === 'idle') {
       proactiveReason = proactiveActionLockReason(item.forge);
-      if (proactiveReason) return lockedActionButton('Merge', proactiveReason);
+      if (proactiveReason)
+        return lockedActionButton('Merge', proactiveReason, () =>
+          retryLockedAction(item),
+        );
     }
 
     var wrap = el('span', 'row-action-group');
@@ -642,12 +684,16 @@
     var proactiveReason;
 
     if (entry.phase === 'locked')
-      return lockedActionButton('Update branch', entry.reason);
+      return lockedActionButton('Update branch', entry.reason, () =>
+        retryLockedAction(item),
+      );
 
     if (entry.phase === 'idle') {
       proactiveReason = proactiveActionLockReason(item.forge);
       if (proactiveReason)
-        return lockedActionButton('Update branch', proactiveReason);
+        return lockedActionButton('Update branch', proactiveReason, () =>
+          retryLockedAction(item),
+        );
     }
 
     var updating = entry.phase === 'updating';
@@ -1492,10 +1538,14 @@
   var FORCE_REFRESH_COOLDOWN_MS = 5000;
   var forceRefreshButton = document.getElementById('force-refresh-button');
 
-  forceRefreshButton.addEventListener('click', () => {
-    forceRefreshButton.disabled = true;
-    forceRefreshButton.classList.add('is-refreshing');
-    fetch('/api/dashboard/refresh', {
+  // Shared by this button and every locked merge/update-branch row's own
+  // "Retry" — a locked reason (permission, rate limit, not-mergeable, a
+  // disallowed merge method) can only be known to have cleared by asking
+  // the forge again right now, not by staring at data already on screen.
+  // POSTs, not the plain GET refresh() polls with — this forces a real
+  // re-fetch from the forge instead of possibly answering from a cache.
+  function refreshDashboardNow() {
+    return fetch('/api/dashboard/refresh', {
       method: 'POST',
       headers: { Accept: 'application/json' },
     })
@@ -1507,7 +1557,13 @@
         if (!res.ok) throw new Error(`backend answered ${res.status}`);
         return res.json();
       })
-      .then(applySnapshot)
+      .then(applySnapshot);
+  }
+
+  forceRefreshButton.addEventListener('click', () => {
+    forceRefreshButton.disabled = true;
+    forceRefreshButton.classList.add('is-refreshing');
+    refreshDashboardNow()
       .catch((err) => {
         showError(`Could not refresh: ${err.message}`);
       })
@@ -1586,6 +1642,19 @@
 
     renderForgeHealth(data.forges || []);
     lastForges = data.forges || [];
+
+    // A locked merge/update-branch reason only reflects what the forge
+    // said at the moment of the last attempt — re-derived here from this
+    // fresh snapshot instead of latching indefinitely (the bug: only a
+    // full page reload used to clear it, even after "Refresh now"). A
+    // lock whose root cause is still real reappears right away on the
+    // next render — proactiveActionLockReason already re-checks
+    // lastForges/forgePermissionDenied fresh every time from the values
+    // just updated above — while one that's resolved (the PR is
+    // mergeable again, a merge method got allowed, the rate limit reset)
+    // simply doesn't.
+    clearStaleLocks(mergeState);
+    clearStaleLocks(updateBranchState);
 
     var prs = data.pullRequests || [];
     var issues = data.issues || [];
