@@ -5,6 +5,15 @@ project_name: forge-dashboard
 before:
   hooks:
     - go mod download
+    # Same step Dockerfile's web-build stage runs before its own Go build
+    # — without it, //go:embed all:static compiles from a checkout where
+    # the SvelteKit-migrated pages (Webhooks, Settings) were never
+    # generated, and a goreleaser-built release binary 404s serving them.
+    # Assumes bun is already on PATH — CI's release job installs it first
+    # (oven-sh/setup-bun), the same way it already does for every other
+    # bun-driven step.
+    - bun install --frozen-lockfile
+    - bun run build:web
 
 builds:
   - id: forge-dashboard
