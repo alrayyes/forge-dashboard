@@ -1038,7 +1038,13 @@ func TestFetch_MapsMergeStatusFromMergeStateStatus(t *testing.T) {
 		{"CLEAN", dashboard.MergeMergeable},
 		{"DIRTY", dashboard.MergeConflicting},
 		{"BLOCKED", dashboard.MergeBlocked},
-		{"BEHIND", dashboard.MergeBlocked},
+		// BEHIND is deliberately MergeUnknown, not MergeBlocked (#359):
+		// Behind already carries this exact fact (see
+		// TestFetch_MapsBehindFromMergeStateStatus below), and the
+		// Update-branch button it drives is the specific, actionable
+		// signal — a generic "Blocked" pill next to it would say the
+		// same thing twice, less usefully the second time.
+		{"BEHIND", dashboard.MergeUnknown},
 		{"UNSTABLE", dashboard.MergeBlocked},
 		{"HAS_HOOKS", dashboard.MergeBlocked},
 		{"DRAFT", dashboard.MergeUnknown},
@@ -1096,11 +1102,11 @@ func TestFetch_MapsMergeStatusFromMergeStateStatus(t *testing.T) {
 
 // TestFetch_MapsBehindFromMergeStateStatus proves Behind is derived
 // straight from mergeStateStatus, independent of MergeStatus's own coarser
-// bucketing — BEHIND is true here despite also mapping to MergeBlocked
-// (see TestFetch_MapsMergeStatusFromMergeStateStatus), and every other
-// value in the MergeBlocked bucket (BLOCKED, UNSTABLE, HAS_HOOKS) is
-// false, since "something's blocking this" isn't the same claim as
-// "specifically because the base moved."
+// bucketing — BEHIND is true here even though it maps to MergeUnknown, not
+// MergeBlocked (see TestFetch_MapsMergeStatusFromMergeStateStatus), and
+// every value that does stay in the MergeBlocked bucket (BLOCKED,
+// UNSTABLE, HAS_HOOKS) is false here, since "something's blocking this"
+// isn't the same claim as "specifically because the base moved."
 func TestFetch_MapsBehindFromMergeStateStatus(t *testing.T) {
 	t.Parallel()
 

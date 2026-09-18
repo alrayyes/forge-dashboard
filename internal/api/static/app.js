@@ -968,6 +968,23 @@
   // decide whether a bot-managed PR's row gets the button at all.
   var allowBotPrUpdates = false;
 
+  // #353: the cookie above is a fast local cache for this page's very
+  // first paint, not the source of truth across devices — this fetch is
+  // what makes a second browser see filters set on the first one. Runs
+  // in parallel with everything else below (nothing here blocks on it),
+  // and reconciles into sharedState whichever of "the first dashboard
+  // snapshot" or "this resolving" happens second, via
+  // sharedControlsRestored below — a real server value always wins,
+  // but this page never sits idle waiting for it first.
+  Filters.loadStateFromServer().then((got) => {
+    if (got) Filters.applyServerState(sharedState, got);
+    if (sharedControlsRestored) {
+      updateSharedFilterOptions();
+      syncSharedControlsToState();
+      renderBoth();
+    }
+  });
+
   function forgeScopedItems() {
     var items = allPRs.concat(allIssues);
     if (!sharedState.shared.forge) return items;
@@ -1400,7 +1417,11 @@
       // the active forge, so a forge change has to re-narrow them right
       // away rather than waiting for the next poll's setItems (#112).
       if (c.dataset.col === 'forge') updateSharedFilterOptions();
-      Filters.saveState(sharedState);
+      // debouncedCol: only Title fires on 'input' per keystroke; every
+      // other control here only ever fires on 'change' (a discrete,
+      // already-complete pick), so passing c.dataset.col unconditionally
+      // is safe — saveState itself only debounces when it's 'title'.
+      Filters.saveState(sharedState, c.dataset.col);
       renderBoth();
     };
     c.addEventListener('input', apply);

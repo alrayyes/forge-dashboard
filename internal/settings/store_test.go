@@ -338,3 +338,92 @@ func TestStore_Delete_RemovesWebhookDeliveries(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+func TestStore_GetFilterState_NeverSaved_ReturnsEmptyObject(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	got, err := store.GetFilterState(t.Context(), []byte("user-1"))
+
+	require.NoError(t, err)
+	assert.Equal(t, "{}", got)
+}
+
+func TestStore_SetFilterState_ThenGetFilterState_RoundTrips(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{"forge":"github"}}`))
+
+	got, err := store.GetFilterState(t.Context(), userID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"shared":{"forge":"github"}}`, got)
+}
+
+func TestStore_SetFilterState_Twice_ReplacesIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{"forge":"github"}}`))
+	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{"forge":"forgejo"}}`))
+
+	got, err := store.GetFilterState(t.Context(), userID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"shared":{"forge":"forgejo"}}`, got)
+}
+
+func TestStore_SetFilterState_BeforeAnySettingsSaved_StillWorks(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	// No Set/EnsureWebhookCredentials call first — a brand-new user who's
+	// never touched Settings at all, only the filter bar.
+	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{}}`))
+
+	got, err := store.GetFilterState(t.Context(), userID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"shared":{}}`, got)
+}
+
+func TestStore_SetFilterState_AfterExistingSettingsSaved_LeavesThemIntact(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubUsername: "ryan"}))
+
+	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{"forge":"github"}}`))
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Equal(t, "ryan", got.GitHubUsername, "saving filter state must not disturb settings already saved")
+}
+
+func TestStore_Set_NeverOverwritesAlreadySavedFilterState(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{"forge":"github"}}`))
+
+	// A real settings save (the Settings page's own Save button) — it
+	// doesn't know about filter state at all, and shouldn't need to for
+	// it to survive.
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubUsername: "octocat"}))
+
+	got, err := store.GetFilterState(t.Context(), userID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"shared":{"forge":"github"}}`, got)
+}
+
+func TestStore_FilterState_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	require.NoError(t, store.SetFilterState(t.Context(), []byte("user-a"), `{"shared":{"forge":"github"}}`))
+
+	got, err := store.GetFilterState(t.Context(), []byte("user-b"))
+	require.NoError(t, err)
+	assert.Equal(t, "{}", got)
+}

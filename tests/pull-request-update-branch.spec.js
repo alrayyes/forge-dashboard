@@ -98,6 +98,23 @@ test.describe('pull request update-branch button', () => {
     ).toBeVisible();
   });
 
+  // #359: a plain behind-but-otherwise-clean PR (mergeStatus is "unknown"
+  // once BEHIND no longer maps to MergeBlocked, not the fixture's default
+  // "blocked" above) should show one clear signal, not a generic "Blocked"
+  // pill duplicating what the Update-branch button already says.
+  test('a behind PR with no other merge problem shows the Update-branch button but no Blocked pill', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR({ mergeStatus: 'unknown', behind: true }));
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(
+      row.getByRole('button', { name: 'Update branch' }),
+    ).toBeVisible();
+    await expect(row.locator('.merge-pill.blocked')).toHaveCount(0);
+  });
+
   test('a pull request not reported as behind shows no Update branch button', async ({
     page,
   }) => {
