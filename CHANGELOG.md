@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.70.0](https://github.com/alrayyes/forge-dashboard/compare/v0.69.1...v0.70.0) (2026-09-18)
+
+
+### Features
+
+* **web:** migrate the Settings page to SvelteKit ([#370](https://github.com/alrayyes/forge-dashboard/issues/370)) ([396c2c0](https://github.com/alrayyes/forge-dashboard/commit/396c2c0f4b24fe9daee9ef9fea4ea62bbce3769d)), closes [#334](https://github.com/alrayyes/forge-dashboard/issues/334)
+
 ## [0.69.1](https://github.com/alrayyes/forge-dashboard/compare/v0.69.0...v0.69.1) (2026-09-18)
 
 
