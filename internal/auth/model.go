@@ -40,6 +40,13 @@ type APIToken struct {
 	ID        string
 	Label     string
 	CreatedAt time.Time
+	// ExpiresAt is always set (#356: mandatory at creation, no "never
+	// expires" option) — UserForAPIToken rejects a token once this
+	// passes, the same way it rejects one it's never heard of. A row
+	// from before this field existed reads back as the zero Time, which
+	// is always in the past, so it's rejected too rather than treated as
+	// permanently valid just because the schema changed underneath it.
+	ExpiresAt time.Time
 	// LastUsedAt is nil until the token first authenticates a request —
 	// the same "hasn't happened yet, not zero-value" shape
 	// dashboard.RateLimit's own nilable fields use elsewhere in this

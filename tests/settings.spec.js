@@ -386,6 +386,103 @@ test.describe('settings page', () => {
       await expect(page.locator('#api-token-empty')).toBeHidden();
     });
 
+    test.describe('expiration (#356)', () => {
+      test('30 days is pre-selected, and there is no "never expires" option', async ({
+        page,
+      }) => {
+        await page.goto('/settings.html');
+
+        await expect(page.locator('#token-expiry-preset')).toHaveValue('30');
+        const optionValues = await page
+          .locator('#token-expiry-preset option')
+          .evaluateAll((opts) => opts.map((o) => o.value));
+        expect(optionValues).toEqual(['7', '30', '60', '90', 'custom']);
+      });
+
+      test('generating with the default 30-day preset shows an expiration date on the listed token', async ({
+        page,
+      }) => {
+        await page.goto('/settings.html');
+
+        await page.fill('#token-label', 'ci script');
+        await page.click('#token-form button[type="submit"]');
+
+        const item = page.locator('#api-token-list li').first();
+        await expect(item).toContainText('Expires');
+      });
+
+      test('picking a preset other than 30 still creates and lists the token', async ({
+        page,
+      }) => {
+        await page.goto('/settings.html');
+
+        await page.selectOption('#token-expiry-preset', '90');
+        await page.fill('#token-label', 'ci script');
+        await page.click('#token-form button[type="submit"]');
+
+        await expect(page.locator('#token-reveal-field')).toBeVisible();
+        await expect(page.locator('#api-token-list li')).toHaveCount(1);
+      });
+
+      test('choosing "Custom date…" reveals a date field capped at 366 days out, and requires a value before submitting', async ({
+        page,
+      }) => {
+        await page.goto('/settings.html');
+        await expect(page.locator('#token-expiry-custom-date')).toHaveCount(0);
+
+        await page.selectOption('#token-expiry-preset', 'custom');
+
+        const dateField = page.locator('#token-expiry-custom-date');
+        await expect(dateField).toBeVisible();
+        await expect(dateField).toHaveAttribute('required', '');
+        const max = await dateField.getAttribute('max');
+        const min = await dateField.getAttribute('min');
+        const daysOut = Math.round(
+          (new Date(max) - new Date(min)) / (24 * 60 * 60 * 1000),
+        );
+        expect(daysOut).toBe(365); // min is tomorrow, max is 366 days from today
+
+        await page.fill('#token-label', 'ci script');
+        await page.click('#token-form button[type="submit"]');
+
+        // The native date input's own required attribute blocks the
+        // form submit entirely — nothing reaches submitGenerateToken,
+        // so no request goes out and no status message appears.
+        await expect(page.locator('#token-reveal-field')).toBeHidden();
+      });
+
+      test('a custom date within range creates and lists the token', async ({
+        page,
+      }) => {
+        await page.goto('/settings.html');
+
+        await page.selectOption('#token-expiry-preset', 'custom');
+        const inTwoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        await page.fill('#token-expiry-custom-date', inTwoWeeks);
+        await page.fill('#token-label', 'ci script');
+        await page.click('#token-form button[type="submit"]');
+
+        await expect(page.locator('#token-reveal-field')).toBeVisible();
+        const item = page.locator('#api-token-list li').first();
+        await expect(item).toContainText('Expires');
+      });
+
+      test('has no axe-core violations with the custom date field revealed', async ({
+        page,
+      }) => {
+        await page.goto('/settings.html');
+        await page.selectOption('#token-expiry-preset', 'custom');
+        await expect(page.locator('#token-expiry-custom-date')).toBeVisible();
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    });
+
     test('reloading no longer shows the raw token, only its metadata', async ({
       page,
     }) => {

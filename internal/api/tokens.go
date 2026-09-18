@@ -18,11 +18,12 @@ type Token struct {
 	ID         string     `json:"id"`
 	Label      string     `json:"label"`
 	CreatedAt  time.Time  `json:"createdAt"`
+	ExpiresAt  time.Time  `json:"expiresAt"`
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
 func tokenOf(t *auth.APIToken) Token {
-	return Token{ID: t.ID, Label: t.Label, CreatedAt: t.CreatedAt, LastUsedAt: t.LastUsedAt}
+	return Token{ID: t.ID, Label: t.Label, CreatedAt: t.CreatedAt, ExpiresAt: t.ExpiresAt, LastUsedAt: t.LastUsedAt}
 }
 
 func handleTokensGet(store *auth.Store) http.HandlerFunc {
@@ -49,7 +50,8 @@ func handleTokensGet(store *auth.Store) http.HandlerFunc {
 
 // apiTokenCreateRequest matches components.schemas.APITokenCreateRequest.
 type apiTokenCreateRequest struct {
-	Label string `json:"label"`
+	Label     string    `json:"label"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 // apiTokenCreateResponse matches components.schemas.APITokenCreateResponse
@@ -58,8 +60,15 @@ type apiTokenCreateResponse struct {
 	ID        string    `json:"id"`
 	Label     string    `json:"label"`
 	CreatedAt time.Time `json:"createdAt"`
+	ExpiresAt time.Time `json:"expiresAt"`
 	Token     string    `json:"token"`
 }
+
+// maxAPITokenLifetime caps how far out expiresAt may be — GitHub's own
+// fine-grained personal-access-token maximum (#356), and the reason
+// there's no "never expires" option at all: the cap alone forces a
+// bound, no separate flag needed to rule that out.
+const maxAPITokenLifetime = 366 * 24 * time.Hour
 
 func handleTokensPost(store *auth.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -79,8 +88,17 @@ func handleTokensPost(store *auth.Store) http.HandlerFunc {
 			writeJSON(w, http.StatusBadRequest, errorBody("label is required"))
 			return
 		}
+		now := time.Now()
+		if !req.ExpiresAt.After(now) {
+			writeJSON(w, http.StatusBadRequest, errorBody("expiresAt must be in the future"))
+			return
+		}
+		if req.ExpiresAt.After(now.Add(maxAPITokenLifetime)) {
+			writeJSON(w, http.StatusBadRequest, errorBody("expiresAt can't be more than 366 days out"))
+			return
+		}
 
-		raw, tok, err := store.CreateAPIToken(r.Context(), u.ID, label)
+		raw, tok, err := store.CreateAPIToken(r.Context(), u.ID, label, req.ExpiresAt)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not create api token"))
 			return
@@ -90,6 +108,7 @@ func handleTokensPost(store *auth.Store) http.HandlerFunc {
 			ID:        tok.ID,
 			Label:     tok.Label,
 			CreatedAt: tok.CreatedAt,
+			ExpiresAt: tok.ExpiresAt,
 			Token:     raw,
 		})
 	}

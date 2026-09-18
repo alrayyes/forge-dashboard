@@ -21,6 +21,7 @@
     id: string;
     label: string;
     createdAt: string;
+    expiresAt: string;
     lastUsedAt?: string;
   };
 
@@ -244,6 +245,43 @@
   let tokenStatus = $state("");
   let tokenStatusKind = $state<"" | "error" | "ok">("");
 
+  // Mandatory, no "never expires" option (#356) — 30 days pre-selected,
+  // matching GitHub's own fine-grained-PAT UI this account's users are
+  // already used to. "custom" reveals a plain date input, capped by its
+  // own min/max below rather than letting the picker offer a date the
+  // backend would just reject.
+  const TOKEN_EXPIRY_PRESET_DAYS = ["7", "30", "60", "90"] as const;
+  let tokenExpiryPreset = $state<
+    (typeof TOKEN_EXPIRY_PRESET_DAYS)[number] | "custom"
+  >("30");
+  let tokenExpiryCustomDate = $state("");
+
+  function dateOnly(d: Date): string {
+    return d.toISOString().slice(0, 10);
+  }
+  // Tomorrow, not today: expiresAt must be strictly in the future, and a
+  // custom date resolves to the end of that day below — picking "today"
+  // would round-trip to a moment already in the past by the time the
+  // request reaches the server.
+  const tokenExpiryMinDate = dateOnly(
+    new Date(Date.now() + 24 * 60 * 60 * 1000),
+  );
+  const tokenExpiryMaxDate = dateOnly(
+    new Date(Date.now() + 366 * 24 * 60 * 60 * 1000),
+  );
+
+  // null when a custom date is required but not chosen yet — the
+  // caller's own signal to refuse submitting rather than sending an
+  // empty/invalid expiresAt the backend would 400 on anyway.
+  function computeTokenExpiresAt(): string | null {
+    if (tokenExpiryPreset === "custom") {
+      if (!tokenExpiryCustomDate) return null;
+      return new Date(`${tokenExpiryCustomDate}T23:59:59`).toISOString();
+    }
+    const days = Number(tokenExpiryPreset);
+    return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+  }
+
   function loadTokens(): Promise<void> {
     return fetch("/api/tokens", { headers: { Accept: "application/json" } })
       .then((res) => {
@@ -267,6 +305,12 @@
     e.preventDefault();
     const label = tokenLabel.trim();
     if (!label) return;
+    const expiresAt = computeTokenExpiresAt();
+    if (!expiresAt) {
+      tokenStatus = "Pick a custom expiration date.";
+      tokenStatusKind = "error";
+      return;
+    }
 
     tokenStatus = "Generating…";
     tokenStatusKind = "";
@@ -277,7 +321,7 @@
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({ label }),
+        body: JSON.stringify({ label, expiresAt }),
       });
       if (res.status === 401) {
         window.location.href = "/login.html";
@@ -597,11 +641,26 @@
     }
     .share-form {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-bottom: 14px;
     }
     .share-form input {
       flex: 1;
+      min-width: 140px;
+      font-family: inherit;
+      font-size: 13.5px;
+      padding: 9px 11px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-sunken);
+      color: var(--ink);
+    }
+    /* #token-form's own expiry preset -- not part of the label/date
+       input's flex:1 group above, or it'd grow to match their width on
+       a wide viewport for no reason; a fixed intrinsic width instead,
+       same as any other <select> elsewhere in this file. */
+    #token-form select {
       font-family: inherit;
       font-size: 13.5px;
       padding: 9px 11px;
@@ -1144,6 +1203,26 @@
         required
         bind:value={tokenLabel}
       />
+      <label for="token-expiry-preset" class="sr-only">Expiration</label>
+      <select id="token-expiry-preset" bind:value={tokenExpiryPreset}>
+        {#each TOKEN_EXPIRY_PRESET_DAYS as days (days)}
+          <option value={days}>{days} days</option>
+        {/each}
+        <option value="custom">Custom date&hellip;</option>
+      </select>
+      {#if tokenExpiryPreset === "custom"}
+        <label for="token-expiry-custom-date" class="sr-only"
+          >Custom expiration date</label
+        >
+        <input
+          id="token-expiry-custom-date"
+          type="date"
+          required
+          min={tokenExpiryMinDate}
+          max={tokenExpiryMaxDate}
+          bind:value={tokenExpiryCustomDate}
+        />
+      {/if}
       <button type="submit" class="btn btn-primary">Generate</button>
     </form>
     <div class="field" id="token-reveal-field" hidden={!tokenRevealVisible}>
@@ -1173,7 +1252,9 @@
           <span>
             {escapeHTML(tok.label)}<br />
             <span class="api-token-meta"
-              >Created {formatDate(tok.createdAt)} &middot; Last used {tok.lastUsedAt
+              >Created {formatDate(tok.createdAt)} &middot; Expires {formatDate(
+                tok.expiresAt,
+              )} &middot; Last used {tok.lastUsedAt
                 ? formatDate(tok.lastUsedAt)
                 : "never used"}</span
             >

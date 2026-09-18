@@ -427,7 +427,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/APITokenCreateResponse"
         "400":
-          description: The request body wasn't valid JSON, or label was blank.
+          description: |
+            The request body wasn't valid JSON, label was blank, or
+            expiresAt wasn't in the future or was more than 366 days out.
           content:
             application/json:
               schema:
@@ -1484,7 +1486,7 @@ components:
         A personal API token's own metadata — never the token value
         itself, which only ever appears once, in
         APITokenCreateResponse's own response body at creation time.
-      required: [id, label, createdAt]
+      required: [id, label, createdAt, expiresAt]
       properties:
         id:
           type: string
@@ -1494,6 +1496,14 @@ components:
         createdAt:
           type: string
           format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: |
+            When this token stops authenticating requests (#356) —
+            always set, mandatory at creation, no "never expires"
+            option. A token whose expiration has passed is rejected the
+            same way an invalid one is.
         lastUsedAt:
           type: string
           format: date-time
@@ -1501,10 +1511,19 @@ components:
 
     APITokenCreateRequest:
       type: object
-      required: [label]
+      required: [label, expiresAt]
       properties:
         label:
           type: string
+        expiresAt:
+          type: string
+          format: date-time
+          description: |
+            Must be in the future and no more than 366 days out (#356,
+            matching GitHub's own fine-grained-token maximum) — the
+            Settings UI offers 7/30/60/90-day presets (30 pre-selected)
+            or a custom date within that same cap, never an option for
+            no expiration at all.
 
     APITokenCreateResponse:
       type: object
@@ -1513,13 +1532,16 @@ components:
         — shown to the user once, at creation time; only its hash is
         stored, so it can't be recovered from here again. Losing it
         means generating a new one.
-      required: [id, label, createdAt, token]
+      required: [id, label, createdAt, expiresAt, token]
       properties:
         id:
           type: string
         label:
           type: string
         createdAt:
+          type: string
+          format: date-time
+        expiresAt:
           type: string
           format: date-time
         token:

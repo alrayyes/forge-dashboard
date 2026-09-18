@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -68,11 +69,36 @@ func (s *Store) Init(ctx context.Context) error {
 		label TEXT NOT NULL,
 		token_hash TEXT NOT NULL UNIQUE,
 		created_at TIMESTAMP NOT NULL,
+		expires_at TIMESTAMP,
 		last_used_at TIMESTAMP
 	);
 	`
-	_, err := s.db.ExecContext(ctx, schema)
-	return err
+	if _, err := s.db.ExecContext(ctx, schema); err != nil {
+		return err
+	}
+	return s.addColumnsIfMissing(ctx)
+}
+
+// addColumnsIfMissing exists for a database that already had api_tokens
+// before expires_at was added — CREATE TABLE IF NOT EXISTS above is a
+// no-op against it, so the column needs adding here instead. SQLite has
+// no ADD COLUMN IF NOT EXISTS, so a "duplicate column name" error is the
+// expected, ignored outcome on a database that already has it (including
+// every fresh one, which got it from the CREATE TABLE above already) —
+// the same pattern internal/settings' own Store.addColumnsIfMissing uses.
+func (s *Store) addColumnsIfMissing(ctx context.Context) error {
+	migrations := []string{
+		`ALTER TABLE api_tokens ADD COLUMN expires_at TIMESTAMP`,
+	}
+	for _, stmt := range migrations {
+		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
+			if strings.Contains(err.Error(), "duplicate column name") {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 // CreateUser registers a brand-new account with no credentials yet —
@@ -403,10 +429,13 @@ func hashAPIToken(raw string) string {
 }
 
 // CreateAPIToken generates a brand-new personal API token for userID,
-// labeled label. raw is the only time the actual credential is ever
-// returned — only its hash is stored, so losing it means generating a
-// new one, the same "show once" handling a real secret needs.
-func (s *Store) CreateAPIToken(ctx context.Context, userID []byte, label string) (raw string, tok *APIToken, err error) {
+// labeled label, valid until expiresAt (#356 — mandatory, no "never
+// expires" option; the caller, internal/api's handler, enforces the
+// future/366-day-cap validation before this is ever called). raw is the
+// only time the actual credential is ever returned — only its hash is
+// stored, so losing it means generating a new one, the same "show once"
+// handling a real secret needs.
+func (s *Store) CreateAPIToken(ctx context.Context, userID []byte, label string, expiresAt time.Time) (raw string, tok *APIToken, err error) {
 	idBytes := make([]byte, 16)
 	if _, err := rand.Read(idBytes); err != nil {
 		return "", nil, fmt.Errorf("auth: generate api token id: %w", err)
@@ -421,10 +450,11 @@ func (s *Store) CreateAPIToken(ctx context.Context, userID []byte, label string)
 		ID:        encodeID(idBytes),
 		Label:     label,
 		CreatedAt: time.Now().UTC(),
+		ExpiresAt: expiresAt.UTC(),
 	}
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO api_tokens (id, user_id, label, token_hash, created_at) VALUES (?, ?, ?, ?, ?)`,
-		tok.ID, encodeID(userID), label, hashAPIToken(raw), tok.CreatedAt,
+		`INSERT INTO api_tokens (id, user_id, label, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		tok.ID, encodeID(userID), label, hashAPIToken(raw), tok.CreatedAt, tok.ExpiresAt,
 	)
 	if err != nil {
 		return "", nil, err
@@ -435,7 +465,7 @@ func (s *Store) CreateAPIToken(ctx context.Context, userID []byte, label string)
 // ListAPITokens returns userID's own live tokens, oldest first.
 func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, label, created_at, last_used_at FROM api_tokens WHERE user_id = ? ORDER BY created_at, id`,
+		`SELECT id, label, created_at, expires_at, last_used_at FROM api_tokens WHERE user_id = ? ORDER BY created_at, id`,
 		encodeID(userID),
 	)
 	if err != nil {
@@ -447,10 +477,17 @@ func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, 
 	for rows.Next() {
 		var (
 			tok        APIToken
+			expiresAt  sql.NullTime
 			lastUsedAt sql.NullTime
 		)
-		if err := rows.Scan(&tok.ID, &tok.Label, &tok.CreatedAt, &lastUsedAt); err != nil {
+		if err := rows.Scan(&tok.ID, &tok.Label, &tok.CreatedAt, &expiresAt, &lastUsedAt); err != nil {
 			return nil, err
+		}
+		// expiresAt.Valid is false only for a row predating this column
+		// (see APIToken.ExpiresAt's own doc comment) — the zero Time it
+		// defaults to reads as "already expired," not "never expires."
+		if expiresAt.Valid {
+			tok.ExpiresAt = expiresAt.Time
 		}
 		if lastUsedAt.Valid {
 			t := lastUsedAt.Time
@@ -462,18 +499,26 @@ func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, 
 }
 
 // UserForAPIToken returns the user raw belongs to, or ErrNotFound — the
-// Bearer-token equivalent of UserForSession. Also records this as the
-// token's most recent use, best-effort: a failure to persist that
-// doesn't fail a request the token has already authenticated.
+// Bearer-token equivalent of UserForSession. An expired token (or a
+// legacy row with no recorded expiry at all — see APIToken.ExpiresAt)
+// is rejected the same way an unknown one is, not a distinct error a
+// caller could special-case into still trusting it (#356). Also records
+// this as the token's most recent use, best-effort: a failure to
+// persist that doesn't fail a request the token has already
+// authenticated.
 func (s *Store) UserForAPIToken(ctx context.Context, raw string) (*User, error) {
 	hash := hashAPIToken(raw)
 	var userIDStr string
-	err := s.db.QueryRowContext(ctx, `SELECT user_id FROM api_tokens WHERE token_hash = ?`, hash).Scan(&userIDStr)
+	var expiresAt sql.NullTime
+	err := s.db.QueryRowContext(ctx, `SELECT user_id, expires_at FROM api_tokens WHERE token_hash = ?`, hash).Scan(&userIDStr, &expiresAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
+	}
+	if !expiresAt.Valid || time.Now().After(expiresAt.Time) {
+		return nil, ErrNotFound
 	}
 
 	if _, err := s.db.ExecContext(ctx, `UPDATE api_tokens SET last_used_at = ? WHERE token_hash = ?`, time.Now().UTC(), hash); err != nil {
