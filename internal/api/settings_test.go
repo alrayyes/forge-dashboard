@@ -119,6 +119,141 @@ func TestSettingsPut_ThenGet_RoundTripsNonSecretFieldsAndNeverReturnsTheToken(t 
 	assert.True(t, got.ForgejoTokenSet)
 }
 
+func TestThemeGet_NothingSavedYet_ReturnsEmptyMeaningSystem(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got api.ThemeResponse
+	require.NoError(t, readJSON(resp, &got))
+	assert.Empty(t, got.Theme)
+}
+
+// Same regression shape as TestBotPrUpdatesGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream:
+// this endpoint exists specifically so a page that only needs the theme
+// doesn't also provision webhook credentials as a side effect.
+func TestThemeGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	streamReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
+	require.NoError(t, err)
+	streamReq.AddCookie(sessionCookie)
+	streamResp, err := http.DefaultClient.Do(streamReq)
+	require.NoError(t, err)
+	defer func() { _ = streamResp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, streamResp.StatusCode)
+}
+
+// Theme has its own dedicated PUT /api/settings/theme (handleThemePut) —
+// the main settings PUT doesn't accept it at all, so a plain settings
+// save can't reset it back to "" the way it would if Theme were just
+// another field in settingsPutRequest with no explicit carry-over.
+func TestSettingsPut_DoesNotAcceptOrDisturbTheme(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
+
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubUsername":"ryan","theme":"light"}`, sessionCookie)
+	defer func() { _ = putResp.Body.Close() }()
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	var got api.SettingsResponse
+	require.NoError(t, readJSON(putResp, &got))
+	assert.Equal(t, "dark", got.Theme, "the main settings PUT must not be able to change theme")
+}
+
+func TestThemePut_ThenGet_RoundTrips(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie)
+	defer func() { _ = putResp.Body.Close() }()
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	var putBody api.ThemeResponse
+	require.NoError(t, readJSON(putResp, &putBody))
+	assert.Equal(t, "dark", putBody.Theme)
+
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
+	defer func() { _ = getResp.Body.Close() }()
+
+	var got api.ThemeResponse
+	require.NoError(t, readJSON(getResp, &got))
+	assert.Equal(t, "dark", got.Theme)
+}
+
+func TestThemePut_EmptyString_MeansSystemAndIsAccepted(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
+
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":""}`, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got api.ThemeResponse
+	require.NoError(t, readJSON(resp, &got))
+	assert.Empty(t, got.Theme)
+}
+
+func TestThemePut_InvalidValue_Rejected(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"purple"}`, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestThemePut_DoesNotDisturbOtherSettings(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+		`{"githubUsername":"ryan","allowBotPrUpdates":true,"renovateRebaseLabel":"retry"}`,
+		sessionCookie).Body.Close()
+
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"light"}`, sessionCookie)
+	defer func() { _ = putResp.Body.Close() }()
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	defer func() { _ = getResp.Body.Close() }()
+
+	var got api.SettingsResponse
+	require.NoError(t, readJSON(getResp, &got))
+	assert.Equal(t, "ryan", got.GitHubUsername)
+	assert.True(t, got.AllowBotPrUpdates)
+	assert.Equal(t, "retry", got.RenovateRebaseLabel)
+	assert.Equal(t, "light", got.Theme)
+}
+
 func TestSettingsPut_ThenGet_RoundTripsAllowBotPrUpdatesAndRenovateRebaseLabel(t *testing.T) {
 	t.Parallel()
 

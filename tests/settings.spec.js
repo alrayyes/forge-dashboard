@@ -19,38 +19,56 @@ test.describe('settings page', () => {
     await registerAndSignIn(page);
   });
 
-  test('dark mode chosen on the dashboard still applies after navigating to settings', async ({
-    page,
-  }) => {
-    // Real bug reported live: settings/admin/login had no theme handling
-    // at all, so an explicit dark-mode choice on the dashboard silently
-    // reverted to the OS default the moment someone left it.
-    await page.click('#theme-toggle');
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  test.describe('theme control (#352)', () => {
+    test('defaults to System, with no theme applied', async ({ page }) => {
+      await page.goto('/settings.html');
+      await expect(page.locator('#settings-form')).toBeVisible();
 
-    await page.goto('/settings.html');
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  });
+      await expect(
+        page.locator('.theme-segmented input[value=""]'),
+      ).toBeChecked();
+      await expect(page.locator('html')).not.toHaveAttribute('data-theme');
+    });
 
-  test('the theme toggle button works on the settings page itself, not just on the dashboard', async ({
-    page,
-  }) => {
-    // Bug: theme.js (loaded on every page) only applies whatever theme
-    // cookie is already set, before first paint -- the click handler that
-    // flips the cookie and re-applies the theme lived only inside app.js's
-    // initTheme(), which is dashboard-only. Every other page shipped the
-    // same button markup with no listener attached at all.
-    await page.goto('/settings.html');
+    test('choosing Dark applies immediately, with no Save step', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
 
-    const root = page.locator('html');
-    await expect(root).not.toHaveAttribute('data-theme', 'dark');
+      await page.click('.theme-segmented label:has-text("Dark")');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      await expect(
+        page.locator('.theme-segmented input[value="dark"]'),
+      ).toBeChecked();
+    });
 
-    await page.click('#theme-toggle');
-    await expect(root).toHaveAttribute('data-theme', 'dark');
-    await expect(page.locator('#theme-toggle')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    test('a choice survives a reload and following to another page', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+      await page.click('.theme-segmented label:has-text("Dark")');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+      await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      await expect(
+        page.locator('.theme-segmented input[value="dark"]'),
+      ).toBeChecked();
+
+      await page.goto('/');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    });
+
+    test('switching back to Light removes the dark attribute', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+      await page.click('.theme-segmented label:has-text("Dark")');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+      await page.click('.theme-segmented label:has-text("Light")');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    });
   });
 
   test('the header settings link reaches the settings page', async ({

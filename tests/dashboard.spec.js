@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { addVirtualAuthenticator } = require('./webauthn-helper');
+const { setTheme } = require('./theme-helper');
 
 async function registerAndSignIn(page) {
   await addVirtualAuthenticator(page);
@@ -295,15 +296,6 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#admin-link')).toBeHidden();
   });
 
-  test('theme toggle switches data-theme on the root element', async ({
-    page,
-  }) => {
-    const root = page.locator('html');
-    await expect(root).not.toHaveAttribute('data-theme', 'dark');
-    await page.click('#theme-toggle');
-    await expect(root).toHaveAttribute('data-theme', 'dark');
-  });
-
   test('a long title with several label chips wraps as a block instead of collapsing to single-word lines', async ({
     page,
   }) => {
@@ -532,7 +524,13 @@ test.describe('dashboard page', () => {
     });
 
     test('a chosen theme survives a reload', async ({ page }) => {
-      await page.click('#theme-toggle');
+      // theme.js applies whatever's in the cookie before first paint on
+      // every load — the mechanism itself is unchanged by #352 moving
+      // where theme gets set from (the header toggle) to Settings; this
+      // pins that mechanism directly rather than through Settings' own
+      // control, which settings.spec.js already covers.
+      await setTheme(page, 'dark');
+      await page.reload();
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
       await page.reload();
@@ -1528,8 +1526,8 @@ test.describe('dashboard page', () => {
         }),
       }),
     );
+    await setTheme(page, 'dark');
     await page.reload();
-    await page.click('#theme-toggle');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
     await expect(page.locator('#stat-failing')).toHaveText('0');

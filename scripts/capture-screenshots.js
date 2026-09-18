@@ -147,7 +147,21 @@ async function main() {
     path: path.join(OUT_DIR, 'dashboard-light.png'),
   });
 
-  await page.click('#theme-toggle');
+  // #352: theme is a Settings-only control now, not a header toggle —
+  // same real PUT tests/theme-helper.js's setTheme uses, then a reload
+  // so the layout's own theme sync picks it up.
+  await page.evaluate(() =>
+    fetch('/api/settings/theme', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ theme: 'dark' }),
+    }),
+  );
+  await page.reload();
+  await page.waitForFunction(
+    () => document.getElementById('stat-prs').textContent !== '–',
+  );
   await page.waitForFunction(
     () => document.documentElement.getAttribute('data-theme') === 'dark',
   );

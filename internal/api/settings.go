@@ -28,6 +28,11 @@ type SettingsResponse struct {
 	// tokens above, since neither is a secret.
 	AllowBotPrUpdates   bool   `json:"allowBotPrUpdates"`
 	RenovateRebaseLabel string `json:"renovateRebaseLabel"`
+	// Theme — see settings.Credentials' own doc comment. Round-tripped
+	// here too so the Settings page's own save confirms what it just set,
+	// even though the lightweight GET /api/settings/theme below is what
+	// every other page actually polls on load.
+	Theme string `json:"theme"`
 }
 
 func settingsResponseOf(c settings.Credentials) SettingsResponse {
@@ -41,6 +46,7 @@ func settingsResponseOf(c settings.Credentials) SettingsResponse {
 		WebhookSecret:       c.WebhookSecret,
 		AllowBotPrUpdates:   c.AllowBotPrUpdates,
 		RenovateRebaseLabel: c.RenovateRebaseLabel,
+		Theme:               c.Theme,
 	}
 }
 
@@ -74,6 +80,81 @@ func handleBotPrUpdatesGet(store *settings.Store) http.HandlerFunc {
 		// touched this toggle gets from settings.Store.Get itself.
 
 		writeJSON(w, http.StatusOK, BotPrUpdatesResponse{AllowBotPrUpdates: creds.AllowBotPrUpdates})
+	}
+}
+
+// ThemeResponse matches components.schemas.ThemeResponse. Same reasoning as
+// BotPrUpdatesResponse above: every page needs this on load, and none of
+// them should trigger EnsureWebhookCredentials just to read one field.
+type ThemeResponse struct {
+	Theme string `json:"theme"`
+}
+
+func handleThemeGet(store *settings.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+			return
+		}
+
+		creds, err := store.Get(r.Context(), u.ID)
+		if err != nil && !errors.Is(err, settings.ErrNotFound) {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+			return
+		}
+		// ErrNotFound leaves creds at its zero value — Theme "" (system),
+		// the same default a user who has saved settings but never
+		// touched this control gets from settings.Store.Get itself.
+
+		writeJSON(w, http.StatusOK, ThemeResponse{Theme: creds.Theme})
+	}
+}
+
+// themePutRequest matches components.schemas.ThemeRequest.
+type themePutRequest struct {
+	Theme string `json:"theme"`
+}
+
+// handleThemePut is Settings' own dedicated, instant save for the Theme
+// control (#352) — deliberately not routed through the main
+// PUT /api/settings, whose every other field is a plain replace rather
+// than a per-field merge (see settingsPutRequest's own doc comment): a
+// request carrying only {"theme":"dark"} through that handler would blank
+// every other saved field. Picking a theme should apply immediately, the
+// same "set once and forget" convention the ticket's own research cites,
+// not wait on the rest of the form's own Save button.
+func handleThemePut(store *settings.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+			return
+		}
+
+		var req themePutRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+			return
+		}
+		if req.Theme != "" && req.Theme != "light" && req.Theme != "dark" {
+			writeJSON(w, http.StatusBadRequest, errorBody(`theme must be "", "light", or "dark"`))
+			return
+		}
+
+		existing, err := store.Get(r.Context(), u.ID)
+		if err != nil && !errors.Is(err, settings.ErrNotFound) {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
+			return
+		}
+		existing.Theme = req.Theme
+
+		if err := store.Set(r.Context(), u.ID, existing); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not save theme"))
+			return
+		}
+
+		writeJSON(w, http.StatusOK, ThemeResponse{Theme: existing.Theme})
 	}
 }
 
@@ -147,6 +228,15 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			ForgejoUsername:     req.ForgejoUsername,
 			AllowBotPrUpdates:   req.AllowBotPrUpdates,
 			RenovateRebaseLabel: req.RenovateRebaseLabel,
+			// Theme isn't part of this request at all — it has its own
+			// dedicated PUT /api/settings/theme (handleThemePut) so
+			// picking it applies and saves instantly rather than
+			// waiting on this form's Save button. Carried over
+			// untouched here for the same reason WebhookToken/
+			// WebhookSecret are below: Store.Set writes every column
+			// on every call, so leaving Theme out of this struct
+			// would silently reset it to "" on every ordinary save.
+			Theme: existing.Theme,
 			// Set doesn't touch these columns (see settings.Store.Set) —
 			// carried over here only so this response reflects them
 			// too, rather than reporting them blank until the next GET.

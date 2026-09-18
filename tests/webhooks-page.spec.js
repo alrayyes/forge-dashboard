@@ -599,25 +599,4 @@ test.describe('webhooks page', () => {
       '/settings.html',
     );
   });
-
-  test('the theme toggle button works here too, off the shared implementation', async ({
-    page,
-  }) => {
-    // Same bug/fix as settings.spec.js's equivalent test: this page's
-    // +layout.svelte ships the same button markup as every vanilla page,
-    // wired only by injecting the shared theme-toggle.js script -- proof
-    // the fix isn't dashboard/vanilla-page-specific.
-    await mockDashboard(page, []);
-    await page.goto('/webhooks.html');
-
-    const root = page.locator('html');
-    await expect(root).not.toHaveAttribute('data-theme', 'dark');
-
-    await page.click('#theme-toggle');
-    await expect(root).toHaveAttribute('data-theme', 'dark');
-    await expect(page.locator('#theme-toggle')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-  });
 });

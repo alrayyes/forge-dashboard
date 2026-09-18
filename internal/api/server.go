@@ -79,6 +79,8 @@ func NewMux(deps Deps) *http.ServeMux {
 	mux.Handle("GET /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 	mux.Handle("GET /api/settings/bot-pr-updates", auth.RequireAuth(deps.AuthStore)(handleBotPrUpdatesGet(deps.SettingsStore)))
+	mux.Handle("GET /api/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemeGet(deps.SettingsStore)))
+	mux.Handle("PUT /api/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemePut(deps.SettingsStore)))
 	mux.Handle("GET /api/settings/filter-state", auth.RequireAuth(deps.AuthStore)(handleFilterStateGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings/filter-state", auth.RequireAuth(deps.AuthStore)(handleFilterStatePut(deps.SettingsStore)))
 	mux.Handle("GET /api/tokens", auth.RequireAuth(deps.AuthStore)(handleTokensGet(deps.AuthStore)))

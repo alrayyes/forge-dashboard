@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { applyTheme, setThemeCookie, type ThemePreference } from "$lib/theme";
 
   type SharedUser = { username: string; displayName: string };
   type SharingResponse = {
@@ -16,6 +17,7 @@
     webhookSecret: string;
     allowBotPrUpdates: boolean;
     renovateRebaseLabel: string;
+    theme: ThemePreference;
   };
   type ApiToken = {
     id: string;
@@ -123,6 +125,48 @@
   let saving = $state(false);
   let status = $state("");
   let statusKind = $state<"" | "error" | "ok">("");
+
+  // ---- theme (#352) ----
+  let theme = $state<ThemePreference>("");
+  let themeStatus = $state("");
+  let themeStatusKind = $state<"" | "error">("");
+
+  // Applies immediately (live preview, no header toggle anywhere to see
+  // it take effect otherwise) and saves instantly through its own
+  // dedicated endpoint — "set once and forget" (the ticket's own
+  // research), not something that waits on the big form's Save button.
+  function selectTheme(next: ThemePreference) {
+    const previous = theme;
+    theme = next;
+    applyTheme(next);
+    setThemeCookie(next);
+    themeStatus = "";
+    themeStatusKind = "";
+
+    fetch("/api/settings/theme", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ theme: next }),
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          return null;
+        }
+        if (!res.ok) throw new Error("could not save theme");
+        return res.json();
+      })
+      .catch(() => {
+        // Roll back the local/live change too — a failed save shouldn't
+        // leave the control showing a choice that didn't actually stick.
+        theme = previous;
+        applyTheme(previous);
+        setThemeCookie(previous);
+        themeStatus = "Could not save theme.";
+        themeStatusKind = "error";
+      });
+  }
 
   // Mirrors settings.js's updateForgejoTokenLink — no window access, so
   // safe as a plain $derived that also runs during adapter-static's
@@ -413,6 +457,10 @@
         allowBotPrUpdates = !!data.allowBotPrUpdates;
         if (!renovateRebaseLabel)
           renovateRebaseLabel = data.renovateRebaseLabel || "";
+        // Just the control's own displayed value — (app)/+layout.svelte's
+        // syncThemeFromServer already applies the theme itself and syncs
+        // the cookie on every page, this one included.
+        theme = data.theme || "";
       })
       .catch((err) => {
         status = err.message || "Could not load settings.";
@@ -486,6 +534,49 @@
     }
     .card .hint a {
       color: var(--accent);
+    }
+    /* Same segmented-control visual as index.html's forge filter
+       (.forge-segmented in style.css) but self-contained rather than
+       reused: that class's hidden-input positioning rule is
+       deliberately scoped to .filter-bar .forge-segmented (see its own
+       comment there on a real specificity bug that scoping fixed), so
+       reusing it bare here would leave the radio itself visible instead
+       of hidden behind the pill. */
+    .theme-segmented {
+      display: inline-flex;
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      padding: 2px;
+      margin: 0 0 8px;
+      gap: 2px;
+    }
+    .theme-segmented label {
+      position: relative;
+      display: inline-flex;
+    }
+    .theme-segmented input {
+      position: absolute;
+      inset: 0;
+      margin: 0;
+      min-width: 0;
+      opacity: 0;
+    }
+    .theme-segmented span {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--ink-2);
+      cursor: pointer;
+    }
+    .theme-segmented input:checked + span {
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+    .theme-segmented input:focus-visible + span {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
     .field {
       margin-bottom: 14px;
@@ -738,6 +829,51 @@
 <div class="settings-wrap">
   <div class="settings-header">
     <h1>Settings</h1>
+  </div>
+
+  <div class="card">
+    <h2>Appearance</h2>
+    <fieldset class="theme-segmented">
+      <legend class="sr-only">Theme</legend>
+      <label>
+        <input
+          type="radio"
+          name="theme"
+          value=""
+          checked={theme === ""}
+          onchange={() => selectTheme("")}
+        />
+        <span>System</span>
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="theme"
+          value="light"
+          checked={theme === "light"}
+          onchange={() => selectTheme("light")}
+        />
+        <span>Light</span>
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="theme"
+          value="dark"
+          checked={theme === "dark"}
+          onchange={() => selectTheme("dark")}
+        />
+        <span>Dark</span>
+      </label>
+    </fieldset>
+    <p
+      class={`status${themeStatusKind ? ` ${themeStatusKind}` : ""}`}
+      id="theme-status"
+      role="status"
+      aria-live="polite"
+    >
+      {themeStatus}
+    </p>
   </div>
 
   <div class="card">

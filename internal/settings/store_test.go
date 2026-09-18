@@ -67,6 +67,28 @@ func TestStore_SetThenGet_RoundTripsAllowBotPrUpdatesAndRenovateRebaseLabel(t *t
 	assert.Equal(t, "retry", got.RenovateRebaseLabel)
 }
 
+func TestStore_SetThenGet_RoundTripsTheme(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	want := settings.Credentials{Theme: "dark"}
+	require.NoError(t, store.Set(t.Context(), userID, want))
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Equal(t, "dark", got.Theme)
+}
+
+func TestStore_Get_NeverSaved_ThemeDefaultsToEmptyMeaningSystem(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	got, err := store.Get(t.Context(), []byte("user-1"))
+	require.ErrorIs(t, err, settings.ErrNotFound)
+	assert.Equal(t, "", got.Theme)
+}
+
 func TestCredentials_RenovateRebaseLabelOrDefault_EmptyFallsBackToRenovatesOwnDefault(t *testing.T) {
 	t.Parallel()
 	c := settings.Credentials{}

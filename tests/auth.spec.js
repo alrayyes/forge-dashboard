@@ -16,7 +16,7 @@ test.describe('passkey login', () => {
     await expect(page).toHaveURL(/\/login\.html$/);
   });
 
-  test('dark mode chosen while signed in still applies on the login page after logging out', async ({
+  test('dark mode chosen in Settings while signed in still applies on the login page after logging out', async ({
     page,
   }) => {
     await addVirtualAuthenticator(page);
@@ -29,7 +29,12 @@ test.describe('passkey login', () => {
     await page.click('#register-submit');
     await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
 
-    await page.click('#theme-toggle');
+    // #352: theme is a Settings-only control now, not a header toggle —
+    // login.html has no session at all, so it can only ever read the
+    // cookie fast-cache, never the server; this proves that cache
+    // actually gets written by Settings' own control, not just applied.
+    await page.goto('/settings.html');
+    await page.click('.theme-segmented label:has-text("Dark")');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
     await page.click('#logout-button');
