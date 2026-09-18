@@ -321,6 +321,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/settings/theme:
+    get:
+      operationId: getTheme
+      summary: The signed-in user's own saved theme preference
+      description: |
+        A lightweight, side-effect-free read of one field — theme — for
+        every page to check on load (#352). The same "deliberately not
+        GET /api/settings itself" restraint GET /api/settings/bot-pr-updates
+        already uses, for the same reason: this loads on every page visit
+        and shouldn't provision webhook credentials as a side effect.
+      tags: [settings]
+      responses:
+        "200":
+          description: The current value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThemeResponse"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/settings/filter-state:
     get:
       operationId: getFilterState
@@ -1401,6 +1426,7 @@ components:
           webhookSecret,
           allowBotPrUpdates,
           renovateRebaseLabel,
+          theme,
         ]
       properties:
         githubUsername:
@@ -1447,6 +1473,15 @@ components:
             per-repo configurable, so this is a user-set override rather
             than a hardcoded constant). Empty means Renovate's own
             documented default, `rebase`.
+        theme:
+          type: string
+          enum: ["", light, dark]
+          description: |
+            The signed-in user's own theme preference (#352). Empty
+            means "system" — follow the browser's prefers-color-scheme
+            rather than a saved choice. Set only from Settings; every
+            other page reads it via the lightweight
+            GET /api/settings/theme instead of this endpoint.
 
     SettingsRequest:
       type: object
@@ -1471,6 +1506,9 @@ components:
           type: boolean
         renovateRebaseLabel:
           type: string
+        theme:
+          type: string
+          enum: ["", light, dark]
 
     BotPrUpdatesResponse:
       type: object
@@ -1479,6 +1517,15 @@ components:
       properties:
         allowBotPrUpdates:
           type: boolean
+
+    ThemeResponse:
+      type: object
+      description: See GET /api/settings/theme's own description.
+      required: [theme]
+      properties:
+        theme:
+          type: string
+          enum: ["", light, dark]
 
     APIToken:
       type: object

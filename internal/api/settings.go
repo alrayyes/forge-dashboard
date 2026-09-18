@@ -28,6 +28,11 @@ type SettingsResponse struct {
 	// tokens above, since neither is a secret.
 	AllowBotPrUpdates   bool   `json:"allowBotPrUpdates"`
 	RenovateRebaseLabel string `json:"renovateRebaseLabel"`
+	// Theme — see settings.Credentials' own doc comment. Round-tripped
+	// here too so the Settings page's own save confirms what it just set,
+	// even though the lightweight GET /api/settings/theme below is what
+	// every other page actually polls on load.
+	Theme string `json:"theme"`
 }
 
 func settingsResponseOf(c settings.Credentials) SettingsResponse {
@@ -41,6 +46,7 @@ func settingsResponseOf(c settings.Credentials) SettingsResponse {
 		WebhookSecret:       c.WebhookSecret,
 		AllowBotPrUpdates:   c.AllowBotPrUpdates,
 		RenovateRebaseLabel: c.RenovateRebaseLabel,
+		Theme:               c.Theme,
 	}
 }
 
@@ -74,6 +80,34 @@ func handleBotPrUpdatesGet(store *settings.Store) http.HandlerFunc {
 		// touched this toggle gets from settings.Store.Get itself.
 
 		writeJSON(w, http.StatusOK, BotPrUpdatesResponse{AllowBotPrUpdates: creds.AllowBotPrUpdates})
+	}
+}
+
+// ThemeResponse matches components.schemas.ThemeResponse. Same reasoning as
+// BotPrUpdatesResponse above: every page needs this on load, and none of
+// them should trigger EnsureWebhookCredentials just to read one field.
+type ThemeResponse struct {
+	Theme string `json:"theme"`
+}
+
+func handleThemeGet(store *settings.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+			return
+		}
+
+		creds, err := store.Get(r.Context(), u.ID)
+		if err != nil && !errors.Is(err, settings.ErrNotFound) {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+			return
+		}
+		// ErrNotFound leaves creds at its zero value — Theme "" (system),
+		// the same default a user who has saved settings but never
+		// touched this control gets from settings.Store.Get itself.
+
+		writeJSON(w, http.StatusOK, ThemeResponse{Theme: creds.Theme})
 	}
 }
 
@@ -117,6 +151,7 @@ type settingsPutRequest struct {
 	ForgejoUsername     string `json:"forgejoUsername"`
 	AllowBotPrUpdates   bool   `json:"allowBotPrUpdates"`
 	RenovateRebaseLabel string `json:"renovateRebaseLabel"`
+	Theme               string `json:"theme"`
 }
 
 func handleSettingsPut(deps Deps) http.HandlerFunc {
@@ -147,6 +182,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			ForgejoUsername:     req.ForgejoUsername,
 			AllowBotPrUpdates:   req.AllowBotPrUpdates,
 			RenovateRebaseLabel: req.RenovateRebaseLabel,
+			Theme:               req.Theme,
 			// Set doesn't touch these columns (see settings.Store.Set) —
 			// carried over here only so this response reflects them
 			// too, rather than reporting them blank until the next GET.

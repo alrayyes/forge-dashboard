@@ -119,6 +119,62 @@ func TestSettingsPut_ThenGet_RoundTripsNonSecretFieldsAndNeverReturnsTheToken(t 
 	assert.True(t, got.ForgejoTokenSet)
 }
 
+func TestThemeGet_NothingSavedYet_ReturnsEmptyMeaningSystem(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got api.ThemeResponse
+	require.NoError(t, readJSON(resp, &got))
+	assert.Empty(t, got.Theme)
+}
+
+// Same regression shape as TestBotPrUpdatesGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream:
+// this endpoint exists specifically so a page that only needs the theme
+// doesn't also provision webhook credentials as a side effect.
+func TestThemeGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	streamReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
+	require.NoError(t, err)
+	streamReq.AddCookie(sessionCookie)
+	streamResp, err := http.DefaultClient.Do(streamReq)
+	require.NoError(t, err)
+	defer func() { _ = streamResp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, streamResp.StatusCode)
+}
+
+func TestSettingsPut_ThenGet_RoundTripsTheme(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"theme":"dark"}`, sessionCookie)
+	defer func() { _ = putResp.Body.Close() }()
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
+	defer func() { _ = getResp.Body.Close() }()
+
+	var got api.ThemeResponse
+	require.NoError(t, readJSON(getResp, &got))
+	assert.Equal(t, "dark", got.Theme)
+}
+
 func TestSettingsPut_ThenGet_RoundTripsAllowBotPrUpdatesAndRenovateRebaseLabel(t *testing.T) {
 	t.Parallel()
 
