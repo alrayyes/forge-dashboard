@@ -37,10 +37,16 @@ stale.
   browser's network tab and watch it call nothing but `/api/dashboard`,
   `/api/settings`, `/api/auth/*` and `/healthz` — and that `/api/settings`
   never echoes a token back, only whether one is set.
-- **One Go binary, no frontend build step.** Plain HTML/CSS/JS, embedded
-  into the binary with `//go:embed`. `go build` is the whole pipeline — no
-  Node toolchain needed to run the service, only to run its own lint/test
-  tooling (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+- **One Go binary.** Every page, plain HTML/CSS/JS or SvelteKit, ends up
+  embedded into the binary with `//go:embed` — a released binary needs
+  nothing but `go build` to run. Building from source needs one extra
+  step first, `bun run build:web`, to produce the SvelteKit pages
+  `internal/api/static` embeds — run automatically in CI and the
+  Docker build's own `web-build` stage, a manual step before a local
+  `go build` otherwise. The frontend is migrating to SvelteKit
+  incrementally, one page at a time (see #326), so this step's share of
+  the app grows over time rather than staying fixed. See
+  [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain either half needs.
 - **Read-only against both forges, with one caveat.** Nothing here writes
   back to GitHub or Forgejo — it aggregates and displays, and every row
   links out to the real thing. The caveat: checking whether a repo's
@@ -64,6 +70,10 @@ dashboard, from Settings).
 ## Requirements
 
 - **Go 1.27 or newer**, to build.
+- **[bun](https://bun.sh)**, to build from source — `bun run build:web`
+  has to run before `go build` picks up its output (see the preceding
+  **Design** section). Not needed to run a pre-built release binary or
+  the Docker image, both of which already have that step baked in.
 - **A passkey-capable browser** to sign in at all — any current Chrome,
   Safari, Firefox or Edge; a phone counts too. Nothing else to install.
 - **Somewhere writable for the database** (`DB_PATH`, default
