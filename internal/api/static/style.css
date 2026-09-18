@@ -638,6 +638,31 @@ select.col-filter {
   min-width: 120px;
 }
 
+/* Always visible (#354's own "Design decisions" section, not this file's
+   own restraint elsewhere for e.g. mergeStatusPill): hiding it would
+   remove both the "filters can be cleared" affordance and the passive
+   "something is filtered" signal disabled vs. enabled already gives for
+   free. */
+.clear-filters {
+  flex: none;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+.clear-filters:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+.clear-filters:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* A segmented control, not tabs — it reshapes what's already on screen
    rather than navigating anywhere, and stays fully visible at rest so the
    active forge is never hidden behind a closed dropdown the way the old

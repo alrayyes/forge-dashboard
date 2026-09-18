@@ -2069,6 +2069,158 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
     });
   });
+
+  test.describe('Clear filters button (#354)', () => {
+    var PR_ONE = {
+      forge: 'github',
+      repo: 'alrayyes/forge-dashboard',
+      number: 1,
+      title: 'Add NTP alarm',
+      url: 'https://example.com/1',
+      author: 'ryan',
+      draft: false,
+      labels: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ci: 'success',
+    };
+    var PR_TWO = {
+      forge: 'github',
+      repo: 'alrayyes/wiki',
+      number: 2,
+      title: 'Fix build',
+      url: 'https://example.com/2',
+      author: 'someone-else',
+      draft: false,
+      labels: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ci: 'failure',
+    };
+    var DEPENDENCY_DASHBOARD_ISSUE = {
+      forge: 'github',
+      repo: 'alrayyes/forge-dashboard',
+      number: 3,
+      title: 'Dependency Dashboard',
+      url: 'https://example.com/3',
+      author: 'renovate[bot]',
+      labels: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    function mockDashboard(page) {
+      return page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            pullRequests: [PR_ONE, PR_TWO],
+            issues: [DEPENDENCY_DASHBOARD_ISSUE],
+          }),
+        }),
+      );
+    }
+
+    test.beforeEach(async ({ page }) => {
+      await mockDashboard(page);
+      await page.reload();
+    });
+
+    test('is visible but disabled with no filters active', async ({ page }) => {
+      var button = page.getByRole('button', { name: 'Clear filters' });
+      await expect(button).toBeVisible();
+      await expect(button).toBeDisabled();
+    });
+
+    test('becomes enabled once a shared filter is active, and stays enabled for CI status/Hide Dependency Dashboard alone too', async ({
+      page,
+    }) => {
+      var button = page.getByRole('button', { name: 'Clear filters' });
+
+      await page.fill('.filter-bar .col-filter[data-col="title"]', 'alarm');
+      await expect(button).toBeEnabled();
+
+      await page.fill('.filter-bar .col-filter[data-col="title"]', '');
+      await expect(button).toBeDisabled();
+
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
+        'failure',
+      );
+      await expect(button).toBeEnabled();
+    });
+
+    test('clicking resets every shared filter, group-by, CI status, and Hide Dependency Dashboard in one action, re-renders both boards, resets pagination, and disables itself again', async ({
+      page,
+    }) => {
+      await page.fill('.filter-bar .col-filter[data-col="title"]', 'alarm');
+      await page.selectOption('#shared-group-select', 'repo');
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
+        'failure',
+      );
+      await page.locator('#issue-hide-dependency-dashboard').uncheck();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(0); // title+status together match neither PR
+      // The shared title filter also applies to issues, so even with
+      // Hide Dependency Dashboard unchecked, "alarm" still excludes it —
+      // confirms the shared filter and the board-owned extra combine
+      // rather than either alone deciding visibility.
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(0);
+
+      var button = page.getByRole('button', { name: 'Clear filters' });
+      await expect(button).toBeEnabled();
+      await button.click();
+
+      await expect(button).toBeDisabled();
+      await expect(
+        page.locator('.filter-bar .col-filter[data-col="title"]'),
+      ).toHaveValue('');
+      await expect(page.locator('#shared-group-select')).toHaveValue('');
+      await expect(
+        page.locator(
+          'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
+        ),
+      ).toHaveValue('');
+      await expect(
+        page.locator('#issue-hide-dependency-dashboard'),
+      ).toBeChecked();
+      // Both PRs are back (no title/status filter), the Dependency
+      // Dashboard issue is hidden again (its own default).
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(0);
+    });
+
+    test('the cleared state persists across a reload', async ({ page }) => {
+      await page.fill('.filter-bar .col-filter[data-col="title"]', 'alarm');
+      await page.getByRole('button', { name: 'Clear filters' }).click();
+
+      await page.reload();
+
+      await expect(
+        page.getByRole('button', { name: 'Clear filters' }),
+      ).toBeDisabled();
+      await expect(
+        page.locator('.filter-bar .col-filter[data-col="title"]'),
+      ).toHaveValue('');
+    });
+
+    test('has no axe-core violations with the button enabled', async ({
+      page,
+    }) => {
+      await page.fill('.filter-bar .col-filter[data-col="title"]', 'alarm');
+      await expect(
+        page.getByRole('button', { name: 'Clear filters' }),
+      ).toBeEnabled();
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
 });
 
 test.describe('login page', () => {

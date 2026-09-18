@@ -1283,6 +1283,12 @@
         visible.length,
         state.items.length,
       );
+      // Every state change this app makes ends in a render() on one or
+      // both boards (directly, or via renderBoth()) — updateClearFiltersButton
+      // is declared later in this same closure but hoists, so this stays
+      // the one place the button's disabled state can go stale, rather
+      // than threading it through every individual change handler.
+      updateClearFiltersButton();
     }
 
     var pageSizeSelect = document.getElementById(`${idPrefix}-page-size`);
@@ -1405,6 +1411,72 @@
   if (sharedGroupSelect) {
     sharedGroupSelect.addEventListener('change', () => {
       sharedState.shared.groupBy = sharedGroupSelect.value || '';
+      prBoard.resetPage();
+      issueBoard.resetPage();
+      Filters.saveState(sharedState);
+      renderBoth();
+    });
+  }
+
+  // #354: true once nothing in sharedState differs from Filters'
+  // defaultState() — shared is empty, no CI status, and
+  // hideDependencyDashboard is back at its default-checked '1'. Read by
+  // both the disabled-toggle below and the Clear filters click handler's
+  // own "is there anything to clear" check isn't needed separately: the
+  // button is simply unclickable once this is already true.
+  function filtersAreDefault() {
+    return (
+      Object.keys(sharedState.shared).every((k) => !sharedState.shared[k]) &&
+      !sharedState.pr.status &&
+      sharedState.issue.hideDependencyDashboard === '1'
+    );
+  }
+
+  // Called from each board's own render() (itself called on every state
+  // change, shared or board-local) rather than threaded through every
+  // individual change handler separately — one place this can go stale.
+  function updateClearFiltersButton() {
+    var button = document.getElementById('clear-filters-button');
+    if (button) button.disabled = filtersAreDefault();
+  }
+
+  var clearFiltersButton = document.getElementById('clear-filters-button');
+  if (clearFiltersButton) {
+    clearFiltersButton.addEventListener('click', () => {
+      // Mutated in place, not reassigned: createBoard's own extraState
+      // closures (sharedState.pr, sharedState.issue) captured these
+      // exact objects at setup time, and a reassignment here would leave
+      // them pointing at the old, still-filtered one.
+      Object.keys(sharedState.shared).forEach((k) => {
+        delete sharedState.shared[k];
+      });
+      Object.keys(sharedState.pr).forEach((k) => {
+        delete sharedState.pr[k];
+      });
+      Object.keys(sharedState.issue).forEach((k) => {
+        delete sharedState.issue[k];
+      });
+      sharedState.issue.hideDependencyDashboard = '1';
+
+      document.querySelectorAll('.filter-bar .col-filter').forEach((c) => {
+        if (c.type === 'radio') {
+          c.checked = c.value === '';
+        } else {
+          c.value = '';
+        }
+      });
+      if (sharedGroupSelect) sharedGroupSelect.value = '';
+      var statusSelect = document.querySelector(
+        '.col-filter[data-col="status"]',
+      );
+      if (statusSelect) statusSelect.value = '';
+      var hideDependencyDashboardCheckbox = document.getElementById(
+        'issue-hide-dependency-dashboard',
+      );
+      if (hideDependencyDashboardCheckbox)
+        hideDependencyDashboardCheckbox.checked = true;
+
+      updateSharedFilterOptions();
       prBoard.resetPage();
       issueBoard.resetPage();
       Filters.saveState(sharedState);
