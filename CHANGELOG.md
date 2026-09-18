@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.77.0](https://github.com/alrayyes/forge-dashboard/compare/v0.76.2...v0.77.0) (2026-09-18)
+
+
+### Features
+
+* add structured HTTP access logging ([#420](https://github.com/alrayyes/forge-dashboard/issues/420)) ([0e3cdca](https://github.com/alrayyes/forge-dashboard/commit/0e3cdca1876ff21540801b5619a838491f7003c7))
+
 ## [0.76.2](https://github.com/alrayyes/forge-dashboard/compare/v0.76.1...v0.76.2) (2026-09-18)
 
 
