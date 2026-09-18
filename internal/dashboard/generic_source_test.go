@@ -134,7 +134,7 @@ func TestGenericSource_Fetch_ClientWithNoRateLimiter_LeavesRateLimitNil(t *testi
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
 	result := source.Fetch(t.Context())
 
-	assert.Nil(t, result.Health.RateLimit)
+	assert.Nil(t, result.Health.RateLimitREST)
 }
 
 func TestGenericSource_Fetch_ClientWithRateLimiter_ReportsIt(t *testing.T) {
@@ -147,8 +147,8 @@ func TestGenericSource_Fetch_ClientWithRateLimiter_ReportsIt(t *testing.T) {
 	source := dashboard.NewGenericSource(dashboard.ForgeGitHub, client, 4)
 	result := source.Fetch(t.Context())
 
-	require.NotNil(t, result.Health.RateLimit)
-	assert.Equal(t, dashboard.RateLimit{Limit: 5000, Remaining: 4922, ResetsAt: resetsAt}, *result.Health.RateLimit)
+	require.NotNil(t, result.Health.RateLimitREST)
+	assert.Equal(t, dashboard.RateLimit{Limit: 5000, Remaining: 4922, ResetsAt: resetsAt}, *result.Health.RateLimitREST)
 }
 
 func TestGenericSource_Fetch_RateLimitCheckFails_StillReportsReachable(t *testing.T) {
@@ -159,7 +159,7 @@ func TestGenericSource_Fetch_RateLimitCheckFails_StillReportsReachable(t *testin
 	result := source.Fetch(t.Context())
 
 	assert.True(t, result.Health.Reachable, "a failed rate-limit check shouldn't fail the whole forge")
-	assert.Nil(t, result.Health.RateLimit)
+	assert.Nil(t, result.Health.RateLimitREST)
 }
 
 type fakeWebhookCheckerClient struct {

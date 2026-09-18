@@ -139,7 +139,11 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 		if err != nil {
 			slog.Warn("rate limit check failed", "forge", s.forge, "error", err)
 		} else {
-			result.Health.RateLimit = &limit
+			// Every ForgeClient GenericSource drives makes plain REST-style
+			// per-repo calls (ListOpenPullRequests/ListOpenIssues/
+			// HasWebhook) — no GraphQL involved at all, unlike GitHub's own
+			// dedicated Fetch — so a budget reported here is always REST.
+			result.Health.RateLimitREST = &limit
 		}
 	}
 	for _, r := range results {

@@ -167,7 +167,17 @@ type ForgeHealth struct {
 	Error     string         `json:"error,omitempty"`
 	ErrorKind ForgeErrorKind `json:"errorKind,omitempty"`
 	RepoCount int            `json:"repoCount"`
-	RateLimit *RateLimit     `json:"rateLimit,omitempty"`
+	// RateLimitGraphQL and RateLimitREST are two independent budgets
+	// (#361) — GitHub tracks REST and GraphQL as separate 5000/hour
+	// allowances, so a client spending both (this codebase's GitHub
+	// client does: the main query is GraphQL, checkWebhooks and every
+	// write action are REST) has two numbers to report, not one. Nil
+	// independently: a forge that only ever makes REST calls (Forgejo,
+	// through GenericSource) never populates RateLimitGraphQL at all,
+	// and RateLimitREST stays nil on a poll that made no REST calls
+	// (no webhook path configured).
+	RateLimitGraphQL *RateLimit `json:"rateLimitGraphQL,omitempty"`
+	RateLimitREST    *RateLimit `json:"rateLimitREST,omitempty"`
 }
 
 // ClientError carries a ForgeErrorKind classification alongside the

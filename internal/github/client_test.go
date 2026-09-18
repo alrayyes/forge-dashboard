@@ -162,9 +162,9 @@ func TestFetch_ReportsRateLimit(t *testing.T) {
 	client := github.NewClient("test-token", "", srv.URL)
 	result := client.Fetch(t.Context())
 
-	require.NotNil(t, result.Health.RateLimit)
-	assert.Equal(t, 5000, result.Health.RateLimit.Limit)
-	assert.Equal(t, 4922, result.Health.RateLimit.Remaining)
+	require.NotNil(t, result.Health.RateLimitGraphQL)
+	assert.Equal(t, 5000, result.Health.RateLimitGraphQL.Limit)
+	assert.Equal(t, 4922, result.Health.RateLimitGraphQL.Remaining)
 }
 
 func TestFetch_ExcludesArchivedForkedAndReadOnlyRepos(t *testing.T) {
@@ -465,8 +465,8 @@ func TestFetch_GraphQLErrorsArray_RateLimitReportedAsHTTP200_StillGetsShortMessa
 	require.False(t, result.Health.Reachable)
 	assert.Equal(t, "github: graphql: rate limit exceeded", result.Health.Error)
 	assert.NotContains(t, result.Health.Error, "GitHub Support")
-	require.NotNil(t, result.Health.RateLimit)
-	assert.Equal(t, 0, result.Health.RateLimit.Remaining)
+	require.NotNil(t, result.Health.RateLimitGraphQL)
+	assert.Equal(t, 0, result.Health.RateLimitGraphQL.Remaining)
 }
 
 func TestFetch_GraphQL_ClassifiesErrorKindFromStatus(t *testing.T) {
@@ -721,10 +721,10 @@ func TestFetch_RateLimitExceeded_StillPopulatesRateLimit(t *testing.T) {
 	result := client.Fetch(t.Context())
 
 	require.False(t, result.Health.Reachable)
-	require.NotNil(t, result.Health.RateLimit)
-	assert.Equal(t, 5000, result.Health.RateLimit.Limit)
-	assert.Equal(t, 0, result.Health.RateLimit.Remaining)
-	assert.Equal(t, int64(1789400145), result.Health.RateLimit.ResetsAt.Unix())
+	require.NotNil(t, result.Health.RateLimitGraphQL)
+	assert.Equal(t, 5000, result.Health.RateLimitGraphQL.Limit)
+	assert.Equal(t, 0, result.Health.RateLimitGraphQL.Remaining)
+	assert.Equal(t, int64(1789400145), result.Health.RateLimitGraphQL.ResetsAt.Unix())
 }
 
 func TestFetch_FailureWithNoRateLimitHeaders_LeavesRateLimitNil(t *testing.T) {
@@ -743,7 +743,7 @@ func TestFetch_FailureWithNoRateLimitHeaders_LeavesRateLimitNil(t *testing.T) {
 
 	require.False(t, result.Health.Reachable)
 	assert.Contains(t, result.Health.Error, "Bad credentials")
-	assert.Nil(t, result.Health.RateLimit, "no rate-limit headers means nothing to report, not a fabricated zero")
+	assert.Nil(t, result.Health.RateLimitGraphQL, "no rate-limit headers means nothing to report, not a fabricated zero")
 }
 
 func TestFetch_RetryAfterIncludedWhenPresent(t *testing.T) {
@@ -813,7 +813,7 @@ func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 
 	require.True(t, result.Health.Reachable)
 	assert.Equal(t, 1, result.Health.RepoCount)
-	assert.Nil(t, result.Health.RateLimit, "the REST fallback has no rate-limit reporting")
+	assert.Nil(t, result.Health.RateLimitREST, "this fake server sets no X-RateLimit-* headers, so there's nothing to have recorded")
 	assert.Equal(t, []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/tempus-fugit"}}, result.Repos)
 }
 
@@ -1362,6 +1362,96 @@ func TestFetch_SetWebhookPath_MarksRepoWithMatchingHookAsHasWebhook(t *testing.T
 	require.True(t, result.Health.Reachable)
 	require.Len(t, result.Repos, 1)
 	assert.True(t, result.Repos[0].HasWebhook)
+}
+
+// TestFetch_CheckWebhooksSuccess_ReportsRESTRateLimit is #361's own core
+// property: checkWebhooks is the one REST call fetchViaGraphQL still
+// makes per poll, and its own rate-limit budget — a completely separate
+// 5000/hour allowance from the GraphQL query's own rateLimit block —
+// has to reach ForgeHealth distinctly, not get silently dropped just
+// because the overall fetch is GraphQL-driven.
+func TestFetch_CheckWebhooksSuccess_ReportsRESTRateLimit(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "remaining": 4999, "resetAt": "2026-09-14T16:00:00Z"},
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+					},
+				},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Limit", "5000")
+		w.Header().Set("X-RateLimit-Remaining", "4321")
+		w.Header().Set("X-RateLimit-Reset", "1789400145")
+		writeJSON(t, w, []map[string]any{})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+	require.NotNil(t, result.Health.RateLimitGraphQL)
+	assert.Equal(t, 4999, result.Health.RateLimitGraphQL.Remaining, "the GraphQL budget the query itself reported")
+	require.NotNil(t, result.Health.RateLimitREST)
+	assert.Equal(t, 5000, result.Health.RateLimitREST.Limit)
+	assert.Equal(t, 4321, result.Health.RateLimitREST.Remaining, "checkWebhooks' own REST budget, distinct from GraphQL's")
+	assert.Equal(t, int64(1789400145), result.Health.RateLimitREST.ResetsAt.Unix())
+}
+
+// TestFetch_CheckWebhooksRateLimited_StillReportsRESTRateLimit is the
+// case that matters most: exactly when the REST budget is what just ran
+// out, its own response still carries the headers saying so — this must
+// reach RateLimitREST from the failure path too, not only a success.
+func TestFetch_CheckWebhooksRateLimited_StillReportsRESTRateLimit(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+					},
+				},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Limit", "5000")
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "1789400145")
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]string{"message": "API rate limit exceeded."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+	result := client.Fetch(t.Context())
+
+	// checkWebhooks logs and skips a per-repo failure rather than
+	// failing the whole forge (see its own doc comment) — the fetch as
+	// a whole still succeeds, just with HasWebhook left false for the
+	// one repo whose check failed.
+	require.True(t, result.Health.Reachable)
+	require.Len(t, result.Repos, 1)
+	assert.False(t, result.Repos[0].HasWebhook)
+	require.NotNil(t, result.Health.RateLimitREST)
+	assert.Equal(t, 0, result.Health.RateLimitREST.Remaining)
 }
 
 func TestFetch_SetWebhookPath_NoMatchingHook(t *testing.T) {
