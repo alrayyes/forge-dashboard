@@ -64,7 +64,7 @@ request or a comment but never to that pull request's checks finishing.
 | A commit landing outside an open pull request                                                   | not tracked          | Push           |
 
 GitHub splits CI into two separate events because it has two separate
-CI mechanisms with two separate APIs: **Statuses** is the older
+CI mechanisms with two separate APIs — **Statuses** is the older
 commit-status API (what most third-party CI still posts to), **Check
 runs** is GitHub Actions and any GitHub App-based check. Skip either one
 and a pull request whose only checks come from the mechanism you didn't
@@ -89,10 +89,10 @@ working; there's no separate step to "save" them.
 
 ## GitHub
 
-1. On the repository you want live updates from: **Settings → Webhooks →
-   Add webhook**.
+1. On the repository you want live updates from, open **Settings →
+   Webhooks → Add webhook**.
 2. **Payload URL**: the GitHub webhook URL from Settings.
-3. **Content type**: `application/json`.
+3. **`Content type`**: `application/json`.
 4. **Secret**: the secret from Settings.
 5. **Which events would you like to trigger this webhook?** → "Let me
    select individual events", then check **Pull requests**, **Issues**,
@@ -100,17 +100,17 @@ working; there's no separate step to "save" them.
    works too, see below — it's just more traffic than needed.)
 6. Leave **Active** checked, then **Add webhook**.
 
-GitHub POSTs a `ping` event immediately to confirm the URL is reachable;
+GitHub sends a `ping` event via POST immediately to confirm the URL is reachable;
 a green checkmark next to the webhook in that same settings page means it
 was accepted.
 
 ## Forgejo
 
-1. On the repository: **Settings → Webhooks → Add Webhook**, then choose
+1. On the repository, open **Settings → Webhooks → Add Webhook**, then choose
    **Forgejo** (choose **Gitea** instead if that's the only option your
    instance offers — both work the same way here).
 2. **Target URL**: the Forgejo webhook URL from Settings.
-3. **HTTP Method**: `POST`. **POST Content Type**: `application/json`.
+3. **HTTP Method**: `POST`. **`POST Content Type`**: `application/json`.
 4. **Secret**: the secret from Settings.
 5. **Trigger On**: "Custom Events", then check **Pull Request**,
    **Issue**, **Push**, and **Status**. ("All Events" works too, same

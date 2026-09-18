@@ -52,7 +52,7 @@ stale.
   webhook is already pointed at this dashboard (the Webhooks card, and the
   dashboard's own coverage summary) needs a token scope that includes
   write access on Forgejo, since its hooks API has no separate read-only
-  scope — this app still only reads that list, never creates or edits a
+  scope — this app still only reads that list, and never creates or edits a
   hook itself.
 
 ### Where this stands against #3
@@ -262,7 +262,7 @@ delivery a new webhook sends, say) falls back to a full refresh instead.
 
 Everything the process itself needs is environment variables — no
 config file, and nothing forge-related, since that's per-user now (see
-**Credentials** above):
+the preceding **Credentials** section):
 
 | Variable           | Required | Default                    | Meaning                                                                                                                                                                                                                                    |
 | ------------------ | -------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
