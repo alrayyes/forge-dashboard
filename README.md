@@ -217,6 +217,13 @@ also reveals a field for the label Renovate's own rebase/retry trigger
 listens for on your repos (its own `rebaseLabel` config option, genuinely
 per-repo configurable — leave blank for Renovate's own default, `rebase`).
 
+A Dependabot-authored pull request on GitHub instead gets its own pair of
+buttons — `Dependabot: Rebase` and `Dependabot: Recreate` — that trigger
+Dependabot's own [comment commands](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#managing-dependabot-pull-requests-with-comment-commands)
+(`@dependabot rebase` / `@dependabot recreate`) instead of you switching to
+the forge to type them yourself. GitHub only — Dependabot doesn't run on
+Forgejo.
+
 ## Webhooks
 
 Optional. Without one, the dashboard still refreshes on its own schedule

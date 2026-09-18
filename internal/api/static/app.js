@@ -276,6 +276,7 @@
     var mergePill;
     var updateBranchAction;
     var mergeAction;
+    var dependabotAction;
 
     row.appendChild(repoCell(item));
     row.appendChild(titleCell(item, onLabelClick, activeLabel));
@@ -298,6 +299,8 @@
       if (updateBranchAction) statusCell.appendChild(updateBranchAction);
       mergeAction = mergeActionCell(item);
       if (mergeAction) statusCell.appendChild(mergeAction);
+      dependabotAction = dependabotActionCell(item);
+      if (dependabotAction) statusCell.appendChild(dependabotAction);
       meta.appendChild(statusCell);
     } else {
       meta.appendChild(el('div', 'empty-cell'));
@@ -691,6 +694,140 @@
       doUpdateBranch(item, button);
     });
     return button;
+  }
+
+  // ---- Dependabot rebase/recreate actions ----
+  // Keyed by `${prKey}:${action}`, not just prKey — Rebase and Recreate are
+  // independent actions on the same PR, each with its own in-flight/locked
+  // state, so one locking (say, a 409 mid-recreate) can't hide the other
+  // still being clickable.
+  var dependabotActionState = {};
+
+  // Mirrors reactiveUpdateBranchLockReason's 403/429 handling; 409 reads as
+  // Dependabot's own comment command not applying right now (already
+  // rebasing, or the PR's in a state it won't act on) rather than a merge
+  // conflict.
+  function reactiveDependabotActionLockReason(status) {
+    if (status === 403)
+      return 'Missing permission — check your token in Settings.';
+    if (status === 429)
+      return 'Rate limit exceeded — try again once it resets.';
+    if (status === 409)
+      return "Dependabot can't act on this pull request right now.";
+    return null;
+  }
+
+  var DEPENDABOT_ACTION_LABELS = {
+    rebase: 'Dependabot: Rebase',
+    recreate: 'Dependabot: Recreate',
+  };
+  var DEPENDABOT_ACTION_PROGRESS_LABELS = {
+    rebase: 'Requesting rebase…',
+    recreate: 'Requesting recreate…',
+  };
+
+  // No confirm step — same reasoning as doUpdateBranch: this only asks
+  // Dependabot to redo its own routine, reversible work, not a merge.
+  function doDependabotAction(item, action, button) {
+    var key = `${prKey(item)}:${action}`;
+    dependabotActionState[key] = { phase: 'requesting' };
+    button.disabled = true;
+    button.textContent = DEPENDABOT_ACTION_PROGRESS_LABELS[action];
+    showStatus(`Asking Dependabot to ${action} ${item.repo}#${item.number}…`);
+
+    fetch('/api/pull-requests/dependabot-action', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        forge: item.forge,
+        fullName: item.repo,
+        number: item.number,
+        action: action,
+      }),
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = '/login.html';
+          throw new Error('session expired');
+        }
+        if (res.status === 204) return null;
+        return res.json().then((body) => {
+          var err = new Error(body?.error || `backend answered ${res.status}`);
+          err.status = res.status;
+          throw err;
+        });
+      })
+      .then(() => {
+        delete dependabotActionState[key];
+        showStatus(
+          `Asked Dependabot to ${action} ${item.repo}#${item.number}.`,
+        );
+        // No immediate /api/dashboard/refresh, unlike doMerge/
+        // doUpdateBranch: posting the comment doesn't change anything
+        // about this pull request itself — Dependabot's own rebase/
+        // recreate run is what would, and that happens on its own
+        // schedule, outside this request.
+        prBoard.render();
+      })
+      .catch((err) => {
+        var lockReason = reactiveDependabotActionLockReason(err.status);
+        dependabotActionState[key] = lockReason
+          ? { phase: 'locked', reason: lockReason }
+          : { phase: 'idle' };
+        if (err.status === 403) forgePermissionDenied[item.forge] = true;
+        clearStatus();
+        showError(
+          `Couldn't ask Dependabot to ${action} ${item.repo}#${item.number}: ${err.message}`,
+        );
+        prBoard.render();
+      });
+  }
+
+  function dependabotActionButton(item, action) {
+    var key = `${prKey(item)}:${action}`;
+    var entry = dependabotActionState[key] || { phase: 'idle' };
+    var proactiveReason;
+
+    if (entry.phase === 'locked')
+      return lockedActionButton(DEPENDABOT_ACTION_LABELS[action], entry.reason);
+
+    if (entry.phase === 'idle') {
+      proactiveReason = proactiveActionLockReason(item.forge);
+      if (proactiveReason)
+        return lockedActionButton(
+          DEPENDABOT_ACTION_LABELS[action],
+          proactiveReason,
+        );
+    }
+
+    var requesting = entry.phase === 'requesting';
+    var button = el(
+      'button',
+      'row-action',
+      requesting
+        ? DEPENDABOT_ACTION_PROGRESS_LABELS[action]
+        : DEPENDABOT_ACTION_LABELS[action],
+    );
+    button.type = 'button';
+    button.disabled = requesting;
+    button.addEventListener('click', () => {
+      doDependabotAction(item, action, button);
+    });
+    return button;
+  }
+
+  // GitHub only — Dependabot doesn't run on Forgejo, so there's no
+  // equivalent comment command to send there.
+  function dependabotActionCell(item) {
+    if (item.forge !== 'github' || !isDependabotPr(item)) return null;
+
+    var wrap = el('span', 'row-action-group');
+    wrap.appendChild(dependabotActionButton(item, 'rebase'));
+    wrap.appendChild(dependabotActionButton(item, 'recreate'));
+    return wrap;
   }
 
   // ---- shared filter state ----

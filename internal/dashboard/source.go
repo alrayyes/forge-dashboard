@@ -93,6 +93,19 @@ type BranchUpdater interface {
 	UpdateBranch(ctx context.Context, owner, name string, number int) (accepted bool, err error)
 }
 
+// PullRequestCommenter is implemented by a ForgeClient (or, for
+// github.Client, a Source directly) that can post a comment on one of its
+// own pull requests — checked via a type assertion, the same
+// optional-capability pattern BranchUpdater uses. Takes a plain body
+// rather than exposing separate per-command methods: Dependabot's own
+// comment-command interface (`@dependabot rebase`, `@dependabot recreate`)
+// is just a PR comment with specific text, and it's the caller's job (the
+// API handler, not this port) to restrict which bodies actually get sent
+// rather than exposing a generic "post any comment" capability.
+type PullRequestCommenter interface {
+	CommentPullRequest(ctx context.Context, owner, name string, number int, body string) error
+}
+
 // WebhookTargetsPath reports whether rawURL's path component is exactly
 // path — how a Source recognizes "this hook is the one forge-dashboard
 // itself would have created," regardless of the scheme or host a webhook
