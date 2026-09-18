@@ -1583,14 +1583,23 @@ func TestEnsureWebhook_RateLimited_ClassifiesAsDashboardClientError(t *testing.T
 	assert.Equal(t, dashboard.ForgeErrorRateLimited, clientErr.Kind)
 }
 
-func TestMergePullRequest_CallsTheMergeEndpoint(t *testing.T) {
+func TestMergePullRequest_RepoAllowsMergeCommit_UsesMerge(t *testing.T) {
 	t.Parallel()
 
 	var mergedPath string
+	var mergeBody map[string]any
 	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"allow_merge_commit": true,
+			"allow_squash_merge": true,
+			"allow_rebase_merge": true,
+		})
+	})
 	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, r *http.Request) {
 		mergedPath = r.URL.Path
 		require.Equal(t, http.MethodPut, r.Method)
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
 		writeJSON(t, w, map[string]any{"merged": true, "message": "Pull Request successfully merged"})
 	})
 	srv := httptest.NewServer(mux)
@@ -1602,12 +1611,91 @@ func TestMergePullRequest_CallsTheMergeEndpoint(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "/repos/alrayyes/a/pulls/5/merge", mergedPath)
+	assert.Equal(t, "merge", mergeBody["merge_method"])
+}
+
+func TestMergePullRequest_RepoDisallowsMergeCommit_FallsBackToSquash(t *testing.T) {
+	t.Parallel()
+
+	var mergeBody map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"allow_merge_commit": false,
+			"allow_squash_merge": true,
+			"allow_rebase_merge": false,
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
+		writeJSON(t, w, map[string]any{"merged": true, "message": "Pull Request successfully merged"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "squash", mergeBody["merge_method"])
+}
+
+func TestMergePullRequest_RepoAllowsOnlyRebase_UsesRebase(t *testing.T) {
+	t.Parallel()
+
+	var mergeBody map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"allow_merge_commit": false,
+			"allow_squash_merge": false,
+			"allow_rebase_merge": true,
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
+		writeJSON(t, w, map[string]any{"merged": true, "message": "Pull Request successfully merged"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "rebase", mergeBody["merge_method"])
+}
+
+func TestMergePullRequest_RepoLookupFails_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		writeJSON(t, w, map[string]any{"message": "Not Found"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
 }
 
 func TestMergePullRequest_NotMergeable_ClassifiesAsForgeErrorConflict(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"allow_merge_commit": true})
+	})
 	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		writeJSON(t, w, map[string]any{"message": "Pull Request is not mergeable"})
