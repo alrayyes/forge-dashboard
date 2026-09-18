@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.75.0](https://github.com/alrayyes/forge-dashboard/compare/v0.74.0...v0.75.0) (2026-09-18)
+
+
+### Features
+
+* back off the next scheduled refresh when a rate-limit budget is critical ([#407](https://github.com/alrayyes/forge-dashboard/issues/407)) ([23cdb38](https://github.com/alrayyes/forge-dashboard/commit/23cdb380da85895f97d4af02a56f53265a1be2a0))
+* raise the default background poll interval to 20 minutes ([#406](https://github.com/alrayyes/forge-dashboard/issues/406)) ([b6566ce](https://github.com/alrayyes/forge-dashboard/commit/b6566ceacd9a15adb46868a81f857d70bf0d4375))
+
 ## [0.74.0](https://github.com/alrayyes/forge-dashboard/compare/v0.73.0...v0.74.0) (2026-09-18)
 
 
