@@ -106,6 +106,17 @@ type PullRequestCommenter interface {
 	CommentPullRequest(ctx context.Context, owner, name string, number int, body string) error
 }
 
+// PullRequestLabeler is implemented by a ForgeClient (or, for
+// github.Client, a Source directly) that can add a label to one of its
+// own pull requests — checked via a type assertion, the same
+// optional-capability pattern PullRequestCommenter uses. Implemented by
+// both forges, unlike PullRequestCommenter: Renovate's own rebase/retry
+// trigger is adding its configured label, and Renovate runs on GitHub
+// and Forgejo alike.
+type PullRequestLabeler interface {
+	AddLabel(ctx context.Context, owner, name string, number int, label string) error
+}
+
 // WebhookTargetsPath reports whether rawURL's path component is exactly
 // path — how a Source recognizes "this hook is the one forge-dashboard
 // itself would have created," regardless of the scheme or host a webhook

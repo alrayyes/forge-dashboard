@@ -245,6 +245,18 @@ func (c *Client) CommentPullRequest(ctx context.Context, owner, name string, num
 	return nil
 }
 
+// AddLabel implements dashboard.PullRequestLabeler: adds label to
+// owner/name#number — Renovate's own rebase/retry trigger on GitHub.
+// GitHub's labels-by-name endpoint needs no ID lookup, unlike Forgejo's.
+func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, label string) error {
+	path := fmt.Sprintf("/repos/%s/%s/issues/%d/labels", owner, name, number)
+	slog.Debug("github request", "method", http.MethodPost, "url", path)
+	if _, _, err := c.restClient.Issues.AddLabelsToIssue(ctx, owner, name, number, []string{label}); err != nil {
+		return asClientError(restError(http.MethodPost, path, err))
+	}
+	return nil
+}
+
 // Fetch implements dashboard.Source directly — GitHub drives its own
 // fetch strategy (GraphQL vs. the REST fallback) rather than going
 // through dashboard.GenericSource's one-call-per-repo model, which is
