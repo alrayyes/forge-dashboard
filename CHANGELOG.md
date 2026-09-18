@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.70.1](https://github.com/alrayyes/forge-dashboard/compare/v0.70.0...v0.70.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* run the SvelteKit build step before goreleaser's Go build ([#375](https://github.com/alrayyes/forge-dashboard/issues/375)) ([c41ecf9](https://github.com/alrayyes/forge-dashboard/commit/c41ecf92404d7af5ecdca2af71fca7b2e66f2a6c)), closes [#348](https://github.com/alrayyes/forge-dashboard/issues/348)
+
 ## [0.70.0](https://github.com/alrayyes/forge-dashboard/compare/v0.69.1...v0.70.0) (2026-09-18)
 
 
