@@ -84,14 +84,16 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
   just the owner/viewer relationship; `internal/api`'s dashboard handler
   is what turns a granted share into an actual `dashboard.Manager`
   lookup for the owner's snapshot instead of the caller's own.
-- `internal/api/static` is the frontend: plain HTML/CSS/JS, embedded into
-  the binary with `//go:embed`. No build step, no framework — see the
-  README for why. `login.html`/`login.js` are the one page that stays
-  reachable without a session; `settings.html`/`settings.js` is where a
-  signed-in user sets their own tokens and manages sharing; `admin.html`/
-  `admin.js` is the admin's user list, reachable by anyone with a session
-  but functionally gated by every API call it makes 403ing for a
-  non-admin.
+- `internal/api/static` is the frontend, embedded into the binary with
+  `//go:embed` — a mix of plain HTML/CSS/JS pages and, incrementally,
+  pages migrated to SvelteKit (`web/src/routes`, built with
+  `bun run build:web` and merged in by `scripts/sync-web-build.sh`; see
+  #326). `login.html`/`login.js` are the one page that stays reachable
+  without a session; Settings (`web/src/routes/settings`, migrated) is
+  where a signed-in user sets their own tokens and manages sharing;
+  `admin.html`/`admin.js` is the admin's user list, reachable by anyone
+  with a session but functionally gated by every API call it makes
+  403ing for a non-admin.
 - `cmd/forge-dashboard` is the composition root: reads environment
   variables, wires the auth service, the settings store and the
   dashboard manager, and serves the API and static files. A session's
