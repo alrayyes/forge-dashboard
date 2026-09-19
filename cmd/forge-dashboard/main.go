@@ -63,6 +63,19 @@ func resolveRefreshInterval(v string) time.Duration {
 func main() {
 	configureLogging()
 
+	if err := run(); err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+}
+
+// run holds everything main used to, restructured to return an error
+// instead of calling os.Exit directly — os.Exit skips every deferred
+// call on the way out (gocritic's exitAfterDefer), which would have
+// silently dropped the signal-context cancellation and, on any startup
+// error past dashboard.NewManager, its own Stop too. Returning lets every
+// defer here run before main decides whether to exit non-zero.
+func run() error {
 	addr := envOr("ADDR", ":8080")
 	refreshInterval := resolveRefreshInterval(os.Getenv("REFRESH_INTERVAL"))
 
@@ -71,26 +84,22 @@ func main() {
 
 	db, err := openDatabase()
 	if err != nil {
-		slog.Error("open database", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("open database: %w", err)
 	}
 
 	authService, authStore, err := buildAuth(ctx, db)
 	if err != nil {
-		slog.Error("auth setup failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("auth setup failed: %w", err)
 	}
 
 	settingsStore, err := buildSettingsStore(ctx, db)
 	if err != nil {
-		slog.Error("settings setup failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("settings setup failed: %w", err)
 	}
 
 	sharingStore := sharing.NewStore(db)
 	if err := sharingStore.Init(ctx); err != nil {
-		slog.Error("sharing setup failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("sharing setup failed: %w", err)
 	}
 
 	manager := dashboard.NewManager(refreshInterval)
@@ -128,9 +137,10 @@ func main() {
 
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		slog.Error("server stopped", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("server stopped: %w", err)
 	}
+
+	return nil
 }
 
 // buildSourcesForUser wires one dashboard.Source per forge c has enough
