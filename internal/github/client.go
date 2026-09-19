@@ -803,12 +803,12 @@ type graphqlErrorEntry struct {
 func (c *Client) graphqlDo(ctx context.Context, query string, variables map[string]any, out any) error {
 	body, err := json.Marshal(graphqlRequestBody{Query: query, Variables: variables})
 	if err != nil {
-		return err
+		return fmt.Errorf("github: encode graphql request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.graphqlURL, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return fmt.Errorf("github: build graphql request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.token)
@@ -838,7 +838,7 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 		Errors []graphqlErrorEntry `json:"errors"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return err
+		return fmt.Errorf("github: decode graphql response: %w", err)
 	}
 	if len(envelope.Errors) > 0 {
 		rl := rateLimitFromHeaders(resp.Header)
@@ -862,7 +862,11 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 		return nil
 	}
 
-	return json.Unmarshal(envelope.Data, out)
+	if err := json.Unmarshal(envelope.Data, out); err != nil {
+		return fmt.Errorf("github: decode graphql data: %w", err)
+	}
+
+	return nil
 }
 
 // sinceVariable formats since for the issues connection's own

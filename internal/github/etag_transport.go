@@ -2,6 +2,7 @@ package github
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"maps"
 	"net/http"
@@ -49,7 +50,12 @@ func newETagTransport(base http.RoundTripper) *etagTransport {
 // request support is documented for GET/HEAD only.
 func (t *etagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Method != http.MethodGet {
-		return t.base.RoundTrip(req)
+		resp, err := t.base.RoundTrip(req)
+		if err != nil {
+			return nil, fmt.Errorf("github: round trip: %w", err)
+		}
+
+		return resp, nil
 	}
 
 	key := req.URL.String()
@@ -64,7 +70,7 @@ func (t *etagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	resp, err := t.base.RoundTrip(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("github: round trip: %w", err)
 	}
 
 	if ok && resp.StatusCode == http.StatusNotModified {

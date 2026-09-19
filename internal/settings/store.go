@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -280,12 +281,12 @@ func (s *Store) FindByWebhookToken(ctx context.Context, token string) (userID []
 		return nil, "", ErrNotFound
 	}
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("settings: find webhook token: %w", err)
 	}
 
 	userID, err = base64.RawURLEncoding.DecodeString(encodedUserID)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("settings: decode stored user id: %w", err)
 	}
 
 	return userID, secret, nil
@@ -344,7 +345,7 @@ func (s *Store) SetFilterState(ctx context.Context, userID []byte, stateJSON str
 func randomWebhookValue() (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
-		return "", err
+		return "", fmt.Errorf("settings: generate random value: %w", err)
 	}
 
 	return base64.RawURLEncoding.EncodeToString(buf), nil
@@ -399,8 +400,11 @@ func (s *Store) UnignoreRepo(ctx context.Context, userID []byte, forge, repoFull
 		DELETE FROM ignored_repos WHERE user_id = ? AND forge = ? AND repo_full_name = ?`,
 		encodeUserID(userID), forge, repoFullName,
 	)
+	if err != nil {
+		return fmt.Errorf("settings: unignore repo: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // IgnoredRepos returns the set of forge/repo pairs (keyed by
@@ -411,7 +415,7 @@ func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]str
 		`SELECT forge, repo_full_name FROM ignored_repos WHERE user_id = ?`, encodeUserID(userID),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("settings: list ignored repos: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -419,12 +423,15 @@ func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]str
 	for rows.Next() {
 		var forge, repoFullName string
 		if err := rows.Scan(&forge, &repoFullName); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("settings: scan ignored repo row: %w", err)
 		}
 		ignored[WebhookDeliveryKey(forge, repoFullName)] = struct{}{}
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("settings: list ignored repos: %w", err)
+	}
 
-	return ignored, rows.Err()
+	return ignored, nil
 }
 
 // RecordWebhookDelivery notes that userID's webhook for forge/repoFullName

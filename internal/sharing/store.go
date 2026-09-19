@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 )
 
 // Store persists sharing relationships: ownerID has shared their
@@ -127,4 +128,11 @@ func (s *Store) DeleteUser(ctx context.Context, userID []byte) error {
 
 func encodeID(id []byte) string { return base64.RawURLEncoding.EncodeToString(id) }
 
-func decodeID(s string) ([]byte, error) { return base64.RawURLEncoding.DecodeString(s) }
+func decodeID(s string) ([]byte, error) {
+	id, err := base64.RawURLEncoding.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("sharing: decode stored id: %w", err)
+	}
+
+	return id, nil
+}
