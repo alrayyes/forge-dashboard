@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.79.1](https://github.com/alrayyes/forge-dashboard/compare/v0.79.0...v0.79.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* **api:** serialize RepoStatus.url and .canManageWebhooks ([#439](https://github.com/alrayyes/forge-dashboard/issues/439)) ([af943a4](https://github.com/alrayyes/forge-dashboard/commit/af943a44cc824e40ceb1cbd40e4e5a0c008132d6)), closes [#438](https://github.com/alrayyes/forge-dashboard/issues/438)
+
 ## [0.79.0](https://github.com/alrayyes/forge-dashboard/compare/v0.78.0...v0.79.0) (2026-09-19)
 
 
