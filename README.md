@@ -244,6 +244,15 @@ repo (its labels API takes an existing label's ID, not an arbitrary
 name); the button reports that plainly instead of silently doing
 nothing if it doesn't.
 
+A pull request with any CI reported at all gets a `View pipeline`
+button, opening a panel that lists every individual job/check against
+its head commit — status, name, and a link to that job's own page on
+the forge — instead of only the row's own collapsed CI pill. Fetched
+fresh every time the panel opens, not cached or part of the regular
+dashboard refresh. Falls back to the legacy combined commit-status
+API's own per-check entries when a repo (or an older Forgejo instance)
+reports no Actions/Workflow runs at all for that commit.
+
 ## Webhooks
 
 Optional. Without one, the dashboard still refreshes on its own schedule

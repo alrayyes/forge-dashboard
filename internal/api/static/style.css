@@ -40,6 +40,12 @@
   --neutral: #7d8a9a;
   --neutral-bg: #eef1f5;
 
+  /* The pipeline-checks drawer's own ::backdrop — its own token rather
+     than reusing --shadow (a small, soft drop-shadow, not a whole-page
+     scrim) since nothing else in this file needed a translucent
+     full-page overlay before now. */
+  --backdrop: rgba(16, 24, 38, 0.4);
+
   --gh: #24292f;
   --gh-bg: #e7e9ec;
   /* #c2410c (the obvious Forgejo orange) passed against nothing text
@@ -84,6 +90,8 @@
     --neutral: #8592a3;
     --neutral-bg: #1a212b;
 
+    --backdrop: rgba(0, 0, 0, 0.6);
+
     --gh: #c9d1d9;
     --gh-bg: #1c232c;
     --fj: #ff8a52;
@@ -113,6 +121,8 @@
   --warning-bg: #362a10;
   --neutral: #8592a3;
   --neutral-bg: #1a212b;
+
+  --backdrop: rgba(0, 0, 0, 0.6);
 
   --gh: #c9d1d9;
   --gh-bg: #1c232c;
@@ -1336,5 +1346,207 @@ footer a.mono:focus-visible {
   }
   header {
     padding-top: 20px;
+  }
+}
+
+/* ---- pipeline-checks panel ----
+   A slide-over anchored to the right edge, not a centered modal: the
+   native <dialog>'s own UA stylesheet centers it with `margin: auto`
+   over `inset: 0`, overridden here to pin it to the right and stretch
+   it full-height instead — showModal() still gives it the same
+   focus-trap/Escape/::backdrop behavior either way, none of which comes
+   from the centering. */
+.pipeline-dialog {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(420px, 100vw);
+  max-width: 100vw;
+  height: 100%;
+  max-height: 100%;
+  border: none;
+  border-left: 1px solid var(--border);
+  padding: 0;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+/* An unconditional `display: flex` above would win over the UA
+   stylesheet's own `dialog:not([open]) { display: none }` and leave the
+   panel visibly on-screen (just an empty flex box) even after close()
+   clears the [open] attribute — confirmed live, both close() and Escape
+   left it visible. Scoping the flex layout to [open] is what actually
+   lets the browser hide it again. */
+.pipeline-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.pipeline-dialog::backdrop {
+  background: var(--backdrop);
+}
+.pipeline-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.pipeline-dialog-title {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 600;
+}
+.pipeline-dialog-subtitle {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  overflow-wrap: anywhere;
+}
+.pipeline-dialog-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.pipeline-dialog-close:hover {
+  color: var(--ink);
+}
+.pipeline-dialog-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.pipeline-dialog-body {
+  padding: 16px 18px 20px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+.pipeline-status {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.pipeline-check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pipeline-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+}
+/* Same colored-dot-plus-label shape .ci-pill/.merge-pill already use for
+   a status that isn't itself a button — one dot vocabulary for every
+   status this app shows, rather than a second one just for this panel. */
+.pipeline-check-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex: none;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: .forge-badge.gh .dot
+   (higher specificity, earlier) sets only background -- never width/
+   height/border-radius/flex, so no property actually collides. */
+.pipeline-check-status .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.pipeline-check-status.success {
+  background: var(--good-bg);
+  color: var(--good);
+}
+.pipeline-check-status.success .dot {
+  background: var(--good);
+}
+.pipeline-check-status.failure,
+.pipeline-check-status.timed_out {
+  background: var(--critical-bg);
+  color: var(--critical);
+}
+.pipeline-check-status.failure .dot,
+.pipeline-check-status.timed_out .dot {
+  background: var(--critical);
+}
+.pipeline-check-status.running {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.pipeline-check-status.running .dot {
+  background: var(--warning);
+  animation: pulse-amber 1.6s infinite;
+}
+.pipeline-check-status.queued,
+.pipeline-check-status.cancelled,
+.pipeline-check-status.skipped {
+  background: var(--neutral-bg);
+  color: var(--ink-3);
+}
+.pipeline-check-status.queued .dot,
+.pipeline-check-status.cancelled .dot,
+.pipeline-check-status.skipped .dot {
+  background: var(--neutral);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-check-status.running .dot {
+    animation: none;
+  }
+}
+.pipeline-check-name {
+  flex: 1 1 auto;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pipeline-check-link {
+  flex: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+}
+.pipeline-check-link:hover,
+.pipeline-check-link:focus-visible {
+  text-decoration: underline;
+}
+.pipeline-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--critical);
+  font-size: 13px;
+}
+.pipeline-error p {
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .pipeline-dialog {
+    width: 100vw;
   }
 }
