@@ -719,7 +719,7 @@ func (s *Store) UserForAPIToken(ctx context.Context, raw string) (*User, error) 
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: load api token: %w", err)
 	}
 	if !expiresAt.Valid || time.Now().After(expiresAt.Time) {
 		return nil, ErrNotFound

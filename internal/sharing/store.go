@@ -35,8 +35,11 @@ func (s *Store) Init(ctx context.Context) error {
 	);
 	`
 	_, err := s.db.ExecContext(ctx, schema)
+	if err != nil {
+		return fmt.Errorf("sharing: create schema: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // Share grants viewerID read access to ownerID's dashboard. Idempotent —
@@ -47,8 +50,11 @@ func (s *Store) Share(ctx context.Context, ownerID, viewerID []byte) error {
 		 ON CONFLICT (owner_id, viewer_id) DO NOTHING`,
 		encodeID(ownerID), encodeID(viewerID),
 	)
+	if err != nil {
+		return fmt.Errorf("sharing: share: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // Unshare revokes viewerID's access to ownerID's dashboard — a no-op if
@@ -58,8 +64,11 @@ func (s *Store) Unshare(ctx context.Context, ownerID, viewerID []byte) error {
 		`DELETE FROM shares WHERE owner_id = ? AND viewer_id = ?`,
 		encodeID(ownerID), encodeID(viewerID),
 	)
+	if err != nil {
+		return fmt.Errorf("sharing: unshare: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // IsSharedWith reports whether ownerID has shared their dashboard with
@@ -74,7 +83,7 @@ func (s *Store) IsSharedWith(ctx context.Context, ownerID, viewerID []byte) (boo
 	case errors.Is(err, sql.ErrNoRows):
 		return false, nil
 	case err != nil:
-		return false, err
+		return false, fmt.Errorf("sharing: check share: %w", err)
 	default:
 		return true, nil
 	}
@@ -95,7 +104,7 @@ func (s *Store) SharedWithMe(ctx context.Context, viewerID []byte) ([][]byte, er
 func (s *Store) queryIDs(ctx context.Context, query string, arg string) ([][]byte, error) {
 	rows, err := s.db.QueryContext(ctx, query, arg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("sharing: query ids: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -103,7 +112,7 @@ func (s *Store) queryIDs(ctx context.Context, query string, arg string) ([][]byt
 	for rows.Next() {
 		var encoded string
 		if err := rows.Scan(&encoded); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("sharing: scan id row: %w", err)
 		}
 		id, err := decodeID(encoded)
 		if err != nil {
@@ -111,8 +120,11 @@ func (s *Store) queryIDs(ctx context.Context, query string, arg string) ([][]byt
 		}
 		ids = append(ids, id)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sharing: query ids: %w", err)
+	}
 
-	return ids, rows.Err()
+	return ids, nil
 }
 
 // DeleteUser removes every share userID appears in, as either owner or
@@ -122,8 +134,11 @@ func (s *Store) DeleteUser(ctx context.Context, userID []byte) error {
 		`DELETE FROM shares WHERE owner_id = ? OR viewer_id = ?`,
 		encodeID(userID), encodeID(userID),
 	)
+	if err != nil {
+		return fmt.Errorf("sharing: delete user: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 func encodeID(id []byte) string { return base64.RawURLEncoding.EncodeToString(id) }
