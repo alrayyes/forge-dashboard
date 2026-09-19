@@ -1797,6 +1797,76 @@ test.describe('dashboard page', () => {
     });
   });
 
+  test.describe('CI pill wording for a passed pipeline', () => {
+    function mockOnePR(page, overrides) {
+      return page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            pullRequests: [
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 1,
+                title: 'A pull request',
+                url: 'https://example.com/1',
+                author: 'claude',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                ...overrides,
+              },
+            ],
+            issues: [],
+          }),
+        }),
+      );
+    }
+
+    // "Passing" reads fine right next to a big Merge button prompting
+    // action on the same row — "Passed" there would just be a second,
+    // redundant way of saying "ready." Once there's no merge action on
+    // the row for CI to sit beside, "Passed" is the plainer, more
+    // finished-sounding word — matching GitHub's and GitLab's own
+    // terminal-state convention (both say "passed", not "passing", for
+    // a completed successful run).
+    test('shows "Passing" when a Merge button is also on the row', async ({
+      page,
+    }) => {
+      await mockOnePR(page, { mergeStatus: 'mergeable' });
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
+      await expect(row.locator('.ci-pill')).toContainText('Passing');
+    });
+
+    test('shows "Passed" once there is no Merge button on the row', async ({
+      page,
+    }) => {
+      await mockOnePR(page, { mergeStatus: 'blocked' });
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+      await expect(row.locator('.ci-pill')).toContainText('Passed');
+    });
+
+    test('a failing or running pipeline is worded the same regardless of the Merge button', async ({
+      page,
+    }) => {
+      await mockOnePR(page, { mergeStatus: 'mergeable', ci: 'failure' });
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(row.locator('.ci-pill')).toContainText('Failing');
+    });
+  });
+
   test('the "CI failing" tile is not styled as a warning when the count is zero', async ({
     page,
   }) => {

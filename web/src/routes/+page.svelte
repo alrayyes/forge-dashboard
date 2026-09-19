@@ -288,18 +288,30 @@
     // status is a real button — see titleCell's comment on why the row
     // isn't an <a> around everything. onStatusClick is only ever passed
     // for the pull requests board (isPR).
+    // "Passing" reads fine right next to a Merge button already
+    // prompting action on the same row — "Passed" there is just a
+    // second, redundant way of saying "ready." Once there's no merge
+    // action on the row for the pill to sit beside, "Passed" is the
+    // plainer, more finished-sounding word, matching GitHub's and
+    // GitLab's own terminal-state convention (both say "passed", not
+    // "passing", for a completed successful run).
     function ciPill(
       status: string,
       onStatusClick: ((status: string) => void) | undefined,
+      showsMergeButton: boolean,
     ): HTMLButtonElement {
+      const label =
+        status === "success" && !showsMergeButton
+          ? "Passed"
+          : CI_LABELS[status] || status;
       const pill = document.createElement("button");
       pill.type = "button";
       pill.className = `ci-pill ${status}`;
       pill.appendChild(el("span", "dot"));
-      pill.appendChild(document.createTextNode(CI_LABELS[status] || status));
+      pill.appendChild(document.createTextNode(label));
       pill.setAttribute(
         "aria-label",
-        `Filter pull requests by CI status: ${CI_LABELS[status] || status}`,
+        `Filter pull requests by CI status: ${label}`,
       );
       pill.addEventListener("click", () => {
         onStatusClick?.(status);
@@ -371,14 +383,16 @@
         // grid-template-columns unchanged regardless of how many of
         // them this particular row has anything to say.
         const statusCell = el("div", "status-cell");
-        statusCell.appendChild(ciPill(pr.ci, onStatusClick));
+        const mergeAction = mergeActionCell(pr);
+        statusCell.appendChild(
+          ciPill(pr.ci, onStatusClick, mergeAction !== null),
+        );
         const conflictPill = mergeStatusPill(pr.mergeStatus, pr.ci);
         if (conflictPill) statusCell.appendChild(conflictPill);
         const mergePill = autoMergePill(pr.autoMergeEnabled);
         if (mergePill) statusCell.appendChild(mergePill);
         const updateBranchAction = updateBranchActionCell(pr);
         if (updateBranchAction) statusCell.appendChild(updateBranchAction);
-        const mergeAction = mergeActionCell(pr);
         if (mergeAction) statusCell.appendChild(mergeAction);
         const dependabotAction = dependabotActionCell(pr);
         if (dependabotAction) statusCell.appendChild(dependabotAction);
