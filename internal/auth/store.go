@@ -83,7 +83,7 @@ func (s *Store) Init(ctx context.Context) error {
 	);
 	`
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
-		return err
+		return fmt.Errorf("auth: create schema: %w", err)
 	}
 
 	return s.addColumnsIfMissing(ctx)
@@ -106,7 +106,7 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 				continue
 			}
 
-			return err
+			return fmt.Errorf("auth: add missing column: %w", err)
 		}
 	}
 
@@ -133,7 +133,7 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string, is
 
 	credsJSON, err := json.Marshal(u.Credentials)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: encode credentials: %w", err)
 	}
 
 	_, err = s.db.ExecContext(ctx,
@@ -141,7 +141,7 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string, is
 		encodeID(id), username, displayName, boolToInt(isAdmin), string(credsJSON), u.CreatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: insert user: %w", err)
 	}
 
 	return u, nil
@@ -154,8 +154,11 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string, is
 // credential, or doesn't exist at all.
 func (s *Store) DeleteUnregisteredUser(ctx context.Context, username string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE username = ? AND credentials_json = '[]'`, username)
+	if err != nil {
+		return fmt.Errorf("auth: delete unregistered user: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // GetUserByUsername returns ErrNotFound when no such user is registered.
@@ -192,7 +195,7 @@ func (s *Store) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
 	case errors.Is(err, sql.ErrNoRows):
 		return false, nil
 	case err != nil:
-		return false, err
+		return false, fmt.Errorf("auth: check for a registered user: %w", err)
 	default:
 		return true, nil
 	}
@@ -204,7 +207,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]*User, error) {
 		`SELECT id, username, display_name, is_admin, credentials_json, created_at FROM users ORDER BY username`,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: list users: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -216,8 +219,11 @@ func (s *Store) ListUsers(ctx context.Context) ([]*User, error) {
 		}
 		users = append(users, u)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("auth: list users: %w", err)
+	}
 
-	return users, rows.Err()
+	return users, nil
 }
 
 // rowScanner is the common surface of *sql.Row and *sql.Rows that scanUser
@@ -238,7 +244,7 @@ func scanUser(row rowScanner) (*User, error) {
 			return nil, ErrNotFound
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("auth: scan user row: %w", err)
 	}
 
 	id, err := decodeID(idStr)
@@ -290,11 +296,14 @@ func (s *Store) UpdateCredential(ctx context.Context, userID []byte, cred webaut
 func (s *Store) saveCredentials(ctx context.Context, u *User) error {
 	credsJSON, err := json.Marshal(u.Credentials)
 	if err != nil {
-		return err
+		return fmt.Errorf("auth: encode credentials: %w", err)
 	}
 	_, err = s.db.ExecContext(ctx, `UPDATE users SET credentials_json = ? WHERE id = ?`, string(credsJSON), encodeID(u.ID))
+	if err != nil {
+		return fmt.Errorf("auth: save credentials: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // credentialIDKey is how a webauthn.Credential.ID becomes the key
@@ -328,8 +337,11 @@ func (s *Store) setCredentialLabelAt(ctx context.Context, userID []byte, credID 
 		ON CONFLICT (user_id, credential_id) DO UPDATE SET label = excluded.label`,
 		encodeID(userID), credentialIDKey(credID), label, createdAt,
 	)
+	if err != nil {
+		return fmt.Errorf("auth: set credential label: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // ListCredentials returns userID's own passkeys, oldest first — driven
@@ -350,7 +362,7 @@ func (s *Store) ListCredentials(ctx context.Context, userID []byte) ([]*Credenti
 		encodeID(userID),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: list credential labels: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -363,12 +375,12 @@ func (s *Store) ListCredentials(ctx context.Context, userID []byte) ([]*Credenti
 		var credID, label string
 		var createdAt time.Time
 		if err := rows.Scan(&credID, &label, &createdAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("auth: scan credential label row: %w", err)
 		}
 		byCredID[credID] = meta{label: label, createdAt: createdAt}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: list credential labels: %w", err)
 	}
 
 	out := make([]*Credential, 0, len(u.Credentials))
@@ -424,8 +436,11 @@ func (s *Store) RemoveCredential(ctx context.Context, userID []byte, credID stri
 		return err
 	}
 	_, err = s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ? AND credential_id = ?`, encodeID(userID), credID)
+	if err != nil {
+		return fmt.Errorf("auth: delete credential metadata: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // SaveCeremony records the in-flight WebAuthn session data for username's
@@ -434,15 +449,18 @@ func (s *Store) RemoveCredential(ctx context.Context, userID []byte, credID stri
 func (s *Store) SaveCeremony(ctx context.Context, username, kind string, session webauthn.SessionData, ttl time.Duration) error {
 	data, err := json.Marshal(session)
 	if err != nil {
-		return err
+		return fmt.Errorf("auth: encode ceremony session: %w", err)
 	}
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO ceremonies (username, kind, session_json, expires_at) VALUES (?, ?, ?, ?)
 		 ON CONFLICT (username, kind) DO UPDATE SET session_json = excluded.session_json, expires_at = excluded.expires_at`,
 		username, kind, string(data), time.Now().UTC().Add(ttl),
 	)
+	if err != nil {
+		return fmt.Errorf("auth: save ceremony: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // LoadCeremony returns ErrNotFound when there's no in-flight ceremony of
@@ -460,7 +478,7 @@ func (s *Store) LoadCeremony(ctx context.Context, username, kind string) (webaut
 		return webauthn.SessionData{}, ErrNotFound
 	}
 	if err != nil {
-		return webauthn.SessionData{}, err
+		return webauthn.SessionData{}, fmt.Errorf("auth: load ceremony: %w", err)
 	}
 	if time.Now().UTC().After(expiresAt) {
 		return webauthn.SessionData{}, ErrNotFound
@@ -478,8 +496,11 @@ func (s *Store) LoadCeremony(ctx context.Context, username, kind string) (webaut
 // lose — it's single-use either way.
 func (s *Store) DeleteCeremony(ctx context.Context, username, kind string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM ceremonies WHERE username = ? AND kind = ?`, username, kind)
+	if err != nil {
+		return fmt.Errorf("auth: delete ceremony: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // CreateSession issues a new opaque session token for userID, valid for
@@ -497,7 +518,7 @@ func (s *Store) CreateSession(ctx context.Context, userID []byte, ttl time.Durat
 		token, encodeID(userID), now.Add(ttl), now,
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("auth: create session: %w", err)
 	}
 
 	return token, nil
@@ -516,7 +537,7 @@ func (s *Store) UserForSession(ctx context.Context, token string) (*User, error)
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: load session: %w", err)
 	}
 	if time.Now().UTC().After(expiresAt) {
 		return nil, ErrNotFound
@@ -534,8 +555,11 @@ func (s *Store) UserForSession(ctx context.Context, token string) (*User, error)
 // another user's session.
 func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE token = ?`, token)
+	if err != nil {
+		return fmt.Errorf("auth: delete session: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // RevokeUser signs userID out everywhere and clears every registered
@@ -546,17 +570,20 @@ func (s *Store) DeleteSession(ctx context.Context, token string) error {
 // user, not just the session-cookie path.
 func (s *Store) RevokeUser(ctx context.Context, userID []byte) error {
 	if _, err := s.db.ExecContext(ctx, `UPDATE users SET credentials_json = '[]' WHERE id = ?`, encodeID(userID)); err != nil {
-		return err
+		return fmt.Errorf("auth: clear credentials: %w", err)
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ?`, encodeID(userID)); err != nil {
-		return err
+		return fmt.Errorf("auth: delete credential metadata: %w", err)
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, encodeID(userID)); err != nil {
-		return err
+		return fmt.Errorf("auth: delete sessions: %w", err)
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE user_id = ?`, encodeID(userID))
+	if err != nil {
+		return fmt.Errorf("auth: delete api tokens: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // DeleteUser removes the account and every session it holds — irreversible,
@@ -564,17 +591,20 @@ func (s *Store) RevokeUser(ctx context.Context, userID []byte) error {
 // forge credentials, a running dashboard refresh).
 func (s *Store) DeleteUser(ctx context.Context, userID []byte) error {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, encodeID(userID)); err != nil {
-		return err
+		return fmt.Errorf("auth: delete sessions: %w", err)
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE user_id = ?`, encodeID(userID)); err != nil {
-		return err
+		return fmt.Errorf("auth: delete api tokens: %w", err)
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ?`, encodeID(userID)); err != nil {
-		return err
+		return fmt.Errorf("auth: delete credential metadata: %w", err)
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, encodeID(userID))
+	if err != nil {
+		return fmt.Errorf("auth: delete user: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // apiTokenPrefix marks a generated token as forge-dashboard's own at a
@@ -626,7 +656,7 @@ func (s *Store) CreateAPIToken(ctx context.Context, userID []byte, label string,
 		tok.ID, encodeID(userID), label, hashAPIToken(raw), tok.CreatedAt, tok.ExpiresAt,
 	)
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("auth: create api token: %w", err)
 	}
 
 	return raw, tok, nil
@@ -639,7 +669,7 @@ func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, 
 		encodeID(userID),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: list api tokens: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -651,7 +681,7 @@ func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, 
 			lastUsedAt sql.NullTime
 		)
 		if err := rows.Scan(&tok.ID, &tok.Label, &tok.CreatedAt, &expiresAt, &lastUsedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("auth: scan api token row: %w", err)
 		}
 		// expiresAt.Valid is false only for a row predating this column
 		// (see APIToken.ExpiresAt's own doc comment) — the zero Time it
@@ -665,8 +695,11 @@ func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, 
 		}
 		tokens = append(tokens, &tok)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("auth: list api tokens: %w", err)
+	}
 
-	return tokens, rows.Err()
+	return tokens, nil
 }
 
 // UserForAPIToken returns the user raw belongs to, or ErrNotFound — the
@@ -710,8 +743,11 @@ func (s *Store) UserForAPIToken(ctx context.Context, raw string) (*User, error) 
 // or never belonged to userID, is not an error.
 func (s *Store) DeleteAPIToken(ctx context.Context, userID []byte, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE id = ? AND user_id = ?`, id, encodeID(userID))
+	if err != nil {
+		return fmt.Errorf("auth: delete api token: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // encodeID/decodeID round-trip the raw WebAuthn user handle through a
