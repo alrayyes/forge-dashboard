@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0](https://github.com/alrayyes/forge-dashboard/compare/v0.80.1...v0.81.0) (2026-09-19)
+
+
+### Features
+
+* **web:** warn before a rate-limit budget hits zero, not just at it ([#451](https://github.com/alrayyes/forge-dashboard/issues/451)) ([6cf1a53](https://github.com/alrayyes/forge-dashboard/commit/6cf1a5342f3713026285ac7d97a36ba697b487c6)), closes [#450](https://github.com/alrayyes/forge-dashboard/issues/450)
+
 ## [0.80.1](https://github.com/alrayyes/forge-dashboard/compare/v0.80.0...v0.80.1) (2026-09-19)
 
 
