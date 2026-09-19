@@ -138,6 +138,43 @@ test.describe('pull request pipeline checks panel', () => {
     expect(url.searchParams.get('number')).toBe('42');
   });
 
+  test('a skipped check shows its status but no "View run" link', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR());
+    await mockChecks(page, {
+      checks: [
+        {
+          name: 'build',
+          state: 'success',
+          url: 'https://github.com/alrayyes/forge-dashboard/runs/1',
+        },
+        {
+          name: 'deploy',
+          state: 'skipped',
+          url: 'https://github.com/alrayyes/forge-dashboard/runs/2',
+        },
+      ],
+    });
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'View pipeline' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const items = dialog.locator('.pipeline-check');
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(1)).toContainText('deploy');
+    await expect(items.nth(1)).toContainText('Skipped');
+
+    await expect(
+      dialog.getByRole('link', { name: 'View run: build' }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('link', { name: 'View run: deploy' }),
+    ).toHaveCount(0);
+  });
+
   test('no checks at all shows a plain "no CI configured" message', async ({
     page,
   }) => {
