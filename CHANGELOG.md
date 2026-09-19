@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.80.0](https://github.com/alrayyes/forge-dashboard/compare/v0.79.1...v0.80.0) (2026-09-19)
+
+
+### Features
+
+* per-repo auto-update-branch with a bulk on/off ([#443](https://github.com/alrayyes/forge-dashboard/issues/443)) ([9e5b82c](https://github.com/alrayyes/forge-dashboard/commit/9e5b82c0a5a27a49fa185920f4284e7f51599062))
+
 ## [0.79.1](https://github.com/alrayyes/forge-dashboard/compare/v0.79.0...v0.79.1) (2026-09-19)
 
 
