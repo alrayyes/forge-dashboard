@@ -71,8 +71,7 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 	if err != nil {
 		slog.Warn("forge unreachable", "forge", s.forge, "error", err)
 		kind := ForgeErrorUnknown
-		var clientErr *ClientError
-		if errors.As(err, &clientErr) {
+		if clientErr, ok := errors.AsType[*ClientError](err); ok {
 			kind = clientErr.Kind
 		}
 		// err's own text never reaches the client (#360) — logged above
@@ -82,6 +81,7 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 		// ERROR_HEADLINES already uses for the headline shown alongside
 		// this.
 		health := ForgeHealth{Forge: s.forge, Reachable: false, Error: HumanizeForgeError(kind), ErrorKind: kind}
+
 		return Result{Health: health}
 	}
 
@@ -150,6 +150,7 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 		result.PullRequests = append(result.PullRequests, r.prs...)
 		result.Issues = append(result.Issues, r.issues...)
 	}
+
 	return result
 }
 
@@ -164,6 +165,7 @@ func (s *GenericSource) EnsureWebhook(ctx context.Context, owner, name, targetUR
 	if !ok {
 		return fmt.Errorf("dashboard: %s's client can't manage webhooks", s.forge)
 	}
+
 	return manager.EnsureWebhook(ctx, owner, name, targetURL, secret)
 }
 
@@ -175,6 +177,7 @@ func (s *GenericSource) MergePullRequest(ctx context.Context, owner, name string
 	if !ok {
 		return fmt.Errorf("dashboard: %s's client can't merge pull requests", s.forge)
 	}
+
 	return merger.MergePullRequest(ctx, owner, name, number)
 }
 
@@ -186,6 +189,7 @@ func (s *GenericSource) UpdateBranch(ctx context.Context, owner, name string, nu
 	if !ok {
 		return false, fmt.Errorf("dashboard: %s's client can't update pull request branches", s.forge)
 	}
+
 	return updater.UpdateBranch(ctx, owner, name, number)
 }
 
@@ -202,5 +206,6 @@ func (s *GenericSource) FetchRepo(ctx context.Context, owner, name, fullName str
 	if err != nil {
 		return nil, nil, err
 	}
+
 	return prs, issues, nil
 }

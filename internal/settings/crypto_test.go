@@ -15,6 +15,7 @@ func randomKey(t *testing.T) string {
 	key := make([]byte, 32)
 	_, err := rand.Read(key)
 	require.NoError(t, err)
+
 	return base64.StdEncoding.EncodeToString(key)
 }
 

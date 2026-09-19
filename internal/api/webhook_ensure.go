@@ -24,6 +24,7 @@ func splitFullName(fullName string) (owner, name string, ok bool) {
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", false
 	}
+
 	return parts[0], parts[1], true
 }
 
@@ -62,30 +63,35 @@ func handleWebhookEnsure(deps Deps) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		var req webhookEnsureRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
 			return
 		}
 
 		owner, name, ok := splitFullName(req.FullName)
 		if !ok {
 			writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
+
 			return
 		}
 
 		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+
 			return
 		}
 
 		token, secret, err := deps.SettingsStore.EnsureWebhookCredentials(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load webhook credentials"))
+
 			return
 		}
 
@@ -97,13 +103,16 @@ func handleWebhookEnsure(deps Deps) http.HandlerFunc {
 			m, supported := src.(dashboard.WebhookManager)
 			if !supported {
 				writeJSON(w, http.StatusBadRequest, errorBody(req.Forge+" doesn't support creating webhooks"))
+
 				return
 			}
 			manager = m
+
 			break
 		}
 		if manager == nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("no "+req.Forge+" credentials saved"))
+
 			return
 		}
 
@@ -111,6 +120,7 @@ func handleWebhookEnsure(deps Deps) http.HandlerFunc {
 		if err := manager.EnsureWebhook(r.Context(), owner, name, targetURL, secret); err != nil {
 			slog.Warn("webhook ensure failed", "forge", req.Forge, "repo", req.FullName, "error", err)
 			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
+
 			return
 		}
 

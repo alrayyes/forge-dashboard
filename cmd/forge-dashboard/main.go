@@ -8,7 +8,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -53,8 +52,10 @@ func resolveRefreshInterval(v string) time.Duration {
 	d, err := time.ParseDuration(v)
 	if err != nil {
 		slog.Error("invalid REFRESH_INTERVAL, using default", "value", v, "default", defaultRefreshInterval, "error", err)
+
 		return defaultRefreshInterval
 	}
+
 	return d
 }
 
@@ -193,6 +194,7 @@ func openDatabase() (*sql.DB, error) {
 			return nil, err
 		}
 	}
+
 	return sql.Open("sqlite", dbPath+"?_busy_timeout=5000&_journal_mode=WAL")
 }
 
@@ -226,7 +228,7 @@ func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, err
 func buildSettingsStore(ctx context.Context, db *sql.DB) (*settings.Store, error) {
 	key := os.Getenv("ENCRYPTION_KEY")
 	if key == "" {
-		return nil, fmt.Errorf("ENCRYPTION_KEY is required (generate one with `openssl rand -base64 32`)")
+		return nil, errors.New("ENCRYPTION_KEY is required (generate one with `openssl rand -base64 32`)")
 	}
 
 	cipher, err := settings.NewCipher(key)
@@ -238,6 +240,7 @@ func buildSettingsStore(ctx context.Context, db *sql.DB) (*settings.Store, error
 	if err := store.Init(ctx); err != nil {
 		return nil, err
 	}
+
 	return store, nil
 }
 
@@ -245,6 +248,7 @@ func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
+
 	return fallback
 }
 

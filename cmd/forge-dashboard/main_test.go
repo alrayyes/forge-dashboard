@@ -50,7 +50,7 @@ func TestOpenDatabase_SurvivesConcurrentWriters(t *testing.T) {
 	const writers = 40
 	var wg sync.WaitGroup
 	errs := make(chan error, writers)
-	for i := 0; i < writers; i++ {
+	for i := range writers {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()

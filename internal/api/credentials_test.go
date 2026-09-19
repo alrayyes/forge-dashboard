@@ -55,6 +55,7 @@ func addCredentialViaRealCeremony(t *testing.T, srv *httptest.Server, sessionCoo
 	require.NoError(t, err)
 
 	authenticator.AddCredential(cred)
+
 	return cred, authenticator, finishResp
 }
 

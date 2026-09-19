@@ -157,6 +157,7 @@ func HumanizeForgeError(kind ForgeErrorKind) string {
 	if msg, ok := forgeErrorDetails[kind]; ok {
 		return msg
 	}
+
 	return "An unexpected error occurred talking to the forge."
 }
 

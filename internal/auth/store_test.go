@@ -3,7 +3,6 @@ package auth_test
 import (
 	"database/sql"
 	"encoding/base64"
-	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -32,6 +31,7 @@ func newTestStore(t *testing.T) *auth.Store {
 
 	store := auth.NewStore(db)
 	require.NoError(t, store.Init(t.Context()))
+
 	return store
 }
 
@@ -161,7 +161,7 @@ func TestStore_Session_Deleted_IsRefused(t *testing.T) {
 
 	_, err = store.UserForSession(t.Context(), token)
 
-	assert.True(t, errors.Is(err, auth.ErrNotFound))
+	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
 func TestStore_UnknownSessionToken_ReturnsErrNotFound(t *testing.T) {

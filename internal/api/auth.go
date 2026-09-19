@@ -29,6 +29,7 @@ func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 		var req registerBeginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" || req.DisplayName == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("username and displayName are required"))
+
 			return
 		}
 
@@ -36,9 +37,11 @@ func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, auth.ErrAlreadyRegistered) {
 				writeJSON(w, http.StatusConflict, errorBody("username already registered"))
+
 				return
 			}
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not start registration"))
+
 			return
 		}
 		writeJSON(w, http.StatusOK, creation)
@@ -50,12 +53,14 @@ func handleRegisterFinish(deps Deps) http.HandlerFunc {
 		username := r.URL.Query().Get("username")
 		if username == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("username is required"))
+
 			return
 		}
 
 		u, err := deps.AuthService.FinishRegistration(r.Context(), username, r)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("registration failed"))
+
 			return
 		}
 
@@ -72,6 +77,7 @@ func handleLoginBegin(svc *auth.Service) http.HandlerFunc {
 		var req loginBeginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("username is required"))
+
 			return
 		}
 
@@ -79,9 +85,11 @@ func handleLoginBegin(svc *auth.Service) http.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, auth.ErrNotFound) {
 				writeJSON(w, http.StatusNotFound, errorBody("no account registered under that username"))
+
 				return
 			}
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not start login"))
+
 			return
 		}
 		writeJSON(w, http.StatusOK, assertion)
@@ -93,12 +101,14 @@ func handleLoginFinish(deps Deps) http.HandlerFunc {
 		username := r.URL.Query().Get("username")
 		if username == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("username is required"))
+
 			return
 		}
 
 		u, err := deps.AuthService.FinishLogin(r.Context(), username, r)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("login failed"))
+
 			return
 		}
 
@@ -110,6 +120,7 @@ func startSession(w http.ResponseWriter, r *http.Request, deps Deps, u *auth.Use
 	token, err := deps.AuthService.CreateSession(r.Context(), u)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorBody("could not start session"))
+
 		return
 	}
 	auth.SetSessionCookie(w, token, auth.IsHTTPS(r))
@@ -142,6 +153,7 @@ func handleGetSession() http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusUnauthorized, errorBody("not authenticated"))
+
 			return
 		}
 		writeJSON(w, http.StatusOK, sessionUserOf(u))

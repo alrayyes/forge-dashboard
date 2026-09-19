@@ -92,6 +92,7 @@ func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, erro
 	if err != nil {
 		return false, err
 	}
+
 	return hook != nil, nil
 }
 
@@ -104,7 +105,7 @@ func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, erro
 func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) (*gitea.Hook, error) {
 	c.setContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
-	opt := gitea.ListHooksOptions{ListOptions: gitea.ListOptions{PageSize: pageLimit}}
+	opt := gitea.ListHooksOptions{PageSize: pageLimit}
 
 	for {
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
@@ -122,6 +123,7 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 		}
 		opt.Page = resp.NextPage
 	}
+
 	return nil, nil
 }
 
@@ -166,6 +168,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 		if err != nil {
 			return forgejoError(http.MethodPatch, path, resp, err)
 		}
+
 		return nil
 	}
 
@@ -184,6 +187,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 	if err != nil {
 		return forgejoError(http.MethodPost, path, resp, err)
 	}
+
 	return nil
 }
 
@@ -206,6 +210,7 @@ func forgejoError(method, path string, resp *gitea.Response, err error) error {
 		kind = forgeErrorKind(resp.StatusCode)
 	}
 	wrapped := fmt.Errorf("forgejo: %s %s: %s", method, path, msg)
+
 	return &dashboard.ClientError{Kind: kind, Err: wrapped}
 }
 
@@ -267,8 +272,10 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 			status = resp.StatusCode
 		}
 		wrapped := fmt.Errorf("forgejo: %s %s: merge rejected (status %d)", http.MethodPost, mergePath, status)
+
 		return &dashboard.ClientError{Kind: forgeErrorKind(status), Err: wrapped}
 	}
+
 	return nil
 }
 
@@ -284,6 +291,7 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 	if err != nil {
 		return false, forgejoError(http.MethodPost, path, resp, err)
 	}
+
 	return false, nil
 }
 
@@ -310,11 +318,13 @@ func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, l
 		if l.Name == label {
 			id = l.ID
 			found = true
+
 			break
 		}
 	}
 	if !found {
 		wrapped := fmt.Errorf("forgejo: no label %q on %s/%s — create it on the repo first", label, owner, name)
+
 		return &dashboard.ClientError{Kind: dashboard.ForgeErrorNotFound, Err: wrapped}
 	}
 
@@ -323,6 +333,7 @@ func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, l
 	if _, resp, err := c.sdk.AddIssueLabels(owner, name, int64(number), gitea.IssueLabelsOption{Labels: []int64{id}}); err != nil {
 		return forgejoError(http.MethodPost, addPath, resp, err)
 	}
+
 	return nil
 }
 
@@ -344,6 +355,7 @@ func repoRef(r *gitea.Repository) dashboard.RepoRef {
 	if r.Owner != nil {
 		owner = r.Owner.UserName
 	}
+
 	return dashboard.RepoRef{
 		FullName:          r.FullName,
 		Owner:             owner,
@@ -362,7 +374,7 @@ func hasPushAccess(r *gitea.Repository) bool {
 func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
 	c.setContext(ctx)
 	var repos []dashboard.RepoRef
-	opt := gitea.ListReposOptions{ListOptions: gitea.ListOptions{PageSize: pageLimit}}
+	opt := gitea.ListReposOptions{PageSize: pageLimit}
 
 	for {
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", "/user/repos")
@@ -381,6 +393,7 @@ func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error
 		}
 		opt.Page = resp.NextPage
 	}
+
 	return repos, nil
 }
 
@@ -389,7 +402,7 @@ func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error
 func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
 	c.setContext(ctx)
 	var repos []dashboard.RepoRef
-	opt := gitea.ListReposOptions{ListOptions: gitea.ListOptions{PageSize: pageLimit}}
+	opt := gitea.ListReposOptions{PageSize: pageLimit}
 	path := fmt.Sprintf("/users/%s/repos", c.username)
 
 	for {
@@ -409,6 +422,7 @@ func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, erro
 		}
 		opt.Page = resp.NextPage
 	}
+
 	return repos, nil
 }
 
@@ -417,6 +431,7 @@ func toLabels(labels []*gitea.Label) []dashboard.Label {
 	for _, l := range labels {
 		out = append(out, dashboard.Label{Name: l.Name, Color: l.Color})
 	}
+
 	return out
 }
 
@@ -424,6 +439,7 @@ func posterLogin(u *gitea.User) string {
 	if u == nil {
 		return ""
 	}
+
 	return u.UserName
 }
 
@@ -438,6 +454,7 @@ func mergeStatusFromMergeable(mergeable bool) dashboard.MergeStatus {
 	if mergeable {
 		return dashboard.MergeMergeable
 	}
+
 	return dashboard.MergeBlocked
 }
 
@@ -452,6 +469,7 @@ func isBehind(p *gitea.PullRequest) bool {
 	if p.Base == nil || p.Base.Sha == "" || p.MergeBase == "" {
 		return false
 	}
+
 	return p.Base.Sha != p.MergeBase
 }
 
@@ -461,7 +479,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 	c.setContext(ctx)
 	var prs []dashboard.PullRequest
 	path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
-	opt := gitea.ListPullRequestsOptions{State: gitea.StateOpen, ListOptions: gitea.ListOptions{PageSize: pageLimit}}
+	opt := gitea.ListPullRequestsOptions{State: gitea.StateOpen, PageSize: pageLimit}
 
 	for {
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
@@ -513,6 +531,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 		}
 		opt.Page = resp.NextPage
 	}
+
 	return prs, nil
 }
 
@@ -523,7 +542,7 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 	c.setContext(ctx)
 	var issues []dashboard.Issue
 	path := fmt.Sprintf("/repos/%s/%s/issues", owner, name)
-	opt := gitea.ListIssueOption{State: gitea.StateOpen, Type: gitea.IssueTypeIssue, ListOptions: gitea.ListOptions{PageSize: pageLimit}}
+	opt := gitea.ListIssueOption{State: gitea.StateOpen, Type: gitea.IssueTypeIssue, PageSize: pageLimit}
 
 	for {
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
@@ -549,6 +568,7 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 		}
 		opt.Page = resp.NextPage
 	}
+
 	return issues, nil
 }
 
@@ -566,6 +586,7 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	if err != nil {
 		return dashboard.CINone, forgejoError(http.MethodGet, path, resp, err)
 	}
+
 	return statusFromCombinedState(combined.State), nil
 }
 

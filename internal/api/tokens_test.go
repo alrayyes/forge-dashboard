@@ -289,6 +289,7 @@ func TestTokenExpired_RejectedLikeAnInvalidToken(t *testing.T) {
 			return false
 		}
 		defer func() { _ = resp.Body.Close() }()
+
 		return resp.StatusCode == http.StatusUnauthorized
 	}, time.Second, 20*time.Millisecond, "an expired token should stop authenticating once its expiresAt passes")
 }

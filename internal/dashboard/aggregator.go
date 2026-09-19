@@ -59,6 +59,7 @@ func (a *Aggregator) Subscribe() (<-chan Snapshot, func()) {
 		}
 		a.subsMu.Unlock()
 	}
+
 	return ch, unsubscribe
 }
 
@@ -80,6 +81,7 @@ func (a *Aggregator) notify(snap Snapshot) {
 func (a *Aggregator) Get() Snapshot {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
+
 	return a.snap
 }
 
@@ -119,6 +121,7 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 			return false
 		}
 		refresher = r
+
 		break
 	}
 	if refresher == nil {
@@ -129,10 +132,12 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 		prs, issues, err := refresher.FetchRepo(ctx, owner, name, fullName)
 		if err != nil {
 			slog.Warn("scoped refresh failed", "forge", forge, "repo", fullName, "error", err)
+
 			return
 		}
 		a.mergeRepo(forge, fullName, prs, issues)
 	})
+
 	return true
 }
 
@@ -278,5 +283,6 @@ func NextRefreshDelay(snap Snapshot, interval time.Duration) time.Duration {
 			delay = max(delay, untilReset)
 		}
 	}
+
 	return delay
 }

@@ -46,6 +46,7 @@ func (f *fakeWebhookManagerSource) Fetch(_ context.Context) dashboard.Result {
 
 func (f *fakeWebhookManagerSource) EnsureWebhook(_ context.Context, owner, name, targetURL, secret string) error {
 	f.lastOwner, f.lastName, f.lastURL, f.lastSecret = owner, name, targetURL, secret
+
 	return f.ensureErr
 }
 
@@ -75,6 +76,7 @@ func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source d
 		if forge == dashboard.ForgeForgejo && c.ForgejoToken == "" {
 			return nil
 		}
+
 		return []dashboard.Source{source}
 	}
 
@@ -146,6 +148,7 @@ func postEnsureWebhook(t *testing.T, srvURL string, sessionCookie *http.Cookie, 
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+
 	return resp
 }
 

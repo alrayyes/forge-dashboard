@@ -3,6 +3,7 @@ package github
 import (
 	"bytes"
 	"io"
+	"maps"
 	"net/http"
 	"sync"
 )
@@ -39,6 +40,7 @@ func newETagTransport(base http.RoundTripper) *etagTransport {
 	if base == nil {
 		base = http.DefaultTransport
 	}
+
 	return &etagTransport{base: base, cache: make(map[string]cachedResponse)}
 }
 
@@ -84,9 +86,7 @@ func (t *etagTransport) servedFromCache(fresh *http.Response, cached cachedRespo
 	_ = fresh.Body.Close()
 
 	header := cached.header.Clone()
-	for k, v := range fresh.Header {
-		header[k] = v
-	}
+	maps.Copy(header, fresh.Header)
 
 	return &http.Response{
 		Status:        "200 OK",

@@ -31,6 +31,7 @@ import (
 func hexHMAC(body []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
+
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -44,6 +45,7 @@ type countingSource struct {
 
 func (s *countingSource) Fetch(_ context.Context) dashboard.Result {
 	n := s.calls.Add(1)
+
 	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: int(n)}}
 }
 
@@ -63,6 +65,7 @@ func (s *slowCountingSource) Fetch(ctx context.Context) dashboard.Result {
 	select {
 	case <-time.After(s.delay):
 		n := s.calls.Add(1)
+
 		return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: int(n)}}
 	case <-ctx.Done():
 		return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: ctx.Err().Error()}}
@@ -84,6 +87,7 @@ func (s *repoCountingSource) Forge() dashboard.Forge { return dashboard.ForgeGit
 
 func (s *repoCountingSource) Fetch(_ context.Context) dashboard.Result {
 	n := s.fetchCalls.Add(1)
+
 	return dashboard.Result{
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: int(n)},
 		Repos:  []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/tempus-fugit"}},
@@ -93,6 +97,7 @@ func (s *repoCountingSource) Fetch(_ context.Context) dashboard.Result {
 func (s *repoCountingSource) FetchRepo(_ context.Context, _, _, fullName string) ([]dashboard.PullRequest, []dashboard.Issue, error) {
 	counter, _ := s.repoFetchCalls.LoadOrStore(fullName, &atomic.Int64{})
 	counter.(*atomic.Int64).Add(1)
+
 	return []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: fullName, Number: 1}}, nil, nil
 }
 
@@ -101,6 +106,7 @@ func (s *repoCountingSource) repoFetchCallCount(fullName string) int64 {
 	if !ok {
 		return 0
 	}
+
 	return counter.(*atomic.Int64).Load()
 }
 
@@ -114,6 +120,7 @@ func newTestServerWithCountingSource(t *testing.T) (srv string, calls *atomic.In
 	calls = &atomic.Int64{}
 	srv, sessionCookie = newTestServerWithSource(t, &countingSource{calls: calls})
 	require.Eventually(t, func() bool { return calls.Load() >= 1 }, time.Second, 5*time.Millisecond, "Ensure should have fetched at least once already")
+
 	return srv, calls, sessionCookie
 }
 
@@ -134,6 +141,7 @@ func newTestServerWithSource(t *testing.T, source dashboard.Source) (srv string,
 		if c.GitHubToken == "" {
 			return nil
 		}
+
 		return []dashboard.Source{source}
 	}
 
@@ -205,6 +213,7 @@ func webhookCredentials(t *testing.T, srvURL string, sessionCookie *http.Cookie)
 	require.NoError(t, readJSON(resp, &got))
 	require.NotEmpty(t, got.WebhookToken)
 	require.NotEmpty(t, got.WebhookSecret)
+
 	return got.WebhookToken, got.WebhookSecret
 }
 
@@ -250,6 +259,7 @@ func dashboardRepos(t *testing.T, srvURL string, sessionCookie *http.Cookie) []d
 		Repos []dashboardRepoStatus `json:"repos"`
 	}
 	require.NoError(t, readJSON(resp, &body))
+
 	return body.Repos
 }
 
@@ -262,6 +272,7 @@ func TestGitHubWebhook_VerifiedDelivery_MarksRepoAsHavingAWebhookOnTheDashboard(
 
 	require.Eventually(t, func() bool {
 		repos := dashboardRepos(t, srvURL, sessionCookie)
+
 		return assert.ObjectsAreEqual([]dashboardRepoStatus{{Forge: "github", FullName: "alrayyes/tempus-fugit", HasWebhook: false}}, repos)
 	}, time.Second, 10*time.Millisecond, "the tracked repo should start out without a confirmed webhook")
 
@@ -276,6 +287,7 @@ func TestGitHubWebhook_VerifiedDelivery_MarksRepoAsHavingAWebhookOnTheDashboard(
 
 	require.Eventually(t, func() bool {
 		repos := dashboardRepos(t, srvURL, sessionCookie)
+
 		return assert.ObjectsAreEqual([]dashboardRepoStatus{{Forge: "github", FullName: "alrayyes/tempus-fugit", HasWebhook: true}}, repos)
 	}, time.Second, 10*time.Millisecond, "a verified delivery for the repo should flip it to having a confirmed webhook")
 }
@@ -304,6 +316,7 @@ func TestDashboard_LiveDetectedWebhook_ReportsHasWebhookTrueWithNoDeliveryRecord
 
 	require.Eventually(t, func() bool {
 		repos := dashboardRepos(t, srvURL, sessionCookie)
+
 		return assert.ObjectsAreEqual([]dashboardRepoStatus{{Forge: "github", FullName: "alrayyes/tempus-fugit", HasWebhook: true}}, repos)
 	}, time.Second, 10*time.Millisecond, "a live-detected webhook should report as confirmed even with zero deliveries ever recorded")
 }

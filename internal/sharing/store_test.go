@@ -19,6 +19,7 @@ func newTestStore(t *testing.T) *sharing.Store {
 
 	store := sharing.NewStore(db)
 	require.NoError(t, store.Init(t.Context()))
+
 	return store
 }
 

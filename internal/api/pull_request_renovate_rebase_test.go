@@ -32,6 +32,7 @@ func (f *fakeLabelerSource) Fetch(_ context.Context) dashboard.Result {
 
 func (f *fakeLabelerSource) AddLabel(_ context.Context, owner, name string, number int, label string) error {
 	f.lastOwner, f.lastName, f.lastNumber, f.lastLabel = owner, name, number, label
+
 	return f.labelErr
 }
 
@@ -45,6 +46,7 @@ func postRenovateRebase(t *testing.T, srvURL string, sessionCookie *http.Cookie,
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+
 	return resp
 }
 

@@ -21,6 +21,7 @@ func (f *fakeSource) Fetch(_ context.Context) dashboard.Result {
 	f.mu.Lock()
 	f.calls++
 	f.mu.Unlock()
+
 	return f.result
 }
 
@@ -29,6 +30,7 @@ func (f *fakeSource) Forge() dashboard.Forge { return f.result.Health.Forge }
 func (f *fakeSource) callCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return f.calls
 }
 

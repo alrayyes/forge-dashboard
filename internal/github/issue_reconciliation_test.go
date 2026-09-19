@@ -123,6 +123,7 @@ func TestFetch_ReconcileMerge_TotalCountMatches_KeepsUntouchedIssues(t *testing.
 			writeJSON(t, w, reposPage(repoNodeWithIssues("alrayyes", "a", 2, []map[string]any{
 				issueNode(1, "first"), issueNode(2, "second"),
 			})))
+
 			return
 		}
 		// Second poll: only #1 changed since — #2 never closed, so
@@ -175,12 +176,14 @@ func TestFetch_ReconcileMismatch_FallsBackToFetchRepo(t *testing.T) {
 					},
 				},
 			})
+
 			return
 		}
 		if call == 1 {
 			writeJSON(t, w, reposPage(repoNodeWithIssues("alrayyes", "a", 2, []map[string]any{
 				issueNode(1, "first"), issueNode(2, "second"),
 			})))
+
 			return
 		}
 		// Second poll: nothing in the delta (nothing was *updated*),
@@ -225,10 +228,12 @@ func TestFetch_NewRepoOnASinceFilteredPoll_FullyFetchedViaFallback(t *testing.T)
 					},
 				},
 			})
+
 			return
 		}
 		if call == 1 {
 			writeJSON(t, w, reposPage(repoNodeWithIssues("alrayyes", "a", 0, []map[string]any{})))
+
 			return
 		}
 		// Second poll: repo b is new to this client. Its one open issue

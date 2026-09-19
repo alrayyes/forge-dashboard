@@ -34,6 +34,7 @@ type issueState struct {
 func (s *issueState) since() *time.Time {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	return s.lastPollTime
 }
 
@@ -46,6 +47,7 @@ func (s *issueState) previousIssues(fullName string) ([]dashboard.Issue, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	prev, ok := s.issuesByRepo[fullName]
+
 	return prev, ok
 }
 
@@ -93,6 +95,7 @@ func mergeIssueDelta(prev, delta []dashboard.Issue, totalCount int) ([]dashboard
 	for _, i := range byNumber {
 		merged = append(merged, i)
 	}
+
 	return merged, true
 }
 
@@ -128,6 +131,7 @@ func (c *Client) reconcileIssues(ctx context.Context, tracked []graphqlRepo, sin
 			// all) already asked for everything — the "delta" is the
 			// full set, nothing to merge.
 			result[fullName] = delta
+
 			continue
 		}
 
@@ -135,6 +139,7 @@ func (c *Client) reconcileIssues(ctx context.Context, tracked []graphqlRepo, sin
 		if hadPrev {
 			if merged, ok := mergeIssueDelta(prev, delta, r.IssuesTotal.TotalCount); ok {
 				result[fullName] = merged
+
 				continue
 			}
 		}
@@ -148,6 +153,7 @@ func (c *Client) reconcileIssues(ctx context.Context, tracked []graphqlRepo, sin
 			_, issues, err := c.FetchRepo(ctx, r.Owner.Login, r.Name, fullName)
 			if err != nil {
 				slog.Warn("issue reconciliation fallback refetch failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
+
 				return
 			}
 			mu.Lock()
@@ -156,5 +162,6 @@ func (c *Client) reconcileIssues(ctx context.Context, tracked []graphqlRepo, sin
 		}(r, fullName)
 	}
 	wg.Wait()
+
 	return result
 }

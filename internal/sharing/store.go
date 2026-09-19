@@ -34,6 +34,7 @@ func (s *Store) Init(ctx context.Context) error {
 	);
 	`
 	_, err := s.db.ExecContext(ctx, schema)
+
 	return err
 }
 
@@ -45,6 +46,7 @@ func (s *Store) Share(ctx context.Context, ownerID, viewerID []byte) error {
 		 ON CONFLICT (owner_id, viewer_id) DO NOTHING`,
 		encodeID(ownerID), encodeID(viewerID),
 	)
+
 	return err
 }
 
@@ -55,6 +57,7 @@ func (s *Store) Unshare(ctx context.Context, ownerID, viewerID []byte) error {
 		`DELETE FROM shares WHERE owner_id = ? AND viewer_id = ?`,
 		encodeID(ownerID), encodeID(viewerID),
 	)
+
 	return err
 }
 
@@ -107,6 +110,7 @@ func (s *Store) queryIDs(ctx context.Context, query string, arg string) ([][]byt
 		}
 		ids = append(ids, id)
 	}
+
 	return ids, rows.Err()
 }
 
@@ -117,6 +121,7 @@ func (s *Store) DeleteUser(ctx context.Context, userID []byte) error {
 		`DELETE FROM shares WHERE owner_id = ? OR viewer_id = ?`,
 		encodeID(userID), encodeID(userID),
 	)
+
 	return err
 }
 

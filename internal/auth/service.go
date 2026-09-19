@@ -93,6 +93,7 @@ func (s *Service) BeginRegistration(ctx context.Context, username, displayName s
 	if err := s.store.SaveCeremony(ctx, username, kindRegister, *session, ceremonyTTL); err != nil {
 		return nil, err
 	}
+
 	return creation, nil
 }
 
@@ -122,6 +123,7 @@ func (s *Service) FinishRegistration(ctx context.Context, username string, r *ht
 		return nil, err
 	}
 	u.Credentials = append(u.Credentials, *cred)
+
 	return u, nil
 }
 
@@ -141,6 +143,7 @@ func (s *Service) BeginAddCredential(ctx context.Context, u *User) (*protocol.Cr
 	if err := s.store.SaveCeremony(ctx, u.Username, kindRegister, *session, ceremonyTTL); err != nil {
 		return nil, err
 	}
+
 	return creation, nil
 }
 
@@ -166,6 +169,7 @@ func (s *Service) FinishAddCredential(ctx context.Context, u *User, label string
 	if err := s.store.setCredentialLabelAt(ctx, u.ID, cred.ID, label, createdAt); err != nil {
 		return nil, err
 	}
+
 	return &Credential{ID: credentialIDKey(cred.ID), Label: label, CreatedAt: createdAt}, nil
 }
 
@@ -189,6 +193,7 @@ func (s *Service) BeginLogin(ctx context.Context, username string) (*protocol.Cr
 	if err := s.store.SaveCeremony(ctx, username, kindLogin, *session, ceremonyTTL); err != nil {
 		return nil, err
 	}
+
 	return assertion, nil
 }
 
@@ -214,6 +219,7 @@ func (s *Service) FinishLogin(ctx context.Context, username string, r *http.Requ
 	if err := s.store.UpdateCredential(ctx, u.ID, *cred); err != nil {
 		return nil, err
 	}
+
 	return u, nil
 }
 

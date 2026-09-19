@@ -48,6 +48,7 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 		if c.GitHubToken != secretToken {
 			return nil
 		}
+
 		return []dashboard.Source{&fakeConfiguredSource{health: wantHealth}}
 	}
 

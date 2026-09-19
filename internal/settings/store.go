@@ -68,6 +68,7 @@ func (c Credentials) RenovateRebaseLabelOrDefault() string {
 	if c.RenovateRebaseLabel == "" {
 		return renovateRebaseLabelDefault
 	}
+
 	return c.RenovateRebaseLabel
 }
 
@@ -119,6 +120,7 @@ func (s *Store) Init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return err
 	}
+
 	return s.addColumnsIfMissing(ctx)
 }
 
@@ -142,9 +144,11 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 			if strings.Contains(err.Error(), "duplicate column name") {
 				continue
 			}
+
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -176,6 +180,7 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 			updated_at = excluded.updated_at`,
 		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.AllowBotPrUpdates, c.RenovateRebaseLabel, c.Theme, time.Now().UTC(),
 	)
+
 	return err
 }
 
@@ -203,6 +208,7 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 	if c.ForgejoToken, err = s.cipher.Decrypt(encForgejoToken); err != nil {
 		return Credentials{}, err
 	}
+
 	return c, nil
 }
 
@@ -251,6 +257,7 @@ func (s *Store) EnsureWebhookCredentials(ctx context.Context, userID []byte) (to
 	if err != nil {
 		return "", "", err
 	}
+
 	return token, secret, nil
 }
 
@@ -280,6 +287,7 @@ func (s *Store) FindByWebhookToken(ctx context.Context, token string) (userID []
 	if err != nil {
 		return nil, "", err
 	}
+
 	return userID, secret, nil
 }
 
@@ -300,6 +308,7 @@ func (s *Store) GetFilterState(ctx context.Context, userID []byte) (string, erro
 	if err != nil {
 		return "", err
 	}
+
 	return state, nil
 }
 
@@ -324,6 +333,7 @@ func (s *Store) SetFilterState(ctx context.Context, userID []byte, stateJSON str
 		// really was.
 		encodeUserID(userID), stateJSON, time.Now().UTC(),
 	)
+
 	return err
 }
 
@@ -336,6 +346,7 @@ func randomWebhookValue() (string, error) {
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
+
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
@@ -352,6 +363,7 @@ func (s *Store) Delete(ctx context.Context, userID []byte) error {
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM user_credentials WHERE user_id = ?`, encodedID)
+
 	return err
 }
 
@@ -376,6 +388,7 @@ func (s *Store) IgnoreRepo(ctx context.Context, userID []byte, forge, repoFullNa
 		ON CONFLICT (user_id, forge, repo_full_name) DO NOTHING`,
 		encodeUserID(userID), forge, repoFullName,
 	)
+
 	return err
 }
 
@@ -386,6 +399,7 @@ func (s *Store) UnignoreRepo(ctx context.Context, userID []byte, forge, repoFull
 		DELETE FROM ignored_repos WHERE user_id = ? AND forge = ? AND repo_full_name = ?`,
 		encodeUserID(userID), forge, repoFullName,
 	)
+
 	return err
 }
 
@@ -409,6 +423,7 @@ func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]str
 		}
 		ignored[WebhookDeliveryKey(forge, repoFullName)] = struct{}{}
 	}
+
 	return ignored, rows.Err()
 }
 
@@ -427,6 +442,7 @@ func (s *Store) RecordWebhookDelivery(ctx context.Context, userID []byte, forge,
 			last_seen_at = excluded.last_seen_at`,
 		encodeUserID(userID), forge, repoFullName, time.Now().UTC(),
 	)
+
 	return err
 }
 
@@ -451,6 +467,7 @@ func (s *Store) WebhookDeliveries(ctx context.Context, userID []byte) (map[strin
 		}
 		seen[WebhookDeliveryKey(forge, repoFullName)] = struct{}{}
 	}
+
 	return seen, rows.Err()
 }
 

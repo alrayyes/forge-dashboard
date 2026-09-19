@@ -66,6 +66,7 @@ func (f *fakeRepoRefresherSource) Fetch(_ context.Context) dashboard.Result {
 	for _, issues := range f.issues {
 		result.Issues = append(result.Issues, issues...)
 	}
+
 	return result
 }
 
@@ -74,18 +75,21 @@ func (f *fakeRepoRefresherSource) FetchRepo(_ context.Context, _, _, fullName st
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.repoFetchCalls[fullName]++
+
 	return f.byRepo[fullName], f.issues[fullName], nil
 }
 
 func (f *fakeRepoRefresherSource) fetchCallCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return f.fetchCalls
 }
 
 func (f *fakeRepoRefresherSource) repoFetchCallCount(fullName string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return f.repoFetchCalls[fullName]
 }
 
@@ -170,13 +174,11 @@ func TestAggregator_RefreshRepo_ConcurrentCallsForSameRepo_Coalesce(t *testing.T
 	var wg sync.WaitGroup
 	var oks atomic.Int64
 	for range triggers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a") {
 				oks.Add(1)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 

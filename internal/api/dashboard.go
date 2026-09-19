@@ -112,6 +112,7 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 			// reaching here with none would be a wiring bug, not a
 			// request this handler can meaningfully answer.
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
@@ -119,6 +120,7 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 		if ownerUsername == "" || ownerUsername == u.Username {
 			warmUpAggregator(r.Context(), deps, u.ID, u.Username)
 			writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, deps.Manager.Get(u.ID)))
+
 			return
 		}
 
@@ -126,19 +128,23 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, auth.ErrNotFound) {
 				writeJSON(w, http.StatusNotFound, errorBody("no user is registered under that username"))
+
 				return
 			}
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not look up owner"))
+
 			return
 		}
 
 		shared, err := deps.SharingStore.IsSharedWith(r.Context(), owner.ID, u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not check sharing"))
+
 			return
 		}
 		if !shared {
 			writeJSON(w, http.StatusForbidden, errorBody("that user hasn't shared their dashboard with you"))
+
 			return
 		}
 
@@ -175,6 +181,7 @@ func warmUpAggregator(ctx context.Context, deps Deps, userID []byte, username st
 		if !errors.Is(err, settings.ErrNotFound) {
 			slog.Warn("could not load settings to warm up dashboard", "user", username, "error", err)
 		}
+
 		return
 	}
 	deps.Manager.EnsureIfAbsent(deps.AppContext, userID, deps.BuildSources(creds))
@@ -190,6 +197,7 @@ func loadAndEnsure(ctx context.Context, deps Deps, userID []byte, username strin
 		if !errors.Is(err, settings.ErrNotFound) {
 			slog.Warn("could not load settings to warm up dashboard", "user", username, "error", err)
 		}
+
 		return
 	}
 	deps.Manager.Ensure(deps.AppContext, userID, deps.BuildSources(creds))
@@ -217,6 +225,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
@@ -224,6 +233,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 			// No Aggregator running yet (Settings has never been saved) —
 			// the same condition and message handleDashboardStream uses.
 			writeJSON(w, http.StatusNotFound, errorBody("no background refresh is running yet for this user"))
+
 			return
 		}
 		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, deps.Manager.Get(u.ID)))
@@ -246,12 +256,14 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("streaming not supported"))
+
 			return
 		}
 
@@ -264,6 +276,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 			// send. EventSource retries a failed connection on its own,
 			// so the browser picks the stream up once one exists.
 			writeJSON(w, http.StatusNotFound, errorBody("no background refresh is running yet for this user"))
+
 			return
 		}
 		defer unsubscribe()

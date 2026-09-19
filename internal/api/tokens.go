@@ -31,12 +31,14 @@ func handleTokensGet(store *auth.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		tokens, err := store.ListAPITokens(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load api tokens"))
+
 			return
 		}
 
@@ -75,32 +77,38 @@ func handleTokensPost(store *auth.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		var req apiTokenCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
 			return
 		}
 		label := strings.TrimSpace(req.Label)
 		if label == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("label is required"))
+
 			return
 		}
 		now := time.Now()
 		if !req.ExpiresAt.After(now) {
 			writeJSON(w, http.StatusBadRequest, errorBody("expiresAt must be in the future"))
+
 			return
 		}
 		if req.ExpiresAt.After(now.Add(maxAPITokenLifetime)) {
 			writeJSON(w, http.StatusBadRequest, errorBody("expiresAt can't be more than 366 days out"))
+
 			return
 		}
 
 		raw, tok, err := store.CreateAPIToken(r.Context(), u.ID, label, req.ExpiresAt)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not create api token"))
+
 			return
 		}
 
@@ -119,12 +127,14 @@ func handleTokensDelete(store *auth.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		id := r.PathValue("id")
 		if err := store.DeleteAPIToken(r.Context(), u.ID, id); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not revoke api token"))
+
 			return
 		}
 

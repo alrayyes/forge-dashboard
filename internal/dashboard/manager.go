@@ -86,6 +86,7 @@ func (m *Manager) Get(userID []byte) Snapshot {
 	if !ok {
 		return newEmptySnapshot()
 	}
+
 	return entry.agg.Get()
 }
 
@@ -98,6 +99,7 @@ func (m *Manager) Running(userID []byte) bool {
 	m.mu.Lock()
 	_, ok := m.users[string(userID)]
 	m.mu.Unlock()
+
 	return ok
 }
 
@@ -116,6 +118,7 @@ func (m *Manager) RefreshNow(ctx context.Context, userID []byte) bool {
 		return false
 	}
 	entry.agg.Refresh(ctx)
+
 	return true
 }
 
@@ -132,6 +135,7 @@ func (m *Manager) RefreshRepo(ctx context.Context, userID []byte, forge Forge, o
 	if !ok {
 		return false
 	}
+
 	return entry.agg.RefreshRepo(ctx, forge, owner, name, fullName)
 }
 
@@ -146,6 +150,7 @@ func (m *Manager) Subscribe(userID []byte) (<-chan Snapshot, func(), bool) {
 		return nil, nil, false
 	}
 	ch, unsubscribe := entry.agg.Subscribe()
+
 	return ch, unsubscribe, true
 }
 

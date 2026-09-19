@@ -38,6 +38,7 @@ type coalescer struct {
 func newCoalescer() *coalescer {
 	c := &coalescer{}
 	c.cond = sync.NewCond(&c.mu)
+
 	return c
 }
 
@@ -52,6 +53,7 @@ func (c *coalescer) do(fn func()) {
 			c.cond.Wait()
 		}
 		c.mu.Unlock()
+
 		return
 	}
 	c.running = true
@@ -67,6 +69,7 @@ func (c *coalescer) do(fn func()) {
 		if !c.pending {
 			c.running = false
 			c.mu.Unlock()
+
 			return
 		}
 		c.pending = false

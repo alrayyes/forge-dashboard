@@ -26,12 +26,14 @@ func handleFilterStateGet(store *settings.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		state, err := store.GetFilterState(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load filter state"))
+
 			return
 		}
 
@@ -50,21 +52,25 @@ func handleFilterStatePut(store *settings.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxFilterStateBytes))
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("request body too large"))
+
 			return
 		}
 		if !json.Valid(body) {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
 			return
 		}
 
 		if err := store.SetFilterState(r.Context(), u.ID, string(body)); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save filter state"))
+
 			return
 		}
 

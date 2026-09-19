@@ -85,6 +85,7 @@ func (s *Store) Init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return err
 	}
+
 	return s.addColumnsIfMissing(ctx)
 }
 
@@ -104,9 +105,11 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 			if strings.Contains(err.Error(), "duplicate column name") {
 				continue
 			}
+
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -140,6 +143,7 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string, is
 	if err != nil {
 		return nil, err
 	}
+
 	return u, nil
 }
 
@@ -150,6 +154,7 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string, is
 // credential, or doesn't exist at all.
 func (s *Store) DeleteUnregisteredUser(ctx context.Context, username string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE username = ? AND credentials_json = '[]'`, username)
+
 	return err
 }
 
@@ -159,6 +164,7 @@ func (s *Store) GetUserByUsername(ctx context.Context, username string) (*User, 
 		`SELECT id, username, display_name, is_admin, credentials_json, created_at FROM users WHERE username = ?`,
 		username,
 	)
+
 	return scanUser(row)
 }
 
@@ -169,6 +175,7 @@ func (s *Store) GetUserByID(ctx context.Context, id []byte) (*User, error) {
 		`SELECT id, username, display_name, is_admin, credentials_json, created_at FROM users WHERE id = ?`,
 		encodeID(id),
 	)
+
 	return scanUser(row)
 }
 
@@ -209,6 +216,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]*User, error) {
 		}
 		users = append(users, u)
 	}
+
 	return users, rows.Err()
 }
 
@@ -229,6 +237,7 @@ func scanUser(row rowScanner) (*User, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
+
 		return nil, err
 	}
 
@@ -242,6 +251,7 @@ func scanUser(row rowScanner) (*User, error) {
 	if err := json.Unmarshal([]byte(credsJSON), &u.Credentials); err != nil {
 		return nil, fmt.Errorf("auth: decode stored credentials: %w", err)
 	}
+
 	return &u, nil
 }
 
@@ -253,6 +263,7 @@ func (s *Store) AddCredential(ctx context.Context, userID []byte, cred webauthn.
 		return err
 	}
 	u.Credentials = append(u.Credentials, cred)
+
 	return s.saveCredentials(ctx, u)
 }
 
@@ -268,9 +279,11 @@ func (s *Store) UpdateCredential(ctx context.Context, userID []byte, cred webaut
 	for i, existing := range u.Credentials {
 		if string(existing.ID) == string(cred.ID) {
 			u.Credentials[i] = cred
+
 			return s.saveCredentials(ctx, u)
 		}
 	}
+
 	return fmt.Errorf("auth: credential %x not found for user", cred.ID)
 }
 
@@ -280,6 +293,7 @@ func (s *Store) saveCredentials(ctx context.Context, u *User) error {
 		return err
 	}
 	_, err = s.db.ExecContext(ctx, `UPDATE users SET credentials_json = ? WHERE id = ?`, string(credsJSON), encodeID(u.ID))
+
 	return err
 }
 
@@ -314,6 +328,7 @@ func (s *Store) setCredentialLabelAt(ctx context.Context, userID []byte, credID 
 		ON CONFLICT (user_id, credential_id) DO UPDATE SET label = excluded.label`,
 		encodeID(userID), credentialIDKey(credID), label, createdAt,
 	)
+
 	return err
 }
 
@@ -366,6 +381,7 @@ func (s *Store) ListCredentials(ctx context.Context, userID []byte) ([]*Credenti
 		out = append(out, &Credential{ID: key, Label: m.label, CreatedAt: m.createdAt})
 	}
 	slices.SortFunc(out, func(a, b *Credential) int { return a.CreatedAt.Compare(b.CreatedAt) })
+
 	return out, nil
 }
 
@@ -392,6 +408,7 @@ func (s *Store) RemoveCredential(ctx context.Context, userID []byte, credID stri
 	for i, cred := range u.Credentials {
 		if credentialIDKey(cred.ID) == credID {
 			idx = i
+
 			break
 		}
 	}
@@ -407,6 +424,7 @@ func (s *Store) RemoveCredential(ctx context.Context, userID []byte, credID stri
 		return err
 	}
 	_, err = s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ? AND credential_id = ?`, encodeID(userID), credID)
+
 	return err
 }
 
@@ -423,6 +441,7 @@ func (s *Store) SaveCeremony(ctx context.Context, username, kind string, session
 		 ON CONFLICT (username, kind) DO UPDATE SET session_json = excluded.session_json, expires_at = excluded.expires_at`,
 		username, kind, string(data), time.Now().UTC().Add(ttl),
 	)
+
 	return err
 }
 
@@ -451,6 +470,7 @@ func (s *Store) LoadCeremony(ctx context.Context, username, kind string) (webaut
 	if err := json.Unmarshal([]byte(data), &session); err != nil {
 		return webauthn.SessionData{}, fmt.Errorf("auth: decode stored ceremony: %w", err)
 	}
+
 	return session, nil
 }
 
@@ -458,6 +478,7 @@ func (s *Store) LoadCeremony(ctx context.Context, username, kind string) (webaut
 // lose — it's single-use either way.
 func (s *Store) DeleteCeremony(ctx context.Context, username, kind string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM ceremonies WHERE username = ? AND kind = ?`, username, kind)
+
 	return err
 }
 
@@ -478,6 +499,7 @@ func (s *Store) CreateSession(ctx context.Context, userID []byte, ttl time.Durat
 	if err != nil {
 		return "", err
 	}
+
 	return token, nil
 }
 
@@ -504,6 +526,7 @@ func (s *Store) UserForSession(ctx context.Context, token string) (*User, error)
 	if err != nil {
 		return nil, err
 	}
+
 	return s.GetUserByID(ctx, id)
 }
 
@@ -511,6 +534,7 @@ func (s *Store) UserForSession(ctx context.Context, token string) (*User, error)
 // another user's session.
 func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE token = ?`, token)
+
 	return err
 }
 
@@ -531,6 +555,7 @@ func (s *Store) RevokeUser(ctx context.Context, userID []byte) error {
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE user_id = ?`, encodeID(userID))
+
 	return err
 }
 
@@ -548,6 +573,7 @@ func (s *Store) DeleteUser(ctx context.Context, userID []byte) error {
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, encodeID(userID))
+
 	return err
 }
 
@@ -567,6 +593,7 @@ const apiTokenPrefix = "fdb_"
 // human-chosen password an attacker could feasibly enumerate.
 func hashAPIToken(raw string) string {
 	sum := sha256.Sum256([]byte(raw))
+
 	return hex.EncodeToString(sum[:])
 }
 
@@ -601,6 +628,7 @@ func (s *Store) CreateAPIToken(ctx context.Context, userID []byte, label string,
 	if err != nil {
 		return "", nil, err
 	}
+
 	return raw, tok, nil
 }
 
@@ -637,6 +665,7 @@ func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, 
 		}
 		tokens = append(tokens, &tok)
 	}
+
 	return tokens, rows.Err()
 }
 
@@ -671,6 +700,7 @@ func (s *Store) UserForAPIToken(ctx context.Context, raw string) (*User, error) 
 	if err != nil {
 		return nil, err
 	}
+
 	return s.GetUserByID(ctx, id)
 }
 
@@ -680,6 +710,7 @@ func (s *Store) UserForAPIToken(ctx context.Context, raw string) (*User, error) 
 // or never belonged to userID, is not an error.
 func (s *Store) DeleteAPIToken(ctx context.Context, userID []byte, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE id = ? AND user_id = ?`, id, encodeID(userID))
+
 	return err
 }
 
@@ -692,6 +723,7 @@ func decodeID(s string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("auth: decode stored user id: %w", err)
 	}
+
 	return id, nil
 }
 
@@ -699,5 +731,6 @@ func boolToInt(b bool) int {
 	if b {
 		return 1
 	}
+
 	return 0
 }

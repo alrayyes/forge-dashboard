@@ -31,6 +31,7 @@ func (f *fakeCommenterSource) Fetch(_ context.Context) dashboard.Result {
 
 func (f *fakeCommenterSource) CommentPullRequest(_ context.Context, owner, name string, number int, body string) error {
 	f.lastOwner, f.lastName, f.lastNumber, f.lastBody = owner, name, number, body
+
 	return f.commentErr
 }
 
@@ -44,6 +45,7 @@ func postDependabotAction(t *testing.T, srvURL string, sessionCookie *http.Cooki
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+
 	return resp
 }
 

@@ -23,6 +23,7 @@ func postRepoAction(t *testing.T, srvURL string, sessionCookie *http.Cookie, pat
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+
 	return resp
 }
 
@@ -50,6 +51,7 @@ func newTestServerWithRepo(t *testing.T) (srvURL string, sessionCookie *http.Coo
 		if c.GitHubToken != secretToken {
 			return nil
 		}
+
 		return []dashboard.Source{source}
 	}
 
@@ -67,6 +69,7 @@ func newTestServerWithRepo(t *testing.T) (srvURL string, sessionCookie *http.Coo
 
 	require.Eventually(t, func() bool {
 		snap := fetchDashboard(t, srv.URL, sessionCookie)
+
 		return len(snap["pullRequests"].([]any)) == 1
 	}, time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture PR")
 
@@ -83,6 +86,7 @@ func fetchDashboard(t *testing.T, srvURL string, sessionCookie *http.Cookie) map
 	defer func() { _ = resp.Body.Close() }()
 	var body map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+
 	return body
 }
 

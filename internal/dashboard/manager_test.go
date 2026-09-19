@@ -19,6 +19,7 @@ type countingSource struct {
 
 func (s *countingSource) Fetch(_ context.Context) dashboard.Result {
 	s.calls.Add(1)
+
 	return dashboard.Result{Health: s.health}
 }
 
@@ -37,6 +38,7 @@ func TestManager_Ensure_ThenGet_ReturnsThatUsersSnapshot(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		snap := m.Get(userA)
+
 		return len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 5
 	}, time.Second, 5*time.Millisecond)
 }
@@ -247,11 +249,9 @@ func TestManager_EnsureIfAbsent_ConcurrentCallsForNewUser_OnlyCreateOneAggregato
 	const callers = 10
 	var wg sync.WaitGroup
 	for range callers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			m.EnsureIfAbsent(t.Context(), user, []dashboard.Source{src})
-		}()
+		})
 	}
 	wg.Wait()
 

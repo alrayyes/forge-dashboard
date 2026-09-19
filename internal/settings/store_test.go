@@ -23,6 +23,7 @@ func newTestStore(t *testing.T) *settings.Store {
 
 	store := settings.NewStore(db, cipher)
 	require.NoError(t, store.Init(t.Context()))
+
 	return store
 }
 
@@ -86,7 +87,7 @@ func TestStore_Get_NeverSaved_ThemeDefaultsToEmptyMeaningSystem(t *testing.T) {
 
 	got, err := store.Get(t.Context(), []byte("user-1"))
 	require.ErrorIs(t, err, settings.ErrNotFound)
-	assert.Equal(t, "", got.Theme)
+	assert.Empty(t, got.Theme)
 }
 
 func TestCredentials_RenovateRebaseLabelOrDefault_EmptyFallsBackToRenovatesOwnDefault(t *testing.T) {

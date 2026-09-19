@@ -156,6 +156,7 @@ func requireAuthPage(store *auth.Store, next http.Handler) http.Handler {
 		if ok {
 			if _, err := store.UserForSession(r.Context(), token); err == nil {
 				next.ServeHTTP(w, r)
+
 				return
 			}
 		}

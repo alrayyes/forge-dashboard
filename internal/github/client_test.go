@@ -35,6 +35,7 @@ func readGraphQLRequest(t *testing.T, r *http.Request) graphqlRequestBody {
 	t.Helper()
 	var body graphqlRequestBody
 	assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+
 	return body
 }
 
@@ -395,6 +396,7 @@ func TestFetch_FollowsPagination(t *testing.T) {
 					},
 				},
 			})
+
 			return
 		}
 		assert.Equal(t, "cursor-1", body.Variables["cursor"])
@@ -785,6 +787,7 @@ func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 		assert.Empty(t, r.Header.Get("Authorization"), "the public fallback should never send a credential")
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -794,6 +797,7 @@ func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/tempus-fugit/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -801,6 +805,7 @@ func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/tempus-fugit/issues", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -824,6 +829,7 @@ func TestFetch_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -835,6 +841,7 @@ func TestFetch_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/active/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -842,6 +849,7 @@ func TestFetch_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/active/issues", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -863,6 +871,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -872,6 +881,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -887,6 +897,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -914,6 +925,7 @@ func TestFetch_NoToken_ExcludesPullRequestsFromIssues(t *testing.T) {
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -923,6 +935,7 @@ func TestFetch_NoToken_ExcludesPullRequestsFromIssues(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -930,6 +943,7 @@ func TestFetch_NoToken_ExcludesPullRequestsFromIssues(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -1273,6 +1287,7 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -1282,6 +1297,7 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -1298,6 +1314,7 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -1629,6 +1646,7 @@ func TestEnsureWebhook_SendsAuthorizationHeader(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer test-token" {
 			w.WriteHeader(http.StatusUnauthorized)
 			writeJSON(t, w, map[string]any{"message": "Requires authentication"})
+
 			return
 		}
 		switch r.Method {
@@ -1657,6 +1675,7 @@ func TestEnsureWebhook_ForgeErrorPropagates(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			w.WriteHeader(http.StatusForbidden)
+
 			return
 		}
 		t.Fatalf("unexpected method %s", r.Method)

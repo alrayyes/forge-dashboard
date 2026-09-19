@@ -29,6 +29,7 @@ func TestListRepos_FiltersToPushAccessAndPaginates(t *testing.T) {
 	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -54,6 +55,7 @@ func TestListRepos_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -80,6 +82,7 @@ func TestListRepos_CanManageWebhooksRequiresAdminNotJustPush(t *testing.T) {
 	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -116,6 +119,7 @@ func TestListRepos_ExcludesMirroredRepos(t *testing.T) {
 	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -142,6 +146,7 @@ func TestListRepos_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 		assert.Empty(t, r.Header.Get("Authorization"), "the public fallback should never send a credential")
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -166,6 +171,7 @@ func TestListRepos_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	mux.HandleFunc("/api/v1/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -192,6 +198,7 @@ func TestListRepos_NoToken_ExcludesMirroredRepos(t *testing.T) {
 	mux.HandleFunc("/api/v1/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -316,6 +323,7 @@ func TestListOpenPullRequests_MapsFieldsAndResolvesCI(t *testing.T) {
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -364,6 +372,7 @@ func TestCIStatus_MapsWarningToPending(t *testing.T) {
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -392,6 +401,7 @@ func TestListOpenIssues_UsesTypeIssuesFilter(t *testing.T) {
 		assert.Equal(t, "issues", r.URL.Query().Get("type"))
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -437,6 +447,7 @@ func TestListOpenPullRequests_MapsMergeableToMergeStatus(t *testing.T) {
 			mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Query().Get("page") != "1" {
 					writeJSON(t, w, []map[string]any{})
+
 					return
 				}
 				writeJSON(t, w, []map[string]any{
@@ -495,6 +506,7 @@ func TestListOpenPullRequests_MapsBehindFromBaseShaVsMergeBase(t *testing.T) {
 			mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Query().Get("page") != "1" {
 					writeJSON(t, w, []map[string]any{})
+
 					return
 				}
 				writeJSON(t, w, []map[string]any{
@@ -533,6 +545,7 @@ func TestHasWebhook_MatchesByURLPath(t *testing.T) {
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -559,6 +572,7 @@ func TestHasWebhook_NoMatchingHook(t *testing.T) {
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -623,6 +637,7 @@ func TestEnsureWebhook_CreatesWhenMissing(t *testing.T) {
 		case http.MethodGet:
 			if r.URL.Query().Get("page") != "1" {
 				writeJSON(t, w, []map[string]any{})
+
 				return
 			}
 			writeJSON(t, w, []map[string]any{
@@ -662,6 +677,7 @@ func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -694,6 +710,7 @@ func TestEnsureWebhook_ForgeErrorPropagates(t *testing.T) {
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			w.WriteHeader(http.StatusForbidden)
+
 			return
 		}
 		t.Fatalf("unexpected method %s", r.Method)

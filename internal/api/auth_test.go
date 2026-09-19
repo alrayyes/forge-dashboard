@@ -46,12 +46,14 @@ func noSources(settingspkg.Credentials) []dashboard.Source { return nil }
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
+
 	return newTestServerWithSources(t, noSources)
 }
 
 func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Credentials) []dashboard.Source) *httptest.Server {
 	t.Helper()
 	srv, _ := newTestServerWithSourcesAndManager(t, buildSources)
+
 	return srv
 }
 
@@ -104,6 +106,7 @@ func newTestServerWithSourcesAndManager(t *testing.T, buildSources func(settings
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+
 	return srv, manager
 }
 
@@ -112,6 +115,7 @@ func testEncryptionKey(t *testing.T) string {
 	key := make([]byte, 32)
 	_, err := rand.Read(key)
 	require.NoError(t, err)
+
 	return base64.StdEncoding.EncodeToString(key)
 }
 
@@ -166,6 +170,7 @@ func registerViaRealCeremony(t *testing.T, srv *httptest.Server, username, displ
 		}
 	}
 	t.Fatal("no session cookie set by register/finish")
+
 	return nil, cred, authenticator
 }
 
@@ -173,6 +178,7 @@ func readAll(t *testing.T, resp *http.Response) string {
 	t.Helper()
 	b, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
+
 	return string(b)
 }
 
