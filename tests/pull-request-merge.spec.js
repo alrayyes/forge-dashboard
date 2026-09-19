@@ -206,6 +206,64 @@ test.describe('pull request merge button', () => {
     ).toBeFocused();
   });
 
+  // Reported live against alrayyes/backup-git-repos#212: clicking Merge
+  // then Confirm merge? did nothing. Root cause: aggregator.go sorts
+  // pullRequests by UpdatedAt descending, and every live update (the
+  // 30s poll, or an SSE push) rebuilds the whole board from that fresh
+  // order via applySnapshot -> prBoard.setItems. Any other tracked pull
+  // request updating in that window reshuffles the list out from under
+  // a row that's already armed for its second click, so the confirm
+  // click lands on whatever's now in that row's old position instead of
+  // the button itself.
+  test('a pull request being confirmed for merge stays in place even if a live refresh reorders the board', async ({
+    page,
+  }) => {
+    const target = makePR({ number: 42, repo: 'alrayyes/backup-git-repos' });
+    await mockDashboard(page, target);
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Merge' }).click();
+    await expect(
+      row.getByRole('button', { name: 'Confirm merge?' }),
+    ).toBeVisible();
+
+    // A live refresh lands mid-confirmation carrying a second, more
+    // recently updated pull request — the exact shape that pushes the
+    // one being confirmed out of first place once the board re-sorts.
+    const newer = makePR({
+      number: 99,
+      repo: 'alrayyes/other-repo',
+      updatedAt: new Date().toISOString(),
+    });
+    await page.route('**/api/dashboard/refresh', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+          pullRequests: [newer, target],
+          issues: [],
+        }),
+      }),
+    );
+    await page.click('#force-refresh-button');
+
+    // The board stays frozen at the pre-refresh state while the row is
+    // mid-interaction — the new pull request doesn't even appear yet —
+    // rather than reordering out from under the armed click.
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await expect(
+      row.getByRole('button', { name: 'Confirm merge?' }),
+    ).toBeVisible();
+
+    // Cancelling clears the in-flight state, so the board catches back
+    // up to the live order right away instead of staying stale.
+    await row.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+  });
+
   test('Cancel returns to the plain Merge button without calling the API', async ({
     page,
   }) => {
