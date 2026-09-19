@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.78.0](https://github.com/alrayyes/forge-dashboard/compare/v0.77.2...v0.78.0) (2026-09-19)
+
+
+### Features
+
+* **webhooks:** add a bulk "set up webhooks for all repos" action ([#427](https://github.com/alrayyes/forge-dashboard/issues/427)) ([a0fb8b6](https://github.com/alrayyes/forge-dashboard/commit/a0fb8b6b2ec8207e184d4cbefe1c5bf90696d7ad)), closes [#380](https://github.com/alrayyes/forge-dashboard/issues/380)
+
 ## [0.77.2](https://github.com/alrayyes/forge-dashboard/compare/v0.77.1...v0.77.2) (2026-09-19)
 
 
