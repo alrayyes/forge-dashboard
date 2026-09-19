@@ -88,7 +88,7 @@ func (s *Service) BeginRegistration(ctx context.Context, username, displayName s
 
 	creation, session, err := s.webauthn.BeginRegistration(u)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: begin registration: %w", err)
 	}
 	if err := s.store.SaveCeremony(ctx, username, kindRegister, *session, ceremonyTTL); err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (s *Service) FinishRegistration(ctx context.Context, username string, r *ht
 func (s *Service) BeginAddCredential(ctx context.Context, u *User) (*protocol.CredentialCreation, error) {
 	creation, session, err := s.webauthn.BeginRegistration(u)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: begin add credential: %w", err)
 	}
 	if err := s.store.SaveCeremony(ctx, u.Username, kindRegister, *session, ceremonyTTL); err != nil {
 		return nil, err
@@ -188,7 +188,7 @@ func (s *Service) BeginLogin(ctx context.Context, username string) (*protocol.Cr
 
 	assertion, session, err := s.webauthn.BeginLogin(u)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth: begin login: %w", err)
 	}
 	if err := s.store.SaveCeremony(ctx, username, kindLogin, *session, ceremonyTTL); err != nil {
 		return nil, err

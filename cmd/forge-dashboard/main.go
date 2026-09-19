@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -191,11 +192,16 @@ func openDatabase() (*sql.DB, error) {
 	dbPath := envOr("DB_PATH", "/data/forge-dashboard.db")
 	if dir := filepath.Dir(dbPath); dir != "." {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("create database directory: %w", err)
 		}
 	}
 
-	return sql.Open("sqlite", dbPath+"?_busy_timeout=5000&_journal_mode=WAL")
+	db, err := sql.Open("sqlite", dbPath+"?_busy_timeout=5000&_journal_mode=WAL")
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+
+	return db, nil
 }
 
 // buildAuth wires up the WebAuthn relying party from the environment.
@@ -205,7 +211,7 @@ func openDatabase() (*sql.DB, error) {
 func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, error) {
 	store := auth.NewStore(db)
 	if err := store.Init(ctx); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("init auth store: %w", err)
 	}
 
 	rpID := envOr("RP_ID", "localhost")
@@ -216,7 +222,7 @@ func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, err
 		RPOrigins:     []string{rpOrigin},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("configure webauthn relying party: %w", err)
 	}
 
 	return auth.NewService(wa, store), store, nil
@@ -233,12 +239,12 @@ func buildSettingsStore(ctx context.Context, db *sql.DB) (*settings.Store, error
 
 	cipher, err := settings.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build settings cipher: %w", err)
 	}
 
 	store := settings.NewStore(db, cipher)
 	if err := store.Init(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("init settings store: %w", err)
 	}
 
 	return store, nil

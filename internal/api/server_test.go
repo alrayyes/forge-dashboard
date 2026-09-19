@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -19,7 +20,11 @@ import (
 func readJSON(resp *http.Response, v any) error {
 	defer func() { _ = resp.Body.Close() }()
 
-	return json.NewDecoder(resp.Body).Decode(v)
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+		return fmt.Errorf("decode response body: %w", err)
+	}
+
+	return nil
 }
 
 func TestHealthz_AnswersOK(t *testing.T) {

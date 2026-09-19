@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
@@ -66,7 +67,7 @@ func resolveSharedUsers(r *http.Request, deps Deps, ids [][]byte) ([]SharedUser,
 	for _, id := range ids {
 		u, err := deps.AuthStore.GetUserByID(r.Context(), id)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("resolve shared user: %w", err)
 		}
 		out = append(out, SharedUser{Username: u.Username, DisplayName: u.DisplayName})
 	}
