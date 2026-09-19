@@ -14,8 +14,10 @@ import (
 )
 
 // fakeCheckerSource implements both dashboard.Source and
-// dashboard.PullRequestChecker directly — the shape github.Client and
-// forgejo.Client both have.
+// dashboard.PullRequestChecker directly — the shape github.Client has,
+// since it drives its own Source. Forgejo's real shape is different (see
+// TestPullRequestChecks_ForgejoViaGenericSource_ReturnsChecks below) —
+// don't assume this fake alone exercises both forges' real wiring.
 type fakeCheckerSource struct {
 	forge      dashboard.Forge
 	checks     []dashboard.Check
@@ -136,4 +138,62 @@ func TestPullRequestChecks_Unauthenticated_Returns401(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+// fakeForgeClientWithChecker implements dashboard.ForgeClient plus
+// PullRequestChecker — the real shape internal/forgejo.Client has, driven
+// through dashboard.GenericSource rather than being a Source directly.
+// #455: a fake Source implementing PullRequestChecker directly (like
+// fakeCheckerSource above) never exercises GenericSource's own forwarding
+// at all, which is exactly the gap that shipped a real "forgejo doesn't
+// support listing pull request checks" regression despite forgejo.Client
+// itself already implementing ListChecks correctly.
+type fakeForgeClientWithChecker struct {
+	checks     []dashboard.Check
+	lastOwner  string
+	lastName   string
+	lastNumber int
+}
+
+func (f *fakeForgeClientWithChecker) ListRepos(_ context.Context) ([]dashboard.RepoRef, error) {
+	return nil, nil
+}
+
+func (f *fakeForgeClientWithChecker) ListOpenPullRequests(_ context.Context, _, _, _ string) ([]dashboard.PullRequest, error) {
+	return nil, nil
+}
+
+func (f *fakeForgeClientWithChecker) ListOpenIssues(_ context.Context, _, _, _ string) ([]dashboard.Issue, error) {
+	return nil, nil
+}
+
+func (f *fakeForgeClientWithChecker) ListChecks(_ context.Context, owner, name string, number int) ([]dashboard.Check, error) {
+	f.lastOwner, f.lastName, f.lastNumber = owner, name, number
+
+	return f.checks, nil
+}
+
+func TestPullRequestChecks_ForgejoViaGenericSource_ReturnsChecks(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeForgeClientWithChecker{
+		checks: []dashboard.Check{{Name: "build", State: dashboard.CheckSuccess, URL: "https://git.example/runs/1"}},
+	}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := getPullRequestChecks(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 7)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "alrayyes", client.lastOwner)
+	assert.Equal(t, "tempus-fugit", client.lastName)
+	assert.Equal(t, 7, client.lastNumber)
+
+	var body struct {
+		Checks []dashboard.Check `json:"checks"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	require.Len(t, body.Checks, 1)
+	assert.Equal(t, "build", body.Checks[0].Name)
 }
