@@ -299,6 +299,77 @@ test.describe('pull request merge button', () => {
     await expect(status).toContainText('Merged alrayyes/forge-dashboard#42.');
   });
 
+  test('a raw network failure whose refresh confirms the merge went through reports success, not a false failure', async ({
+    page,
+  }) => {
+    // The exact shape reported live: forge-dashboard's own backend can
+    // restart mid-request (a redeploy the merge itself can trigger) and
+    // the browser never gets a response at all — a TypeError with no
+    // HTTP status, ambiguous about whether the merge actually landed.
+    // Verified against a fresh refresh rather than trusted at face value.
+    const pr = makePR();
+    await mockDashboard(page, pr);
+    await page.route('**/api/pull-requests/merge', (route) =>
+      route.abort('failed'),
+    );
+    await page.route('**/api/dashboard/refresh', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [],
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Merge' }).click();
+    await row.getByRole('button', { name: 'Confirm merge?' }).click();
+
+    await expect(page.locator('#pr-rows .row')).toHaveCount(0);
+    await expect(page.locator('#error-banner')).toHaveCount(0);
+    await expect(page.locator('#status-banner')).toContainText(
+      'alrayyes/forge-dashboard#42',
+    );
+  });
+
+  test('a raw network failure whose refresh shows the pull request still there reports the real failure', async ({
+    page,
+  }) => {
+    const pr = makePR();
+    await mockDashboard(page, pr);
+    await page.route('**/api/pull-requests/merge', (route) =>
+      route.abort('failed'),
+    );
+    await page.route('**/api/dashboard/refresh', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [pr],
+          issues: [],
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Merge' }).click();
+    await row.getByRole('button', { name: 'Confirm merge?' }).click();
+
+    await expect(page.locator('#error-banner')).toContainText(
+      "Couldn't merge alrayyes/forge-dashboard#42",
+    );
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
+  });
+
   test('a transient failure shows an error and returns to a re-clickable Merge button', async ({
     page,
   }) => {
