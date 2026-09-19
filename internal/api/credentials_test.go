@@ -19,7 +19,7 @@ import (
 // authenticator — a real second device (a security key alongside the
 // laptop registerViaRealCeremony already set up), not a mock of
 // forge-dashboard's own code.
-func addCredentialViaRealCeremony(t *testing.T, srv *httptest.Server, sessionCookie *http.Cookie, label string) (virtualwebauthn.Credential, virtualwebauthn.Authenticator, *http.Response) {
+func addCredentialViaRealCeremony(t *testing.T, srv *httptest.Server, sessionCookie *http.Cookie, label string) *http.Response {
 	t.Helper()
 
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
@@ -56,7 +56,7 @@ func addCredentialViaRealCeremony(t *testing.T, srv *httptest.Server, sessionCoo
 
 	authenticator.AddCredential(cred)
 
-	return cred, authenticator, finishResp
+	return finishResp
 }
 
 func TestCredentialsGet_RequiresASession(t *testing.T) {
@@ -97,7 +97,7 @@ func TestAddCredential_SecondPasskey_BothAuthenticateAfterwards(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, firstCred, firstAuthenticator := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
-	_, _, finishResp := addCredentialViaRealCeremony(t, srv, sessionCookie, "YubiKey")
+	finishResp := addCredentialViaRealCeremony(t, srv, sessionCookie, "YubiKey")
 	finishBody := readAll(t, finishResp)
 	_ = finishResp.Body.Close()
 	require.Equal(t, http.StatusCreated, finishResp.StatusCode, "finish body: %s", finishBody)
@@ -175,7 +175,7 @@ func TestCredentialsDelete_WithAnotherRemaining_RemovesIt(t *testing.T) {
 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	_, _, finishResp := addCredentialViaRealCeremony(t, srv, sessionCookie, "YubiKey")
+	finishResp := addCredentialViaRealCeremony(t, srv, sessionCookie, "YubiKey")
 	require.Equal(t, http.StatusCreated, finishResp.StatusCode)
 	var created api.CredentialInfo
 	require.NoError(t, json.NewDecoder(finishResp.Body).Decode(&created))

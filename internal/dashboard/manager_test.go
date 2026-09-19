@@ -144,8 +144,8 @@ func TestManager_RefreshRepo_KnownUser_DelegatesToTheirAggregator(t *testing.T) 
 	t.Parallel()
 
 	user := []byte("user-a")
-	src := newFakeRepoRefresherSource(dashboard.ForgeGitHub)
-	src.setRepo("alrayyes/a", []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1}}, nil)
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1}})
 
 	m := dashboard.NewManager(time.Hour)
 	t.Cleanup(m.Stop)

@@ -25,10 +25,10 @@ func issueNode(number int, title string) map[string]any {
 // real issues data plus the reconciliation-only issuesTotal alias, for
 // the tests in this file that need to control both explicitly rather
 // than accept repoNodeWithOwnerName's own empty defaults.
-func repoNodeWithIssues(owner, name string, totalCount int, issues []map[string]any) map[string]any {
+func repoNodeWithIssues(name string, totalCount int, issues []map[string]any) map[string]any {
 	return map[string]any{
 		"name": name, "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
-		"owner":        map[string]any{"login": owner},
+		"owner":        map[string]any{"login": "alrayyes"},
 		"pullRequests": map[string]any{"nodes": []map[string]any{}},
 		"issuesTotal":  map[string]any{"totalCount": totalCount},
 		"issues":       map[string]any{"nodes": issues},
@@ -61,7 +61,7 @@ func TestFetch_FirstPoll_OmitsSince(t *testing.T) {
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		body := readGraphQLRequest(t, r)
 		assert.Nil(t, body.Variables["since"], "no prior poll to filter since")
-		writeJSON(t, w, reposPage(repoNodeWithIssues("alrayyes", "a", 1, []map[string]any{issueNode(1, "first")})))
+		writeJSON(t, w, reposPage(repoNodeWithIssues("a", 1, []map[string]any{issueNode(1, "first")})))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -91,7 +91,7 @@ func TestFetch_SecondPoll_PassesSinceFromFirstPoll(t *testing.T) {
 		} else {
 			assert.NotEmpty(t, body.Variables["since"], "a repeat poll should offer back the last poll's own time")
 		}
-		writeJSON(t, w, reposPage(repoNodeWithIssues("alrayyes", "a", 1, []map[string]any{issueNode(1, "first")})))
+		writeJSON(t, w, reposPage(repoNodeWithIssues("a", 1, []map[string]any{issueNode(1, "first")})))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -120,7 +120,7 @@ func TestFetch_ReconcileMerge_TotalCountMatches_KeepsUntouchedIssues(t *testing.
 		body := readGraphQLRequest(t, r)
 		if call == 1 {
 			// Full first poll: both issues untouched, both come back.
-			writeJSON(t, w, reposPage(repoNodeWithIssues("alrayyes", "a", 2, []map[string]any{
+			writeJSON(t, w, reposPage(repoNodeWithIssues("a", 2, []map[string]any{
 				issueNode(1, "first"), issueNode(2, "second"),
 			})))
 
@@ -128,8 +128,8 @@ func TestFetch_ReconcileMerge_TotalCountMatches_KeepsUntouchedIssues(t *testing.
 		}
 		// Second poll: only #1 changed since — #2 never closed, so
 		// totalCount is still 2, but the delta itself only mentions #1.
-		require.NotEmpty(t, body.Variables["since"])
-		writeJSON(t, w, reposPage(repoNodeWithIssues("alrayyes", "a", 2, []map[string]any{
+		assert.NotEmpty(t, body.Variables["since"])
+		writeJSON(t, w, reposPage(repoNodeWithIssues("a", 2, []map[string]any{
 			issueNode(1, "first, retitled"),
 		})))
 	})
@@ -180,7 +180,7 @@ func TestFetch_ReconcileMismatch_FallsBackToFetchRepo(t *testing.T) {
 			return
 		}
 		if call == 1 {
-			writeJSON(t, w, reposPage(repoNodeWithIssues("alrayyes", "a", 2, []map[string]any{
+			writeJSON(t, w, reposPage(repoNodeWithIssues("a", 2, []map[string]any{
 				issueNode(1, "first"), issueNode(2, "second"),
 			})))
 
@@ -189,7 +189,7 @@ func TestFetch_ReconcileMismatch_FallsBackToFetchRepo(t *testing.T) {
 		// Second poll: nothing in the delta (nothing was *updated*),
 		// but totalCount fell to 1 — #2 closed without ever appearing
 		// in a since-filtered delta.
-		writeJSON(t, w, reposPage(repoNodeWithIssues("alrayyes", "a", 1, []map[string]any{})))
+		writeJSON(t, w, reposPage(repoNodeWithIssues("a", 1, []map[string]any{})))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -232,7 +232,7 @@ func TestFetch_NewRepoOnASinceFilteredPoll_FullyFetchedViaFallback(t *testing.T)
 			return
 		}
 		if call == 1 {
-			writeJSON(t, w, reposPage(repoNodeWithIssues("alrayyes", "a", 0, []map[string]any{})))
+			writeJSON(t, w, reposPage(repoNodeWithIssues("a", 0, []map[string]any{})))
 
 			return
 		}
@@ -240,8 +240,8 @@ func TestFetch_NewRepoOnASinceFilteredPoll_FullyFetchedViaFallback(t *testing.T)
 		// predates $since and never shows up in the delta, but
 		// totalCount still says 1.
 		writeJSON(t, w, reposPage(
-			repoNodeWithIssues("alrayyes", "a", 0, []map[string]any{}),
-			repoNodeWithIssues("alrayyes", "b", 1, []map[string]any{}),
+			repoNodeWithIssues("a", 0, []map[string]any{}),
+			repoNodeWithIssues("b", 1, []map[string]any{}),
 		))
 	})
 	srv := httptest.NewServer(mux)

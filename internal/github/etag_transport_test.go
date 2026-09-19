@@ -98,7 +98,7 @@ func TestFetch_RepeatPoll_304OnHooksStillReportsFreshRateLimit(t *testing.T) {
 				"viewer": map[string]any{
 					"repositories": map[string]any{
 						"pageInfo": map[string]any{"hasNextPage": false},
-						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+						"nodes":    []map[string]any{repoNodeWithOwnerName()},
 					},
 				},
 			},

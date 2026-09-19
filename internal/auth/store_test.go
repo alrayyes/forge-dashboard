@@ -305,7 +305,7 @@ func TestStore_DeleteUser_RemovesTheAccountAndItsSessions(t *testing.T) {
 	require.NoError(t, store.DeleteUser(t.Context(), u.ID))
 
 	_, err = store.GetUserByUsername(t.Context(), "ryan")
-	assert.ErrorIs(t, err, auth.ErrNotFound)
+	require.ErrorIs(t, err, auth.ErrNotFound)
 
 	_, err = store.UserForSession(t.Context(), token)
 	assert.ErrorIs(t, err, auth.ErrNotFound)
@@ -654,6 +654,9 @@ func TestStore_RemoveCredential_LastOne_RefusedWithErrLastCredential(t *testing.
 
 	err = store.RemoveCredential(t.Context(), u.ID, credentialIDKeyForTest([]byte("cred-1")))
 
+	//nolint:testifylint // deliberately assert, not require: whether the
+	// credential survived is worth checking independently of which exact
+	// error came back.
 	assert.ErrorIs(t, err, auth.ErrLastCredential)
 	got, getErr := store.GetUserByID(t.Context(), u.ID)
 	require.NoError(t, getErr)

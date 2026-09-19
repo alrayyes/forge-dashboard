@@ -62,6 +62,9 @@ func TestOpenDatabase_SurvivesConcurrentWriters(t *testing.T) {
 	close(errs)
 
 	for err := range errs {
+		//nolint:testifylint // deliberately assert, not require: every
+		// concurrent writer's own result matters, not just the first —
+		// require would stop the loop and hide how many actually failed.
 		assert.NoError(t, err)
 	}
 
