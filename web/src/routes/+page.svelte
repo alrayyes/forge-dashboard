@@ -534,6 +534,39 @@
       }
     }
 
+    // A branch update GitHub answers 202 to is its own background job,
+    // not yet finished by the time the very next snapshot lands — so an
+    // "updating" phase can't just be cleared the moment the POST
+    // resolves (doUpdateBranch used to do exactly that, and the
+    // in-flight button flickered back to a plain re-clickable one while
+    // GitHub was still working, then vanished for good once a later
+    // snapshot finally caught up). Left in place here until a snapshot
+    // actually reports the PR no longer behind, the same real signal
+    // updateBranchActionCell itself already gates the button's very
+    // existence on. Called from applySnapshot — whichever snapshot is
+    // the one that finally shows the PR caught up (doUpdateBranch's own
+    // follow-up refresh, the next poll, an SSE push, or a manual
+    // force-refresh click), not just the refresh doUpdateBranch itself
+    // triggered — so the returned list is what the caller reports as
+    // just-finished, regardless of which of those it was.
+    function clearResolvedUpdateBranches(
+      stateMap: Record<string, ActionState>,
+      prs: PullRequestItem[],
+    ): PullRequestItem[] {
+      const stillBehind = new Set(
+        prs.filter((p) => p.behind).map((p) => prKey(p)),
+      );
+      const resolved: PullRequestItem[] = [];
+      for (const item of prs) {
+        const key = prKey(item);
+        if (stateMap[key]?.phase === "updating" && !stillBehind.has(key)) {
+          delete stateMap[key];
+          resolved.push(item);
+        }
+      }
+      return resolved;
+    }
+
     // The "Retry" click every locked merge/update-branch button now has
     // — re-fetches the dashboard for real (not from a cache) so the
     // lock re-derives from current data immediately instead of waiting
@@ -804,8 +837,14 @@
           });
         })
         .then(() => {
-          delete updateBranchState[key];
-          showStatus(`Updated the branch for ${item.repo}#${item.number}.`);
+          // Left in the "updating" phase rather than cleared here — a
+          // 202 is GitHub's own background job, not necessarily done by
+          // the time this refresh lands, so the button only actually
+          // clears once clearResolvedUpdateBranches (called from
+          // applySnapshot, which also reports the "Updated" status once
+          // it happens) sees a snapshot that no longer reports this PR
+          // as behind. Until then it keeps reading "Updating…" instead
+          // of flickering back to a plain re-clickable button.
           return fetch("/api/dashboard/refresh", {
             method: "POST",
             headers: { Accept: "application/json" },
@@ -2244,6 +2283,9 @@
       clearStaleLocks(updateBranchState);
 
       const prs = data.pullRequests || [];
+      for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
+        showStatus(`Updated the branch for ${item.repo}#${item.number}.`);
+      }
       const issues = data.issues || [];
       allPRs = prs;
       allIssues = issues;
