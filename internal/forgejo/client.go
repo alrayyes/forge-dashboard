@@ -654,13 +654,14 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
 	runs, runsResp, err := c.sdk.ListRepoActionRuns(owner, name, gitea.ListRepoActionRunsOptions{
-		ListOptions: gitea.ListOptions{PageSize: pageLimit},
-		HeadSHA:     sha,
+		PageSize: pageLimit,
+		HeadSHA:  sha,
 	})
 	if err != nil {
 		if runsResp != nil && runsResp.StatusCode == http.StatusNotFound {
 			return c.checksFromCombinedStatus(ctx, owner, name, sha)
 		}
+
 		return nil, forgejoError(http.MethodGet, runsPath, runsResp, err)
 	}
 	if len(runs.WorkflowRuns) == 0 {
@@ -681,6 +682,7 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 			})
 		}
 	}
+
 	return checks, nil
 }
 
@@ -705,6 +707,7 @@ func (c *Client) checksFromCombinedStatus(ctx context.Context, owner, name, sha 
 			URL:   s.TargetURL,
 		})
 	}
+
 	return checks, nil
 }
 
@@ -770,6 +773,7 @@ func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runI
 	if jsonErr := json.Unmarshal(body, &bare); jsonErr != nil {
 		return nil, fmt.Errorf("forgejo: unmarshal action run jobs response: %w", jsonErr)
 	}
+
 	return bare, nil
 }
 
@@ -782,23 +786,24 @@ func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runI
 func (c *Client) rawGet(ctx context.Context, path string) ([]byte, *gitea.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.instanceURL+"/api/v1"+path, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("forgejo: build request: %w", err)
 	}
 	if c.token != "" {
 		req.Header.Set("Authorization", "token "+c.token)
 	}
 	httpResp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("forgejo: %s: %w", path, err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
 	body, err := io.ReadAll(httpResp.Body)
 	resp := &gitea.Response{Response: httpResp}
 	if err != nil {
-		return nil, resp, err
+		return nil, resp, fmt.Errorf("forgejo: read response body: %w", err)
 	}
 	if httpResp.StatusCode >= 300 {
 		return nil, resp, fmt.Errorf("%s", strings.TrimSpace(string(body)))
 	}
+
 	return body, resp, nil
 }

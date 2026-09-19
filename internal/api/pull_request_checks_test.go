@@ -33,6 +33,7 @@ func (f *fakeCheckerSource) Fetch(_ context.Context) dashboard.Result {
 
 func (f *fakeCheckerSource) ListChecks(_ context.Context, owner, name string, number int) ([]dashboard.Check, error) {
 	f.lastOwner, f.lastName, f.lastNumber = owner, name, number
+
 	return f.checks, f.checksErr
 }
 
@@ -50,6 +51,7 @@ func getPullRequestChecks(t *testing.T, srvURL string, sessionCookie *http.Cooki
 	}
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+
 	return resp
 }
 
