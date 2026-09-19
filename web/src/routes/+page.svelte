@@ -1223,14 +1223,20 @@
         );
         row.appendChild(status);
         row.appendChild(el("span", "pipeline-check-name", check.name));
-        const link = document.createElement("a");
-        link.className = "pipeline-check-link";
-        link.href = check.url;
-        link.target = "_blank";
-        link.rel = "noopener";
-        link.textContent = "View run";
-        link.setAttribute("aria-label", `View run: ${check.name}`);
-        row.appendChild(link);
+        // A skipped check never ran — its own page on the forge has
+        // nothing to show beyond "this was skipped," which the status
+        // label right above already says. No link rather than one that
+        // leads nowhere useful.
+        if (check.state !== "skipped") {
+          const link = document.createElement("a");
+          link.className = "pipeline-check-link";
+          link.href = check.url;
+          link.target = "_blank";
+          link.rel = "noopener";
+          link.textContent = "View run";
+          link.setAttribute("aria-label", `View run: ${check.name}`);
+          row.appendChild(link);
+        }
         list.appendChild(row);
       });
       pipelineDialogBody.appendChild(list);
