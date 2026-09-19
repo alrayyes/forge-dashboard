@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.85.0](https://github.com/alrayyes/forge-dashboard/compare/v0.84.0...v0.85.0) (2026-09-19)
+
+
+### Features
+
+* **ci:** fire repository_dispatch at the SDK repos when the spec changes ([#475](https://github.com/alrayyes/forge-dashboard/issues/475)) ([24ae3db](https://github.com/alrayyes/forge-dashboard/commit/24ae3db021a76ec8b51946d8280c2fc15ba0c2c5))
+
 ## [0.84.0](https://github.com/alrayyes/forge-dashboard/compare/v0.83.0...v0.84.0) (2026-09-19)
 
 
