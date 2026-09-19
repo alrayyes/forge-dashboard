@@ -376,7 +376,14 @@ test.describe('pull request update-branch button', () => {
       });
     });
 
+    // #419: .click() only waits for the click event itself, not for the
+    // async fetch its handler kicks off — checking refreshCalled right
+    // after raced that fetch reaching the route handler above, missing
+    // it on an unlucky run despite the click having genuinely fired.
+    // Waiting for the real response first makes this deterministic.
+    const refreshResponse = page.waitForResponse('**/api/dashboard/refresh');
     await row.getByRole('button', { name: 'Retry' }).click();
+    await refreshResponse;
 
     expect(refreshCalled).toBe(true);
     await expect(
