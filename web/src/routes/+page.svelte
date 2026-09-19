@@ -1749,7 +1749,12 @@
         // announced by a screen reader either. The raw technical string
         // stays available in a native, keyboard-accessible <details>
         // disclosure instead.
-        if (!f.reachable && f.error) {
+        //
+        // Except rate_limited: the rate-limit banner (#361) already
+        // covers that case at the top of the page, per-budget and with a
+        // countdown — repeating "Rate limit exceeded." and a raw-error
+        // disclosure here is noise, not a second source of detail.
+        if (!f.reachable && f.error && f.errorKind !== "rate_limited") {
           item.appendChild(
             el("span", "forge-health-error", forgeErrorHeadline(f)),
           );
