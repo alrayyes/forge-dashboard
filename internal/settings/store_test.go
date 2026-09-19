@@ -614,3 +614,25 @@ func TestStore_Delete_RemovesAutoUpdateBranchRepos(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+func TestStore_AllowsBotPRUpdates_NeverSaved_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	got, err := store.AllowsBotPRUpdates(t.Context(), []byte("user-1"))
+
+	require.NoError(t, err)
+	assert.False(t, got)
+}
+
+func TestStore_AllowsBotPRUpdates_ReflectsSavedCredentials(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{AllowBotPrUpdates: true}))
+
+	got, err := store.AllowsBotPRUpdates(t.Context(), userID)
+
+	require.NoError(t, err)
+	assert.True(t, got)
+}
