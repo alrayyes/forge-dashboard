@@ -678,6 +678,59 @@
             });
         })
         .catch((err: Error & { status?: number }) => {
+          // A raw network failure (no HTTP status at all — the fetch
+          // itself rejected, not just a non-204 response) is genuinely
+          // ambiguous: the request might have reached the backend and
+          // the merge might have gone through even though no response
+          // ever made it back to this tab. Reported live: forge-
+          // dashboard's own backend can restart mid-request (a redeploy
+          // the merge itself can trigger) and the browser sees exactly
+          // this. Verify against a fresh refresh before declaring
+          // failure, rather than trusting an ambiguous error at face
+          // value — the same resilience doUpdateBranch's own fix
+          // (#447) already applies to its own ambiguous-outcome case.
+          if (err.status === undefined) {
+            fetch("/api/dashboard/refresh", {
+              method: "POST",
+              headers: { Accept: "application/json" },
+            })
+              .then((res) => (res.ok ? res.json() : null))
+              .then((data) => {
+                const stillThere = (data?.pullRequests || []).some(
+                  (p: PullRequestItem) => prKey(p) === key,
+                );
+                if (data && !stillThere) {
+                  // Gone from the board — the merge almost certainly
+                  // went through despite the network error, so this
+                  // reports as the same success the happy path does
+                  // rather than a false failure.
+                  delete mergeState[key];
+                  applySnapshot(data);
+                  showStatus(`Merged ${item.repo}#${item.number}.`);
+                  return;
+                }
+                mergeState[key] = { phase: "idle" };
+                if (data) {
+                  applySnapshot(data);
+                } else {
+                  prBoard.render();
+                }
+                clearStatus();
+                showError(
+                  `Couldn't merge ${item.repo}#${item.number}: ${err.message}`,
+                );
+              })
+              .catch(() => {
+                mergeState[key] = { phase: "idle" };
+                clearStatus();
+                showError(
+                  `Couldn't merge ${item.repo}#${item.number}: ${err.message}`,
+                );
+                prBoard.render();
+              });
+            return;
+          }
+
           const lockReason = reactiveMergeLockReason(err.status, err.message);
           mergeState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
