@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.83.0](https://github.com/alrayyes/forge-dashboard/compare/v0.82.0...v0.83.0) (2026-09-19)
+
+
+### Features
+
+* **web:** show the full repo name on hover when truncated ([#464](https://github.com/alrayyes/forge-dashboard/issues/464)) ([3bc0e41](https://github.com/alrayyes/forge-dashboard/commit/3bc0e41de6a658e95083ea577aef74d8432aa56a)), closes [#463](https://github.com/alrayyes/forge-dashboard/issues/463)
+
+
+### Bug Fixes
+
+* **web:** don't show "View run" for a skipped pipeline check ([#462](https://github.com/alrayyes/forge-dashboard/issues/462)) ([e3612c0](https://github.com/alrayyes/forge-dashboard/commit/e3612c0df437a688373795eacd8b27ffd6bb99e6)), closes [#461](https://github.com/alrayyes/forge-dashboard/issues/461)
+* **web:** stop the Merge button reporting a false failure ([#460](https://github.com/alrayyes/forge-dashboard/issues/460)) ([837bc12](https://github.com/alrayyes/forge-dashboard/commit/837bc12ae4b43fb22890f18351066bc5356b7a8e)), closes [#459](https://github.com/alrayyes/forge-dashboard/issues/459)
+
 ## [0.82.0](https://github.com/alrayyes/forge-dashboard/compare/v0.81.0...v0.82.0) (2026-09-19)
 
 
