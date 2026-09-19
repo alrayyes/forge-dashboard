@@ -147,7 +147,7 @@ func TestFetch_ReportsRateLimit(t *testing.T) {
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{
 			"data": map[string]any{
-				"rateLimit": map[string]any{"limit": 5000, "remaining": 4922, "resetAt": "2026-09-14T16:00:00Z"},
+				"rateLimit": map[string]any{"limit": 5000, "cost": 3, "remaining": 4922, "resetAt": "2026-09-14T16:00:00Z"},
 				"viewer": map[string]any{
 					"repositories": map[string]any{
 						"pageInfo": map[string]any{"hasNextPage": false},
@@ -166,6 +166,7 @@ func TestFetch_ReportsRateLimit(t *testing.T) {
 	require.NotNil(t, result.Health.RateLimitGraphQL)
 	assert.Equal(t, 5000, result.Health.RateLimitGraphQL.Limit)
 	assert.Equal(t, 4922, result.Health.RateLimitGraphQL.Remaining)
+	assert.Equal(t, 3, result.Health.RateLimitGraphQL.Cost, "the actual point price this call was charged (#440), not just what's left")
 }
 
 func TestFetch_ExcludesArchivedForkedAndReadOnlyRepos(t *testing.T) {

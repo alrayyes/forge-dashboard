@@ -381,6 +381,37 @@ test.describe('insights page', () => {
       await expect(restBudget).toContainText('5,000');
     });
 
+    test("shows the last poll's own point cost for a GraphQL budget (#440), not just what's left", async ({
+      page,
+    }) => {
+      const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
+      await mockDashboard(page, {
+        forges: [
+          {
+            forge: 'github',
+            reachable: true,
+            repoCount: 3,
+            rateLimitGraphQL: {
+              limit: 5000,
+              remaining: 4321,
+              resetsAt,
+              cost: 7,
+            },
+            rateLimitREST: { limit: 5000, remaining: 4922, resetsAt },
+          },
+        ],
+      });
+
+      await page.goto('/insights.html');
+
+      const row = page.locator('[data-forge="github"]');
+      const graphqlBudget = row.locator('[data-rate-limit-kind="GraphQL"]');
+      const restBudget = row.locator('[data-rate-limit-kind="REST"]');
+      await expect(graphqlBudget).toContainText('Last poll cost 7 points');
+      // REST has no cost concept of its own (#440) — nothing to show.
+      await expect(restBudget).not.toContainText('Last poll cost');
+    });
+
     test("says a budget isn't reported, rather than showing a broken or zero-looking bar", async ({
       page,
     }) => {
