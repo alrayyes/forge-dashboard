@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.82.0](https://github.com/alrayyes/forge-dashboard/compare/v0.81.0...v0.82.0) (2026-09-19)
+
+
+### Features
+
+* **dashboard:** log rate-limit exhaustion and recovery transitions ([#454](https://github.com/alrayyes/forge-dashboard/issues/454)) ([0cf6f03](https://github.com/alrayyes/forge-dashboard/commit/0cf6f03d55e1521f9aed77fcff2dac0d15f38200)), closes [#453](https://github.com/alrayyes/forge-dashboard/issues/453)
+
+
+### Bug Fixes
+
+* **dashboard:** forward PullRequestChecker through GenericSource ([#457](https://github.com/alrayyes/forge-dashboard/issues/457)) ([614a13f](https://github.com/alrayyes/forge-dashboard/commit/614a13fee232fec8777302fdc80b9c5bd6c8bca3)), closes [#455](https://github.com/alrayyes/forge-dashboard/issues/455)
+
 ## [0.81.0](https://github.com/alrayyes/forge-dashboard/compare/v0.80.1...v0.81.0) (2026-09-19)
 
 
