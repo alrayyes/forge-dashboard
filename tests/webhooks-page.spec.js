@@ -595,6 +595,199 @@ test.describe('webhooks page', () => {
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
+  test.describe('bulk "set up webhooks for all repos" action (#380)', () => {
+    function bulkButton(page) {
+      return page.getByRole('button', { name: /Set up webhooks for/ });
+    }
+
+    test('shows the count of repos actually missing a webhook', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: false,
+          canManageWebhooks: true,
+        },
+        {
+          forge: 'github',
+          fullName: 'alrayyes/b',
+          hasWebhook: false,
+          canManageWebhooks: true,
+        },
+        {
+          forge: 'github',
+          fullName: 'alrayyes/c',
+          hasWebhook: true,
+          canManageWebhooks: true,
+        },
+      ]);
+      await page.goto('/webhooks.html');
+
+      await expect(bulkButton(page)).toContainText('2');
+    });
+
+    test('is not shown once every repo already has a webhook', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          canManageWebhooks: true,
+        },
+      ]);
+      await page.goto('/webhooks.html');
+
+      await expect(bulkButton(page)).toHaveCount(0);
+    });
+
+    test('does not count a repo the user lacks admin access to — nothing a bulk click could actually fix', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: false,
+          canManageWebhooks: false,
+        },
+      ]);
+      await page.goto('/webhooks.html');
+
+      await expect(bulkButton(page)).toHaveCount(0);
+    });
+
+    test('prompts for confirmation with the real count, and does nothing if dismissed', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: false,
+          canManageWebhooks: true,
+        },
+      ]);
+      let ensureCalled = false;
+      await page.route('**/api/webhooks/ensure', (route) => {
+        ensureCalled = true;
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      let dialogMessage = '';
+      page.once('dialog', (dialog) => {
+        dialogMessage = dialog.message();
+        void dialog.dismiss();
+      });
+      await bulkButton(page).click();
+
+      expect(dialogMessage).toContain('1');
+      expect(ensureCalled).toBe(false);
+    });
+
+    test('confirming sets up a webhook on every eligible repo and reports a final count', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: false,
+          canManageWebhooks: true,
+        },
+        {
+          forge: 'github',
+          fullName: 'alrayyes/b',
+          hasWebhook: false,
+          canManageWebhooks: true,
+        },
+      ]);
+      const requested = [];
+      await page.route('**/api/webhooks/ensure', (route) => {
+        requested.push(route.request().postDataJSON());
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      page.once('dialog', (dialog) => void dialog.accept());
+      await bulkButton(page).click();
+
+      await expect(page.locator('#webhooks-status')).toContainText('2');
+      await expect(page.locator('.status-confirmed')).toHaveCount(2);
+      expect(requested).toEqual(
+        expect.arrayContaining([
+          { forge: 'github', fullName: 'alrayyes/a' },
+          { forge: 'github', fullName: 'alrayyes/b' },
+        ]),
+      );
+      expect(requested).toHaveLength(2);
+    });
+
+    test('a repo that fails during the batch is reported on its own row, without stopping the rest', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: false,
+          canManageWebhooks: true,
+        },
+        {
+          forge: 'github',
+          fullName: 'alrayyes/b',
+          hasWebhook: false,
+          canManageWebhooks: true,
+        },
+      ]);
+      await page.route('**/api/webhooks/ensure', (route) => {
+        const body = route.request().postDataJSON();
+        if (body.fullName === 'alrayyes/a') {
+          return route.fulfill({
+            status: 403,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'missing permission' }),
+          });
+        }
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      page.once('dialog', (dialog) => void dialog.accept());
+      await bulkButton(page).click();
+
+      const rowA = page.locator('#webhooks-rows tr', { hasText: 'alrayyes/a' });
+      const rowB = page.locator('#webhooks-rows tr', { hasText: 'alrayyes/b' });
+      await expect(rowB).toContainText('Confirmed');
+      await expect(rowA).not.toContainText('Confirmed');
+      await expect(rowA).toContainText(/permission/i);
+    });
+
+    test('has no axe-core violations with the bulk button visible', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: false,
+          canManageWebhooks: true,
+        },
+      ]);
+      await page.goto('/webhooks.html');
+      await expect(bulkButton(page)).toBeVisible();
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
+
   test.describe('ignoring a repo (#363)', () => {
     test('clicking "Ignore" calls the API and moves the repo into the Ignored disclosure', async ({
       page,

@@ -105,6 +105,50 @@
   // it back here, not a filter toggle.
   const ignoredRepos = $derived(repos.filter((r) => r.ignored));
 
+  // #380: every currently-tracked repo missing a webhook, regardless of
+  // the active filter bar — the bulk action's whole point is doing every
+  // one at once, not whatever the view happens to be scoped to right
+  // now. Excludes a repo the user can't manage webhooks on at all
+  // (canManageWebhooks false): nothing a bulk click could fix there
+  // either, same reason the per-row action cell already shows the
+  // "needs admin access" explanation instead of a button for it.
+  const reposNeedingWebhook = $derived(
+    repos.filter((r) => !r.ignored && r.canManageWebhooks && !r.hasWebhook),
+  );
+
+  let bulkRunning = $state(false);
+
+  // Reuses addWebhook (defined below) for every target, one at a time —
+  // the same endpoint and the same per-row error handling a single click
+  // already gets (a locked reason, a retry-able message) rather than a
+  // new bulk-specific code path, so a repo that fails mid-batch shows up
+  // exactly the way an individual failed click already would, right on
+  // its own row, without needing a separate summary UI to duplicate it.
+  async function addAllWebhooks() {
+    const targets = reposNeedingWebhook;
+    if (targets.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Set up a webhook on ${targets.length} repo${targets.length === 1 ? "" : "s"} missing one?`,
+    );
+    if (!confirmed) return;
+
+    bulkRunning = true;
+    for (const repo of targets) {
+      await addWebhook(repo);
+    }
+    bulkRunning = false;
+
+    const succeeded = targets.filter((r) => r.hasWebhook).length;
+    const failed = targets.length - succeeded;
+    setStatus(
+      failed === 0
+        ? `Set up webhooks for all ${succeeded} repos.`
+        : `Set up webhooks for ${succeeded} of ${targets.length} repos — ${failed} failed, see the affected row${failed === 1 ? "" : "s"} above.`,
+      failed === 0 ? "" : "error",
+    );
+  }
+
   const filteredRepos = $derived(
     repos.filter((r) => {
       if (r.ignored) return false;
@@ -325,6 +369,18 @@
     .status.error {
       color: var(--critical);
     }
+    /* .row-action (internal/api/static/style.css) is the dashboard's own
+       real-button style for a consequential per-row write — reused here
+       rather than this page's usual text-link buttons, since a bulk
+       write across every repo missing a webhook deserves the same
+       visual weight, not the quieter treatment a single "Ignore" gets. */
+    .bulk-webhook-button {
+      margin-bottom: 14px;
+    }
+    .bulk-webhook-button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
     .data-table {
       width: 100%;
       border-collapse: collapse;
@@ -523,6 +579,19 @@
       Every tracked repo, and whether this dashboard has confirmed a webhook for
       it. <a href="/settings.html#webhooks">Webhook setup</a>
     </p>
+
+    {#if loaded && reposNeedingWebhook.length > 0}
+      <button
+        type="button"
+        class="row-action bulk-webhook-button"
+        disabled={bulkRunning}
+        onclick={addAllWebhooks}
+      >
+        {bulkRunning
+          ? "Setting up webhooks…"
+          : `Set up webhooks for ${reposNeedingWebhook.length} repo${reposNeedingWebhook.length === 1 ? "" : "s"}`}
+      </button>
+    {/if}
 
     {#if loaded && repos.length === 0}
       <p class="empty-state" id="webhooks-empty">
