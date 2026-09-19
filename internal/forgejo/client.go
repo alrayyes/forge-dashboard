@@ -8,11 +8,14 @@ package forgejo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
@@ -32,6 +35,13 @@ type Client struct {
 	token       string
 	username    string
 	webhookPath string
+	// instanceURL and httpClient exist only for listActionRunJobs' own
+	// raw-HTTP fallback — see its doc comment for why the SDK's typed
+	// method can't be used for that one call. Trimmed the same way the
+	// SDK trims its own internal c.url, so the two build identical
+	// request URLs.
+	instanceURL string
+	httpClient  *http.Client
 }
 
 // NewClient returns a Client against instanceURL (e.g.
@@ -41,8 +51,9 @@ type Client struct {
 // goes out unauthenticated and ListRepos returns only username's public
 // repos on that instance.
 func NewClient(instanceURL, token, username string) *Client {
+	httpClient := &http.Client{Timeout: 30 * time.Second}
 	opts := []gitea.ClientOption{
-		gitea.SetHTTPClient(&http.Client{Timeout: 30 * time.Second}),
+		gitea.SetHTTPClient(httpClient),
 		// Skips the server-version probe NewClient otherwise makes on
 		// every construction: this client only ever calls endpoints
 		// that have been stable since Gitea 1.11, so there's nothing to
@@ -61,7 +72,13 @@ func NewClient(instanceURL, token, username string) *Client {
 		panic(fmt.Sprintf("forgejo: unexpected client construction error: %v", err))
 	}
 
-	return &Client{sdk: sdk, token: token, username: username}
+	return &Client{
+		sdk:         sdk,
+		token:       token,
+		username:    username,
+		instanceURL: strings.TrimSuffix(instanceURL, "/"),
+		httpClient:  httpClient,
+	}
 }
 
 func (c *Client) setContext(ctx context.Context) {
@@ -584,4 +601,183 @@ func statusFromCombinedState(state gitea.StatusState) dashboard.CIStatus {
 	default:
 		return dashboard.CINone
 	}
+}
+
+// ListChecks implements dashboard.PullRequestChecker: lists every
+// individual job across every Actions run against owner/name#number's
+// head commit, falling back to the legacy combined-status API's own
+// per-check Statuses when this instance reports no Actions runs for that
+// commit at all (Actions disabled, or an instance old enough to lack the
+// /actions/runs route family — ListRepoActionRuns hits the wire for real
+// rather than failing fast on a version check, since this client disables
+// the SDK's version gates; see NewClient's own SetGiteaVersion("")
+// comment). A real fetch error (permission, rate limit) still propagates
+// instead of being swallowed into that same fallback.
+func (c *Client) ListChecks(ctx context.Context, owner, name string, number int) ([]dashboard.Check, error) {
+	c.setContext(ctx)
+
+	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", prPath)
+	pr, resp, err := c.sdk.GetPullRequest(owner, name, int64(number))
+	if err != nil {
+		return nil, forgejoError(http.MethodGet, prPath, resp, err)
+	}
+	var sha string
+	if pr.Head != nil {
+		sha = pr.Head.Sha
+	}
+	if sha == "" {
+		return nil, nil
+	}
+
+	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
+	runs, runsResp, err := c.sdk.ListRepoActionRuns(owner, name, gitea.ListRepoActionRunsOptions{
+		ListOptions: gitea.ListOptions{PageSize: pageLimit},
+		HeadSHA:     sha,
+	})
+	if err != nil {
+		if runsResp != nil && runsResp.StatusCode == http.StatusNotFound {
+			return c.checksFromCombinedStatus(ctx, owner, name, sha)
+		}
+		return nil, forgejoError(http.MethodGet, runsPath, runsResp, err)
+	}
+	if len(runs.WorkflowRuns) == 0 {
+		return c.checksFromCombinedStatus(ctx, owner, name, sha)
+	}
+
+	var checks []dashboard.Check
+	for _, run := range runs.WorkflowRuns {
+		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, j := range jobs {
+			checks = append(checks, dashboard.Check{
+				Name:  j.Name,
+				State: checkStateFromWorkflowStatus(j.Status),
+				URL:   j.HTMLURL,
+			})
+		}
+	}
+	return checks, nil
+}
+
+// checksFromCombinedStatus is ListChecks' own fallback: the legacy
+// commit-status API's Statuses are real per-check entries too (context,
+// state, target URL), not a second aggregate — the same shape GitHub's
+// own combined-status fallback already uses for the equivalent case.
+func (c *Client) checksFromCombinedStatus(ctx context.Context, owner, name, sha string) ([]dashboard.Check, error) {
+	c.setContext(ctx)
+
+	path := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+	combined, resp, err := c.sdk.GetCombinedStatus(owner, name, sha)
+	if err != nil {
+		return nil, forgejoError(http.MethodGet, path, resp, err)
+	}
+	checks := make([]dashboard.Check, 0, len(combined.Statuses))
+	for _, s := range combined.Statuses {
+		checks = append(checks, dashboard.Check{
+			Name:  s.Context,
+			State: checkStateFromCombinedState(s.State),
+			URL:   s.TargetURL,
+		})
+	}
+	return checks, nil
+}
+
+func checkStateFromCombinedState(state gitea.StatusState) dashboard.CheckState {
+	switch state {
+	case gitea.StatusSuccess:
+		return dashboard.CheckSuccess
+	case gitea.StatusFailure, gitea.StatusError:
+		return dashboard.CheckFailure
+	default: // pending, warning
+		return dashboard.CheckRunning
+	}
+}
+
+// checkStateFromWorkflowStatus maps one Actions job's own Status field to
+// a CheckState. Gitea/Forgejo Actions runs, jobs and steps report one of
+// eight statuses directly (unknown, waiting, running, success, failure,
+// cancelled, skipped, blocked) rather than GitHub's separate
+// status/conclusion pair, so this reads Status alone — ActionWorkflowJob's
+// own Conclusion field is left unused here since its real population
+// isn't confirmed against a live instance.
+func checkStateFromWorkflowStatus(status string) dashboard.CheckState {
+	switch status {
+	case "success":
+		return dashboard.CheckSuccess
+	case "failure":
+		return dashboard.CheckFailure
+	case "cancelled":
+		return dashboard.CheckCancelled
+	case "skipped":
+		return dashboard.CheckSkipped
+	case "running":
+		return dashboard.CheckRunning
+	default: // "waiting", "blocked", "unknown", or anything unrecognized
+		return dashboard.CheckQueued
+	}
+}
+
+// listActionRunJobs lists every job for runID, decoding leniently rather
+// than trusting the gitea SDK's own typed ListRepoActionRunJobs. A real,
+// newer Forgejo instance can answer this exact endpoint with a bare JSON
+// array instead of the {"total_count":N,"jobs":[...]} wrapper
+// ActionWorkflowJobsResponse expects — confirmed live in the sibling
+// project alrayyes/pipeline-analytics (issue #123), hit against this same
+// SDK version with this same client's version gates disabled (see
+// NewClient's own SetGiteaVersion("") comment), which leaves nothing to
+// protect the typed call from that mismatch. Decoding both shapes here,
+// via a raw request the SDK's own private HTTP plumbing isn't exported
+// for, sidesteps it instead of rediscovering it against a real instance.
+func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runID int64) ([]*gitea.ActionWorkflowJob, error) {
+	path := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs", owner, name, runID)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+	body, resp, err := c.rawGet(ctx, path)
+	if err != nil {
+		return nil, forgejoError(http.MethodGet, path, resp, err)
+	}
+
+	var wrapped gitea.ActionWorkflowJobsResponse
+	if jsonErr := json.Unmarshal(body, &wrapped); jsonErr == nil {
+		return wrapped.Jobs, nil
+	}
+	var bare []*gitea.ActionWorkflowJob
+	if jsonErr := json.Unmarshal(body, &bare); jsonErr != nil {
+		return nil, fmt.Errorf("forgejo: unmarshal action run jobs response: %w", jsonErr)
+	}
+	return bare, nil
+}
+
+// rawGet is a plain authenticated GET against this instance, bypassing
+// the gitea SDK entirely — needed only by listActionRunJobs, to decode a
+// response body the SDK's own typed method can't be told to accept in
+// both shapes it's known to return. Mirrors gitea.Client's own doRequest
+// (same URL shape, same "token "+token header) rather than inventing a
+// different one.
+func (c *Client) rawGet(ctx context.Context, path string) ([]byte, *gitea.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.instanceURL+"/api/v1"+path, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "token "+c.token)
+	}
+	httpResp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { _ = httpResp.Body.Close() }()
+	body, err := io.ReadAll(httpResp.Body)
+	resp := &gitea.Response{Response: httpResp}
+	if err != nil {
+		return nil, resp, err
+	}
+	if httpResp.StatusCode >= 300 {
+		return nil, resp, fmt.Errorf("%s", strings.TrimSpace(string(body)))
+	}
+	return body, resp, nil
 }

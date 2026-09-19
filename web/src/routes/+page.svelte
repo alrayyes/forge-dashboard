@@ -24,6 +24,10 @@
     number: number;
     url: string;
   };
+  // Matches components.schemas.Check in api/openapi.yaml — one job/check
+  // run against a pull request's head commit, as returned by
+  // GET /api/pull-requests/checks.
+  type Check = { name: string; state: string; url: string };
   type RateLimit = { limit: number; remaining: number; resetsAt: string };
   type Forge = {
     forge: string;
@@ -374,6 +378,8 @@
         if (dependabotAction) statusCell.appendChild(dependabotAction);
         const renovateRebaseAction = renovateRebaseActionCell(pr);
         if (renovateRebaseAction) statusCell.appendChild(renovateRebaseAction);
+        const pipelineAction = pipelineActionCell(pr);
+        if (pipelineAction) statusCell.appendChild(pipelineAction);
         meta.appendChild(statusCell);
       } else {
         meta.appendChild(el("div", "empty-cell"));
@@ -1106,6 +1112,190 @@
       button.disabled = requesting;
       button.addEventListener("click", () => {
         doRenovateRebase(item, button);
+      });
+      return button;
+    }
+
+    // ---- pipeline checks panel ----
+    // Per-check status vocabulary for GET /api/pull-requests/checks's own
+    // CheckState enum — distinct from CI_LABELS above, which only ever
+    // describes the combined, row-level CIStatus, never one individual
+    // job.
+    const CHECK_STATE_LABELS: Record<string, string> = {
+      queued: "Queued",
+      running: "Running",
+      success: "Passed",
+      failure: "Failed",
+      cancelled: "Cancelled",
+      skipped: "Skipped",
+      timed_out: "Timed out",
+    };
+
+    const pipelineDialog = document.getElementById(
+      "pipeline-dialog",
+    ) as HTMLDialogElement | null;
+    const pipelineDialogSubtitle = document.getElementById(
+      "pipeline-dialog-subtitle",
+    );
+    const pipelineDialogBody = document.getElementById("pipeline-dialog-body");
+    const pipelineDialogCloseButton = document.getElementById(
+      "pipeline-dialog-close",
+    ) as HTMLButtonElement | null;
+
+    // The button that opened the dialog most recently — closing it (via
+    // Escape, a backdrop click, or the close button itself) moves focus
+    // back here, the same "return focus to what opened it" contract every
+    // other transient UI in this file already honors (see
+    // retryLockedAction moving focus back to a just-re-rendered locked
+    // button).
+    let pipelineDialogTrigger: HTMLButtonElement | null = null;
+
+    // Bumped on every open — a slow fetch from an already-closed (or
+    // reopened against a different pull request) dialog is never allowed
+    // to land and overwrite whatever the dialog is showing now.
+    let pipelineRequestToken = 0;
+
+    function renderPipelineLoading() {
+      if (!pipelineDialogBody) return;
+      pipelineDialogBody.innerHTML = "";
+      pipelineDialogBody.appendChild(
+        el("p", "pipeline-status", "Loading checks…"),
+      );
+    }
+
+    function renderPipelineChecks(checks: Check[]) {
+      if (!pipelineDialogBody) return;
+      pipelineDialogBody.innerHTML = "";
+      if (checks.length === 0) {
+        pipelineDialogBody.appendChild(
+          el("p", "pipeline-status", "No CI configured for this pull request."),
+        );
+        return;
+      }
+      const list = el("ul", "pipeline-check-list");
+      checks.forEach((check) => {
+        const row = el("li", "pipeline-check");
+        const status = el("span", `pipeline-check-status ${check.state}`);
+        status.appendChild(el("span", "dot"));
+        status.appendChild(
+          document.createTextNode(
+            CHECK_STATE_LABELS[check.state] || check.state,
+          ),
+        );
+        row.appendChild(status);
+        row.appendChild(el("span", "pipeline-check-name", check.name));
+        const link = document.createElement("a");
+        link.className = "pipeline-check-link";
+        link.href = check.url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "View run";
+        link.setAttribute("aria-label", `View run: ${check.name}`);
+        row.appendChild(link);
+        list.appendChild(row);
+      });
+      pipelineDialogBody.appendChild(list);
+    }
+
+    function renderPipelineError(message: string, onRetry: () => void) {
+      if (!pipelineDialogBody) return;
+      pipelineDialogBody.innerHTML = "";
+      const wrap = el("div", "pipeline-error");
+      wrap.setAttribute("role", "alert");
+      wrap.appendChild(el("p", "", message));
+      const retryButton = buttonEl("row-action", "Retry");
+      retryButton.addEventListener("click", onRetry);
+      wrap.appendChild(retryButton);
+      pipelineDialogBody.appendChild(wrap);
+    }
+
+    // Always fetched fresh — never cached, never part of applySnapshot's
+    // own eager pull, per the checks endpoint's own doc comment: this is
+    // detail a row doesn't show until the panel is actually opened for
+    // it.
+    function loadPipelineChecks(item: PullRequestItem) {
+      const token = ++pipelineRequestToken;
+      renderPipelineLoading();
+      showStatus(`Loading pipeline checks for ${item.repo}#${item.number}…`);
+
+      fetch(
+        `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
+        { headers: { Accept: "application/json" } },
+      )
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = "/login.html";
+            throw new Error("session expired");
+          }
+          return res.json().then((body) => {
+            if (!res.ok) {
+              const err: Error & { status?: number } = new Error(
+                body?.error || `backend answered ${res.status}`,
+              );
+              err.status = res.status;
+              throw err;
+            }
+            return body as { checks: Check[] };
+          });
+        })
+        .then((data) => {
+          if (token !== pipelineRequestToken) return;
+          clearStatus();
+          renderPipelineChecks(data.checks || []);
+        })
+        .catch((err: Error & { status?: number }) => {
+          if (token !== pipelineRequestToken) return;
+          clearStatus();
+          const message = `Couldn't load pipeline checks for ${item.repo}#${item.number}: ${err.message}`;
+          showError(message);
+          renderPipelineError(message, () => loadPipelineChecks(item));
+        });
+    }
+
+    function openPipelineDialog(
+      item: PullRequestItem,
+      trigger: HTMLButtonElement,
+    ) {
+      if (!pipelineDialog) return;
+      pipelineDialogTrigger = trigger;
+      if (pipelineDialogSubtitle) {
+        pipelineDialogSubtitle.textContent = `${item.repo}#${item.number}`;
+      }
+      loadPipelineChecks(item);
+      pipelineDialog.showModal();
+    }
+
+    pipelineDialogCloseButton?.addEventListener("click", () => {
+      pipelineDialog?.close();
+    });
+
+    // Fires for every close path — Escape, the close button, and the
+    // backdrop-click handler just below — so focus returns to the row's
+    // own button no matter which one the pull request's own row-action
+    // group used to get here.
+    pipelineDialog?.addEventListener("close", () => {
+      pipelineDialogTrigger?.focus();
+      pipelineDialogTrigger = null;
+    });
+
+    // <dialog>'s own ::backdrop is a separate, non-clickable pseudo-
+    // element that never receives this event — a click landing on the
+    // <dialog> element itself (rather than something inside it) is what
+    // "clicked outside the panel" actually looks like from here.
+    pipelineDialog?.addEventListener("click", (event) => {
+      if (event.target === pipelineDialog) {
+        pipelineDialog.close();
+      }
+    });
+
+    // Visible whenever the row has any CI at all — "none" already has
+    // nothing to show a panel about, the same signal ciPill's own
+    // CI_LABELS.none already reads.
+    function pipelineActionCell(item: PullRequestItem): HTMLElement | null {
+      if (item.ci === "none") return null;
+      const button = buttonEl("row-action", "View pipeline");
+      button.addEventListener("click", () => {
+        openPipelineDialog(item, button);
       });
       return button;
     }
@@ -2541,3 +2731,35 @@
     <span id="footer-version"></span>
   </footer>
 </div>
+
+<dialog
+  id="pipeline-dialog"
+  class="pipeline-dialog"
+  aria-label="Pipeline checks"
+>
+  <div class="pipeline-dialog-header">
+    <div>
+      <h2 class="pipeline-dialog-title">Pipeline checks</h2>
+      <p class="pipeline-dialog-subtitle" id="pipeline-dialog-subtitle"></p>
+    </div>
+    <button
+      type="button"
+      class="pipeline-dialog-close"
+      id="pipeline-dialog-close"
+      aria-label="Close pipeline checks"
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg
+      >
+    </button>
+  </div>
+  <div class="pipeline-dialog-body" id="pipeline-dialog-body"></div>
+</dialog>

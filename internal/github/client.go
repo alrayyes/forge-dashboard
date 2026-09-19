@@ -1397,6 +1397,109 @@ func statusFromCheckRuns(runs []*ghsdk.CheckRun) dashboard.CIStatus {
 	return dashboard.CISuccess
 }
 
+// ListChecks implements dashboard.PullRequestChecker: lists every
+// individual check run against owner/name#number's head commit — the
+// per-job detail ciStatusREST folds into one CIStatus and discards.
+// Always goes over REST regardless of whether Fetch itself used GraphQL
+// or REST for this account: this is a separate, on-demand call the
+// eager refresh never makes, and go-github's REST client already
+// carries whatever credential this Client was built with.
+func (c *Client) ListChecks(ctx context.Context, owner, name string, number int) ([]dashboard.Check, error) {
+	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("github request", "method", http.MethodGet, "url", prPath)
+	pr, _, err := c.restClient.PullRequests.Get(ctx, owner, name, number)
+	if err != nil {
+		return nil, asClientError(c.restError(http.MethodGet, prPath, err))
+	}
+	sha := pr.GetHead().GetSHA()
+	if sha == "" {
+		return nil, nil
+	}
+
+	checkRunsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
+	slog.Debug("github request", "method", http.MethodGet, "url", checkRunsPath)
+	runs, _, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{
+		ListOptions: ghsdk.ListOptions{PerPage: perPage},
+	})
+	if err != nil {
+		return nil, asClientError(c.restError(http.MethodGet, checkRunsPath, err))
+	}
+	if len(runs.CheckRuns) > 0 {
+		checks := make([]dashboard.Check, 0, len(runs.CheckRuns))
+		for _, r := range runs.CheckRuns {
+			checks = append(checks, dashboard.Check{
+				Name:  r.GetName(),
+				State: checkStateFromRun(r),
+				URL:   r.GetHTMLURL(),
+			})
+		}
+		return checks, nil
+	}
+
+	// No check runs at all — either nothing's configured, or this repo's
+	// CI still reports through the legacy commit-status API (a
+	// third-party CI, or a repo with no Actions workflow). Its own
+	// Statuses are real per-check entries too, not a second aggregate.
+	statusPath := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
+	slog.Debug("github request", "method", http.MethodGet, "url", statusPath)
+	combined, _, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, nil)
+	if err != nil {
+		return nil, asClientError(c.restError(http.MethodGet, statusPath, err))
+	}
+	checks := make([]dashboard.Check, 0, len(combined.Statuses))
+	for _, s := range combined.Statuses {
+		checks = append(checks, dashboard.Check{
+			Name:  s.GetContext(),
+			State: checkStateFromCombinedState(s.GetState()),
+			URL:   s.GetTargetURL(),
+		})
+	}
+	return checks, nil
+}
+
+// checkStateFromRun maps one check run's status/conclusion pair to a
+// CheckState. GitHub's own conclusion values: success, failure, neutral,
+// cancelled, skipped, timed_out, action_required, stale — neutral counts
+// as passing the same way statusFromCheckRuns already treats it;
+// action_required and stale count as failing, since either blocks the
+// pull request the same way a real failure does.
+func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
+	if r.GetStatus() != "completed" {
+		if r.GetStatus() == "queued" {
+			return dashboard.CheckQueued
+		}
+		return dashboard.CheckRunning
+	}
+	switch r.GetConclusion() {
+	case "success", "neutral":
+		return dashboard.CheckSuccess
+	case "skipped":
+		return dashboard.CheckSkipped
+	case "cancelled":
+		return dashboard.CheckCancelled
+	case "timed_out":
+		return dashboard.CheckTimedOut
+	default: // "failure", "action_required", "stale"
+		return dashboard.CheckFailure
+	}
+}
+
+// checkStateFromCombinedState maps the legacy commit-status API's own
+// per-status state — pending, success, error, or failure — to a
+// CheckState. "pending" is the closest of the two aggregate states this
+// API can report to CheckRunning: the legacy status API has no separate
+// "queued" distinction.
+func checkStateFromCombinedState(state string) dashboard.CheckState {
+	switch state {
+	case "success":
+		return dashboard.CheckSuccess
+	case "failure", "error":
+		return dashboard.CheckFailure
+	default: // "pending"
+		return dashboard.CheckRunning
+	}
+}
+
 func statusFromCombinedState(state string) dashboard.CIStatus {
 	switch state {
 	case "success":

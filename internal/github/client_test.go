@@ -1896,3 +1896,147 @@ func TestUpdateBranch_CannotMergeCleanly_ClassifiesAsForgeErrorConflict(t *testi
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
 }
+
+func TestListChecks_ReturnsEveryCheckRunForThePullRequestsHeadSHA(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "build", "status": "completed", "conclusion": "success", "html_url": "https://github.com/alrayyes/a/runs/1"},
+			{"name": "test", "status": "in_progress", "html_url": "https://github.com/alrayyes/a/runs/2"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	assert.Equal(t, dashboard.Check{Name: "build", State: dashboard.CheckSuccess, URL: "https://github.com/alrayyes/a/runs/1"}, checks[0])
+	assert.Equal(t, dashboard.Check{Name: "test", State: dashboard.CheckRunning, URL: "https://github.com/alrayyes/a/runs/2"}, checks[1])
+}
+
+func TestListChecks_MapsEveryStatusAndConclusionToACheckState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		status     string
+		conclusion string
+		want       dashboard.CheckState
+	}{
+		{status: "queued", want: dashboard.CheckQueued},
+		{status: "in_progress", want: dashboard.CheckRunning},
+		{status: "completed", conclusion: "success", want: dashboard.CheckSuccess},
+		{status: "completed", conclusion: "neutral", want: dashboard.CheckSuccess},
+		{status: "completed", conclusion: "failure", want: dashboard.CheckFailure},
+		{status: "completed", conclusion: "action_required", want: dashboard.CheckFailure},
+		{status: "completed", conclusion: "cancelled", want: dashboard.CheckCancelled},
+		{status: "completed", conclusion: "skipped", want: dashboard.CheckSkipped},
+		{status: "completed", conclusion: "timed_out", want: dashboard.CheckTimedOut},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.status+"/"+tt.conclusion, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+			})
+			mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+					{"name": "job", "status": tt.status, "conclusion": tt.conclusion},
+				}})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("test-token", "", srv.URL)
+
+			checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+			require.NoError(t, err)
+			require.Len(t, checks, 1)
+			assert.Equal(t, tt.want, checks[0].State)
+		})
+	}
+}
+
+func TestListChecks_NoCheckRuns_FallsBackToCombinedStatus(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{
+			{"context": "ci/legacy", "state": "pending", "target_url": "https://ci.example/build/1"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, dashboard.Check{Name: "ci/legacy", State: dashboard.CheckRunning, URL: "https://ci.example/build/1"}, checks[0])
+}
+
+func TestListChecks_NoChecksAtAll_ReturnsEmptySlice(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Empty(t, checks)
+}
+
+func TestListChecks_PullRequestLookupFails_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		writeJSON(t, w, map[string]any{"message": "Not Found"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+}

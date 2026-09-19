@@ -1054,6 +1054,85 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/pull-requests/checks:
+    get:
+      operationId: getPullRequestChecks
+      summary: List every job/check run against a pull request's head commit, on demand
+      description: |
+        Fetched live on every call, never as part of GET /api/dashboard's
+        own snapshot — this is detail a pull request's row doesn't show
+        until a caller actually asks for it, and adding it to the eager
+        refresh loop would multiply that refresh's cost by every open
+        pull request for data most of them are never opened for.
+
+        Falls back to the legacy combined commit-status API's own
+        per-check entries when the forge reports no Actions runs at all
+        for that commit (Actions disabled, or an instance too old to
+        expose them) — never an error for that case specifically, since
+        it's a normal, expected shape for an older or CI-less repo.
+      tags: [pull-requests]
+      parameters:
+        - name: forge
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Forge"
+        - name: fullName
+          in: query
+          required: true
+          schema:
+            type: string
+          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+        - name: number
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Matching a PullRequest.number from GET /api/dashboard.
+      responses:
+        "200":
+          description: Every check/job found for that commit — empty when none were.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PullRequestChecksResponse"
+        "400":
+          description: '`number` wasn''t an integer, `fullName` wasn''t "owner/repo", no credentials are saved for that forge, or that forge''s client doesn''t support listing pull request checks at all.'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized — the saved token's scope doesn't cover reading checks, or it isn't allowed to see that repo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/admin/users:
     get:
       operationId: listUsers
@@ -1904,6 +1983,36 @@ components:
         The combined result across every check reported against the pull
         request's head commit. "none" means neither forge reported any
         check at all, not that one failed.
+
+    CheckState:
+      type: string
+      enum: [queued, running, success, failure, cancelled, skipped, timed_out]
+      description: |
+        One job/check's own status — the per-job detail CIStatus
+        deliberately doesn't carry, since CIStatus is the combined result
+        across every one of them.
+
+    Check:
+      type: object
+      required: [name, state, url]
+      description: One job/check run against a pull request's head commit.
+      properties:
+        name:
+          type: string
+        state:
+          $ref: "#/components/schemas/CheckState"
+        url:
+          type: string
+          description: That job's own page on the forge that ran it — never the pull request's own page.
+
+    PullRequestChecksResponse:
+      type: object
+      required: [checks]
+      properties:
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Check"
 
     MergeStatus:
       type: string

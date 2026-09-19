@@ -842,3 +842,165 @@ func TestUpdateBranch_CannotMergeCleanly_ClassifiesAsForgeErrorConflict(t *testi
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
 }
+
+func TestListChecks_ReturnsEveryJobAcrossEveryRunForTheHeadSHA(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 2, "jobs": []map[string]any{
+			{"name": "build", "status": "success", "html_url": "https://git.example/alrayyes/a/actions/runs/42/jobs/1"},
+			{"name": "test", "status": "running", "html_url": "https://git.example/alrayyes/a/actions/runs/42/jobs/2"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	assert.Equal(t, dashboard.Check{Name: "build", State: dashboard.CheckSuccess, URL: "https://git.example/alrayyes/a/actions/runs/42/jobs/1"}, checks[0])
+	assert.Equal(t, dashboard.Check{Name: "test", State: dashboard.CheckRunning, URL: "https://git.example/alrayyes/a/actions/runs/42/jobs/2"}, checks[1])
+}
+
+// TestListChecks_JobsEndpointReturnsBareArray_StillParses guards against
+// the response-shape mismatch confirmed live in the sibling project
+// alrayyes/pipeline-analytics#123: a real, newer Forgejo instance can
+// answer /actions/runs/{id}/jobs with a bare JSON array instead of the
+// {"total_count":N,"jobs":[...]} wrapper the gitea SDK's own typed
+// ListRepoActionRunJobs expects, and with this client's version gates
+// disabled (see NewClient's own SetGiteaVersion("") comment) the SDK has
+// no way to protect itself from it.
+func TestListChecks_JobsEndpointReturnsBareArray_StillParses(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{
+			{"name": "build", "status": "failure", "html_url": "https://git.example/alrayyes/a/actions/runs/42/jobs/1"},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, dashboard.Check{Name: "build", State: dashboard.CheckFailure, URL: "https://git.example/alrayyes/a/actions/runs/42/jobs/1"}, checks[0])
+}
+
+func TestListChecks_ActionsRoutesNotFound_FallsBackToCombinedStatus(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		writeJSON(t, w, map[string]string{"message": "Not Found"})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{
+			{"context": "ci/legacy", "status": "success", "target_url": "https://ci.example/build/1"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, dashboard.Check{Name: "ci/legacy", State: dashboard.CheckSuccess, URL: "https://ci.example/build/1"}, checks[0])
+}
+
+func TestListChecks_NoRunsForHeadSHA_FallsBackToCombinedStatus(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 0, "workflow_runs": []map[string]any{}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Empty(t, checks)
+}
+
+func TestListChecks_ActionsRunsForbidden_ReturnsErrorRatherThanFallingBack(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]string{"message": "token does not have at least one of required scope(s)"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorUnauthorized, clientErr.Kind)
+}
+
+func TestListChecks_PullRequestLookupFails_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		writeJSON(t, w, map[string]string{"message": "Not Found"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+}

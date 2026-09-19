@@ -51,6 +51,38 @@ type Label struct {
 	Color string `json:"color"`
 }
 
+// CheckState is one job/check's own status — the per-job detail CIStatus
+// deliberately doesn't carry, since CIStatus is the combined result across
+// every one of them. Matches components.schemas.CheckState.
+type CheckState string
+
+// The states a single check/job can be in, coarse enough for both forges'
+// real values to map onto: GitHub's check-run status/conclusion pair and
+// combined-status "state", and Forgejo/Gitea Actions' own job status.
+const (
+	CheckQueued    CheckState = "queued"
+	CheckRunning   CheckState = "running"
+	CheckSuccess   CheckState = "success"
+	CheckFailure   CheckState = "failure"
+	CheckCancelled CheckState = "cancelled"
+	CheckSkipped   CheckState = "skipped"
+	CheckTimedOut  CheckState = "timed_out"
+)
+
+// Check is one job/check run against a pull request's head commit — the
+// per-job list a pipeline detail view shows, fetched on demand rather than
+// eagerly for every PR on every refresh (see dashboard.PullRequestChecker).
+// Matches components.schemas.Check.
+type Check struct {
+	Name  string     `json:"name"`
+	State CheckState `json:"state"`
+	// URL is that job's own page on the forge that ran it — a GitHub
+	// Actions job page, a Forgejo Actions job page, or a third-party CI's
+	// own details page for the legacy commit-status case — never the
+	// pull request's own page.
+	URL string `json:"url"`
+}
+
 // PullRequest matches components.schemas.PullRequest in api/openapi.yaml.
 type PullRequest struct {
 	Forge       Forge       `json:"forge"`
