@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.80.1](https://github.com/alrayyes/forge-dashboard/compare/v0.80.0...v0.80.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* **web:** enlarge row action buttons past the bare WCAG target-size floor ([#446](https://github.com/alrayyes/forge-dashboard/issues/446)) ([5ce9e62](https://github.com/alrayyes/forge-dashboard/commit/5ce9e62d72686d5a60279debcbd457c9e47d15b0)), closes [#445](https://github.com/alrayyes/forge-dashboard/issues/445)
+* **web:** keep Update branch showing "Updating…" until it's actually done ([#448](https://github.com/alrayyes/forge-dashboard/issues/448)) ([ccb5c45](https://github.com/alrayyes/forge-dashboard/commit/ccb5c45115ac72cf20a5fac2f9a7b4f36d2984e9)), closes [#447](https://github.com/alrayyes/forge-dashboard/issues/447)
+
 ## [0.80.0](https://github.com/alrayyes/forge-dashboard/compare/v0.79.1...v0.80.0) (2026-09-19)
 
 
