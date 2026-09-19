@@ -247,6 +247,84 @@ test.describe('pull request update-branch button', () => {
     await expect(page.locator('#error-banner')).toHaveCount(0);
   });
 
+  test('a 202 whose immediate refresh still reports it behind keeps showing "Updating…", not a fresh re-clickable button', async ({
+    page,
+  }) => {
+    // The exact shape of the reported flicker: GitHub answers 202 and
+    // finishes the branch update as its own background job — still in
+    // progress by the time the post-click refresh below lands, so it
+    // reports the PR as still behind. The button has to keep reading as
+    // in-progress through that gap, not revert to plain "Update branch"
+    // and back, which reads as nothing happened.
+    const pr = makePR();
+    await mockDashboard(page, pr);
+    await page.route('**/api/pull-requests/update-branch', (route) =>
+      route.fulfill({ status: 202 }),
+    );
+    await page.route('**/api/dashboard/refresh', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [{ ...pr, behind: true }],
+          issues: [],
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    const refreshResponse = page.waitForResponse('**/api/dashboard/refresh');
+    await row.getByRole('button', { name: 'Update branch' }).click();
+    await refreshResponse;
+
+    await expect(row.getByRole('button', { name: 'Updating…' })).toBeVisible();
+    await expect(
+      row.getByRole('button', { name: 'Update branch' }),
+    ).toHaveCount(0);
+  });
+
+  test('once a later refresh confirms the branch caught up, the button clears and the status reports success', async ({
+    page,
+  }) => {
+    const pr = makePR();
+    await mockDashboard(page, pr);
+    await page.route('**/api/pull-requests/update-branch', (route) =>
+      route.fulfill({ status: 202 }),
+    );
+    let refreshCount = 0;
+    await page.route('**/api/dashboard/refresh', (route) => {
+      refreshCount += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [{ ...pr, behind: refreshCount === 1 }],
+          issues: [],
+        }),
+      });
+    });
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Update branch' }).click();
+    await expect(row.getByRole('button', { name: 'Updating…' })).toBeVisible();
+
+    await page.click('#force-refresh-button');
+
+    await expect(row.getByRole('button', { name: 'Updating…' })).toHaveCount(0);
+    await expect(
+      row.getByRole('button', { name: 'Update branch' }),
+    ).toHaveCount(0);
+    await expect(page.locator('#status-banner')).toContainText(
+      'Updated the branch for alrayyes/forge-dashboard#42.',
+    );
+  });
+
   test('a transient failure shows an error and returns to a re-clickable button', async ({
     page,
   }) => {
