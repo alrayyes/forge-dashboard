@@ -203,6 +203,27 @@ func (s *GenericSource) UpdateBranch(ctx context.Context, owner, name string, nu
 	return accepted, nil
 }
 
+// ListChecks implements PullRequestChecker at the Source level by
+// delegating to the underlying client, the same "Source unwraps to its
+// ForgeClient" shape EnsureWebhook/MergePullRequest/UpdateBranch already
+// use. #455: this forwarding was missing entirely — internal/forgejo.Client
+// already implements PullRequestChecker, but GenericSource (what
+// BuildSources actually registers for Forgejo) never exposed it, so the
+// type assertion in handlePullRequestChecks always failed for a real
+// Forgejo pull request.
+func (s *GenericSource) ListChecks(ctx context.Context, owner, name string, number int) ([]Check, error) {
+	checker, ok := s.client.(PullRequestChecker)
+	if !ok {
+		return nil, fmt.Errorf("dashboard: %s's client can't list pull request checks", s.forge)
+	}
+	checks, err := checker.ListChecks(ctx, owner, name, number)
+	if err != nil {
+		return nil, fmt.Errorf("dashboard: list checks: %w", err)
+	}
+
+	return checks, nil
+}
+
 // FetchRepo implements RepoRefresher: the same per-repo calls Fetch
 // already makes for every tracked repo, but for just the one a caller
 // (a webhook delivery) already knows the identity of — no ListRepos

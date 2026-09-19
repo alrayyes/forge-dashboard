@@ -3,6 +3,7 @@ package dashboard_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -270,6 +271,63 @@ func TestGenericSource_EnsureWebhook_ClientWithoutSupport_ReturnsError(t *testin
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
 
 	err := source.EnsureWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok", "sekret")
+
+	require.Error(t, err)
+}
+
+// #455: Forgejo's own client (internal/forgejo.Client) implements
+// dashboard.PullRequestChecker, but the Source BuildSources actually
+// registers for Forgejo is a *GenericSource wrapping it — confirmed live,
+// the "View pipeline" button on a real Forgejo pull request answered
+// "forgejo doesn't support listing pull request checks" even though the
+// underlying client genuinely can. The bug was never in the client; it
+// was GenericSource never forwarding the capability, the same way
+// EnsureWebhook/MergePullRequest/UpdateBranch already do.
+type fakeCheckerClient struct {
+	fakeForgeClient
+	checks    []dashboard.Check
+	checksErr error
+	calls     []string
+}
+
+func (f *fakeCheckerClient) ListChecks(_ context.Context, owner, name string, number int) ([]dashboard.Check, error) {
+	f.calls = append(f.calls, owner+"/"+name+fmt.Sprintf("#%d", number))
+
+	return f.checks, f.checksErr
+}
+
+func TestGenericSource_ListChecks_DelegatesToClient(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeCheckerClient{checks: []dashboard.Check{{Name: "build", State: dashboard.CheckSuccess, URL: "https://example.com/1"}}}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	checks, err := source.ListChecks(t.Context(), "alrayyes", "a", 42)
+
+	require.NoError(t, err)
+	require.Len(t, client.calls, 1)
+	assert.Equal(t, "alrayyes/a#42", client.calls[0])
+	assert.Equal(t, client.checks, checks)
+}
+
+func TestGenericSource_ListChecks_PropagatesClientError(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeCheckerClient{checksErr: errors.New("boom")}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	_, err := source.ListChecks(t.Context(), "alrayyes", "a", 42)
+
+	require.Error(t, err)
+}
+
+func TestGenericSource_ListChecks_ClientWithoutSupport_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeForgeClient{}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	_, err := source.ListChecks(t.Context(), "alrayyes", "a", 42)
 
 	require.Error(t, err)
 }
