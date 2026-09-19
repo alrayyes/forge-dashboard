@@ -39,6 +39,13 @@ jobs:
         # golangci-lint's formatter reports rather than rewrites here; this
         # is the check that a file was committed unformatted.
         run: gofmt -l . | (! grep .)
+      - name: go.mod is canonical
+        run: go mod edit -fmt go.mod && git diff --exit-code go.mod
+      - name: go.mod is tidy
+        # go-mod.md: broader than the fmt check above — a stale require, a
+        # non-canonical version string, or a go.sum entry nothing imports
+        # anymore, none of which `go build`/`go test` catch on their own.
+        run: go mod tidy -diff
 
   test:
     runs-on: ubuntu-24.04

@@ -16,10 +16,6 @@ pre-commit:
       run: scripts/go-docker.sh gofmt -w {staged_files}
       stage_fixed: true
 
-    - name: golangci-lint
-      glob: "*.go"
-      run: scripts/golangci-lint-docker.sh golangci-lint run ./...
-
     # go mod edit -fmt is the canonicalizer for go.mod itself: a builtin `go`
     # subcommand, not gofmt (which never touches go.mod) and not `go mod tidy`
     # (which does network resolution a formatting-only hook shouldn't be
@@ -110,6 +106,12 @@ pre-push:
     - name: test
       run: scripts/go-docker.sh go test ./...
 
+    # go-lint.md: golangci-lint type-checks whole packages through
+    # go/packages, so trimming the file list barely trims the run time — it
+    # belongs at the point that's paid once a branch, not on every commit.
+    - name: golangci-lint
+      run: scripts/golangci-lint-docker.sh golangci-lint run ./...
+
     # dependencies.md: pinning a version says nothing about whether it has a
     # known CVE. Separate from the update bots that raise a pull request
     # when one's pinned — this is what actually notices.
@@ -121,6 +123,12 @@ pre-push:
     # only fails if that got bypassed.
     - name: gomod
       run: scripts/go-docker.sh go mod edit -fmt go.mod && git diff --exit-code go.mod
+
+    # go-mod.md: broader than the fmt check above — a stale require, a
+    # non-canonical version string, or a go.sum entry nothing imports
+    # anymore, none of which `go build`/`go test` catch on their own.
+    - name: gomod-tidy
+      run: scripts/go-docker.sh go mod tidy -diff
 
     # These are `package.json` scripts rather than the commands spelled out,
     # because CI runs the same ones and a literal copied into two files drifts
