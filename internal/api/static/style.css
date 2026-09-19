@@ -1276,6 +1276,16 @@ select.col-filter {
   font-size: 13px;
 }
 
+/* A budget that's running low but hasn't actually hit zero yet (#450) —
+   the same --warning/--warning-bg amber pair the rest of the app already
+   uses for "notable but not blocking anything yet" (.row-action.confirm,
+   .merge-pill.blocked), distinct from the banner's own default critical
+   red, which stays reserved for an actually-exhausted budget. */
+.rate-limit-banner-row.low .rate-limit-banner-label,
+.rate-limit-banner-row.low .rate-limit-banner-timer {
+  color: var(--warning);
+}
+
 footer {
   text-align: center;
   font-size: 12px;

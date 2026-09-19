@@ -362,6 +362,104 @@ test.describe('dashboard page', () => {
 
       await expect(page.locator('#rate-limit-banner')).toHaveCount(0);
     });
+
+    test('a budget under 5% but not yet exhausted shows a distinct "running low" row, not "exceeded"', async ({
+      page,
+    }) => {
+      const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              {
+                forge: 'github',
+                reachable: true,
+                repoCount: 3,
+                rateLimitGraphQL: { limit: 5000, remaining: 40, resetsAt },
+              },
+            ],
+            pullRequests: [],
+            issues: [],
+          }),
+        }),
+      );
+
+      await page.reload();
+
+      const banner = page.locator('#rate-limit-banner');
+      await expect(banner).toBeVisible();
+      await expect(banner).toContainText('Rate limit running low');
+      await expect(banner).toContainText('GitHub GraphQL');
+      await expect(banner).toContainText('40 of 5,000 requests left');
+      await expect(banner).not.toContainText('Rate limit exceeded');
+    });
+
+    test('a budget at or above 5% shows no row at all', async ({ page }) => {
+      const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              {
+                forge: 'github',
+                reachable: true,
+                repoCount: 3,
+                rateLimitGraphQL: { limit: 5000, remaining: 250, resetsAt },
+              },
+            ],
+            pullRequests: [],
+            issues: [],
+          }),
+        }),
+      );
+
+      await page.reload();
+
+      await expect(page.locator('#rate-limit-banner')).toHaveCount(0);
+    });
+
+    test('an exceeded budget and a low-but-not-exhausted budget both show at once, distinctly', async ({
+      page,
+    }) => {
+      const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              {
+                forge: 'github',
+                reachable: true,
+                repoCount: 3,
+                rateLimitGraphQL: { limit: 5000, remaining: 0, resetsAt },
+                rateLimitREST: { limit: 5000, remaining: 40, resetsAt },
+              },
+            ],
+            pullRequests: [],
+            issues: [],
+          }),
+        }),
+      );
+
+      await page.reload();
+
+      const banner = page.locator('#rate-limit-banner');
+      await expect(banner.locator('.rate-limit-banner-row')).toHaveCount(2);
+      await expect(banner).toContainText(
+        'Rate limit exceeded — GitHub GraphQL',
+      );
+      await expect(banner).toContainText(
+        'Rate limit running low — GitHub REST',
+      );
+    });
   });
 
   test('the dashboard has no webhook coverage card — that lives in Settings now', async ({

@@ -2023,24 +2023,50 @@
     // miss buried in a board below the fold. This mirrors it at the top
     // of the page, with the same critical prominence as the "CI failing"
     // stat tile, so it's visible at a glance.
-    type ExhaustedBudget = { label: string; resetsAt: string };
-    let exhaustedBudgets: ExhaustedBudget[] = [];
+    // Same 5% "critical" cutoff Insights' own rate-limit gauge already
+    // uses for its color tier (rateLimitStatusClass) — kept as a literal
+    // copy rather than a shared import, same reasoning as
+    // countdownLabel's own comment below.
+    const LOW_BUDGET_THRESHOLD = 0.05;
 
-    function computeExhaustedBudgets(forges: Forge[]): ExhaustedBudget[] {
-      const out: ExhaustedBudget[] = [];
+    type RateLimitAlert = {
+      label: string;
+      severity: "exceeded" | "low";
+      resetsAt: string;
+      remaining: number;
+      limit: number;
+    };
+    let rateLimitAlerts: RateLimitAlert[] = [];
+
+    function computeRateLimitAlerts(forges: Forge[]): RateLimitAlert[] {
+      const out: RateLimitAlert[] = [];
       for (const f of forges) {
         const name = FORGE_LABELS[f.forge] || f.forge;
-        if (f.rateLimitGraphQL && f.rateLimitGraphQL.remaining === 0) {
-          out.push({
-            label: `${name} GraphQL`,
-            resetsAt: f.rateLimitGraphQL.resetsAt,
-          });
-        }
-        if (f.rateLimitREST && f.rateLimitREST.remaining === 0) {
-          out.push({
-            label: `${name} REST`,
-            resetsAt: f.rateLimitREST.resetsAt,
-          });
+        for (const [kind, rl] of [
+          ["GraphQL", f.rateLimitGraphQL],
+          ["REST", f.rateLimitREST],
+        ] as const) {
+          if (!rl) continue;
+          if (rl.remaining === 0) {
+            out.push({
+              label: `${name} ${kind}`,
+              severity: "exceeded",
+              resetsAt: rl.resetsAt,
+              remaining: rl.remaining,
+              limit: rl.limit,
+            });
+          } else if (
+            rl.limit > 0 &&
+            rl.remaining / rl.limit < LOW_BUDGET_THRESHOLD
+          ) {
+            out.push({
+              label: `${name} ${kind}`,
+              severity: "low",
+              resetsAt: rl.resetsAt,
+              remaining: rl.remaining,
+              limit: rl.limit,
+            });
+          }
         }
       }
       return out;
@@ -2063,24 +2089,29 @@
 
     function renderRateLimitBanner() {
       document.getElementById("rate-limit-banner")?.remove();
-      if (exhaustedBudgets.length === 0) return;
+      if (rateLimitAlerts.length === 0) return;
       const banner = el("div", "rate-limit-banner");
       banner.id = "rate-limit-banner";
       banner.setAttribute("role", "alert");
-      for (const budget of exhaustedBudgets) {
-        const row = el("div", "rate-limit-banner-row");
+      for (const alert of rateLimitAlerts) {
+        const exceeded = alert.severity === "exceeded";
+        const row = el("div", `rate-limit-banner-row${exceeded ? "" : " low"}`);
         row.appendChild(
           el(
             "span",
             "rate-limit-banner-label",
-            `Rate limit exceeded — ${budget.label}`,
+            exceeded
+              ? `Rate limit exceeded — ${alert.label}`
+              : `Rate limit running low — ${alert.label}`,
           ),
         );
         row.appendChild(
           el(
             "span",
             "rate-limit-banner-timer",
-            countdownLabel(budget.resetsAt),
+            exceeded
+              ? countdownLabel(alert.resetsAt)
+              : `${alert.remaining.toLocaleString()} of ${alert.limit.toLocaleString()} requests left`,
           ),
         );
         banner.appendChild(row);
@@ -2268,7 +2299,7 @@
 
       renderForgeHealth(data.forges || []);
       lastForges = data.forges || [];
-      exhaustedBudgets = computeExhaustedBudgets(lastForges);
+      rateLimitAlerts = computeRateLimitAlerts(lastForges);
       renderRateLimitBanner();
 
       // A locked merge/update-branch reason only reflects what the
