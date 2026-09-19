@@ -138,6 +138,12 @@ type RateLimit struct {
 	Limit     int       `json:"limit"`
 	Remaining int       `json:"remaining"`
 	ResetsAt  time.Time `json:"resetsAt"`
+	// Cost is the actual point price GitHub charged the call that
+	// populated this value — GraphQL-specific (#440): REST's own budget
+	// is a plain per-request count with no separate cost concept, so
+	// RateLimitREST's own RateLimit never sets this, and it stays at its
+	// zero value there rather than a fabricated 1.
+	Cost int `json:"cost,omitempty"`
 }
 
 // ForgeErrorKind classifies why a forge is unreachable, or why a write to
