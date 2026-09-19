@@ -171,7 +171,13 @@
         document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
       );
       wrap.appendChild(badge);
-      wrap.appendChild(el("span", "repo-name", item.repo));
+      const repoName = el("span", "repo-name", item.repo);
+      // .repo-name truncates via CSS text-overflow: ellipsis — title
+      // is what lets a mouse user actually read the full name on
+      // hover; the truncation is purely visual, so a screen reader
+      // already reads the untruncated text content regardless.
+      repoName.title = item.repo;
+      wrap.appendChild(repoName);
       return wrap;
     }
 

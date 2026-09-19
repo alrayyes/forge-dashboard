@@ -631,6 +631,47 @@ test.describe('dashboard page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
+  test('a truncated repo name reveals its full text on hover, via a title attribute', async ({
+    page,
+  }) => {
+    // .repo-name truncates with CSS text-overflow: ellipsis — a title
+    // attribute is what lets a mouse user actually read the full name
+    // without needing a custom tooltip component, and (since the
+    // truncation is purely visual CSS) a screen reader already reads
+    // the untruncated text content regardless.
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [
+            {
+              forge: 'github',
+              repo: 'alrayyes/an-unusually-long-repository-name-that-gets-truncated',
+              number: 233,
+              title: 'An issue',
+              url: 'https://example.com/233',
+              author: 'claude',
+              labels: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ],
+        }),
+      }),
+    );
+    await page.reload();
+
+    const repoName = page.locator('#issue-rows .repo-name').first();
+    await expect(repoName).toHaveAttribute(
+      'title',
+      'alrayyes/an-unusually-long-repository-name-that-gets-truncated',
+    );
+  });
+
   test('per-column filters narrow the visible rows', async ({ page }) => {
     // No forges configured in this CI run, so both boards render their
     // empty state — filtering an empty board is still a real assertion:
