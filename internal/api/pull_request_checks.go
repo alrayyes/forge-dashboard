@@ -26,6 +26,7 @@ func handlePullRequestChecks(deps Deps) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
@@ -34,18 +35,21 @@ func handlePullRequestChecks(deps Deps) http.HandlerFunc {
 		number, err := strconv.Atoi(r.URL.Query().Get("number"))
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("number must be an integer"))
+
 			return
 		}
 
 		owner, name, ok := splitFullName(fullName)
 		if !ok {
 			writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
+
 			return
 		}
 
 		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+
 			return
 		}
 
@@ -57,13 +61,16 @@ func handlePullRequestChecks(deps Deps) http.HandlerFunc {
 			c, supported := src.(dashboard.PullRequestChecker)
 			if !supported {
 				writeJSON(w, http.StatusBadRequest, errorBody(forge+" doesn't support listing pull request checks"))
+
 				return
 			}
 			checker = c
+
 			break
 		}
 		if checker == nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("no "+forge+" credentials saved"))
+
 			return
 		}
 
@@ -71,6 +78,7 @@ func handlePullRequestChecks(deps Deps) http.HandlerFunc {
 		if err != nil {
 			slog.Warn("pull request checks fetch failed", "forge", forge, "repo", fullName, "number", number, "error", err)
 			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
+
 			return
 		}
 

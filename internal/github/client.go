@@ -1447,7 +1447,7 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	checkRunsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
 	slog.Debug("github request", "method", http.MethodGet, "url", checkRunsPath)
 	runs, _, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{
-		ListOptions: ghsdk.ListOptions{PerPage: perPage},
+		PerPage: perPage,
 	})
 	if err != nil {
 		return nil, asClientError(c.restError(http.MethodGet, checkRunsPath, err))
@@ -1461,6 +1461,7 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 				URL:   r.GetHTMLURL(),
 			})
 		}
+
 		return checks, nil
 	}
 
@@ -1482,6 +1483,7 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 			URL:   s.GetTargetURL(),
 		})
 	}
+
 	return checks, nil
 }
 
@@ -1496,6 +1498,7 @@ func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
 		if r.GetStatus() == "queued" {
 			return dashboard.CheckQueued
 		}
+
 		return dashboard.CheckRunning
 	}
 	switch r.GetConclusion() {
