@@ -15,6 +15,7 @@
     hasWebhook: boolean;
     canManageWebhooks?: boolean;
     ignored: boolean;
+    autoUpdateBranch: boolean;
   };
 
   // Kept local rather than reaching into the shared /filters.js global
@@ -305,6 +306,93 @@
     }
   }
 
+  let autoUpdateBusy = $state<Record<string, boolean>>({});
+
+  // Mirrors setIgnored above: a pure per-user setting write, nothing
+  // touching the forge, so a global status message is enough — no
+  // per-row locked-reason mechanic the way addWebhook needs one.
+  async function setAutoUpdateBranch(repo: Repo, enabled: boolean) {
+    const key = rowKey(repo);
+    autoUpdateBusy[key] = true;
+    const verb = enabled ? "Enabling" : "Disabling";
+    setStatus(`${verb} auto-update-branch for ${repo.fullName}…`);
+
+    try {
+      const res = await fetch(
+        `/api/repos/auto-update-branch/${enabled ? "enable" : "disable"}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ forge: repo.forge, fullName: repo.fullName }),
+        },
+      );
+      if (res.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (res.status !== 204) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `backend answered ${res.status}`);
+      }
+      repo.autoUpdateBranch = enabled;
+      setStatus(
+        enabled
+          ? `Auto-update-branch enabled for ${repo.fullName}.`
+          : `Auto-update-branch disabled for ${repo.fullName}.`,
+      );
+    } catch (err) {
+      setStatus(
+        `Couldn't ${enabled ? "enable" : "disable"} auto-update-branch for ${repo.fullName}: ${(err as Error).message}`,
+        "error",
+      );
+    } finally {
+      delete autoUpdateBusy[key];
+    }
+  }
+
+  // Same bulk shape as reposNeedingWebhook/addAllWebhooks (#380): every
+  // currently-tracked, non-ignored repo on the wrong side of the target
+  // state, regardless of the active filter bar.
+  const reposMissingAutoUpdate = $derived(
+    repos.filter((r) => !r.ignored && !r.autoUpdateBranch),
+  );
+  const reposWithAutoUpdate = $derived(
+    repos.filter((r) => !r.ignored && r.autoUpdateBranch),
+  );
+
+  let bulkAutoUpdateDirection = $state<"enable" | "disable" | null>(null);
+
+  async function bulkSetAutoUpdateBranch(enabled: boolean) {
+    const targets = enabled ? reposMissingAutoUpdate : reposWithAutoUpdate;
+    if (targets.length === 0) return;
+
+    const verb = enabled ? "Enable" : "Disable";
+    const confirmed = window.confirm(
+      `${verb} auto-update-branch on ${targets.length} repo${targets.length === 1 ? "" : "s"}?`,
+    );
+    if (!confirmed) return;
+
+    bulkAutoUpdateDirection = enabled ? "enable" : "disable";
+    for (const repo of targets) {
+      await setAutoUpdateBranch(repo, enabled);
+    }
+    bulkAutoUpdateDirection = null;
+
+    const succeeded = targets.filter(
+      (r) => r.autoUpdateBranch === enabled,
+    ).length;
+    const failed = targets.length - succeeded;
+    setStatus(
+      failed === 0
+        ? `${enabled ? "Enabled" : "Disabled"} auto-update-branch for all ${succeeded} repos.`
+        : `${enabled ? "Enabled" : "Disabled"} auto-update-branch for ${succeeded} of ${targets.length} repos — ${failed} failed, see status above.`,
+      failed === 0 ? "" : "error",
+    );
+  }
+
   onMount(() => {
     fetch("/api/dashboard", { headers: { Accept: "application/json" } })
       .then((res) => {
@@ -593,6 +681,32 @@
       </button>
     {/if}
 
+    {#if loaded && reposMissingAutoUpdate.length > 0}
+      <button
+        type="button"
+        class="row-action bulk-webhook-button"
+        disabled={bulkAutoUpdateDirection !== null}
+        onclick={() => bulkSetAutoUpdateBranch(true)}
+      >
+        {bulkAutoUpdateDirection === "enable"
+          ? "Enabling auto-update…"
+          : `Enable auto-update for ${reposMissingAutoUpdate.length} repo${reposMissingAutoUpdate.length === 1 ? "" : "s"}`}
+      </button>
+    {/if}
+
+    {#if loaded && reposWithAutoUpdate.length > 0}
+      <button
+        type="button"
+        class="row-action bulk-webhook-button"
+        disabled={bulkAutoUpdateDirection !== null}
+        onclick={() => bulkSetAutoUpdateBranch(false)}
+      >
+        {bulkAutoUpdateDirection === "disable"
+          ? "Disabling auto-update…"
+          : `Disable auto-update for ${reposWithAutoUpdate.length} repo${reposWithAutoUpdate.length === 1 ? "" : "s"}`}
+      </button>
+    {/if}
+
     {#if loaded && repos.length === 0}
       <p class="empty-state" id="webhooks-empty">
         Nothing tracked yet — save GitHub or Forgejo credentials in Settings
@@ -782,6 +896,7 @@
               </th>
               <th scope="col" role="columnheader"></th>
               <th scope="col" role="columnheader"></th>
+              <th scope="col" role="columnheader"></th>
             </tr>
           </thead>
           <!-- svelte-ignore a11y_no_redundant_roles -->
@@ -855,6 +970,21 @@
                       >
                     {/if}
                   {/if}
+                </td>
+                <td class="action" role="cell">
+                  <button
+                    type="button"
+                    disabled={autoUpdateBusy[rowKey(repo)]}
+                    onclick={() =>
+                      setAutoUpdateBranch(repo, !repo.autoUpdateBranch)}
+                    >{autoUpdateBusy[rowKey(repo)]
+                      ? repo.autoUpdateBranch
+                        ? "Disabling…"
+                        : "Enabling…"
+                      : repo.autoUpdateBranch
+                        ? "Disable auto-update"
+                        : "Enable auto-update"}</button
+                  >
                 </td>
                 <td class="action" role="cell">
                   <button

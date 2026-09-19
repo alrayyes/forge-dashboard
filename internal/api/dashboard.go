@@ -27,6 +27,7 @@ type repoStatus struct {
 	HasWebhook        bool            `json:"hasWebhook"`
 	CanManageWebhooks bool            `json:"canManageWebhooks"`
 	Ignored           bool            `json:"ignored"`
+	AutoUpdateBranch  bool            `json:"autoUpdateBranch"`
 }
 
 // dashboardResponse is the wire shape for /api/dashboard and its SSE
@@ -67,6 +68,11 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 		slog.Warn("could not load ignored repos for dashboard response", "error", err)
 		ignored = nil
 	}
+	autoUpdateBranch, err := store.AutoUpdateBranchRepos(ctx, userID)
+	if err != nil {
+		slog.Warn("could not load auto-update-branch repos for dashboard response", "error", err)
+		autoUpdateBranch = nil
+	}
 
 	repos := make([]repoStatus, 0, len(snap.Repos))
 	for _, r := range snap.Repos {
@@ -75,6 +81,7 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 			_, hasWebhook = deliveries[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
 		}
 		_, isIgnored := ignored[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
+		_, autoUpdate := autoUpdateBranch[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
 		repos = append(repos, repoStatus{
 			Forge:             r.Forge,
 			FullName:          r.FullName,
@@ -82,6 +89,7 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 			HasWebhook:        hasWebhook,
 			CanManageWebhooks: r.CanManageWebhooks,
 			Ignored:           isIgnored,
+			AutoUpdateBranch:  autoUpdate,
 		})
 	}
 

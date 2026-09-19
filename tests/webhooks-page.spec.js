@@ -937,6 +937,279 @@ test.describe('webhooks page', () => {
     });
   });
 
+  test.describe('per-repo auto-update-branch toggle (#365)', () => {
+    test('a repo with it off shows "Enable auto-update"; clicking calls the enable endpoint', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          autoUpdateBranch: false,
+        },
+      ]);
+      let requestBody;
+      await page.route('**/api/repos/auto-update-branch/enable', (route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      const row = page.locator('#webhooks-rows tr').first();
+      await expect(
+        row.getByRole('button', { name: 'Enable auto-update' }),
+      ).toBeVisible();
+      await row.getByRole('button', { name: 'Enable auto-update' }).click();
+
+      await expect(
+        row.getByRole('button', { name: 'Disable auto-update' }),
+      ).toBeVisible();
+      await expect(page.locator('#webhooks-status')).toContainText(
+        'Auto-update-branch enabled for alrayyes/a',
+      );
+      expect(requestBody).toEqual({ forge: 'github', fullName: 'alrayyes/a' });
+    });
+
+    test('a repo with it on shows "Disable auto-update"; clicking calls the disable endpoint', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          autoUpdateBranch: true,
+        },
+      ]);
+      let requestBody;
+      await page.route('**/api/repos/auto-update-branch/disable', (route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      const row = page.locator('#webhooks-rows tr').first();
+      await row.getByRole('button', { name: 'Disable auto-update' }).click();
+
+      await expect(
+        row.getByRole('button', { name: 'Enable auto-update' }),
+      ).toBeVisible();
+      await expect(page.locator('#webhooks-status')).toContainText(
+        'Auto-update-branch disabled for alrayyes/a',
+      );
+      expect(requestBody).toEqual({ forge: 'github', fullName: 'alrayyes/a' });
+    });
+
+    test('a failed toggle shows an error and leaves the row state unchanged', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          autoUpdateBranch: false,
+        },
+      ]);
+      await page.route('**/api/repos/auto-update-branch/enable', (route) =>
+        route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'could not save' }),
+        }),
+      );
+      await page.goto('/webhooks.html');
+
+      const row = page.locator('#webhooks-rows tr').first();
+      await row.getByRole('button', { name: 'Enable auto-update' }).click();
+
+      await expect(page.locator('#webhooks-status')).toContainText(
+        "Couldn't enable auto-update-branch for alrayyes/a",
+      );
+      await expect(
+        row.getByRole('button', { name: 'Enable auto-update' }),
+      ).toBeVisible();
+    });
+  });
+
+  test.describe('bulk auto-update-branch on/off for all repos (#365)', () => {
+    test('shows an "Enable auto-update" bulk button counting repos with it off', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          autoUpdateBranch: false,
+        },
+        {
+          forge: 'github',
+          fullName: 'alrayyes/b',
+          hasWebhook: true,
+          autoUpdateBranch: true,
+        },
+      ]);
+      await page.goto('/webhooks.html');
+
+      await expect(
+        page.getByRole('button', { name: /Enable auto-update for/ }),
+      ).toContainText('1');
+      await expect(
+        page.getByRole('button', { name: /Disable auto-update for/ }),
+      ).toContainText('1');
+    });
+
+    test('is not shown once every repo already matches', async ({ page }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          autoUpdateBranch: true,
+        },
+      ]);
+      await page.goto('/webhooks.html');
+
+      await expect(
+        page.getByRole('button', { name: /Enable auto-update for/ }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole('button', { name: /Disable auto-update for/ }),
+      ).toBeVisible();
+    });
+
+    test('prompts for confirmation with the real count, and does nothing if dismissed', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          autoUpdateBranch: false,
+        },
+      ]);
+      let called = false;
+      await page.route('**/api/repos/auto-update-branch/enable', (route) => {
+        called = true;
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      let dialogMessage = '';
+      page.once('dialog', (dialog) => {
+        dialogMessage = dialog.message();
+        void dialog.dismiss();
+      });
+      await page
+        .getByRole('button', { name: /Enable auto-update for/ })
+        .click();
+
+      expect(dialogMessage).toContain('1');
+      expect(called).toBe(false);
+    });
+
+    test('confirming enables auto-update-branch on every repo missing it and reports a final count', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          autoUpdateBranch: false,
+        },
+        {
+          forge: 'github',
+          fullName: 'alrayyes/b',
+          hasWebhook: true,
+          autoUpdateBranch: false,
+        },
+      ]);
+      const requested = [];
+      await page.route('**/api/repos/auto-update-branch/enable', (route) => {
+        requested.push(route.request().postDataJSON());
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      page.once('dialog', (dialog) => void dialog.accept());
+      await page
+        .getByRole('button', { name: /Enable auto-update for/ })
+        .click();
+
+      await expect(page.locator('#webhooks-status')).toContainText(
+        'Enabled auto-update-branch for all 2 repos.',
+      );
+      expect(requested).toEqual(
+        expect.arrayContaining([
+          { forge: 'github', fullName: 'alrayyes/a' },
+          { forge: 'github', fullName: 'alrayyes/b' },
+        ]),
+      );
+      expect(requested).toHaveLength(2);
+    });
+
+    test('confirming disables auto-update-branch on every repo that has it', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          autoUpdateBranch: true,
+        },
+      ]);
+      const requested = [];
+      await page.route('**/api/repos/auto-update-branch/disable', (route) => {
+        requested.push(route.request().postDataJSON());
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      page.once('dialog', (dialog) => void dialog.accept());
+      await page
+        .getByRole('button', { name: /Disable auto-update for/ })
+        .click();
+
+      await expect(page.locator('#webhooks-status')).toContainText(
+        'Disabled auto-update-branch for all 1 repos.',
+      );
+      expect(requested).toEqual([{ forge: 'github', fullName: 'alrayyes/a' }]);
+    });
+
+    test('has no axe-core violations with both bulk buttons visible', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        {
+          forge: 'github',
+          fullName: 'alrayyes/a',
+          hasWebhook: true,
+          autoUpdateBranch: false,
+        },
+        {
+          forge: 'github',
+          fullName: 'alrayyes/b',
+          hasWebhook: true,
+          autoUpdateBranch: true,
+        },
+      ]);
+      await page.goto('/webhooks.html');
+      await expect(
+        page.getByRole('button', { name: /Enable auto-update for/ }),
+      ).toBeVisible();
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
+
   test('the persistent nav highlights Webhooks and still links to Settings', async ({
     page,
   }) => {

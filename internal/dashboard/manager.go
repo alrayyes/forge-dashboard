@@ -15,6 +15,11 @@ type Manager struct {
 	mu              sync.Mutex
 	users           map[string]*managedAggregator
 	refreshInterval time.Duration
+	// autoUpdateBranchLister is nil until SetAutoUpdateBranchLister is
+	// called — every Aggregator this Manager builds before that point,
+	// or ever, if it's never called, skips the auto-update-branch hook
+	// entirely (#365).
+	autoUpdateBranchLister AutoUpdateBranchLister
 }
 
 type managedAggregator struct {
@@ -26,6 +31,20 @@ type managedAggregator struct {
 // refreshInterval.
 func NewManager(refreshInterval time.Duration) *Manager {
 	return &Manager{users: make(map[string]*managedAggregator), refreshInterval: refreshInterval}
+}
+
+// SetAutoUpdateBranchLister turns on the auto-update-branch hook (#365)
+// for every Aggregator this Manager builds from here on — a setter
+// rather than a NewManager parameter so every existing caller (the
+// composition root's own construction, and every test building a
+// Manager with no interest in this feature) is unaffected. Call once,
+// before the first Ensure/EnsureIfAbsent that should carry it; an
+// Aggregator already running when this is called keeps running without
+// it until its own next Ensure rebuilds it.
+func (m *Manager) SetAutoUpdateBranchLister(lister AutoUpdateBranchLister) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.autoUpdateBranchLister = lister
 }
 
 // Ensure (re)builds userID's Aggregator from sources and starts its
@@ -46,6 +65,9 @@ func (m *Manager) Ensure(ctx context.Context, userID []byte, sources []Source) {
 
 	runCtx, cancel := context.WithCancel(ctx)
 	agg := NewAggregator(sources)
+	if m.autoUpdateBranchLister != nil {
+		agg.EnableAutoUpdateBranch(userID, m.autoUpdateBranchLister)
+	}
 	m.users[key] = &managedAggregator{agg: agg, cancel: cancel}
 	go agg.Run(runCtx, m.refreshInterval)
 }
@@ -72,6 +94,9 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 
 	runCtx, cancel := context.WithCancel(ctx)
 	agg := NewAggregator(sources)
+	if m.autoUpdateBranchLister != nil {
+		agg.EnableAutoUpdateBranch(userID, m.autoUpdateBranchLister)
+	}
 	m.users[key] = &managedAggregator{agg: agg, cancel: cancel}
 	go agg.Run(runCtx, m.refreshInterval)
 }

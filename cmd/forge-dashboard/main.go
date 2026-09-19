@@ -104,6 +104,9 @@ func run() error {
 
 	manager := dashboard.NewManager(refreshInterval)
 	defer manager.Stop()
+	// settingsStore satisfies dashboard.AutoUpdateBranchLister (#365)
+	// with its own AutoUpdateBranchRepos/AllowsBotPRUpdates methods.
+	manager.SetAutoUpdateBranchLister(settingsStore)
 
 	deps := api.Deps{
 		Version:       version,

@@ -785,6 +785,71 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/repos/auto-update-branch/enable:
+    post:
+      operationId: enableAutoUpdateBranch
+      summary: Turn on automatic branch updates for one tracked repo
+      description: |
+        Any of this repo's pull requests the background refresh finds
+        behind its base branch gets updated automatically from then on
+        (#365), the same as clicking "Update branch" would — suppressed
+        for a bot-managed pull request unless bot-PR updates are
+        separately allowed. Idempotent: enabling an already-enabled repo
+        is a no-op, not an error.
+      tags: [dashboard]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEnsureRequest"
+      responses:
+        "204":
+          description: Auto-update-branch is now on for this repo (or already was).
+        "400":
+          description: The request body wasn't valid JSON, or `fullName` wasn't "owner/repo".
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/repos/auto-update-branch/disable:
+    post:
+      operationId: disableAutoUpdateBranch
+      summary: Turn off automatic branch updates for one tracked repo
+      description: |
+        The reverse of POST /api/repos/auto-update-branch/enable.
+        Idempotent: disabling a repo that was never enabled is a no-op,
+        not an error.
+      tags: [dashboard]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEnsureRequest"
+      responses:
+        "204":
+          description: Auto-update-branch is now off for this repo (or never was on).
+        "400":
+          description: The request body wasn't valid JSON, or `fullName` wasn't "owner/repo".
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/pull-requests/merge:
     post:
       operationId: mergePullRequest
@@ -2253,7 +2318,16 @@ components:
 
     RepoStatus:
       type: object
-      required: [forge, fullName, url, hasWebhook, canManageWebhooks, ignored]
+      required:
+        [
+          forge,
+          fullName,
+          url,
+          hasWebhook,
+          canManageWebhooks,
+          ignored,
+          autoUpdateBranch,
+        ]
       description: |
         One tracked repository, whether or not it currently has anything
         open — repoCount alone can't name it, and it wouldn't otherwise
@@ -2297,3 +2371,14 @@ components:
             A point-in-time snapshot: a permission change since the last
             refresh can still make a following ensure-webhook call fail
             despite this having said true.
+        autoUpdateBranch:
+          type: boolean
+          description: |
+            Whether the signed-in user has turned on automatic branch
+            updates for this repo (#365) — any of its pull requests the
+            background refresh finds behind its base branch gets updated
+            the same way a manual "Update branch" click would, without
+            one. Suppressed for a bot-managed pull request (release-please,
+            Dependabot, Renovate) unless bot-PR updates are separately
+            allowed (POST /api/settings/bot-pr-updates), the same
+            restraint the manual button already applies.
