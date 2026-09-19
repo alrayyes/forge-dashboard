@@ -532,3 +532,85 @@ func TestStore_Delete_RemovesIgnoredRepos(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+func TestStore_AutoUpdateBranchRepos_NoneEnabled_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	got, err := store.AutoUpdateBranchRepos(t.Context(), []byte("user-1"))
+
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestStore_EnableAutoUpdateBranch_ThenAutoUpdateBranchRepos_ReturnsIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.AutoUpdateBranchRepos(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Contains(t, got, settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard"))
+}
+
+func TestStore_EnableAutoUpdateBranch_Twice_IsANoOp(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.AutoUpdateBranchRepos(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Len(t, got, 1)
+}
+
+func TestStore_DisableAutoUpdateBranch_RemovesIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	require.NoError(t, store.DisableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.AutoUpdateBranchRepos(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestStore_DisableAutoUpdateBranch_NeverEnabled_IsANoOp(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	err := store.DisableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard")
+
+	require.NoError(t, err)
+}
+
+func TestStore_EnableAutoUpdateBranch_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), []byte("user-a"), "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.AutoUpdateBranchRepos(t.Context(), []byte("user-b"))
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestStore_Delete_RemovesAutoUpdateBranchRepos(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+
+	require.NoError(t, store.Delete(t.Context(), userID))
+
+	got, err := store.AutoUpdateBranchRepos(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}

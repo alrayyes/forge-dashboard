@@ -117,6 +117,12 @@ func (s *Store) Init(ctx context.Context) error {
 		repo_full_name TEXT NOT NULL,
 		PRIMARY KEY (user_id, forge, repo_full_name)
 	);
+	CREATE TABLE IF NOT EXISTS auto_update_branch_repos (
+		user_id TEXT NOT NULL,
+		forge TEXT NOT NULL,
+		repo_full_name TEXT NOT NULL,
+		PRIMARY KEY (user_id, forge, repo_full_name)
+	);
 	`
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("settings: create schema: %w", err)
@@ -359,8 +365,8 @@ func randomWebhookValue() (string, error) {
 
 // Delete removes userID's saved credentials — a no-op, not an error, if
 // they never saved any. Used when an admin removes the account outright.
-// Also removes their recorded webhook deliveries, the same store's other
-// table.
+// Also removes their recorded webhook deliveries and per-repo settings,
+// the same store's other tables.
 func (s *Store) Delete(ctx context.Context, userID []byte) error {
 	encodedID := encodeUserID(userID)
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM webhook_deliveries WHERE user_id = ?`, encodedID); err != nil {
@@ -368,6 +374,9 @@ func (s *Store) Delete(ctx context.Context, userID []byte) error {
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM ignored_repos WHERE user_id = ?`, encodedID); err != nil {
 		return fmt.Errorf("settings: delete ignored repos: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM auto_update_branch_repos WHERE user_id = ?`, encodedID); err != nil {
+		return fmt.Errorf("settings: delete auto-update-branch repos: %w", err)
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM user_credentials WHERE user_id = ?`, encodedID)
 	if err != nil {
@@ -444,6 +453,66 @@ func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]str
 	}
 
 	return ignored, nil
+}
+
+// EnableAutoUpdateBranch turns on automatic branch updates for
+// forge/repoFullName (#365) — any of its pull requests the background
+// refresh finds behind its base branch gets updated the same way a
+// manual "Update branch" click would, from then on. Idempotent: enabling
+// an already-enabled repo is a no-op, not an error.
+func (s *Store) EnableAutoUpdateBranch(ctx context.Context, userID []byte, forge, repoFullName string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO auto_update_branch_repos (user_id, forge, repo_full_name)
+		VALUES (?, ?, ?)
+		ON CONFLICT (user_id, forge, repo_full_name) DO NOTHING`,
+		encodeUserID(userID), forge, repoFullName,
+	)
+	if err != nil {
+		return fmt.Errorf("settings: enable auto-update-branch: %w", err)
+	}
+
+	return nil
+}
+
+// DisableAutoUpdateBranch reverses EnableAutoUpdateBranch. Idempotent:
+// disabling a repo that was never enabled is a no-op, not an error.
+func (s *Store) DisableAutoUpdateBranch(ctx context.Context, userID []byte, forge, repoFullName string) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM auto_update_branch_repos WHERE user_id = ? AND forge = ? AND repo_full_name = ?`,
+		encodeUserID(userID), forge, repoFullName,
+	)
+	if err != nil {
+		return fmt.Errorf("settings: disable auto-update-branch: %w", err)
+	}
+
+	return nil
+}
+
+// AutoUpdateBranchRepos returns the set of forge/repo pairs (keyed by
+// WebhookDeliveryKey) userID has turned automatic branch updates on for
+// — empty, never an error, for a user who's never enabled any.
+func (s *Store) AutoUpdateBranchRepos(ctx context.Context, userID []byte) (map[string]struct{}, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT forge, repo_full_name FROM auto_update_branch_repos WHERE user_id = ?`, encodeUserID(userID),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("settings: list auto-update-branch repos: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	enabled := make(map[string]struct{})
+	for rows.Next() {
+		var forge, repoFullName string
+		if err := rows.Scan(&forge, &repoFullName); err != nil {
+			return nil, fmt.Errorf("settings: scan auto-update-branch repo row: %w", err)
+		}
+		enabled[WebhookDeliveryKey(forge, repoFullName)] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("settings: list auto-update-branch repos: %w", err)
+	}
+
+	return enabled, nil
 }
 
 // RecordWebhookDelivery notes that userID's webhook for forge/repoFullName
