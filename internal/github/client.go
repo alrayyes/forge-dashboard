@@ -685,6 +685,7 @@ type repoConnection struct {
 type reposQueryResponse struct {
 	RateLimit *struct {
 		Limit     int       `json:"limit"`
+		Cost      int       `json:"cost"`
 		Remaining int       `json:"remaining"`
 		ResetAt   time.Time `json:"resetAt"`
 	} `json:"rateLimit"`
@@ -704,6 +705,7 @@ const reposQueryTemplate = `
 query($cursor: String, $since: DateTime) {
   rateLimit {
     limit
+    cost
     remaining
     resetAt
   }
@@ -916,7 +918,13 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 				Limit:     resp.RateLimit.Limit,
 				Remaining: resp.RateLimit.Remaining,
 				ResetsAt:  resp.RateLimit.ResetAt,
+				Cost:      resp.RateLimit.Cost,
 			}
+			// #440: this call's own point price, not just what's left —
+			// remaining/limit alone can't say whether a poll is cheap or
+			// this account's own query shape is what's actually burning
+			// the budget.
+			slog.Info("github graphql rate limit", "cost", resp.RateLimit.Cost, "remaining", resp.RateLimit.Remaining, "limit", resp.RateLimit.Limit)
 		}
 		repos = append(repos, resp.Viewer.Repositories.Nodes...)
 		if !resp.Viewer.Repositories.PageInfo.HasNextPage {

@@ -2116,6 +2116,15 @@ components:
           type: string
           format: date-time
           description: When the window resets and remaining goes back to limit.
+        cost:
+          type: integer
+          minimum: 0
+          description: >-
+            The point price the most recent call was actually charged
+            (#440) — GraphQL-specific, since a REST request has no
+            separate cost concept beyond the flat one-request-one-point
+            REST's own budget already counts. Omitted for a REST-sourced
+            RateLimit.
 
     PullRequest:
       type: object

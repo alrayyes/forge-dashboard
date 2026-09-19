@@ -1,7 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  type RateLimit = { limit: number; remaining: number; resetsAt: string };
+  type RateLimit = {
+    limit: number;
+    remaining: number;
+    resetsAt: string;
+    cost?: number;
+  };
   type Forge = {
     forge: string;
     reachable: boolean;
@@ -630,6 +635,12 @@
     .rate-limit-budget.rl-exhausted .rate-limit-reset {
       color: var(--critical);
     }
+    .rate-limit-cost {
+      font-size: 11.5px;
+      color: var(--ink-3);
+      margin: 2px 0 0;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+    }
     .rate-limit-note {
       font-size: 12.5px;
       color: var(--ink-3);
@@ -997,6 +1008,13 @@
               rl.resetsAt,
             )}
           </p>
+          {#if rl.cost !== undefined}
+            <p class="rate-limit-cost">
+              Last poll cost {rl.cost.toLocaleString()} point{rl.cost === 1
+                ? ""
+                : "s"}
+            </p>
+          {/if}
         </div>
       {/if}
     {/snippet}
