@@ -733,7 +733,7 @@
                 if (data) {
                   applySnapshot(data);
                 } else {
-                  prBoard.render();
+                  renderPRBoard();
                 }
                 clearStatus();
                 showError(
@@ -746,7 +746,7 @@
                 showError(
                   `Couldn't merge ${item.repo}#${item.number}: ${err.message}`,
                 );
-                prBoard.render();
+                renderPRBoard();
               });
             return;
           }
@@ -760,7 +760,7 @@
           showError(
             `Couldn't merge ${item.repo}#${item.number}: ${err.message}`,
           );
-          prBoard.render();
+          renderPRBoard();
         });
     }
 
@@ -822,7 +822,7 @@
           cancelButton.type = "button";
           cancelButton.addEventListener("click", () => {
             delete mergeState[key];
-            prBoard.render();
+            renderPRBoard();
           });
           wrap.appendChild(cancelButton);
         }
@@ -833,7 +833,7 @@
       mergeButton.type = "button";
       mergeButton.addEventListener("click", () => {
         mergeState[key] = { phase: "confirming" };
-        prBoard.render();
+        renderPRBoard();
         // Moves focus to the confirm button that render() just built —
         // the browser's own scroll-into-view + focus ring is what
         // actually makes this state change noticeable, not just
@@ -937,7 +937,7 @@
           showError(
             `Couldn't update the branch for ${item.repo}#${item.number}: ${err.message}`,
           );
-          prBoard.render();
+          renderPRBoard();
         });
     }
 
@@ -1058,7 +1058,7 @@
           // doUpdateBranch: posting the comment doesn't change anything
           // about this pull request itself — Dependabot's own rebase/
           // recreate run is what would, on its own schedule.
-          prBoard.render();
+          renderPRBoard();
         })
         .catch((err: Error & { status?: number }) => {
           const lockReason = reactiveDependabotActionLockReason(err.status);
@@ -1070,7 +1070,7 @@
           showError(
             `Couldn't ask Dependabot to ${action} ${item.repo}#${item.number}: ${err.message}`,
           );
-          prBoard.render();
+          renderPRBoard();
         });
     }
 
@@ -1129,6 +1129,50 @@
     // does.
     const renovateRebaseState: Record<string, ActionState> = {};
 
+    // #212: a row armed for a second click (Merge's own "Confirm merge?"
+    // step, or an update-branch/Dependabot/Renovate request already in
+    // flight) must not have its position stolen by a live snapshot
+    // landing mid-interaction — aggregator.go sorts pullRequests by
+    // UpdatedAt descending, so any other tracked pull request updating
+    // in that window reshuffles the whole board on the next poll or SSE
+    // push, and the confirm click lands wherever that row used to be
+    // instead of the button itself. "locked" is deliberately excluded:
+    // that state already swaps the button for a single-click "Retry",
+    // not a two-step interaction a moved target can break.
+    function anyRowActionInFlight(): boolean {
+      const inFlight = (entry: ActionState) =>
+        entry.phase !== "idle" && entry.phase !== "locked";
+
+      return [
+        mergeState,
+        updateBranchState,
+        dependabotActionState,
+        renovateRebaseState,
+      ].some((stateMap) => Object.values(stateMap).some(inFlight));
+    }
+
+    // The latest pull-request list applySnapshot had to withhold from
+    // prBoard while a row was mid-interaction (see anyRowActionInFlight) —
+    // applied the moment nothing's in flight anymore, so the board never
+    // stays stale past the interaction that froze it.
+    let pendingPRSnapshot: PullRequestItem[] | null = null;
+
+    // Every merge/update-branch/Dependabot/Renovate call site re-renders
+    // the PR board through here, not prBoard.render() directly, so a
+    // snapshot that arrived mid-interaction gets applied the instant that
+    // interaction's own re-render shows nothing is in flight anymore,
+    // rather than waiting on the next poll or SSE push.
+    function renderPRBoard() {
+      if (!anyRowActionInFlight() && pendingPRSnapshot) {
+        const prs = pendingPRSnapshot;
+        pendingPRSnapshot = null;
+        prBoard.setItems(prs);
+
+        return;
+      }
+      prBoard.render();
+    }
+
     // Same 403/429 handling as reactiveDependabotActionLockReason; 404
     // reads as the configured label not existing on this repo (Forgejo
     // requires the label to already exist) rather than the pull request
@@ -1183,7 +1227,7 @@
         .then(() => {
           delete renovateRebaseState[key];
           showStatus(`Asked Renovate to rebase ${item.repo}#${item.number}.`);
-          prBoard.render();
+          renderPRBoard();
         })
         .catch((err: Error & { status?: number }) => {
           const lockReason = reactiveRenovateRebaseLockReason(err.status);
@@ -1195,7 +1239,7 @@
           showError(
             `Couldn't ask Renovate to rebase ${item.repo}#${item.number}: ${err.message}`,
           );
-          prBoard.render();
+          renderPRBoard();
         });
     }
 
@@ -1565,7 +1609,7 @@
     }
 
     function renderBoth() {
-      prBoard.render();
+      renderPRBoard();
       issueBoard.render();
     }
 
@@ -2407,7 +2451,19 @@
       // Each board's own render() sets its stat tile's text too (the
       // same filtered-vs-total wording its own count already uses), so
       // the tile never disagrees with the board sitting right below it.
-      prBoard.setItems(prs);
+      //
+      // #212: withheld from the PR board while any row is mid-interaction
+      // — see anyRowActionInFlight's own comment — rather than applied
+      // immediately, so a live poll or SSE push can't reorder a row out
+      // from under a click that's already armed it. renderPRBoard applies
+      // it the moment that interaction's own re-render shows nothing's
+      // in flight anymore.
+      if (anyRowActionInFlight()) {
+        pendingPRSnapshot = prs;
+      } else {
+        pendingPRSnapshot = null;
+        prBoard.setItems(prs);
+      }
       issueBoard.setItems(issues);
 
       const failingCount = prs.filter((p) => p.ci === "failure").length;
