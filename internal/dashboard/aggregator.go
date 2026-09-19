@@ -213,11 +213,56 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	sortByRecency(snap.PullRequests, snap.Issues)
 
 	a.mu.Lock()
+	previous := a.snap
 	a.snap = snap
 	a.mu.Unlock()
 
+	logRateLimitTransitions(previous.Forges, snap.Forges)
+
 	a.notify(snap)
 	a.runAutoUpdateBranch(ctx, snap)
+}
+
+// logRateLimitTransitions logs a rate-limit budget crossing into or out of
+// exhaustion between two consecutive refreshes — the per-poll GraphQL
+// "cost" line (internal/github/client.go) says how much a poll spent, not
+// whether the account just ran out or just got its budget back, and a
+// budget silently locking every proactive action (merge, update branch,
+// Dependabot/Renovate triggers) until reset deserves a real log line, not
+// just the dashboard's own banner (#450). Edge-triggered rather than
+// logging on every poll while exhausted, which would just be noise: one
+// line when it happens, one when it clears.
+func logRateLimitTransitions(previous, current []ForgeHealth) {
+	previousByForge := make(map[Forge]ForgeHealth, len(previous))
+	for _, h := range previous {
+		previousByForge[h.Forge] = h
+	}
+
+	for _, cur := range current {
+		prev := previousByForge[cur.Forge]
+		logOneRateLimitTransition(cur.Forge, "graphql", prev.RateLimitGraphQL, cur.RateLimitGraphQL)
+		logOneRateLimitTransition(cur.Forge, "rest", prev.RateLimitREST, cur.RateLimitREST)
+	}
+}
+
+// logOneRateLimitTransition compares one budget's previous and current
+// reading. A nil reading (no data this poll, or the very first one) never
+// counts as a transition either way — there's nothing to compare against,
+// not a recovery.
+func logOneRateLimitTransition(forge Forge, kind string, previous, current *RateLimit) {
+	if current == nil {
+		return
+	}
+
+	wasExhausted := previous != nil && previous.Remaining == 0
+	isExhausted := current.Remaining == 0
+
+	switch {
+	case isExhausted && !wasExhausted:
+		slog.Warn("rate limit exhausted", "forge", forge, "kind", kind, "limit", current.Limit, "resetsAt", current.ResetsAt)
+	case wasExhausted && !isExhausted:
+		slog.Info("rate limit refreshed", "forge", forge, "kind", kind, "remaining", current.Remaining, "limit", current.Limit)
+	}
 }
 
 // Run refreshes immediately, then again roughly every interval, until ctx
