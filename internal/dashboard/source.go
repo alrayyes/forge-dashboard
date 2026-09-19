@@ -117,6 +117,20 @@ type PullRequestLabeler interface {
 	AddLabel(ctx context.Context, owner, name string, number int, label string) error
 }
 
+// PullRequestChecker is implemented by a ForgeClient (or, for
+// github.Client, a Source directly) that can list the individual
+// job/check runs against one of its own pull requests' head commit —
+// checked via a type assertion, the same optional-capability pattern
+// PullRequestLabeler uses. Fetched on demand by its own handler, never as
+// part of a Source's own Fetch/FetchRepo: the eager refresh loop already
+// re-fetches every open PR's collapsed CIStatus on its own cadence, and
+// adding a per-job fetch to that same loop would multiply its cost by
+// every open PR on every refresh for detail most PRs' rows are never
+// opened for.
+type PullRequestChecker interface {
+	ListChecks(ctx context.Context, owner, name string, number int) ([]Check, error)
+}
+
 // WebhookTargetsPath reports whether rawURL's path component is exactly
 // path — how a Source recognizes "this hook is the one forge-dashboard
 // itself would have created," regardless of the scheme or host a webhook

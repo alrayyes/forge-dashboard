@@ -97,6 +97,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/pull-requests/update-branch", auth.RequireAuth(deps.AuthStore)(handlePullRequestUpdateBranch(deps)))
 	mux.Handle("POST /api/pull-requests/dependabot-action", auth.RequireAuth(deps.AuthStore)(handlePullRequestDependabotAction(deps)))
 	mux.Handle("POST /api/pull-requests/renovate-rebase", auth.RequireAuth(deps.AuthStore)(handlePullRequestRenovateRebase(deps)))
+	mux.Handle("GET /api/pull-requests/checks", auth.RequireAuth(deps.AuthStore)(handlePullRequestChecks(deps)))
 
 	mux.Handle("GET /api/sharing", auth.RequireAuth(deps.AuthStore)(handleSharingGet(deps)))
 	mux.Handle("PUT /api/sharing/{username}", auth.RequireAuth(deps.AuthStore)(handleSharingPut(deps)))
