@@ -568,7 +568,14 @@ section.board {
 .row {
   position: relative; /* the containing block .title::after stretches against */
   display: grid;
-  grid-template-columns: 168px 1fr 96px 82px 82px 92px 22px;
+  /* #470: 168px (the repo column) fit the forge badge but not much of
+     an ordinary owner/repo name alongside it, so it was the common
+     case for truncation rather than an edge case — 280px is enough
+     for this account's own repo names ("alrayyes/backup-git-repos",
+     "alrayyes/forge-dashboard") without one. Every .row shares this
+     exact list, which is what keeps columns aligned down the board
+     with no shared grid/subgrid — widen it here only, never per-row. */
+  grid-template-columns: 280px 1fr 96px 82px 82px 92px 22px;
   gap: 12px;
   align-items: center;
   padding: 12px 18px;

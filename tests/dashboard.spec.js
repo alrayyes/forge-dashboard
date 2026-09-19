@@ -672,6 +672,45 @@ test.describe('dashboard page', () => {
     );
   });
 
+  // #470: the hover title above recovers a truncated name, but an
+  // ordinary owner/repo name shouldn't need that at all — the repo
+  // column's fixed desktop width has to actually fit one.
+  test('an ordinary owner/repo name is not truncated at desktop width', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [
+            {
+              forge: 'github',
+              repo: 'alrayyes/backup-git-repos',
+              number: 212,
+              title: 'An issue',
+              url: 'https://example.com/212',
+              author: 'claude',
+              labels: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ],
+        }),
+      }),
+    );
+    await page.reload();
+
+    const repoName = page.locator('#issue-rows .repo-name').first();
+    const overflow = await repoName.evaluate(
+      (el) => el.scrollWidth - el.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
   test('per-column filters narrow the visible rows', async ({ page }) => {
     // No forges configured in this CI run, so both boards render their
     // empty state — filtering an empty board is still a real assertion:
