@@ -23,6 +23,10 @@ type Aggregator struct {
 
 	refresh     *coalescer
 	repoRefresh *keyedCoalescer
+
+	// autoUpdate is nil unless EnableAutoUpdateBranch was called — see
+	// auto_update_branch.go.
+	autoUpdate *autoUpdateBranchConfig
 }
 
 // NewAggregator returns an Aggregator whose Get answers an empty snapshot
@@ -135,7 +139,7 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 
 			return
 		}
-		a.mergeRepo(forge, fullName, prs, issues)
+		a.mergeRepo(ctx, forge, fullName, prs, issues)
 	})
 
 	return true
@@ -143,7 +147,7 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 
 // mergeRepo replaces forge/fullName's own entries in the current snapshot
 // with prs and issues, leaving every other repo's data untouched.
-func (a *Aggregator) mergeRepo(forge Forge, fullName string, prs []PullRequest, issues []Issue) {
+func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, prs []PullRequest, issues []Issue) {
 	a.mu.Lock()
 	current := a.snap
 	a.mu.Unlock()
@@ -171,6 +175,7 @@ func (a *Aggregator) mergeRepo(forge Forge, fullName string, prs []PullRequest, 
 	a.mu.Unlock()
 
 	a.notify(merged)
+	a.runAutoUpdateBranch(ctx, merged)
 }
 
 // sortByRecency orders both slices most-recently-updated first. Without
@@ -212,6 +217,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.mu.Unlock()
 
 	a.notify(snap)
+	a.runAutoUpdateBranch(ctx, snap)
 }
 
 // Run refreshes immediately, then again roughly every interval, until ctx
