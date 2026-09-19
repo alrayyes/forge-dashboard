@@ -278,3 +278,51 @@ func TestManager_EnsureIfAbsent_AlreadyRunning_NeverReplaces(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	assert.Equal(t, int32(0), replacement.calls.Load(), "an already-running Aggregator should never be replaced by EnsureIfAbsent")
 }
+
+func TestManager_SetAutoUpdateBranchLister_ThenEnsure_WiresItIntoTheAggregator(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},
+		},
+	}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+	m.SetAutoUpdateBranchLister(lister)
+
+	m.Ensure(t.Context(), []byte("user-1"), []dashboard.Source{src})
+
+	require.Eventually(t, func() bool {
+		return len(src.updatedBranches()) == 1
+	}, time.Second, 5*time.Millisecond)
+}
+
+func TestManager_Ensure_NoAutoUpdateBranchListerSet_NeverCallsUpdateBranch(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},
+		},
+	}}}
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+	// SetAutoUpdateBranchLister never called.
+
+	m.Ensure(t.Context(), []byte("user-1"), []dashboard.Source{src})
+
+	require.Eventually(t, func() bool {
+		forges := m.Get([]byte("user-1")).Forges
+
+		return len(forges) == 1 && forges[0].Reachable
+	}, time.Second, 5*time.Millisecond)
+	assert.Empty(t, src.updatedBranches())
+}
