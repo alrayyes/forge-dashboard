@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.77.2](https://github.com/alrayyes/forge-dashboard/compare/v0.77.1...v0.77.2) (2026-09-19)
+
+
+### Bug Fixes
+
+* stop the update-branch Retry test racing its own click handler ([#424](https://github.com/alrayyes/forge-dashboard/issues/424)) ([c618be0](https://github.com/alrayyes/forge-dashboard/commit/c618be0df99160b8882aa52c21241ace259b4494))
+
 ## [0.77.1](https://github.com/alrayyes/forge-dashboard/compare/v0.77.0...v0.77.1) (2026-09-18)
 
 
