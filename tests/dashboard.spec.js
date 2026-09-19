@@ -68,14 +68,63 @@ test.describe('dashboard page', () => {
   test('an unreachable forge shows a friendly reason, not the raw technical string', async ({
     page,
   }) => {
-    // Real incident: a rate-limited GitHub source showed only "GitHub
-    // unreachable", with the actual reason (rate limited, bad token, a
-    // real outage — all look identical from here) buried in a title
-    // attribute nothing but a mouse hover ever reaches. Fixed once by
-    // showing the raw string as visible text; #229 found that raw string
-    // itself unfriendly and impossible to act on, so it now sits behind a
+    // Real incident: an unauthorized GitHub source showed only "GitHub
+    // unreachable", with the actual reason (bad token, a real outage —
+    // all look identical from here) buried in a title attribute nothing
+    // but a mouse hover ever reaches. Fixed once by showing the raw
+    // string as visible text; #229 found that raw string itself
+    // unfriendly and impossible to act on, so it now sits behind a
     // details disclosure and a classified, actionable headline is what's
     // primary.
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [
+            {
+              forge: 'github',
+              reachable: false,
+              repoCount: 0,
+              error: 'github: GET /user/repos: 401 Bad credentials',
+              errorKind: 'unauthorized',
+            },
+          ],
+          pullRequests: [],
+          issues: [],
+        }),
+      }),
+    );
+
+    await page.reload();
+
+    const forgeHealth = page.locator('#forge-health');
+    await expect(forgeHealth).toContainText('Check the token in Settings.');
+
+    // The raw string is present in the DOM either way (a <details>'s
+    // collapsed content is still in textContent, just not rendered), so
+    // "not shown by default" is asserted on the disclosure's own open
+    // state, not by searching for the text's absence.
+    const details = forgeHealth.locator('details.forge-health-detail');
+    await expect(details).not.toHaveAttribute('open');
+
+    await details.locator('summary').click();
+    await expect(details).toHaveAttribute('open');
+    await expect(forgeHealth).toContainText('401 Bad credentials');
+  });
+
+  test('a rate-limited forge does not repeat the exceeded-budget banner underneath its own chip', async ({
+    page,
+  }) => {
+    // The per-forge headline + details disclosure above exists so a
+    // classified, actionable reason replaces an unfriendly raw string —
+    // but #361's rate-limit-banner already gives rate_limited a more
+    // prominent, more detailed (per-budget, with a countdown) home at
+    // the top of the page. Repeating "Rate limit exceeded." and a raw
+    // error disclosure here on top of that is noise, not a second
+    // source of detail — reported live, the text served no purpose once
+    // the banner shipped.
     await page.route('**/api/dashboard*', (route) =>
       route.fulfill({
         status: 200,
@@ -101,20 +150,11 @@ test.describe('dashboard page', () => {
     await page.reload();
 
     const forgeHealth = page.locator('#forge-health');
-    await expect(forgeHealth).toContainText('Rate limit exceeded.');
-
-    // The raw string is present in the DOM either way (a <details>'s
-    // collapsed content is still in textContent, just not rendered), so
-    // "not shown by default" is asserted on the disclosure's own open
-    // state, not by searching for the text's absence.
-    const details = forgeHealth.locator('details.forge-health-detail');
-    await expect(details).not.toHaveAttribute('open');
-
-    await details.locator('summary').click();
-    await expect(details).toHaveAttribute('open');
-    await expect(forgeHealth).toContainText(
-      'API rate limit exceeded for user ID 511318.',
-    );
+    await expect(forgeHealth).toContainText('GitHub unreachable');
+    await expect(forgeHealth).not.toContainText('Rate limit exceeded');
+    await expect(
+      forgeHealth.locator('details.forge-health-detail'),
+    ).toHaveCount(0);
   });
 
   test('an unreachable forge with no recognized error kind still shows a friendly, forge-named reason', async ({
