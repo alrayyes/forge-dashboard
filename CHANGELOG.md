@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.79.0](https://github.com/alrayyes/forge-dashboard/compare/v0.78.0...v0.79.0) (2026-09-19)
+
+
+### Features
+
+* show a pull request's CI pipeline jobs, linking to the forge ([#433](https://github.com/alrayyes/forge-dashboard/issues/433)) ([9be2df1](https://github.com/alrayyes/forge-dashboard/commit/9be2df1e5648893c9c8cc6da1b3311200a8f96be)), closes [#425](https://github.com/alrayyes/forge-dashboard/issues/425)
+* surface GraphQL rate-limit cost per poll on Insights ([#441](https://github.com/alrayyes/forge-dashboard/issues/441)) ([57d5978](https://github.com/alrayyes/forge-dashboard/commit/57d5978a2bad35468335a9b52d302e9eb83892f6))
+
+
+### Bug Fixes
+
+* **lint:** bring golangci-lint config up to spec and fix what it found ([#434](https://github.com/alrayyes/forge-dashboard/issues/434)) ([8963869](https://github.com/alrayyes/forge-dashboard/commit/8963869eb25262c971de69543f6c1c228e2625f6))
+* **lint:** fix wrapcheck/nlreturn/modernize findings that broke main CI ([#437](https://github.com/alrayyes/forge-dashboard/issues/437)) ([878191e](https://github.com/alrayyes/forge-dashboard/commit/878191e75401bacbf13fd8104482c4993a863ee6))
+* stop repeating "Rate limit exceeded." under a rate-limited forge's chip ([#431](https://github.com/alrayyes/forge-dashboard/issues/431)) ([1e71223](https://github.com/alrayyes/forge-dashboard/commit/1e71223be90412d912489542e8cf947924fa7ddd))
+
 ## [0.78.0](https://github.com/alrayyes/forge-dashboard/compare/v0.77.2...v0.78.0) (2026-09-19)
 
 
