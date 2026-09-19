@@ -282,7 +282,7 @@ func TestManager_EnsureIfAbsent_AlreadyRunning_NeverReplaces(t *testing.T) {
 func TestManager_SetAutoUpdateBranchLister_ThenEnsure_WiresItIntoTheAggregator(t *testing.T) {
 	t.Parallel()
 
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},
@@ -306,7 +306,7 @@ func TestManager_SetAutoUpdateBranchLister_ThenEnsure_WiresItIntoTheAggregator(t
 func TestManager_Ensure_NoAutoUpdateBranchListerSet_NeverCallsUpdateBranch(t *testing.T) {
 	t.Parallel()
 
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},

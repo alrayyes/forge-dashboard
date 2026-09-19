@@ -67,7 +67,7 @@ func (f *fakeAutoUpdateBranchLister) AllowsBotPRUpdates(_ context.Context, _ []b
 func TestAggregator_Refresh_BehindPROnEnabledRepo_UpdatesBranch(t *testing.T) {
 	t.Parallel()
 
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},
@@ -87,7 +87,7 @@ func TestAggregator_Refresh_BehindPROnEnabledRepo_UpdatesBranch(t *testing.T) {
 func TestAggregator_Refresh_PRNotBehind_LeavesItAlone(t *testing.T) {
 	t.Parallel()
 
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: false},
@@ -107,7 +107,7 @@ func TestAggregator_Refresh_PRNotBehind_LeavesItAlone(t *testing.T) {
 func TestAggregator_Refresh_BehindPROnRepoNotEnabled_LeavesItAlone(t *testing.T) {
 	t.Parallel()
 
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},
@@ -125,7 +125,7 @@ func TestAggregator_Refresh_BehindPROnRepoNotEnabled_LeavesItAlone(t *testing.T)
 func TestAggregator_Refresh_BehindBotManagedPR_SkippedUnlessAllowed(t *testing.T) {
 	t.Parallel()
 
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "app/renovate"},
@@ -146,7 +146,7 @@ func TestAggregator_Refresh_BehindBotManagedPR_SkippedUnlessAllowed(t *testing.T
 func TestAggregator_Refresh_BehindBotManagedPR_UpdatedWhenAllowed(t *testing.T) {
 	t.Parallel()
 
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "app/renovate"},
@@ -167,7 +167,7 @@ func TestAggregator_Refresh_BehindBotManagedPR_UpdatedWhenAllowed(t *testing.T) 
 func TestAggregator_Refresh_NoAutoUpdateEnabled_NeverCallsLister(t *testing.T) {
 	t.Parallel()
 
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},
@@ -201,7 +201,7 @@ func TestAggregator_Refresh_ListerErrors_RefreshStillSucceeds(t *testing.T) {
 func TestAggregator_Refresh_AllowsBotPRUpdatesErrors_RefreshStillSucceeds(t *testing.T) {
 	t.Parallel()
 
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},
