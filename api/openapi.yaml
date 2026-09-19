@@ -219,6 +219,7 @@ paths:
       operationId: getSession
       summary: Who, if anyone, the current session cookie belongs to
       tags: [auth]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: The current session's user.
@@ -241,6 +242,7 @@ paths:
         Every passkey on the account (#355), oldest first — not just the
         one used to establish the current session.
       tags: [auth]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: Every registered passkey.
@@ -267,6 +269,7 @@ paths:
         account; this is how an already-registered user adds a second
         (or third...) passkey, e.g. a laptop and a security key (#355).
       tags: [auth]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: |
@@ -290,6 +293,7 @@ paths:
       operationId: finishAddCredential
       summary: Complete an add-credential ceremony
       tags: [auth]
+      security: [{ bearerAuth: [] }]
       parameters:
         - name: label
           in: query
@@ -338,6 +342,7 @@ paths:
         app is WebAuthn-only with no password fallback, so deleting it
         would lock the account out entirely.
       tags: [auth]
+      security: [{ bearerAuth: [] }]
       parameters:
         - name: id
           in: path
@@ -369,6 +374,7 @@ paths:
         whether one is currently on file. There is no way to read a saved
         token back out through this API.
       tags: [settings]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: The current settings.
@@ -392,6 +398,7 @@ paths:
         current value of. Saving triggers that user's dashboard to start
         refreshing from the new configuration.
       tags: [settings]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -434,6 +441,7 @@ paths:
         user's behalf shouldn't trigger for someone who's never opened
         Settings at all.
       tags: [settings]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: The current value.
@@ -459,6 +467,7 @@ paths:
         already uses, for the same reason: this loads on every page visit
         and shouldn't provision webhook credentials as a side effect.
       tags: [settings]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: The current value.
@@ -485,6 +494,7 @@ paths:
         cites, rather than waiting on the rest of the settings form's
         own Save button.
       tags: [settings]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -523,6 +533,7 @@ paths:
         shouldn't provision webhook credentials as a side effect.
         `{}` for a user who's never saved any filters yet, not a 404.
       tags: [settings]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: The saved state, or `{}` if none has ever been saved.
@@ -550,6 +561,7 @@ paths:
         to call this: immediately for a discrete control, debounced
         while the user is still typing in the free-text Title filter.
       tags: [settings]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -578,10 +590,6 @@ paths:
       summary: List the signed-in user's own personal API tokens
       description: Metadata only, per APIToken's own description — a raw value never reappears once created.
       tags: [tokens]
-      # Applied here, not retroactively on every pre-existing
-      # session-authenticated endpoint elsewhere in this spec (a bigger,
-      # separate change) — see the auth tag's own description for why an
-      # endpoint without this still accepts the same Bearer token.
       security: [{ bearerAuth: [] }]
       responses:
         "200":
@@ -672,6 +680,7 @@ paths:
         forge rather than just reading from it — see also the
         pull-requests tag.
       tags: [webhooks]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -733,6 +742,7 @@ paths:
         Insights. Idempotent: ignoring an already-ignored repo is a
         no-op, not an error.
       tags: [dashboard]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -763,6 +773,7 @@ paths:
         The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
         repo that was never ignored is a no-op, not an error.
       tags: [dashboard]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -797,6 +808,7 @@ paths:
         separately allowed. Idempotent: enabling an already-enabled repo
         is a no-op, not an error.
       tags: [dashboard]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -828,6 +840,7 @@ paths:
         Idempotent: disabling a repo that was never enabled is a no-op,
         not an error.
       tags: [dashboard]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -862,6 +875,7 @@ paths:
         passes that explicitly. Neither takes a method override here;
         picking one is out of scope for this endpoint.
       tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -930,6 +944,7 @@ paths:
         Forgejo's equivalent is always synchronous, so it only ever
         answers 204.
       tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -1000,6 +1015,7 @@ paths:
         values below and nothing else is ever sent. GitHub only —
         Dependabot doesn't run on Forgejo.
       tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -1069,6 +1085,7 @@ paths:
         and Forgejo, unlike the Dependabot actions, since Renovate runs
         on both.
       tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -1136,6 +1153,7 @@ paths:
         expose them) — never an error for that case specifically, since
         it's a normal, expected shape for an older or CI-less repo.
       tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
       parameters:
         - name: forge
           in: query
@@ -1206,6 +1224,7 @@ paths:
         Never includes a passkey or a forge credential — a username,
         display name, admin flag and registration timestamp per user.
       tags: [admin]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: Every registered user.
@@ -1239,6 +1258,7 @@ paths:
         credentials are untouched; use the delete endpoint to remove the
         account itself.
       tags: [admin]
+      security: [{ bearerAuth: [] }]
       parameters:
         - $ref: "#/components/parameters/PathUsername"
       responses:
@@ -1278,6 +1298,7 @@ paths:
         every saved forge credential — irreversible. Their username
         becomes available for a fresh registration.
       tags: [admin]
+      security: [{ bearerAuth: [] }]
       parameters:
         - $ref: "#/components/parameters/PathUsername"
       responses:
@@ -1370,6 +1391,7 @@ paths:
           schema:
             type: string
           description: A username that has shared their dashboard with the caller. Defaults to the caller's own.
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: The current snapshot.
@@ -1415,6 +1437,7 @@ paths:
         benefits from this, rather than the dashboard going stale
         silently.
       tags: [dashboard]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: |
@@ -1455,6 +1478,7 @@ paths:
         spend that owner's own forge rate-limit budget on their own
         schedule.
       tags: [dashboard]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: The freshly refreshed snapshot.
@@ -1484,6 +1508,7 @@ paths:
         own dashboard with, and whose dashboards have been shared with
         them.
       tags: [sharing]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: The current sharing relationships.
@@ -1508,6 +1533,7 @@ paths:
         the shared dashboard; they see the owner's aggregated data exactly
         as the owner sees it.
       tags: [sharing]
+      security: [{ bearerAuth: [] }]
       parameters:
         - $ref: "#/components/parameters/PathUsername"
       responses:
@@ -1536,6 +1562,7 @@ paths:
       summary: Stop sharing the signed-in user's dashboard with username
       description: Idempotent — removing a username that was never shared with changes nothing.
       tags: [sharing]
+      security: [{ bearerAuth: [] }]
       parameters:
         - $ref: "#/components/parameters/PathUsername"
       responses:
@@ -1561,6 +1588,12 @@ paths:
         webhook is first created) means the same thing here — something
         changed, refresh — so nothing about the payload itself is parsed.
       tags: [webhooks]
+      # Not session-or-bearer authenticated like everything else in this
+      # spec — the path's token identifies the user, and the request's
+      # own HMAC signature is what proves it actually came from their
+      # forge. Explicit rather than left to the top-level default so
+      # this reads as a deliberate exception, not an oversight.
+      security: []
       parameters:
         - $ref: "#/components/parameters/PathWebhookToken"
       requestBody:
@@ -1599,6 +1632,8 @@ paths:
         delivery means the same thing here — something changed, refresh —
         so nothing about the payload itself is parsed.
       tags: [webhooks]
+      # See receiveGitHubWebhook's own comment on this same field.
+      security: []
       parameters:
         - $ref: "#/components/parameters/PathWebhookToken"
       requestBody:
@@ -1626,12 +1661,13 @@ paths:
 
 components:
   securitySchemes:
-    # Documented, but never applied via a `security:` block on individual
-    # operations here — see the auth tag's own description for why: every
-    # authenticated endpoint already accepts this or the session cookie,
-    # and the existing per-endpoint 401 descriptions cover both rather
-    # than this spec modeling two parallel security requirements per
-    # operation.
+    # Applied via a `security:` block on every operation that accepts it
+    # server-side (internal/api/server.go's auth.RequireAuth wiring) — see
+    # the auth tag's own description for why an endpoint's 401 description
+    # says "no valid session cookie" without separately calling out this
+    # header: both credentials produce the same 401. The two webhook
+    # delivery endpoints are the deliberate exception; see their own
+    # `security: []` comments.
     bearerAuth:
       type: http
       scheme: bearer
