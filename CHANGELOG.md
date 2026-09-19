@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.84.0](https://github.com/alrayyes/forge-dashboard/compare/v0.83.0...v0.84.0) (2026-09-19)
+
+
+### Features
+
+* **web:** pill reads "Passed" for CI once there's no Merge button ([#467](https://github.com/alrayyes/forge-dashboard/issues/467)) ([62fc2fa](https://github.com/alrayyes/forge-dashboard/commit/62fc2fa0f79e746ff112940025b2db359ef42be9)), closes [#466](https://github.com/alrayyes/forge-dashboard/issues/466)
+
+
+### Bug Fixes
+
+* **api:** declare bearerAuth on every session-authenticated operation ([#473](https://github.com/alrayyes/forge-dashboard/issues/473)) ([ad7cce2](https://github.com/alrayyes/forge-dashboard/commit/ad7cce2291d2654a5b48ba5030ab2b3856f36c3e)), closes [#452](https://github.com/alrayyes/forge-dashboard/issues/452)
+* **web:** keep a pull request in place while its Merge is being confirmed ([#469](https://github.com/alrayyes/forge-dashboard/issues/469)) ([6706353](https://github.com/alrayyes/forge-dashboard/commit/67063535ba34fc9e71c07b08af7422598e11024a)), closes [#468](https://github.com/alrayyes/forge-dashboard/issues/468)
+* **web:** widen the repo column so an ordinary owner/repo name isn't truncated ([#471](https://github.com/alrayyes/forge-dashboard/issues/471)) ([46bf0e2](https://github.com/alrayyes/forge-dashboard/commit/46bf0e26923f3879e9f0c4ff5af56400e28847de)), closes [#470](https://github.com/alrayyes/forge-dashboard/issues/470)
+
 ## [0.83.0](https://github.com/alrayyes/forge-dashboard/compare/v0.82.0...v0.83.0) (2026-09-19)
 
 
