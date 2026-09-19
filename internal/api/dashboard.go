@@ -21,10 +21,12 @@ import (
 // package has no reason to know settings exists (see the issue this
 // shipped against for why a live forge API check isn't used instead).
 type repoStatus struct {
-	Forge      dashboard.Forge `json:"forge"`
-	FullName   string          `json:"fullName"`
-	HasWebhook bool            `json:"hasWebhook"`
-	Ignored    bool            `json:"ignored"`
+	Forge             dashboard.Forge `json:"forge"`
+	FullName          string          `json:"fullName"`
+	URL               string          `json:"url"`
+	HasWebhook        bool            `json:"hasWebhook"`
+	CanManageWebhooks bool            `json:"canManageWebhooks"`
+	Ignored           bool            `json:"ignored"`
 }
 
 // dashboardResponse is the wire shape for /api/dashboard and its SSE
@@ -73,7 +75,14 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 			_, hasWebhook = deliveries[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
 		}
 		_, isIgnored := ignored[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
-		repos = append(repos, repoStatus{Forge: r.Forge, FullName: r.FullName, HasWebhook: hasWebhook, Ignored: isIgnored})
+		repos = append(repos, repoStatus{
+			Forge:             r.Forge,
+			FullName:          r.FullName,
+			URL:               r.URL,
+			HasWebhook:        hasWebhook,
+			CanManageWebhooks: r.CanManageWebhooks,
+			Ignored:           isIgnored,
+		})
 	}
 
 	pullRequests := make([]dashboard.PullRequest, 0, len(snap.PullRequests))
