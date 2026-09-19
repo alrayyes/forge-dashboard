@@ -16,6 +16,7 @@ func handlerEchoingUsername() http.Handler {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			http.Error(w, "no user in context", http.StatusInternalServerError)
+
 			return
 		}
 		_, _ = w.Write([]byte(u.Username))

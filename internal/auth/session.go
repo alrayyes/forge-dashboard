@@ -50,6 +50,7 @@ func SessionToken(r *http.Request) (string, bool) {
 	if err != nil || c.Value == "" {
 		return "", false
 	}
+
 	return c.Value, true
 }
 
@@ -62,6 +63,7 @@ func BearerToken(r *http.Request) (string, bool) {
 	if !ok || value == "" {
 		return "", false
 	}
+
 	return value, true
 }
 
@@ -74,5 +76,6 @@ func IsHTTPS(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
+
 	return r.Header.Get("X-Forwarded-Proto") == "https"
 }

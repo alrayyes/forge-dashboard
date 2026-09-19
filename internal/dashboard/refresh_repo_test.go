@@ -35,9 +35,9 @@ type fakeRepoRefresherSource struct {
 	repoFetchCalls map[string]int
 }
 
-func newFakeRepoRefresherSource(forge dashboard.Forge) *fakeRepoRefresherSource {
+func newFakeRepoRefresherSource() *fakeRepoRefresherSource {
 	return &fakeRepoRefresherSource{
-		forge:          forge,
+		forge:          dashboard.ForgeGitHub,
 		byRepo:         make(map[string][]dashboard.PullRequest),
 		issues:         make(map[string][]dashboard.Issue),
 		repoFetchCalls: make(map[string]int),
@@ -46,11 +46,10 @@ func newFakeRepoRefresherSource(forge dashboard.Forge) *fakeRepoRefresherSource 
 
 func (f *fakeRepoRefresherSource) Forge() dashboard.Forge { return f.forge }
 
-func (f *fakeRepoRefresherSource) setRepo(fullName string, prs []dashboard.PullRequest, issues []dashboard.Issue) {
+func (f *fakeRepoRefresherSource) setRepo(fullName string, prs []dashboard.PullRequest) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.byRepo[fullName] = prs
-	f.issues[fullName] = issues
 }
 
 func (f *fakeRepoRefresherSource) Fetch(_ context.Context) dashboard.Result {
@@ -66,6 +65,7 @@ func (f *fakeRepoRefresherSource) Fetch(_ context.Context) dashboard.Result {
 	for _, issues := range f.issues {
 		result.Issues = append(result.Issues, issues...)
 	}
+
 	return result
 }
 
@@ -74,27 +74,30 @@ func (f *fakeRepoRefresherSource) FetchRepo(_ context.Context, _, _, fullName st
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.repoFetchCalls[fullName]++
+
 	return f.byRepo[fullName], f.issues[fullName], nil
 }
 
 func (f *fakeRepoRefresherSource) fetchCallCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return f.fetchCalls
 }
 
 func (f *fakeRepoRefresherSource) repoFetchCallCount(fullName string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return f.repoFetchCalls[fullName]
 }
 
 func TestAggregator_RefreshRepo_OnlyRefetchesAndReplacesTheNamedRepo(t *testing.T) {
 	t.Parallel()
 
-	src := newFakeRepoRefresherSource(dashboard.ForgeGitHub)
-	src.setRepo("alrayyes/a", []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Title: "old a"}}, nil)
-	src.setRepo("alrayyes/b", []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/b", Number: 2, Title: "b"}}, nil)
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Title: "old a"}})
+	src.setRepo("alrayyes/b", []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/b", Number: 2, Title: "b"}})
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 	agg.Refresh(t.Context())
@@ -105,7 +108,7 @@ func TestAggregator_RefreshRepo_OnlyRefetchesAndReplacesTheNamedRepo(t *testing.
 	src.setRepo("alrayyes/a", []dashboard.PullRequest{
 		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Title: "old a"},
 		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 3, Title: "new a"},
-	}, nil)
+	})
 
 	ok := agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
 
@@ -136,7 +139,7 @@ func TestAggregator_RefreshRepo_OnlyRefetchesAndReplacesTheNamedRepo(t *testing.
 func TestAggregator_RefreshRepo_NoSourceForForge_ReturnsFalse(t *testing.T) {
 	t.Parallel()
 
-	src := newFakeRepoRefresherSource(dashboard.ForgeGitHub)
+	src := newFakeRepoRefresherSource()
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 
 	ok := agg.RefreshRepo(t.Context(), dashboard.ForgeForgejo, "alrayyes", "a", "alrayyes/a")
@@ -161,22 +164,20 @@ func TestAggregator_RefreshRepo_SourceDoesNotSupportScopedRefresh_ReturnsFalse(t
 func TestAggregator_RefreshRepo_ConcurrentCallsForSameRepo_Coalesce(t *testing.T) {
 	t.Parallel()
 
-	src := newFakeRepoRefresherSource(dashboard.ForgeGitHub)
+	src := newFakeRepoRefresherSource()
 	src.delay = 20 * time.Millisecond
-	src.setRepo("alrayyes/a", nil, nil)
+	src.setRepo("alrayyes/a", nil)
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 
 	const triggers = 5
 	var wg sync.WaitGroup
 	var oks atomic.Int64
 	for range triggers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a") {
 				oks.Add(1)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -188,9 +189,9 @@ func TestAggregator_RefreshRepo_ConcurrentCallsForSameRepo_Coalesce(t *testing.T
 func TestAggregator_RefreshRepo_UnrelatedRepoConcurrently_DoesNotWaitOnIt(t *testing.T) {
 	t.Parallel()
 
-	src := newFakeRepoRefresherSource(dashboard.ForgeGitHub)
-	src.setRepo("alrayyes/a", nil, nil)
-	src.setRepo("alrayyes/b", nil, nil)
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", nil)
+	src.setRepo("alrayyes/b", nil)
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 
 	done := make(chan struct{})

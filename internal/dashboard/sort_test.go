@@ -67,7 +67,7 @@ func TestAggregator_RefreshRepo_MergedResultStaysSortedGlobally(t *testing.T) {
 	oldest := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	newest := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
 
-	src := newFakeRepoRefresherSource(dashboard.ForgeGitHub)
+	src := newFakeRepoRefresherSource()
 	// repo "a" starts with the newest activity; repo "b" is older. A
 	// naive merge appends the just-refreshed repo's items at the tail
 	// regardless of recency — this is exactly the bug: refreshing "b"
@@ -76,10 +76,10 @@ func TestAggregator_RefreshRepo_MergedResultStaysSortedGlobally(t *testing.T) {
 	// each item's own UpdatedAt, not merge order.
 	src.setRepo("alrayyes/a", []dashboard.PullRequest{
 		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, UpdatedAt: newest},
-	}, nil)
+	})
 	src.setRepo("alrayyes/b", []dashboard.PullRequest{
 		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/b", Number: 2, UpdatedAt: oldest},
-	}, nil)
+	})
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 	agg.Refresh(t.Context())

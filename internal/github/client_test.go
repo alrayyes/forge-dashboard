@@ -35,6 +35,7 @@ func readGraphQLRequest(t *testing.T, r *http.Request) graphqlRequestBody {
 	t.Helper()
 	var body graphqlRequestBody
 	assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+
 	return body
 }
 
@@ -395,6 +396,7 @@ func TestFetch_FollowsPagination(t *testing.T) {
 					},
 				},
 			})
+
 			return
 		}
 		assert.Equal(t, "cursor-1", body.Variables["cursor"])
@@ -785,6 +787,7 @@ func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 		assert.Empty(t, r.Header.Get("Authorization"), "the public fallback should never send a credential")
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -794,6 +797,7 @@ func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/tempus-fugit/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -801,6 +805,7 @@ func TestFetch_NoToken_FallsBackToUsernamesPublicRepos(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/tempus-fugit/issues", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -824,6 +829,7 @@ func TestFetch_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -835,6 +841,7 @@ func TestFetch_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/active/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -842,6 +849,7 @@ func TestFetch_NoToken_ExcludesArchivedAndForkedRepos(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/active/issues", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -863,6 +871,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -872,6 +881,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -887,6 +897,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -914,6 +925,7 @@ func TestFetch_NoToken_ExcludesPullRequestsFromIssues(t *testing.T) {
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -923,6 +935,7 @@ func TestFetch_NoToken_ExcludesPullRequestsFromIssues(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -930,6 +943,7 @@ func TestFetch_NoToken_ExcludesPullRequestsFromIssues(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -1273,6 +1287,7 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -1282,6 +1297,7 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -1298,6 +1314,7 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{})
@@ -1321,10 +1338,10 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	assert.True(t, *pr.AutoMergeEnabled)
 }
 
-func repoNodeWithOwnerName(owner, name string) map[string]any {
+func repoNodeWithOwnerName() map[string]any {
 	return map[string]any{
-		"name": name, "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
-		"owner":        map[string]any{"login": owner},
+		"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+		"owner":        map[string]any{"login": "alrayyes"},
 		"pullRequests": map[string]any{"nodes": []map[string]any{}},
 		"issues":       map[string]any{"nodes": []map[string]any{}},
 	}
@@ -1340,7 +1357,7 @@ func TestFetch_SetWebhookPath_MarksRepoWithMatchingHookAsHasWebhook(t *testing.T
 				"viewer": map[string]any{
 					"repositories": map[string]any{
 						"pageInfo": map[string]any{"hasNextPage": false},
-						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+						"nodes":    []map[string]any{repoNodeWithOwnerName()},
 					},
 				},
 			},
@@ -1381,7 +1398,7 @@ func TestFetch_CheckWebhooksSuccess_ReportsRESTRateLimit(t *testing.T) {
 				"viewer": map[string]any{
 					"repositories": map[string]any{
 						"pageInfo": map[string]any{"hasNextPage": false},
-						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+						"nodes":    []map[string]any{repoNodeWithOwnerName()},
 					},
 				},
 			},
@@ -1423,7 +1440,7 @@ func TestFetch_CheckWebhooksRateLimited_StillReportsRESTRateLimit(t *testing.T) 
 				"viewer": map[string]any{
 					"repositories": map[string]any{
 						"pageInfo": map[string]any{"hasNextPage": false},
-						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+						"nodes":    []map[string]any{repoNodeWithOwnerName()},
 					},
 				},
 			},
@@ -1464,7 +1481,7 @@ func TestFetch_SetWebhookPath_NoMatchingHook(t *testing.T) {
 				"viewer": map[string]any{
 					"repositories": map[string]any{
 						"pageInfo": map[string]any{"hasNextPage": false},
-						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+						"nodes":    []map[string]any{repoNodeWithOwnerName()},
 					},
 				},
 			},
@@ -1497,7 +1514,7 @@ func TestFetch_NoWebhookPathConfigured_SkipsHookCheckEntirely(t *testing.T) {
 				"viewer": map[string]any{
 					"repositories": map[string]any{
 						"pageInfo": map[string]any{"hasNextPage": false},
-						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+						"nodes":    []map[string]any{repoNodeWithOwnerName()},
 					},
 				},
 			},
@@ -1527,7 +1544,7 @@ func TestFetch_HooksAPIFails_DegradesToFalseWithoutFailingFetch(t *testing.T) {
 				"viewer": map[string]any{
 					"repositories": map[string]any{
 						"pageInfo": map[string]any{"hasNextPage": false},
-						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+						"nodes":    []map[string]any{repoNodeWithOwnerName()},
 					},
 				},
 			},
@@ -1591,14 +1608,14 @@ func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
 	var editedPath string
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, http.MethodGet, r.Method)
 		writeJSON(t, w, []map[string]any{
 			{"id": 7, "config": map[string]any{"url": "https://dashboard.example/api/webhooks/github/tok123"}, "active": false},
 		})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/hooks/7", func(w http.ResponseWriter, r *http.Request) {
 		editedPath = r.URL.Path
-		require.Equal(t, http.MethodPatch, r.Method)
+		assert.Equal(t, http.MethodPatch, r.Method)
 		assert.NoError(t, json.NewDecoder(r.Body).Decode(&editBody))
 		writeJSON(t, w, map[string]any{"id": 7})
 	})
@@ -1629,6 +1646,7 @@ func TestEnsureWebhook_SendsAuthorizationHeader(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer test-token" {
 			w.WriteHeader(http.StatusUnauthorized)
 			writeJSON(t, w, map[string]any{"message": "Requires authentication"})
+
 			return
 		}
 		switch r.Method {
@@ -1657,6 +1675,7 @@ func TestEnsureWebhook_ForgeErrorPropagates(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			w.WriteHeader(http.StatusForbidden)
+
 			return
 		}
 		t.Fatalf("unexpected method %s", r.Method)
@@ -1688,7 +1707,7 @@ func TestEnsureWebhook_RateLimited_ClassifiesAsDashboardClientError(t *testing.T
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, http.MethodGet, r.Method)
 		w.Header().Set("X-RateLimit-Remaining", "0")
 		w.WriteHeader(http.StatusForbidden)
 		writeJSON(t, w, map[string]any{"message": "API rate limit exceeded"})
@@ -1721,8 +1740,8 @@ func TestMergePullRequest_RepoAllowsMergeCommit_UsesMerge(t *testing.T) {
 	})
 	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, r *http.Request) {
 		mergedPath = r.URL.Path
-		require.Equal(t, http.MethodPut, r.Method)
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
+		assert.Equal(t, http.MethodPut, r.Method)
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
 		writeJSON(t, w, map[string]any{"merged": true, "message": "Pull Request successfully merged"})
 	})
 	srv := httptest.NewServer(mux)
@@ -1750,7 +1769,7 @@ func TestMergePullRequest_RepoDisallowsMergeCommit_FallsBackToSquash(t *testing.
 		})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
 		writeJSON(t, w, map[string]any{"merged": true, "message": "Pull Request successfully merged"})
 	})
 	srv := httptest.NewServer(mux)
@@ -1777,7 +1796,7 @@ func TestMergePullRequest_RepoAllowsOnlyRebase_UsesRebase(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
 		writeJSON(t, w, map[string]any{"merged": true, "message": "Pull Request successfully merged"})
 	})
 	srv := httptest.NewServer(mux)
@@ -1843,7 +1862,7 @@ func TestUpdateBranch_CallsTheUpdateEndpoint(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, r *http.Request) {
 		updatedPath = r.URL.Path
-		require.Equal(t, http.MethodPut, r.Method)
+		assert.Equal(t, http.MethodPut, r.Method)
 		writeJSON(t, w, map[string]any{"message": "Updating pull request branch."})
 	})
 	srv := httptest.NewServer(mux)

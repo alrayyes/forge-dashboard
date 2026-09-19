@@ -25,6 +25,7 @@ func TestHasWebhook_RepeatCall_SendsIfNoneMatchOnceETagIsKnown(t *testing.T) {
 		if inm := r.Header.Get("If-None-Match"); inm != "" {
 			assert.Equal(t, `"abc123"`, inm)
 			w.WriteHeader(http.StatusNotModified)
+
 			return
 		}
 		w.Header().Set("ETag", `"abc123"`)
@@ -97,7 +98,7 @@ func TestFetch_RepeatPoll_304OnHooksStillReportsFreshRateLimit(t *testing.T) {
 				"viewer": map[string]any{
 					"repositories": map[string]any{
 						"pageInfo": map[string]any{"hasNextPage": false},
-						"nodes":    []map[string]any{repoNodeWithOwnerName("alrayyes", "a")},
+						"nodes":    []map[string]any{repoNodeWithOwnerName()},
 					},
 				},
 			},
@@ -110,6 +111,7 @@ func TestFetch_RepeatPoll_304OnHooksStillReportsFreshRateLimit(t *testing.T) {
 			w.Header().Set("X-RateLimit-Remaining", "4000")
 			w.Header().Set("X-RateLimit-Reset", "1789400145")
 			w.WriteHeader(http.StatusNotModified)
+
 			return
 		}
 		w.Header().Set("ETag", `"hooks-etag"`)

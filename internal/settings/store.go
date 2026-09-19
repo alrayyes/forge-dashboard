@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -68,6 +69,7 @@ func (c Credentials) RenovateRebaseLabelOrDefault() string {
 	if c.RenovateRebaseLabel == "" {
 		return renovateRebaseLabelDefault
 	}
+
 	return c.RenovateRebaseLabel
 }
 
@@ -117,8 +119,9 @@ func (s *Store) Init(ctx context.Context) error {
 	);
 	`
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
-		return err
+		return fmt.Errorf("settings: create schema: %w", err)
 	}
+
 	return s.addColumnsIfMissing(ctx)
 }
 
@@ -142,9 +145,11 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 			if strings.Contains(err.Error(), "duplicate column name") {
 				continue
 			}
-			return err
+
+			return fmt.Errorf("settings: add missing column: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -176,7 +181,11 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 			updated_at = excluded.updated_at`,
 		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.AllowBotPrUpdates, c.RenovateRebaseLabel, c.Theme, time.Now().UTC(),
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("settings: save credentials: %w", err)
+	}
+
+	return nil
 }
 
 // Get returns ErrNotFound when userID has never saved any credentials.
@@ -194,7 +203,7 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 		return Credentials{}, ErrNotFound
 	}
 	if err != nil {
-		return Credentials{}, err
+		return Credentials{}, fmt.Errorf("settings: load credentials: %w", err)
 	}
 
 	if c.GitHubToken, err = s.cipher.Decrypt(encGitHubToken); err != nil {
@@ -203,6 +212,7 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 	if c.ForgejoToken, err = s.cipher.Decrypt(encForgejoToken); err != nil {
 		return Credentials{}, err
 	}
+
 	return c, nil
 }
 
@@ -224,7 +234,7 @@ func (s *Store) EnsureWebhookCredentials(ctx context.Context, userID []byte) (to
 		// No row at all yet — proceed to create one with just the
 		// webhook fields; a later real Set upserts the rest around it.
 	case err != nil:
-		return "", "", err
+		return "", "", fmt.Errorf("settings: load webhook credentials: %w", err)
 	case token != "" && secret != "":
 		return token, secret, nil
 	}
@@ -249,8 +259,9 @@ func (s *Store) EnsureWebhookCredentials(ctx context.Context, userID []byte) (to
 		encodedID, token, secret, time.Now().UTC(),
 	)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("settings: save webhook credentials: %w", err)
 	}
+
 	return token, secret, nil
 }
 
@@ -273,13 +284,14 @@ func (s *Store) FindByWebhookToken(ctx context.Context, token string) (userID []
 		return nil, "", ErrNotFound
 	}
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("settings: find webhook token: %w", err)
 	}
 
 	userID, err = base64.RawURLEncoding.DecodeString(encodedUserID)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("settings: decode stored user id: %w", err)
 	}
+
 	return userID, secret, nil
 }
 
@@ -298,8 +310,9 @@ func (s *Store) GetFilterState(ctx context.Context, userID []byte) (string, erro
 		return "{}", nil
 	}
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("settings: load filter state: %w", err)
 	}
+
 	return state, nil
 }
 
@@ -324,7 +337,11 @@ func (s *Store) SetFilterState(ctx context.Context, userID []byte, stateJSON str
 		// really was.
 		encodeUserID(userID), stateJSON, time.Now().UTC(),
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("settings: save filter state: %w", err)
+	}
+
+	return nil
 }
 
 // randomWebhookValue returns 256 bits of randomness as a URL-safe string —
@@ -334,8 +351,9 @@ func (s *Store) SetFilterState(ctx context.Context, userID []byte, stateJSON str
 func randomWebhookValue() (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
-		return "", err
+		return "", fmt.Errorf("settings: generate random value: %w", err)
 	}
+
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
@@ -346,13 +364,17 @@ func randomWebhookValue() (string, error) {
 func (s *Store) Delete(ctx context.Context, userID []byte) error {
 	encodedID := encodeUserID(userID)
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM webhook_deliveries WHERE user_id = ?`, encodedID); err != nil {
-		return err
+		return fmt.Errorf("settings: delete webhook deliveries: %w", err)
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM ignored_repos WHERE user_id = ?`, encodedID); err != nil {
-		return err
+		return fmt.Errorf("settings: delete ignored repos: %w", err)
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM user_credentials WHERE user_id = ?`, encodedID)
-	return err
+	if err != nil {
+		return fmt.Errorf("settings: delete credentials: %w", err)
+	}
+
+	return nil
 }
 
 // WebhookDeliveryKey is how a repo's forge and full name combine into
@@ -376,7 +398,11 @@ func (s *Store) IgnoreRepo(ctx context.Context, userID []byte, forge, repoFullNa
 		ON CONFLICT (user_id, forge, repo_full_name) DO NOTHING`,
 		encodeUserID(userID), forge, repoFullName,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("settings: ignore repo: %w", err)
+	}
+
+	return nil
 }
 
 // UnignoreRepo reverses IgnoreRepo. Idempotent: un-ignoring a repo that
@@ -386,7 +412,11 @@ func (s *Store) UnignoreRepo(ctx context.Context, userID []byte, forge, repoFull
 		DELETE FROM ignored_repos WHERE user_id = ? AND forge = ? AND repo_full_name = ?`,
 		encodeUserID(userID), forge, repoFullName,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("settings: unignore repo: %w", err)
+	}
+
+	return nil
 }
 
 // IgnoredRepos returns the set of forge/repo pairs (keyed by
@@ -397,7 +427,7 @@ func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]str
 		`SELECT forge, repo_full_name FROM ignored_repos WHERE user_id = ?`, encodeUserID(userID),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("settings: list ignored repos: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -405,11 +435,15 @@ func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]str
 	for rows.Next() {
 		var forge, repoFullName string
 		if err := rows.Scan(&forge, &repoFullName); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("settings: scan ignored repo row: %w", err)
 		}
 		ignored[WebhookDeliveryKey(forge, repoFullName)] = struct{}{}
 	}
-	return ignored, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("settings: list ignored repos: %w", err)
+	}
+
+	return ignored, nil
 }
 
 // RecordWebhookDelivery notes that userID's webhook for forge/repoFullName
@@ -427,7 +461,11 @@ func (s *Store) RecordWebhookDelivery(ctx context.Context, userID []byte, forge,
 			last_seen_at = excluded.last_seen_at`,
 		encodeUserID(userID), forge, repoFullName, time.Now().UTC(),
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("settings: record webhook delivery: %w", err)
+	}
+
+	return nil
 }
 
 // WebhookDeliveries returns the set of forge/repo pairs (keyed by
@@ -439,7 +477,7 @@ func (s *Store) WebhookDeliveries(ctx context.Context, userID []byte) (map[strin
 		`SELECT forge, repo_full_name FROM webhook_deliveries WHERE user_id = ?`, encodeUserID(userID),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("settings: list webhook deliveries: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -447,11 +485,15 @@ func (s *Store) WebhookDeliveries(ctx context.Context, userID []byte) (map[strin
 	for rows.Next() {
 		var forge, repoFullName string
 		if err := rows.Scan(&forge, &repoFullName); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("settings: scan webhook delivery row: %w", err)
 		}
 		seen[WebhookDeliveryKey(forge, repoFullName)] = struct{}{}
 	}
-	return seen, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("settings: list webhook deliveries: %w", err)
+	}
+
+	return seen, nil
 }
 
 func encodeUserID(id []byte) string { return base64.RawURLEncoding.EncodeToString(id) }

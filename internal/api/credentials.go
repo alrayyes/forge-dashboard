@@ -26,12 +26,14 @@ func handleCredentialsGet(store *auth.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		creds, err := store.ListCredentials(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load passkeys"))
+
 			return
 		}
 
@@ -51,12 +53,14 @@ func handleCredentialsAddBegin(svc *auth.Service) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		creation, err := svc.BeginAddCredential(r.Context(), u)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not start passkey registration"))
+
 			return
 		}
 		writeJSON(w, http.StatusOK, creation)
@@ -68,18 +72,21 @@ func handleCredentialsAddFinish(deps Deps) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		label := strings.TrimSpace(r.URL.Query().Get("label"))
 		if label == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("label is required"))
+
 			return
 		}
 
 		cred, err := deps.AuthService.FinishAddCredential(r.Context(), u, label, r)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("passkey registration failed"))
+
 			return
 		}
 
@@ -92,6 +99,7 @@ func handleCredentialsDelete(store *auth.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
@@ -99,9 +107,11 @@ func handleCredentialsDelete(store *auth.Store) http.HandlerFunc {
 		if err := store.RemoveCredential(r.Context(), u.ID, id); err != nil {
 			if errors.Is(err, auth.ErrLastCredential) {
 				writeJSON(w, http.StatusBadRequest, errorBody("can't remove the account's last remaining passkey"))
+
 				return
 			}
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not remove passkey"))
+
 			return
 		}
 

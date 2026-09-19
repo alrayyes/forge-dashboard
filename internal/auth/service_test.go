@@ -18,6 +18,7 @@ func newTestService(t *testing.T) (*auth.Service, *auth.Store) {
 		RPOrigins:     []string{"http://localhost"},
 	})
 	require.NoError(t, err)
+
 	return auth.NewService(wa, store), store
 }
 

@@ -27,6 +27,7 @@ func withCapturedLogs(t *testing.T, level slog.Level) *bytes.Buffer {
 	previous := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: level})))
 	t.Cleanup(func() { slog.SetDefault(previous) })
+
 	return &logs
 }
 

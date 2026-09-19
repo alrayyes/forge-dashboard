@@ -32,6 +32,7 @@ func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager 
 			if len(sig) <= len(prefix) || sig[:len(prefix)] != prefix {
 				return ""
 			}
+
 			return sig[len(prefix):]
 		},
 		githubDeliveryHeaders,
@@ -49,6 +50,7 @@ func handleForgejoWebhook(appCtx context.Context, store *settings.Store, manager
 			if sig := h.Get("X-Forgejo-Signature"); sig != "" {
 				return sig
 			}
+
 			return h.Get("X-Gitea-Signature")
 		},
 		forgejoDeliveryHeaders,
@@ -76,6 +78,7 @@ func forgejoDeliveryHeaders(h http.Header) (delivery, event string) {
 	if event == "" {
 		event = h.Get("X-Gitea-Event")
 	}
+
 	return delivery, event
 }
 
@@ -107,6 +110,7 @@ func repoFromPayload(body []byte) (owner, name, fullName string, ok bool) {
 	if r.FullName == "" || r.Name == "" || r.Owner.Login == "" {
 		return "", "", "", false
 	}
+
 	return r.Owner.Login, r.Name, r.FullName, true
 }
 
@@ -140,11 +144,13 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 		if errors.Is(err, settings.ErrNotFound) {
 			slog.Warn("webhook token unknown", "forge", forge, "event", event, "delivery", delivery)
 			writeJSON(w, http.StatusNotFound, errorBody("unknown webhook token"))
+
 			return
 		}
 		if err != nil {
 			slog.Warn("webhook token lookup failed", "forge", forge, "event", event, "delivery", delivery, "error", err)
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not look up webhook token"))
+
 			return
 		}
 
@@ -152,12 +158,14 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 		if err != nil {
 			slog.Warn("webhook body unreadable", "forge", forge, "event", event, "delivery", delivery, "error", err)
 			writeJSON(w, http.StatusBadRequest, errorBody("could not read request body"))
+
 			return
 		}
 
 		if !validSignature(body, secret, signatureOf(r.Header)) {
 			slog.Warn("webhook signature invalid", "forge", forge, "event", event, "delivery", delivery)
 			writeJSON(w, http.StatusUnauthorized, errorBody("invalid webhook signature"))
+
 			return
 		}
 
@@ -187,6 +195,7 @@ func triggerRefresh(ctx context.Context, manager *dashboard.Manager, userID []by
 	if owner, name, fullName, ok := repoFromPayload(body); ok {
 		if manager.RefreshRepo(ctx, userID, forge, owner, name, fullName) {
 			slog.Info("webhook refresh dispatched", "forge", forge, "delivery", delivery, "repo", fullName, "scoped", true)
+
 			return
 		}
 		slog.Info("webhook scoped refresh unavailable, falling back to a full refresh", "forge", forge, "delivery", delivery, "repo", fullName)
@@ -205,5 +214,6 @@ func validSignature(body []byte, secret, signatureHex string) bool {
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
+
 	return hmac.Equal(sig, mac.Sum(nil))
 }

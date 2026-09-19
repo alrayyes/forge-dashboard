@@ -40,6 +40,7 @@ func NewCipher(base64Key string) (*Cipher, error) {
 	if err != nil {
 		return nil, fmt.Errorf("settings: build GCM: %w", err)
 	}
+
 	return &Cipher{gcm: gcm}, nil
 }
 
@@ -58,6 +59,7 @@ func (c *Cipher) Encrypt(plaintext string) (string, error) {
 	}
 
 	sealed := c.gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+
 	return base64.StdEncoding.EncodeToString(sealed), nil
 }
 
@@ -82,5 +84,6 @@ func (c *Cipher) Decrypt(encoded string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("settings: decrypt: %w", err)
 	}
+
 	return string(plaintext), nil
 }

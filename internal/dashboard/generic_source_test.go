@@ -27,6 +27,7 @@ func (f *fakeForgeClient) ListOpenPullRequests(_ context.Context, _, _, repo str
 	if f.failReposByFullName[repo] {
 		return nil, errors.New("boom")
 	}
+
 	return f.prsByRepo[repo], nil
 }
 
@@ -173,6 +174,7 @@ func (f *fakeWebhookCheckerClient) HasWebhook(_ context.Context, owner, name str
 	if err := f.errByFullName[fullName]; err != nil {
 		return false, err
 	}
+
 	return f.hasWebhookByFullName[fullName], nil
 }
 
@@ -193,11 +195,9 @@ func TestGenericSource_Fetch_ClientWithWebhookChecker_ReportsPerRepo(t *testing.
 	t.Parallel()
 
 	client := &fakeWebhookCheckerClient{
-		fakeForgeClient: fakeForgeClient{
-			repos: []dashboard.RepoRef{
-				{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a"},
-				{FullName: "alrayyes/b", Owner: "alrayyes", Name: "b"},
-			},
+		repos: []dashboard.RepoRef{
+			{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a"},
+			{FullName: "alrayyes/b", Owner: "alrayyes", Name: "b"},
 		},
 		hasWebhookByFullName: map[string]bool{"alrayyes/a": true},
 	}
@@ -216,9 +216,7 @@ func TestGenericSource_Fetch_WebhookCheckFails_StillReportsReachableWithHasWebho
 	t.Parallel()
 
 	client := &fakeWebhookCheckerClient{
-		fakeForgeClient: fakeForgeClient{
-			repos: []dashboard.RepoRef{{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a"}},
-		},
+		repos:         []dashboard.RepoRef{{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a"}},
 		errByFullName: map[string]error{"alrayyes/a": errors.New("boom")},
 	}
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
@@ -237,6 +235,7 @@ type fakeWebhookManagerClient struct {
 
 func (f *fakeWebhookManagerClient) EnsureWebhook(_ context.Context, owner, name, targetURL, secret string) error {
 	f.ensureCalls = append(f.ensureCalls, owner+"/"+name+" "+targetURL+" "+secret)
+
 	return f.ensureErr
 }
 

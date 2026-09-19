@@ -39,30 +39,35 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		var req pullRequestDependabotActionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
 			return
 		}
 
 		body, ok := dependabotCommentBodies[req.Action]
 		if !ok {
 			writeJSON(w, http.StatusBadRequest, errorBody(`action must be "rebase" or "recreate"`))
+
 			return
 		}
 
 		owner, name, ok := splitFullName(req.FullName)
 		if !ok {
 			writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
+
 			return
 		}
 
 		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+
 			return
 		}
 
@@ -74,19 +79,23 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 			c, supported := src.(dashboard.PullRequestCommenter)
 			if !supported {
 				writeJSON(w, http.StatusBadRequest, errorBody(req.Forge+" doesn't support commenting on pull requests"))
+
 				return
 			}
 			commenter = c
+
 			break
 		}
 		if commenter == nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("no "+req.Forge+" credentials saved"))
+
 			return
 		}
 
 		if err := commenter.CommentPullRequest(r.Context(), owner, name, req.Number, body); err != nil {
 			slog.Warn("dependabot pull request action failed", "forge", req.Forge, "repo", req.FullName, "number", req.Number, "action", req.Action, "error", err)
 			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
+
 			return
 		}
 

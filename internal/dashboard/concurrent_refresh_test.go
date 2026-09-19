@@ -85,11 +85,9 @@ func TestManager_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 	const triggers = 5
 	var wg sync.WaitGroup
 	for range triggers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			manager.RefreshNow(t.Context(), userID)
-		}()
+		})
 	}
 	// Deterministic window for the burst to actually reach coalescer.do
 	// before the held fetch is allowed to complete — tens of

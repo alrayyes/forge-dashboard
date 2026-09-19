@@ -71,8 +71,7 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 	if err != nil {
 		slog.Warn("forge unreachable", "forge", s.forge, "error", err)
 		kind := ForgeErrorUnknown
-		var clientErr *ClientError
-		if errors.As(err, &clientErr) {
+		if clientErr, ok := errors.AsType[*ClientError](err); ok {
 			kind = clientErr.Kind
 		}
 		// err's own text never reaches the client (#360) — logged above
@@ -82,6 +81,7 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 		// ERROR_HEADLINES already uses for the headline shown alongside
 		// this.
 		health := ForgeHealth{Forge: s.forge, Reachable: false, Error: HumanizeForgeError(kind), ErrorKind: kind}
+
 		return Result{Health: health}
 	}
 
@@ -150,6 +150,7 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 		result.PullRequests = append(result.PullRequests, r.prs...)
 		result.Issues = append(result.Issues, r.issues...)
 	}
+
 	return result
 }
 
@@ -164,7 +165,11 @@ func (s *GenericSource) EnsureWebhook(ctx context.Context, owner, name, targetUR
 	if !ok {
 		return fmt.Errorf("dashboard: %s's client can't manage webhooks", s.forge)
 	}
-	return manager.EnsureWebhook(ctx, owner, name, targetURL, secret)
+	if err := manager.EnsureWebhook(ctx, owner, name, targetURL, secret); err != nil {
+		return fmt.Errorf("dashboard: ensure webhook: %w", err)
+	}
+
+	return nil
 }
 
 // MergePullRequest implements PullRequestMerger at the Source level by
@@ -175,7 +180,11 @@ func (s *GenericSource) MergePullRequest(ctx context.Context, owner, name string
 	if !ok {
 		return fmt.Errorf("dashboard: %s's client can't merge pull requests", s.forge)
 	}
-	return merger.MergePullRequest(ctx, owner, name, number)
+	if err := merger.MergePullRequest(ctx, owner, name, number); err != nil {
+		return fmt.Errorf("dashboard: merge pull request: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateBranch implements BranchUpdater at the Source level by delegating
@@ -186,7 +195,12 @@ func (s *GenericSource) UpdateBranch(ctx context.Context, owner, name string, nu
 	if !ok {
 		return false, fmt.Errorf("dashboard: %s's client can't update pull request branches", s.forge)
 	}
-	return updater.UpdateBranch(ctx, owner, name, number)
+	accepted, err := updater.UpdateBranch(ctx, owner, name, number)
+	if err != nil {
+		return accepted, fmt.Errorf("dashboard: update branch: %w", err)
+	}
+
+	return accepted, nil
 }
 
 // FetchRepo implements RepoRefresher: the same per-repo calls Fetch
@@ -196,11 +210,12 @@ func (s *GenericSource) UpdateBranch(ctx context.Context, owner, name string, nu
 func (s *GenericSource) FetchRepo(ctx context.Context, owner, name, fullName string) ([]PullRequest, []Issue, error) {
 	prs, err := s.client.ListOpenPullRequests(ctx, owner, name, fullName)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("dashboard: list open pull requests: %w", err)
 	}
 	issues, err := s.client.ListOpenIssues(ctx, owner, name, fullName)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("dashboard: list open issues: %w", err)
 	}
+
 	return prs, issues, nil
 }

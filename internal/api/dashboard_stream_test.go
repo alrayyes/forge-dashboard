@@ -60,6 +60,7 @@ func streamSSEEvents(r *bufio.Reader, out chan<- string) {
 			default:
 			}
 			data.Reset()
+
 			continue
 		}
 		if after, ok := strings.CutPrefix(line, "data: "); ok {

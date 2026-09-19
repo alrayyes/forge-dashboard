@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -18,7 +19,12 @@ import (
 
 func readJSON(resp *http.Response, v any) error {
 	defer func() { _ = resp.Body.Close() }()
-	return json.NewDecoder(resp.Body).Decode(v)
+
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+		return fmt.Errorf("decode response body: %w", err)
+	}
+
+	return nil
 }
 
 func TestHealthz_AnswersOK(t *testing.T) {
@@ -93,6 +99,7 @@ func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 		if c.GitHubToken != secretToken {
 			return nil
 		}
+
 		return []dashboard.Source{&fakeConfiguredSource{health: wantHealth}}
 	}
 
@@ -123,6 +130,7 @@ func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 		if err := readJSON(resp, &snap); err != nil {
 			return false
 		}
+
 		return len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 3
 	}, time.Second, 10*time.Millisecond, "saving settings should start a background refresh that the dashboard picks up")
 }
@@ -137,6 +145,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 		if c.GitHubToken != secretToken {
 			return nil
 		}
+
 		return []dashboard.Source{&fakeConfiguredSource{health: wantHealth}}
 	}
 
@@ -161,11 +170,13 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 		defer func() { _ = resp.Body.Close() }()
 		var snap dashboard.Snapshot
 		require.NoError(t, readJSON(resp, &snap))
+
 		return snap, resp.StatusCode
 	}
 
 	require.Eventually(t, func() bool {
 		snap, status := dashboardReq()
+
 		return status == http.StatusOK && len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 3
 	}, time.Second, 10*time.Millisecond, "settings should have started a background refresh before simulating a restart")
 
@@ -187,6 +198,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 	// eventual convergence, not an instant one.
 	require.Eventually(t, func() bool {
 		snap, status := dashboardReq()
+
 		return status == http.StatusOK && !snap.GeneratedAt.IsZero() && len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 3
 	}, time.Second, 10*time.Millisecond, "a lazily rewarmed dashboard should reflect the previously saved sources again, not stay stuck at the zero-value snapshot")
 }
@@ -234,6 +246,7 @@ func TestDashboard_WithOwnerQuery_SharedViewer_SeesTheOwnersDashboard(t *testing
 		if c.GitHubToken != secretToken {
 			return nil
 		}
+
 		return []dashboard.Source{&fakeConfiguredSource{health: wantHealth}}
 	}
 
@@ -273,6 +286,7 @@ func TestDashboard_WithOwnerQuery_SharedViewer_SeesTheOwnersDashboard(t *testing
 		if err := readJSON(resp, &snap); err != nil {
 			return false
 		}
+
 		return len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 9
 	}, time.Second, 10*time.Millisecond, "a shared viewer should see the owner's dashboard, not their own empty one")
 }

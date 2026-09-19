@@ -53,14 +53,29 @@ func resolveRefreshInterval(v string) time.Duration {
 	d, err := time.ParseDuration(v)
 	if err != nil {
 		slog.Error("invalid REFRESH_INTERVAL, using default", "value", v, "default", defaultRefreshInterval, "error", err)
+
 		return defaultRefreshInterval
 	}
+
 	return d
 }
 
 func main() {
 	configureLogging()
 
+	if err := run(); err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+}
+
+// run holds everything main used to, restructured to return an error
+// instead of calling os.Exit directly — os.Exit skips every deferred
+// call on the way out (gocritic's exitAfterDefer), which would have
+// silently dropped the signal-context cancellation and, on any startup
+// error past dashboard.NewManager, its own Stop too. Returning lets every
+// defer here run before main decides whether to exit non-zero.
+func run() error {
 	addr := envOr("ADDR", ":8080")
 	refreshInterval := resolveRefreshInterval(os.Getenv("REFRESH_INTERVAL"))
 
@@ -69,26 +84,22 @@ func main() {
 
 	db, err := openDatabase()
 	if err != nil {
-		slog.Error("open database", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("open database: %w", err)
 	}
 
 	authService, authStore, err := buildAuth(ctx, db)
 	if err != nil {
-		slog.Error("auth setup failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("auth setup failed: %w", err)
 	}
 
 	settingsStore, err := buildSettingsStore(ctx, db)
 	if err != nil {
-		slog.Error("settings setup failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("settings setup failed: %w", err)
 	}
 
 	sharingStore := sharing.NewStore(db)
 	if err := sharingStore.Init(ctx); err != nil {
-		slog.Error("sharing setup failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("sharing setup failed: %w", err)
 	}
 
 	manager := dashboard.NewManager(refreshInterval)
@@ -126,9 +137,10 @@ func main() {
 
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		slog.Error("server stopped", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("server stopped: %w", err)
 	}
+
+	return nil
 }
 
 // buildSourcesForUser wires one dashboard.Source per forge c has enough
@@ -190,10 +202,16 @@ func openDatabase() (*sql.DB, error) {
 	dbPath := envOr("DB_PATH", "/data/forge-dashboard.db")
 	if dir := filepath.Dir(dbPath); dir != "." {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("create database directory: %w", err)
 		}
 	}
-	return sql.Open("sqlite", dbPath+"?_busy_timeout=5000&_journal_mode=WAL")
+
+	db, err := sql.Open("sqlite", dbPath+"?_busy_timeout=5000&_journal_mode=WAL")
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+
+	return db, nil
 }
 
 // buildAuth wires up the WebAuthn relying party from the environment.
@@ -203,7 +221,7 @@ func openDatabase() (*sql.DB, error) {
 func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, error) {
 	store := auth.NewStore(db)
 	if err := store.Init(ctx); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("init auth store: %w", err)
 	}
 
 	rpID := envOr("RP_ID", "localhost")
@@ -214,7 +232,7 @@ func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, err
 		RPOrigins:     []string{rpOrigin},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("configure webauthn relying party: %w", err)
 	}
 
 	return auth.NewService(wa, store), store, nil
@@ -226,18 +244,19 @@ func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, err
 func buildSettingsStore(ctx context.Context, db *sql.DB) (*settings.Store, error) {
 	key := os.Getenv("ENCRYPTION_KEY")
 	if key == "" {
-		return nil, fmt.Errorf("ENCRYPTION_KEY is required (generate one with `openssl rand -base64 32`)")
+		return nil, errors.New("ENCRYPTION_KEY is required (generate one with `openssl rand -base64 32`)")
 	}
 
 	cipher, err := settings.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build settings cipher: %w", err)
 	}
 
 	store := settings.NewStore(db, cipher)
 	if err := store.Init(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("init settings store: %w", err)
 	}
+
 	return store, nil
 }
 
@@ -245,6 +264,7 @@ func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
+
 	return fallback
 }
 

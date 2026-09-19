@@ -155,6 +155,7 @@ func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, erro
 	if err != nil {
 		return false, err
 	}
+
 	return hook != nil, nil
 }
 
@@ -185,6 +186,7 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 		}
 		opts.Page = resp.NextPage
 	}
+
 	return nil, nil
 }
 
@@ -229,6 +231,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 		if _, _, err := c.restClient.Repositories.EditHook(ctx, owner, name, existing.GetID(), hook); err != nil {
 			return asClientError(c.restError(http.MethodPatch, path, err))
 		}
+
 		return nil
 	}
 
@@ -237,6 +240,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 	if _, _, err := c.restClient.Repositories.CreateHook(ctx, owner, name, hook); err != nil {
 		return asClientError(c.restError(http.MethodPost, path, err))
 	}
+
 	return nil
 }
 
@@ -262,6 +266,7 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	if _, _, err := c.restClient.PullRequests.Merge(ctx, owner, name, number, "", opts); err != nil {
 		return asClientError(c.restError(http.MethodPut, path, err))
 	}
+
 	return nil
 }
 
@@ -293,12 +298,13 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 	slog.Debug("github request", "method", http.MethodPut, "url", path)
 	_, _, err := c.restClient.PullRequests.UpdateBranch(ctx, owner, name, number, nil)
 	if err != nil {
-		var accepted *ghsdk.AcceptedError
-		if errors.As(err, &accepted) {
+		if _, ok := errors.AsType[*ghsdk.AcceptedError](err); ok {
 			return true, nil
 		}
+
 		return false, asClientError(c.restError(http.MethodPut, path, err))
 	}
+
 	return false, nil
 }
 
@@ -313,6 +319,7 @@ func (c *Client) CommentPullRequest(ctx context.Context, owner, name string, num
 	if _, _, err := c.restClient.Issues.CreateComment(ctx, owner, name, number, &ghsdk.IssueComment{Body: &body}); err != nil {
 		return asClientError(c.restError(http.MethodPost, path, err))
 	}
+
 	return nil
 }
 
@@ -325,6 +332,7 @@ func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, l
 	if _, _, err := c.restClient.Issues.AddLabelsToIssue(ctx, owner, name, number, []string{label}); err != nil {
 		return asClientError(c.restError(http.MethodPost, path, err))
 	}
+
 	return nil
 }
 
@@ -360,6 +368,7 @@ func rateLimitFromHeaders(h http.Header) *dashboard.RateLimit {
 	if err1 != nil || err2 != nil || err3 != nil {
 		return nil
 	}
+
 	return &dashboard.RateLimit{Limit: limit, Remaining: remaining, ResetsAt: time.Unix(reset, 0).UTC()}
 }
 
@@ -387,10 +396,10 @@ func asClientError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var apiErr *apiError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*apiError](err); ok {
 		return &dashboard.ClientError{Kind: apiErr.kind, Err: err}
 	}
+
 	return err
 }
 
@@ -424,6 +433,7 @@ func rateLimitShortMessage(h http.Header, bodyMessage string) (msg string, ok bo
 	if strings.Contains(strings.ToLower(bodyMessage), "rate limit") {
 		return "rate limit exceeded", true
 	}
+
 	return "", false
 }
 
@@ -494,6 +504,7 @@ func apiErrorDetail(resp *http.Response) (string, *dashboard.RateLimit) {
 	if short, ok := rateLimitShortMessage(nil, msg); ok {
 		return short, rl
 	}
+
 	return msg, rl
 }
 
@@ -509,6 +520,7 @@ func labelsFromNodes(nodes []graphqlLabelNode) []dashboard.Label {
 	for _, n := range nodes {
 		out = append(out, dashboard.Label{Name: n.Name, Color: n.Color})
 	}
+
 	return out
 }
 
@@ -522,6 +534,7 @@ func authorLogin(a *graphqlActor) string {
 	if a == nil {
 		return "ghost"
 	}
+
 	return a.Login
 }
 
@@ -790,12 +803,12 @@ type graphqlErrorEntry struct {
 func (c *Client) graphqlDo(ctx context.Context, query string, variables map[string]any, out any) error {
 	body, err := json.Marshal(graphqlRequestBody{Query: query, Variables: variables})
 	if err != nil {
-		return err
+		return fmt.Errorf("github: encode graphql request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.graphqlURL, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return fmt.Errorf("github: build graphql request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.token)
@@ -816,7 +829,8 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 		if _, ok := rateLimitShortMessage(resp.Header, msg); !ok {
 			kind = forgeErrorKindFromStatus(resp.StatusCode)
 		}
-		return &apiError{msg: fmt.Sprintf("github: POST /graphql: %s", msg), rateLimit: rl, kind: kind}
+
+		return &apiError{msg: "github: POST /graphql: " + msg, rateLimit: rl, kind: kind}
 	}
 
 	var envelope struct {
@@ -824,7 +838,7 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 		Errors []graphqlErrorEntry `json:"errors"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return err
+		return fmt.Errorf("github: decode graphql response: %w", err)
 	}
 	if len(envelope.Errors) > 0 {
 		rl := rateLimitFromHeaders(resp.Header)
@@ -841,12 +855,18 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 			msg = short
 			kind = dashboard.ForgeErrorRateLimited
 		}
-		return &apiError{msg: fmt.Sprintf("github: graphql: %s", msg), rateLimit: rl, kind: kind}
+
+		return &apiError{msg: "github: graphql: " + msg, rateLimit: rl, kind: kind}
 	}
 	if out == nil {
 		return nil
 	}
-	return json.Unmarshal(envelope.Data, out)
+
+	if err := json.Unmarshal(envelope.Data, out); err != nil {
+		return fmt.Errorf("github: decode graphql data: %w", err)
+	}
+
+	return nil
 }
 
 // sinceVariable formats since for the issues connection's own
@@ -858,6 +878,7 @@ func sinceVariable(since *time.Time) any {
 	if since == nil {
 		return nil
 	}
+
 	return since.Format(time.RFC3339)
 }
 
@@ -882,12 +903,12 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 				Forge: dashboard.ForgeGitHub, Reachable: false,
 				Error: err.Error(), ErrorKind: dashboard.ForgeErrorUnknown,
 			}
-			var apiErr *apiError
-			if errors.As(err, &apiErr) {
+			if apiErr, ok := errors.AsType[*apiError](err); ok {
 				health.RateLimitGraphQL = apiErr.rateLimit
 				health.ErrorKind = apiErr.kind
 			}
 			health.RateLimitREST = c.lastRESTRate.Load()
+
 			return dashboard.Result{Health: health}
 		}
 		if resp.RateLimit != nil {
@@ -938,6 +959,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		}
 		result.Issues = append(result.Issues, issuesByRepo[fullName]...)
 	}
+
 	return result
 }
 
@@ -968,6 +990,7 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 			has, err := c.HasWebhook(ctx, r.Owner.Login, r.Name)
 			if err != nil {
 				slog.Warn("webhook check failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
+
 				return
 			}
 			mu.Lock()
@@ -976,13 +999,9 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 		}(r)
 	}
 	wg.Wait()
+
 	return result
 }
-
-// boolPtr is a small local helper for filling dashboard.PullRequest's
-// AutoMergeEnabled — a *bool because Forgejo has no way to report this at
-// all (nil there), unlike GitHub, which always knows either way.
-func boolPtr(b bool) *bool { return &b }
 
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	return dashboard.PullRequest{
@@ -999,7 +1018,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		CI:               ciFromRollup(p.Commits.Nodes),
 		MergeStatus:      mergeStatusFromGraphQL(p.MergeStateStatus),
 		Behind:           p.MergeStateStatus == "BEHIND",
-		AutoMergeEnabled: boolPtr(p.AutoMergeRequest != nil),
+		AutoMergeEnabled: new(p.AutoMergeRequest != nil),
 	}
 }
 
@@ -1111,6 +1130,7 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 	for _, i := range resp.Repository.Issues.Nodes {
 		issues = append(issues, mapIssue(fullName, i))
 	}
+
 	return prs, issues, nil
 }
 
@@ -1135,28 +1155,27 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 // number matters most, and it's often the only response this client
 // happens to see once the budget is genuinely exhausted.
 func (c *Client) restError(method, path string, err error) error {
-	var rateLimitErr *ghsdk.RateLimitError
-	if errors.As(err, &rateLimitErr) {
+	if rateLimitErr, ok := errors.AsType[*ghsdk.RateLimitError](err); ok {
 		c.recordRESTRate(rateLimitErr.Rate)
+
 		return &apiError{
 			msg:  fmt.Sprintf("github: %s %s: rate limit exceeded", method, path),
 			kind: dashboard.ForgeErrorRateLimited,
 		}
 	}
-	var abuseErr *ghsdk.AbuseRateLimitError
-	if errors.As(err, &abuseErr) {
+	if abuseErr, ok := errors.AsType[*ghsdk.AbuseRateLimitError](err); ok {
 		if abuseErr.Response != nil {
 			if rl := rateLimitFromHeaders(abuseErr.Response.Header); rl != nil {
 				c.recordRESTRate(ghsdk.Rate{Limit: rl.Limit, Remaining: rl.Remaining, Reset: ghsdk.Timestamp{Time: rl.ResetsAt}})
 			}
 		}
+
 		return &apiError{
 			msg:  fmt.Sprintf("github: %s %s: rate limited", method, path),
 			kind: dashboard.ForgeErrorRateLimited,
 		}
 	}
-	var errResp *ghsdk.ErrorResponse
-	if errors.As(err, &errResp) {
+	if errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err); ok {
 		kind := dashboard.ForgeErrorUnknown
 		if errResp.Response != nil {
 			kind = forgeErrorKindFromStatus(errResp.Response.StatusCode)
@@ -1164,11 +1183,13 @@ func (c *Client) restError(method, path string, err error) error {
 				c.recordRESTRate(ghsdk.Rate{Limit: rl.Limit, Remaining: rl.Remaining, Reset: ghsdk.Timestamp{Time: rl.ResetsAt}})
 			}
 		}
+
 		return &apiError{
 			msg:  fmt.Sprintf("github: %s %s: %s", method, path, errResp.Message),
 			kind: kind,
 		}
 	}
+
 	return &apiError{
 		msg:  fmt.Sprintf("github: %s %s: %s", method, path, err),
 		kind: dashboard.ForgeErrorUnreachable,
@@ -1183,11 +1204,11 @@ func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
 			Forge: dashboard.ForgeGitHub, Reachable: false,
 			Error: err.Error(), ErrorKind: dashboard.ForgeErrorUnknown,
 		}
-		var apiErr *apiError
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := errors.AsType[*apiError](err); ok {
 			health.ErrorKind = apiErr.kind
 		}
 		health.RateLimitREST = c.lastRESTRate.Load()
+
 		return dashboard.Result{Health: health}
 	}
 
@@ -1213,6 +1234,7 @@ func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
 		result.PullRequests = append(result.PullRequests, prs...)
 		result.Issues = append(result.Issues, issues...)
 	}
+
 	return result
 }
 
@@ -1222,7 +1244,7 @@ func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
 func (c *Client) listPublicRepos(ctx context.Context) ([]*ghsdk.Repository, error) {
 	var repos []*ghsdk.Repository
 	path := fmt.Sprintf("/users/%s/repos", c.username)
-	opts := &ghsdk.RepositoryListByUserOptions{Type: "owner", ListOptions: ghsdk.ListOptions{PerPage: perPage}}
+	opts := &ghsdk.RepositoryListByUserOptions{Type: "owner", PerPage: perPage}
 
 	for {
 		slog.Debug("github request", "method", http.MethodGet, "url", path)
@@ -1242,6 +1264,7 @@ func (c *Client) listPublicRepos(ctx context.Context) ([]*ghsdk.Repository, erro
 		}
 		opts.Page = resp.NextPage
 	}
+
 	return repos, nil
 }
 
@@ -1250,6 +1273,7 @@ func restLabelsToDashboard(labels []*ghsdk.Label) []dashboard.Label {
 	for _, l := range labels {
 		out = append(out, dashboard.Label{Name: l.GetName(), Color: l.GetColor()})
 	}
+
 	return out
 }
 
@@ -1259,7 +1283,7 @@ func restLabelsToDashboard(labels []*ghsdk.Label) []dashboard.Label {
 func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
 	var prs []dashboard.PullRequest
 	path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
-	opts := &ghsdk.PullRequestListOptions{State: "open", ListOptions: ghsdk.ListOptions{PerPage: perPage}}
+	opts := &ghsdk.PullRequestListOptions{State: "open", PerPage: perPage}
 
 	for {
 		slog.Debug("github request", "method", http.MethodGet, "url", path)
@@ -1296,7 +1320,7 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				// show-pr-merge-status. AutoMerge, unlike Mergeable, *is*
 				// already on this response for free.
 				MergeStatus:      dashboard.MergeUnknown,
-				AutoMergeEnabled: boolPtr(p.GetAutoMerge() != nil),
+				AutoMergeEnabled: new(p.GetAutoMerge() != nil),
 			})
 		}
 		if resp.NextPage == 0 {
@@ -1304,6 +1328,7 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 		}
 		opts.Page = resp.NextPage
 	}
+
 	return prs, nil
 }
 
@@ -1344,6 +1369,7 @@ func (c *Client) listOpenIssuesREST(ctx context.Context, owner, name, repo strin
 		}
 		opts.ListOptions.Page = resp.NextPage
 	}
+
 	return issues, nil
 }
 
@@ -1360,7 +1386,7 @@ func (c *Client) ciStatusREST(ctx context.Context, owner, name, sha string) (das
 	checkRunsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
 	slog.Debug("github request", "method", http.MethodGet, "url", checkRunsPath)
 	runs, _, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{
-		ListOptions: ghsdk.ListOptions{PerPage: perPage},
+		PerPage: perPage,
 	})
 	if err != nil {
 		return dashboard.CINone, c.restError(http.MethodGet, checkRunsPath, err)
@@ -1375,6 +1401,7 @@ func (c *Client) ciStatusREST(ctx context.Context, owner, name, sha string) (das
 	if err != nil {
 		return dashboard.CINone, c.restError(http.MethodGet, statusPath, err)
 	}
+
 	return statusFromCombinedState(combined.GetState()), nil
 }
 
@@ -1394,6 +1421,7 @@ func statusFromCheckRuns(runs []*ghsdk.CheckRun) dashboard.CIStatus {
 	if failed {
 		return dashboard.CIFailure
 	}
+
 	return dashboard.CISuccess
 }
 

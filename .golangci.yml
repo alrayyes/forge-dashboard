@@ -5,13 +5,37 @@ linters:
   enable:
     - bodyclose
     - errorlint
+    - gocritic
+    - gocyclo
     - gosec
+    - makezero
     - misspell
+    - modernize
+    - nlreturn
+    - nolintlint
+    - perfsprint
     - revive
+    - sqlclosecheck
+    - testifylint
+    - thelper
     - unconvert
-
+    - unparam
+    - usestdlibvars
+    - whitespace
+    - wrapcheck
+  settings:
+    gocritic:
+      enabled-checks:
+        - emptyStringTest
+    gocyclo:
+      min-complexity: 15
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    testifylint:
+      enable-all: true
 formatters:
   enable:
     - gci
-    - gofmt
+    - gofumpt
     - goimports

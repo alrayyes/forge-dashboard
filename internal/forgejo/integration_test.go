@@ -23,6 +23,7 @@ func TestClient_SatisfiesGenericSource(t *testing.T) {
 	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{
@@ -32,6 +33,7 @@ func TestClient_SatisfiesGenericSource(t *testing.T) {
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		writeJSON(t, w, []map[string]any{{"number": 1, "title": "x", "html_url": "https://x", "user": map[string]string{"login": "u"}}})
@@ -69,6 +71,7 @@ func TestClient_ConcurrentPerRepoFetches_EachRepoGetsItsOwnPulls(t *testing.T) {
 	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			writeJSON(t, w, []map[string]any{})
+
 			return
 		}
 		var batch []map[string]any
@@ -87,6 +90,7 @@ func TestClient_ConcurrentPerRepoFetches_EachRepoGetsItsOwnPulls(t *testing.T) {
 		mux.HandleFunc(fmt.Sprintf("/api/v1/repos/alrayyes/%s/pulls", name), func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Query().Get("page") != "1" {
 				writeJSON(t, w, []map[string]any{})
+
 				return
 			}
 			writeJSON(t, w, []map[string]any{{"number": 1, "title": prTitle, "html_url": "https://x", "user": map[string]string{"login": "u"}}})

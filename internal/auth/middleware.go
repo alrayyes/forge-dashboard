@@ -20,6 +20,7 @@ const (
 // condition a caller needs to handle gracefully.
 func UserFromContext(ctx context.Context) (*User, bool) {
 	u, ok := ctx.Value(userContextKey).(*User)
+
 	return u, ok
 }
 
@@ -39,6 +40,7 @@ func UserFromContext(ctx context.Context) (*User, bool) {
 // exactly what the caller here keeps hold of.
 func WithAccessLogUsername(ctx context.Context) (context.Context, *string) {
 	slot := new(string)
+
 	return context.WithValue(ctx, accessLogUsernameKey, slot), slot
 }
 
@@ -62,15 +64,18 @@ func RequireAuth(store *Store) func(http.Handler) http.Handler {
 				u, err = store.UserForAPIToken(r.Context(), token)
 			} else {
 				unauthorized(w)
+
 				return
 			}
 
 			if err != nil {
 				if !errors.Is(err, ErrNotFound) {
 					http.Error(w, "internal error", http.StatusInternalServerError)
+
 					return
 				}
 				unauthorized(w)
+
 				return
 			}
 
@@ -101,6 +106,7 @@ func RequireAdmin(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "admin access required"})
+
 			return
 		}
 		next.ServeHTTP(w, r)

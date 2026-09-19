@@ -3,7 +3,6 @@ package auth_test
 import (
 	"database/sql"
 	"encoding/base64"
-	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -32,6 +31,7 @@ func newTestStore(t *testing.T) *auth.Store {
 
 	store := auth.NewStore(db)
 	require.NoError(t, store.Init(t.Context()))
+
 	return store
 }
 
@@ -161,7 +161,7 @@ func TestStore_Session_Deleted_IsRefused(t *testing.T) {
 
 	_, err = store.UserForSession(t.Context(), token)
 
-	assert.True(t, errors.Is(err, auth.ErrNotFound))
+	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
 func TestStore_UnknownSessionToken_ReturnsErrNotFound(t *testing.T) {
@@ -305,7 +305,7 @@ func TestStore_DeleteUser_RemovesTheAccountAndItsSessions(t *testing.T) {
 	require.NoError(t, store.DeleteUser(t.Context(), u.ID))
 
 	_, err = store.GetUserByUsername(t.Context(), "ryan")
-	assert.ErrorIs(t, err, auth.ErrNotFound)
+	require.ErrorIs(t, err, auth.ErrNotFound)
 
 	_, err = store.UserForSession(t.Context(), token)
 	assert.ErrorIs(t, err, auth.ErrNotFound)
@@ -654,6 +654,9 @@ func TestStore_RemoveCredential_LastOne_RefusedWithErrLastCredential(t *testing.
 
 	err = store.RemoveCredential(t.Context(), u.ID, credentialIDKeyForTest([]byte("cred-1")))
 
+	//nolint:testifylint // deliberately assert, not require: whether the
+	// credential survived is worth checking independently of which exact
+	// error came back.
 	assert.ErrorIs(t, err, auth.ErrLastCredential)
 	got, getErr := store.GetUserByID(t.Context(), u.ID)
 	require.NoError(t, getErr)

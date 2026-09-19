@@ -19,6 +19,7 @@ func doJSON(t *testing.T, method, url, body string, cookie *http.Cookie) *http.R
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+
 	return resp
 }
 

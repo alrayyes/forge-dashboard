@@ -50,7 +50,7 @@ func TestOpenDatabase_SurvivesConcurrentWriters(t *testing.T) {
 	const writers = 40
 	var wg sync.WaitGroup
 	errs := make(chan error, writers)
-	for i := 0; i < writers; i++ {
+	for i := range writers {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -62,6 +62,9 @@ func TestOpenDatabase_SurvivesConcurrentWriters(t *testing.T) {
 	close(errs)
 
 	for err := range errs {
+		//nolint:testifylint // deliberately assert, not require: every
+		// concurrent writer's own result matters, not just the first —
+		// require would stop the loop and hide how many actually failed.
 		assert.NoError(t, err)
 	}
 

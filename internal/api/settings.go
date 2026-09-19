@@ -67,12 +67,14 @@ func handleBotPrUpdatesGet(store *settings.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		creds, err := store.Get(r.Context(), u.ID)
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+
 			return
 		}
 		// ErrNotFound leaves creds at its zero value — AllowBotPrUpdates
@@ -95,12 +97,14 @@ func handleThemeGet(store *settings.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		creds, err := store.Get(r.Context(), u.ID)
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+
 			return
 		}
 		// ErrNotFound leaves creds at its zero value — Theme "" (system),
@@ -129,28 +133,33 @@ func handleThemePut(store *settings.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		var req themePutRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
 			return
 		}
 		if req.Theme != "" && req.Theme != "light" && req.Theme != "dark" {
 			writeJSON(w, http.StatusBadRequest, errorBody(`theme must be "", "light", or "dark"`))
+
 			return
 		}
 
 		existing, err := store.Get(r.Context(), u.ID)
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
+
 			return
 		}
 		existing.Theme = req.Theme
 
 		if err := store.Set(r.Context(), u.ID, existing); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save theme"))
+
 			return
 		}
 
@@ -163,12 +172,14 @@ func handleSettingsGet(store *settings.Store) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		creds, err := store.Get(r.Context(), u.ID)
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+
 			return
 		}
 
@@ -178,6 +189,7 @@ func handleSettingsGet(store *settings.Store) http.HandlerFunc {
 		creds.WebhookToken, creds.WebhookSecret, err = store.EnsureWebhookCredentials(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load webhook credentials"))
+
 			return
 		}
 
@@ -205,18 +217,21 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
 			return
 		}
 
 		var req settingsPutRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
 			return
 		}
 
 		existing, err := deps.SettingsStore.Get(r.Context(), u.ID)
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
+
 			return
 		}
 
@@ -250,11 +265,13 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// do nothing.
 		if merged.ForgejoURL == "" && (merged.ForgejoToken != "" || merged.ForgejoUsername != "") {
 			writeJSON(w, http.StatusBadRequest, errorBody("forgejoUrl is required when a Forgejo token or username is set"))
+
 			return
 		}
 
 		if err := deps.SettingsStore.Set(r.Context(), u.ID, merged); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save settings"))
+
 			return
 		}
 
@@ -271,5 +288,6 @@ func coalesce(newValue, existingValue string) string {
 	if newValue != "" {
 		return newValue
 	}
+
 	return existingValue
 }

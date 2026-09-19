@@ -148,5 +148,6 @@ func WebhookTargetsPath(rawURL, path string) bool {
 	if err != nil {
 		return false
 	}
+
 	return u.Path == path
 }
