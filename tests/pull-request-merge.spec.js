@@ -618,4 +618,28 @@ test.describe('pull request merge button', () => {
       await expect(rows.nth(1)).toContainText(/permission/i);
     });
   });
+
+  // #445: reported live — small row-action buttons were easy to miss,
+  // landing the click on the row's own stretched link instead. The bare
+  // WCAG 2.5.8 floor (24x24 CSS px) was already technically cleared
+  // (measured live at 25px tall) before this fix — asserting real
+  // comfort margin above that floor, not just the floor itself, is what
+  // actually pins the fix rather than re-confirming a compliance number
+  // that was never the problem. Measures the real rendered box rather
+  // than trusting style.css's own numbers, since padding/line-height/
+  // font interactions are exactly what a CSS typo could get wrong
+  // without this ever turning red.
+  test('the Merge button clears a comfortable target size, not just the bare WCAG 2.5.8 floor', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    const box = await row.getByRole('button', { name: 'Merge' }).boundingBox();
+
+    expect(box).not.toBeNull();
+    expect(box.width).toBeGreaterThanOrEqual(28);
+    expect(box.height).toBeGreaterThanOrEqual(28);
+  });
 });
