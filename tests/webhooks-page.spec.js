@@ -1,17 +1,16 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
-const { addVirtualAuthenticator } = require('./webauthn-helper');
+const { registerViaInvite } = require('./register-helper');
 
-async function registerAndSignIn(page) {
-  await addVirtualAuthenticator(page);
+async function registerAndSignIn(page, request, baseURL) {
   const username = `webhooks-page-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-
-  await page.goto('/login.html');
-  await page.click('#show-register');
-  await page.fill('#register-username', username);
-  await page.fill('#register-display-name', 'Webhooks Page Test User');
-  await page.click('#register-submit');
-  await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+  await registerViaInvite(
+    page,
+    request,
+    baseURL,
+    username,
+    'Webhooks Page Test User',
+  );
 }
 
 function mockDashboard(page, repos, forges) {
@@ -31,8 +30,8 @@ function mockDashboard(page, repos, forges) {
 }
 
 test.describe('webhooks page', () => {
-  test.beforeEach(async ({ page }) => {
-    await registerAndSignIn(page);
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
   });
 
   test('shows an empty state with no tracked repos', async ({ page }) => {

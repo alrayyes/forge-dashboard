@@ -15,6 +15,24 @@ import (
 // is already taken.
 var ErrAlreadyRegistered = errors.New("auth: username already registered")
 
+// ErrInvalidInvite is returned by BeginRegistration when an invite is
+// required (any account already exists) and the presented token is
+// missing, unknown, expired, already consumed, or issued for a different
+// username than the one being registered — deliberately one sentinel for
+// every reason rather than one each, so a caller can't fingerprint which
+// specific check failed.
+var ErrInvalidInvite = errors.New("auth: invalid or expired invite")
+
+// ErrNotAdmin is returned by an admin-only Service method when the
+// requester isn't the designated admin.
+var ErrNotAdmin = errors.New("auth: admin access required")
+
+// inviteTTL is how long an admin-issued registration invite stays usable
+// (design.md) — fixed, not admin-configurable: long enough to hand off a
+// link and have the invitee act on it in one sitting, short enough that a
+// stale, unconsumed invite isn't a standing credential.
+const inviteTTL = time.Hour
+
 // initialCredentialLabel is what the very first passkey on a brand-new
 // account is labeled — #355's required-nickname prompt only applies to
 // BeginAddCredential's own flow (a user who already has one deciding to
@@ -51,7 +69,16 @@ func NewService(wa *webauthn.WebAuthn, store *Store) *Service {
 // BeginRegistration starts a registration ceremony for a brand-new
 // username. Returns ErrAlreadyRegistered if that username already has an
 // account.
-func (s *Service) BeginRegistration(ctx context.Context, username, displayName string) (*protocol.CredentialCreation, error) {
+//
+// The very first registration on a fresh instance bootstraps its admin
+// and needs no invite — HasAnyRegisteredUser is false, so inviteToken is
+// never even looked at. Every registration after that requires
+// inviteToken to be a valid, unexpired, unconsumed invite issued for
+// exactly username (ErrInvalidInvite otherwise), and the invite's own
+// displayName wins over whatever the caller passed in — the admin who
+// issued the invite chose it, not the anonymous request completing the
+// ceremony.
+func (s *Service) BeginRegistration(ctx context.Context, username, displayName, inviteToken string) (*protocol.CredentialCreation, error) {
 	if existing, err := s.store.GetUserByUsername(ctx, username); err == nil {
 		if len(existing.Credentials) > 0 {
 			return nil, ErrAlreadyRegistered
@@ -74,6 +101,14 @@ func (s *Service) BeginRegistration(ctx context.Context, username, displayName s
 	hasAdmin, err := s.store.HasAnyRegisteredUser(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	if hasAdmin {
+		invite, err := s.store.ConsumeInviteIfValid(ctx, inviteToken, username)
+		if err != nil {
+			return nil, ErrInvalidInvite
+		}
+		displayName = invite.DisplayName
 	}
 
 	// A real user row from the first step, not a throwaway in-memory
@@ -226,4 +261,35 @@ func (s *Service) FinishLogin(ctx context.Context, username string, r *http.Requ
 // CreateSession issues a session token for u, ready to set as a cookie.
 func (s *Service) CreateSession(ctx context.Context, u *User) (token string, err error) {
 	return s.store.CreateSession(ctx, u.ID, SessionTTL)
+}
+
+// CreateInvite generates a new single-use registration invite for
+// username/displayName, issued by requester — ErrNotAdmin if requester
+// isn't the designated admin, ErrAlreadyRegistered if username already has
+// a completed registration (an abandoned, credential-less username is
+// still fine to invite, same as it's still fine to self-reclaim via
+// BeginRegistration).
+func (s *Service) CreateInvite(ctx context.Context, requester *User, username, displayName string) (token string, invite *Invite, err error) {
+	if requester == nil || !requester.IsAdmin {
+		return "", nil, ErrNotAdmin
+	}
+
+	if existing, err := s.store.GetUserByUsername(ctx, username); err == nil {
+		if len(existing.Credentials) > 0 {
+			return "", nil, ErrAlreadyRegistered
+		}
+	} else if !errors.Is(err, ErrNotFound) {
+		return "", nil, err
+	}
+
+	return s.store.CreateInvite(ctx, username, displayName, requester.ID, inviteTTL)
+}
+
+// HasAnyRegisteredUser reports whether any account has completed
+// registration — an exported wrapper around the Store method of the same
+// name, reachable from outside this package for the public
+// registration-status endpoint (unauthenticated, so it has no *User of
+// its own to check admin status against the way CreateInvite does).
+func (s *Service) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
+	return s.store.HasAnyRegisteredUser(ctx)
 }

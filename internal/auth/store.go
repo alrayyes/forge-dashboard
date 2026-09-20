@@ -81,6 +81,15 @@ func (s *Store) Init(ctx context.Context) error {
 		created_at TIMESTAMP NOT NULL,
 		PRIMARY KEY (user_id, credential_id)
 	);
+
+	CREATE TABLE IF NOT EXISTS invites (
+		token_hash TEXT PRIMARY KEY,
+		username TEXT NOT NULL,
+		display_name TEXT NOT NULL,
+		created_by TEXT NOT NULL REFERENCES users(id),
+		expires_at TIMESTAMP NOT NULL,
+		consumed_at TIMESTAMP
+	);
 	`
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("auth: create schema: %w", err)
@@ -748,6 +757,179 @@ func (s *Store) DeleteAPIToken(ctx context.Context, userID []byte, id string) er
 	}
 
 	return nil
+}
+
+// hashInviteToken is invites' own version of hashAPIToken — same
+// operation (SHA-256 hex, safe against a leaked database dump for the
+// same reason: the input is already a uniformly random 256-bit secret,
+// never a human-chosen value), kept as its own function rather than
+// sharing api_tokens' so each domain's hashing stays self-contained, the
+// same way each already has its own token-generation code.
+func hashInviteToken(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+
+	return hex.EncodeToString(sum[:])
+}
+
+// CreateInvite generates a brand-new single-use registration invite for
+// username/displayName, issued by createdBy (an admin's own user ID),
+// valid for ttl. raw is the only time the actual token is ever returned —
+// only its hash is stored, so a leaked database dump can't be replayed
+// into a registration (the same reasoning CreateAPIToken's own doc
+// comment gives).
+func (s *Store) CreateInvite(ctx context.Context, username, displayName string, createdBy []byte, ttl time.Duration) (raw string, invite *Invite, err error) {
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return "", nil, fmt.Errorf("auth: generate invite token: %w", err)
+	}
+	raw = base64.RawURLEncoding.EncodeToString(secret)
+	hash := hashInviteToken(raw)
+
+	invite = &Invite{
+		ID:          hash,
+		Username:    username,
+		DisplayName: displayName,
+		CreatedBy:   createdBy,
+		ExpiresAt:   time.Now().UTC().Add(ttl),
+	}
+	_, err = s.db.ExecContext(ctx,
+		`INSERT INTO invites (token_hash, username, display_name, created_by, expires_at) VALUES (?, ?, ?, ?, ?)`,
+		hash, username, displayName, encodeID(createdBy), invite.ExpiresAt,
+	)
+	if err != nil {
+		return "", nil, fmt.Errorf("auth: create invite: %w", err)
+	}
+
+	return raw, invite, nil
+}
+
+// ConsumeInviteIfValid atomically checks that token hashes to an
+// outstanding (unconsumed, unexpired) invite issued for exactly username,
+// and marks it consumed in the same statement — a single UPDATE with
+// every validity condition in its WHERE clause, so a concurrent attempt to
+// spend the same token twice can never both succeed: SQLite serializes
+// writes, and only the first one actually matches consumed_at IS NULL.
+// Returns ErrNotFound uniformly for an unknown token, a username
+// mismatch, an already-consumed invite, or an expired one — deliberately
+// not distinguishing which, the same "don't leak which check failed"
+// reasoning ErrInvalidInvite's own doc comment gives at the Service layer
+// that wraps this.
+func (s *Store) ConsumeInviteIfValid(ctx context.Context, token, username string) (*Invite, error) {
+	hash := hashInviteToken(token)
+	now := time.Now().UTC()
+
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE invites SET consumed_at = ? WHERE token_hash = ? AND username = ? AND consumed_at IS NULL AND expires_at > ?`,
+		now, hash, username, now,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("auth: consume invite: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("auth: consume invite: %w", err)
+	}
+	if affected == 0 {
+		return nil, ErrNotFound
+	}
+
+	row := s.db.QueryRowContext(ctx,
+		`SELECT token_hash, username, display_name, created_by, expires_at, consumed_at FROM invites WHERE token_hash = ?`,
+		hash,
+	)
+
+	return scanInvite(row)
+}
+
+// ListOutstandingInvites returns every invite that's neither consumed nor
+// expired, soonest-expiring first — for the admin area's own list.
+func (s *Store) ListOutstandingInvites(ctx context.Context) ([]*Invite, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT token_hash, username, display_name, created_by, expires_at, consumed_at
+		 FROM invites WHERE consumed_at IS NULL AND expires_at > ? ORDER BY expires_at`,
+		time.Now().UTC(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("auth: list outstanding invites: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var invites []*Invite
+	for rows.Next() {
+		inv, err := scanInvite(rows)
+		if err != nil {
+			return nil, err
+		}
+		invites = append(invites, inv)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("auth: list outstanding invites: %w", err)
+	}
+
+	return invites, nil
+}
+
+// RevokeInvite marks id (an invite's own ID — its stored token_hash, from
+// CreateInvite/ListOutstandingInvites, never the raw token) consumed so
+// it can never be used to register — the row itself is kept, the same
+// "lingers, but harmlessly" trade-off design.md accepts for a genuinely
+// consumed invite, rather than a DELETE. Unlike DeleteAPIToken's own
+// idempotent delete, revoking an id that's already gone, already
+// consumed, or was never issued is ErrNotFound, not a silent no-op: an
+// admin revoking from a list they're looking at should be told when the
+// row they clicked isn't outstanding anymore, rather than have the button
+// silently do nothing.
+func (s *Store) RevokeInvite(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE invites SET consumed_at = ? WHERE token_hash = ? AND consumed_at IS NULL`,
+		time.Now().UTC(), id,
+	)
+	if err != nil {
+		return fmt.Errorf("auth: revoke invite: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("auth: revoke invite: %w", err)
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func scanInvite(row rowScanner) (*Invite, error) {
+	var (
+		hash, username, displayName, createdByStr string
+		expiresAt                                 time.Time
+		consumedAt                                sql.NullTime
+	)
+	if err := row.Scan(&hash, &username, &displayName, &createdByStr, &expiresAt, &consumedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("auth: scan invite row: %w", err)
+	}
+
+	createdBy, err := decodeID(createdByStr)
+	if err != nil {
+		return nil, err
+	}
+
+	inv := &Invite{
+		ID:          hash,
+		Username:    username,
+		DisplayName: displayName,
+		CreatedBy:   createdBy,
+		ExpiresAt:   expiresAt,
+	}
+	if consumedAt.Valid {
+		t := consumedAt.Time
+		inv.ConsumedAt = &t
+	}
+
+	return inv, nil
 }
 
 // encodeID/decodeID round-trip the raw WebAuthn user handle through a

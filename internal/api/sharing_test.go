@@ -47,8 +47,9 @@ func TestSharingPut_ThenGet_ListsTheSharedUser(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	registerViaRealCeremony(t, srv, testOtherUser, "Alex")
+	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay) // bootstraps as admin
+	token := createInviteViaAdmin(t, srv, ownerCookie, testOtherUser, "Alex")
+	registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/sharing/"+testOtherUser, nil)
 	require.NoError(t, err)
@@ -75,8 +76,9 @@ func TestSharingPut_TheOtherUserSeesItInSharedWithMe(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	viewerCookie, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex")
+	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay) // bootstraps as admin
+	token := createInviteViaAdmin(t, srv, ownerCookie, testOtherUser, "Alex")
+	viewerCookie, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/sharing/"+testOtherUser, nil)
 	require.NoError(t, err)
@@ -135,8 +137,9 @@ func TestSharingDelete_RemovesTheShare(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	registerViaRealCeremony(t, srv, testOtherUser, "Alex")
+	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay) // bootstraps as admin
+	token := createInviteViaAdmin(t, srv, ownerCookie, testOtherUser, "Alex")
+	registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/sharing/"+testOtherUser, nil)
 	require.NoError(t, err)

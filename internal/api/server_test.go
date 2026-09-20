@@ -207,8 +207,9 @@ func TestDashboard_WithOwnerQuery_UnsharedViewer_Refused(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	registerViaRealCeremony(t, srv, testUser, testDisplay)
-	viewerCookie, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex")
+	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay) // bootstraps as admin
+	token := createInviteViaAdmin(t, srv, ownerCookie, testOtherUser, "Alex")
+	viewerCookie, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard?owner="+testUser, nil)
 	require.NoError(t, err)
@@ -251,8 +252,9 @@ func TestDashboard_WithOwnerQuery_SharedViewer_SeesTheOwnersDashboard(t *testing
 	}
 
 	srv := newTestServerWithSources(t, buildSources)
-	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	viewerCookie, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex")
+	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay) // bootstraps as admin
+	token := createInviteViaAdmin(t, srv, ownerCookie, testOtherUser, "Alex")
+	viewerCookie, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)

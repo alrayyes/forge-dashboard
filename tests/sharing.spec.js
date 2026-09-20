@@ -1,24 +1,18 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
-const { addVirtualAuthenticator } = require('./webauthn-helper');
+const { registerViaInvite } = require('./register-helper');
 
 function uniqueUsername(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
-async function registerUser(page, username, displayName) {
-  await addVirtualAuthenticator(page);
-  await page.goto('/login.html');
-  await page.click('#show-register');
-  await page.fill('#register-username', username);
-  await page.fill('#register-display-name', displayName);
-  await page.click('#register-submit');
-  await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
-}
+const registerUser = registerViaInvite;
 
 test.describe('dashboard sharing', () => {
   test('sharing makes the owner selectable from the viewer header, and stopping sharing removes it from settings', async ({
     browser,
+    request,
+    baseURL,
   }) => {
     const ownerUsername = uniqueUsername('sharing-owner');
     const viewerUsername = uniqueUsername('sharing-viewer');
@@ -26,12 +20,24 @@ test.describe('dashboard sharing', () => {
     const ownerContext = await browser.newContext();
     try {
       const ownerPage = await ownerContext.newPage();
-      await registerUser(ownerPage, ownerUsername, 'Sharing Owner');
+      await registerUser(
+        ownerPage,
+        request,
+        baseURL,
+        ownerUsername,
+        'Sharing Owner',
+      );
 
       const viewerContext = await browser.newContext();
       try {
         const viewerPage = await viewerContext.newPage();
-        await registerUser(viewerPage, viewerUsername, 'Sharing Viewer');
+        await registerUser(
+          viewerPage,
+          request,
+          baseURL,
+          viewerUsername,
+          'Sharing Viewer',
+        );
 
         await ownerPage.goto('/settings.html');
         await ownerPage.fill('#share-username', viewerUsername);
@@ -81,6 +87,8 @@ test.describe('dashboard sharing', () => {
 
   test('has no axe-core violations on settings with an active share, at desktop and phone width', async ({
     browser,
+    request,
+    baseURL,
   }) => {
     const ownerUsername = uniqueUsername('sharing-axe-owner');
     const viewerUsername = uniqueUsername('sharing-axe-viewer');
@@ -88,12 +96,24 @@ test.describe('dashboard sharing', () => {
     const ownerContext = await browser.newContext();
     try {
       const ownerPage = await ownerContext.newPage();
-      await registerUser(ownerPage, ownerUsername, 'Axe Owner');
+      await registerUser(
+        ownerPage,
+        request,
+        baseURL,
+        ownerUsername,
+        'Axe Owner',
+      );
 
       const viewerContext = await browser.newContext();
       try {
         const viewerPage = await viewerContext.newPage();
-        await registerUser(viewerPage, viewerUsername, 'Axe Viewer');
+        await registerUser(
+          viewerPage,
+          request,
+          baseURL,
+          viewerUsername,
+          'Axe Viewer',
+        );
       } finally {
         await viewerContext.close();
       }
@@ -135,9 +155,13 @@ test.describe('dashboard sharing', () => {
 
   test('a user who never shared sees no dashboard selector', async ({
     page,
+    request,
+    baseURL,
   }) => {
     await registerUser(
       page,
+      request,
+      baseURL,
       uniqueUsername('sharing-alone'),
       'Nobody Shared With Me',
     );

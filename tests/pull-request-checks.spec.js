@@ -1,17 +1,16 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
-const { addVirtualAuthenticator } = require('./webauthn-helper');
+const { registerViaInvite } = require('./register-helper');
 
-async function registerAndSignIn(page) {
-  await addVirtualAuthenticator(page);
+async function registerAndSignIn(page, request, baseURL) {
   const username = `pr-checks-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-
-  await page.goto('/login.html');
-  await page.click('#show-register');
-  await page.fill('#register-username', username);
-  await page.fill('#register-display-name', 'PR Checks Test User');
-  await page.click('#register-submit');
-  await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+  await registerViaInvite(
+    page,
+    request,
+    baseURL,
+    username,
+    'PR Checks Test User',
+  );
 }
 
 function makePR(overrides) {
@@ -59,8 +58,8 @@ function mockChecks(page, body, status = 200) {
 }
 
 test.describe('pull request pipeline checks panel', () => {
-  test.beforeEach(async ({ page }) => {
-    await registerAndSignIn(page);
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
   });
 
   test('a pull request with CI reported shows the View pipeline button', async ({

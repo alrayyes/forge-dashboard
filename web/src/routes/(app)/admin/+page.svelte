@@ -8,12 +8,33 @@
     isAdmin: boolean;
   };
 
+  type AdminInvite = {
+    id: string;
+    username: string;
+    displayName: string;
+    expiresAt: string;
+  };
+
   let currentUsername = $state<string | null>(null);
   let users = $state<AdminUser[]>([]);
   let loaded = $state(false);
   let status = $state("");
   let statusKind = $state<"" | "error" | "ok">("");
   let pendingUsername = $state<string | null>(null);
+
+  let invites = $state<AdminInvite[]>([]);
+  let invitesLoaded = $state(false);
+  let inviteUsername = $state("");
+  let inviteDisplayName = $state("");
+  let inviteSubmitting = $state(false);
+  let inviteStatus = $state("");
+  let inviteStatusKind = $state<"" | "error" | "ok">("");
+  // The generated link is only ever shown once, right after creation —
+  // same "show once" handling the invite's own raw token gets server-side
+  // (#477) — reloading this page loses it, same as reloading Settings'
+  // own API-token card loses a just-generated token.
+  let generatedLink = $state<string | null>(null);
+  let pendingInviteID = $state<string | null>(null);
 
   function escapeHTML(s: string): string {
     return s;
@@ -94,12 +115,122 @@
     }
   }
 
+  function loadInvites(): Promise<void> {
+    return fetch("/api/admin/invites", {
+      headers: { Accept: "application/json" },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          return null;
+        }
+        if (res.status === 403) {
+          window.location.href = "/";
+          return null;
+        }
+        return res.ok
+          ? res.json()
+          : Promise.reject(new Error(`could not load invites (${res.status})`));
+      })
+      .then((data: AdminInvite[] | null) => {
+        if (!data) return;
+        invites = data;
+        invitesLoaded = true;
+      });
+  }
+
+  async function submitCreateInvite(e: SubmitEvent) {
+    e.preventDefault();
+    const username = inviteUsername.trim();
+    const displayName = inviteDisplayName.trim();
+    if (!username || !displayName) return;
+
+    inviteSubmitting = true;
+    inviteStatus = "Generating…";
+    inviteStatusKind = "";
+    generatedLink = null;
+
+    try {
+      const res = await fetch("/api/admin/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, displayName }),
+      });
+      if (res.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "could not generate invite");
+      }
+      const created: { token: string } = await res.json();
+      generatedLink = `${window.location.origin}/login.html?invite=${encodeURIComponent(created.token)}&username=${encodeURIComponent(username)}`;
+      inviteStatus = `Invite generated for ${username}.`;
+      inviteStatusKind = "ok";
+      inviteUsername = "";
+      inviteDisplayName = "";
+      await loadInvites();
+    } catch (err) {
+      inviteStatus = (err as Error).message || "Could not generate invite.";
+      inviteStatusKind = "error";
+    } finally {
+      inviteSubmitting = false;
+    }
+  }
+
+  async function copyInviteLink() {
+    if (!generatedLink) return;
+    try {
+      await navigator.clipboard.writeText(generatedLink);
+      inviteStatus = "Invite link copied.";
+      inviteStatusKind = "ok";
+    } catch {
+      inviteStatus = "Could not copy — copy the link above manually.";
+      inviteStatusKind = "error";
+    }
+  }
+
+  async function revokeInvite(id: string) {
+    const confirmed = window.confirm(
+      "Revoke this invite? The link will stop working.",
+    );
+    if (!confirmed) return;
+
+    pendingInviteID = id;
+    inviteStatus = "Revoking…";
+    inviteStatusKind = "";
+
+    try {
+      const res = await fetch(
+        `/api/admin/invites/${encodeURIComponent(id)}/revoke`,
+        { method: "POST" },
+      );
+      if (res.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "could not revoke invite");
+      }
+      inviteStatus = "Invite revoked.";
+      inviteStatusKind = "ok";
+      await loadInvites();
+    } catch (err) {
+      inviteStatus = (err as Error).message || "Could not revoke invite.";
+      inviteStatusKind = "error";
+    } finally {
+      pendingInviteID = null;
+    }
+  }
+
   onMount(() => {
     fetch("/api/auth/session", { headers: { Accept: "application/json" } })
       .then((res) => (res.ok ? res.json() : null))
       .then((session: { username: string } | null) => {
         if (session) currentUsername = session.username;
-        return loadUsers();
+        return Promise.all([loadUsers(), loadInvites()]);
       })
       .catch((err) => {
         status = err.message || "Could not load users.";
@@ -131,6 +262,59 @@
       padding: 22px;
       margin-bottom: 18px;
       overflow-x: auto;
+    }
+    .card h2 {
+      font-size: 15px;
+      margin: 0 0 14px;
+    }
+    .field {
+      margin-bottom: 14px;
+    }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--ink-2);
+      margin-bottom: 5px;
+    }
+    .field input {
+      width: 100%;
+      font-family: inherit;
+      font-size: 14px;
+      padding: 9px 11px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-sunken);
+      color: var(--ink);
+    }
+    .field input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .generated-link {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .generated-link label {
+      display: block;
+      font-size: 12px;
+      color: var(--ink-2);
+      margin-bottom: 5px;
+    }
+    .generated-link-row {
+      display: flex;
+      gap: 8px;
+    }
+    .generated-link-row input {
+      flex: 1;
+      min-width: 0;
+      font-family: inherit;
+      font-size: 13px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-sunken);
+      color: var(--ink);
     }
     table {
       width: 100%;
@@ -342,6 +526,104 @@
         users.filter((u) => u.username !== currentUsername).length > 0}
     >
       No other users are registered.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Invites</h2>
+    <form id="invite-form" onsubmit={submitCreateInvite}>
+      <div class="field">
+        <label for="invite-username">Username</label>
+        <input
+          id="invite-username"
+          name="username"
+          autocomplete="off"
+          required
+          bind:value={inviteUsername}
+        />
+      </div>
+      <div class="field">
+        <label for="invite-display-name">Display name</label>
+        <input
+          id="invite-display-name"
+          name="displayName"
+          autocomplete="off"
+          required
+          bind:value={inviteDisplayName}
+        />
+      </div>
+      <button
+        class="btn"
+        type="submit"
+        id="invite-submit"
+        disabled={inviteSubmitting}>Generate invite</button
+      >
+    </form>
+
+    <p
+      class={`status${inviteStatusKind ? ` ${inviteStatusKind}` : ""}`}
+      id="invite-status"
+      role="status"
+      aria-live="polite"
+    >
+      {inviteStatus}
+    </p>
+
+    {#if generatedLink}
+      <div class="generated-link" id="generated-invite-link">
+        <label for="generated-link-value">Invite link (shown once)</label>
+        <div class="generated-link-row">
+          <input
+            id="generated-link-value"
+            type="text"
+            readonly
+            value={generatedLink}
+          />
+          <button
+            class="btn"
+            type="button"
+            id="copy-invite-link"
+            onclick={copyInviteLink}>Copy</button
+          >
+        </div>
+      </div>
+    {/if}
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Username</th>
+          <th scope="col">Expires</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="invite-rows">
+        {#each invites as inv (inv.id)}
+          <tr data-username={inv.username}>
+            <td data-label="Username">{escapeHTML(inv.username)}</td>
+            <td data-label="Expires">{formatDate(inv.expiresAt)}</td>
+            <td class="row-actions" data-label="Actions">
+              <button
+                class="btn btn-danger"
+                type="button"
+                data-action="revoke-invite"
+                data-username={inv.username}
+                disabled={pendingInviteID === inv.id}
+                onclick={() => revokeInvite(inv.id)}>Revoke</button
+              >
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+    <p
+      class="empty-state"
+      id="invites-empty-state"
+      hidden={!invitesLoaded || invites.length > 0}
+    >
+      No outstanding invites.
     </p>
   </div>
 

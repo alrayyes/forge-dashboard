@@ -65,3 +65,29 @@ type APIToken struct {
 	// codebase.
 	LastUsedAt *time.Time
 }
+
+// Invite is a single-use, admin-issued registration invite — the same
+// "hashed secret, shown raw exactly once" shape APIToken already uses
+// (design.md's explicit precedent). ID is the invite's own stored
+// token_hash, never the raw token itself: SHA-256 of a uniformly random
+// secret can't be reversed (the same reasoning hashAPIToken's own doc
+// comment gives for api_tokens), so it's safe to hand back to a caller as
+// a stable identifier — it's what ListOutstandingInvites/RevokeInvite key
+// on, not something that can complete a registration on its own.
+type Invite struct {
+	ID          string
+	Username    string
+	DisplayName string
+	// CreatedBy is the admin's own WebAuthn user handle — the same raw
+	// bytes User.ID holds — not a display name, so it survives that
+	// admin's own account being renamed (usernames have no such
+	// guarantee elsewhere in this schema, but nothing renames a username
+	// today either; matching User.ID's shape is just the safer default).
+	CreatedBy []byte
+	ExpiresAt time.Time
+	// ConsumedAt is nil for an outstanding invite — set once by either a
+	// completed registration (ConsumeInviteIfValid) or an admin's own
+	// revoke (RevokeInvite), which share the same column since this
+	// schema has no separate "revoked" state to track.
+	ConsumedAt *time.Time
+}

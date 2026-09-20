@@ -1,18 +1,17 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
-const { addVirtualAuthenticator } = require('./webauthn-helper');
+const { registerViaInvite } = require('./register-helper');
 const { setTheme } = require('./theme-helper');
 
-async function registerAndSignIn(page) {
-  await addVirtualAuthenticator(page);
+async function registerAndSignIn(page, request, baseURL) {
   const username = `dashboard-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-
-  await page.goto('/login.html');
-  await page.click('#show-register');
-  await page.fill('#register-username', username);
-  await page.fill('#register-display-name', 'Dashboard Test User');
-  await page.click('#register-submit');
-  await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+  await registerViaInvite(
+    page,
+    request,
+    baseURL,
+    username,
+    'Dashboard Test User',
+  );
 }
 
 // The forge filter is a segmented control (radio inputs, visually hidden
@@ -28,8 +27,8 @@ async function selectForge(page, value) {
 }
 
 test.describe('dashboard page', () => {
-  test.beforeEach(async ({ page }) => {
-    await registerAndSignIn(page);
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
   });
 
   test('renders the board and answers real data from /api/dashboard', async ({
