@@ -600,12 +600,16 @@ type graphqlAutoMergeRequest struct {
 }
 
 type graphqlPullRequest struct {
-	Number           int                      `json:"number"`
-	Title            string                   `json:"title"`
-	URL              string                   `json:"url"`
-	IsDraft          bool                     `json:"isDraft"`
-	Author           *graphqlActor            `json:"author"`
-	MergeStateStatus string                   `json:"mergeStateStatus"`
+	Number           int           `json:"number"`
+	Title            string        `json:"title"`
+	URL              string        `json:"url"`
+	IsDraft          bool          `json:"isDraft"`
+	Author           *graphqlActor `json:"author"`
+	MergeStateStatus string        `json:"mergeStateStatus"`
+	// HeadRefOid feeds resolveAmbiguousBehind's own compare(headRef:)
+	// call — see its doc comment and #495 for why mergeStateStatus alone
+	// isn't a reliable behind/not-behind signal.
+	HeadRefOid       string                   `json:"headRefOid"`
 	AutoMergeRequest *graphqlAutoMergeRequest `json:"autoMergeRequest"`
 	Labels           struct {
 		Nodes []graphqlLabelNode `json:"nodes"`
@@ -734,6 +738,7 @@ query($cursor: String, $since: DateTime) {
               login
             }
             mergeStateStatus
+            headRefOid
             autoMergeRequest {
               mergeMethod
             }
@@ -952,6 +957,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		RateLimitREST:    c.lastRESTRate.Load(),
 		RepoCount:        len(tracked),
 	}}
+	var behindChecks []behindCheck
 	for _, r := range tracked {
 		fullName := r.Owner.Login + "/" + r.Name
 		result.Repos = append(result.Repos, dashboard.Repo{
@@ -964,9 +970,19 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 
 		for _, p := range r.PullRequests.Nodes {
 			result.PullRequests = append(result.PullRequests, mapPullRequest(fullName, p))
+			if ambiguousMergeState(p.MergeStateStatus) {
+				behindChecks = append(behindChecks, behindCheck{
+					prIndex: len(result.PullRequests) - 1,
+					owner:   r.Owner.Login,
+					name:    r.Name,
+					number:  p.Number,
+					headOid: p.HeadRefOid,
+				})
+			}
 		}
 		result.Issues = append(result.Issues, issuesByRepo[fullName]...)
 	}
+	c.resolveAmbiguousBehind(ctx, result.PullRequests, behindChecks)
 
 	return result
 }
@@ -1030,6 +1046,112 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 	}
 }
 
+// ambiguousMergeState reports whether status alone can't say if a PR is
+// behind its base. BEHIND and CLEAN are the two reliable cases (see
+// mergeStatusFromGraphQL's own doc comment for why); every other status
+// can co-occur with the branch also genuinely being behind, which GitHub
+// collapses out of mergeStateStatus entirely (#495).
+func ambiguousMergeState(status string) bool {
+	switch status {
+	case "BEHIND", "CLEAN":
+		return false
+	default:
+		return true
+	}
+}
+
+// behindCheck names one PR resolveAmbiguousBehind still needs to settle
+// via an actual base/head comparison, rather than trusting
+// mergeStateStatus for it.
+type behindCheck struct {
+	prIndex int
+	owner   string
+	name    string
+	number  int
+	headOid string
+}
+
+// behindComparison is one aliased branch of buildBehindCompareQuery's own
+// response shape — every alias shares this exact shape, so a single type
+// decodes all of them via map[string]behindComparison.
+type behindComparison struct {
+	Repository struct {
+		PullRequest struct {
+			BaseRef struct {
+				Compare struct {
+					BehindBy int `json:"behindBy"`
+				} `json:"compare"`
+			} `json:"baseRef"`
+		} `json:"pullRequest"`
+	} `json:"repository"`
+}
+
+// buildBehindCompareQuery batches checks into one GraphQL request, one
+// aliased branch per PR, each using GitHub's Ref.compare (confirmed live
+// via schema introspection: PullRequest.baseRef is a Ref, and Ref.compare
+// returns behindBy) — the one comparison mergeStateStatus can't reliably
+// give on its own. Aliased rather than a list argument because compare's
+// headRef differs per PR and GraphQL has no way to loop server-side.
+func buildBehindCompareQuery(checks []behindCheck) (string, map[string]any) {
+	var query strings.Builder
+	vars := make(map[string]any, len(checks)*4)
+
+	query.WriteString("query(")
+	for i, chk := range checks {
+		fmt.Fprintf(&query, "$owner%d: String!, $name%d: String!, $number%d: Int!, $head%d: String!, ", i, i, i, i)
+		vars[fmt.Sprintf("owner%d", i)] = chk.owner
+		vars[fmt.Sprintf("name%d", i)] = chk.name
+		vars[fmt.Sprintf("number%d", i)] = chk.number
+		vars[fmt.Sprintf("head%d", i)] = chk.headOid
+	}
+	query.WriteString(") {\n")
+	for i := range checks {
+		fmt.Fprintf(&query, `  pr%[1]d: repository(owner: $owner%[1]d, name: $name%[1]d) {
+    pullRequest(number: $number%[1]d) {
+      baseRef {
+        compare(headRef: $head%[1]d) {
+          behindBy
+        }
+      }
+    }
+  }
+`, i)
+	}
+	query.WriteString("}")
+
+	return query.String(), vars
+}
+
+// resolveAmbiguousBehind patches prs[chk.prIndex].Behind for every check,
+// using one batched request — skipped entirely when checks is empty, so
+// an ordinary poll (nothing ambiguous) pays nothing extra. A failed
+// request degrades to leaving Behind at its mergeStateStatus-derived
+// value rather than failing the whole fetch, the same shape checkWebhooks
+// already uses for its own secondary calls.
+func (c *Client) resolveAmbiguousBehind(ctx context.Context, prs []dashboard.PullRequest, checks []behindCheck) {
+	if len(checks) == 0 {
+		return
+	}
+
+	query, vars := buildBehindCompareQuery(checks)
+	var resp map[string]behindComparison
+	if err := c.graphqlDo(ctx, query, vars, &resp); err != nil {
+		slog.Warn("github behind-check failed", "forge", dashboard.ForgeGitHub, "error", err)
+
+		return
+	}
+
+	for i, chk := range checks {
+		cmp, ok := resp[fmt.Sprintf("pr%d", i)]
+		if !ok {
+			continue
+		}
+		if cmp.Repository.PullRequest.BaseRef.Compare.BehindBy > 0 {
+			prs[chk.prIndex].Behind = true
+		}
+	}
+}
+
 func mapIssue(fullName string, i graphqlIssue) dashboard.Issue {
 	return dashboard.Issue{
 		Forge:     dashboard.ForgeGitHub,
@@ -1061,6 +1183,7 @@ query($owner: String!, $name: String!) {
           login
         }
         mergeStateStatus
+        headRefOid
         autoMergeRequest {
           mergeMethod
         }
@@ -1131,9 +1254,20 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 	}
 
 	prs := make([]dashboard.PullRequest, 0, len(resp.Repository.PullRequests.Nodes))
+	var behindChecks []behindCheck
 	for _, p := range resp.Repository.PullRequests.Nodes {
 		prs = append(prs, mapPullRequest(fullName, p))
+		if ambiguousMergeState(p.MergeStateStatus) {
+			behindChecks = append(behindChecks, behindCheck{
+				prIndex: len(prs) - 1,
+				owner:   owner,
+				name:    name,
+				number:  p.Number,
+				headOid: p.HeadRefOid,
+			})
+		}
 	}
+	c.resolveAmbiguousBehind(ctx, prs, behindChecks)
 	issues := make([]dashboard.Issue, 0, len(resp.Repository.Issues.Nodes))
 	for _, i := range resp.Repository.Issues.Nodes {
 		issues = append(issues, mapIssue(fullName, i))
