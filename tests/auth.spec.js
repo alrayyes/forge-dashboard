@@ -1,4 +1,10 @@
-const { test, expect } = require('@playwright/test');
+// `request` here is Playwright's top-level APIRequest factory (its own
+// `.newContext()` builds an isolated context carrying a chosen
+// storageState) — not the per-test `request` fixture a test callback
+// destructures, which has no `.newContext()` of its own. See
+// register-helper.js's own top-of-file comment for the real bug this
+// distinction caused live.
+const { test, expect, request: apiRequest } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { addVirtualAuthenticator } = require('./webauthn-helper');
 const { registerViaInvite } = require('./register-helper');
@@ -133,11 +139,10 @@ test.describe('passkey login', () => {
 
   test('visiting /login?invite=<token> from a freshly created invite shows the invite-scoped form and completes registration', async ({
     page,
-    request,
     baseURL,
   }) => {
     const username = uniqueUsername('e2e-invite');
-    const adminRequest = await request.newContext({
+    const adminRequest = await apiRequest.newContext({
       baseURL,
       storageState: ADMIN_STORAGE_STATE,
     });
@@ -166,11 +171,10 @@ test.describe('passkey login', () => {
 
   test('an expired or already-consumed invite link shows an error and does not register', async ({
     page,
-    request,
     baseURL,
   }) => {
     const username = uniqueUsername('e2e-consumed');
-    const adminRequest = await request.newContext({
+    const adminRequest = await apiRequest.newContext({
       baseURL,
       storageState: ADMIN_STORAGE_STATE,
     });
