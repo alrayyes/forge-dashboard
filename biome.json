@@ -7,7 +7,13 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/*.html", "!**/*.svg", "!**/*.svelte"]
+    "includes": [
+      "**",
+      "!**/*.html",
+      "!**/*.svg",
+      "!**/*.svelte",
+      "!**/.claude/worktrees"
+    ]
   },
   "formatter": {
     "enabled": true,
