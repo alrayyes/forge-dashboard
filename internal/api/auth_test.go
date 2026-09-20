@@ -468,6 +468,24 @@ func TestRegisterBegin_AfterBootstrap_WithExpiredOrConsumedOrMismatchedInvite_Is
 	})
 }
 
+// The invite-scoped registration flow (#477) never asks the invitee for a
+// display name — the invite's own displayName is what actually gets
+// used — so an invited registration with a blank displayName in the
+// request body isn't a client error the way it is for the un-invited
+// bootstrap path.
+func TestRegisterBegin_WithInvite_BlankDisplayName_Succeeds(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
+	token := createInviteViaAdmin(t, srv, adminCookie, testUser, testDisplay)
+
+	resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"","inviteToken":"`+token+`"}`))
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
 func TestRegistrationStatus_NoUsersYet_IsOpen(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)

@@ -33,7 +33,13 @@ type registerBeginRequest struct {
 func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req registerBeginRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" || req.DisplayName == "" {
+		// displayName is only required with no inviteToken — the bootstrap
+		// path, where nothing else supplies one. An invite-scoped
+		// registration never sends a typed displayName at all (the login
+		// page's invite flow shows no field for it): the invite's own
+		// displayName is what Service.BeginRegistration actually uses,
+		// so an empty one here isn't a client error.
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" || (req.InviteToken == "" && req.DisplayName == "") {
 			writeJSON(w, http.StatusBadRequest, errorBody("username and displayName are required"))
 
 			return
