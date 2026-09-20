@@ -182,7 +182,7 @@ server-side, so losing it before copying means generating a new one, the
 same "show once" handling a personal API token already gets. A table of
 outstanding invites (username, expiry) lists everything not yet used or
 expired, each with its own **Revoke** to stop a link that shouldn't be
-honored anymore — a revoked invite can never complete a registration.
+honoured any more — a revoked invite can never complete a registration.
 Every invite expires after one hour, fixed and not configurable: long
 enough to hand a link off and have the invitee act on it in one sitting,
 short enough that a forgotten, unconsumed invite isn't a standing
