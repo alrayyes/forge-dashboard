@@ -999,8 +999,9 @@ func TestFetchRepo_QueriesOnlyTheNamedRepo(t *testing.T) {
 							{
 								"number": 12, "title": "Add NTP alarm", "url": "https://github.com/alrayyes/a/pull/12",
 								"isDraft": false, "author": map[string]string{"login": "ryankes"},
-								"labels":    map[string]any{"nodes": []map[string]string{{"name": "topic/monitoring", "color": "1d76db"}}},
-								"createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+								"mergeStateStatus": "CLEAN",
+								"labels":           map[string]any{"nodes": []map[string]string{{"name": "topic/monitoring", "color": "1d76db"}}},
+								"createdAt":        "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
 								"commits": map[string]any{"nodes": []map[string]any{
 									{"commit": map[string]any{"statusCheckRollup": map[string]any{"state": "SUCCESS"}}},
 								}},
@@ -1211,6 +1212,182 @@ func TestFetch_MapsBehindFromMergeStateStatus(t *testing.T) {
 			assert.Equal(t, tc.want, result.PullRequests[0].Behind)
 		})
 	}
+}
+
+// pullRequestNode is a single-PR repositories.nodes fixture shared by the
+// behind-detection tests below — mergeStateStatus and headRefOid are the
+// two fields that actually vary between cases.
+func pullRequestNode(mergeStateStatus string) map[string]any {
+	return map[string]any{
+		"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+		"owner": map[string]any{"login": "alrayyes"},
+		"pullRequests": map[string]any{
+			"nodes": []map[string]any{
+				{
+					"number": 12, "title": "Add NTP alarm", "url": "https://github.com/alrayyes/a/pull/12",
+					"isDraft": false, "author": map[string]any{"login": "ryankes"},
+					"mergeStateStatus": mergeStateStatus,
+					"headRefOid":       "deadbeef",
+					"autoMergeRequest": nil,
+					"labels":           map[string]any{"nodes": []map[string]any{}},
+					"createdAt":        "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+					"commits": map[string]any{"nodes": []map[string]any{}},
+				},
+			},
+		},
+		"issues": map[string]any{"nodes": []map[string]any{}},
+	}
+}
+
+func reposQueryFixture(repoNode map[string]any) map[string]any {
+	return map[string]any{
+		"data": map[string]any{
+			"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+			"viewer": map[string]any{
+				"repositories": map[string]any{
+					"pageInfo": map[string]any{"hasNextPage": false},
+					"nodes":    []map[string]any{repoNode},
+				},
+			},
+		},
+	}
+}
+
+// TestFetch_MergeStateStatusBlockedButActuallyBehind_ReportsBehindTrue is a
+// regression test for #495: GitHub's mergeStateStatus collapses to BLOCKED
+// (never BEHIND) whenever a PR is behind its base *and* blocked for
+// another reason — confirmed live on alrayyes/forge-dashboard#493, which
+// showed BLOCKED while genuinely one commit behind main. A PR whose
+// mergeStateStatus isn't itself a reliable signal gets one extra,
+// batched compare check instead of being silently reported as not behind.
+func TestFetch_MergeStateStatusBlockedButActuallyBehind_ReportsBehindTrue(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "compare(") {
+			assert.Equal(t, "alrayyes", body.Variables["owner0"])
+			assert.Equal(t, "a", body.Variables["name0"])
+			assert.InDelta(t, 12, body.Variables["number0"], 0)
+			assert.Equal(t, "deadbeef", body.Variables["head0"])
+			writeJSON(t, w, map[string]any{
+				"data": map[string]any{
+					"pr0": map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"baseRef": map[string]any{
+									"compare": map[string]any{"behindBy": 1},
+								},
+							},
+						},
+					},
+				},
+			})
+
+			return
+		}
+		writeJSON(t, w, reposQueryFixture(pullRequestNode("BLOCKED")))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.True(t, result.PullRequests[0].Behind)
+}
+
+// TestFetch_MergeStateStatusBlockedAndNotBehind_StaysFalse is the other
+// side of the same fix: an ambiguous mergeStateStatus that turns out NOT
+// to be behind (behindBy: 0) must not flip Behind to true just because
+// the extra check ran.
+func TestFetch_MergeStateStatusBlockedAndNotBehind_StaysFalse(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "compare(") {
+			writeJSON(t, w, map[string]any{
+				"data": map[string]any{
+					"pr0": map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"baseRef": map[string]any{
+									"compare": map[string]any{"behindBy": 0},
+								},
+							},
+						},
+					},
+				},
+			})
+
+			return
+		}
+		writeJSON(t, w, reposQueryFixture(pullRequestNode("BLOCKED")))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.False(t, result.PullRequests[0].Behind)
+}
+
+// TestFetch_NoAmbiguousMergeStateStatus_IssuesNoCompareQuery guards the
+// common-case cost this fix has to stay cheap for: a poll where every PR
+// is already CLEAN or BEHIND (a reliable signal on its own) must not pay
+// for the extra compare request at all.
+func TestFetch_NoAmbiguousMergeStateStatus_IssuesNoCompareQuery(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "compare(") {
+			t.Fatal("no ambiguous PR this poll — a compare query should never have been sent")
+		}
+		writeJSON(t, w, reposQueryFixture(pullRequestNode("CLEAN")))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.False(t, result.PullRequests[0].Behind)
+}
+
+// TestFetch_CompareQueryFails_DegradesToMergeStateStatusOnly matches the
+// existing degrade-gracefully convention (see
+// TestFetch_HooksAPIFails_DegradesToFalseWithoutFailingFetch): a failed
+// follow-up check is a worse answer, not a failed poll.
+func TestFetch_CompareQueryFails_DegradesToMergeStateStatusOnly(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "compare(") {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+		writeJSON(t, w, reposQueryFixture(pullRequestNode("BLOCKED")))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.False(t, result.PullRequests[0].Behind)
 }
 
 func TestFetch_MapsAutoMergeFromAutoMergeRequest(t *testing.T) {
