@@ -7,6 +7,7 @@
 package forgejo
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -274,23 +275,17 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 
 	mergePath := fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodPost, "url", mergePath)
-	merged, resp, err := c.sdk.MergePullRequest(owner, name, int64(number), gitea.MergePullRequestOption{Style: style})
+	mergeBody, err := json.Marshal(gitea.MergePullRequestOption{Style: style})
 	if err != nil {
-		return forgejoError(http.MethodPost, mergePath, resp, err)
+		return fmt.Errorf("forgejo: encode merge option: %w", err)
 	}
-	// getStatusCode (what MergePullRequest is built on) reports a
-	// non-2xx status as merged == false with a nil error rather than an
-	// error — the body's own reason is already gone by the time this
-	// sees resp, since getStatusCode closes it. All that's left to
-	// classify by is the status code itself.
-	if !merged {
-		status := http.StatusBadGateway
-		if resp != nil {
-			status = resp.StatusCode
-		}
-		wrapped := fmt.Errorf("forgejo: %s %s: merge rejected (status %d)", http.MethodPost, mergePath, status)
-
-		return &dashboard.ClientError{Kind: forgeErrorKind(status), Err: wrapped}
+	// Via rawRequest, not the SDK's own MergePullRequest — that's built
+	// on getStatusCode, which discards the response body on any
+	// non-2xx status. rawRequest reads it, so a rejected merge (a real
+	// conflict, or the empty-commit case above) reports Forgejo's own
+	// reason instead of a bare status code.
+	if _, resp, err := c.rawRequest(ctx, http.MethodPost, mergePath, bytes.NewReader(mergeBody)); err != nil {
+		return forgejoError(http.MethodPost, mergePath, resp, err)
 	}
 
 	return nil
@@ -304,8 +299,10 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 	c.setContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/update", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodPost, "url", path)
-	resp, err := c.sdk.UpdatePullRequest(owner, name, int64(number))
-	if err != nil {
+	// Via rawRequest, not the SDK's own UpdatePullRequest — see
+	// MergePullRequest's own comment on why: same getStatusCode gap,
+	// same lost-reason symptom.
+	if _, resp, err := c.rawRequest(ctx, http.MethodPost, path, nil); err != nil {
 		return false, forgejoError(http.MethodPost, path, resp, err)
 	}
 
@@ -760,7 +757,7 @@ func checkStateFromWorkflowStatus(status string) dashboard.CheckState {
 func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runID int64) ([]*gitea.ActionWorkflowJob, error) {
 	path := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs", owner, name, runID)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
-	body, resp, err := c.rawGet(ctx, path)
+	body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, forgejoError(http.MethodGet, path, resp, err)
 	}
@@ -777,33 +774,60 @@ func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runI
 	return bare, nil
 }
 
-// rawGet is a plain authenticated GET against this instance, bypassing
-// the gitea SDK entirely — needed only by listActionRunJobs, to decode a
-// response body the SDK's own typed method can't be told to accept in
-// both shapes it's known to return. Mirrors gitea.Client's own doRequest
-// (same URL shape, same "token "+token header) rather than inventing a
-// different one.
-func (c *Client) rawGet(ctx context.Context, path string) ([]byte, *gitea.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.instanceURL+"/api/v1"+path, nil)
+// rawRequest is a plain authenticated request against this instance,
+// bypassing the gitea SDK entirely. Two different gaps in the SDK need
+// this, not one: listActionRunJobs, to decode a response body the SDK's
+// own typed method can't be told to accept in both shapes it's known to
+// return; and MergePullRequest/UpdatePullRequest, both built on the
+// SDK's private getStatusCode, which closes the response body without
+// ever reading it — Forgejo's own reason for rejecting a merge or
+// update (confirmed live on homelab/vps-docker#561: "the changes on
+// this branch are already on the target branch, this will be an empty
+// commit") never reached a caller, surfacing as a bare "unexpected
+// status: N" with nothing a person could act on. Mirrors gitea.Client's
+// own doRequest (same URL shape, same "token "+token header, same
+// {"message": "..."} error-body convention its own handleResponse
+// decodes) rather than inventing a different one.
+func (c *Client) rawRequest(ctx context.Context, method, path string, body io.Reader) ([]byte, *gitea.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, c.instanceURL+"/api/v1"+path, body)
 	if err != nil {
 		return nil, nil, fmt.Errorf("forgejo: build request: %w", err)
 	}
 	if c.token != "" {
 		req.Header.Set("Authorization", "token "+c.token)
 	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	httpResp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("forgejo: %s: %w", path, err)
+		return nil, nil, fmt.Errorf("forgejo: %s %s: %w", method, path, err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
-	body, err := io.ReadAll(httpResp.Body)
+	respBody, err := io.ReadAll(httpResp.Body)
 	resp := &gitea.Response{Response: httpResp}
 	if err != nil {
 		return nil, resp, fmt.Errorf("forgejo: read response body: %w", err)
 	}
 	if httpResp.StatusCode >= 300 {
-		return nil, resp, fmt.Errorf("%s", strings.TrimSpace(string(body)))
+		return nil, resp, fmt.Errorf("%s", rawRequestErrorMessage(respBody))
 	}
 
-	return body, resp, nil
+	return respBody, resp, nil
+}
+
+// rawRequestErrorMessage extracts Forgejo's own {"message": "..."}
+// (the same envelope gitea.Client's own handleResponse decodes for
+// every call that doesn't bypass it) and falls back to the raw,
+// trimmed body when it isn't JSON at all — empty or plain text, same
+// as handleResponse's own fallback.
+func rawRequestErrorMessage(body []byte) string {
+	var errBody struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &errBody); err == nil && errBody.Message != "" {
+		return errBody.Message
+	}
+
+	return strings.TrimSpace(string(body))
 }
