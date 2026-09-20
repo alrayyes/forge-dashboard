@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.88.0](https://github.com/alrayyes/forge-dashboard/compare/v0.87.4...v0.88.0) (2026-09-20)
+
+
+### Features
+
+* **dashboard:** add a Close action for pull requests ([#504](https://github.com/alrayyes/forge-dashboard/issues/504)) ([5f71768](https://github.com/alrayyes/forge-dashboard/commit/5f71768ac5524036c8b5a77b12ad69c8245c8501))
+
 ## [0.87.4](https://github.com/alrayyes/forge-dashboard/compare/v0.87.3...v0.87.4) (2026-09-20)
 
 
