@@ -790,7 +790,7 @@ func TestStore_ConsumeInviteIfValid_UsernameMismatch_LeavesInviteUnconsumed(t *t
 	require.NoError(t, err)
 
 	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "someone-else")
-	assert.ErrorIs(t, err, auth.ErrNotFound)
+	require.ErrorIs(t, err, auth.ErrNotFound)
 
 	// Proves the mismatched attempt above left consumed_at untouched: the
 	// same token, presented with the username it was actually issued for,

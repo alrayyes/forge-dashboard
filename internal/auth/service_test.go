@@ -112,7 +112,7 @@ func TestBeginRegistration_SecondUser_WithoutInvite_IsRejected(t *testing.T) {
 
 	_, err = svc.BeginRegistration(t.Context(), "alex", "Alex", "")
 
-	assert.ErrorIs(t, err, auth.ErrInvalidInvite)
+	require.ErrorIs(t, err, auth.ErrInvalidInvite)
 
 	_, getErr := store.GetUserByUsername(t.Context(), "alex")
 	assert.ErrorIs(t, getErr, auth.ErrNotFound, "a rejected registration must not create an account")

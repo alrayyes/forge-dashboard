@@ -66,17 +66,17 @@
 
 ## 5. Frontend: login page
 
-- [ ] 5.1 In `web/src/routes/login/+page.svelte`, fetch
+- [x] 5.1 In `web/src/routes/login/+page.svelte`, fetch
       `/api/auth/registration-status` on load; only render the "Register a
       new passkey instead" button (and the generic register form) when
       `open` is true.
-- [ ] 5.2 Read an `invite` query parameter; when present, skip
+- [x] 5.2 Read an `invite` query parameter; when present, skip
       `registration-status` entirely, show a registration form with no
       username/display-name inputs (both come from the invite), and pass
       the token through to `/api/auth/register/begin`/`/finish`. Show a
       clear error state for an invalid/expired/consumed invite (surfaced
       from the 403 body).
-- [ ] 5.3 Verify with Playwright: extend `tests/auth.spec.js` (or add a
+- [x] 5.3 Verify with Playwright: extend `tests/auth.spec.js` (or add a
       case) covering: the register button is absent once a user exists and
       no invite is present; visiting `/login?invite=<token>` from a
       freshly created invite shows the invite-scoped form and completes
@@ -85,12 +85,12 @@
 
 ## 6. Frontend: admin invite management UI
 
-- [ ] 6.1 Add an "Invites" section to
+- [x] 6.1 Add an "Invites" section to
       `web/src/routes/(app)/admin/+page.svelte`: a form (username, display
       name) to create an invite, showing the generated link once with a
       copy button; a table of outstanding invites (username, expiry) with
       a **Revoke** action, mirroring the existing user table's pattern.
-- [ ] 6.2 Verify with Playwright: extend `tests/admin.spec.js` covering
+- [x] 6.2 Verify with Playwright: extend `tests/admin.spec.js` covering
       generating an invite (link appears), listing it as outstanding, and
       revoking it (disappears from the list). Include the axe-core scan
       already required for pages this journey test covers (`rules/a11y.md`)
@@ -99,7 +99,7 @@
 
 ## 7. Documentation
 
-- [ ] 7.1 Rewrite README's **Authentication** and **Admin area** sections
+- [x] 7.1 Rewrite README's **Authentication** and **Admin area** sections
       to describe the invite-gated model: first registration still
       bootstraps the admin, every registration after that requires an
       admin-issued invite link, and the network-perimeter language is
