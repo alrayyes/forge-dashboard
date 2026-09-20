@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.87.1](https://github.com/alrayyes/forge-dashboard/compare/v0.87.0...v0.87.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* **dashboard:** don't render a "View run" link for a check with no URL ([#493](https://github.com/alrayyes/forge-dashboard/issues/493)) ([d1baf72](https://github.com/alrayyes/forge-dashboard/commit/d1baf72e0e7bc51056c00a5ab0bf1f87d2efce11)), closes [#490](https://github.com/alrayyes/forge-dashboard/issues/490)
+
 ## [0.87.0](https://github.com/alrayyes/forge-dashboard/compare/v0.86.2...v0.87.0) (2026-09-20)
 
 
