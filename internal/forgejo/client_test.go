@@ -2,9 +2,11 @@ package forgejo_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
@@ -840,6 +842,37 @@ func TestUpdateBranch_CallsTheUpdateEndpoint(t *testing.T) {
 	assert.Equal(t, "/api/v1/repos/alrayyes/a/pulls/5/update", updatedPath)
 }
 
+// retryOnTransientUnreachable retries fn while it classifies as
+// dashboard.ForgeErrorUnreachable — a failed dial to this test's own
+// httptest server, not a real forge response. Confirmed live in
+// alrayyes/forge-dashboard#481: CI's `-race`-instrumented run starts
+// every package's t.Parallel() tests at once, each opening its own
+// httptest.NewServer, and on a resource-constrained runner an outbound
+// connection to a same-process loopback listener occasionally loses that
+// race — well outside what this classification is meant to catch. Not
+// reproducible locally under matched load (-race, GOMAXPROCS=2, this
+// package's exact CI invocation, repeated dozens of times) on a
+// dev machine with far more headroom than the runner; see the issue for
+// the full investigation. A real classification bug still fails here,
+// since retrying only masks the one error kind that (by construction)
+// this test's own mock server can never actually return.
+func retryOnTransientUnreachable(t *testing.T, fn func() (bool, error)) (bool, error) {
+	t.Helper()
+
+	var accepted bool
+	var err error
+	for range 3 {
+		accepted, err = fn()
+		var clientErr *dashboard.ClientError
+		if !errors.As(err, &clientErr) || clientErr.Kind != dashboard.ForgeErrorUnreachable {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return accepted, err
+}
+
 func TestUpdateBranch_CannotMergeCleanly_ClassifiesAsForgeErrorConflict(t *testing.T) {
 	t.Parallel()
 
@@ -852,7 +885,9 @@ func TestUpdateBranch_CannotMergeCleanly_ClassifiesAsForgeErrorConflict(t *testi
 
 	client := forgejo.NewClient(srv.URL, "test-token", "")
 
-	_, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+	_, err := retryOnTransientUnreachable(t, func() (bool, error) {
+		return client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+	})
 
 	require.Error(t, err)
 	var clientErr *dashboard.ClientError
