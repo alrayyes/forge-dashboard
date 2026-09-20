@@ -37,6 +37,7 @@
       "ltex-cli-plus",
       "ltex-ls-plus",
       "markdownlint",
+      "mergeability",
       "pre-commit",
       "proselint",
       "ruleset",
