@@ -12,7 +12,7 @@
       "!**/*.html",
       "!**/*.svg",
       "!**/*.svelte",
-      "!**/.claude/worktrees"
+      "!.claude/worktrees"
     ]
   },
   "formatter": {
