@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const crypto = require('node:crypto');
 const http = require('node:http');
-const { addVirtualAuthenticator } = require('./webauthn-helper');
+const { registerViaInvite } = require('./register-helper');
 
 // startFakeForgejo runs a real, controllable HTTP server standing in for a
 // Forgejo instance — the backend's own forgejo.Client (code.gitea.io/sdk/gitea)
@@ -50,21 +50,20 @@ function startFakeForgejo(issues) {
   });
 }
 
-async function registerAndSignIn(page) {
-  await addVirtualAuthenticator(page);
+async function registerAndSignIn(page, request, baseURL) {
   const username = `webhooks-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-
-  await page.goto('/login.html');
-  await page.click('#show-register');
-  await page.fill('#register-username', username);
-  await page.fill('#register-display-name', 'Webhooks Test User');
-  await page.click('#register-submit');
-  await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+  await registerViaInvite(
+    page,
+    request,
+    baseURL,
+    username,
+    'Webhooks Test User',
+  );
 }
 
 test.describe('webhook-triggered live updates', () => {
-  test.beforeEach(async ({ page }) => {
-    await registerAndSignIn(page);
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
   });
 
   test('a verified webhook delivery pushes a live snapshot to the open dashboard over SSE', async ({

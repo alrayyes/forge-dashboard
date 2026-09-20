@@ -1,17 +1,16 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
-const { addVirtualAuthenticator } = require('./webauthn-helper');
+const { registerViaInvite } = require('./register-helper');
 
-async function registerAndSignIn(page) {
-  await addVirtualAuthenticator(page);
+async function registerAndSignIn(page, request, baseURL) {
   const username = `releases-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-
-  await page.goto('/login.html');
-  await page.click('#show-register');
-  await page.fill('#register-username', username);
-  await page.fill('#register-display-name', 'Releases Test User');
-  await page.click('#register-submit');
-  await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+  await registerViaInvite(
+    page,
+    request,
+    baseURL,
+    username,
+    'Releases Test User',
+  );
 }
 
 // The page's actual content comes from a real call to GitHub's public
@@ -67,8 +66,10 @@ test.describe('release history page', () => {
 
   test('the footer links to release history from other pages, but not from itself', async ({
     page,
+    request,
+    baseURL,
   }) => {
-    await registerAndSignIn(page);
+    await registerAndSignIn(page, request, baseURL);
 
     const historyLink = page.locator('#footer-version a', {
       hasText: 'Release history',

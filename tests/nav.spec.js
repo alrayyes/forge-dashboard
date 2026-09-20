@@ -1,21 +1,14 @@
 const { test, expect } = require('@playwright/test');
-const { addVirtualAuthenticator } = require('./webauthn-helper');
+const { registerViaInvite } = require('./register-helper');
 const {
   STORAGE_STATE_PATH: ADMIN_STORAGE_STATE,
 } = require('./admin-global-setup');
 
 // Coverage for issue #269: one persistent nav, shared markup, present and
 // consistent on every page rather than a per-page "back to X" link.
-async function registerAndSignIn(page) {
-  await addVirtualAuthenticator(page);
+async function registerAndSignIn(page, request, baseURL) {
   const username = `nav-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-
-  await page.goto('/login.html');
-  await page.click('#show-register');
-  await page.fill('#register-username', username);
-  await page.fill('#register-display-name', 'Nav Test User');
-  await page.click('#register-submit');
-  await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+  await registerViaInvite(page, request, baseURL, username, 'Nav Test User');
 }
 
 const NAV_PAGES = [
@@ -32,8 +25,8 @@ const NO_SESSION_PAGES = [
 ];
 
 test.describe('persistent top nav', () => {
-  test.beforeEach(async ({ page }) => {
-    await registerAndSignIn(page);
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
   });
 
   for (const { path, label } of NAV_PAGES) {
