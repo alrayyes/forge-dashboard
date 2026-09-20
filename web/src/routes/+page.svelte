@@ -2234,7 +2234,7 @@
             "rate-limit-banner-timer",
             exceeded
               ? countdownLabel(alert.resetsAt)
-              : `${alert.remaining.toLocaleString()} of ${alert.limit.toLocaleString()} requests left`,
+              : `${alert.remaining.toLocaleString()} of ${alert.limit.toLocaleString()} requests left — ${countdownLabel(alert.resetsAt)}`,
           ),
         );
         banner.appendChild(row);
