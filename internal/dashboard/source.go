@@ -80,6 +80,17 @@ type PullRequestMerger interface {
 	MergePullRequest(ctx context.Context, owner, name string, number int) error
 }
 
+// PullRequestCloser is implemented by a ForgeClient (or, for github.Client,
+// a Source directly) that can close one of its own pull requests without
+// merging it — checked via a type assertion, the same optional-capability
+// pattern PullRequestMerger uses. For a PR that turns out not to need
+// merging at all (a duplicate, one whose content already landed another
+// way — confirmed live on homelab/vps-docker#561), Close is the action
+// that actually applies, not Merge.
+type PullRequestCloser interface {
+	ClosePullRequest(ctx context.Context, owner, name string, number int) error
+}
+
 // BranchUpdater is implemented by a ForgeClient (or, for github.Client, a
 // Source directly) that can bring one of its own pull requests' head
 // branch up to date with its base — checked via a type assertion, the

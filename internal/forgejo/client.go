@@ -296,6 +296,26 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	return nil
 }
 
+// ClosePullRequest implements dashboard.PullRequestCloser: closes
+// owner/name#number without merging it. EditPullRequest goes through the
+// SDK's own getParsedResponse, not the getStatusCode MergePullRequest and
+// UpdateBranch are stuck with (see forgejoError's own callers above for
+// why that matters) — Forgejo's real rejection reason, if any, reaches
+// the caller here without needing rawRequest.
+func (c *Client) ClosePullRequest(ctx context.Context, owner, name string, number int) error {
+	c.setContext(ctx)
+
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("forgejo request", "method", http.MethodPatch, "url", path)
+	closed := gitea.StateClosed
+	_, resp, err := c.sdk.EditPullRequest(owner, name, int64(number), gitea.EditPullRequestOption{State: &closed})
+	if err != nil {
+		return forgejoError(http.MethodPatch, path, resp, err)
+	}
+
+	return nil
+}
+
 // UpdateBranch implements dashboard.BranchUpdater: merges owner/name#number's
 // base branch into its head branch, bringing it up to date. Forgejo's SDK
 // call is synchronous — accepted is always false here — unlike GitHub's

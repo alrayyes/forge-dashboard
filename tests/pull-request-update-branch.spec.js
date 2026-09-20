@@ -366,7 +366,7 @@ test.describe('pull request update-branch button', () => {
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
 
-    const button = row.getByRole('button', { name: 'Retry' });
+    const button = row.getByRole('button', { name: 'Retry' }).first();
     await expect(button).toBeVisible();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/permission/i);
@@ -578,7 +578,7 @@ test.describe('pull request update-branch button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', { name: 'Retry' });
+      const button = row.getByRole('button', { name: 'Retry' }).first();
       await expect(button).toBeVisible();
       await expect(button).not.toHaveAttribute('aria-disabled', 'true');
       await expect(row).toContainText('See the forge status above.');
@@ -604,7 +604,7 @@ test.describe('pull request update-branch button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', { name: 'Retry' });
+      const button = row.getByRole('button', { name: 'Retry' }).first();
       await expect(button).toBeVisible();
       await expect(row).toContainText(/rate limit exhausted/i);
     });
@@ -645,12 +645,13 @@ test.describe('pull request update-branch button', () => {
       await rows.nth(0).getByRole('button', { name: 'Merge' }).click();
       await rows.nth(0).getByRole('button', { name: 'Confirm merge?' }).click();
       await expect(
-        rows.nth(0).getByRole('button', { name: 'Retry' }),
+        rows.nth(0).getByRole('button', { name: 'Retry' }).first(),
       ).toBeVisible();
 
       const updateBranchButton = rows
         .nth(1)
-        .getByRole('button', { name: 'Retry' });
+        .getByRole('button', { name: 'Retry' })
+        .first();
       await expect(updateBranchButton).toBeVisible();
       await expect(rows.nth(1)).toContainText(/permission/i);
     });

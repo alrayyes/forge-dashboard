@@ -475,7 +475,9 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    const button = row.getByRole('button', { name: 'Retry' });
+    // .first(): the 403 also proactively locks Close for this forge
+    // (write permission is account-wide) - either Retry does the same thing.
+    const button = row.getByRole('button', { name: 'Retry' }).first();
     await expect(button).toBeVisible();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/permission/i);
@@ -678,7 +680,7 @@ test.describe('pull request merge button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', { name: 'Retry' });
+      const button = row.getByRole('button', { name: 'Retry' }).first();
       await expect(button).toBeVisible();
       await expect(button).not.toHaveAttribute('aria-disabled', 'true');
       await expect(row).toContainText('See the forge status above.');
@@ -704,7 +706,7 @@ test.describe('pull request merge button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', { name: 'Retry' });
+      const button = row.getByRole('button', { name: 'Retry' }).first();
       await expect(button).toBeVisible();
       await expect(row).toContainText(/rate limit exhausted/i);
     });
@@ -734,14 +736,17 @@ test.describe('pull request merge button', () => {
       await rows.nth(0).getByRole('button', { name: 'Merge' }).click();
       await rows.nth(0).getByRole('button', { name: 'Confirm merge?' }).click();
       await expect(
-        rows.nth(0).getByRole('button', { name: 'Retry' }),
+        rows.nth(0).getByRole('button', { name: 'Retry' }).first(),
       ).toBeVisible();
 
       // The second PR's own Merge button was never clicked, and never
       // itself made a request — it's locked purely from the first PR's
       // failure, because a token's write permission is an account-wide
       // property, not a per-PR one.
-      const secondButton = rows.nth(1).getByRole('button', { name: 'Retry' });
+      const secondButton = rows
+        .nth(1)
+        .getByRole('button', { name: 'Retry' })
+        .first();
       await expect(secondButton).toBeVisible();
       await expect(rows.nth(1)).toContainText(/permission/i);
     });
