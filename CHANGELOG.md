@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.87.3](https://github.com/alrayyes/forge-dashboard/compare/v0.87.2...v0.87.3) (2026-09-20)
+
+
+### Bug Fixes
+
+* **github:** detect a genuinely behind PR even when mergeStateStatus is BLOCKED ([#498](https://github.com/alrayyes/forge-dashboard/issues/498)) ([2256ae6](https://github.com/alrayyes/forge-dashboard/commit/2256ae62141c0db58d78738684440ed1ba8fa51a)), closes [#495](https://github.com/alrayyes/forge-dashboard/issues/495)
+
 ## [0.87.2](https://github.com/alrayyes/forge-dashboard/compare/v0.87.1...v0.87.2) (2026-09-20)
 
 
