@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.86.0](https://github.com/alrayyes/forge-dashboard/compare/v0.85.0...v0.86.0) (2026-09-20)
+
+
+### Features
+
+* **auth:** require admin-issued invites after the first registration ([#479](https://github.com/alrayyes/forge-dashboard/issues/479)) ([36b00ef](https://github.com/alrayyes/forge-dashboard/commit/36b00efbabd05726eadcfcf6a4c96c1b7caa6d7f))
+
 ## [0.85.0](https://github.com/alrayyes/forge-dashboard/compare/v0.84.0...v0.85.0) (2026-09-19)
 
 
