@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.86.2](https://github.com/alrayyes/forge-dashboard/compare/v0.86.1...v0.86.2) (2026-09-20)
+
+
+### Bug Fixes
+
+* **test:** retry transient unreachable dials in the UpdateBranch conflict test ([#486](https://github.com/alrayyes/forge-dashboard/issues/486)) ([e6a08f3](https://github.com/alrayyes/forge-dashboard/commit/e6a08f3fe0d90ac691d93631824eb28d96689b7c)), closes [#481](https://github.com/alrayyes/forge-dashboard/issues/481)
+
 ## [0.86.1](https://github.com/alrayyes/forge-dashboard/compare/v0.86.0...v0.86.1) (2026-09-20)
 
 
