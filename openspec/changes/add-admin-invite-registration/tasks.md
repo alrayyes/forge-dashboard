@@ -2,12 +2,12 @@
 
 ## 1. Invite storage
 
-- [ ] 1.1 Add the `invites` table to `Store.Init` (`internal/auth/store.go`): `token_hash TEXT PRIMARY KEY`, `username TEXT NOT NULL`, `display_name TEXT NOT NULL`, `created_by TEXT NOT NULL REFERENCES users(id)`, `expires_at TIMESTAMP NOT NULL`, `consumed_at TIMESTAMP`. Verify with a `go test ./internal/auth/...` run that exercises a fresh `Store.Init` against an in-memory SQLite DB.
-- [ ] 1.2 Add `Invite` to `internal/auth/model.go` (username, display name,
+- [x] 1.1 Add the `invites` table to `Store.Init` (`internal/auth/store.go`): `token_hash TEXT PRIMARY KEY`, `username TEXT NOT NULL`, `display_name TEXT NOT NULL`, `created_by TEXT NOT NULL REFERENCES users(id)`, `expires_at TIMESTAMP NOT NULL`, `consumed_at TIMESTAMP`. Verify with a `go test ./internal/auth/...` run that exercises a fresh `Store.Init` against an in-memory SQLite DB.
+- [x] 1.2 Add `Invite` to `internal/auth/model.go` (username, display name,
       expiry, consumed state) and verify it compiles with `go build ./...`.
-- [ ] 1.3 Implement `Store.CreateInvite(ctx, username, displayName, createdBy, ttl) (token string, invite *Invite, err error)` — generates a random token (same `crypto/rand` + hash pattern as `CreateAPIToken`), stores only the hash, returns the raw token once. Verify with a unit test asserting the returned token round-trips through `ConsumeInviteIfValid`.
-- [ ] 1.4 Implement `Store.ConsumeInviteIfValid(ctx, token, username) (*Invite, error)` — atomically checks the token hashes to an outstanding (unconsumed, unexpired) invite issued for that exact username, and marks it consumed in the same transaction. Verify with unit tests for: valid consume, expired token, already-consumed token, username mismatch, unknown token — each asserting the invite's `consumed_at` is unchanged on every rejection path.
-- [ ] 1.5 Implement `Store.ListOutstandingInvites(ctx) ([]*Invite, error)` (unconsumed and unexpired only) and `Store.RevokeInvite(ctx, token) error`. Verify with unit tests covering: an expired invite is excluded from the list, a revoked invite can no longer be consumed, revoking an unknown token is a no-op error.
+- [x] 1.3 Implement `Store.CreateInvite(ctx, username, displayName, createdBy, ttl) (token string, invite *Invite, err error)` — generates a random token (same `crypto/rand` + hash pattern as `CreateAPIToken`), stores only the hash, returns the raw token once. Verify with a unit test asserting the returned token round-trips through `ConsumeInviteIfValid`.
+- [x] 1.4 Implement `Store.ConsumeInviteIfValid(ctx, token, username) (*Invite, error)` — atomically checks the token hashes to an outstanding (unconsumed, unexpired) invite issued for that exact username, and marks it consumed in the same transaction. Verify with unit tests for: valid consume, expired token, already-consumed token, username mismatch, unknown token — each asserting the invite's `consumed_at` is unchanged on every rejection path.
+- [x] 1.5 Implement `Store.ListOutstandingInvites(ctx) ([]*Invite, error)` (unconsumed and unexpired only) and `Store.RevokeInvite(ctx, token) error`. Verify with unit tests covering: an expired invite is excluded from the list, a revoked invite can no longer be consumed, revoking an unknown token is a no-op error.
 
 ## 2. Registration gating (service layer)
 

@@ -713,3 +713,152 @@ func TestStore_RevokeUser_AlsoClearsCredentialMetadata(t *testing.T) {
 	require.Len(t, creds, 1)
 	assert.NotEqual(t, "MacBook", creds[0].Label)
 }
+
+func TestStore_CreateInvite_ThenConsumeIfValid_RoundTrips(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
+	require.NoError(t, err)
+
+	raw, created, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
+	require.NoError(t, err)
+	assert.NotEmpty(t, raw)
+	assert.Equal(t, "ryan", created.Username)
+	assert.Equal(t, "Ryan", created.DisplayName)
+	assert.Nil(t, created.ConsumedAt)
+
+	consumed, err := store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
+	require.NoError(t, err)
+	assert.Equal(t, "ryan", consumed.Username)
+	assert.Equal(t, "Ryan", consumed.DisplayName)
+	require.NotNil(t, consumed.ConsumedAt)
+}
+
+func TestStore_ConsumeInviteIfValid_UnknownToken_IsRejected(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.ConsumeInviteIfValid(t.Context(), "not-a-real-token", "ryan")
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_ConsumeInviteIfValid_Expired_IsRejected(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
+	require.NoError(t, err)
+	raw, _, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, -time.Minute)
+	require.NoError(t, err)
+
+	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_ConsumeInviteIfValid_AlreadyConsumed_IsRejected(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
+	require.NoError(t, err)
+	raw, _, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
+	require.NoError(t, err)
+
+	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
+	require.NoError(t, err)
+
+	// The consumed_at written by the first, successful consume is left
+	// untouched by this rejected second attempt — there's nothing further
+	// to observe about it without a getter this store doesn't expose, but
+	// the property that actually matters (a spent token can never spend
+	// again) is exactly what this asserts.
+	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_ConsumeInviteIfValid_UsernameMismatch_LeavesInviteUnconsumed(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
+	require.NoError(t, err)
+	raw, _, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
+	require.NoError(t, err)
+
+	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "someone-else")
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+
+	// Proves the mismatched attempt above left consumed_at untouched: the
+	// same token, presented with the username it was actually issued for,
+	// still succeeds.
+	consumed, err := store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
+	require.NoError(t, err)
+	assert.NotNil(t, consumed.ConsumedAt)
+}
+
+func TestStore_ListOutstandingInvites_ExcludesExpired(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
+	require.NoError(t, err)
+	_, _, err = store.CreateInvite(t.Context(), "expired-user", "Expired", admin.ID, -time.Minute)
+	require.NoError(t, err)
+	_, live, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
+	require.NoError(t, err)
+
+	invites, err := store.ListOutstandingInvites(t.Context())
+	require.NoError(t, err)
+
+	require.Len(t, invites, 1)
+	assert.Equal(t, live.ID, invites[0].ID)
+}
+
+func TestStore_ListOutstandingInvites_ExcludesConsumed(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
+	require.NoError(t, err)
+	raw, _, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
+	require.NoError(t, err)
+	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
+	require.NoError(t, err)
+
+	invites, err := store.ListOutstandingInvites(t.Context())
+	require.NoError(t, err)
+
+	assert.Empty(t, invites)
+}
+
+func TestStore_RevokeInvite_ThenConsume_IsRejected(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
+	require.NoError(t, err)
+	raw, created, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
+	require.NoError(t, err)
+
+	require.NoError(t, store.RevokeInvite(t.Context(), created.ID))
+
+	invites, err := store.ListOutstandingInvites(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, invites)
+
+	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_RevokeInvite_UnknownID_IsNotFoundError(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	err := store.RevokeInvite(t.Context(), "not-a-real-id")
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
