@@ -109,5 +109,5 @@
 
 ## 8. Full verification pass
 
-- [ ] 8.1 Run `go test ./...`, `bun run test:e2e`, `bun run check:web`,
+- [x] 8.1 Run `go test ./...`, `bun run test:e2e`, `bun run check:web`,
       `bun run lint:js`, and `bun run lint:api`, all green.
