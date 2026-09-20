@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.86.1](https://github.com/alrayyes/forge-dashboard/compare/v0.86.0...v0.86.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* **ci:** exclude .claude/worktrees from biome's file discovery ([#483](https://github.com/alrayyes/forge-dashboard/issues/483)) ([09f13e1](https://github.com/alrayyes/forge-dashboard/commit/09f13e1fcdd2697b20c6ee475adf82029c7d702c))
+
 ## [0.86.0](https://github.com/alrayyes/forge-dashboard/compare/v0.85.0...v0.86.0) (2026-09-20)
 
 
