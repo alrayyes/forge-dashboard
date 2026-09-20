@@ -1450,9 +1450,10 @@ paths:
       summary: Revoke an outstanding invite
       description: |
         Stops the invite's token from ever completing a registration.
-        `token` here is an invite's own `id` (from AdminInvite/
-        AdminInviteCreateResponse), never the raw secret an invitee would
-        use to register.
+        `token` here is an invite's own `id` (from AdminInvite's own
+        listing), never the raw secret an invitee would use to register —
+        that's AdminInviteCreateResponse's own `token` field, and it's
+        never listed again after creation.
       tags: [admin]
       security: [{ bearerAuth: [] }]
       parameters:
