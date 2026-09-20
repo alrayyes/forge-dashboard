@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.87.0](https://github.com/alrayyes/forge-dashboard/compare/v0.86.2...v0.87.0) (2026-09-20)
+
+
+### Features
+
+* **dashboard:** show time remaining on the rate-limit running-low banner ([#489](https://github.com/alrayyes/forge-dashboard/issues/489)) ([9732fa5](https://github.com/alrayyes/forge-dashboard/commit/9732fa5f74798ae33e8833f6ed5f04cae671e24d))
+
 ## [0.86.2](https://github.com/alrayyes/forge-dashboard/compare/v0.86.1...v0.86.2) (2026-09-20)
 
 
