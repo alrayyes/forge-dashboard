@@ -202,9 +202,18 @@ test.describe('passkey login', () => {
     );
     await page.click('#register-submit');
 
-    await expect(page.locator('#status')).toContainText(/invalid|expired/i, {
-      timeout: 5000,
-    });
+    // The account from the first, successful registration still exists,
+    // so this second attempt is rejected as "username already
+    // registered" rather than "invalid invite" — the same
+    // already-registered-check-runs-first order
+    // TestRegisterBegin_AfterBootstrap_WithExpiredOrConsumedOrMismatchedInvite_IsRefused
+    // exercises directly in internal/api/auth_test.go. Both are a
+    // real, correct "error, no second account" outcome for a reused
+    // link, which is this test's actual concern.
+    await expect(page.locator('#status')).toContainText(
+      /invalid|expired|already registered/i,
+      { timeout: 5000 },
+    );
     await expect(page).toHaveURL(/\/login\.html/);
   });
 
