@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.87.2](https://github.com/alrayyes/forge-dashboard/compare/v0.87.1...v0.87.2) (2026-09-20)
+
+
+### Bug Fixes
+
+* **ci:** anchor biome's worktrees exclude so it doesn't blind itself ([#496](https://github.com/alrayyes/forge-dashboard/issues/496)) ([b58aac9](https://github.com/alrayyes/forge-dashboard/commit/b58aac9e2251ba3f08aa88d5c954480a03bfa108)), closes [#487](https://github.com/alrayyes/forge-dashboard/issues/487)
+
 ## [0.87.1](https://github.com/alrayyes/forge-dashboard/compare/v0.87.0...v0.87.1) (2026-09-20)
 
 
