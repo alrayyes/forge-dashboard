@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.87.4](https://github.com/alrayyes/forge-dashboard/compare/v0.87.3...v0.87.4) (2026-09-20)
+
+
+### Bug Fixes
+
+* **forgejo:** surface the forge's own reason when a merge or update is rejected ([#500](https://github.com/alrayyes/forge-dashboard/issues/500)) ([f2be509](https://github.com/alrayyes/forge-dashboard/commit/f2be509b0b2e548cfddee5238cfcbcffe844d163))
+
 ## [0.87.3](https://github.com/alrayyes/forge-dashboard/compare/v0.87.2...v0.87.3) (2026-09-20)
 
 
