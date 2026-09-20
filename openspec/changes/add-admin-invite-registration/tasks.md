@@ -11,7 +11,7 @@
 
 ## 2. Registration gating (service layer)
 
-- [ ] 2.1 Change `Service.BeginRegistration` (`internal/auth/service.go`)
+- [x] 2.1 Change `Service.BeginRegistration` (`internal/auth/service.go`)
       to accept an invite token parameter. When `HasAnyRegisteredUser` is
       true, require `ConsumeInviteIfValid` to succeed before creating the
       user, using the invite's own `displayName` rather than any
@@ -26,8 +26,8 @@
       `TestBeginRegistration_WithExpiredInvite_IsRejected`,
       `TestBeginRegistration_WithConsumedInvite_IsRejected`,
       `TestBeginRegistration_WithInviteForDifferentUsername_IsRejected`.
-- [ ] 2.2 Add `Service.CreateInvite(ctx, requester *User, username, displayName) (token string, invite *Invite, error)` that rejects a non-admin requester and an already-registered username. Verify with unit tests for both rejection paths and the success path.
-- [ ] 2.3 Add `Service.HasAnyRegisteredUser(ctx) (bool, error)` as an
+- [x] 2.2 Add `Service.CreateInvite(ctx, requester *User, username, displayName) (token string, invite *Invite, error)` that rejects a non-admin requester and an already-registered username. Verify with unit tests for both rejection paths and the success path.
+- [x] 2.3 Add `Service.HasAnyRegisteredUser(ctx) (bool, error)` as an
       exported wrapper if not already reachable outside the package (it's
       currently a `Store` method used internally), for the new public
       registration-status endpoint. Verify it compiles and is covered by
@@ -35,32 +35,32 @@
 
 ## 3. API: registration and status endpoints
 
-- [ ] 3.1 Update `handleRegisterBegin`/`handleRegisterFinish`
+- [x] 3.1 Update `handleRegisterBegin`/`handleRegisterFinish`
       (`internal/api/auth.go`) to accept and thread through an
       `inviteToken` field on the request body, returning 403 with a clear
       error body on `ErrInvalidInvite`. Verify with
       `internal/api/auth_test.go` cases: begin without invite after
       bootstrap → 403; begin with valid invite → 200; begin with
       expired/consumed/mismatched invite → 403.
-- [ ] 3.2 Add `GET /api/auth/registration-status` (unauthenticated) returning `{"open": bool}` — true only when zero users are registered — wired in `internal/api/server.go`. Verify with a test asserting `open: true` on an empty store and `open: false` after one user registers.
-- [ ] 3.3 Update `api/openapi.yaml`: add `inviteToken` to the register
+- [x] 3.2 Add `GET /api/auth/registration-status` (unauthenticated) returning `{"open": bool}` — true only when zero users are registered — wired in `internal/api/server.go`. Verify with a test asserting `open: true` on an empty store and `open: false` after one user registers.
+- [x] 3.3 Update `api/openapi.yaml`: add `inviteToken` to the register
       request schema, document the new 403 response, add the
       `registration-status` path. Verify with `bun run lint:api`.
 
 ## 4. API: admin invite management
 
-- [ ] 4.1 Add `AdminInvite` response type and `handleAdminCreateInvite`,
+- [x] 4.1 Add `AdminInvite` response type and `handleAdminCreateInvite`,
       `handleAdminListInvites`, `handleAdminRevokeInvite` to
       `internal/api/admin.go`, following the existing
       list/revoke/delete-user handler shape (`writeJSON`, `errorBody`).
-- [ ] 4.2 Wire `POST /api/admin/invites`, `GET /api/admin/invites`,
+- [x] 4.2 Wire `POST /api/admin/invites`, `GET /api/admin/invites`,
       `POST /api/admin/invites/{token}/revoke` in `internal/api/server.go`,
       behind the same `auth.RequireAuth(store)(auth.RequireAdmin(...))`
       composition the existing admin routes use.
       Verify with `internal/api/admin_test.go` cases: non-admin gets 403
       on all three; admin can create, list (sees it outstanding), and
       revoke (it disappears from the list and can no longer register).
-- [ ] 4.3 Update `api/openapi.yaml` with the three new
+- [x] 4.3 Update `api/openapi.yaml` with the three new
       `/api/admin/invites*` paths and their schemas, tagged `admin`.
       Verify with `bun run lint:api`.
 

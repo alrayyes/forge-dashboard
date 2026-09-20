@@ -66,6 +66,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.HandleFunc("GET /healthz", handleHealth)
 	mux.HandleFunc("GET /api/version", handleVersion(deps.Version))
 
+	mux.HandleFunc("GET /api/auth/registration-status", handleRegistrationStatus(deps.AuthService))
 	mux.HandleFunc("POST /api/auth/register/begin", handleRegisterBegin(deps.AuthService))
 	mux.HandleFunc("POST /api/auth/register/finish", handleRegisterFinish(deps))
 	mux.HandleFunc("POST /api/auth/login/begin", handleLoginBegin(deps.AuthService))
@@ -108,6 +109,9 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/admin/users", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminListUsers(deps.AuthStore))))
 	mux.Handle("POST /api/admin/users/{username}/revoke", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminRevokeUser(deps))))
 	mux.Handle("DELETE /api/admin/users/{username}", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminDeleteUser(deps))))
+	mux.Handle("POST /api/admin/invites", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminCreateInvite(deps))))
+	mux.Handle("GET /api/admin/invites", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminListInvites(deps.AuthStore))))
+	mux.Handle("POST /api/admin/invites/{token}/revoke", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminRevokeInvite(deps.AuthStore))))
 
 	// Not session-authenticated like everything above — the path's token
 	// identifies the user, and the request's own HMAC signature is what

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -117,6 +118,122 @@ func handleAdminDeleteUser(deps Deps) http.HandlerFunc {
 			return
 		}
 		deps.Manager.Remove(target.ID)
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// AdminInvite matches components.schemas.AdminInvite — an outstanding
+// invite's own metadata for the admin area's list. ID is the invite's own
+// stable identifier (its stored token hash — see auth.Invite's own doc
+// comment for why that's safe to hand back), never the raw token itself;
+// it's what a revoke call passes back in the {token} path segment.
+type AdminInvite struct {
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+	ExpiresAt   string `json:"expiresAt"`
+}
+
+func adminInviteOf(inv *auth.Invite) AdminInvite {
+	return AdminInvite{
+		ID:          inv.ID,
+		Username:    inv.Username,
+		DisplayName: inv.DisplayName,
+		ExpiresAt:   inv.ExpiresAt.Format(time.RFC3339),
+	}
+}
+
+// AdminInviteCreateResponse matches components.schemas.AdminInviteCreateResponse
+// — the one and only response that ever carries the raw invite token,
+// shown once at creation time; only its hash is stored, so it can't be
+// recovered from here again (the same "show once" handling
+// APITokenCreateResponse's own token field gets).
+type AdminInviteCreateResponse struct {
+	Token       string `json:"token"`
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+	ExpiresAt   string `json:"expiresAt"`
+}
+
+type adminInviteCreateRequest struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+}
+
+func handleAdminCreateInvite(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		requester, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
+			return
+		}
+
+		var req adminInviteCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" || req.DisplayName == "" {
+			writeJSON(w, http.StatusBadRequest, errorBody("username and displayName are required"))
+
+			return
+		}
+
+		token, invite, err := deps.AuthService.CreateInvite(r.Context(), requester, req.Username, req.DisplayName)
+		if err != nil {
+			if errors.Is(err, auth.ErrAlreadyRegistered) {
+				writeJSON(w, http.StatusConflict, errorBody("username already registered"))
+
+				return
+			}
+			if errors.Is(err, auth.ErrNotAdmin) {
+				writeJSON(w, http.StatusForbidden, errorBody("admin access required"))
+
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not create invite"))
+
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, AdminInviteCreateResponse{
+			Token:       token,
+			Username:    invite.Username,
+			DisplayName: invite.DisplayName,
+			ExpiresAt:   invite.ExpiresAt.Format(time.RFC3339),
+		})
+	}
+}
+
+func handleAdminListInvites(store *auth.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		invites, err := store.ListOutstandingInvites(r.Context())
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not list invites"))
+
+			return
+		}
+
+		out := make([]AdminInvite, len(invites))
+		for i, inv := range invites {
+			out[i] = adminInviteOf(inv)
+		}
+		writeJSON(w, http.StatusOK, out)
+	}
+}
+
+func handleAdminRevokeInvite(store *auth.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("token")
+
+		if err := store.RevokeInvite(r.Context(), id); err != nil {
+			if errors.Is(err, auth.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, errorBody("no outstanding invite with that id"))
+
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not revoke invite"))
+
+			return
+		}
 
 		w.WriteHeader(http.StatusNoContent)
 	}

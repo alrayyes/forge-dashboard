@@ -113,7 +113,8 @@ func TestFilterStateGet_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
 
 	srv := newTestServer(t)
 	aCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
-	bCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	token := createInviteViaAdmin(t, srv, aCookie, testUser, testDisplay)
+	bCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay, token)
 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", `{"shared":{"forge":"github"}}`, aCookie)
 	_ = putResp.Body.Close()

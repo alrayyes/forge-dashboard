@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -123,14 +124,25 @@ func testEncryptionKey(t *testing.T) string {
 // HTTP handlers using a virtual WebAuthn authenticator (real crypto, real
 // attestation — not a mock of forge-dashboard's own code) and returns the
 // session cookie the server issued.
-func registerViaRealCeremony(t *testing.T, srv *httptest.Server, username, displayName string) (*http.Cookie, virtualwebauthn.Credential, virtualwebauthn.Authenticator) {
+//
+// inviteToken is optional and only needed once an account already exists
+// (#477) — every call site in this codebase that registers the very
+// first, sole user on a fresh *httptest.Server omits it and still hits
+// the unchanged bootstrap path; a call registering a second-or-later user
+// passes the token an admin's own POST /api/admin/invites issued (see
+// createInviteViaAdmin).
+func registerViaRealCeremony(t *testing.T, srv *httptest.Server, username, displayName string, inviteToken ...string) (*http.Cookie, virtualwebauthn.Credential, virtualwebauthn.Authenticator) {
 	t.Helper()
 
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
 	authenticator := virtualwebauthn.NewAuthenticator()
 	cred := virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
 
-	beginBody := strings.NewReader(`{"username":"` + username + `","displayName":"` + displayName + `"}`)
+	token := ""
+	if len(inviteToken) > 0 {
+		token = inviteToken[0]
+	}
+	beginBody := strings.NewReader(`{"username":"` + username + `","displayName":"` + displayName + `","inviteToken":"` + token + `"}`)
 	beginResp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", beginBody)
 	require.NoError(t, err)
 	defer func() { _ = beginResp.Body.Close() }()
@@ -172,6 +184,33 @@ func registerViaRealCeremony(t *testing.T, srv *httptest.Server, username, displ
 	t.Fatal("no session cookie set by register/finish")
 
 	return nil, cred, authenticator
+}
+
+// createInviteViaAdmin calls POST /api/admin/invites as adminCookie and
+// returns the raw invite token — the token used to register username via
+// registerViaRealCeremony once self-registration is closed (#477).
+func createInviteViaAdmin(t *testing.T, srv *httptest.Server, adminCookie *http.Cookie, username, displayName string) string {
+	t.Helper()
+
+	req, err := http.NewRequest(
+		http.MethodPost,
+		srv.URL+"/api/admin/invites",
+		strings.NewReader(`{"username":"`+username+`","displayName":"`+displayName+`"}`),
+	)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(adminCookie)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	raw := readAll(t, resp)
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "create invite body: %s", raw)
+
+	var body api.AdminInviteCreateResponse
+	require.NoError(t, json.Unmarshal([]byte(raw), &body))
+	require.NotEmpty(t, body.Token)
+
+	return body.Token
 }
 
 func readAll(t *testing.T, resp *http.Response) string {
@@ -275,8 +314,9 @@ func TestPasskeyRegistration_SecondUserIsNotAdmin(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	registerViaRealCeremony(t, srv, testAdmin, "Admin") // first registrant becomes admin
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin") // first registrant becomes admin
+	token := createInviteViaAdmin(t, srv, adminCookie, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay, token)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
 	require.NoError(t, err)
@@ -355,4 +395,108 @@ func TestLoginBegin_AbandonedRegistration_ReturnsNotFoundNotServerError(t *testi
 	require.NoError(t, err)
 	defer func() { _ = loginResp.Body.Close() }()
 	assert.Equal(t, http.StatusNotFound, loginResp.StatusCode)
+}
+
+func TestRegisterBegin_AfterBootstrap_WithNoInvite_IsRefused(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	registerViaRealCeremony(t, srv, testAdmin, "Admin") // bootstraps the admin
+
+	resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`"}`))
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+func TestRegisterBegin_AfterBootstrap_WithValidInvite_Succeeds(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
+	token := createInviteViaAdmin(t, srv, adminCookie, testUser, testDisplay)
+
+	resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`","inviteToken":"`+token+`"}`))
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestRegisterBegin_AfterBootstrap_WithExpiredOrConsumedOrMismatchedInvite_IsRefused(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
+
+	t.Run("consumed", func(t *testing.T) {
+		token := createInviteViaAdmin(t, srv, adminCookie, "already-consumed", "Already Consumed")
+		registerViaRealCeremony(t, srv, "already-consumed", "Already Consumed", token)
+
+		// Delete the account the consumed token registered, so a retry
+		// with the same token exercises the "already consumed" invite
+		// check specifically (ErrInvalidInvite, 403) rather than the
+		// separate "username already has credentials" check
+		// (ErrAlreadyRegistered, 409) that fires first while the account
+		// still exists.
+		delReq, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/admin/users/already-consumed", nil)
+		require.NoError(t, err)
+		delReq.AddCookie(adminCookie)
+		delResp, err := http.DefaultClient.Do(delReq)
+		require.NoError(t, err)
+		_ = delResp.Body.Close()
+		require.Equal(t, http.StatusNoContent, delResp.StatusCode)
+
+		resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"already-consumed","displayName":"Again","inviteToken":"`+token+`"}`))
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("mismatched username", func(t *testing.T) {
+		token := createInviteViaAdmin(t, srv, adminCookie, "invited-for-someone", "Someone")
+
+		resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"someone-else","displayName":"Someone Else","inviteToken":"`+token+`"}`))
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("unknown token", func(t *testing.T) {
+		resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"nobody-invited","displayName":"Nobody","inviteToken":"not-a-real-token"}`))
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+}
+
+func TestRegistrationStatus_NoUsersYet_IsOpen(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	resp, err := http.Get(srv.URL + "/api/auth/registration-status")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body struct {
+		Open bool `json:"open"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.True(t, body.Open)
+}
+
+func TestRegistrationStatus_AfterOneUserRegisters_IsClosed(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp, err := http.Get(srv.URL + "/api/auth/registration-status")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body struct {
+		Open bool `json:"open"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.False(t, body.Open)
 }

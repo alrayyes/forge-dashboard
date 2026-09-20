@@ -22,6 +22,12 @@ func sessionUserOf(u *auth.User) SessionUser {
 type registerBeginRequest struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"displayName"`
+	// InviteToken is only required once any account already exists — see
+	// RegistrationStatus/handleRegistrationStatus. Left blank, it's still
+	// how the very first (bootstrap) registration on a fresh instance
+	// works, since Service.BeginRegistration never even looks at it in
+	// that case.
+	InviteToken string `json:"inviteToken"`
 }
 
 func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
@@ -33,10 +39,15 @@ func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 			return
 		}
 
-		creation, err := svc.BeginRegistration(r.Context(), req.Username, req.DisplayName)
+		creation, err := svc.BeginRegistration(r.Context(), req.Username, req.DisplayName, req.InviteToken)
 		if err != nil {
 			if errors.Is(err, auth.ErrAlreadyRegistered) {
 				writeJSON(w, http.StatusConflict, errorBody("username already registered"))
+
+				return
+			}
+			if errors.Is(err, auth.ErrInvalidInvite) {
+				writeJSON(w, http.StatusForbidden, errorBody("invalid, expired, or already-used invite"))
 
 				return
 			}
@@ -45,6 +56,31 @@ func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, creation)
+	}
+}
+
+// registrationStatusResponse matches components.schemas.RegistrationStatus.
+type registrationStatusResponse struct {
+	// Open is true only when the instance has zero registered users — the
+	// one moment self-registration (POST /api/auth/register/begin with
+	// no inviteToken) is allowed at all. The login page uses this to
+	// decide whether to offer its own self-serve "Register a new passkey
+	// instead" button.
+	Open bool `json:"open"`
+}
+
+// handleRegistrationStatus is unauthenticated — a visitor deciding
+// whether to show a login page's register button has no session yet by
+// definition.
+func handleRegistrationStatus(svc *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		hasAdmin, err := svc.HasAnyRegisteredUser(r.Context())
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not check registration status"))
+
+			return
+		}
+		writeJSON(w, http.StatusOK, registrationStatusResponse{Open: !hasAdmin})
 	}
 }
 

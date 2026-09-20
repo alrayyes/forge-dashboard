@@ -83,10 +83,38 @@ tags:
       description for how a token authenticates once generated here.
 
 paths:
+  /api/auth/registration-status:
+    get:
+      operationId: getRegistrationStatus
+      summary: Whether self-registration is open
+      description: |
+        Unauthenticated — a visitor deciding whether to show the login
+        page's own "Register a new passkey instead" button has no session
+        yet by definition. `open` is true only on a fresh instance with
+        zero registered users; once any account exists, self-registration
+        is closed and every registration after that requires a valid
+        `inviteToken` (see POST /api/auth/register/begin).
+      tags: [auth]
+      responses:
+        "200":
+          description: The current registration status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegistrationStatus"
+
   /api/auth/register/begin:
     post:
       operationId: beginRegistration
       summary: Start a passkey registration ceremony
+      description: |
+        The very first registration on a fresh instance (zero registered
+        users — see GET /api/auth/registration-status) needs no
+        `inviteToken` and bootstraps that account as admin. Every
+        registration after that requires a valid, unexpired, unconsumed
+        `inviteToken` issued by an admin (POST /api/admin/invites) for
+        exactly this `username` — the invite's own `displayName` is what's
+        actually used, not this request's.
       tags: [auth]
       requestBody:
         required: true
@@ -103,6 +131,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WebAuthnCeremonyOptions"
+        "403":
+          description: |
+            Self-registration is closed (an account already exists) and
+            no valid, unexpired, unconsumed invite for this username was
+            presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "409":
           description: That username is already registered.
           content:
@@ -1329,6 +1366,123 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/admin/invites:
+    post:
+      operationId: createInvite
+      summary: Generate a new single-use registration invite
+      description: |
+        The admin picks the username and display name up front — the
+        invitee only completes the WebAuthn ceremony at the link this
+        returns (`/login?invite=<token>`, built client-side). Valid for
+        one hour, fixed.
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminInviteCreateRequest"
+      responses:
+        "201":
+          description: Created — the only response that ever carries the raw token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminInviteCreateResponse"
+        "400":
+          description: username or displayName was blank.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The signed-in user isn't the designated admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: That username is already registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      operationId: listInvites
+      summary: List outstanding registration invites
+      description: |
+        Every invite that's neither consumed nor expired — never the raw
+        token, only its own stable id (see AdminInvite).
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Every outstanding invite.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminInvite"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The signed-in user isn't the designated admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/admin/invites/{token}/revoke:
+    post:
+      operationId: revokeInvite
+      summary: Revoke an outstanding invite
+      description: |
+        Stops the invite's token from ever completing a registration.
+        `token` here is an invite's own `id` (from AdminInvite/
+        AdminInviteCreateResponse), never the raw secret an invitee would
+        use to register.
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Revoked.
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The signed-in user isn't the designated admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No outstanding invite with that id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /healthz:
     get:
       operationId: health
@@ -1731,7 +1885,27 @@ components:
           examples: [ryan]
         displayName:
           type: string
+          description: |
+            Ignored once an invite is required (any account already
+            exists) — the invite's own displayName (set by the admin who
+            issued it) is what's actually used. Only the very first,
+            bootstrap registration on a fresh instance takes this value.
           examples: [Ryan]
+        inviteToken:
+          type: string
+          description: |
+            Required once any account already exists (see GET
+            /api/auth/registration-status) — a single-use token from POST
+            /api/admin/invites, issued for exactly this username. Omitted
+            or ignored for the very first, bootstrap registration.
+
+    RegistrationStatus:
+      type: object
+      required: [open]
+      properties:
+        open:
+          type: boolean
+          description: True only when the instance has zero registered users.
 
     LoginBeginRequest:
       type: object
@@ -1788,6 +1962,59 @@ components:
         isAdmin:
           type: boolean
         createdAt:
+          type: string
+          format: date-time
+
+    AdminInvite:
+      type: object
+      description: |
+        An outstanding (unconsumed, unexpired) invite's own metadata —
+        never the raw token, which only AdminInviteCreateResponse ever
+        carries, once, at creation time.
+      required: [id, username, displayName, expiresAt]
+      properties:
+        id:
+          type: string
+          description: |
+            The invite's own stable identifier — pass this back to POST
+            /api/admin/invites/{token}/revoke, not the raw token an
+            invitee registers with.
+        username:
+          type: string
+        displayName:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+    AdminInviteCreateRequest:
+      type: object
+      required: [username, displayName]
+      properties:
+        username:
+          type: string
+          examples: [alex]
+        displayName:
+          type: string
+          examples: [Alex]
+
+    AdminInviteCreateResponse:
+      type: object
+      description: |
+        The one and only response that ever carries the raw invite token
+        — shown to the admin once, at creation time, for them to copy
+        into a `/login?invite=<token>` link and hand to the invitee out
+        of band. Only its hash is stored, so it can't be recovered from
+        here again.
+      required: [token, username, displayName, expiresAt]
+      properties:
+        token:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        expiresAt:
           type: string
           format: date-time
 
