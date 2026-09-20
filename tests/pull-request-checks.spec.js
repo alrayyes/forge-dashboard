@@ -174,6 +174,42 @@ test.describe('pull request pipeline checks panel', () => {
     ).toHaveCount(0);
   });
 
+  test('a check with no URL (a legacy commit status set with no target_url) shows no "View run" link', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR());
+    await mockChecks(page, {
+      checks: [
+        {
+          name: 'build',
+          state: 'success',
+          url: 'https://github.com/alrayyes/forge-dashboard/runs/1',
+        },
+        {
+          name: 'legacy-ci',
+          state: 'success',
+          url: '',
+        },
+      ],
+    });
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'View pipeline' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const items = dialog.locator('.pipeline-check');
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(1)).toContainText('legacy-ci');
+
+    await expect(
+      dialog.getByRole('link', { name: 'View run: build' }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('link', { name: 'View run: legacy-ci' }),
+    ).toHaveCount(0);
+  });
+
   test('no checks at all shows a plain "no CI configured" message', async ({
     page,
   }) => {

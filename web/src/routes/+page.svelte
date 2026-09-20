@@ -1343,8 +1343,11 @@
         // A skipped check never ran — its own page on the forge has
         // nothing to show beyond "this was skipped," which the status
         // label right above already says. No link rather than one that
-        // leads nowhere useful.
-        if (check.state !== "skipped") {
+        // leads nowhere useful. Same reasoning for an empty check.url: a
+        // legacy commit status can be set with no target_url at all, and
+        // an empty href resolves to the current page — silently sending
+        // "View run" to the dashboard's own homepage instead of nowhere.
+        if (check.state !== "skipped" && check.url) {
           const link = document.createElement("a");
           link.className = "pipeline-check-link";
           link.href = check.url;
