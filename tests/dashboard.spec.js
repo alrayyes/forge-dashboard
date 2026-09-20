@@ -393,6 +393,7 @@ test.describe('dashboard page', () => {
       await expect(banner).toContainText('Rate limit running low');
       await expect(banner).toContainText('GitHub GraphQL');
       await expect(banner).toContainText('40 of 5,000 requests left');
+      await expect(banner).toContainText(/resets in \d+m \d+s/);
       await expect(banner).not.toContainText('Rate limit exceeded');
     });
 
