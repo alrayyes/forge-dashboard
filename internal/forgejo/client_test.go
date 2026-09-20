@@ -800,6 +800,38 @@ func TestMergePullRequest_NotMergeable_ClassifiesAsForgeErrorConflict(t *testing
 	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
 }
 
+// TestMergePullRequest_NotMergeable_SurfacesForgesOwnMessage is a
+// regression test: the gitea SDK's own MergePullRequest is built on
+// getStatusCode, which closes the response body without ever reading it
+// — Forgejo's real reason for rejecting a merge (here, the "empty
+// commit" case confirmed live on homelab/vps-docker#561, a PR whose
+// branch content already matched its target) never reached the caller,
+// surfacing to the dashboard as a bare "merge rejected (status N)" with
+// no way to tell a user why. This client now reads the body itself.
+func TestMergePullRequest_NotMergeable_SurfacesForgesOwnMessage(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"default_merge_style": "squash"})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+			"message": "the changes on this branch are already on the target branch. this will be an empty commit.",
+		}))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	err := client.MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "the changes on this branch are already on the target branch")
+}
+
 func TestMergePullRequest_RepoLookupFails_PropagatesTheError(t *testing.T) {
 	t.Parallel()
 
@@ -893,6 +925,31 @@ func TestUpdateBranch_CannotMergeCleanly_ClassifiesAsForgeErrorConflict(t *testi
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+}
+
+// TestUpdateBranch_CannotMergeCleanly_SurfacesForgesOwnMessage matches
+// TestMergePullRequest_NotMergeable_SurfacesForgesOwnMessage: the gitea
+// SDK's UpdatePullRequest is also built on getStatusCode, so it has the
+// exact same body-discarding gap.
+func TestUpdateBranch_CannotMergeCleanly_SurfacesForgesOwnMessage(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5/update", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+			"message": "merge conflict, unable to update",
+		}))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	_, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "merge conflict, unable to update")
 }
 
 func TestListChecks_ReturnsEveryJobAcrossEveryRunForTheHeadSHA(t *testing.T) {
