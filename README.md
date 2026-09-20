@@ -63,10 +63,11 @@ This ships every piece of #3: passkey registration and login gating the
 dashboard, per-user GitHub/Forgejo tokens (every signed-in user
 configures their own forges from the Settings page and sees only their
 own dashboard by default), an admin area for whoever registers first
-(list every registered user, revoke a user's passkeys and sessions
-without deleting their account, or remove one outright), and dashboard
-sharing (grant another registered user read-only access to your own
-dashboard, from Settings).
+(list every registered user, generate and manage the single-use invite
+links every registration after the first now requires, revoke a user's
+passkeys and sessions without deleting their account, or remove one
+outright), and dashboard sharing (grant another registered user
+read-only access to your own dashboard, from Settings).
 
 ## Requirements
 
@@ -93,20 +94,37 @@ dashboard, from Settings).
 
 ## Authentication
 
-The first visit registers a passkey; every visit after that signs in with
-it — no password, no separate account system. `POST /api/auth/register/begin`
-and `.../finish` run the WebAuthn registration ceremony,
-`.../login/begin`/`.../finish` run the login ceremony, and a signed
-session cookie (`HttpOnly`, `SameSite=Lax`, `Secure` whenever the request
-arrived over HTTPS) is what actually gates `/` and `/api/dashboard`
-afterward — see `internal/auth` and `api/openapi.yaml`'s `auth` tag.
+The first visit registers a passkey and becomes the instance's admin;
+every registration after that needs an invite link the admin generates —
+no password anywhere, and no separate account system. `POST
+/api/auth/register/begin` and `.../finish` run the WebAuthn registration
+ceremony, `.../login/begin`/`.../finish` run the login ceremony, and a
+signed session cookie (`HttpOnly`, `SameSite=Lax`, `Secure` whenever the
+request arrived over HTTPS) is what actually gates `/` and
+`/api/dashboard` afterward — see `internal/auth` and `api/openapi.yaml`'s
+`auth` tag.
 
-- **Whoever registers first becomes admin.** No environment variable to
-  set or get wrong — the deployment's own network boundary
-  (Tailscale-only, see **Deployment** below) is what actually keeps a
-  stranger from racing to register before you do, the same protection
-  an explicit `ADMIN_USERNAME` variable would only duplicate. See
-  **Admin area** below for what an admin can do.
+- **Whoever registers first becomes admin, and self-registration closes
+  the moment they do.** No environment variable to set or get wrong, and
+  no reliance on a deployment's own network boundary either — the first
+  completed registration is what `Service.BeginRegistration` checks
+  server-side, and every registration after that is rejected
+  unless it presents a valid invite. New accounts only ever exist because
+  the admin decided to add one, regardless of who else can reach the
+  login page. See **Admin area** below for generating, listing, and
+  revoking invites.
+- **An invite is a single-use, one-hour link.** The admin picks the
+  username and display name up front from the admin area's own Invites
+  card; the generated `/login.html?invite=<token>&username=<username>`
+  link is copied out of band (no email system exists here) and handed to
+  the invitee, whose own visit to it shows nothing left to fill in but
+  the passkey prompt. A token that expires or completes one registration
+  can never be used again.
+- **Losing every admin passkey with no other admin and no outstanding
+  invite is a hard lockout.** There's no email/SMS channel here to build
+  a self-service account-recovery flow on top of — the only way back in
+  is restoring the SQLite database (`DB_PATH`) from a backup taken before
+  the loss.
 - **`RP_ID`** / **`RP_ORIGIN`** configure the WebAuthn relying party.
   They default to `localhost` / `http://localhost:8080` for a local run;
   a real deployment **must** set both to its real domain, or every
@@ -137,20 +155,38 @@ immediately.
 
 Whoever registers first gets an Admin link in the dashboard header,
 leading to `/admin.html`: a list of every registered user, with two
-actions per row.
+actions per row, and an Invites card for generating and managing the
+links every registration past the first now requires.
 
 - **Revoke** signs a user out everywhere — clears every passkey and every
   API token they've generated — without touching their account or saved
   forge credentials. They have to register a new passkey from scratch to
-  get back in. Useful for a lost device, a compromised passkey manager,
+  get back in, through a fresh invite the same as any other post-bootstrap
+  registration. Useful for a lost device, a compromised passkey manager,
   or a leaked API token, short of removing the person entirely.
 - **Remove** deletes the account outright — passkeys, sessions, API
   tokens, and saved forge credentials all go with it, and the username
-  becomes available for a fresh registration. Irreversible.
+  becomes available for a fresh invite. Irreversible.
 
 Neither action works on the admin's own account (the backend refuses it
 with a 400, and the frontend disables both buttons on that row) — there's
 no recovery path for locking yourself out this way.
+
+### Invites
+
+The Invites card generates a single-use registration link: enter the
+username and display name up front — the invitee only ever completes the
+WebAuthn ceremony — and the generated link is shown exactly once with a
+copy button, right after creation. Only the token's hash is stored
+server-side, so losing it before copying means generating a new one, the
+same "show once" handling a personal API token already gets. A table of
+outstanding invites (username, expiry) lists everything not yet used or
+expired, each with its own **Revoke** to stop a link that shouldn't be
+honored anymore — a revoked invite can never complete a registration.
+Every invite expires after one hour, fixed and not configurable: long
+enough to hand a link off and have the invitee act on it in one sitting,
+short enough that a forgotten, unconsumed invite isn't a standing
+credential.
 
 ## Sharing
 
@@ -363,7 +399,9 @@ with `?owner=<username>`, one shared with them), `GET`/`PUT
 `PUT` response never echoes a token back, only whether one is now set
 — `GET/PUT/DELETE /api/sharing(/{username})` for managing who can see
 your dashboard, and `GET /api/admin/users` plus the revoke/delete
-endpoints under `admin`, every one of them refusing anyone but the
+endpoints, alongside `GET/POST /api/admin/invites` and
+`POST /api/admin/invites/{token}/revoke` for generating, listing, and
+revoking registration invites, every one of them refusing anyone but the
 designated admin. `redocly lint` validates it; nothing yet asserts the
 handlers still match it (see
 [CONTRIBUTING.md](CONTRIBUTING.md#how-it-fits-together)).

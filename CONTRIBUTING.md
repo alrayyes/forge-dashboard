@@ -68,13 +68,16 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
 - `internal/github` and `internal/forgejo` are the two adapters — thin,
   handwritten REST clients, each wrapped in a `dashboard.GenericSource`
   rather than duplicating the concurrency/error-handling logic per forge.
-- `internal/auth` is passkey registration, login, sessions, and admin
-  user-management — `Store` persists users/credentials/sessions to
-  SQLite (plus `ListUsers`/`RevokeUser`/`DeleteUser` for the admin
-  area), `Service` drives the WebAuthn ceremonies against `Store`,
-  `RequireAuth` is the middleware that gates a handler on a valid
-  session, and `RequireAdmin` composes inside it to gate one on the
-  session's own `IsAdmin` flag.
+- `internal/auth` is passkey registration, login, sessions, admin
+  user-management, and invite-gated registration — `Store` persists
+  users/credentials/sessions/invites to SQLite (plus
+  `ListUsers`/`RevokeUser`/`DeleteUser` and
+  `CreateInvite`/`ConsumeInviteIfValid`/`ListOutstandingInvites`/
+  `RevokeInvite` for the admin area), `Service` drives the WebAuthn
+  ceremonies against `Store` and requires a valid invite for every
+  registration past the first, `RequireAuth` is the middleware that
+  gates a handler on a valid session, and `RequireAdmin` composes inside
+  it to gate one on the session's own `IsAdmin` flag.
 - `internal/settings` is each user's own GitHub/Forgejo configuration —
   `Cipher` is AES-256-GCM encryption keyed off `ENCRYPTION_KEY`, and
   `Store` persists it to SQLite with the tokens encrypted, never in
