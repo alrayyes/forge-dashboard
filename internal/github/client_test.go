@@ -2033,6 +2033,49 @@ func TestMergePullRequest_NotMergeable_ClassifiesAsForgeErrorConflict(t *testing
 	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
 }
 
+func TestClosePullRequest_ClosesViaEditEndpoint(t *testing.T) {
+	t.Parallel()
+
+	var editBody map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPatch, r.Method)
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&editBody))
+		writeJSON(t, w, map[string]any{"number": 5, "state": "closed"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.ClosePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.NotNil(t, editBody)
+	assert.Equal(t, "closed", editBody["state"])
+}
+
+func TestClosePullRequest_ForgeRejects_ClassifiesTheError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		writeJSON(t, w, map[string]any{"message": "Not Found"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.ClosePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+}
+
 func TestUpdateBranch_CallsTheUpdateEndpoint(t *testing.T) {
 	t.Parallel()
 

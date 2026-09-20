@@ -252,7 +252,11 @@ reports it's actually possible — a merge conflict, a token missing the
 right permission, or the forge being unreachable all hide or lock the
 button instead of letting the click fail. Merge asks for confirmation
 first; Update branch doesn't, since a merge from the base branch is
-easy to reverse and a merge itself isn't.
+easy to reverse and a merge itself isn't. Close is always available on
+an open pull request, regardless of mergeability — for one that turns
+out not to need merging at all (a duplicate, or one whose content
+already landed another way), it's the action that actually applies —
+and asks for confirmation the same way Merge does.
 
 A pull request opened by release-please, Dependabot, or Renovate keeps
 itself current on its own schedule — for release-please specifically,
@@ -284,7 +288,7 @@ A pull request with any CI reported at all gets a `View pipeline`
 button, opening a panel that lists every individual job/check against
 its head commit — status, name, and a link to that job's own page on
 the forge — instead of only the row's own collapsed CI pill. Fetched
-fresh every time the panel opens, not cached or part of the regular
+fresh every time the panel opens, not cached, or part of the regular
 dashboard refresh. Falls back to the legacy combined commit-status
 API's own per-check entries when a repo (or an older Forgejo instance)
 reports no Actions/Workflow runs at all for that commit.

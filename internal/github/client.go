@@ -270,6 +270,20 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	return nil
 }
 
+// ClosePullRequest implements dashboard.PullRequestCloser: closes
+// owner/name#number without merging it, via the same Edit call GitHub's
+// own PR-editing endpoint uses for any field change.
+func (c *Client) ClosePullRequest(ctx context.Context, owner, name string, number int) error {
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("github request", "method", http.MethodPatch, "url", path)
+	state := "closed"
+	if _, _, err := c.restClient.PullRequests.Edit(ctx, owner, name, number, &ghsdk.PullRequest{State: &state}); err != nil {
+		return asClientError(c.restError(http.MethodPatch, path, err))
+	}
+
+	return nil
+}
+
 // mergeMethodFor picks a merge method repo actually allows — "merge"
 // first (the previous, implicit default) when it's still enabled, then
 // "squash", then "rebase". GitHub requires at least one of the three

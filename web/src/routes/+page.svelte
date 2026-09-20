@@ -48,7 +48,13 @@
     issues: IssueItem[];
   };
   type ActionPhase =
-    "idle" | "confirming" | "merging" | "updating" | "requesting" | "locked";
+    | "idle"
+    | "confirming"
+    | "merging"
+    | "closing"
+    | "updating"
+    | "requesting"
+    | "locked";
   type ActionState = { phase: ActionPhase; reason?: string };
 
   onMount(() => {
@@ -394,6 +400,8 @@
         const updateBranchAction = updateBranchActionCell(pr);
         if (updateBranchAction) statusCell.appendChild(updateBranchAction);
         if (mergeAction) statusCell.appendChild(mergeAction);
+        const closeAction = closeActionCell(pr);
+        if (closeAction) statusCell.appendChild(closeAction);
         const dependabotAction = dependabotActionCell(pr);
         if (dependabotAction) statusCell.appendChild(dependabotAction);
         const renovateRebaseAction = renovateRebaseActionCell(pr);
@@ -848,6 +856,150 @@
       return wrap;
     }
 
+    // ---- pull request close action ----
+    // For a pull request that turns out not to need merging at all — a
+    // duplicate, or one whose content already landed another way
+    // (confirmed live on homelab/vps-docker#561) — Close is the action
+    // that actually applies, not Merge. Own state map, parallel to
+    // mergeState, the same shape updateBranchState uses for its own
+    // independent action.
+    const closeState: Record<string, ActionState> = {};
+
+    // Mirrors reactiveMergeLockReason's 403/429 handling; no special
+    // "not mergeable" 409 case here, since Close doesn't need
+    // mergeability at all — a 409 here is the forge's own real message
+    // (already-merged, already-closed) passed straight through instead.
+    function reactiveCloseLockReason(
+      status: number | undefined,
+      message: string,
+    ): string | null {
+      if (status === 403)
+        return "Missing permission — check your token in Settings.";
+      if (status === 429)
+        return "Rate limit exceeded — try again once it resets.";
+      return null;
+    }
+
+    function doClose(item: PullRequestItem, confirmButton: HTMLButtonElement) {
+      const key = prKey(item);
+      closeState[key] = { phase: "closing" };
+      confirmButton.disabled = true;
+      confirmButton.textContent = "Closing…";
+      showStatus(`Closing ${item.repo}#${item.number}…`);
+
+      fetch("/api/pull-requests/close", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          forge: item.forge,
+          fullName: item.repo,
+          number: item.number,
+        }),
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = "/login.html";
+            throw new Error("session expired");
+          }
+          if (res.status === 204) return null;
+          return res.json().then((body) => {
+            const err: Error & { status?: number } = new Error(
+              body?.error || `backend answered ${res.status}`,
+            );
+            err.status = res.status;
+            throw err;
+          });
+        })
+        .then(() => {
+          delete closeState[key];
+          showStatus(`Closed ${item.repo}#${item.number}.`);
+          return fetch("/api/dashboard/refresh", {
+            method: "POST",
+            headers: { Accept: "application/json" },
+          })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (data) applySnapshot(data);
+            });
+        })
+        .catch((err: Error & { status?: number }) => {
+          const lockReason = reactiveCloseLockReason(err.status, err.message);
+          closeState[key] = lockReason
+            ? { phase: "locked", reason: lockReason }
+            : { phase: "idle" };
+          if (err.status === 403) forgePermissionDenied[item.forge] = true;
+          clearStatus();
+          showError(
+            `Couldn't close ${item.repo}#${item.number}: ${err.message}`,
+          );
+          renderPRBoard();
+        });
+    }
+
+    // Shown for every open pull request row, gated only on the forge
+    // itself being reachable/within budget — unlike Merge, Close needs
+    // no particular mergeability or CI state to make sense.
+    function closeActionCell(item: PullRequestItem): HTMLElement | null {
+      const key = prKey(item);
+      const entry = closeState[key] || { phase: "idle" };
+
+      if (entry.phase === "locked")
+        return lockedActionButton("Close", entry.reason ?? "", () =>
+          retryLockedAction(item),
+        );
+
+      if (entry.phase === "idle") {
+        const proactiveReason = proactiveActionLockReason(item.forge);
+        if (proactiveReason)
+          return lockedActionButton("Close", proactiveReason, () =>
+            retryLockedAction(item),
+          );
+      }
+
+      const wrap = el("span", "row-action-group");
+
+      const confirming = entry.phase === "confirming";
+      if (confirming || entry.phase === "closing") {
+        const confirmButton = buttonEl(
+          "row-action confirm",
+          confirming ? "Confirm close?" : "Closing…",
+        );
+        confirmButton.id = `close-confirm-${domSafeId(key)}`;
+        confirmButton.disabled = !confirming;
+        confirmButton.addEventListener("click", () => {
+          doClose(item, confirmButton);
+        });
+        wrap.appendChild(confirmButton);
+
+        if (confirming) {
+          const cancelButton = buttonEl("row-action cancel", "Cancel");
+          cancelButton.type = "button";
+          cancelButton.addEventListener("click", () => {
+            delete closeState[key];
+            renderPRBoard();
+          });
+          wrap.appendChild(cancelButton);
+        }
+        return wrap;
+      }
+
+      const closeButton = buttonEl("row-action", "Close");
+      closeButton.type = "button";
+      closeButton.addEventListener("click", () => {
+        closeState[key] = { phase: "confirming" };
+        renderPRBoard();
+        const justConfirmed = document.getElementById(
+          `close-confirm-${domSafeId(key)}`,
+        );
+        justConfirmed?.focus();
+      });
+      wrap.appendChild(closeButton);
+      return wrap;
+    }
+
     // ---- pull request update-branch action ----
     // Its own state map, parallel to mergeState — a Forgejo pull request
     // can be mergeable and behind at once, so both actions can
@@ -1145,6 +1297,7 @@
 
       return [
         mergeState,
+        closeState,
         updateBranchState,
         dependabotActionState,
         renovateRebaseState,
@@ -2437,6 +2590,7 @@
       // values just updated above — while one that's resolved simply
       // doesn't.
       clearStaleLocks(mergeState);
+      clearStaleLocks(closeState);
       clearStaleLocks(updateBranchState);
 
       const prs = data.pullRequests || [];

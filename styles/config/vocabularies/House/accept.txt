@@ -29,6 +29,7 @@ rulesets
 runbook
 shortlog
 unexported
+mergeability
 unmergeable
 Dockerfile
 distroless

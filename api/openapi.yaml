@@ -969,6 +969,66 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/pull-requests/close:
+    post:
+      operationId: closePullRequest
+      summary: Close one pull request without merging it, on the signed-in user's behalf
+      description: |
+        Closes the named pull request — for one that turns out not to
+        need merging at all (a duplicate, or one whose content already
+        landed another way), not a substitute for Merge.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestActionRequest"
+      responses:
+        "204":
+          description: Closed.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", no credentials are saved for that forge, or
+            that forge's client doesn't support closing pull requests at
+            all.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized — the saved token's scope doesn't cover closing, or it isn't allowed to close on that repo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/pull-requests/update-branch:
     post:
       operationId: updatePullRequestBranch
