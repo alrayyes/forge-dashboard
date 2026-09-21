@@ -21,6 +21,7 @@ import (
 
 	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
 
 // pageLimit is the page size used for every paginated list call. Forgejo's
@@ -43,6 +44,12 @@ type Client struct {
 	// request URLs.
 	instanceURL string
 	httpClient  *http.Client
+
+	// recorder persists a request_log entry for every outbound request
+	// this Client makes (#482) — always non-nil (NewClient defaults it
+	// to requestlog.NoopRecorder{}), so every call site can call it
+	// unconditionally.
+	recorder requestlog.Recorder
 }
 
 // NewClient returns a Client against instanceURL (e.g.
@@ -51,7 +58,12 @@ type Client struct {
 // private included. With token empty and username set, every request
 // goes out unauthenticated and ListRepos returns only username's public
 // repos on that instance.
-func NewClient(instanceURL, token, username string) *Client {
+// recorder is variadic, not a plain trailing parameter, purely so every
+// existing call site (tests included) keeps compiling unchanged (#482)
+// — pass one to have every outbound request persisted, or omit it (or
+// pass nil) to get requestlog.NoopRecorder{}, the same as before this
+// parameter existed.
+func NewClient(instanceURL, token, username string, recorder ...requestlog.Recorder) *Client {
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 	opts := []gitea.ClientOption{
 		gitea.SetHTTPClient(httpClient),
@@ -73,12 +85,38 @@ func NewClient(instanceURL, token, username string) *Client {
 		panic(fmt.Sprintf("forgejo: unexpected client construction error: %v", err))
 	}
 
+	rec := requestlog.Recorder(requestlog.NoopRecorder{})
+	if len(recorder) > 0 && recorder[0] != nil {
+		rec = recorder[0]
+	}
+
 	return &Client{
 		sdk:         sdk,
 		token:       token,
 		username:    username,
 		instanceURL: strings.TrimSuffix(instanceURL, "/"),
 		httpClient:  httpClient,
+		recorder:    rec,
+	}
+}
+
+// recordRequest builds and persists this call's own request_log entry
+// via c.recorder — never let a Record failure affect the caller (see
+// requestlog.Recorder's own doc comment): logged and otherwise
+// swallowed. Forgejo reports no rate-limit budget of its own, so this
+// client's entries never carry rate-limit fields (all left nil), unlike
+// GitHub's.
+func (c *Client) recordRequest(ctx context.Context, method, endpoint string, statusCode int, outcome string) {
+	e := requestlog.Entry{
+		LoggedAt:   time.Now().UTC(),
+		Forge:      dashboard.ForgeForgejo,
+		Method:     method,
+		Endpoint:   endpoint,
+		StatusCode: statusCode,
+		Outcome:    outcome,
+	}
+	if err := c.recorder.Record(ctx, e); err != nil {
+		slog.Warn("could not record outbound request", "forge", dashboard.ForgeForgejo, "error", err)
 	}
 }
 
@@ -129,8 +167,9 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 		hooks, resp, err := c.sdk.ListRepoHooks(owner, name, opt)
 		if err != nil {
-			return nil, forgejoError(http.MethodGet, path, resp, err)
+			return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 		}
+		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 		for _, h := range hooks {
 			if dashboard.WebhookTargetsPath(h.Config["url"], wantPath) {
 				return h, nil
@@ -184,8 +223,9 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 			Active: &active,
 		})
 		if err != nil {
-			return forgejoError(http.MethodPatch, path, resp, err)
+			return c.forgejoError(ctx, http.MethodPatch, path, resp, err)
 		}
+		c.recordRequest(ctx, http.MethodPatch, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
 		return nil
 	}
@@ -203,8 +243,9 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 		Active: true,
 	})
 	if err != nil {
-		return forgejoError(http.MethodPost, path, resp, err)
+		return c.forgejoError(ctx, http.MethodPost, path, resp, err)
 	}
+	c.recordRequest(ctx, http.MethodPost, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	return nil
 }
@@ -218,15 +259,23 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 // sitting behind one that does. The SDK's *Response is populated even on
 // a failed request, which is what makes the header still readable here;
 // a nil resp means the request never got a response at all.
-func forgejoError(method, path string, resp *gitea.Response, err error) error {
+// forgejoError is a method, not a free function, because it also
+// persists this call's own request_log entry (#482) — it's the one
+// choke point every REST call site's failure path already returns
+// through, which makes it the natural place to do that rather than
+// repeating the same call at every site.
+func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gitea.Response, err error) error {
 	msg := err.Error()
 	kind := dashboard.ForgeErrorUnreachable
+	statusCode := 0
 	if resp != nil {
 		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
 			msg += fmt.Sprintf(" (retry after %ss)", retryAfter)
 		}
 		kind = forgeErrorKind(resp.StatusCode)
+		statusCode = resp.StatusCode
 	}
+	c.recordRequest(ctx, method, path, statusCode, string(kind))
 	wrapped := fmt.Errorf("forgejo: %s %s: %s", method, path, msg)
 
 	return &dashboard.ClientError{Kind: kind, Err: wrapped}
@@ -266,8 +315,9 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", repoPath)
 	repo, resp, err := c.sdk.GetRepo(owner, name)
 	if err != nil {
-		return forgejoError(http.MethodGet, repoPath, resp, err)
+		return c.forgejoError(ctx, http.MethodGet, repoPath, resp, err)
 	}
+	c.recordRequest(ctx, http.MethodGet, repoPath, resp.StatusCode, requestlog.OutcomeSuccess)
 	style := repo.DefaultMergeStyle
 	if style == "" {
 		style = gitea.MergeStyleMerge
@@ -285,7 +335,7 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	// conflict, or the empty-commit case above) reports Forgejo's own
 	// reason instead of a bare status code.
 	if _, resp, err := c.rawRequest(ctx, http.MethodPost, mergePath, bytes.NewReader(mergeBody)); err != nil {
-		return forgejoError(http.MethodPost, mergePath, resp, err)
+		return c.forgejoError(ctx, http.MethodPost, mergePath, resp, err)
 	}
 
 	return nil
@@ -305,8 +355,9 @@ func (c *Client) ClosePullRequest(ctx context.Context, owner, name string, numbe
 	closed := gitea.StateClosed
 	_, resp, err := c.sdk.EditPullRequest(owner, name, int64(number), gitea.EditPullRequestOption{State: &closed})
 	if err != nil {
-		return forgejoError(http.MethodPatch, path, resp, err)
+		return c.forgejoError(ctx, http.MethodPatch, path, resp, err)
 	}
+	c.recordRequest(ctx, http.MethodPatch, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	return nil
 }
@@ -323,7 +374,7 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 	// MergePullRequest's own comment on why: same getStatusCode gap,
 	// same lost-reason symptom.
 	if _, resp, err := c.rawRequest(ctx, http.MethodPost, path, nil); err != nil {
-		return false, forgejoError(http.MethodPost, path, resp, err)
+		return false, c.forgejoError(ctx, http.MethodPost, path, resp, err)
 	}
 
 	return false, nil
@@ -343,8 +394,9 @@ func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, l
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", labelsPath)
 	labels, resp, err := c.sdk.ListRepoLabels(owner, name, gitea.ListLabelsOptions{})
 	if err != nil {
-		return forgejoError(http.MethodGet, labelsPath, resp, err)
+		return c.forgejoError(ctx, http.MethodGet, labelsPath, resp, err)
 	}
+	c.recordRequest(ctx, http.MethodGet, labelsPath, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	var id int64
 	found := false
@@ -364,9 +416,11 @@ func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, l
 
 	addPath := fmt.Sprintf("/repos/%s/%s/issues/%d/labels", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodPost, "url", addPath)
-	if _, resp, err := c.sdk.AddIssueLabels(owner, name, int64(number), gitea.IssueLabelsOption{Labels: []int64{id}}); err != nil {
-		return forgejoError(http.MethodPost, addPath, resp, err)
+	_, addResp, err := c.sdk.AddIssueLabels(owner, name, int64(number), gitea.IssueLabelsOption{Labels: []int64{id}})
+	if err != nil {
+		return c.forgejoError(ctx, http.MethodPost, addPath, addResp, err)
 	}
+	c.recordRequest(ctx, http.MethodPost, addPath, addResp.StatusCode, requestlog.OutcomeSuccess)
 
 	return nil
 }
@@ -414,8 +468,9 @@ func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", "/user/repos")
 		batch, resp, err := c.sdk.ListMyRepos(opt)
 		if err != nil {
-			return nil, forgejoError(http.MethodGet, "/user/repos", resp, err)
+			return nil, c.forgejoError(ctx, http.MethodGet, "/user/repos", resp, err)
 		}
+		c.recordRequest(ctx, http.MethodGet, "/user/repos", resp.StatusCode, requestlog.OutcomeSuccess)
 		for _, r := range batch {
 			if !hasPushAccess(r) || r.Archived || r.Fork || r.Mirror {
 				continue
@@ -443,8 +498,9 @@ func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, erro
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 		batch, resp, err := c.sdk.ListUserRepos(c.username, opt)
 		if err != nil {
-			return nil, forgejoError(http.MethodGet, path, resp, err)
+			return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 		}
+		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 		for _, r := range batch {
 			if r.Archived || r.Fork || r.Mirror {
 				continue
@@ -519,8 +575,9 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 		batch, resp, err := c.sdk.ListRepoPullRequests(owner, name, opt)
 		if err != nil {
-			return nil, forgejoError(http.MethodGet, path, resp, err)
+			return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 		}
+		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 		for _, p := range batch {
 			sha := ""
 			if p.Head != nil {
@@ -582,8 +639,9 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 		batch, resp, err := c.sdk.ListRepoIssues(owner, name, opt)
 		if err != nil {
-			return nil, forgejoError(http.MethodGet, path, resp, err)
+			return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 		}
+		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 		for _, i := range batch {
 			issues = append(issues, dashboard.Issue{
 				Forge:     dashboard.ForgeForgejo,
@@ -618,8 +676,9 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	combined, resp, err := c.sdk.GetCombinedStatus(owner, name, sha)
 	if err != nil {
-		return dashboard.CINone, forgejoError(http.MethodGet, path, resp, err)
+		return dashboard.CINone, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
+	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	return statusFromCombinedState(combined.State), nil
 }
@@ -658,8 +717,9 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", prPath)
 	pr, resp, err := c.sdk.GetPullRequest(owner, name, int64(number))
 	if err != nil {
-		return nil, forgejoError(http.MethodGet, prPath, resp, err)
+		return nil, c.forgejoError(ctx, http.MethodGet, prPath, resp, err)
 	}
+	c.recordRequest(ctx, http.MethodGet, prPath, resp.StatusCode, requestlog.OutcomeSuccess)
 	var sha string
 	if pr.Head != nil {
 		sha = pr.Head.Sha
@@ -676,11 +736,19 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	})
 	if err != nil {
 		if runsResp != nil && runsResp.StatusCode == http.StatusNotFound {
+			// A real, completed request — recorded on its own rather
+			// than silently absorbed into the fallback it triggers,
+			// even though the app itself treats this 404 as expected
+			// (an instance too old for /actions/runs) rather than an
+			// error worth surfacing.
+			c.recordRequest(ctx, http.MethodGet, runsPath, runsResp.StatusCode, string(dashboard.ForgeErrorNotFound))
+
 			return c.checksFromCombinedStatus(ctx, owner, name, sha)
 		}
 
-		return nil, forgejoError(http.MethodGet, runsPath, runsResp, err)
+		return nil, c.forgejoError(ctx, http.MethodGet, runsPath, runsResp, err)
 	}
+	c.recordRequest(ctx, http.MethodGet, runsPath, runsResp.StatusCode, requestlog.OutcomeSuccess)
 	if len(runs.WorkflowRuns) == 0 {
 		return c.checksFromCombinedStatus(ctx, owner, name, sha)
 	}
@@ -714,8 +782,9 @@ func (c *Client) checksFromCombinedStatus(ctx context.Context, owner, name, sha 
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	combined, resp, err := c.sdk.GetCombinedStatus(owner, name, sha)
 	if err != nil {
-		return nil, forgejoError(http.MethodGet, path, resp, err)
+		return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
+	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 	checks := make([]dashboard.Check, 0, len(combined.Statuses))
 	for _, s := range combined.Statuses {
 		checks = append(checks, dashboard.Check{
@@ -779,7 +848,7 @@ func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runI
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return nil, forgejoError(http.MethodGet, path, resp, err)
+		return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
 
 	var wrapped gitea.ActionWorkflowJobsResponse
@@ -832,6 +901,12 @@ func (c *Client) rawRequest(ctx context.Context, method, path string, body io.Re
 	if httpResp.StatusCode >= 300 {
 		return nil, resp, fmt.Errorf("%s", rawRequestErrorMessage(respBody))
 	}
+	// The success path's own recording — a failure here returns to the
+	// caller, which persists its own entry via forgejoError(ctx, method,
+	// path, resp, err) using this same resp/err, so recording only here
+	// (not also on the two error returns above) keeps it at one entry
+	// per call.
+	c.recordRequest(ctx, method, path, httpResp.StatusCode, requestlog.OutcomeSuccess)
 
 	return respBody, resp, nil
 }
