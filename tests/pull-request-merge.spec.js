@@ -687,6 +687,22 @@ test.describe('pull request merge button', () => {
       await expect(row).not.toContainText(/unreachable/i);
     });
 
+    test('a mergeable PR that is also behind its base branch, on an unreachable forge, shows only one Retry and one reason, not one per locked action (#516)', async ({
+      page,
+    }) => {
+      await mockDashboardCustom(
+        page,
+        [{ forge: 'github', reachable: false, repoCount: 0 }],
+        [makePR({ behind: true })],
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(1);
+      await expect(row.locator('.row-action-reason')).toHaveCount(1);
+      await expect(row).toContainText('See the forge status above.');
+    });
+
     test('a mergeable PR on a forge with an exhausted rate-limit budget shows a locked Merge button', async ({
       page,
     }) => {

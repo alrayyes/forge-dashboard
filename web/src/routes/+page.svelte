@@ -408,6 +408,7 @@
         if (renovateRebaseAction) statusCell.appendChild(renovateRebaseAction);
         const pipelineAction = pipelineActionCell(pr);
         if (pipelineAction) statusCell.appendChild(pipelineAction);
+        dedupeRowLockReasons(statusCell);
         meta.appendChild(statusCell);
       } else {
         meta.appendChild(el("div", "empty-cell"));
@@ -548,6 +549,30 @@
       reason.id = reasonId;
       wrap.appendChild(reason);
       return wrap;
+    }
+
+    // #516, a gap #360's per-row fix left standing: more than one row
+    // action (Merge, Update branch, Close, Dependabot, Renovate) can
+    // independently be locked for the exact same reason at once — same
+    // "state a system-wide fact once, not once per affected thing"
+    // principle #360 already applied across rows, applied here within
+    // one. Keeps the first rendered lockedActionButton block for a given
+    // reason and drops any later one whose reason text matches exactly;
+    // reasons that differ (a real, action-specific 403/409 alongside an
+    // unrelated proactive lock) are untouched.
+    function dedupeRowLockReasons(statusCell: HTMLElement) {
+      const seen = new Set<string>();
+      for (const locked of Array.from(
+        statusCell.querySelectorAll<HTMLElement>(".row-action-locked"),
+      )) {
+        const reasonText =
+          locked.querySelector(".row-action-reason")?.textContent ?? "";
+        if (seen.has(reasonText)) {
+          locked.remove();
+        } else {
+          seen.add(reasonText);
+        }
+      }
     }
 
     // Clears every "locked for good" entry in a merge/update-branch
