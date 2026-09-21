@@ -51,7 +51,7 @@ func handlePullRequestMerge(deps Deps) http.HandlerFunc {
 		}
 
 		var merger dashboard.PullRequestMerger
-		for _, src := range deps.BuildSources(creds) {
+		for _, src := range deps.BuildSources(u.ID, creds) {
 			if string(src.Forge()) != req.Forge {
 				continue
 			}

@@ -206,7 +206,7 @@ func warmUpAggregator(ctx context.Context, deps Deps, userID []byte, username st
 
 		return
 	}
-	deps.Manager.EnsureIfAbsent(deps.AppContext, userID, deps.BuildSources(creds))
+	deps.Manager.EnsureIfAbsent(deps.AppContext, userID, deps.BuildSources(userID, creds))
 }
 
 // loadAndEnsure loads userID's saved Settings and (re)builds their
@@ -222,7 +222,7 @@ func loadAndEnsure(ctx context.Context, deps Deps, userID []byte, username strin
 
 		return
 	}
-	deps.Manager.Ensure(deps.AppContext, userID, deps.BuildSources(creds))
+	deps.Manager.Ensure(deps.AppContext, userID, deps.BuildSources(userID, creds))
 }
 
 // handleDashboardRefresh triggers an immediate, out-of-band refresh of

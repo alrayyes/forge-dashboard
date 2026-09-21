@@ -17,6 +17,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	requestlogpkg "github.com/alrayyes/forge-dashboard/internal/requestlog"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
 	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/descope/virtualwebauthn"
@@ -43,7 +44,7 @@ const (
 // about real forge data — most of this file, which is about the auth and
 // settings plumbing, not internal/github or internal/forgejo (each tested
 // in its own package).
-func noSources(settingspkg.Credentials) []dashboard.Source { return nil }
+func noSources([]byte, settingspkg.Credentials) []dashboard.Source { return nil }
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
@@ -51,7 +52,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	return newTestServerWithSources(t, noSources)
 }
 
-func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Credentials) []dashboard.Source) *httptest.Server {
+func newTestServerWithSources(t *testing.T, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) *httptest.Server {
 	t.Helper()
 	srv, _ := newTestServerWithSourcesAndManager(t, buildSources)
 
@@ -63,7 +64,7 @@ func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Creden
 // restart (manager.Stop(), which cancels every running loop and clears
 // its map, the same effect on Manager state a real restart has) without
 // tearing down the rest of the server.
-func newTestServerWithSourcesAndManager(t *testing.T, buildSources func(settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Manager) {
+func newTestServerWithSourcesAndManager(t *testing.T, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Manager) {
 	t.Helper()
 
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
@@ -103,6 +104,7 @@ func newTestServerWithSourcesAndManager(t *testing.T, buildSources func(settings
 		SharingStore:  sharingStore,
 		Manager:       manager,
 		BuildSources:  buildSources,
+		RequestLog:    requestlogpkg.NewSQLiteRecorder(authStore, ""),
 		AppContext:    appCtx,
 	})
 	srv := httptest.NewServer(mux)

@@ -44,7 +44,7 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
 	wantHealth := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 3}
 
-	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}

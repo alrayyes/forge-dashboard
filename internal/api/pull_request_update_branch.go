@@ -45,7 +45,7 @@ func handlePullRequestUpdateBranch(deps Deps) http.HandlerFunc {
 		}
 
 		var updater dashboard.BranchUpdater
-		for _, src := range deps.BuildSources(creds) {
+		for _, src := range deps.BuildSources(u.ID, creds) {
 			if string(src.Forge()) != req.Forge {
 				continue
 			}

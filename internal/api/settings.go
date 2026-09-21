@@ -278,7 +278,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// deps.AppContext: see the identical comment in auth.go's
 		// startSession — this background refresh loop has to outlive the
 		// request that started it.
-		deps.Manager.Ensure(deps.AppContext, u.ID, deps.BuildSources(merged))
+		deps.Manager.Ensure(deps.AppContext, u.ID, deps.BuildSources(u.ID, merged))
 
 		writeJSON(w, http.StatusOK, settingsResponseOf(merged))
 	}

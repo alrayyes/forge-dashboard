@@ -46,7 +46,7 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 		}
 
 		var labeler dashboard.PullRequestLabeler
-		for _, src := range deps.BuildSources(creds) {
+		for _, src := range deps.BuildSources(u.ID, creds) {
 			if string(src.Forge()) != req.Forge {
 				continue
 			}

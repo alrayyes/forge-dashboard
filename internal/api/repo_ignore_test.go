@@ -64,7 +64,7 @@ func newTestServerWithRepo(t *testing.T) (srvURL string, sessionCookie *http.Coo
 		repos: []dashboard.Repo{repo},
 	}
 
-	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}
