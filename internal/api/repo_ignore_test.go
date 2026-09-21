@@ -27,6 +27,23 @@ func postRepoAction(t *testing.T, srvURL string, sessionCookie *http.Cookie, pat
 	return resp
 }
 
+// postRepoIgnoreAction is postRepoAction for POST /api/repos/ignore
+// specifically, whose body carries the scope (#511) the plain
+// WebhookEnsureRequest-shaped body postRepoAction sends doesn't have.
+func postRepoIgnoreAction(t *testing.T, srvURL string, sessionCookie *http.Cookie, fullName string, prs, issues bool) *http.Response {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": fullName, "prs": prs, "issues": issues})
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/repos/ignore", strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	return resp
+}
+
 // newTestServerWithRepo saves GitHub credentials and returns a server
 // whose one configured source reports one tracked repo carrying one open
 // pull request and one open issue — the fixture #363's ignore/unignore
@@ -106,7 +123,18 @@ func TestRepoIgnore_InvalidFullName_Returns400(t *testing.T) {
 
 	srvURL, sessionCookie := newTestServerWithRepo(t)
 
-	resp := postRepoAction(t, srvURL, sessionCookie, "/api/repos/ignore", "not-owner-slash-repo")
+	resp := postRepoIgnoreAction(t, srvURL, sessionCookie, "not-owner-slash-repo", true, true)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestRepoIgnore_NeitherScope_Returns400(t *testing.T) {
+	t.Parallel()
+
+	srvURL, sessionCookie := newTestServerWithRepo(t)
+
+	resp := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", false, false)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -117,7 +145,7 @@ func TestRepoIgnore_ExcludesItsPullRequestsAndIssuesFromTheDashboard(t *testing.
 
 	srvURL, sessionCookie := newTestServerWithRepo(t)
 
-	ignoreResp := postRepoAction(t, srvURL, sessionCookie, "/api/repos/ignore", "alrayyes/forge-dashboard")
+	ignoreResp := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", true, true)
 	defer func() { _ = ignoreResp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, ignoreResp.StatusCode)
 
@@ -126,12 +154,40 @@ func TestRepoIgnore_ExcludesItsPullRequestsAndIssuesFromTheDashboard(t *testing.
 	assert.Empty(t, snap["issues"])
 }
 
+func TestRepoIgnore_PRsOnly_LeavesIssuesOnTheDashboard(t *testing.T) {
+	t.Parallel()
+
+	srvURL, sessionCookie := newTestServerWithRepo(t)
+
+	ignoreResp := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", true, false)
+	defer func() { _ = ignoreResp.Body.Close() }()
+	require.Equal(t, http.StatusNoContent, ignoreResp.StatusCode)
+
+	snap := fetchDashboard(t, srvURL, sessionCookie)
+	assert.Empty(t, snap["pullRequests"])
+	assert.Len(t, snap["issues"], 1)
+}
+
+func TestRepoIgnore_IssuesOnly_LeavesPullRequestsOnTheDashboard(t *testing.T) {
+	t.Parallel()
+
+	srvURL, sessionCookie := newTestServerWithRepo(t)
+
+	ignoreResp := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", false, true)
+	defer func() { _ = ignoreResp.Body.Close() }()
+	require.Equal(t, http.StatusNoContent, ignoreResp.StatusCode)
+
+	snap := fetchDashboard(t, srvURL, sessionCookie)
+	assert.Len(t, snap["pullRequests"], 1)
+	assert.Empty(t, snap["issues"])
+}
+
 func TestRepoIgnore_RepoItselfStillListedWithAccurateWebhookStatus(t *testing.T) {
 	t.Parallel()
 
 	srvURL, sessionCookie := newTestServerWithRepo(t)
 
-	ignoreResp := postRepoAction(t, srvURL, sessionCookie, "/api/repos/ignore", "alrayyes/forge-dashboard")
+	ignoreResp := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", true, true)
 	defer func() { _ = ignoreResp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, ignoreResp.StatusCode)
 
@@ -142,6 +198,27 @@ func TestRepoIgnore_RepoItselfStillListedWithAccurateWebhookStatus(t *testing.T)
 	repo := repos[0].(map[string]any)
 	assert.Equal(t, "alrayyes/forge-dashboard", repo["fullName"])
 	assert.Equal(t, true, repo["ignored"])
+	assert.Equal(t, true, repo["ignoredPRs"])
+	assert.Equal(t, true, repo["ignoredIssues"])
+}
+
+func TestRepoIgnore_PRsOnly_ReportsScopeOnRepoStatus(t *testing.T) {
+	t.Parallel()
+
+	srvURL, sessionCookie := newTestServerWithRepo(t)
+
+	ignoreResp := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", true, false)
+	defer func() { _ = ignoreResp.Body.Close() }()
+	require.Equal(t, http.StatusNoContent, ignoreResp.StatusCode)
+
+	snap := fetchDashboard(t, srvURL, sessionCookie)
+	repos, ok := snap["repos"].([]any)
+	require.True(t, ok)
+	require.Len(t, repos, 1)
+	repo := repos[0].(map[string]any)
+	assert.Equal(t, true, repo["ignored"])
+	assert.Equal(t, true, repo["ignoredPRs"])
+	assert.Equal(t, false, repo["ignoredIssues"])
 }
 
 func TestRepoIgnore_NotIgnored_ReportsIgnoredFalse(t *testing.T) {
@@ -155,13 +232,15 @@ func TestRepoIgnore_NotIgnored_ReportsIgnoredFalse(t *testing.T) {
 	require.Len(t, repos, 1)
 	repo := repos[0].(map[string]any)
 	assert.Equal(t, false, repo["ignored"])
+	assert.Equal(t, false, repo["ignoredPRs"])
+	assert.Equal(t, false, repo["ignoredIssues"])
 }
 
 func TestRepoUnignore_BringsItsPullRequestsAndIssuesBack(t *testing.T) {
 	t.Parallel()
 
 	srvURL, sessionCookie := newTestServerWithRepo(t)
-	ignoreResp := postRepoAction(t, srvURL, sessionCookie, "/api/repos/ignore", "alrayyes/forge-dashboard")
+	ignoreResp := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", true, true)
 	_ = ignoreResp.Body.Close()
 	require.Equal(t, http.StatusNoContent, ignoreResp.StatusCode)
 
@@ -179,11 +258,29 @@ func TestRepoIgnore_Idempotent_IgnoringTwiceIsNotAnError(t *testing.T) {
 
 	srvURL, sessionCookie := newTestServerWithRepo(t)
 
-	first := postRepoAction(t, srvURL, sessionCookie, "/api/repos/ignore", "alrayyes/forge-dashboard")
+	first := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", true, true)
 	_ = first.Body.Close()
 	require.Equal(t, http.StatusNoContent, first.StatusCode)
 
-	second := postRepoAction(t, srvURL, sessionCookie, "/api/repos/ignore", "alrayyes/forge-dashboard")
+	second := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", true, true)
 	defer func() { _ = second.Body.Close() }()
 	assert.Equal(t, http.StatusNoContent, second.StatusCode)
+}
+
+func TestRepoIgnore_RepeatWithDifferentScope_ReplacesIt(t *testing.T) {
+	t.Parallel()
+
+	srvURL, sessionCookie := newTestServerWithRepo(t)
+
+	first := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", true, false)
+	_ = first.Body.Close()
+	require.Equal(t, http.StatusNoContent, first.StatusCode)
+
+	second := postRepoIgnoreAction(t, srvURL, sessionCookie, "alrayyes/forge-dashboard", false, true)
+	defer func() { _ = second.Body.Close() }()
+	require.Equal(t, http.StatusNoContent, second.StatusCode)
+
+	snap := fetchDashboard(t, srvURL, sessionCookie)
+	assert.Len(t, snap["pullRequests"], 1)
+	assert.Empty(t, snap["issues"])
 }

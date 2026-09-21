@@ -15,11 +15,12 @@ import (
 )
 
 // repoStatus is one tracked repo plus whether this app has ever recorded
-// a signature-verified webhook delivery for it, and whether the signed-in
-// user has ignored it (#363) — both settings.Store's own concern, folded
-// in here rather than on dashboard.Snapshot itself, since the dashboard
-// package has no reason to know settings exists (see the issue this
-// shipped against for why a live forge API check isn't used instead).
+// a signature-verified webhook delivery for it, and in which scope(s), if
+// any, the signed-in user has ignored it (#363, #511) — both
+// settings.Store's own concern, folded in here rather than on
+// dashboard.Snapshot itself, since the dashboard package has no reason to
+// know settings exists (see the issue this shipped against for why a live
+// forge API check isn't used instead).
 type repoStatus struct {
 	Forge             dashboard.Forge `json:"forge"`
 	FullName          string          `json:"fullName"`
@@ -27,6 +28,8 @@ type repoStatus struct {
 	HasWebhook        bool            `json:"hasWebhook"`
 	CanManageWebhooks bool            `json:"canManageWebhooks"`
 	Ignored           bool            `json:"ignored"`
+	IgnoredPRs        bool            `json:"ignoredPRs"`
+	IgnoredIssues     bool            `json:"ignoredIssues"`
 	AutoUpdateBranch  bool            `json:"autoUpdateBranch"`
 }
 
@@ -80,7 +83,7 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 		if !hasWebhook {
 			_, hasWebhook = deliveries[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
 		}
-		_, isIgnored := ignored[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
+		scope := ignored[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
 		_, autoUpdate := autoUpdateBranch[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
 		repos = append(repos, repoStatus{
 			Forge:             r.Forge,
@@ -88,20 +91,22 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 			URL:               r.URL,
 			HasWebhook:        hasWebhook,
 			CanManageWebhooks: r.CanManageWebhooks,
-			Ignored:           isIgnored,
+			Ignored:           scope.PRs || scope.Issues,
+			IgnoredPRs:        scope.PRs,
+			IgnoredIssues:     scope.Issues,
 			AutoUpdateBranch:  autoUpdate,
 		})
 	}
 
 	pullRequests := make([]dashboard.PullRequest, 0, len(snap.PullRequests))
 	for _, pr := range snap.PullRequests {
-		if _, isIgnored := ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)]; !isIgnored {
+		if !ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)].PRs {
 			pullRequests = append(pullRequests, pr)
 		}
 	}
 	issues := make([]dashboard.Issue, 0, len(snap.Issues))
 	for _, issue := range snap.Issues {
-		if _, isIgnored := ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)]; !isIgnored {
+		if !ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
 			issues = append(issues, issue)
 		}
 	}

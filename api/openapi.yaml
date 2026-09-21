@@ -770,14 +770,17 @@ paths:
   /api/repos/ignore:
     post:
       operationId: ignoreRepo
-      summary: Hide one tracked repo's pull requests and issues from the dashboard and Insights
+      summary: Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
       description: |
         Reversible, not destructive (#363): the repo itself keeps
         appearing in GET /api/dashboard's `repos` array with accurate
         webhook-coverage status, and keeps being fetched and counted —
-        only its pullRequests/issues entries stop appearing there and on
-        Insights. Idempotent: ignoring an already-ignored repo is a
-        no-op, not an error.
+        only the pullRequests and/or issues entries the request scopes
+        (#511) stop appearing there and on Insights. A repeat call
+        replaces the previously saved scope rather than merging with it
+        (ignoring PRs only, then issues only, ends with only issues
+        ignored) — idempotent for an identical repeat, not additive
+        across different scopes.
       tags: [dashboard]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -785,12 +788,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/WebhookEnsureRequest"
+              $ref: "#/components/schemas/RepoIgnoreRequest"
       responses:
         "204":
-          description: The repo is now ignored (or already was).
+          description: The repo is now ignored in the requested scope (or already was).
         "400":
-          description: The request body wasn't valid JSON, or `fullName` wasn't "owner/repo".
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", or both `prs` and `issues` were false.
           content:
             application/json:
               schema:
@@ -2329,6 +2334,27 @@ components:
           type: string
           description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
 
+    RepoIgnoreRequest:
+      type: object
+      required: [forge, fullName, prs, issues]
+      description: |
+        Which repo to ignore, and in which scope(s) (#511). At least one
+        of prs/issues must be true — a request with both false is
+        rejected with 400 rather than silently doing nothing; use POST
+        /api/repos/unignore to clear both at once instead.
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+        prs:
+          type: boolean
+          description: Whether to ignore this repo's pull requests.
+        issues:
+          type: boolean
+          description: Whether to ignore this repo's issues.
+
     PullRequestActionRequest:
       type: object
       required: [forge, fullName, number]
@@ -2650,6 +2676,8 @@ components:
           hasWebhook,
           canManageWebhooks,
           ignored,
+          ignoredPRs,
+          ignoredIssues,
           autoUpdateBranch,
         ]
       description: |
@@ -2670,10 +2698,22 @@ components:
         ignored:
           type: boolean
           description: |
-            Whether the signed-in user has ignored this repo (#363) — its
-            pullRequests/issues entries are excluded from this same
-            response and from Insights, but the repo itself still
-            appears here with accurate hasWebhook/canManageWebhooks.
+            Whether the signed-in user has ignored this repo in either
+            scope below (#363, #511) — true whenever ignoredPRs or
+            ignoredIssues is true. The repo itself still appears here
+            with accurate hasWebhook/canManageWebhooks regardless.
+        ignoredPRs:
+          type: boolean
+          description: |
+            Whether the signed-in user has ignored this repo's pull
+            requests specifically (#511) — its pullRequests entries are
+            excluded from this same response and from Insights.
+        ignoredIssues:
+          type: boolean
+          description: |
+            Whether the signed-in user has ignored this repo's issues
+            specifically (#511) — its issues entries are excluded from
+            this same response and from Insights.
         hasWebhook:
           type: boolean
           description: |

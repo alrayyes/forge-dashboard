@@ -787,8 +787,8 @@ test.describe('webhooks page', () => {
     });
   });
 
-  test.describe('ignoring a repo (#363)', () => {
-    test('clicking "Ignore" calls the API and moves the repo into the Ignored disclosure', async ({
+  test.describe('ignoring a repo (#363, #511)', () => {
+    test('choosing "Ignore both" calls the API and moves the repo into the Ignored disclosure', async ({
       page,
     }) => {
       await mockDashboard(page, [
@@ -805,18 +805,89 @@ test.describe('webhooks page', () => {
       await page
         .locator('#webhooks-rows tr')
         .first()
-        .getByRole('button', { name: 'Ignore' })
-        .click();
+        .getByRole('combobox', { name: 'Ignore alrayyes/a' })
+        .selectOption('both');
 
       await expect(page.locator('#webhooks-rows tr')).toHaveCount(0);
       await expect(page.locator('#webhooks-no-results')).toBeVisible();
       const disclosure = page.locator('#webhooks-ignored');
       await expect(disclosure.locator('summary')).toContainText('Ignored (1)');
       await expect(disclosure).toContainText('alrayyes/a');
+      await expect(disclosure).toContainText('(PRs, issues)');
       await expect(page.locator('#webhooks-status')).toContainText(
         'alrayyes/a is now ignored',
       );
-      expect(requestBody).toEqual({ forge: 'github', fullName: 'alrayyes/a' });
+      expect(requestBody).toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        prs: true,
+        issues: true,
+      });
+    });
+
+    test('choosing "Ignore PRs" sends prs:true, issues:false and shows the scope in the disclosure', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+      ]);
+      let requestBody;
+      await page.route('**/api/repos/ignore', (route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      await page
+        .locator('#webhooks-rows tr')
+        .first()
+        .getByRole('combobox', { name: 'Ignore alrayyes/a' })
+        .selectOption('prs');
+
+      // The route handler's requestBody assignment races the fetch it's
+      // waiting on — this disclosure text only appears once the whole
+      // round trip (request, 204, repo.ignored* mutation, re-render) has
+      // settled, so waiting on it first is what makes the plain
+      // (non-retrying) requestBody assertion below safe to make.
+      const disclosure = page.locator('#webhooks-ignored');
+      await expect(disclosure).toContainText('(PRs)');
+      expect(requestBody).toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        prs: true,
+        issues: false,
+      });
+    });
+
+    test('choosing "Ignore issues" sends prs:false, issues:true and shows the scope in the disclosure', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+      ]);
+      let requestBody;
+      await page.route('**/api/repos/ignore', (route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto('/webhooks.html');
+
+      await page
+        .locator('#webhooks-rows tr')
+        .first()
+        .getByRole('combobox', { name: 'Ignore alrayyes/a' })
+        .selectOption('issues');
+
+      // See the "Ignore PRs" test above for why the disclosure text is
+      // awaited before this plain (non-retrying) requestBody assertion.
+      const disclosure = page.locator('#webhooks-ignored');
+      await expect(disclosure).toContainText('(issues)');
+      expect(requestBody).toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        prs: false,
+        issues: true,
+      });
     });
 
     test('no repos ignored shows no disclosure at all', async ({ page }) => {
@@ -837,6 +908,8 @@ test.describe('webhooks page', () => {
           fullName: 'alrayyes/a',
           hasWebhook: true,
           ignored: true,
+          ignoredPRs: true,
+          ignoredIssues: true,
         },
         { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
       ]);
@@ -860,6 +933,8 @@ test.describe('webhooks page', () => {
           fullName: 'alrayyes/a',
           hasWebhook: true,
           ignored: true,
+          ignoredPRs: true,
+          ignoredIssues: true,
         },
       ]);
       let requestBody;
@@ -904,8 +979,8 @@ test.describe('webhooks page', () => {
       await page
         .locator('#webhooks-rows tr')
         .first()
-        .getByRole('button', { name: 'Ignore' })
-        .click();
+        .getByRole('combobox', { name: 'Ignore alrayyes/a' })
+        .selectOption('both');
 
       await expect(page.locator('#webhooks-status')).toContainText(
         "Couldn't ignore alrayyes/a",
@@ -923,6 +998,8 @@ test.describe('webhooks page', () => {
           fullName: 'alrayyes/a',
           hasWebhook: true,
           ignored: true,
+          ignoredPRs: true,
+          ignoredIssues: true,
         },
         { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
       ]);
