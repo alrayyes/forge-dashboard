@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.88.1](https://github.com/alrayyes/forge-dashboard/compare/v0.88.0...v0.88.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* **ci:** stop dependabot proposing a typescript major bump svelte-check can't run ([#510](https://github.com/alrayyes/forge-dashboard/issues/510)) ([c9b55a6](https://github.com/alrayyes/forge-dashboard/commit/c9b55a65f96c7727c929a3b3a578bf900ca8bfbf))
+* **deps:** bump modernc.org/sqlite in the go-dependencies group ([#507](https://github.com/alrayyes/forge-dashboard/issues/507)) ([15a431f](https://github.com/alrayyes/forge-dashboard/commit/15a431f0e05dafa696e3f9da42db1ed9e04ebc3c))
+
 ## [0.88.0](https://github.com/alrayyes/forge-dashboard/compare/v0.87.4...v0.88.0) (2026-09-20)
 
 
