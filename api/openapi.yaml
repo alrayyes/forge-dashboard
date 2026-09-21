@@ -1549,6 +1549,76 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/admin/requests:
+    get:
+      operationId: listRequests
+      summary: List every outbound GitHub/Forgejo request this instance has made
+      description: |
+        Every outbound request `internal/github` or `internal/forgejo` has
+        made, newest first, across every account — an admin's own
+        credential included, since correlating a shared-credential
+        problem (like the rate-limit incident that motivated this
+        endpoint) needs a cross-account view no single account's own
+        session could give.
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/QueryRequestLogForge"
+        - $ref: "#/components/parameters/QueryRequestLogAccount"
+      responses:
+        "200":
+          description: Every request-log entry matching the filter, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RequestLogEntry"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The signed-in user isn't the designated admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/admin/requests/export:
+    get:
+      operationId: exportRequests
+      summary: Export the (filtered) outbound-request log as CSV
+      description: |
+        The same rows GET /api/admin/requests would return for the same
+        filter, as a downloadable CSV file with one header row.
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/QueryRequestLogForge"
+        - $ref: "#/components/parameters/QueryRequestLogAccount"
+      responses:
+        "200":
+          description: A CSV file, one row per matching entry plus a header row.
+          content:
+            text/csv:
+              schema:
+                type: string
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The signed-in user isn't the designated admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /healthz:
     get:
       operationId: health
@@ -1915,6 +1985,25 @@ components:
       schema:
         type: string
 
+    QueryRequestLogForge:
+      name: forge
+      in: query
+      required: false
+      description: Narrow to entries against this forge only. Omitted matches every forge.
+      schema:
+        $ref: "#/components/schemas/Forge"
+
+    QueryRequestLogAccount:
+      name: account
+      in: query
+      required: false
+      description: |
+        Narrow to entries made under this account's own credential only —
+        an account's `id`, not its `username`. Omitted matches every
+        account.
+      schema:
+        type: string
+
   schemas:
     Health:
       type: object
@@ -2083,6 +2172,44 @@ components:
         expiresAt:
           type: string
           format: date-time
+
+    RequestLogEntry:
+      type: object
+      description: |
+        One outbound request `internal/github` or `internal/forgejo`
+        made, as persisted by the request_log table.
+      required: [loggedAt, forge, method, endpoint, outcome]
+      properties:
+        loggedAt:
+          type: string
+          format: date-time
+        forge:
+          $ref: "#/components/schemas/Forge"
+        account:
+          type: string
+          description: |
+            The display username of the account whose credential made
+            this request, or omitted when the request was made with no
+            per-account credential, or when that account has since been
+            deleted.
+        method:
+          type: string
+          examples: [GET, POST]
+        endpoint:
+          type: string
+          description: The request's own path — GraphQL requests all report "/graphql".
+          examples: ["/repos/alrayyes/forge-dashboard/pulls", /graphql]
+        statusCode:
+          type: integer
+          description: Omitted when the request never got a response at all.
+        outcome:
+          type: string
+          description: '"success", or the `ForgeErrorKind` the failure was classified as.'
+          examples: [success, rate_limited]
+        rateLimit:
+          description: Omitted when the response carried no rate-limit fields.
+          allOf:
+            - $ref: "#/components/schemas/RateLimit"
 
     SharedUser:
       type: object
