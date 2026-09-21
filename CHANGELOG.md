@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.90.0](https://github.com/alrayyes/forge-dashboard/compare/v0.89.1...v0.90.0) (2026-09-21)
+
+
+### Features
+
+* **admin:** outbound-request log with admin UI and CSV export ([#519](https://github.com/alrayyes/forge-dashboard/issues/519)) ([a635261](https://github.com/alrayyes/forge-dashboard/commit/a6352618527ccb79e64385afe805857927b6d6c4))
+
 ## [0.89.1](https://github.com/alrayyes/forge-dashboard/compare/v0.89.0...v0.89.1) (2026-09-21)
 
 
