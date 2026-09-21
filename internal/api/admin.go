@@ -313,19 +313,38 @@ func resolveAccountUsernames(ctx context.Context, store *auth.Store, entries []r
 	return usernames
 }
 
-// requestLogFilterFromQuery reads the optional forge/account filter
-// query params GET /api/admin/requests and its /export counterpart both
-// take.
-func requestLogFilterFromQuery(r *http.Request) requestlog.Filter {
-	return requestlog.Filter{
-		Forge:     dashboard.Forge(r.URL.Query().Get("forge")),
-		AccountID: r.URL.Query().Get("account"),
+// unresolvedAccountFilter is what requestLogFilterFromQuery falls back to
+// when the account query param's username doesn't resolve to a real user
+// — a value no stored requestlog.Entry.AccountID can ever equal, since
+// base64.RawURLEncoding never produces "!", so the filter matches zero
+// rows rather than either erroring or silently matching every account.
+const unresolvedAccountFilter = "!unknown-account!"
+
+// requestLogFilterFromQuery reads the optional forge/account filter query
+// params GET /api/admin/requests and its /export counterpart both take,
+// resolving the account param's username (see QueryRequestLogAccount's
+// own doc comment in api/openapi.yaml — usernames are the user-facing
+// filter value, not raw account ids) to the internal id
+// requestlog.Filter.AccountID actually matches rows on.
+func requestLogFilterFromQuery(ctx context.Context, store *auth.Store, r *http.Request) requestlog.Filter {
+	filter := requestlog.Filter{Forge: dashboard.Forge(r.URL.Query().Get("forge"))}
+
+	if username := r.URL.Query().Get("account"); username != "" {
+		u, err := store.GetUserByUsername(ctx, username)
+		if err != nil {
+			filter.AccountID = unresolvedAccountFilter
+
+			return filter
+		}
+		filter.AccountID = base64.RawURLEncoding.EncodeToString(u.ID)
 	}
+
+	return filter
 }
 
 func handleAdminListRequests(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		entries, err := deps.RequestLog.List(r.Context(), requestLogFilterFromQuery(r))
+		entries, err := deps.RequestLog.List(r.Context(), requestLogFilterFromQuery(r.Context(), deps.AuthStore, r))
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not list requests"))
 
@@ -370,7 +389,7 @@ func requestLogCSVRow(e AdminRequestLogEntry) []string {
 
 func handleAdminExportRequests(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		entries, err := deps.RequestLog.List(r.Context(), requestLogFilterFromQuery(r))
+		entries, err := deps.RequestLog.List(r.Context(), requestLogFilterFromQuery(r.Context(), deps.AuthStore, r))
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not export requests"))
 

@@ -1999,8 +1999,10 @@ components:
       required: false
       description: |
         Narrow to entries made under this account's own credential only —
-        an account's `id`, not its `username`. Omitted matches every
-        account.
+        the account's `username` (matching RequestLogEntry.account), not
+        its internal id. An unrecognized username matches nothing rather
+        than erroring, the same as any other filter with no matches.
+        Omitted matches every account.
       schema:
         type: string
 

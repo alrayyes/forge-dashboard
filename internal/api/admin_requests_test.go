@@ -165,10 +165,11 @@ func TestAdminListRequests_FilterByAccount_Narrows(t *testing.T) {
 	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
 	admin, err := store.GetUserByUsername(t.Context(), testAdmin)
 	require.NoError(t, err)
-	accountID := base64.RawURLEncoding.EncodeToString(admin.ID)
-	seedRequestLog(t, store, accountID)
+	seedRequestLog(t, store, base64.RawURLEncoding.EncodeToString(admin.ID))
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/admin/requests?account="+accountID, nil)
+	// The account filter is the username, not the raw internal id — see
+	// QueryRequestLogAccount's own doc comment in api/openapi.yaml.
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/admin/requests?account="+testAdmin, nil)
 	require.NoError(t, err)
 	req.AddCookie(adminCookie)
 	resp, err := http.DefaultClient.Do(req)
@@ -180,6 +181,28 @@ func TestAdminListRequests_FilterByAccount_Narrows(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&entries))
 	require.Len(t, entries, 1)
 	assert.Equal(t, testAdmin, entries[0].Account)
+}
+
+func TestAdminListRequests_FilterByAccount_UnknownUsername_MatchesNothing(t *testing.T) {
+	t.Parallel()
+
+	srv, store := newTestServerWithStore(t)
+	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
+	admin, err := store.GetUserByUsername(t.Context(), testAdmin)
+	require.NoError(t, err)
+	seedRequestLog(t, store, base64.RawURLEncoding.EncodeToString(admin.ID))
+
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/admin/requests?account=no-such-user", nil)
+	require.NoError(t, err)
+	req.AddCookie(adminCookie)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var entries []api.AdminRequestLogEntry
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&entries))
+	assert.Empty(t, entries)
 }
 
 // TestAdminExportRequests_CSVRoundTripsSameFilteredRowsAsList is the
