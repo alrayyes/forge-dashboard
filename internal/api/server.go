@@ -125,6 +125,8 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/admin/invites", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminCreateInvite(deps))))
 	mux.Handle("GET /api/admin/invites", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminListInvites(deps.AuthStore))))
 	mux.Handle("POST /api/admin/invites/{token}/revoke", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminRevokeInvite(deps.AuthStore))))
+	mux.Handle("GET /api/admin/requests", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminListRequests(deps))))
+	mux.Handle("GET /api/admin/requests/export", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminExportRequests(deps))))
 
 	// Not session-authenticated like everything above — the path's token
 	// identifies the user, and the request's own HMAC signature is what

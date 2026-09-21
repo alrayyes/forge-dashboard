@@ -71,7 +71,7 @@
       entries) and `GET /api/admin/requests/export` (same query params,
       `text/csv` response), both tagged `admin`. Verify with
       `bun run lint:api`.
-- [ ] 3.2 Implement `handleAdminListRequests` and
+- [x] 3.2 Implement `handleAdminListRequests` and
       `handleAdminExportRequests` in `internal/api/admin.go`, wired in
       `internal/api/server.go` behind the existing
       `auth.RequireAuth(store)(auth.RequireAdmin(...))` composition.

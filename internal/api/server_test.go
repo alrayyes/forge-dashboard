@@ -149,7 +149,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 		return []dashboard.Source{&fakeConfiguredSource{health: wantHealth}}
 	}
 
-	srv, manager := newTestServerWithSourcesAndManager(t, buildSources)
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, buildSources)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
