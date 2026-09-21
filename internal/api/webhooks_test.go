@@ -137,7 +137,7 @@ func newTestServerWithCountingSource(t *testing.T) (srv string, calls *atomic.In
 // are Ensure's own initial one and whatever RefreshNow calls happen.
 func newTestServerWithSource(t *testing.T, source dashboard.Source) (srv string, sessionCookie *http.Cookie) {
 	t.Helper()
-	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken == "" {
 			return nil
 		}

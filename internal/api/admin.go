@@ -1,12 +1,18 @@
 package api
 
 import (
+	"context"
+	"encoding/base64"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
 
 // AdminUser matches components.schemas.AdminUser in api/openapi.yaml.
@@ -236,5 +242,172 @@ func handleAdminRevokeInvite(store *auth.Store) http.HandlerFunc {
 		}
 
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// AdminRequestLogEntry matches components.schemas.RequestLogEntry.
+type AdminRequestLogEntry struct {
+	LoggedAt   string               `json:"loggedAt"`
+	Forge      string               `json:"forge"`
+	Account    string               `json:"account,omitempty"`
+	Method     string               `json:"method"`
+	Endpoint   string               `json:"endpoint"`
+	StatusCode int                  `json:"statusCode,omitempty"`
+	Outcome    string               `json:"outcome"`
+	RateLimit  *dashboard.RateLimit `json:"rateLimit,omitempty"`
+}
+
+// adminRequestLogEntryOf maps e to its API shape, resolving e.AccountID
+// (a raw, base64-encoded user id — see requestlog.Entry's own doc
+// comment) to that account's current username via usernames, built once
+// per request by resolveAccountUsernames rather than looked up per row.
+func adminRequestLogEntryOf(e requestlog.Entry, usernames map[string]string) AdminRequestLogEntry {
+	out := AdminRequestLogEntry{
+		LoggedAt:   e.LoggedAt.Format(time.RFC3339),
+		Forge:      string(e.Forge),
+		Account:    usernames[e.AccountID],
+		Method:     e.Method,
+		Endpoint:   e.Endpoint,
+		StatusCode: e.StatusCode,
+		Outcome:    e.Outcome,
+	}
+	// RateLimitLimit/Remaining/ResetsAt are always set together — see
+	// each forge client's own recordRequest — so testing the one is
+	// enough to know the other two are populated too.
+	if e.RateLimitLimit != nil {
+		rl := dashboard.RateLimit{Limit: *e.RateLimitLimit, Remaining: *e.RateLimitRemaining, ResetsAt: *e.RateLimitResetsAt}
+		if e.RateLimitCost != nil {
+			rl.Cost = *e.RateLimitCost
+		}
+		out.RateLimit = &rl
+	}
+
+	return out
+}
+
+// resolveAccountUsernames looks up the current username for every
+// distinct, non-empty AccountID across entries, once each — an account
+// that's since been deleted (auth.ErrNotFound) is simply left out of the
+// map, so adminRequestLogEntryOf's own lookup reports "" for it rather
+// than erroring the whole listing over one stale row.
+func resolveAccountUsernames(ctx context.Context, store *auth.Store, entries []requestlog.Entry) map[string]string {
+	usernames := make(map[string]string)
+	for _, e := range entries {
+		if e.AccountID == "" {
+			continue
+		}
+		if _, done := usernames[e.AccountID]; done {
+			continue
+		}
+		id, err := base64.RawURLEncoding.DecodeString(e.AccountID)
+		if err != nil {
+			continue
+		}
+		u, err := store.GetUserByID(ctx, id)
+		if err != nil {
+			continue
+		}
+		usernames[e.AccountID] = u.Username
+	}
+
+	return usernames
+}
+
+// unresolvedAccountFilter is what requestLogFilterFromQuery falls back to
+// when the account query param's username doesn't resolve to a real user
+// — a value no stored requestlog.Entry.AccountID can ever equal, since
+// base64.RawURLEncoding never produces "!", so the filter matches zero
+// rows rather than either erroring or silently matching every account.
+const unresolvedAccountFilter = "!unknown-account!"
+
+// requestLogFilterFromQuery reads the optional forge/account filter query
+// params GET /api/admin/requests and its /export counterpart both take,
+// resolving the account param's username (see QueryRequestLogAccount's
+// own doc comment in api/openapi.yaml — usernames are the user-facing
+// filter value, not raw account ids) to the internal id
+// requestlog.Filter.AccountID actually matches rows on.
+func requestLogFilterFromQuery(ctx context.Context, store *auth.Store, r *http.Request) requestlog.Filter {
+	filter := requestlog.Filter{Forge: dashboard.Forge(r.URL.Query().Get("forge"))}
+
+	if username := r.URL.Query().Get("account"); username != "" {
+		u, err := store.GetUserByUsername(ctx, username)
+		if err != nil {
+			filter.AccountID = unresolvedAccountFilter
+
+			return filter
+		}
+		filter.AccountID = base64.RawURLEncoding.EncodeToString(u.ID)
+	}
+
+	return filter
+}
+
+func handleAdminListRequests(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		entries, err := deps.RequestLog.List(r.Context(), requestLogFilterFromQuery(r.Context(), deps.AuthStore, r))
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not list requests"))
+
+			return
+		}
+
+		usernames := resolveAccountUsernames(r.Context(), deps.AuthStore, entries)
+		out := make([]AdminRequestLogEntry, len(entries))
+		for i, e := range entries {
+			out[i] = adminRequestLogEntryOf(e, usernames)
+		}
+		writeJSON(w, http.StatusOK, out)
+	}
+}
+
+// requestLogCSVHeader names every column handleAdminExportRequests
+// writes, in the same order requestLogCSVRow builds them in.
+var requestLogCSVHeader = []string{
+	"loggedAt", "forge", "account", "method", "endpoint", "statusCode", "outcome",
+	"rateLimitLimit", "rateLimitRemaining", "rateLimitResetsAt", "rateLimitCost",
+}
+
+func requestLogCSVRow(e AdminRequestLogEntry) []string {
+	statusCode, rlLimit, rlRemaining, rlResetsAt, rlCost := "", "", "", "", ""
+	if e.StatusCode != 0 {
+		statusCode = strconv.Itoa(e.StatusCode)
+	}
+	if e.RateLimit != nil {
+		rlLimit = strconv.Itoa(e.RateLimit.Limit)
+		rlRemaining = strconv.Itoa(e.RateLimit.Remaining)
+		rlResetsAt = e.RateLimit.ResetsAt.Format(time.RFC3339)
+		if e.RateLimit.Cost != 0 {
+			rlCost = strconv.Itoa(e.RateLimit.Cost)
+		}
+	}
+
+	return []string{
+		e.LoggedAt, e.Forge, e.Account, e.Method, e.Endpoint, statusCode, e.Outcome,
+		rlLimit, rlRemaining, rlResetsAt, rlCost,
+	}
+}
+
+func handleAdminExportRequests(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		entries, err := deps.RequestLog.List(r.Context(), requestLogFilterFromQuery(r.Context(), deps.AuthStore, r))
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not export requests"))
+
+			return
+		}
+		usernames := resolveAccountUsernames(r.Context(), deps.AuthStore, entries)
+
+		w.Header().Set("Content-Type", "text/csv")
+		w.Header().Set("Content-Disposition", `attachment; filename="request-log.csv"`)
+		writer := csv.NewWriter(w)
+		if err := writer.Write(requestLogCSVHeader); err != nil {
+			return
+		}
+		for _, e := range entries {
+			if err := writer.Write(requestLogCSVRow(adminRequestLogEntryOf(e, usernames))); err != nil {
+				return
+			}
+		}
+		writer.Flush()
 	}
 }

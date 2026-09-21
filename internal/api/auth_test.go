@@ -17,6 +17,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	requestlogpkg "github.com/alrayyes/forge-dashboard/internal/requestlog"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
 	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/descope/virtualwebauthn"
@@ -43,7 +44,7 @@ const (
 // about real forge data — most of this file, which is about the auth and
 // settings plumbing, not internal/github or internal/forgejo (each tested
 // in its own package).
-func noSources(settingspkg.Credentials) []dashboard.Source { return nil }
+func noSources([]byte, settingspkg.Credentials) []dashboard.Source { return nil }
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
@@ -51,19 +52,31 @@ func newTestServer(t *testing.T) *httptest.Server {
 	return newTestServerWithSources(t, noSources)
 }
 
-func newTestServerWithSources(t *testing.T, buildSources func(settingspkg.Credentials) []dashboard.Source) *httptest.Server {
+// newTestServerWithStore is newTestServer plus the *auth.Store — for a
+// test that needs to seed state (like a request-log row) with no HTTP
+// endpoint of its own to create one through.
+func newTestServerWithStore(t *testing.T) (*httptest.Server, *authpkg.Store) {
 	t.Helper()
-	srv, _ := newTestServerWithSourcesAndManager(t, buildSources)
+	srv, _, store := newTestServerWithSourcesAndManager(t, noSources)
+
+	return srv, store
+}
+
+func newTestServerWithSources(t *testing.T, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) *httptest.Server {
+	t.Helper()
+	srv, _, _ := newTestServerWithSourcesAndManager(t, buildSources)
 
 	return srv
 }
 
-// newTestServerWithSourcesAndManager is newTestServerWithSources plus the
-// *dashboard.Manager itself — for a test that needs to simulate a process
-// restart (manager.Stop(), which cancels every running loop and clears
-// its map, the same effect on Manager state a real restart has) without
-// tearing down the rest of the server.
-func newTestServerWithSourcesAndManager(t *testing.T, buildSources func(settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Manager) {
+// newTestServerWithSourcesAndManager is newTestServerWithSources plus
+// the *dashboard.Manager itself — for a test that needs to simulate a
+// process restart (manager.Stop(), which cancels every running loop and
+// clears its map, the same effect on Manager state a real restart has)
+// without tearing down the rest of the server — and the *auth.Store,
+// for a test that needs to seed state (like a request-log row) with no
+// HTTP endpoint of its own to create one through.
+func newTestServerWithSourcesAndManager(t *testing.T, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
 	t.Helper()
 
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
@@ -103,12 +116,13 @@ func newTestServerWithSourcesAndManager(t *testing.T, buildSources func(settings
 		SharingStore:  sharingStore,
 		Manager:       manager,
 		BuildSources:  buildSources,
+		RequestLog:    requestlogpkg.NewSQLiteRecorder(authStore, ""),
 		AppContext:    appCtx,
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	return srv, manager
+	return srv, manager, authStore
 }
 
 func testEncryptionKey(t *testing.T) string {

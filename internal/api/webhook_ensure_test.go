@@ -69,7 +69,7 @@ const testPublicOrigin = "https://dashboard.example"
 // called with.
 func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source dashboard.Source) (srv string, sessionCookie *http.Cookie) {
 	t.Helper()
-	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if forge == dashboard.ForgeGitHub && c.GitHubToken == "" {
 			return nil
 		}

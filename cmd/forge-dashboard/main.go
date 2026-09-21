@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -23,6 +24,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -115,7 +117,8 @@ func run() error {
 		SettingsStore: settingsStore,
 		SharingStore:  sharingStore,
 		Manager:       manager,
-		BuildSources:  buildSourcesForUser,
+		BuildSources:  buildSourcesForUser(authStore),
+		RequestLog:    requestlog.NewSQLiteRecorder(authStore, ""),
 		AppContext:    ctx,
 		// Same env var buildAuth already required for WebAuthn's own
 		// RPOrigins — reused rather than adding a second "what's my own
@@ -146,50 +149,47 @@ func run() error {
 	return nil
 }
 
-// buildSourcesForUser wires one dashboard.Source per forge c has enough
-// configuration for. A forge with nothing set is skipped entirely — the
-// per-user equivalent of v1's buildSources, now driven by a Settings save
-// instead of GITHUB_TOKEN/FORGEJO_* environment variables.
-//
-// c.WebhookToken (settings.Store.EnsureWebhookCredentials, generated the
-// first time Settings is opened) is what lets each client recognize its
-// own webhook among a repo's — see dashboard.WebhookTargetsPath. Left
-// blank (a user who saved forge credentials but has never opened
-// Settings yet), both clients skip the live check entirely rather than
-// erroring; the delivery-table signal in buildDashboardResponse still
-// covers them once they do.
-func buildSourcesForUser(c settings.Credentials) []dashboard.Source {
-	var sources []dashboard.Source
+// buildSourcesForUser returns the per-user dashboard.Source builder Deps.
+// BuildSources needs — a closure over authStore so every forge client it
+// builds gets a requestlog.SQLiteRecorder bound to that specific user's
+// own account ID (#482): the account whose credential made a request is
+// known here, at construction, and nowhere else past this point, so this
+// is where it has to be threaded in.
+func buildSourcesForUser(authStore *auth.Store) func(userID []byte, c settings.Credentials) []dashboard.Source {
+	return func(userID []byte, c settings.Credentials) []dashboard.Source {
+		var sources []dashboard.Source
+		recorder := requestlog.NewSQLiteRecorder(authStore, base64.RawURLEncoding.EncodeToString(userID))
 
-	switch {
-	case c.GitHubToken != "":
-		// github.Client implements dashboard.Source itself (GraphQL, one
-		// request per refresh) rather than going through GenericSource's
-		// one-REST-call-per-repo model.
-		client := github.NewClient(c.GitHubToken, "", "")
-		if c.WebhookToken != "" {
-			client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
+		switch {
+		case c.GitHubToken != "":
+			// github.Client implements dashboard.Source itself (GraphQL, one
+			// request per refresh) rather than going through GenericSource's
+			// one-REST-call-per-repo model.
+			client := github.NewClient(c.GitHubToken, "", "", recorder)
+			if c.WebhookToken != "" {
+				client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
+			}
+			sources = append(sources, client)
+		case c.GitHubUsername != "":
+			sources = append(sources, github.NewClient("", c.GitHubUsername, "", recorder))
 		}
-		sources = append(sources, client)
-	case c.GitHubUsername != "":
-		sources = append(sources, github.NewClient("", c.GitHubUsername, ""))
-	}
 
-	switch {
-	case c.ForgejoURL == "":
-		// nothing configured for Forgejo at all
-	case c.ForgejoToken != "":
-		client := forgejo.NewClient(c.ForgejoURL, c.ForgejoToken, "")
-		if c.WebhookToken != "" {
-			client.SetWebhookPath("/api/webhooks/forgejo/" + c.WebhookToken)
+		switch {
+		case c.ForgejoURL == "":
+			// nothing configured for Forgejo at all
+		case c.ForgejoToken != "":
+			client := forgejo.NewClient(c.ForgejoURL, c.ForgejoToken, "", recorder)
+			if c.WebhookToken != "" {
+				client.SetWebhookPath("/api/webhooks/forgejo/" + c.WebhookToken)
+			}
+			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
+		case c.ForgejoUsername != "":
+			client := forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername, recorder)
+			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
 		}
-		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
-	case c.ForgejoUsername != "":
-		client := forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername)
-		sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
-	}
 
-	return sources
+		return sources
+	}
 }
 
 // openDatabase opens (creating the containing directory if needed) the

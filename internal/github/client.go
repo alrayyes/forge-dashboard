@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	ghsdk "github.com/google/go-github/v75/github"
 )
 
@@ -77,6 +78,12 @@ type Client struct {
 	// reconciliation fetchViaGraphQL runs on every repeat poll (#381) —
 	// see issue_reconciliation.go.
 	issueState issueState
+
+	// recorder persists a request_log entry for every outbound request
+	// this Client makes (#482) — always non-nil (NewClient defaults it
+	// to requestlog.NoopRecorder{}), so every call site can call it
+	// unconditionally.
+	recorder requestlog.Recorder
 }
 
 // recordRESTRate updates lastRESTRate from rate, ignoring a zero Rate —
@@ -103,7 +110,12 @@ func (c *Client) recordRESTRate(rate ghsdk.Rate) {
 // already shows anyone.
 // baseURL defaults to the real GitHub API; tests override it to point at
 // an httptest.Server.
-func NewClient(token, username, baseURL string) *Client {
+// recorder is variadic, not a plain trailing parameter, purely so every
+// existing call site (125+ of them, most in tests) keeps compiling
+// unchanged (#482) — pass one to have every outbound request persisted,
+// or omit it (or pass nil) to get requestlog.NoopRecorder{}, the same as
+// before this parameter existed.
+func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder) *Client {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
@@ -119,6 +131,11 @@ func NewClient(token, username, baseURL string) *Client {
 		restClient.BaseURL = u
 	}
 
+	rec := requestlog.Recorder(requestlog.NoopRecorder{})
+	if len(recorder) > 0 && recorder[0] != nil {
+		rec = recorder[0]
+	}
+
 	return &Client{
 		httpClient: httpClient,
 		baseURL:    baseURL,
@@ -126,7 +143,47 @@ func NewClient(token, username, baseURL string) *Client {
 		token:      token,
 		username:   username,
 		restClient: restClient,
+		recorder:   rec,
 	}
+}
+
+// recordRequest builds and persists this call's own request_log entry
+// via c.recorder — never let a Record failure affect the caller (see
+// requestlog.Recorder's own doc comment): logged and otherwise
+// swallowed. rl may be nil (the response carried no rate-limit fields).
+func (c *Client) recordRequest(ctx context.Context, method, endpoint string, statusCode int, outcome string, rl *dashboard.RateLimit) {
+	e := requestlog.Entry{
+		LoggedAt:   time.Now().UTC(),
+		Forge:      dashboard.ForgeGitHub,
+		Method:     method,
+		Endpoint:   endpoint,
+		StatusCode: statusCode,
+		Outcome:    outcome,
+	}
+	if rl != nil {
+		limit, remaining, resetsAt := rl.Limit, rl.Remaining, rl.ResetsAt
+		e.RateLimitLimit, e.RateLimitRemaining, e.RateLimitResetsAt = &limit, &remaining, &resetsAt
+		if rl.Cost != 0 {
+			cost := rl.Cost
+			e.RateLimitCost = &cost
+		}
+	}
+	if err := c.recorder.Record(ctx, e); err != nil {
+		slog.Warn("could not record outbound request", "forge", dashboard.ForgeGitHub, "error", err)
+	}
+}
+
+// recordRESTSuccess is recordRequest's counterpart for every successful
+// REST call — it also updates lastRESTRate (see recordRESTRate), the
+// same rate-limit bookkeeping every REST success already did before
+// this existed.
+func (c *Client) recordRESTSuccess(ctx context.Context, method, path string, resp *ghsdk.Response) {
+	c.recordRESTRate(resp.Rate)
+	var rl *dashboard.RateLimit
+	if resp.Rate.Limit != 0 {
+		rl = &dashboard.RateLimit{Limit: resp.Rate.Limit, Remaining: resp.Rate.Remaining, ResetsAt: resp.Rate.Reset.Time}
+	}
+	c.recordRequest(ctx, method, path, resp.StatusCode, requestlog.OutcomeSuccess, rl)
 }
 
 // Forge implements dashboard.Source.
@@ -173,9 +230,9 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 		slog.Debug("github request", "method", http.MethodGet, "url", path)
 		hooks, resp, err := c.restClient.Repositories.ListHooks(ctx, owner, name, opts)
 		if err != nil {
-			return nil, c.restError(http.MethodGet, path, err)
+			return nil, c.restError(ctx, http.MethodGet, path, err)
 		}
-		c.recordRESTRate(resp.Rate)
+		c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
 		for _, h := range hooks {
 			if h.Config != nil && dashboard.WebhookTargetsPath(h.Config.GetURL(), wantPath) {
 				return h, nil
@@ -228,18 +285,22 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 	if existing != nil {
 		path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, existing.GetID())
 		slog.Debug("github request", "method", http.MethodPatch, "url", path)
-		if _, _, err := c.restClient.Repositories.EditHook(ctx, owner, name, existing.GetID(), hook); err != nil {
-			return asClientError(c.restError(http.MethodPatch, path, err))
+		_, resp, err := c.restClient.Repositories.EditHook(ctx, owner, name, existing.GetID(), hook)
+		if err != nil {
+			return asClientError(c.restError(ctx, http.MethodPatch, path, err))
 		}
+		c.recordRESTSuccess(ctx, http.MethodPatch, path, resp)
 
 		return nil
 	}
 
 	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
 	slog.Debug("github request", "method", http.MethodPost, "url", path)
-	if _, _, err := c.restClient.Repositories.CreateHook(ctx, owner, name, hook); err != nil {
-		return asClientError(c.restError(http.MethodPost, path, err))
+	_, resp, err := c.restClient.Repositories.CreateHook(ctx, owner, name, hook)
+	if err != nil {
+		return asClientError(c.restError(ctx, http.MethodPost, path, err))
 	}
+	c.recordRESTSuccess(ctx, http.MethodPost, path, resp)
 
 	return nil
 }
@@ -255,17 +316,20 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 func (c *Client) MergePullRequest(ctx context.Context, owner, name string, number int) error {
 	repoPath := fmt.Sprintf("/repos/%s/%s", owner, name)
 	slog.Debug("github request", "method", http.MethodGet, "url", repoPath)
-	repo, _, err := c.restClient.Repositories.Get(ctx, owner, name)
+	repo, repoResp, err := c.restClient.Repositories.Get(ctx, owner, name)
 	if err != nil {
-		return asClientError(c.restError(http.MethodGet, repoPath, err))
+		return asClientError(c.restError(ctx, http.MethodGet, repoPath, err))
 	}
+	c.recordRESTSuccess(ctx, http.MethodGet, repoPath, repoResp)
 
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPut, "url", path)
 	opts := &ghsdk.PullRequestOptions{MergeMethod: mergeMethodFor(repo)}
-	if _, _, err := c.restClient.PullRequests.Merge(ctx, owner, name, number, "", opts); err != nil {
-		return asClientError(c.restError(http.MethodPut, path, err))
+	_, mergeResp, err := c.restClient.PullRequests.Merge(ctx, owner, name, number, "", opts)
+	if err != nil {
+		return asClientError(c.restError(ctx, http.MethodPut, path, err))
 	}
+	c.recordRESTSuccess(ctx, http.MethodPut, path, mergeResp)
 
 	return nil
 }
@@ -277,9 +341,11 @@ func (c *Client) ClosePullRequest(ctx context.Context, owner, name string, numbe
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPatch, "url", path)
 	state := "closed"
-	if _, _, err := c.restClient.PullRequests.Edit(ctx, owner, name, number, &ghsdk.PullRequest{State: &state}); err != nil {
-		return asClientError(c.restError(http.MethodPatch, path, err))
+	_, resp, err := c.restClient.PullRequests.Edit(ctx, owner, name, number, &ghsdk.PullRequest{State: &state})
+	if err != nil {
+		return asClientError(c.restError(ctx, http.MethodPatch, path, err))
 	}
+	c.recordRESTSuccess(ctx, http.MethodPatch, path, resp)
 
 	return nil
 }
@@ -310,14 +376,17 @@ func mergeMethodFor(repo *ghsdk.Repository) string {
 func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/update-branch", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPut, "url", path)
-	_, _, err := c.restClient.PullRequests.UpdateBranch(ctx, owner, name, number, nil)
+	_, resp, err := c.restClient.PullRequests.UpdateBranch(ctx, owner, name, number, nil)
 	if err != nil {
 		if _, ok := errors.AsType[*ghsdk.AcceptedError](err); ok {
+			c.recordRESTSuccess(ctx, http.MethodPut, path, resp)
+
 			return true, nil
 		}
 
-		return false, asClientError(c.restError(http.MethodPut, path, err))
+		return false, asClientError(c.restError(ctx, http.MethodPut, path, err))
 	}
+	c.recordRESTSuccess(ctx, http.MethodPut, path, resp)
 
 	return false, nil
 }
@@ -330,9 +399,11 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 func (c *Client) CommentPullRequest(ctx context.Context, owner, name string, number int, body string) error {
 	path := fmt.Sprintf("/repos/%s/%s/issues/%d/comments", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPost, "url", path)
-	if _, _, err := c.restClient.Issues.CreateComment(ctx, owner, name, number, &ghsdk.IssueComment{Body: &body}); err != nil {
-		return asClientError(c.restError(http.MethodPost, path, err))
+	_, resp, err := c.restClient.Issues.CreateComment(ctx, owner, name, number, &ghsdk.IssueComment{Body: &body})
+	if err != nil {
+		return asClientError(c.restError(ctx, http.MethodPost, path, err))
 	}
+	c.recordRESTSuccess(ctx, http.MethodPost, path, resp)
 
 	return nil
 }
@@ -343,9 +414,11 @@ func (c *Client) CommentPullRequest(ctx context.Context, owner, name string, num
 func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, label string) error {
 	path := fmt.Sprintf("/repos/%s/%s/issues/%d/labels", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPost, "url", path)
-	if _, _, err := c.restClient.Issues.AddLabelsToIssue(ctx, owner, name, number, []string{label}); err != nil {
-		return asClientError(c.restError(http.MethodPost, path, err))
+	_, resp, err := c.restClient.Issues.AddLabelsToIssue(ctx, owner, name, number, []string{label})
+	if err != nil {
+		return asClientError(c.restError(ctx, http.MethodPost, path, err))
 	}
+	c.recordRESTSuccess(ctx, http.MethodPost, path, resp)
 
 	return nil
 }
@@ -837,6 +910,8 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	slog.Debug("github request", "method", http.MethodPost, "url", c.graphqlURL, "cursor", variables["cursor"])
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.recordRequest(ctx, http.MethodPost, c.graphqlURL, 0, string(dashboard.ForgeErrorUnreachable), nil)
+
 		return &apiError{
 			msg:  fmt.Sprintf("github: POST /graphql: %s", err),
 			kind: dashboard.ForgeErrorUnreachable,
@@ -850,6 +925,7 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 		if _, ok := rateLimitShortMessage(resp.Header, msg); !ok {
 			kind = forgeErrorKindFromStatus(resp.StatusCode)
 		}
+		c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(kind), rl)
 
 		return &apiError{msg: "github: POST /graphql: " + msg, rateLimit: rl, kind: kind}
 	}
@@ -859,6 +935,8 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 		Errors []graphqlErrorEntry `json:"errors"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(dashboard.ForgeErrorUnknown), rateLimitFromHeaders(resp.Header))
+
 		return fmt.Errorf("github: decode graphql response: %w", err)
 	}
 	if len(envelope.Errors) > 0 {
@@ -876,9 +954,11 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 			msg = short
 			kind = dashboard.ForgeErrorRateLimited
 		}
+		c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(kind), rl)
 
 		return &apiError{msg: "github: graphql: " + msg, rateLimit: rl, kind: kind}
 	}
+	c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, requestlog.OutcomeSuccess, rateLimitFromHeaders(resp.Header))
 	if out == nil {
 		return nil
 	}
@@ -1309,10 +1389,15 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 // records whatever REST rate-limit budget the failure itself reported
 // (#361): a rate-limit-driven failure is exactly the case where that
 // number matters most, and it's often the only response this client
-// happens to see once the budget is genuinely exhausted.
-func (c *Client) restError(method, path string, err error) error {
+// happens to see once the budget is genuinely exhausted. It's also the
+// one choke point every REST call site's failure path already returns
+// through, which makes it the natural place to persist that call's own
+// request_log entry (#482) rather than repeating the same call at every
+// site.
+func (c *Client) restError(ctx context.Context, method, path string, err error) error {
 	if rateLimitErr, ok := errors.AsType[*ghsdk.RateLimitError](err); ok {
 		c.recordRESTRate(rateLimitErr.Rate)
+		c.recordRequest(ctx, method, path, statusCodeOf(rateLimitErr.Response), string(dashboard.ForgeErrorRateLimited), rateLimitOf(rateLimitErr.Rate))
 
 		return &apiError{
 			msg:  fmt.Sprintf("github: %s %s: rate limit exceeded", method, path),
@@ -1320,11 +1405,14 @@ func (c *Client) restError(method, path string, err error) error {
 		}
 	}
 	if abuseErr, ok := errors.AsType[*ghsdk.AbuseRateLimitError](err); ok {
+		var rl *dashboard.RateLimit
 		if abuseErr.Response != nil {
-			if rl := rateLimitFromHeaders(abuseErr.Response.Header); rl != nil {
+			if fromHeaders := rateLimitFromHeaders(abuseErr.Response.Header); fromHeaders != nil {
+				rl = fromHeaders
 				c.recordRESTRate(ghsdk.Rate{Limit: rl.Limit, Remaining: rl.Remaining, Reset: ghsdk.Timestamp{Time: rl.ResetsAt}})
 			}
 		}
+		c.recordRequest(ctx, method, path, statusCodeOf(abuseErr.Response), string(dashboard.ForgeErrorRateLimited), rl)
 
 		return &apiError{
 			msg:  fmt.Sprintf("github: %s %s: rate limited", method, path),
@@ -1333,12 +1421,15 @@ func (c *Client) restError(method, path string, err error) error {
 	}
 	if errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err); ok {
 		kind := dashboard.ForgeErrorUnknown
+		var rl *dashboard.RateLimit
 		if errResp.Response != nil {
 			kind = forgeErrorKindFromStatus(errResp.Response.StatusCode)
-			if rl := rateLimitFromHeaders(errResp.Response.Header); rl != nil {
+			if fromHeaders := rateLimitFromHeaders(errResp.Response.Header); fromHeaders != nil {
+				rl = fromHeaders
 				c.recordRESTRate(ghsdk.Rate{Limit: rl.Limit, Remaining: rl.Remaining, Reset: ghsdk.Timestamp{Time: rl.ResetsAt}})
 			}
 		}
+		c.recordRequest(ctx, method, path, statusCodeOf(errResp.Response), string(kind), rl)
 
 		return &apiError{
 			msg:  fmt.Sprintf("github: %s %s: %s", method, path, errResp.Message),
@@ -1346,10 +1437,34 @@ func (c *Client) restError(method, path string, err error) error {
 		}
 	}
 
+	c.recordRequest(ctx, method, path, 0, string(dashboard.ForgeErrorUnreachable), nil)
+
 	return &apiError{
 		msg:  fmt.Sprintf("github: %s %s: %s", method, path, err),
 		kind: dashboard.ForgeErrorUnreachable,
 	}
+}
+
+// statusCodeOf returns resp's own status code, or 0 for a nil resp — a
+// request that never got a response at all (a timeout, a connection
+// refused) has no status code to report.
+func statusCodeOf(resp *http.Response) int {
+	if resp == nil {
+		return 0
+	}
+
+	return resp.StatusCode
+}
+
+// rateLimitOf converts a go-github Rate into a *dashboard.RateLimit, or
+// nil for a zero Rate — go-github leaves it at its zero value when a
+// response genuinely carried no rate-limit headers at all.
+func rateLimitOf(rate ghsdk.Rate) *dashboard.RateLimit {
+	if rate.Limit == 0 {
+		return nil
+	}
+
+	return &dashboard.RateLimit{Limit: rate.Limit, Remaining: rate.Remaining, ResetsAt: rate.Reset.Time}
 }
 
 func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
@@ -1406,9 +1521,9 @@ func (c *Client) listPublicRepos(ctx context.Context) ([]*ghsdk.Repository, erro
 		slog.Debug("github request", "method", http.MethodGet, "url", path)
 		batch, resp, err := c.restClient.Repositories.ListByUser(ctx, c.username, opts)
 		if err != nil {
-			return nil, c.restError(http.MethodGet, path, err)
+			return nil, c.restError(ctx, http.MethodGet, path, err)
 		}
-		c.recordRESTRate(resp.Rate)
+		c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
 		for _, r := range batch {
 			if r.GetArchived() || r.GetFork() {
 				continue
@@ -1445,9 +1560,9 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 		slog.Debug("github request", "method", http.MethodGet, "url", path)
 		batch, resp, err := c.restClient.PullRequests.List(ctx, owner, name, opts)
 		if err != nil {
-			return nil, c.restError(http.MethodGet, path, err)
+			return nil, c.restError(ctx, http.MethodGet, path, err)
 		}
-		c.recordRESTRate(resp.Rate)
+		c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
 		for _, p := range batch {
 			ci, err := c.ciStatusREST(ctx, owner, name, p.GetHead().GetSHA())
 			if err != nil {
@@ -1501,9 +1616,9 @@ func (c *Client) listOpenIssuesREST(ctx context.Context, owner, name, repo strin
 		slog.Debug("github request", "method", http.MethodGet, "url", path)
 		batch, resp, err := c.restClient.Issues.ListByRepo(ctx, owner, name, opts)
 		if err != nil {
-			return nil, c.restError(http.MethodGet, path, err)
+			return nil, c.restError(ctx, http.MethodGet, path, err)
 		}
-		c.recordRESTRate(resp.Rate)
+		c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
 		for _, i := range batch {
 			if i.PullRequestLinks != nil {
 				continue
@@ -1541,22 +1656,24 @@ func (c *Client) ciStatusREST(ctx context.Context, owner, name, sha string) (das
 
 	checkRunsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
 	slog.Debug("github request", "method", http.MethodGet, "url", checkRunsPath)
-	runs, _, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{
+	runs, runsResp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{
 		PerPage: perPage,
 	})
 	if err != nil {
-		return dashboard.CINone, c.restError(http.MethodGet, checkRunsPath, err)
+		return dashboard.CINone, c.restError(ctx, http.MethodGet, checkRunsPath, err)
 	}
+	c.recordRESTSuccess(ctx, http.MethodGet, checkRunsPath, runsResp)
 	if len(runs.CheckRuns) > 0 {
 		return statusFromCheckRuns(runs.CheckRuns), nil
 	}
 
 	statusPath := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
 	slog.Debug("github request", "method", http.MethodGet, "url", statusPath)
-	combined, _, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, nil)
+	combined, statusResp, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, nil)
 	if err != nil {
-		return dashboard.CINone, c.restError(http.MethodGet, statusPath, err)
+		return dashboard.CINone, c.restError(ctx, http.MethodGet, statusPath, err)
 	}
+	c.recordRESTSuccess(ctx, http.MethodGet, statusPath, statusResp)
 
 	return statusFromCombinedState(combined.GetState()), nil
 }
@@ -1591,10 +1708,11 @@ func statusFromCheckRuns(runs []*ghsdk.CheckRun) dashboard.CIStatus {
 func (c *Client) ListChecks(ctx context.Context, owner, name string, number int) ([]dashboard.Check, error) {
 	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("github request", "method", http.MethodGet, "url", prPath)
-	pr, _, err := c.restClient.PullRequests.Get(ctx, owner, name, number)
+	pr, prResp, err := c.restClient.PullRequests.Get(ctx, owner, name, number)
 	if err != nil {
-		return nil, asClientError(c.restError(http.MethodGet, prPath, err))
+		return nil, asClientError(c.restError(ctx, http.MethodGet, prPath, err))
 	}
+	c.recordRESTSuccess(ctx, http.MethodGet, prPath, prResp)
 	sha := pr.GetHead().GetSHA()
 	if sha == "" {
 		return nil, nil
@@ -1602,12 +1720,13 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 
 	checkRunsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
 	slog.Debug("github request", "method", http.MethodGet, "url", checkRunsPath)
-	runs, _, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{
+	runs, runsResp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{
 		PerPage: perPage,
 	})
 	if err != nil {
-		return nil, asClientError(c.restError(http.MethodGet, checkRunsPath, err))
+		return nil, asClientError(c.restError(ctx, http.MethodGet, checkRunsPath, err))
 	}
+	c.recordRESTSuccess(ctx, http.MethodGet, checkRunsPath, runsResp)
 	if len(runs.CheckRuns) > 0 {
 		checks := make([]dashboard.Check, 0, len(runs.CheckRuns))
 		for _, r := range runs.CheckRuns {
@@ -1627,10 +1746,11 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	// Statuses are real per-check entries too, not a second aggregate.
 	statusPath := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
 	slog.Debug("github request", "method", http.MethodGet, "url", statusPath)
-	combined, _, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, nil)
+	combined, statusResp, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, nil)
 	if err != nil {
-		return nil, asClientError(c.restError(http.MethodGet, statusPath, err))
+		return nil, asClientError(c.restError(ctx, http.MethodGet, statusPath, err))
 	}
+	c.recordRESTSuccess(ctx, http.MethodGet, statusPath, statusResp)
 	checks := make([]dashboard.Check, 0, len(combined.Statuses))
 	for _, s := range combined.Statuses {
 		checks = append(checks, dashboard.Check{

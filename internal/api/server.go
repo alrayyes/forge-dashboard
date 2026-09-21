@@ -9,6 +9,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/alrayyes/forge-dashboard/internal/sharing"
 )
@@ -33,8 +34,19 @@ type Deps struct {
 
 	// Manager holds each signed-in user's own Aggregator, built from
 	// their saved Credentials via BuildSources.
-	Manager      *dashboard.Manager
-	BuildSources func(settings.Credentials) []dashboard.Source
+	Manager *dashboard.Manager
+	// BuildSources takes the signed-in user's own ID (#482: threaded
+	// through so the forge clients it builds can record outbound
+	// requests under the right account) alongside their saved
+	// Credentials.
+	BuildSources func(userID []byte, c settings.Credentials) []dashboard.Source
+
+	// RequestLog is the admin-only outbound-request log's own read path
+	// — every account's forge clients record into the same underlying
+	// store (see cmd/forge-dashboard's buildSourcesForUser), so this one
+	// instance, with no account bound to it, is enough to list or export
+	// across all of them.
+	RequestLog *requestlog.SQLiteRecorder
 
 	// PublicOrigin is this instance's own externally-reachable origin
 	// (RP_ORIGIN — the same value WebAuthn's relying-party config
@@ -113,6 +125,8 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/admin/invites", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminCreateInvite(deps))))
 	mux.Handle("GET /api/admin/invites", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminListInvites(deps.AuthStore))))
 	mux.Handle("POST /api/admin/invites/{token}/revoke", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminRevokeInvite(deps.AuthStore))))
+	mux.Handle("GET /api/admin/requests", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminListRequests(deps))))
+	mux.Handle("GET /api/admin/requests/export", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminExportRequests(deps))))
 
 	// Not session-authenticated like everything above — the path's token
 	// identifies the user, and the request's own HMAC signature is what

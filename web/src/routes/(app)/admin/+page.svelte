@@ -15,6 +15,24 @@
     expiresAt: string;
   };
 
+  type RequestLogRateLimit = {
+    limit: number;
+    remaining: number;
+    resetsAt: string;
+    cost?: number;
+  };
+
+  type RequestLogEntry = {
+    loggedAt: string;
+    forge: string;
+    account?: string;
+    method: string;
+    endpoint: string;
+    statusCode?: number;
+    outcome: string;
+    rateLimit?: RequestLogRateLimit;
+  };
+
   let currentUsername = $state<string | null>(null);
   let users = $state<AdminUser[]>([]);
   let loaded = $state(false);
@@ -36,6 +54,18 @@
   let generatedLink = $state<string | null>(null);
   let pendingInviteID = $state<string | null>(null);
 
+  let requests = $state<RequestLogEntry[]>([]);
+  let requestsLoaded = $state(false);
+  let requestsStatus = $state("");
+  let requestsStatusKind = $state<"" | "error" | "ok">("");
+  let requestForgeFilter = $state("");
+  let requestAccountFilter = $state("");
+  // Populated from the first unfiltered load only (see loadRequests) —
+  // every username the log has ever seen stays selectable even after the
+  // admin narrows the table to one forge or account, rather than the
+  // dropdown's own options shrinking along with the filtered result set.
+  let requestAccountOptions = $state<string[]>([]);
+
   function escapeHTML(s: string): string {
     return s;
   }
@@ -43,6 +73,21 @@
   function formatDate(iso: string): string {
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
+  }
+
+  function formatDateTime(iso: string): string {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+  }
+
+  // outcomeBadgeClass buckets every ForgeErrorKind besides "rate_limited"
+  // under one "other" style — a fourth or fifth failure color would cost
+  // more legibility than the extra distinction is worth on a page whose
+  // job is just "did this fail, and was it the rate limit."
+  function outcomeBadgeClass(outcome: string): string {
+    if (outcome === "success") return "outcome-success";
+    if (outcome === "rate_limited") return "outcome-rate_limited";
+    return "outcome-other";
   }
 
   function loadUsers(): Promise<void> {
@@ -225,12 +270,66 @@
     }
   }
 
+  // requestFilterParams is shared between loadRequests' own fetch and the
+  // Export CSV link's href, so the two never drift out of sync — a filter
+  // the table applies but the export forgets would make Export CSV lie
+  // about which rows it's downloading.
+  function requestFilterParams(): URLSearchParams {
+    const params = new URLSearchParams();
+    if (requestForgeFilter) params.set("forge", requestForgeFilter);
+    if (requestAccountFilter) params.set("account", requestAccountFilter);
+    return params;
+  }
+
+  function requestExportHref(): string {
+    const qs = requestFilterParams().toString();
+    return `/api/admin/requests/export${qs ? `?${qs}` : ""}`;
+  }
+
+  function loadRequests(): Promise<void> {
+    const qs = requestFilterParams().toString();
+    return fetch(`/api/admin/requests${qs ? `?${qs}` : ""}`, {
+      headers: { Accept: "application/json" },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          return null;
+        }
+        if (res.status === 403) {
+          window.location.href = "/";
+          return null;
+        }
+        return res.ok
+          ? res.json()
+          : Promise.reject(
+              new Error(`could not load requests (${res.status})`),
+            );
+      })
+      .then((data: RequestLogEntry[] | null) => {
+        if (!data) return;
+        requests = data;
+        requestsLoaded = true;
+        if (!requestForgeFilter && !requestAccountFilter) {
+          const seen = new Set<string>();
+          for (const e of data) {
+            if (e.account) seen.add(e.account);
+          }
+          requestAccountOptions = [...seen].sort();
+        }
+      })
+      .catch((err) => {
+        requestsStatus = err.message || "Could not load requests.";
+        requestsStatusKind = "error";
+      });
+  }
+
   onMount(() => {
     fetch("/api/auth/session", { headers: { Accept: "application/json" } })
       .then((res) => (res.ok ? res.json() : null))
       .then((session: { username: string } | null) => {
         if (session) currentUsername = session.username;
-        return Promise.all([loadUsers(), loadInvites()]);
+        return Promise.all([loadUsers(), loadInvites(), loadRequests()]);
       })
       .catch((err) => {
         status = err.message || "Could not load users.";
@@ -394,6 +493,63 @@
       font-size: 13px;
       color: var(--ink-3);
       padding: 8px 0;
+    }
+    .request-filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .request-filters .field {
+      margin-bottom: 0;
+      min-width: 160px;
+    }
+    .request-filters select {
+      width: 100%;
+      font-family: inherit;
+      font-size: 14px;
+      padding: 9px 11px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-sunken);
+      color: var(--ink);
+    }
+    .request-filters select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .request-filters .btn {
+      text-decoration: none;
+      display: inline-block;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12.5px;
+    }
+    /* Same accessible pairs style.css already established for .status.ok/
+       .status.error and Settings' own "Configured" badge — darkened until
+       each text/background pair clears WCAG AA on its own, not just
+       against --surface (see style.css's own comments on --good/
+       --critical/--warning). */
+    .outcome-badge {
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: 999px;
+      padding: 1px 8px;
+      white-space: nowrap;
+    }
+    .outcome-badge.outcome-success {
+      color: var(--good);
+      background: var(--good-bg);
+    }
+    .outcome-badge.outcome-rate_limited {
+      color: var(--warning);
+      background: var(--warning-bg);
+    }
+    .outcome-badge.outcome-other {
+      color: var(--critical);
+      background: var(--critical-bg);
     }
 
     /* Below this width the table no longer fits without scrolling
@@ -624,6 +780,97 @@
       hidden={!invitesLoaded || invites.length > 0}
     >
       No outstanding invites.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Outbound requests</h2>
+    <div class="request-filters">
+      <div class="field">
+        <label for="request-filter-forge">Forge</label>
+        <select
+          id="request-filter-forge"
+          bind:value={requestForgeFilter}
+          onchange={() => loadRequests()}
+        >
+          <option value="">All forges</option>
+          <option value="github">GitHub</option>
+          <option value="forgejo">Forgejo</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="request-filter-account">Account</label>
+        <select
+          id="request-filter-account"
+          bind:value={requestAccountFilter}
+          onchange={() => loadRequests()}
+        >
+          <option value="">All accounts</option>
+          {#each requestAccountOptions as username (username)}
+            <option value={username}>{username}</option>
+          {/each}
+        </select>
+      </div>
+      <a
+        class="btn"
+        id="export-requests-link"
+        href={requestExportHref()}
+        rel="external">Export CSV</a
+      >
+    </div>
+
+    <p
+      class={`status${requestsStatusKind ? ` ${requestsStatusKind}` : ""}`}
+      id="requests-status"
+      role="status"
+      aria-live="polite"
+    >
+      {requestsStatus}
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Logged at</th>
+          <th scope="col">Forge</th>
+          <th scope="col">Account</th>
+          <th scope="col">Method</th>
+          <th scope="col">Endpoint</th>
+          <th scope="col">Status</th>
+          <th scope="col">Outcome</th>
+          <th scope="col">Rate limit</th>
+        </tr>
+      </thead>
+      <tbody id="request-rows">
+        {#each requests as r, i (`${r.loggedAt}-${r.forge}-${r.endpoint}-${i}`)}
+          <tr>
+            <td data-label="Logged at">{formatDateTime(r.loggedAt)}</td>
+            <td data-label="Forge">{r.forge}</td>
+            <td data-label="Account"
+              >{r.account ? escapeHTML(r.account) : "—"}</td
+            >
+            <td data-label="Method">{r.method}</td>
+            <td data-label="Endpoint" class="mono">{r.endpoint}</td>
+            <td data-label="Status">{r.statusCode ?? "—"}</td>
+            <td data-label="Outcome"
+              ><span class={`outcome-badge ${outcomeBadgeClass(r.outcome)}`}
+                >{r.outcome}</span
+              ></td
+            >
+            <td data-label="Rate limit"
+              >{#if r.rateLimit}{r.rateLimit.remaining} / {r.rateLimit
+                  .limit}{:else}—{/if}</td
+            >
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+    <p
+      class="empty-state"
+      id="requests-empty-state"
+      hidden={!requestsLoaded || requests.length > 0}
+    >
+      No outbound requests match this filter.
     </p>
   </div>
 

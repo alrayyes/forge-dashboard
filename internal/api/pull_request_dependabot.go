@@ -72,7 +72,7 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 		}
 
 		var commenter dashboard.PullRequestCommenter
-		for _, src := range deps.BuildSources(creds) {
+		for _, src := range deps.BuildSources(u.ID, creds) {
 			if string(src.Forge()) != req.Forge {
 				continue
 			}

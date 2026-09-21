@@ -95,7 +95,7 @@ func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
 	wantHealth := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 3}
 
-	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}
@@ -141,7 +141,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
 	wantHealth := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 3}
 
-	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}
@@ -149,7 +149,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 		return []dashboard.Source{&fakeConfiguredSource{health: wantHealth}}
 	}
 
-	srv, manager := newTestServerWithSourcesAndManager(t, buildSources)
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, buildSources)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
@@ -243,7 +243,7 @@ func TestDashboard_WithOwnerQuery_SharedViewer_SeesTheOwnersDashboard(t *testing
 	const secretToken = "sekrit-owner-token" // #nosec G101 -- a fake test fixture, not a real credential
 	wantHealth := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 9}
 
-	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}
