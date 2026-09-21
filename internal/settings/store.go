@@ -115,6 +115,8 @@ func (s *Store) Init(ctx context.Context) error {
 		user_id TEXT NOT NULL,
 		forge TEXT NOT NULL,
 		repo_full_name TEXT NOT NULL,
+		ignore_prs BOOLEAN NOT NULL DEFAULT 1,
+		ignore_issues BOOLEAN NOT NULL DEFAULT 1,
 		PRIMARY KEY (user_id, forge, repo_full_name)
 	);
 	CREATE TABLE IF NOT EXISTS auto_update_branch_repos (
@@ -145,6 +147,10 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 		`ALTER TABLE user_credentials ADD COLUMN renovate_rebase_label TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE user_credentials ADD COLUMN filter_state TEXT NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE user_credentials ADD COLUMN theme TEXT NOT NULL DEFAULT ''`,
+		// Default 1 (true): a repo ignored before #511 was all-or-nothing,
+		// so it keeps ignoring both PRs and issues after upgrading.
+		`ALTER TABLE ignored_repos ADD COLUMN ignore_prs BOOLEAN NOT NULL DEFAULT 1`,
+		`ALTER TABLE ignored_repos ADD COLUMN ignore_issues BOOLEAN NOT NULL DEFAULT 1`,
 	}
 	for _, stmt := range migrations {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
@@ -415,17 +421,28 @@ func WebhookDeliveryKey(forge, repoFullName string) string {
 	return forge + "/" + repoFullName
 }
 
-// IgnoreRepo marks forge/repoFullName as ignored for userID — its pull
-// requests and issues stop appearing in that user's dashboard/Insights
-// (see internal/api's buildDashboardResponse), though the repo itself
-// keeps being fetched and tracked (#363). Idempotent: ignoring an
-// already-ignored repo is a no-op, not an error.
-func (s *Store) IgnoreRepo(ctx context.Context, userID []byte, forge, repoFullName string) error {
+// IgnoreScope is which of a repo's pull requests and issues are ignored
+// (#511) — the zero value means neither, the same as the key being absent
+// from IgnoredRepos' returned map.
+type IgnoreScope struct {
+	PRs    bool
+	Issues bool
+}
+
+// IgnoreRepo marks forge/repoFullName as ignored for userID in exactly the
+// given scope — its pull requests and/or issues stop appearing in that
+// user's dashboard/Insights (see internal/api's buildDashboardResponse),
+// though the repo itself keeps being fetched and tracked (#363). A repeat
+// call replaces the previously saved scope rather than merging with it, so
+// it's idempotent only for an identical repeat, not additive across calls
+// with different scopes (#511).
+func (s *Store) IgnoreRepo(ctx context.Context, userID []byte, forge, repoFullName string, prs, issues bool) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO ignored_repos (user_id, forge, repo_full_name)
-		VALUES (?, ?, ?)
-		ON CONFLICT (user_id, forge, repo_full_name) DO NOTHING`,
-		encodeUserID(userID), forge, repoFullName,
+		INSERT INTO ignored_repos (user_id, forge, repo_full_name, ignore_prs, ignore_issues)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (user_id, forge, repo_full_name)
+		DO UPDATE SET ignore_prs = excluded.ignore_prs, ignore_issues = excluded.ignore_issues`,
+		encodeUserID(userID), forge, repoFullName, prs, issues,
 	)
 	if err != nil {
 		return fmt.Errorf("settings: ignore repo: %w", err)
@@ -434,8 +451,9 @@ func (s *Store) IgnoreRepo(ctx context.Context, userID []byte, forge, repoFullNa
 	return nil
 }
 
-// UnignoreRepo reverses IgnoreRepo. Idempotent: un-ignoring a repo that
-// was never ignored is a no-op, not an error.
+// UnignoreRepo reverses IgnoreRepo, clearing both scopes at once regardless
+// of which were set. Idempotent: un-ignoring a repo that was never ignored
+// is a no-op, not an error.
 func (s *Store) UnignoreRepo(ctx context.Context, userID []byte, forge, repoFullName string) error {
 	_, err := s.db.ExecContext(ctx, `
 		DELETE FROM ignored_repos WHERE user_id = ? AND forge = ? AND repo_full_name = ?`,
@@ -448,25 +466,26 @@ func (s *Store) UnignoreRepo(ctx context.Context, userID []byte, forge, repoFull
 	return nil
 }
 
-// IgnoredRepos returns the set of forge/repo pairs (keyed by
-// WebhookDeliveryKey) userID has ignored — empty, never an error, for a
-// user who's never ignored anything.
-func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]struct{}, error) {
+// IgnoredRepos returns, keyed by WebhookDeliveryKey, the ignore scope for
+// every forge/repo pair userID has ignored in either scope — empty, never
+// an error, for a user who's never ignored anything.
+func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]IgnoreScope, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT forge, repo_full_name FROM ignored_repos WHERE user_id = ?`, encodeUserID(userID),
+		`SELECT forge, repo_full_name, ignore_prs, ignore_issues FROM ignored_repos WHERE user_id = ?`, encodeUserID(userID),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("settings: list ignored repos: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	ignored := make(map[string]struct{})
+	ignored := make(map[string]IgnoreScope)
 	for rows.Next() {
 		var forge, repoFullName string
-		if err := rows.Scan(&forge, &repoFullName); err != nil {
+		var scope IgnoreScope
+		if err := rows.Scan(&forge, &repoFullName, &scope.PRs, &scope.Issues); err != nil {
 			return nil, fmt.Errorf("settings: scan ignored repo row: %w", err)
 		}
-		ignored[WebhookDeliveryKey(forge, repoFullName)] = struct{}{}
+		ignored[WebhookDeliveryKey(forge, repoFullName)] = scope
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("settings: list ignored repos: %w", err)

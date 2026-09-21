@@ -8,18 +8,28 @@ import (
 )
 
 // repoActionRequest matches components.schemas.WebhookEnsureRequest, reused
-// as-is for both ignore/unignore: the body shape is identical (which repo,
-// on which forge).
+// as-is for the webhook-ensure, unignore and auto-update-branch endpoints:
+// the body shape is identical (which repo, on which forge).
 type repoActionRequest struct {
 	Forge    string `json:"forge"`
 	FullName string `json:"fullName"`
 }
 
+// repoIgnoreRequest matches components.schemas.RepoIgnoreRequest (#511) —
+// repoActionRequest plus which scope(s) to ignore.
+type repoIgnoreRequest struct {
+	Forge    string `json:"forge"`
+	FullName string `json:"fullName"`
+	PRs      bool   `json:"prs"`
+	Issues   bool   `json:"issues"`
+}
+
 // handleRepoIgnore implements POST /api/repos/ignore: a pure local write
 // to settings.Store, never touching the forge itself (#363) — the repo
-// keeps being fetched and tracked, only its pullRequests/issues entries
-// stop appearing in buildDashboardResponse. Idempotent, so a repeat call
-// (a double click, a retried request) is a 204, not an error.
+// keeps being fetched and tracked, only the pullRequests/issues entries
+// the request scopes (#511) stop appearing in buildDashboardResponse. A
+// repeat call with the same scope is a 204, not an error; a repeat call
+// with a different scope replaces it rather than merging.
 func handleRepoIgnore(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := auth.UserFromContext(r.Context())
@@ -29,7 +39,7 @@ func handleRepoIgnore(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		var req repoActionRequest
+		var req repoIgnoreRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
 
@@ -40,8 +50,13 @@ func handleRepoIgnore(deps Deps) http.HandlerFunc {
 
 			return
 		}
+		if !req.PRs && !req.Issues {
+			writeJSON(w, http.StatusBadRequest, errorBody("at least one of prs or issues must be true"))
 
-		if err := deps.SettingsStore.IgnoreRepo(r.Context(), u.ID, req.Forge, req.FullName); err != nil {
+			return
+		}
+
+		if err := deps.SettingsStore.IgnoreRepo(r.Context(), u.ID, req.Forge, req.FullName, req.PRs, req.Issues); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save"))
 
 			return

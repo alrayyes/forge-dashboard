@@ -15,7 +15,20 @@
     hasWebhook: boolean;
     canManageWebhooks?: boolean;
     ignored: boolean;
+    ignoredPRs: boolean;
+    ignoredIssues: boolean;
     autoUpdateBranch: boolean;
+  };
+
+  // The three choices POST /api/repos/ignore's scope maps to (#511) — a
+  // plain union rather than two separate booleans in the UI layer, since
+  // "neither" isn't a fourth choice here: it's not ignoring at all, which
+  // is un-ignore's job, not this control's.
+  type IgnoreScope = "prs" | "issues" | "both";
+  const IGNORE_SCOPE_LABELS: Record<IgnoreScope, string> = {
+    prs: "Ignore PRs",
+    issues: "Ignore issues",
+    both: "Ignore both",
   };
 
   // Kept local rather than reaching into the shared /filters.js global
@@ -264,17 +277,73 @@
 
   let ignoreBusy = $state<Record<string, boolean>>({});
 
+  const IGNORE_SCOPE_DESCRIPTIONS: Record<IgnoreScope, string> = {
+    prs: "its pull requests won't show on the dashboard or Insights",
+    issues: "its issues won't show on the dashboard or Insights",
+    both: "its pull requests and issues won't show on the dashboard or Insights",
+  };
+
   // Reversible, not destructive (#363's own design decision): no confirm
   // step, the same as addWebhook above — a pure local write, never
-  // touching the forge, so there's nothing here a retry can't undo.
-  async function setIgnored(repo: Repo, ignored: boolean) {
+  // touching the forge, so there's nothing here a retry can't undo. A
+  // repeat call with a different scope (#511) replaces the saved scope
+  // rather than adding to it, matching POST /api/repos/ignore's own
+  // documented behavior.
+  async function ignoreRepo(repo: Repo, scope: IgnoreScope) {
     const key = rowKey(repo);
     ignoreBusy[key] = true;
-    const verb = ignored ? "Ignoring" : "Un-ignoring";
-    setStatus(`${verb} ${repo.fullName}…`);
+    setStatus(`Ignoring ${repo.fullName}…`);
 
     try {
-      const res = await fetch(`/api/repos/${ignored ? "ignore" : "unignore"}`, {
+      const res = await fetch("/api/repos/ignore", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          forge: repo.forge,
+          fullName: repo.fullName,
+          prs: scope === "prs" || scope === "both",
+          issues: scope === "issues" || scope === "both",
+        }),
+      });
+      if (res.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (res.status !== 204) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `backend answered ${res.status}`);
+      }
+      repo.ignored = true;
+      repo.ignoredPRs = scope === "prs" || scope === "both";
+      repo.ignoredIssues = scope === "issues" || scope === "both";
+      setStatus(
+        `${repo.fullName} is now ignored — ${IGNORE_SCOPE_DESCRIPTIONS[scope]}.`,
+      );
+    } catch (err) {
+      setStatus(
+        `Couldn't ignore ${repo.fullName}: ${(err as Error).message}`,
+        "error",
+      );
+    } finally {
+      delete ignoreBusy[key];
+    }
+  }
+
+  // Un-ignore always clears both scopes at once (#511's own decision — no
+  // per-scope un-ignore in this pass): the "Ignored" disclosure shows one
+  // repo per row regardless of scope, so a single Un-ignore there means
+  // "stop ignoring this repo", not "stop ignoring whichever scope I
+  // happened to click".
+  async function unignoreRepo(repo: Repo) {
+    const key = rowKey(repo);
+    ignoreBusy[key] = true;
+    setStatus(`Un-ignoring ${repo.fullName}…`);
+
+    try {
+      const res = await fetch("/api/repos/unignore", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -290,15 +359,13 @@
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.error || `backend answered ${res.status}`);
       }
-      repo.ignored = ignored;
-      setStatus(
-        ignored
-          ? `${repo.fullName} is now ignored — its pull requests and issues won't show on the dashboard or Insights.`
-          : `${repo.fullName} is no longer ignored.`,
-      );
+      repo.ignored = false;
+      repo.ignoredPRs = false;
+      repo.ignoredIssues = false;
+      setStatus(`${repo.fullName} is no longer ignored.`);
     } catch (err) {
       setStatus(
-        `Couldn't ${ignored ? "ignore" : "un-ignore"} ${repo.fullName}: ${(err as Error).message}`,
+        `Couldn't un-ignore ${repo.fullName}: ${(err as Error).message}`,
         "error",
       );
     } finally {
@@ -308,8 +375,8 @@
 
   let autoUpdateBusy = $state<Record<string, boolean>>({});
 
-  // Mirrors setIgnored above: a pure per-user setting write, nothing
-  // touching the forge, so a global status message is enough — no
+  // Mirrors ignoreRepo/unignoreRepo above: a pure per-user setting write,
+  // nothing touching the forge, so a global status message is enough — no
   // per-row locked-reason mechanic the way addWebhook needs one.
   async function setAutoUpdateBranch(repo: Repo, enabled: boolean) {
     const key = rowKey(repo);
@@ -505,6 +572,18 @@
       cursor: default;
       text-decoration: none;
     }
+    .ignore-scope-select {
+      font-size: 12.5px;
+      color: var(--accent);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+    }
+    .ignore-scope-select:disabled {
+      color: var(--ink-3);
+      cursor: default;
+    }
     .webhook-locked {
       display: flex;
       flex-direction: column;
@@ -580,6 +659,10 @@
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+    .ignored-scope {
+      font-size: 11px;
+      color: var(--ink-3);
     }
     .ignored-disclosure button {
       font-size: 12.5px;
@@ -987,12 +1070,24 @@
                   >
                 </td>
                 <td class="action" role="cell">
-                  <button
-                    type="button"
+                  <select
+                    class="ignore-scope-select"
+                    aria-label={`Ignore ${repo.fullName}`}
                     disabled={ignoreBusy[rowKey(repo)]}
-                    onclick={() => setIgnored(repo, true)}
-                    >{ignoreBusy[rowKey(repo)] ? "Ignoring…" : "Ignore"}</button
+                    value=""
+                    onchange={(e) => {
+                      const scope = e.currentTarget.value as IgnoreScope;
+                      e.currentTarget.value = "";
+                      if (scope) ignoreRepo(repo, scope);
+                    }}
                   >
+                    <option value="" disabled selected>
+                      {ignoreBusy[rowKey(repo)] ? "Ignoring…" : "Ignore…"}
+                    </option>
+                    {#each Object.entries(IGNORE_SCOPE_LABELS) as [scope, label] (scope)}
+                      <option value={scope}>{label}</option>
+                    {/each}
+                  </select>
                 </td>
               </tr>
             {/each}
@@ -1062,10 +1157,17 @@
                 {:else}
                   {repo.fullName}
                 {/if}
+                <span class="ignored-scope">
+                  {repo.ignoredPRs && repo.ignoredIssues
+                    ? "(PRs, issues)"
+                    : repo.ignoredPRs
+                      ? "(PRs)"
+                      : "(issues)"}
+                </span>
                 <button
                   type="button"
                   disabled={ignoreBusy[rowKey(repo)]}
-                  onclick={() => setIgnored(repo, false)}
+                  onclick={() => unignoreRepo(repo)}
                   >{ignoreBusy[rowKey(repo)]
                     ? "Un-ignoring…"
                     : "Un-ignore"}</button

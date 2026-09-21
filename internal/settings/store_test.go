@@ -466,7 +466,7 @@ func TestStore_IgnoreRepo_ThenIgnoredRepos_ReturnsIt(t *testing.T) {
 	store := newTestStore(t)
 	userID := []byte("user-1")
 
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, true))
 
 	got, err := store.IgnoredRepos(t.Context(), userID)
 	require.NoError(t, err)
@@ -478,19 +478,62 @@ func TestStore_IgnoreRepo_Twice_IsANoOp(t *testing.T) {
 	store := newTestStore(t)
 	userID := []byte("user-1")
 
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, true))
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, true))
 
 	got, err := store.IgnoredRepos(t.Context(), userID)
 	require.NoError(t, err)
 	assert.Len(t, got, 1)
 }
 
+func TestStore_IgnoreRepo_PRsOnly_LeavesIssuesVisible(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, false))
+
+	got, err := store.IgnoredRepos(t.Context(), userID)
+	require.NoError(t, err)
+	scope := got[settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard")]
+	assert.True(t, scope.PRs)
+	assert.False(t, scope.Issues)
+}
+
+func TestStore_IgnoreRepo_IssuesOnly_LeavesPRsVisible(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", false, true))
+
+	got, err := store.IgnoredRepos(t.Context(), userID)
+	require.NoError(t, err)
+	scope := got[settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard")]
+	assert.False(t, scope.PRs)
+	assert.True(t, scope.Issues)
+}
+
+func TestStore_IgnoreRepo_RepeatWithDifferentScope_ReplacesIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, false))
+
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", false, true))
+
+	got, err := store.IgnoredRepos(t.Context(), userID)
+	require.NoError(t, err)
+	scope := got[settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard")]
+	assert.False(t, scope.PRs)
+	assert.True(t, scope.Issues)
+}
+
 func TestStore_UnignoreRepo_RemovesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 	userID := []byte("user-1")
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, true))
 
 	require.NoError(t, store.UnignoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
 
@@ -513,7 +556,7 @@ func TestStore_IgnoreRepo_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	require.NoError(t, store.IgnoreRepo(t.Context(), []byte("user-a"), "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.IgnoreRepo(t.Context(), []byte("user-a"), "github", "alrayyes/forge-dashboard", true, true))
 
 	got, err := store.IgnoredRepos(t.Context(), []byte("user-b"))
 	require.NoError(t, err)
@@ -524,7 +567,7 @@ func TestStore_Delete_RemovesIgnoredRepos(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 	userID := []byte("user-1")
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, true))
 
 	require.NoError(t, store.Delete(t.Context(), userID))
 
