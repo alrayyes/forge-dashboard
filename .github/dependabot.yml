@@ -83,3 +83,10 @@ updates:
       tooling-major:
         patterns: ["*"]
         update-types: [major]
+    ignore:
+      # TypeScript 7 (PR #508) needs svelte-check's dual TS6+TS7 --tsgo
+      # setup, which this repo doesn't have; check:web fails outright
+      # without it. Drop this once svelte-check supports it plainly, or
+      # the dual-install is set up on purpose.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
