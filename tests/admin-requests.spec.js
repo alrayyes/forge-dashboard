@@ -18,7 +18,7 @@ function uniqueUsername(prefix) {
 // whole point is that the outbound call itself gets logged, not what
 // its response contained.
 function startFakeForgejo() {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer((_req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify([]));
   });
