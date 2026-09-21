@@ -556,21 +556,32 @@
     // independently be locked for the exact same reason at once — same
     // "state a system-wide fact once, not once per affected thing"
     // principle #360 already applied across rows, applied here within
-    // one. Keeps the first rendered lockedActionButton block for a given
-    // reason and drops any later one whose reason text matches exactly;
-    // reasons that differ (a real, action-specific 403/409 alongside an
-    // unrelated proactive lock) are untouched.
+    // one. Only the repeated *reason text* is collapsed — every button
+    // stays in the DOM with its own aria-disabled/label, since a shared
+    // reason across distinct actions is a real, tested case on its own
+    // (e.g. one 403 proactively locking both Dependabot Rebase and
+    // Recreate at once, each independently visible) and isn't itself the
+    // noise this is fixing. A dropped reason's button gets its
+    // aria-describedby repointed at the surviving reason's id rather
+    // than left dangling. Reasons that differ (a real, action-specific
+    // 403/409 alongside an unrelated proactive lock) are untouched.
     function dedupeRowLockReasons(statusCell: HTMLElement) {
-      const seen = new Set<string>();
+      const keptReasonIds = new Map<string, string>();
       for (const locked of Array.from(
         statusCell.querySelectorAll<HTMLElement>(".row-action-locked"),
       )) {
-        const reasonText =
-          locked.querySelector(".row-action-reason")?.textContent ?? "";
-        if (seen.has(reasonText)) {
-          locked.remove();
-        } else {
-          seen.add(reasonText);
+        const reasonEl =
+          locked.querySelector<HTMLElement>(".row-action-reason");
+        const reasonText = reasonEl?.textContent ?? "";
+        if (!reasonText) continue;
+        const keptId = keptReasonIds.get(reasonText);
+        if (keptId) {
+          reasonEl?.remove();
+          locked
+            .querySelector<HTMLElement>(".row-action")
+            ?.setAttribute("aria-describedby", keptId);
+        } else if (reasonEl) {
+          keptReasonIds.set(reasonText, reasonEl.id);
         }
       }
     }
