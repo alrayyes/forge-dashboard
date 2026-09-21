@@ -188,6 +188,25 @@ enough to hand a link off and have the invitee act on it in one sitting,
 short enough that a forgotten, unconsumed invite isn't a standing
 credential.
 
+### Requests
+
+The Admin page's Requests card is a log of every outbound call this
+instance has made to GitHub or Forgejo — across every account, an admin's
+own included — newest first: when it happened, which forge, which account
+made it, the method and endpoint, the status code, the outcome
+(`success`, or why it failed), and the rate-limit budget left afterward
+where the response carried one. It exists for the same reason server
+access logs do anywhere else: correlating a shared-credential problem —
+a shared GitHub token running two accounts into the same rate limit
+being the case that actually motivated it — needs a cross-account view
+no single account's own dashboard could give.
+
+Filter by forge or by account (the account filter is a username, not the
+internal account id, so it stays something you can actually type), and
+**Export CSV** downloads the same filtered rows as a file — useful for
+attaching to a bug report or pulling into a spreadsheet rather than
+scrolling a table.
+
 ## Sharing
 
 From Settings, share your own dashboard with another registered user,
