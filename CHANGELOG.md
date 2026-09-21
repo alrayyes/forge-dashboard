@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.89.0](https://github.com/alrayyes/forge-dashboard/compare/v0.88.1...v0.89.0) (2026-09-21)
+
+
+### Features
+
+* **webhooks:** let a user ignore just a repo's PRs, just its issues, or both ([#514](https://github.com/alrayyes/forge-dashboard/issues/514)) ([83fe491](https://github.com/alrayyes/forge-dashboard/commit/83fe491de51b4e562089a5e473f0a5e94a78f778)), closes [#511](https://github.com/alrayyes/forge-dashboard/issues/511)
+
 ## [0.88.1](https://github.com/alrayyes/forge-dashboard/compare/v0.88.0...v0.88.1) (2026-09-21)
 
 
