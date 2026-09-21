@@ -90,6 +90,21 @@ func (s *Store) Init(ctx context.Context) error {
 		expires_at TIMESTAMP NOT NULL,
 		consumed_at TIMESTAMP
 	);
+
+	CREATE TABLE IF NOT EXISTS request_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		logged_at TIMESTAMP NOT NULL,
+		forge TEXT NOT NULL,
+		account_id TEXT REFERENCES users(id),
+		method TEXT NOT NULL,
+		endpoint TEXT NOT NULL,
+		status_code INTEGER,
+		outcome TEXT NOT NULL,
+		rate_limit_limit INTEGER,
+		rate_limit_remaining INTEGER,
+		rate_limit_resets_at TIMESTAMP,
+		rate_limit_cost INTEGER
+	);
 	`
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("auth: create schema: %w", err)
@@ -930,6 +945,142 @@ func scanInvite(row rowScanner) (*Invite, error) {
 	}
 
 	return inv, nil
+}
+
+// RequestLogRow is one outbound-forge-request record, in the plain,
+// dependency-free shape this store persists and returns — internal/
+// requestlog owns the richer Entry type callers actually work with
+// (dashboard.Forge, a typed rate-limit struct) and translates to/from
+// this shape at its own SQLiteRecorder boundary, rather than this store
+// importing internal/requestlog's types directly: internal/requestlog
+// already depends on this package (its SQLiteRecorder wraps *Store), so
+// the reverse import would be a cycle.
+type RequestLogRow struct {
+	ID         int64
+	LoggedAt   time.Time
+	Forge      string
+	AccountID  string // "" when no per-account credential made this request
+	Method     string
+	Endpoint   string
+	StatusCode int    // 0 when the request never got a response at all
+	Outcome    string // "success" or a dashboard.ForgeErrorKind string
+	// RateLimitLimit/RateLimitRemaining/RateLimitResetsAt/RateLimitCost
+	// are all nil when the response carried no rate-limit fields at all —
+	// not every request reports these, and a zero would misread as a
+	// real, reported zero-remaining budget.
+	RateLimitLimit     *int
+	RateLimitRemaining *int
+	RateLimitResetsAt  *time.Time
+	RateLimitCost      *int
+}
+
+// RequestLogFilter narrows ListRequests. A zero Filter (both fields
+// empty) returns every row.
+type RequestLogFilter struct {
+	Forge     string
+	AccountID string
+}
+
+// RecordRequest persists row, then deletes the oldest rows past
+// maxEntries in the same transaction — the caller
+// (internal/requestlog.SQLiteRecorder) owns the retention cap, not this
+// store, so changing it needs no change here.
+func (s *Store) RecordRequest(ctx context.Context, row RequestLogRow, maxEntries int) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("auth: record request: begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	accountID := sql.NullString{String: row.AccountID, Valid: row.AccountID != ""}
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO request_log (
+			logged_at, forge, account_id, method, endpoint, status_code, outcome,
+			rate_limit_limit, rate_limit_remaining, rate_limit_resets_at, rate_limit_cost
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		row.LoggedAt, row.Forge, accountID, row.Method, row.Endpoint, nullableInt(row.StatusCode), row.Outcome,
+		row.RateLimitLimit, row.RateLimitRemaining, row.RateLimitResetsAt, row.RateLimitCost,
+	)
+	if err != nil {
+		return fmt.Errorf("auth: record request: insert: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		DELETE FROM request_log WHERE id NOT IN (
+			SELECT id FROM request_log ORDER BY id DESC LIMIT ?
+		)`, maxEntries,
+	)
+	if err != nil {
+		return fmt.Errorf("auth: record request: trim: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("auth: record request: commit: %w", err)
+	}
+
+	return nil
+}
+
+// nullableInt reports statusCode as unset (NULL) rather than a stored 0
+// — a request that never got a response at all (RequestLogRow.StatusCode's
+// own zero value) shouldn't read back as "status 0," a code no real
+// response ever carries.
+func nullableInt(statusCode int) sql.NullInt64 {
+	if statusCode == 0 {
+		return sql.NullInt64{}
+	}
+
+	return sql.NullInt64{Int64: int64(statusCode), Valid: true}
+}
+
+// ListRequests returns every row matching filter, newest first. An empty
+// Filter field means "don't filter on this." Never returns a nil slice
+// for an empty result — an empty, non-nil one — so a caller can range
+// over it with no nil check.
+func (s *Store) ListRequests(ctx context.Context, filter RequestLogFilter) ([]RequestLogRow, error) {
+	query := `
+		SELECT id, logged_at, forge, account_id, method, endpoint, status_code, outcome,
+		       rate_limit_limit, rate_limit_remaining, rate_limit_resets_at, rate_limit_cost
+		FROM request_log WHERE 1=1`
+	var args []any
+	if filter.Forge != "" {
+		query += " AND forge = ?"
+		args = append(args, filter.Forge)
+	}
+	if filter.AccountID != "" {
+		query += " AND account_id = ?"
+		args = append(args, filter.AccountID)
+	}
+	query += " ORDER BY id DESC"
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("auth: list requests: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := []RequestLogRow{}
+	for rows.Next() {
+		var (
+			row       RequestLogRow
+			accountID sql.NullString
+			status    sql.NullInt64
+		)
+		if err := rows.Scan(
+			&row.ID, &row.LoggedAt, &row.Forge, &accountID, &row.Method, &row.Endpoint, &status, &row.Outcome,
+			&row.RateLimitLimit, &row.RateLimitRemaining, &row.RateLimitResetsAt, &row.RateLimitCost,
+		); err != nil {
+			return nil, fmt.Errorf("auth: scan request log row: %w", err)
+		}
+		row.AccountID = accountID.String
+		row.StatusCode = int(status.Int64)
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("auth: list requests: %w", err)
+	}
+
+	return out, nil
 }
 
 // encodeID/decodeID round-trip the raw WebAuthn user handle through a
