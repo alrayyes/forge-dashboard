@@ -687,6 +687,27 @@ test.describe('pull request merge button', () => {
       await expect(row).not.toContainText(/unreachable/i);
     });
 
+    test('a mergeable PR that is also behind its base branch, on an unreachable forge, shows the reason once even though Update branch, Merge and Close are all independently locked (#516)', async ({
+      page,
+    }) => {
+      await mockDashboardCustom(
+        page,
+        [{ forge: 'github', reachable: false, repoCount: 0 }],
+        [makePR({ behind: true })],
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      // Update branch, Merge and Close are all locked for the same
+      // forge-wide reason at once here — each keeps its own Retry button
+      // (still independently clickable/aria-disabled), but the reason
+      // text itself renders only once (#360's own principle, applied
+      // within a row instead of just across rows).
+      await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(3);
+      await expect(row.locator('.row-action-reason')).toHaveCount(1);
+      await expect(row).toContainText('See the forge status above.');
+    });
+
     test('a mergeable PR on a forge with an exhausted rate-limit budget shows a locked Merge button', async ({
       page,
     }) => {
