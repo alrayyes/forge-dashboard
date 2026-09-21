@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.89.1](https://github.com/alrayyes/forge-dashboard/compare/v0.89.0...v0.89.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* **web:** dedupe a forge-wide lock reason repeated within one PR row ([#517](https://github.com/alrayyes/forge-dashboard/issues/517)) ([3ffd1b1](https://github.com/alrayyes/forge-dashboard/commit/3ffd1b12489acfa2e92d4a45e26edba689e4fc04))
+
 ## [0.89.0](https://github.com/alrayyes/forge-dashboard/compare/v0.88.1...v0.89.0) (2026-09-21)
 
 
