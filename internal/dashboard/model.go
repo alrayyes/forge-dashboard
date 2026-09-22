@@ -109,6 +109,19 @@ type PullRequest struct {
 	// field stays orthogonal there too, for the same reason CI sits
 	// beside MergeStatus rather than inside it: one fact per field.
 	Behind bool `json:"behind"`
+	// Empty reports whether merging this pull request would produce an
+	// empty commit — its content already landed on the base branch some
+	// other way (confirmed live: homelab/vps-docker#583, a mechanical
+	// version-bump PR whose branch had already been merged into master
+	// through another route, leaving Merge silently a no-op with nothing
+	// in the UI explaining why). Deliberately conservative rather than
+	// nilable like AutoMergeEnabled: a source that can't tell (the
+	// unauthenticated GitHub REST fallback, or a Forgejo pull request
+	// whose Additions/Deletions/ChangedFiles came back nil) just leaves
+	// this false, the same as a real non-empty diff — never a false
+	// positive that would hide Merge on a pull request that still has
+	// something to merge.
+	Empty bool `json:"empty"`
 	// AutoMergeEnabled is nil when the owning forge has no way to report
 	// this at all (Forgejo, today) — the same "doesn't report it" shape
 	// RateLimit's own nilable pointer already uses, so a forge with

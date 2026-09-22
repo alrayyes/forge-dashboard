@@ -540,6 +540,65 @@ func TestListOpenPullRequests_MapsBehindFromBaseShaVsMergeBase(t *testing.T) {
 	}
 }
 
+// TestListOpenPullRequests_MapsEmptyFromDiffstat is a regression test for
+// a real finding: confirmed live against a Forgejo instance
+// (homelab/vps-docker#583), a pull request can be mergeable while its
+// additions/deletions/changed_files all report 0 — its content already
+// landed on the base branch some other route, so merging it would be an
+// empty commit.
+func TestListOpenPullRequests_MapsEmptyFromDiffstat(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		additions    *int
+		deletions    *int
+		changedFiles *int
+		want         bool
+	}{
+		{"all zero: empty", new(0), new(0), new(0), true},
+		{"real diff: not empty", new(3), new(1), new(2), false},
+		{"one nil (instance doesn't report it): not empty", nil, new(0), new(0), false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Query().Get("page") != "1" {
+					writeJSON(t, w, []map[string]any{})
+
+					return
+				}
+				writeJSON(t, w, []map[string]any{
+					{
+						"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
+						"draft": false, "user": map[string]string{"login": "ryankes"},
+						"labels": []map[string]string{}, "mergeable": true,
+						"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+						"head":      map[string]string{"sha": "cafef00d"},
+						"additions": tc.additions, "deletions": tc.deletions, "changed_files": tc.changedFiles,
+					},
+				})
+			})
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]string{"state": "success"})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := forgejo.NewClient(srv.URL, "test-token", "")
+			prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+			require.NoError(t, err)
+			require.Len(t, prs, 1)
+			assert.Equal(t, tc.want, prs[0].Empty)
+		})
+	}
+}
+
 func TestHasWebhook_MatchesByURLPath(t *testing.T) {
 	t.Parallel()
 

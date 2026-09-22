@@ -19,6 +19,7 @@
     mergeStatus: string;
     autoMergeEnabled: boolean | null;
     behind: boolean;
+    empty: boolean;
   };
   type IssueItem = FilterableItem & {
     number: number;
@@ -822,6 +823,21 @@
     // hard-to-reverse write to the real repo, not a filter toggle like
     // the CI pill next to it.
     function mergeActionCell(item: PullRequestItem): HTMLElement | null {
+      // Real incident (homelab/vps-docker#583): a pull request whose
+      // content already landed on the base branch some other way is
+      // still reported "mergeable" — merging it just produces an empty
+      // commit, and clicking Merge silently did nothing, with no
+      // explanation shown. This has to win over the early-return below
+      // rather than fall behind it, or the button just vanishes the
+      // same way it did in that incident instead of saying why; Close
+      // (closeActionCell, unconditionally available) is the action that
+      // actually applies here.
+      if (item.empty)
+        return lockedActionButton(
+          "Merge",
+          "Already up to date with the target branch — merging would be empty.",
+        );
+
       // #385: GitHub's own mergeStateStatus reports CLEAN (mapped to
       // "mergeable" here) whenever branch protection doesn't mark a
       // given check as required, even while that check is still
@@ -1141,6 +1157,13 @@
     // the merge button rather than instead of it.
     function updateBranchActionCell(item: PullRequestItem): HTMLElement | null {
       if (!item.behind) return null;
+      // Already reported empty (its content landed on the base branch
+      // some other way) — updating the branch further wouldn't change
+      // that, so the action is pointless rather than temporarily
+      // blocked. Merge (mergeActionCell) is where the visible reason
+      // lives; this one just stays hidden, the same as the other
+      // conditions below that make the button not apply at all.
+      if (item.empty) return null;
       if (isBotManagedPr(item) && !allowBotPrUpdates) return null;
 
       const key = prKey(item);

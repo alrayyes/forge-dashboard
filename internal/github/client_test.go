@@ -1214,6 +1214,76 @@ func TestFetch_MapsBehindFromMergeStateStatus(t *testing.T) {
 	}
 }
 
+// TestFetch_MapsEmptyFromDiffstat is a regression test for a real finding
+// (homelab/vps-docker#583, the Forgejo-side counterpart already covered in
+// internal/forgejo): a pull request can be mergeable while its
+// additions/deletions/changedFiles are all 0 — its content already landed
+// on the base branch some other route, so merging it would be an empty
+// commit.
+func TestFetch_MapsEmptyFromDiffstat(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                               string
+		additions, deletions, changedFiles int
+		want                               bool
+	}{
+		{"all zero: empty", 0, 0, 0, true},
+		{"real diff: not empty", 3, 1, 2, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]any{
+					"data": map[string]any{
+						"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+						"viewer": map[string]any{
+							"repositories": map[string]any{
+								"pageInfo": map[string]any{"hasNextPage": false},
+								"nodes": []map[string]any{
+									{
+										"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+										"owner": map[string]any{"login": "alrayyes"},
+										"pullRequests": map[string]any{
+											"nodes": []map[string]any{
+												{
+													"number": 12, "title": "Add NTP alarm", "url": "https://github.com/alrayyes/a/pull/12",
+													"isDraft": false, "author": map[string]any{"login": "ryankes"},
+													"mergeStateStatus": "CLEAN",
+													"additions":        tc.additions,
+													"deletions":        tc.deletions,
+													"changedFiles":     tc.changedFiles,
+													"autoMergeRequest": nil,
+													"labels":           map[string]any{"nodes": []map[string]any{}},
+													"createdAt":        "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+													"commits": map[string]any{"nodes": []map[string]any{}},
+												},
+											},
+										},
+										"issues": map[string]any{"nodes": []map[string]any{}},
+									},
+								},
+							},
+						},
+					},
+				})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("test-token", "", srv.URL)
+			result := client.Fetch(t.Context())
+
+			require.Len(t, result.PullRequests, 1)
+			assert.Equal(t, tc.want, result.PullRequests[0].Empty)
+		})
+	}
+}
+
 // pullRequestNode is a single-PR repositories.nodes fixture shared by the
 // behind-detection tests below — mergeStateStatus and headRefOid are the
 // two fields that actually vary between cases.

@@ -126,6 +126,24 @@ test.describe('pull request update-branch button', () => {
     ).toHaveCount(0);
   });
 
+  // #543/homelab/vps-docker#583: reported behind but with nothing left to
+  // merge — its diff against base is already empty. Update branch would
+  // be as much a dead end as Merge is in this state (see
+  // pull-request-merge.spec.js's own empty-pull-request test), so it's
+  // hidden entirely rather than shown as clickable or locked; the reason
+  // lives on the Merge row's own locked button instead.
+  test('an empty pull request shows no Update branch button even though behind', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR({ behind: true, empty: true }));
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(
+      row.getByRole('button', { name: 'Update branch' }),
+    ).toHaveCount(0);
+  });
+
   test('a pull request that is both mergeable and behind shows both buttons at once', async ({
     page,
   }) => {

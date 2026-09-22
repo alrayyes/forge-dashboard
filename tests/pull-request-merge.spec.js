@@ -167,6 +167,28 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
+  // #543/homelab/vps-docker#583: a mergeable pull request whose diff
+  // against its base is already empty (content landed some other way)
+  // used to show a fully clickable Merge button that quietly did nothing
+  // when clicked. It now shows a disabled button explaining why, so Close
+  // (always available, see pull-request-close.spec.js) reads as the one
+  // real action instead of a silent dead end.
+  test('an empty pull request shows a disabled Merge button explaining why, not a clickable one', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'mergeable', empty: true }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    const button = row.getByRole('button', { name: 'Merge' });
+    await expect(button).toBeVisible();
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row).toContainText(/already up to date/i);
+  });
+
   test('clicking Merge arms a confirm step instead of merging immediately', async ({
     page,
   }) => {
