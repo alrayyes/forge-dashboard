@@ -236,6 +236,41 @@ jobs:
       - name: redocly lint
         run: bun run lint:api -- --format=github-actions
 
+  # Publishes docs/api/index.html (Stoplight Elements) to GitHub Pages,
+  # pointed at the same spec `api` above just linted -- gated on that job
+  # rather than its own check, since a docs page built from an unlinted
+  # spec isn't worth publishing. `needs:` only resolves within one workflow
+  # file, which is why this is a job here rather than a separate workflow:
+  # `api` already runs on push to main, so the dependency is real.
+  pages:
+    needs: api
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: https://alrayyes.github.io/forge-dashboard/docs/api/
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: assemble the Pages artifact
+        # Mirrors just the two paths the page's own relative apiDescriptionUrl
+        # expects -- docs/api/index.html two directories above
+        # api/openapi.yaml -- rather than uploading the whole checkout.
+        run: |
+          mkdir -p site/docs/api site/api
+          cp docs/api/index.html site/docs/api/index.html
+          cp api/openapi.yaml site/api/openapi.yaml
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
   # Biome leads for every file type it supports -- linting.md. Same command
   # the pre-push hook runs, so the two can't drift.
   js:

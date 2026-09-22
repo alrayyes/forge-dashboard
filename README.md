@@ -427,7 +427,10 @@ endpoints, alongside `GET/POST /api/admin/invites` and
 revoking registration invites, every one of them refusing anyone but the
 designated admin. `redocly lint` validates it; nothing yet asserts the
 handlers still match it (see
-[CONTRIBUTING.md](CONTRIBUTING.md#how-it-fits-together)).
+[CONTRIBUTING.md](CONTRIBUTING.md#how-it-fits-together)). Rendered docs
+live at `docs/api/index.html` (Stoplight Elements, zero-build), published
+to <https://alrayyes.github.io/forge-dashboard/docs/api/> on every push to
+`main` that passes lint.
 
 ## Contributing
 

@@ -1,0 +1,26 @@
+<!doctype html>
+<!--
+  Zero-build Stoplight Elements: the web-components bundle, not the React
+  component, so this page needs no build step of its own. Renders the same
+  spec `redocly lint` checks (api/openapi.yaml) -- complementary tools, one
+  file.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>forge-dashboard API</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://unpkg.com/@stoplight/elements@9.0.25/web-components.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/@stoplight/elements@9.0.25/styles.min.css"
+    />
+  </head>
+  <body style="margin: 0">
+    <elements-api
+      apiDescriptionUrl="../../api/openapi.yaml"
+      router="hash"
+      layout="responsive"
+    ></elements-api>
+  </body>
+</html>
