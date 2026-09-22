@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.92.1](https://github.com/alrayyes/forge-dashboard/compare/v0.92.0...v0.92.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **dashboard:** poll CI status directly instead of relying on Forgejo's webhook ([#538](https://github.com/alrayyes/forge-dashboard/issues/538)) ([32750df](https://github.com/alrayyes/forge-dashboard/commit/32750dfd393e3bba0418f70535808d6a9d64ce55)), closes [#177](https://github.com/alrayyes/forge-dashboard/issues/177)
+
 ## [0.92.0](https://github.com/alrayyes/forge-dashboard/compare/v0.91.1...v0.92.0) (2026-09-22)
 
 
