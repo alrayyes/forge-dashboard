@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.91.1](https://github.com/alrayyes/forge-dashboard/compare/v0.91.0...v0.91.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **web:** make a locked action's Retry button read as clickable ([#533](https://github.com/alrayyes/forge-dashboard/issues/533)) ([5430b3a](https://github.com/alrayyes/forge-dashboard/commit/5430b3ac6f0a12c86f96489785394c51569aeae3)), closes [#532](https://github.com/alrayyes/forge-dashboard/issues/532)
+
 ## [0.91.0](https://github.com/alrayyes/forge-dashboard/compare/v0.90.1...v0.91.0) (2026-09-22)
 
 
