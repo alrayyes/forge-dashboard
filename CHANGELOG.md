@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.92.0](https://github.com/alrayyes/forge-dashboard/compare/v0.91.1...v0.92.0) (2026-09-22)
+
+
+### Features
+
+* **dashboard:** float mergeable, ready-to-merge pull requests to the top ([#536](https://github.com/alrayyes/forge-dashboard/issues/536)) ([9271138](https://github.com/alrayyes/forge-dashboard/commit/92711382b5cf64416560ea65bb9d67f4cc3dc657)), closes [#535](https://github.com/alrayyes/forge-dashboard/issues/535)
+
 ## [0.91.1](https://github.com/alrayyes/forge-dashboard/compare/v0.91.0...v0.91.1) (2026-09-22)
 
 
