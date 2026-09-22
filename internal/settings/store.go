@@ -248,6 +248,27 @@ func (s *Store) AllowsBotPRUpdates(ctx context.Context, userID []byte) (bool, er
 	return c.AllowBotPrUpdates, nil
 }
 
+// RenovateRebaseLabel reports userID's own saved RenovateRebaseLabel,
+// resolved through RenovateRebaseLabelOrDefault — Renovate's own default
+// ("rebase") for a user who's never saved any settings at all, the same
+// zero-value default Credentials{} itself gives someone who has saved
+// settings but never touched this specific field. Exists mainly to
+// satisfy dashboard.AutoUpdateBranchLister without that package needing
+// the full Credentials shape (and the token decryption Get does) just to
+// read one string.
+func (s *Store) RenovateRebaseLabel(ctx context.Context, userID []byte) (string, error) {
+	c, err := s.Get(ctx, userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Credentials{}.RenovateRebaseLabelOrDefault(), nil
+		}
+
+		return "", err
+	}
+
+	return c.RenovateRebaseLabelOrDefault(), nil
+}
+
 // EnsureWebhookCredentials returns userID's webhook token and secret,
 // generating and persisting them on first call — a user who never opens
 // Settings never gets a row touched for this, and a repeat call always

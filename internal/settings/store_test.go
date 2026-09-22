@@ -679,3 +679,25 @@ func TestStore_AllowsBotPRUpdates_ReflectsSavedCredentials(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, got)
 }
+
+func TestStore_RenovateRebaseLabel_NeverSaved_ReturnsDefault(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	got, err := store.RenovateRebaseLabel(t.Context(), []byte("user-1"))
+
+	require.NoError(t, err)
+	assert.Equal(t, "rebase", got)
+}
+
+func TestStore_RenovateRebaseLabel_ReflectsSavedCredentials(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{RenovateRebaseLabel: "needs-rebase"}))
+
+	got, err := store.RenovateRebaseLabel(t.Context(), userID)
+
+	require.NoError(t, err)
+	assert.Equal(t, "needs-rebase", got)
+}

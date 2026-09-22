@@ -301,7 +301,10 @@ branches" is also on, that background pass drives the same `@dependabot
 rebase` command the manual button does rather than a generic branch update
 — and if that `rebase` leaves the pull request's CI failing, follows up with
 `@dependabot recreate` on its own, the same way you'd notice the failure
-and click Recreate yourself.
+and click Recreate yourself. A Renovate pull request gets the same
+treatment as the manual `Renovate: Rebase` button below it — the
+configured `rebase` label added instead of a generic branch update,
+since that's Renovate's own rebase/retry trigger, not a comment command.
 
 A Renovate-authored pull request, on either forge, gets a `Renovate:
 Rebase` button that adds the configured `rebase` label (Settings' own
