@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.94.0](https://github.com/alrayyes/forge-dashboard/compare/v0.93.1...v0.94.0) (2026-09-22)
+
+
+### Features
+
+* **dashboard:** mutually narrow the shared Repo/Author/Label filters ([#551](https://github.com/alrayyes/forge-dashboard/issues/551)) ([cc7a4c1](https://github.com/alrayyes/forge-dashboard/commit/cc7a4c1ce703d0b310cf780da48d2c9ce0feb5d2)), closes [#550](https://github.com/alrayyes/forge-dashboard/issues/550)
+
 ## [0.93.1](https://github.com/alrayyes/forge-dashboard/compare/v0.93.0...v0.93.1) (2026-09-22)
 
 
