@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.93.0](https://github.com/alrayyes/forge-dashboard/compare/v0.92.1...v0.93.0) (2026-09-22)
+
+
+### Features
+
+* **dashboard:** drive Dependabot's own rebase/recreate from auto-update-branch ([#543](https://github.com/alrayyes/forge-dashboard/issues/543)) ([801a70b](https://github.com/alrayyes/forge-dashboard/commit/801a70b035fd421cf3147c396fb592af07969abe)), closes [#540](https://github.com/alrayyes/forge-dashboard/issues/540)
+
 ## [0.92.1](https://github.com/alrayyes/forge-dashboard/compare/v0.92.0...v0.92.1) (2026-09-22)
 
 
