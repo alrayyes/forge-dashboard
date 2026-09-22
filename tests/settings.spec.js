@@ -41,11 +41,29 @@ test.describe('settings page', () => {
       ).toBeChecked();
     });
 
+    // #529: the real race wasn't a slow assertion — it's that
+    // selectTheme's own PUT (web/src/routes/(app)/settings/+page.svelte)
+    // fires and forgets, so a reload issued before it lands can beat it
+    // to the server. The root layout's syncThemeFromServer then runs on
+    // the fresh page's mount, GETs the still-unsaved (stale) theme, finds
+    // it disagrees with the cookie theme.js just applied, and "reconciles"
+    // by overwriting the cookie and clearing data-theme back out — a
+    // permanent wrong value, not a slow-to-arrive correct one, so no
+    // amount of extra timeout on the later assertion would have fixed it
+    // reliably. Waiting for the PUT's own response before reloading is
+    // what actually closes the race.
     test('a choice survives a reload and following to another page', async ({
       page,
     }) => {
       await page.goto('/settings.html');
-      await page.click('.theme-segmented label:has-text("Dark")');
+      await Promise.all([
+        page.waitForResponse(
+          (res) =>
+            res.url().includes('/api/settings/theme') &&
+            res.request().method() === 'PUT',
+        ),
+        page.click('.theme-segmented label:has-text("Dark")'),
+      ]);
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
       await page.reload();
