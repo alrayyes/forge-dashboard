@@ -20,7 +20,7 @@ function makePR(overrides) {
     number: 42,
     title: 'Bump some-package from 1.0.0 to 1.0.1',
     url: 'https://example.com/42',
-    author: 'app/dependabot',
+    author: 'dependabot',
     draft: false,
     ci: 'success',
     labels: [],
@@ -78,6 +78,21 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     ).toBeVisible();
   });
 
+  test('the dependabot[bot] REST-fallback author form also shows both buttons', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR({ author: 'dependabot[bot]' }));
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(
+      row.getByRole('button', { name: 'Dependabot: Rebase' }),
+    ).toBeVisible();
+    await expect(
+      row.getByRole('button', { name: 'Dependabot: Recreate' }),
+    ).toBeVisible();
+  });
+
   test('a pull request not authored by Dependabot shows neither button', async ({
     page,
   }) => {
@@ -96,7 +111,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await mockDashboard(
       page,
       'forgejo',
-      makePR({ forge: 'forgejo', author: 'app/dependabot' }),
+      makePR({ forge: 'forgejo', author: 'dependabot' }),
     );
     await page.reload();
 
