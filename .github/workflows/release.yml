@@ -148,6 +148,13 @@ jobs:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
+      # //go:embed all:static (internal/api/server.go) reads this directory
+      # at compile time — without it, static/ is empty and every
+      # SvelteKit-migrated page 404s, including the login page the
+      # screenshot script logs in through. goreleaser's own before.hooks
+      # run this for the artefacts job; this job builds the binary itself
+      # so it needs the same step.
+      - run: bun run build:web
       - run: go build -o forge-dashboard ./cmd/forge-dashboard
 
       - name: capture dashboard screenshots against a real binary, fixture data only
