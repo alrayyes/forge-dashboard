@@ -57,6 +57,12 @@ function mockSettings(page, allowBotPrUpdates) {
   );
 }
 
+// Dependabot Rebase/Recreate live behind the row's "More actions" overflow
+// trigger (#527) — this opens it, same as a person clicking through.
+async function openMoreActions(row) {
+  await row.getByRole('button', { name: 'More actions' }).click();
+}
+
 test.describe('pull request Dependabot rebase/recreate buttons', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
@@ -70,6 +76,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await expect(
       row.getByRole('button', { name: 'Dependabot: Rebase' }),
     ).toBeVisible();
@@ -85,6 +92,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await expect(
       row.getByRole('button', { name: 'Dependabot: Rebase' }),
     ).toBeVisible();
@@ -133,6 +141,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
     expect(requestBody).toEqual({
@@ -155,6 +164,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Dependabot: Recreate' }).click();
 
     expect(requestBody).toMatchObject({ action: 'recreate' });
@@ -174,6 +184,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
     const status = page.locator('#status-banner');
@@ -200,6 +211,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     const button = row.getByRole('button', { name: 'Dependabot: Rebase' });
     await button.click();
 
@@ -225,6 +237,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
     const button = row.getByRole('button', { name: 'Dependabot: Rebase' });
@@ -255,6 +268,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
     await expect(
@@ -281,6 +295,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
     const button = row.getByRole('button', { name: 'Dependabot: Rebase' });
@@ -302,6 +317,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
     await expect(
       row.getByRole('button', { name: 'Dependabot: Rebase' }),

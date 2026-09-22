@@ -402,12 +402,13 @@
         if (mergeAction) statusCell.appendChild(mergeAction);
         const closeAction = closeActionCell(pr);
         if (closeAction) statusCell.appendChild(closeAction);
-        const dependabotAction = dependabotActionCell(pr);
-        if (dependabotAction) statusCell.appendChild(dependabotAction);
-        const renovateRebaseAction = renovateRebaseActionCell(pr);
-        if (renovateRebaseAction) statusCell.appendChild(renovateRebaseAction);
-        const pipelineAction = pipelineActionCell(pr);
-        if (pipelineAction) statusCell.appendChild(pipelineAction);
+        const secondaryActions = [
+          dependabotActionCell(pr),
+          renovateRebaseActionCell(pr),
+          pipelineActionCell(pr),
+        ].filter((cell): cell is HTMLElement => cell !== null);
+        const moreActions = moreActionsCell(pr, secondaryActions);
+        if (moreActions) statusCell.appendChild(moreActions);
         dedupeRowLockReasons(statusCell);
         meta.appendChild(statusCell);
       } else {
@@ -1659,6 +1660,145 @@
       });
       return button;
     }
+
+    // ---- "More actions" overflow menu ----
+    // Merge/Update branch/Close stay inline — every PR row has at most
+    // one of the first two and Close is universal, so three buttons
+    // never gets crowded on their own. Dependabot Rebase/Recreate,
+    // Renovate Rebase and View pipeline are the ones that stack up
+    // together on a single bot-managed row (#527) — reached rarely
+    // enough, and only on rows that are already bot-managed or have CI
+    // to show, that collapsing them behind one trigger reads as tidying
+    // up rather than hiding something anyone reaches for often.
+    //
+    // Keyed by prKey, not a per-row DOM flag: applySnapshot rebuilds
+    // every row from scratch on each 30s poll (REFRESH_INTERVAL_MS), so
+    // an open/closed flag living only in the DOM would slam shut on its
+    // own mid-decision. Persisting it here is the same reason
+    // mergeState/closeState/etc. all live outside the DOM node too.
+    const openActionMenus: Record<string, boolean> = {};
+
+    function closeAllActionMenus() {
+      for (const key of Object.keys(openActionMenus)) {
+        delete openActionMenus[key];
+      }
+    }
+
+    // Collapses actions into a single trailing "More actions" trigger —
+    // absent entirely when there's nothing to collapse, the same "don't
+    // render a control with nothing behind it" rule every other action
+    // cell here already follows.
+    function moreActionsCell(
+      item: PullRequestItem,
+      actions: HTMLElement[],
+    ): HTMLElement | null {
+      if (actions.length === 0) return null;
+
+      const key = prKey(item);
+      const domKey = domSafeId(key);
+      const open = Boolean(openActionMenus[key]);
+      const popoverId = `row-actions-popover-${domKey}`;
+      const triggerId = `row-actions-trigger-${domKey}`;
+
+      const wrap = el("span", "row-actions-menu");
+
+      const trigger = buttonEl("row-action", "More actions");
+      trigger.type = "button";
+      trigger.id = triggerId;
+      trigger.setAttribute("aria-haspopup", "true");
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+      trigger.setAttribute("aria-controls", popoverId);
+      trigger.addEventListener("click", (e) => {
+        // Bubbling to the document-level click-outside listener below
+        // would immediately re-close whatever this click just opened.
+        e.stopPropagation();
+        const willOpen = !openActionMenus[key];
+        closeAllActionMenus();
+        if (willOpen) openActionMenus[key] = true;
+        renderPRBoard();
+        if (willOpen) {
+          // Moves focus into the popover once it exists — same "make
+          // the state change reach someone not looking at that exact
+          // spot" reasoning mergeActionCell's own focus() call already
+          // uses for Confirm merge?.
+          requestAnimationFrame(() => {
+            document
+              .getElementById(popoverId)
+              ?.querySelector<HTMLElement>("button")
+              ?.focus();
+          });
+        }
+      });
+      wrap.appendChild(trigger);
+
+      if (open) {
+        const popover = el("div", "row-actions-popover");
+        popover.id = popoverId;
+        popover.setAttribute("role", "group");
+        popover.setAttribute("aria-label", "More actions");
+        for (const action of actions) popover.appendChild(action);
+        wrap.appendChild(popover);
+      }
+
+      return wrap;
+    }
+
+    // View pipeline (one of the actions this menu can hold) opens its
+    // own real, modal <dialog> — pipelineDialog further down. A modal
+    // dialog owns Escape and outside clicks while it's open (native
+    // showModal() semantics, plus its own close-and-refocus handling
+    // right below in openPipelineDialog); this menu's own click-outside/
+    // Escape handling has to stand down while one is open, or it would
+    // rebuild the row out from under the dialog's remembered focus
+    // target mid-interaction — confirmed by hand: without this guard,
+    // pressing Escape to close the checks panel also silently closed the
+    // menu underneath it and left focus nowhere, because renderPRBoard()
+    // replaced the very button openPipelineDialog was about to refocus.
+    function modalDialogOpen(): boolean {
+      return document.querySelector("dialog[open]") !== null;
+    }
+
+    // Closes whichever menu is open on any click outside it — the
+    // standard disclosure-pattern behavior, and what stops a stale
+    // popover surviving a click on an unrelated row. Wired once at
+    // module scope rather than per-row: there's at most one open menu
+    // at a time (moreActionsCell's own trigger handler already closes
+    // every other one before opening its own), so one listener covers
+    // the whole board.
+    document.addEventListener("click", (e) => {
+      if (modalDialogOpen()) return;
+      const target = e.target as HTMLElement | null;
+      // A dialog's own close button (or its backdrop) closes the
+      // dialog synchronously as part of handling this same click,
+      // before it ever bubbles here — modalDialogOpen() above would
+      // already read false by then. Checking the click's own target
+      // for "was this inside a dialog" catches that case too, so a
+      // dialog-closing click never also collapses the menu underneath
+      // it out from under whatever focus the dialog's own close
+      // handling just restored.
+      if (target?.closest("dialog")) return;
+      if (Object.keys(openActionMenus).length === 0) return;
+      if (target?.closest(".row-actions-menu")) return;
+      closeAllActionMenus();
+      renderPRBoard();
+    });
+
+    // Escape closes the open menu and returns focus to its own trigger
+    // — the same "a locked/expanded control never just vanishes out
+    // from under keyboard focus" care lockedActionButton's own
+    // aria-describedby wiring already takes.
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (modalDialogOpen()) return;
+      const openKeys = Object.keys(openActionMenus);
+      if (openKeys.length === 0) return;
+      const [openKey] = openKeys;
+      closeAllActionMenus();
+      renderPRBoard();
+      document
+        .getElementById(`row-actions-trigger-${domSafeId(openKey)}`)
+        ?.focus();
+    });
 
     // ---- shared filter state ----
     // One object for forge/repo/label/author/title/created/updated/
