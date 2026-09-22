@@ -1123,6 +1123,18 @@ select.col-filter {
   background: var(--neutral-bg);
   color: var(--ink-3);
 }
+/* A Retry button (lockedActionButton's own onRetry param set) is
+   genuinely clickable, unlike a plain dead-end lock — the flat grey/
+   default-cursor look above reads as "this doesn't work" either way,
+   with nothing but the invisible aria-disabled attribute telling them
+   apart. Reported live as "the retry button looks greyed out" (#532).
+   Real .row-action colors instead, the same as every other clickable
+   button in this file. */
+.row-action-locked .row-action:not([aria-disabled]) {
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
 .row-action-reason {
   font-size: 11px;
   color: var(--ink-3);

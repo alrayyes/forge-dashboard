@@ -372,6 +372,32 @@ test.describe('pull request update-branch button', () => {
     await expect(row).toContainText(/permission/i);
   });
 
+  // #532: a Retry button shared .row-action-locked's plain grey/
+  // cursor-default styling with a genuinely dead-end locked button —
+  // clickable, but visually indistinguishable from something that
+  // wasn't, reported live as "the retry button looks greyed out."
+  test('a Retry button reads as clickable, not as another dead end', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/update-branch', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'github: PUT .../update-branch: Forbidden',
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Update branch' }).click();
+
+    const button = row.getByRole('button', { name: 'Retry' }).first();
+    await expect(button).toHaveCSS('cursor', 'pointer');
+  });
+
   test('a cannot-merge-cleanly (409) failure locks the button with its own reason', async ({
     page,
   }) => {
