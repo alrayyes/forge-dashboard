@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.90.1](https://github.com/alrayyes/forge-dashboard/compare/v0.90.0...v0.90.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **dashboard:** match the real GraphQL/REST author login for Dependabot and Renovate ([#523](https://github.com/alrayyes/forge-dashboard/issues/523)) ([31adea6](https://github.com/alrayyes/forge-dashboard/commit/31adea6e4855bc46c16216970459b8956fc5b7b4)), closes [#522](https://github.com/alrayyes/forge-dashboard/issues/522)
+
 ## [0.90.0](https://github.com/alrayyes/forge-dashboard/compare/v0.89.1...v0.90.0) (2026-09-21)
 
 
