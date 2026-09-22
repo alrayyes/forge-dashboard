@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.95.0](https://github.com/alrayyes/forge-dashboard/compare/v0.94.1...v0.95.0) (2026-09-22)
+
+
+### Features
+
+* **dashboard:** add an Enable auto-merge action for GitHub pull requests ([#556](https://github.com/alrayyes/forge-dashboard/issues/556)) ([19ed3e2](https://github.com/alrayyes/forge-dashboard/commit/19ed3e2edab3e994ca29651128b106b204d4a4d6)), closes [#526](https://github.com/alrayyes/forge-dashboard/issues/526)
+
+
+### Bug Fixes
+
+* **dashboard:** route a behind Renovate PR through its rebase label, not UpdateBranch ([#555](https://github.com/alrayyes/forge-dashboard/issues/555)) ([90f6cc3](https://github.com/alrayyes/forge-dashboard/commit/90f6cc3d54110f8ba3cbf8754b1e28f27f501092)), closes [#541](https://github.com/alrayyes/forge-dashboard/issues/541)
+
 ## [0.94.1](https://github.com/alrayyes/forge-dashboard/compare/v0.94.0...v0.94.1) (2026-09-22)
 
 
