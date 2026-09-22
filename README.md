@@ -277,6 +277,21 @@ out not to need merging at all (a duplicate, or one whose content
 already landed another way), it's the action that actually applies —
 and asks for confirmation the same way Merge does.
 
+A GitHub pull request that isn't already auto-merging gets an "Enable
+auto-merge" action in the row's "More actions" menu, arming the forge's
+own native auto-merge (GitHub's `enablePullRequestAutoMerge` mutation)
+instead of switching to GitHub's own UI just to turn it on. It picks a
+merge method the repo actually allows, the same `merge` > `squash` >
+`rebase` precedence Merge already uses, with no override of its own.
+Available whenever the pull request isn't a genuine conflict — unlike
+Merge, a pending or not-yet-required check doesn't hide it, since
+arming auto-merge ahead of CI finishing is the whole point. Forgejo has
+no separate "enable auto-merge" endpoint of its own —
+`merge_when_checks_succeed` is a flag on the same merge call, which
+would merge right now rather than arming a standing intent — different
+enough framing that it's left for a follow-up rather than folded into
+this one.
+
 A pull request opened by release-please, Dependabot, or Renovate keeps
 itself current on its own schedule — for release-please specifically,
 a manual Update branch click can fight its own next run, since it

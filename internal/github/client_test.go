@@ -2350,3 +2350,171 @@ func TestListChecks_PullRequestLookupFails_ReturnsError(t *testing.T) {
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
 }
+
+func TestEnableAutoMerge_RepoAllowsMergeCommit_UsesMerge(t *testing.T) {
+	t.Parallel()
+
+	var mutationVars map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "enablePullRequestAutoMerge") {
+			mutationVars = body.Variables
+			writeJSON(t, w, map[string]any{"data": map[string]any{"enablePullRequestAutoMerge": map[string]any{"clientMutationId": nil}}})
+
+			return
+		}
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"mergeCommitAllowed": true,
+					"squashMergeAllowed": true,
+					"rebaseMergeAllowed": true,
+					"pullRequest":        map[string]any{"id": "PR_kwABC"},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnableAutoMerge(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.NotNil(t, mutationVars)
+	assert.Equal(t, "PR_kwABC", mutationVars["id"])
+	assert.Equal(t, "MERGE", mutationVars["method"])
+}
+
+func TestEnableAutoMerge_RepoDisallowsMergeCommit_FallsBackToSquash(t *testing.T) {
+	t.Parallel()
+
+	var mutationVars map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "enablePullRequestAutoMerge") {
+			mutationVars = body.Variables
+			writeJSON(t, w, map[string]any{"data": map[string]any{"enablePullRequestAutoMerge": map[string]any{"clientMutationId": nil}}})
+
+			return
+		}
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"mergeCommitAllowed": false,
+					"squashMergeAllowed": true,
+					"rebaseMergeAllowed": false,
+					"pullRequest":        map[string]any{"id": "PR_kwABC"},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnableAutoMerge(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "SQUASH", mutationVars["method"])
+}
+
+func TestEnableAutoMerge_RepoAllowsOnlyRebase_UsesRebase(t *testing.T) {
+	t.Parallel()
+
+	var mutationVars map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "enablePullRequestAutoMerge") {
+			mutationVars = body.Variables
+			writeJSON(t, w, map[string]any{"data": map[string]any{"enablePullRequestAutoMerge": map[string]any{"clientMutationId": nil}}})
+
+			return
+		}
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"mergeCommitAllowed": false,
+					"squashMergeAllowed": false,
+					"rebaseMergeAllowed": true,
+					"pullRequest":        map[string]any{"id": "PR_kwABC"},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnableAutoMerge(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "REBASE", mutationVars["method"])
+}
+
+func TestEnableAutoMerge_LookupFails_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"errors": []map[string]string{{"message": "Bad credentials"}}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnableAutoMerge(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Bad credentials")
+}
+
+// TestEnableAutoMerge_RepoDoesNotAllowAutoMerge_ReturnsError is the case
+// AC #3 (#526) exists for: a repo whose own allow_auto_merge setting is
+// off rejects the mutation itself with a real GraphQL error, surfaced
+// here rather than pre-checked — there's no separate "does this repo
+// allow auto-merge" field this client fetches ahead of time.
+func TestEnableAutoMerge_RepoDoesNotAllowAutoMerge_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "enablePullRequestAutoMerge") {
+			writeJSON(t, w, map[string]any{"errors": []map[string]any{{
+				"message":    "Auto merge is not allowed for this repository",
+				"extensions": map[string]string{"type": "UNPROCESSABLE"},
+			}}})
+
+			return
+		}
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"mergeCommitAllowed": true,
+					"squashMergeAllowed": true,
+					"rebaseMergeAllowed": true,
+					"pullRequest":        map[string]any{"id": "PR_kwABC"},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnableAutoMerge(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not allowed")
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+}

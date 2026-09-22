@@ -367,6 +367,89 @@ func mergeMethodFor(repo *ghsdk.Repository) string {
 	}
 }
 
+// autoMergeLookupQuery fetches what EnableAutoMerge needs in one
+// round trip: the same three allow_*_merge flags mergeMethodFor picks a
+// REST merge method from, plus the pull request's own GraphQL node ID —
+// enablePullRequestAutoMerge takes that ID, not owner/name/number the
+// way every REST endpoint this client otherwise calls does.
+const autoMergeLookupQuery = `
+query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    mergeCommitAllowed
+    squashMergeAllowed
+    rebaseMergeAllowed
+    pullRequest(number: $number) {
+      id
+    }
+  }
+}
+`
+
+// enablePullRequestAutoMergeMutation arms auto-merge on a pull request
+// already looked up via autoMergeLookupQuery. GitHub's mutation returns
+// nothing this client needs back, unlike the query above.
+const enablePullRequestAutoMergeMutation = `
+mutation($id: ID!, $method: PullRequestMergeMethod!) {
+  enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: $method}) {
+    clientMutationId
+  }
+}
+`
+
+type autoMergeLookupResponse struct {
+	Repository struct {
+		MergeCommitAllowed bool `json:"mergeCommitAllowed"`
+		SquashMergeAllowed bool `json:"squashMergeAllowed"`
+		RebaseMergeAllowed bool `json:"rebaseMergeAllowed"`
+		PullRequest        struct {
+			ID string `json:"id"`
+		} `json:"pullRequest"`
+	} `json:"repository"`
+}
+
+// autoMergeMethodFor picks a merge method the repo actually allows, from
+// autoMergeLookupResponse's own three flags — same merge > squash > rebase
+// precedence as mergeMethodFor, just GitHub's GraphQL
+// PullRequestMergeMethod enum spelling ("MERGE"/"SQUASH"/"REBASE") rather
+// than the REST API's lowercase strings.
+func autoMergeMethodFor(lookup autoMergeLookupResponse) string {
+	switch {
+	case lookup.Repository.MergeCommitAllowed:
+		return "MERGE"
+	case lookup.Repository.SquashMergeAllowed:
+		return "SQUASH"
+	case lookup.Repository.RebaseMergeAllowed:
+		return "REBASE"
+	default:
+		return "MERGE"
+	}
+}
+
+// EnableAutoMerge implements dashboard.PullRequestAutoMerger: arms
+// owner/name#number's own native auto-merge via GitHub's
+// enablePullRequestAutoMerge GraphQL mutation — REST has no equivalent
+// endpoint, unlike a plain merge. That mutation asks for an explicit
+// merge method rather than picking the repo's default itself, so this
+// looks the pull request's node ID and the repo's allowed methods up in
+// one query first, the GraphQL counterpart to MergePullRequest's own
+// REST repo lookup.
+func (c *Client) EnableAutoMerge(ctx context.Context, owner, name string, number int) error {
+	var lookup autoMergeLookupResponse
+	if err := c.graphqlDo(ctx, autoMergeLookupQuery, map[string]any{"owner": owner, "name": name, "number": number}, &lookup); err != nil {
+		return asClientError(err)
+	}
+
+	vars := map[string]any{
+		"id":     lookup.Repository.PullRequest.ID,
+		"method": autoMergeMethodFor(lookup),
+	}
+	if err := c.graphqlDo(ctx, enablePullRequestAutoMergeMutation, vars, nil); err != nil {
+		return asClientError(err)
+	}
+
+	return nil
+}
+
 // UpdateBranch implements dashboard.BranchUpdater: merges owner/name#number's
 // base branch into its head branch. GitHub can schedule this as a
 // background job and answer 202 before it's actually done — go-github
