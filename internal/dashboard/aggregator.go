@@ -178,15 +178,40 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 	a.runAutoUpdateBranch(ctx, merged)
 }
 
-// sortByRecency orders both slices most-recently-updated first. Without
-// this, a snapshot's order was purely an accident of merge order —
+// sortByRecency orders both slices most-recently-updated first, except
+// that a pull request ready to merge right now floats ahead of one
+// that isn't — "ready" meaning exactly what mergeActionCell itself
+// gates the Merge button on (MergeMergeable and CI resolved, not still
+// pending), since a sort criterion that doesn't match what's actually
+// clickable would float PRs the reader still can't act on. Recency is
+// the tie-breaker within a tier, same as it always was; it never
+// overrides readiness. Without the plain recency baseline this began
+// as, a snapshot's order was purely an accident of merge order —
 // confirmed live: the client's own paginated board (25 items per page)
 // never re-sorts either, so whichever repo a scoped refresh had just
 // appended to the tail of the list could knock a brand new issue clean
 // off page 1, real incident behind #162.
 func sortByRecency(prs []PullRequest, issues []Issue) {
-	slices.SortFunc(prs, func(a, b PullRequest) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
+	slices.SortFunc(prs, func(a, b PullRequest) int {
+		if ar, br := readyToMerge(a), readyToMerge(b); ar != br {
+			if ar {
+				return -1
+			}
+
+			return 1
+		}
+
+		return b.UpdatedAt.Compare(a.UpdatedAt)
+	})
 	slices.SortFunc(issues, func(a, b Issue) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
+}
+
+// readyToMerge mirrors +page.svelte's own mergeActionCell gate exactly
+// — the same two conditions decide both whether the Merge button shows
+// and whether this pull request floats to the top of the list, so the
+// two can't silently drift apart.
+func readyToMerge(pr PullRequest) bool {
+	return pr.MergeStatus == MergeMergeable && pr.CI != CIPending
 }
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
