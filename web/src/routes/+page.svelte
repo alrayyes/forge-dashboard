@@ -1862,10 +1862,25 @@
       }
     });
 
-    function forgeScopedItems(): FilterableItem[] {
+    // Leave-one-out narrowing (#550): each shared select's own options
+    // come from the combined pool filtered by every *other* active
+    // shared facet, not by excludeKey's own current selection — or a
+    // selected value could exclude itself from its own option list.
+    // excludeKey === "" scopes by all four (forge/repo/author/label),
+    // which is what the Title datalist wants: free text has no "own
+    // selection" to exclude itself from. Board-owned fields (PR status,
+    // hideDependencyDashboard) stay out of this by design — matchesFilters
+    // is called with isPR: false and extra: undefined, which short-circuits
+    // both of those checks to false regardless of isPR.
+    function sharedPoolExcluding(
+      excludeKey: "" | "repo" | "author" | "label",
+    ): FilterableItem[] {
       const items: FilterableItem[] = [...allPRs, ...allIssues];
-      if (!sharedState.shared.forge) return items;
-      return items.filter((item) => item.forge === sharedState.shared.forge);
+      const shared: Record<string, string> = { ...sharedState.shared };
+      if (excludeKey) shared[excludeKey] = "";
+      return items.filter((item) =>
+        window.Filters.matchesFilters(item, false, shared, undefined),
+      );
     }
 
     // "Group by forge" is a no-op once the Forge filter already narrows
@@ -1896,25 +1911,30 @@
     // everything on a value nothing can match, with no visible cause
     // (#112).
     function updateSharedFilterOptions() {
-      const scoped = forgeScopedItems();
       const staleRepo = window.Filters.populateRepoSelect(
         document.getElementById(
           "shared-repo-select",
         ) as HTMLSelectElement | null,
-        scoped,
+        sharedPoolExcluding("repo"),
       );
       const staleAuthor = window.Filters.populateSelect(
         document.getElementById(
           "shared-author-select",
         ) as HTMLSelectElement | null,
-        window.Filters.distinctValues((item) => item.author, scoped),
+        window.Filters.distinctValues(
+          (item) => item.author,
+          sharedPoolExcluding("author"),
+        ),
         sharedState.shared.author,
       );
       window.Filters.populateDatalist(
         document.getElementById(
           "shared-title-options",
         ) as HTMLDataListElement | null,
-        window.Filters.distinctValues((item) => item.title, scoped),
+        window.Filters.distinctValues(
+          (item) => item.title,
+          sharedPoolExcluding(""),
+        ),
       );
       const staleLabel = window.Filters.populateSelect(
         document.getElementById(
@@ -1922,7 +1942,7 @@
         ) as HTMLSelectElement | null,
         window.Filters.distinctValues(
           (item) => (item.labels || []).map((l) => l.name),
-          scoped,
+          sharedPoolExcluding("label"),
         ),
         sharedState.shared.label,
       );
@@ -2330,10 +2350,19 @@
           prBoard.resetPage();
           issueBoard.resetPage();
           // Repo/Author/Label options (and "Group by forge") are scoped
-          // to the active forge, so a forge change has to re-narrow
-          // them right away rather than waiting for the next poll's
-          // setItems (#112).
-          if (col === "forge") updateSharedFilterOptions();
+          // to the other active shared facets (leave-one-out, #550), so
+          // a change to any of the three — plus Forge, which narrows all
+          // three unconditionally — has to re-narrow the others right
+          // away rather than waiting for the next poll's setItems
+          // (#112). Title stays out of this: it's debounced free text
+          // and deliberately suggestions-only, not a restrictive facet.
+          if (
+            col === "forge" ||
+            col === "repo" ||
+            col === "author" ||
+            col === "label"
+          )
+            updateSharedFilterOptions();
           // debouncedCol: only Title fires on 'input' per keystroke;
           // every other control here only ever fires on 'change' (a
           // discrete, already-complete pick), so passing col
