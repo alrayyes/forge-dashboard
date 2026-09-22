@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.93.1](https://github.com/alrayyes/forge-dashboard/compare/v0.93.0...v0.93.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **dashboard:** recognize an empty-diff PR and show only Close ([#546](https://github.com/alrayyes/forge-dashboard/issues/546)) ([8ae7018](https://github.com/alrayyes/forge-dashboard/commit/8ae7018cca287799b97e3565a414562135724fc0)), closes [#545](https://github.com/alrayyes/forge-dashboard/issues/545)
+
 ## [0.93.0](https://github.com/alrayyes/forge-dashboard/compare/v0.92.1...v0.93.0) (2026-09-22)
 
 
