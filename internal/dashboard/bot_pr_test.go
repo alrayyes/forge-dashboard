@@ -29,23 +29,31 @@ func TestIsBotManagedPR_ReleasePleaseTaggedLabel_ReturnsTrue(t *testing.T) {
 	assert.True(t, dashboard.IsBotManagedPR(pr))
 }
 
-func TestIsBotManagedPR_DependabotAuthor_ReturnsTrue(t *testing.T) {
+func TestIsBotManagedPR_DependabotAuthorGraphQL_ReturnsTrue(t *testing.T) {
 	t.Parallel()
 
-	pr := dashboard.PullRequest{Author: "app/dependabot"}
+	pr := dashboard.PullRequest{Author: "dependabot"}
 
 	assert.True(t, dashboard.IsBotManagedPR(pr))
 }
 
-func TestIsBotManagedPR_RenovateAppAuthor_ReturnsTrue(t *testing.T) {
+func TestIsBotManagedPR_DependabotAuthorREST_ReturnsTrue(t *testing.T) {
 	t.Parallel()
 
-	pr := dashboard.PullRequest{Author: "app/renovate"}
+	pr := dashboard.PullRequest{Author: "dependabot[bot]"}
 
 	assert.True(t, dashboard.IsBotManagedPR(pr))
 }
 
-func TestIsBotManagedPR_RenovateClassicBotAuthor_ReturnsTrue(t *testing.T) {
+func TestIsBotManagedPR_RenovateAuthorGraphQL_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
+	pr := dashboard.PullRequest{Author: "renovate"}
+
+	assert.True(t, dashboard.IsBotManagedPR(pr))
+}
+
+func TestIsBotManagedPR_RenovateAuthorREST_ReturnsTrue(t *testing.T) {
 	t.Parallel()
 
 	pr := dashboard.PullRequest{Author: "renovate[bot]"}
