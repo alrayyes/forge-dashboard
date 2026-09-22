@@ -1604,6 +1604,205 @@ test.describe('dashboard page', () => {
         page.locator('#shared-group-select option[value="forge"]'),
       ).toHaveJSProperty('hidden', false);
     });
+
+    // #550: Repo/Author/Label mutually narrow each other's own options
+    // too, not just have Forge narrow all three one-way.
+    test('picking a repo narrows the author and label selects to that repo only, still respecting an active forge', async ({
+      page,
+    }) => {
+      await selectForge(page, 'github');
+      await page.selectOption('#shared-repo-select', 'github:shared/tools');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('GitHub A');
+
+      // Only "GitHub A" (author claude, label bug) is under github:shared/tools —
+      // "GitHub only" (alrayyes/only-here) and "Forgejo A" (ryan/enhancement)
+      // are excluded by forge and repo respectively.
+      await expect(page.locator('#shared-author-select option')).toHaveCount(2); // All + claude.
+      await expect(
+        page.locator('#shared-author-select option[value="claude"]'),
+      ).toHaveCount(1);
+      await expect(page.locator('#shared-label-select option')).toHaveCount(2); // All + bug.
+      await expect(
+        page.locator('#shared-label-select option[value="bug"]'),
+      ).toHaveCount(1);
+    });
+
+    test('picking an author narrows the repo and label selects to that author only', async ({
+      page,
+    }) => {
+      await page.selectOption('#shared-author-select', 'claude');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+
+      // claude has "GitHub A" (github:shared/tools, label bug) and
+      // "GitHub only" (github:alrayyes/only-here, no label) — ryan's
+      // forgejo:shared/tools and its "enhancement" label are excluded.
+      await expect(page.locator('#shared-repo-select optgroup')).toHaveCount(0);
+      await expect(page.locator('#shared-repo-select option')).toHaveCount(3); // All + the two claude repos.
+      await expect(
+        page.locator(
+          '#shared-repo-select option[value="forgejo:shared/tools"]',
+        ),
+      ).toHaveCount(0);
+      await expect(page.locator('#shared-label-select option')).toHaveCount(2); // All + bug.
+      await expect(
+        page.locator('#shared-label-select option[value="enhancement"]'),
+      ).toHaveCount(0);
+    });
+
+    test('picking a label narrows the repo and author selects to that label only', async ({
+      page,
+    }) => {
+      await page.selectOption('#shared-label-select', 'bug');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('GitHub A');
+
+      // Only "GitHub A" (github:shared/tools, author claude) carries "bug".
+      await expect(page.locator('#shared-repo-select option')).toHaveCount(2); // All + github:shared/tools.
+      await expect(
+        page.locator('#shared-repo-select option[value="github:shared/tools"]'),
+      ).toHaveCount(1);
+      await expect(page.locator('#shared-author-select option')).toHaveCount(2); // All + claude.
+      await expect(
+        page.locator('#shared-author-select option[value="ryan"]'),
+      ).toHaveCount(0);
+    });
+
+    test('a repo+author combination that stops co-occurring clears both selections, not just one', async ({
+      page,
+    }) => {
+      // Both picks are valid together at the time they're made: the
+      // Forgejo shared/tools repo really is authored by ryan.
+      await page.selectOption('#shared-repo-select', 'forgejo:shared/tools');
+      await page.selectOption('#shared-author-select', 'ryan');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+
+      // The underlying data changes under the still-active filters (a
+      // live poll/force-refresh, same shape #112 already guards against
+      // for Forge) — ryan no longer has anything under forgejo/shared/
+      // tools. Each select's own leave-one-out pool still respects the
+      // *other* one's now-stale value at the moment this recomputes (a
+      // single pass, not a fixed point), so both Repo and Author come
+      // up empty and clear together rather than only Author doing so —
+      // neither one, on its own, is a value still reachable given what
+      // the other was set to.
+      await page.route('**/api/dashboard/refresh', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              { forge: 'github', reachable: true, repoCount: 2 },
+              { forge: 'forgejo', reachable: true, repoCount: 1 },
+            ],
+            pullRequests: [
+              {
+                forge: 'github',
+                repo: 'shared/tools',
+                number: 1,
+                title: 'GitHub A',
+                url: 'https://example.com/1',
+                author: 'claude',
+                ci: 'success',
+                labels: [{ name: 'bug', color: 'd73a4a' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'forgejo',
+                repo: 'shared/tools',
+                number: 2,
+                title: 'Forgejo A, reassigned',
+                url: 'https://example.com/2',
+                author: 'someone-else',
+                ci: 'success',
+                labels: [{ name: 'enhancement', color: 'a2eeef' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'github',
+                repo: 'alrayyes/only-here',
+                number: 3,
+                title: 'GitHub only',
+                url: 'https://example.com/3',
+                author: 'claude',
+                ci: 'success',
+                labels: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+            issues: [],
+          }),
+        }),
+      );
+      await page.click('#force-refresh-button');
+
+      await expect(page.locator('#shared-repo-select')).toHaveValue('');
+      await expect(page.locator('#shared-author-select')).toHaveValue('');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+    });
+
+    test('a PR-only filter like CI status is not part of the shared repo/author/label narrowing', async ({
+      page,
+    }) => {
+      await page.route('**/api/dashboard*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            pullRequests: [
+              {
+                forge: 'github',
+                repo: 'team/one',
+                number: 1,
+                title: 'Passing PR',
+                url: 'https://example.com/1',
+                author: 'claude',
+                ci: 'success',
+                labels: [{ name: 'bug', color: 'd73a4a' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              {
+                forge: 'github',
+                repo: 'team/two',
+                number: 2,
+                title: 'Failing PR',
+                url: 'https://example.com/2',
+                author: 'ryan',
+                ci: 'failure',
+                labels: [{ name: 'enhancement', color: 'a2eeef' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+            issues: [],
+          }),
+        }),
+      );
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+
+      await page.selectOption(
+        'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
+        'failure',
+      );
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows > .row')).toContainText('Failing PR');
+
+      // The CI filter narrowed the PR board's own rows, but it's a
+      // board-owned field, not a shared one — the shared Repo/Author/
+      // Label selects still offer values from both PRs, including the
+      // passing one CI status just hid.
+      await expect(page.locator('#shared-repo-select option')).toHaveCount(3); // All + team/one + team/two.
+      await expect(page.locator('#shared-author-select option')).toHaveCount(3); // All + claude + ryan.
+      await expect(page.locator('#shared-label-select option')).toHaveCount(3); // All + bug + enhancement.
+    });
   });
 
   test.describe('pagination', () => {
