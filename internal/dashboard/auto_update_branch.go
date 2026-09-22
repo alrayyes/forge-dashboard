@@ -18,6 +18,12 @@ import (
 type AutoUpdateBranchLister interface {
 	AutoUpdateBranchRepos(ctx context.Context, userID []byte) (map[string]struct{}, error)
 	AllowsBotPRUpdates(ctx context.Context, userID []byte) (bool, error)
+	// RenovateRebaseLabel reports userID's own configured Renovate rebase
+	// label (Credentials.RenovateRebaseLabelOrDefault) — what a behind
+	// Renovate pull request gets labeled with instead of the generic
+	// UpdateBranch call (#541), mirroring the manual Renovate: Rebase
+	// button.
+	RenovateRebaseLabel(ctx context.Context, userID []byte) (string, error)
 }
 
 // autoUpdateBranchConfig holds what an Aggregator needs to run the
@@ -49,7 +55,10 @@ type autoUpdateBranchConfig struct {
 // gets DependabotRebaseComment instead of the generic UpdateBranch,
 // mirroring the manual Dependabot: Rebase button, with a follow-up
 // DependabotRecreateComment if that rebase leaves its CI failing (#540).
-// Both settings are queried fresh on every refresh, since this
+// A Renovate pull request instead gets lister's own configured rebase
+// label added (AddLabel), mirroring the manual Renovate: Rebase button —
+// Renovate has no recreate equivalent, so no watch state to track (#541).
+// All three settings are queried fresh on every refresh, since this
 // Aggregator's own dedicated enable/disable endpoints (and a
 // bot-PR-updates toggle) don't trigger a rebuild the way most other
 // settings changes do.
@@ -86,6 +95,13 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 		return
 	}
 
+	renovateLabel, err := a.autoUpdate.lister.RenovateRebaseLabel(ctx, a.autoUpdate.userID)
+	if err != nil {
+		slog.Warn("auto-update-branch: could not load renovate rebase label", "error", err)
+
+		return
+	}
+
 	for _, pr := range snap.PullRequests {
 		if !pr.Behind {
 			continue
@@ -97,23 +113,38 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 			continue
 		}
 
-		if isDependabotPR(pr) {
-			a.rebaseDependabotPR(ctx, pr)
+		a.updateBehindPR(ctx, pr, renovateLabel)
+	}
+}
 
-			continue
-		}
+// updateBehindPR brings pr up to date the way its author calls for: a
+// Dependabot pull request gets DependabotRebaseComment, a Renovate one
+// gets renovateLabel added, and anything else gets the generic
+// UpdateBranch — runAutoUpdateBranch's own per-PR routing, split out only
+// to keep that loop's own branching under gocyclo's threshold.
+func (a *Aggregator) updateBehindPR(ctx context.Context, pr PullRequest, renovateLabel string) {
+	if isDependabotPR(pr) {
+		a.rebaseDependabotPR(ctx, pr)
 
-		updater := a.branchUpdaterFor(pr.Forge)
-		if updater == nil {
-			continue
-		}
-		owner, name, ok := strings.Cut(pr.Repo, "/")
-		if !ok {
-			continue
-		}
-		if _, err := updater.UpdateBranch(ctx, owner, name, pr.Number); err != nil {
-			slog.Warn("auto-update-branch failed", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
-		}
+		return
+	}
+
+	if isRenovatePR(pr) {
+		a.labelRenovatePR(ctx, pr, renovateLabel)
+
+		return
+	}
+
+	updater := a.branchUpdaterFor(pr.Forge)
+	if updater == nil {
+		return
+	}
+	owner, name, ok := strings.Cut(pr.Repo, "/")
+	if !ok {
+		return
+	}
+	if _, err := updater.UpdateBranch(ctx, owner, name, pr.Number); err != nil {
+		slog.Warn("auto-update-branch failed", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
 	}
 }
 
@@ -220,6 +251,26 @@ func (a *Aggregator) recreateDependabotPR(ctx context.Context, pr PullRequest) {
 	}
 }
 
+// labelRenovatePR adds label to pr — Renovate's own rebase/retry trigger,
+// the same label the manual Renovate: Rebase button adds
+// (RenovateRebaseLabelOrDefault), instead of the generic UpdateBranch call
+// runAutoUpdateBranch uses for a plain pull request. A failure is logged
+// the same way UpdateBranch's own failure already is; no crash, no PR left
+// mid-update.
+func (a *Aggregator) labelRenovatePR(ctx context.Context, pr PullRequest, label string) {
+	labeler := a.labelerFor(pr.Forge)
+	if labeler == nil {
+		return
+	}
+	owner, name, ok := strings.Cut(pr.Repo, "/")
+	if !ok {
+		return
+	}
+	if err := labeler.AddLabel(ctx, owner, name, pr.Number, label); err != nil {
+		slog.Warn("auto-update-branch: renovate rebase label failed", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "label", label, "error", err)
+	}
+}
+
 // commenterFor returns the configured Source driving forge, if it supports
 // PullRequestCommenter — the same "just skip it" shape branchUpdaterFor uses.
 func (a *Aggregator) commenterFor(forge Forge) PullRequestCommenter {
@@ -247,6 +298,23 @@ func (a *Aggregator) branchUpdaterFor(forge Forge) BranchUpdater {
 		}
 		if u, ok := src.(BranchUpdater); ok {
 			return u
+		}
+
+		return nil
+	}
+
+	return nil
+}
+
+// labelerFor returns the configured Source driving forge, if it supports
+// PullRequestLabeler — the same "just skip it" shape branchUpdaterFor uses.
+func (a *Aggregator) labelerFor(forge Forge) PullRequestLabeler {
+	for _, src := range a.sources {
+		if src.Forge() != forge {
+			continue
+		}
+		if l, ok := src.(PullRequestLabeler); ok {
+			return l
 		}
 
 		return nil

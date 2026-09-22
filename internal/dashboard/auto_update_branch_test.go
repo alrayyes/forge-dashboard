@@ -44,8 +44,10 @@ func (f *fakeBranchUpdaterSource) updatedBranches() []string {
 type fakeAutoUpdateBranchLister struct {
 	enabled           map[string]struct{}
 	allowBotPRUpdates bool
+	renovateLabel     string
 	err               error
 	botErr            error
+	labelErr          error
 }
 
 func (f *fakeAutoUpdateBranchLister) AutoUpdateBranchRepos(_ context.Context, _ []byte) (map[string]struct{}, error) {
@@ -62,6 +64,17 @@ func (f *fakeAutoUpdateBranchLister) AllowsBotPRUpdates(_ context.Context, _ []b
 	}
 
 	return f.allowBotPRUpdates, nil
+}
+
+func (f *fakeAutoUpdateBranchLister) RenovateRebaseLabel(_ context.Context, _ []byte) (string, error) {
+	if f.labelErr != nil {
+		return "", f.labelErr
+	}
+	if f.renovateLabel == "" {
+		return "rebase", nil
+	}
+
+	return f.renovateLabel, nil
 }
 
 func TestAggregator_Refresh_BehindPROnEnabledRepo_UpdatesBranch(t *testing.T) {
@@ -125,10 +138,13 @@ func TestAggregator_Refresh_BehindPROnRepoNotEnabled_LeavesItAlone(t *testing.T)
 func TestAggregator_Refresh_BehindBotManagedPR_SkippedUnlessAllowed(t *testing.T) {
 	t.Parallel()
 
+	// release-please, not Renovate or Dependabot: those two get their own
+	// routing (label / comment) once bot-PR updates are allowed, tested
+	// separately below — this covers the shared gate ahead of that routing.
 	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "renovate"},
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Labels: []dashboard.Label{{Name: "autorelease: pending"}}},
 		},
 	}}}
 	lister := &fakeAutoUpdateBranchLister{
@@ -146,10 +162,12 @@ func TestAggregator_Refresh_BehindBotManagedPR_SkippedUnlessAllowed(t *testing.T
 func TestAggregator_Refresh_BehindBotManagedPR_UpdatedWhenAllowed(t *testing.T) {
 	t.Parallel()
 
+	// release-please, not Renovate or Dependabot — see the sibling
+	// "SkippedUnlessAllowed" test's own comment.
 	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "renovate"},
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Labels: []dashboard.Label{{Name: "autorelease: pending"}}},
 		},
 	}}}
 	lister := &fakeAutoUpdateBranchLister{
@@ -209,6 +227,34 @@ func (f *fakeCommenterAndUpdaterSource) comments() []string {
 	defer f.commentMu.Unlock()
 
 	return append([]string(nil), f.commented...)
+}
+
+// fakeLabelerAndUpdaterSource is fakeBranchUpdaterSource plus
+// dashboard.PullRequestLabeler — the shape both forges' clients have, and
+// what the Renovate auto-rebase-label tests need since they exercise both
+// UpdateBranch (a mixed-in non-Renovate PR) and AddLabel (the Renovate PR
+// itself) against the same source.
+type fakeLabelerAndUpdaterSource struct {
+	fakeBranchUpdaterSource
+
+	labelMu  sync.Mutex
+	labeled  []string // "owner/name#number: label"
+	labelErr error
+}
+
+func (f *fakeLabelerAndUpdaterSource) AddLabel(_ context.Context, owner, name string, number int, label string) error {
+	f.labelMu.Lock()
+	defer f.labelMu.Unlock()
+	f.labeled = append(f.labeled, owner+"/"+name+"#"+strconv.Itoa(number)+": "+label)
+
+	return f.labelErr
+}
+
+func (f *fakeLabelerAndUpdaterSource) labels() []string {
+	f.labelMu.Lock()
+	defer f.labelMu.Unlock()
+
+	return append([]string(nil), f.labeled...)
 }
 
 func TestAggregator_Refresh_BehindDependabotPR_PostsRebaseComment(t *testing.T) {
@@ -402,4 +448,96 @@ func TestAggregator_Refresh_AllowsBotPRUpdatesErrors_RefreshStillSucceeds(t *tes
 	require.NotPanics(t, func() { agg.Refresh(t.Context()) })
 	assert.Empty(t, src.updatedBranches(), "a failure to learn the bot-pr-updates setting must not update anything it can't yet classify correctly")
 	assert.True(t, agg.Get().Forges[0].Reachable)
+}
+
+func TestAggregator_Refresh_BehindRenovatePR_AddsRebaseLabelInsteadOfUpdatingBranch(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeLabelerAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeLabelerAndUpdaterSource also carries labelMu/labeled; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "renovate"},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
+		allowBotPRUpdates: true,
+		renovateLabel:     "needs-rebase",
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"alrayyes/a#1: needs-rebase"}, src.labels())
+	assert.Empty(t, src.updatedBranches(), "a Renovate PR must go through AddLabel, never the generic UpdateBranch")
+}
+
+func TestAggregator_Refresh_BehindRenovatePROnForgejo_AddsRebaseLabelInsteadOfUpdatingBranch(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeLabelerAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeLabelerAndUpdaterSource also carries labelMu/labeled; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeForgejo, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "renovate[bot]"},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:           map[string]struct{}{"forgejo/alrayyes/a": {}},
+		allowBotPRUpdates: true,
+		renovateLabel:     "rebase",
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"alrayyes/a#1: rebase"}, src.labels())
+	assert.Empty(t, src.updatedBranches())
+}
+
+func TestAggregator_Refresh_BehindRenovatePR_LabelFailureIsLoggedNotFatal(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeLabelerAndUpdaterSource{
+		result: dashboard.Result{
+			Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+			PullRequests: []dashboard.PullRequest{
+				{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "renovate"},
+			},
+		},
+		labelErr: assert.AnError,
+	}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
+		allowBotPRUpdates: true,
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+
+	require.NotPanics(t, func() { agg.Refresh(t.Context()) })
+	assert.True(t, agg.Get().Forges[0].Reachable, "an AddLabel failure must not corrupt the snapshot it has nothing to do with")
+}
+
+func TestAggregator_Refresh_BehindNonRenovatePR_UnchangedBehavior(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeLabelerAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeLabelerAndUpdaterSource also carries labelMu/labeled; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
+		allowBotPRUpdates: true,
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"alrayyes/a#1"}, src.updatedBranches())
+	assert.Empty(t, src.labels())
 }
