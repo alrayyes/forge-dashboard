@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.91.0](https://github.com/alrayyes/forge-dashboard/compare/v0.90.1...v0.91.0) (2026-09-22)
+
+
+### Features
+
+* **web:** collapse Dependabot/Renovate/View-pipeline into a row overflow menu ([#528](https://github.com/alrayyes/forge-dashboard/issues/528)) ([ab313b1](https://github.com/alrayyes/forge-dashboard/commit/ab313b1403c06de5800284f0c3d26af6dfae6965)), closes [#527](https://github.com/alrayyes/forge-dashboard/issues/527)
+
 ## [0.90.1](https://github.com/alrayyes/forge-dashboard/compare/v0.90.0...v0.90.1) (2026-09-22)
 
 
