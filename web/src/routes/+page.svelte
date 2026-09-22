@@ -55,6 +55,7 @@
     | "closing"
     | "updating"
     | "requesting"
+    | "enabling"
     | "locked";
   type ActionState = { phase: ActionPhase; reason?: string };
 
@@ -404,6 +405,7 @@
         const closeAction = closeActionCell(pr);
         if (closeAction) statusCell.appendChild(closeAction);
         const secondaryActions = [
+          autoMergeActionCell(pr),
           dependabotActionCell(pr),
           renovateRebaseActionCell(pr),
           pipelineActionCell(pr),
@@ -913,6 +915,137 @@
       });
       wrap.appendChild(mergeButton);
       return wrap;
+    }
+
+    // ---- enable auto-merge action ----
+    // GitHub only, today (#526) — Forgejo has no separate "enable
+    // auto-merge" endpoint of its own; `merge_when_checks_succeed` is a
+    // flag on the same merge call PullRequestMerger already uses, which
+    // commits to merging right now rather than arming a standing intent
+    // the way this action means "enable auto-merge" — different enough
+    // framing that it's left for a follow-up rather than folded in here.
+    const autoMergeState: Record<string, ActionState> = {};
+
+    // Mirrors reactiveMergeLockReason's 403/429 handling. No specific
+    // case for "repo doesn't allow auto-merge" — GitHub's own mutation
+    // error for that doesn't come back with a status this app classifies
+    // any more specifically than 502, so it falls through to the generic
+    // error banner the same way any other unclassified failure already
+    // does here.
+    function reactiveAutoMergeLockReason(
+      status: number | undefined,
+    ): string | null {
+      if (status === 403)
+        return "Missing permission — check your token in Settings.";
+      if (status === 429)
+        return "Rate limit exceeded — try again once it resets.";
+      return null;
+    }
+
+    // No confirm step — arming auto-merge doesn't merge anything by
+    // itself, the same reasoning doUpdateBranch's own comment gives.
+    function doEnableAutoMerge(
+      item: PullRequestItem,
+      button: HTMLButtonElement,
+    ) {
+      const key = prKey(item);
+      autoMergeState[key] = { phase: "enabling" };
+      button.disabled = true;
+      button.textContent = "Enabling…";
+      showStatus(`Enabling auto-merge for ${item.repo}#${item.number}…`);
+
+      fetch("/api/pull-requests/auto-merge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          forge: item.forge,
+          fullName: item.repo,
+          number: item.number,
+        }),
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = "/login.html";
+            throw new Error("session expired");
+          }
+          if (res.status === 204) return null;
+          return res.json().then((body) => {
+            const err: Error & { status?: number } = new Error(
+              body?.error || `backend answered ${res.status}`,
+            );
+            err.status = res.status;
+            throw err;
+          });
+        })
+        .then(() => {
+          delete autoMergeState[key];
+          showStatus(`Enabled auto-merge for ${item.repo}#${item.number}.`);
+          // Same immediate-refresh pattern doMerge/doUpdateBranch already
+          // use, so the row's Auto-merge pill (autoMergePill) reflects
+          // the new state without waiting out the rest of the background
+          // poll's own interval.
+          return fetch("/api/dashboard/refresh", {
+            method: "POST",
+            headers: { Accept: "application/json" },
+          })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (data) applySnapshot(data);
+            });
+        })
+        .catch((err: Error & { status?: number }) => {
+          const lockReason = reactiveAutoMergeLockReason(err.status);
+          autoMergeState[key] = lockReason
+            ? { phase: "locked", reason: lockReason }
+            : { phase: "idle" };
+          if (err.status === 403) forgePermissionDenied[item.forge] = true;
+          clearStatus();
+          showError(
+            `Couldn't enable auto-merge for ${item.repo}#${item.number}: ${err.message}`,
+          );
+          renderPRBoard();
+        });
+    }
+
+    // GitHub only; already-enabled (autoMergePill already shows it) and a
+    // genuine conflict both hide the action rather than lock it — unlike
+    // Merge's own mergeStatus gate, "blocked" (most often pending or
+    // not-yet-required checks) stays available here, since arming
+    // auto-merge ahead of CI finishing is the entire point of the
+    // feature, not a state to wait out first. item.empty is excluded the
+    // same way mergeActionCell excludes it: nothing to merge, so nothing
+    // to arm either.
+    function autoMergeActionCell(item: PullRequestItem): HTMLElement | null {
+      if (item.forge !== "github") return null;
+      if (item.autoMergeEnabled === true) return null;
+      if (item.empty || item.mergeStatus === "conflicting") return null;
+
+      const key = prKey(item);
+      const entry = autoMergeState[key] || { phase: "idle" };
+
+      if (entry.phase === "locked")
+        return lockedActionButton("Enable auto-merge", entry.reason ?? "");
+
+      if (entry.phase === "idle") {
+        const proactiveReason = proactiveActionLockReason(item.forge);
+        if (proactiveReason)
+          return lockedActionButton("Enable auto-merge", proactiveReason);
+      }
+
+      const enabling = entry.phase === "enabling";
+      const button = buttonEl(
+        "row-action",
+        enabling ? "Enabling…" : "Enable auto-merge",
+      );
+      button.type = "button";
+      button.disabled = enabling;
+      button.addEventListener("click", () => {
+        doEnableAutoMerge(item, button);
+      });
+      return button;
     }
 
     // ---- pull request close action ----

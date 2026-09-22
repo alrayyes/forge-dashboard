@@ -974,6 +974,72 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/pull-requests/auto-merge:
+    post:
+      operationId: enablePullRequestAutoMerge
+      summary: Arm a pull request's own native auto-merge, on the signed-in user's behalf
+      description: |
+        GitHub only, today. Enables the named pull request's own
+        auto-merge via GitHub's `enablePullRequestAutoMerge` GraphQL
+        mutation — REST has no equivalent endpoint. Unlike Merge, that
+        mutation asks for an explicit merge method rather than picking
+        the repo's own default itself, so this looks the repo's allowed
+        methods up first and picks one with the same merge > squash >
+        rebase precedence Merge already uses; no override is exposed
+        here either. The pull request stays open and unmerged until the
+        forge's own required checks pass on their own.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestActionRequest"
+      responses:
+        "204":
+          description: Auto-merge armed.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", no credentials are saved for that forge, or
+            that forge's client doesn't support enabling auto-merge on
+            pull requests at all.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized — the saved token's scope doesn't cover this, or the repo doesn't allow auto-merge to be armed at all.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically — including the repo rejecting auto-merge for a reason this app has no more specific status for.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/pull-requests/close:
     post:
       operationId: closePullRequest

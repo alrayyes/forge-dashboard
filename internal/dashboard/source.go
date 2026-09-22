@@ -80,6 +80,19 @@ type PullRequestMerger interface {
 	MergePullRequest(ctx context.Context, owner, name string, number int) error
 }
 
+// PullRequestAutoMerger is implemented by a ForgeClient (or, for
+// github.Client, a Source directly) that can arm a pull request's own
+// native auto-merge — checked via a type assertion, the same
+// optional-capability pattern PullRequestMerger uses. Unlike
+// MergePullRequest, GitHub's own enablePullRequestAutoMerge mutation
+// asks for an explicit merge method rather than picking the repo's
+// configured default itself, so implementations look the repo's allowed
+// methods up and pick one the same way MergePullRequest's own
+// mergeMethodFor does — no override exposed here either (#526).
+type PullRequestAutoMerger interface {
+	EnableAutoMerge(ctx context.Context, owner, name string, number int) error
+}
+
 // PullRequestCloser is implemented by a ForgeClient (or, for github.Client,
 // a Source directly) that can close one of its own pull requests without
 // merging it — checked via a type assertion, the same optional-capability
