@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.94.1](https://github.com/alrayyes/forge-dashboard/compare/v0.94.0...v0.94.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **dashboard:** stop a fast reload from reverting an in-flight theme save ([#553](https://github.com/alrayyes/forge-dashboard/issues/553)) ([ea12d75](https://github.com/alrayyes/forge-dashboard/commit/ea12d75e62f2287c2ca7e930cee4b220224360fd)), closes [#548](https://github.com/alrayyes/forge-dashboard/issues/548)
+
 ## [0.94.0](https://github.com/alrayyes/forge-dashboard/compare/v0.93.1...v0.94.0) (2026-09-22)
 
 
