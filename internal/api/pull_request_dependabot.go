@@ -16,8 +16,8 @@ import (
 // not a generic "post any comment" endpoint — the request names an action,
 // not a body, and only these two ever get sent.
 var dependabotCommentBodies = map[string]string{
-	"rebase":   "@dependabot rebase",
-	"recreate": "@dependabot recreate",
+	"rebase":   dashboard.DependabotRebaseComment,
+	"recreate": dashboard.DependabotRecreateComment,
 }
 
 // pullRequestDependabotActionRequest matches
