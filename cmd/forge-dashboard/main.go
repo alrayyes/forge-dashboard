@@ -62,6 +62,36 @@ func resolveRefreshInterval(v string) time.Duration {
 	return d
 }
 
+// defaultCIPollInterval is dashboard.PollCI's own ticker cadence
+// (#177): real Forgejo instances (confirmed live, twice independently)
+// silently drop the "status" webhook event from a hook's persisted
+// event list even though the create/edit call reports success, so a
+// finished check there never triggers the scoped refresh a working
+// webhook would — it would otherwise wait out the full
+// REFRESH_INTERVAL. A minute is short enough to feel live without
+// spending real API budget: PollCI only ever touches repos with an
+// open, CI-pending pull request, not every tracked one.
+const defaultCIPollInterval = 1 * time.Minute
+
+// resolveCIPollInterval is resolveRefreshInterval's own counterpart
+// for CI_POLL_INTERVAL — same empty/invalid-falls-back-to-default
+// shape. "0s" is a real, valid zero duration, not an error, so an
+// operator can pass it to disable the poll entirely
+// (Manager.SetCIPollInterval treats zero as "off").
+func resolveCIPollInterval(v string) time.Duration {
+	if v == "" {
+		return defaultCIPollInterval
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		slog.Error("invalid CI_POLL_INTERVAL, using default", "value", v, "default", defaultCIPollInterval, "error", err)
+
+		return defaultCIPollInterval
+	}
+
+	return d
+}
+
 func main() {
 	configureLogging()
 
@@ -80,6 +110,7 @@ func main() {
 func run() error {
 	addr := envOr("ADDR", ":8080")
 	refreshInterval := resolveRefreshInterval(os.Getenv("REFRESH_INTERVAL"))
+	ciPollInterval := resolveCIPollInterval(os.Getenv("CI_POLL_INTERVAL"))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -109,6 +140,7 @@ func run() error {
 	// settingsStore satisfies dashboard.AutoUpdateBranchLister (#365)
 	// with its own AutoUpdateBranchRepos/AllowsBotPRUpdates methods.
 	manager.SetAutoUpdateBranchLister(settingsStore)
+	manager.SetCIPollInterval(ciPollInterval)
 
 	deps := api.Deps{
 		Version:       version,
@@ -141,7 +173,7 @@ func run() error {
 		}
 	}()
 
-	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval)
+	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("server stopped: %w", err)
 	}

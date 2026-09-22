@@ -138,16 +138,22 @@ refreshing either way.
   the preceding table. Re-open the webhook on your forge and check
   **Statuses**/**Check runs** (GitHub) or **Status** (Forgejo); nothing
   else about the webhook needs changing.
-- **You configured a Forgejo webhook's events through the API or a
-  script rather than clicking through this same settings form, and
-  Status won't stick**: confirmed on a real instance running
-  `16.0.4+gitea-1.22.0` — a `PATCH` to the events list can report
-  success while silently dropping `status`, leaving CI updates on the
-  poll-only path with no error anywhere to say why. This is a bug in how
-  that instance persists the edit, not something forge-dashboard can
-  detect or work around. Open the webhook's edit page on the web UI
-  itself and confirm Status is still ticked there — if it keeps
-  reverting, that's worth reporting against your Forgejo instance.
+- **A Forgejo webhook's `status` event won't stick, however it's
+  created**: confirmed live against two separate real instances
+  (`16.0.4+gitea-1.22.0` among them) — both the settings form's own
+  `POST`/`PATCH` and a direct API call can report success while the
+  hook's persisted event list simply never includes `status`, with
+  nothing in the response to say why. This looks like a bug in how
+  those instances accept or persist that specific event name, not
+  something forge-dashboard's own webhook-creation code is doing
+  wrong — worth reporting against your Forgejo instance if you hit it,
+  but there's nothing to configure differently here that fixes it.
+  `CI_POLL_INTERVAL` (`README.md`'s Configuration table) is the actual
+  fix: forge-dashboard re-checks CI directly, on its own short
+  interval, for exactly the open pull requests whose CI is still
+  pending — scoped to just those, not every tracked repo — so a broken
+  `status` event costs at most that interval's own staleness instead of
+  the full `REFRESH_INTERVAL`.
 - **The forge shows the delivery failing, or your dashboard never
   updates from it**: re-check the secret was pasted exactly, with no
   extra whitespace — a mismatched secret is indistinguishable from an

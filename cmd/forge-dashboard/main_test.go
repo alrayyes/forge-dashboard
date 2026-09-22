@@ -32,6 +32,37 @@ func TestResolveRefreshInterval_InvalidEnv_FallsBackToDefault(t *testing.T) {
 	assert.Equal(t, defaultRefreshInterval, got)
 }
 
+// TestResolveCIPollInterval_NoEnv_UsesDefault pins the CI-poll
+// fallback's own default (#177): real Forgejo instances (confirmed
+// live, twice independently, against two separate instances) silently
+// drop the "status" webhook event even though the hook create/edit
+// call reports success, so a finished check there waits out the full
+// REFRESH_INTERVAL (20 minutes by default) before the dashboard
+// reflects it without this.
+func TestResolveCIPollInterval_NoEnv_UsesDefault(t *testing.T) {
+	got := resolveCIPollInterval("")
+	assert.Equal(t, defaultCIPollInterval, got)
+}
+
+func TestResolveCIPollInterval_ValidEnv_Overrides(t *testing.T) {
+	got := resolveCIPollInterval("30s")
+	assert.Equal(t, 30*time.Second, got)
+}
+
+func TestResolveCIPollInterval_InvalidEnv_FallsBackToDefault(t *testing.T) {
+	got := resolveCIPollInterval("not-a-duration")
+	assert.Equal(t, defaultCIPollInterval, got)
+}
+
+// An operator can explicitly turn the poll off — SetCIPollInterval
+// treats zero as "disabled," and "0s" parses to a real zero duration
+// rather than falling back to the default, so this is a real opt-out
+// path, not an error case.
+func TestResolveCIPollInterval_ExplicitZero_DisablesRatherThanFallingBack(t *testing.T) {
+	got := resolveCIPollInterval("0s")
+	assert.Equal(t, time.Duration(0), got)
+}
+
 // TestOpenDatabase_SurvivesConcurrentWriters is a regression test for
 // forge-dashboard#82: without a busy_timeout, SQLite fails a write
 // immediately with SQLITE_BUSY the moment another connection holds the

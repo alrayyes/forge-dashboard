@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -311,6 +312,64 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 		case <-timer.C:
 			a.Refresh(ctx)
 			timer.Reset(NextRefreshDelay(a.Get(), interval))
+		}
+	}
+}
+
+// PollCI refreshes every repo that currently has at least one open
+// pull request whose CI is still pending — the only case a check
+// finishing could actually change, and the only one worth spending an
+// extra scoped fetch on between full Refresh passes. Fills the gap a
+// working webhook would otherwise close: confirmed live, twice
+// independently, that real Forgejo instances silently drop the
+// "status" webhook event from a hook's persisted event list even
+// though the create/edit call reports success (#177) — so without
+// this, a finished check on Forgejo waits out the full Run interval
+// (20 minutes by default) before the dashboard reflects it. Goes
+// through RefreshRepo, not a bespoke fetch — same keyed coalescer, so
+// a repo a webhook delivery (on forges where it does work, e.g.
+// GitHub) already refreshed seconds ago is never refreshed twice for
+// the same reason.
+func (a *Aggregator) PollCI(ctx context.Context) {
+	type repoKey struct {
+		forge    Forge
+		owner    string
+		name     string
+		fullName string
+	}
+	pending := make(map[repoKey]struct{})
+	for _, pr := range a.Get().PullRequests {
+		if pr.CI != CIPending {
+			continue
+		}
+		owner, name, ok := strings.Cut(pr.Repo, "/")
+		if !ok {
+			continue
+		}
+		pending[repoKey{forge: pr.Forge, owner: owner, name: name, fullName: pr.Repo}] = struct{}{}
+	}
+	for key := range pending {
+		a.RefreshRepo(ctx, key.forge, key.owner, key.name, key.fullName)
+	}
+}
+
+// RunCIPoll runs PollCI on a fixed interval until ctx is cancelled —
+// PollCI's own ticker-loop counterpart, the same relationship Run has
+// to Refresh. A plain Ticker, unlike Run's rate-limit-aware Timer:
+// PollCI's own per-tick cost is already bounded to just the repos with
+// something pending, so it doesn't need the same backoff Run's
+// account-wide pass does. Meant to run in its own goroutine for the
+// lifetime of the process, alongside Run.
+func (a *Aggregator) RunCIPoll(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.PollCI(ctx)
 		}
 	}
 }
