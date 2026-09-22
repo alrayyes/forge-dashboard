@@ -563,6 +563,18 @@ func isBehind(p *gitea.PullRequest) bool {
 	return p.Base.Sha != p.MergeBase
 }
 
+// isEmpty reports whether p's diff against its base is empty — nil on any
+// of the three (an instance old enough not to report them, per dashboard
+// .PullRequest.Empty's own doc comment) reads as false, not empty, so this
+// never claims a diff is empty when it genuinely doesn't know.
+func isEmpty(p *gitea.PullRequest) bool {
+	if p.Additions == nil || p.Deletions == nil || p.ChangedFiles == nil {
+		return false
+	}
+
+	return *p.Additions == 0 && *p.Deletions == 0 && *p.ChangedFiles == 0
+}
+
 // ListOpenPullRequests returns every open pull request against repo, with
 // CI already resolved. repo is owner-qualified ("alrayyes/tempus-fugit").
 func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
@@ -608,6 +620,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 				CI:          ci,
 				MergeStatus: mergeStatusFromMergeable(p.Mergeable),
 				Behind:      isBehind(p),
+				Empty:       isEmpty(p),
 				// No read capability for this in the SDK at all — only
 				// write-side schedule/cancel verbs
 				// (MergePullRequestOption.MergeWhenChecksSucceed,

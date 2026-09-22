@@ -2687,6 +2687,7 @@ components:
           ci,
           mergeStatus,
           behind,
+          empty,
         ]
       properties:
         forge:
@@ -2731,6 +2732,16 @@ components:
             get recomputed just because the base moved), so folding this
             into mergeStatus would force picking one and losing the
             other.
+        empty:
+          type: boolean
+          description: |
+            Whether merging this pull request would produce an empty
+            commit — its content already landed on the base branch some
+            other way. False whenever this service can't tell (the
+            unauthenticated GitHub REST fallback, or a Forgejo instance
+            old enough not to report additions/deletions/changed_files on
+            its list endpoint), never a false positive: a pull request
+            this never confirms empty just renders as it always has.
         autoMergeEnabled:
           type: boolean
           description: |

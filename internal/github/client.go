@@ -698,7 +698,13 @@ type graphqlPullRequest struct {
 	// isn't a reliable behind/not-behind signal.
 	HeadRefOid       string                   `json:"headRefOid"`
 	AutoMergeRequest *graphqlAutoMergeRequest `json:"autoMergeRequest"`
-	Labels           struct {
+	// Additions, Deletions and ChangedFiles feed mapPullRequest's own
+	// Empty computation — GraphQL always returns these as plain (never
+	// null) Ints, unlike Forgejo's SDK.
+	Additions    int `json:"additions"`
+	Deletions    int `json:"deletions"`
+	ChangedFiles int `json:"changedFiles"`
+	Labels       struct {
 		Nodes []graphqlLabelNode `json:"nodes"`
 	} `json:"labels"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -826,6 +832,9 @@ query($cursor: String, $since: DateTime) {
             }
             mergeStateStatus
             headRefOid
+            additions
+            deletions
+            changedFiles
             autoMergeRequest {
               mergeMethod
             }
@@ -1136,6 +1145,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		CI:               ciFromRollup(p.Commits.Nodes),
 		MergeStatus:      mergeStatusFromGraphQL(p.MergeStateStatus),
 		Behind:           p.MergeStateStatus == "BEHIND",
+		Empty:            p.Additions == 0 && p.Deletions == 0 && p.ChangedFiles == 0,
 		AutoMergeEnabled: new(p.AutoMergeRequest != nil),
 	}
 }
@@ -1278,6 +1288,9 @@ query($owner: String!, $name: String!) {
         }
         mergeStateStatus
         headRefOid
+        additions
+        deletions
+        changedFiles
         autoMergeRequest {
           mergeMethod
         }
@@ -1590,7 +1603,12 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				// Questions in openspec/changes/archive/*/
 				// show-pr-merge-status. AutoMerge, unlike Mergeable, *is*
 				// already on this response for free.
-				MergeStatus:      dashboard.MergeUnknown,
+				MergeStatus: dashboard.MergeUnknown,
+				// Empty stays false (the default), the same restraint
+				// Mergeable's own comment above already applies: this List
+				// call doesn't return additions/deletions/changed_files
+				// either, and resolving them here would cost a per-PR Get
+				// this unauthenticated path exists to avoid.
 				AutoMergeEnabled: new(p.GetAutoMerge() != nil),
 			})
 		}
