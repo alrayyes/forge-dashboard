@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.95.1](https://github.com/alrayyes/forge-dashboard/compare/v0.95.0...v0.95.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **ci:** build web assets before compiling the screenshots binary ([#558](https://github.com/alrayyes/forge-dashboard/issues/558)) ([c5b2a3c](https://github.com/alrayyes/forge-dashboard/commit/c5b2a3cf7bbaf0c16a5e18e31f42843300df6fc5))
+
 ## [0.95.0](https://github.com/alrayyes/forge-dashboard/compare/v0.94.1...v0.95.0) (2026-09-22)
 
 
