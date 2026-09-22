@@ -1129,6 +1129,31 @@ select.col-filter {
   white-space: normal;
 }
 
+/* Collapses Dependabot/Renovate/View-pipeline behind one trigger on a
+   row that would otherwise stack up too many buttons at once (#527) —
+   same z-index:1 "stay above .title::after's stretched-link overlay"
+   treatment every other real control in .status-cell already needs. */
+.row-actions-menu {
+  position: relative;
+  z-index: 1;
+}
+.row-actions-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
 .go {
   color: var(--ink-3);
   display: flex;

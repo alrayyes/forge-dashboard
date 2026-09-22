@@ -57,6 +57,12 @@ function mockSettings(page, allowBotPrUpdates) {
   );
 }
 
+// Renovate: Rebase lives behind the row's "More actions" overflow trigger
+// (#527) — this opens it, same as a person clicking through.
+async function openMoreActions(row) {
+  await row.getByRole('button', { name: 'More actions' }).click();
+}
+
 test.describe('pull request Renovate rebase button', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
@@ -70,6 +76,7 @@ test.describe('pull request Renovate rebase button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await expect(
       row.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toBeVisible();
@@ -86,6 +93,7 @@ test.describe('pull request Renovate rebase button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await expect(
       row.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toBeVisible();
@@ -98,6 +106,7 @@ test.describe('pull request Renovate rebase button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await expect(
       row.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toBeVisible();
@@ -127,6 +136,7 @@ test.describe('pull request Renovate rebase button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
     expect(requestBody).toEqual({
@@ -147,6 +157,7 @@ test.describe('pull request Renovate rebase button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
     const status = page.locator('#status-banner');
@@ -173,6 +184,7 @@ test.describe('pull request Renovate rebase button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     const button = row.getByRole('button', { name: 'Renovate: Rebase' });
     await button.click();
 
@@ -196,6 +208,7 @@ test.describe('pull request Renovate rebase button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
     const button = row.getByRole('button', { name: 'Renovate: Rebase' });
@@ -217,6 +230,7 @@ test.describe('pull request Renovate rebase button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
     const button = row.getByRole('button', { name: 'Renovate: Rebase' });
@@ -238,6 +252,7 @@ test.describe('pull request Renovate rebase button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
     const button = row.getByRole('button', { name: 'Renovate: Rebase' });
@@ -259,6 +274,7 @@ test.describe('pull request Renovate rebase button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
     await expect(
       row.getByRole('button', { name: 'Renovate: Rebase' }),

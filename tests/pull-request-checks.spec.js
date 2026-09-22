@@ -57,6 +57,12 @@ function mockChecks(page, body, status = 200) {
   );
 }
 
+// View pipeline lives behind the row's "More actions" overflow trigger
+// (#527) — this opens it, same as a person clicking through.
+async function openMoreActions(row) {
+  await row.getByRole('button', { name: 'More actions' }).click();
+}
+
 test.describe('pull request pipeline checks panel', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
@@ -69,6 +75,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await expect(
       row.getByRole('button', { name: 'View pipeline' }),
     ).toBeVisible();
@@ -110,6 +117,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -158,6 +166,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -195,6 +204,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -218,6 +228,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -253,6 +264,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -271,6 +283,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     const trigger = row.getByRole('button', { name: 'View pipeline' });
     await trigger.click();
 
@@ -288,6 +301,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -308,6 +322,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
     await expect(
       page.getByRole('dialog', { name: 'Pipeline checks' }),
