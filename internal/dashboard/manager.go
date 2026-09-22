@@ -20,6 +20,10 @@ type Manager struct {
 	// or ever, if it's never called, skips the auto-update-branch hook
 	// entirely (#365).
 	autoUpdateBranchLister AutoUpdateBranchLister
+	// ciPollInterval is zero until SetCIPollInterval is called — every
+	// Aggregator this Manager builds before that point, or ever, if
+	// it's never called, skips the CI-poll fallback (#177) entirely.
+	ciPollInterval time.Duration
 }
 
 type managedAggregator struct {
@@ -47,6 +51,23 @@ func (m *Manager) SetAutoUpdateBranchLister(lister AutoUpdateBranchLister) {
 	m.autoUpdateBranchLister = lister
 }
 
+// SetCIPollInterval turns on the CI-status poll fallback (#177) for
+// every Aggregator this Manager builds from here on — a setter rather
+// than a NewManager parameter, the same reason
+// SetAutoUpdateBranchLister is one: every existing caller (the
+// composition root's own construction, and every test with no
+// interest in this feature) is unaffected. Call once, before the
+// first Ensure/EnsureIfAbsent that should carry it; an Aggregator
+// already running when this is called keeps running without it until
+// its own next Ensure rebuilds it. Zero (the default) leaves the poll
+// off entirely — Aggregator.PollCI/RunCIPoll's own doc comments cover
+// why a real deployment wants it on.
+func (m *Manager) SetCIPollInterval(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ciPollInterval = d
+}
+
 // Ensure (re)builds userID's Aggregator from sources and starts its
 // background refresh, stopping whatever was running for that user
 // before. Call it once after login (using their currently saved
@@ -70,6 +91,9 @@ func (m *Manager) Ensure(ctx context.Context, userID []byte, sources []Source) {
 	}
 	m.users[key] = &managedAggregator{agg: agg, cancel: cancel}
 	go agg.Run(runCtx, m.refreshInterval)
+	if m.ciPollInterval > 0 {
+		go agg.RunCIPoll(runCtx, m.ciPollInterval)
+	}
 }
 
 // EnsureIfAbsent is Ensure, but only takes effect if userID has no
@@ -99,6 +123,9 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 	}
 	m.users[key] = &managedAggregator{agg: agg, cancel: cancel}
 	go agg.Run(runCtx, m.refreshInterval)
+	if m.ciPollInterval > 0 {
+		go agg.RunCIPoll(runCtx, m.ciPollInterval)
+	}
 }
 
 // Get returns userID's current snapshot — empty, not nil arrays, if

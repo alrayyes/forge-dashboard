@@ -326,3 +326,48 @@ func TestManager_Ensure_NoAutoUpdateBranchListerSet_NeverCallsUpdateBranch(t *te
 	}, time.Second, 5*time.Millisecond)
 	assert.Empty(t, src.updatedBranches())
 }
+
+// TestManager_SetCIPollInterval_ThenEnsure_WiresItIntoTheAggregator is
+// #177's own fix, at the Manager level: SetCIPollInterval has to
+// actually reach the Aggregator Ensure builds, not just be recorded
+// and forgotten. A long Run interval (time.Hour) isolates PollCI's own
+// scoped fetches from Run's full ones — repoFetchCallCount only moves
+// on a PollCI tick.
+func TestManager_SetCIPollInterval_ThenEnsure_WiresItIntoTheAggregator(t *testing.T) {
+	t.Parallel()
+
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, CI: dashboard.CIPending},
+	})
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+	m.SetCIPollInterval(10 * time.Millisecond)
+
+	m.Ensure(t.Context(), []byte("user-1"), []dashboard.Source{src})
+
+	require.Eventually(t, func() bool {
+		return src.repoFetchCallCount("alrayyes/a") >= 1
+	}, time.Second, 5*time.Millisecond)
+}
+
+func TestManager_Ensure_NoCIPollIntervalSet_NeverPolls(t *testing.T) {
+	t.Parallel()
+
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, CI: dashboard.CIPending},
+	})
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+	// SetCIPollInterval never called.
+
+	m.Ensure(t.Context(), []byte("user-1"), []dashboard.Source{src})
+
+	require.Eventually(t, func() bool {
+		return src.fetchCallCount() >= 1
+	}, time.Second, 5*time.Millisecond)
+	assert.Equal(t, 0, src.repoFetchCallCount("alrayyes/a"))
+}
