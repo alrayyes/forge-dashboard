@@ -1,6 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { applyTheme, setThemeCookie, type ThemePreference } from "$lib/theme";
+  import {
+    applyTheme,
+    clearThemeSavePending,
+    getThemeCookie,
+    isThemeSavePending,
+    markThemeSavePending,
+    setThemeCookie,
+    type ThemePreference,
+  } from "$lib/theme";
 
   type SharedUser = { username: string; displayName: string };
   type SharingResponse = {
@@ -191,7 +199,10 @@
   let statusKind = $state<"" | "error" | "ok">("");
 
   // ---- theme (#352) ----
-  let theme = $state<ThemePreference>("");
+  // Seeded from the cookie, not "", so a reload right after picking one
+  // (#548) shows the right control checked immediately rather than
+  // "System" until the /api/settings load below (maybe) corrects it.
+  let theme = $state<ThemePreference>(getThemeCookie());
   let themeStatus = $state("");
   let themeStatusKind = $state<"" | "error">("");
 
@@ -204,6 +215,7 @@
     theme = next;
     applyTheme(next);
     setThemeCookie(next);
+    markThemeSavePending();
     themeStatus = "";
     themeStatusKind = "";
 
@@ -211,25 +223,42 @@
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
+      // #548: keepalive so a reload right after picking doesn't stop
+      // the browser from actually sending this — without it, a
+      // navigation started before the request goes out can drop it
+      // outright rather than just delaying the response.
+      keepalive: true,
       body: JSON.stringify({ theme: next }),
-    })
-      .then((res) => {
+    }).then(
+      (res) => {
         if (res.status === 401) {
           window.location.href = "/login.html";
-          return null;
+          return;
         }
-        if (!res.ok) throw new Error("could not save theme");
-        return res.json();
-      })
-      .catch(() => {
-        // Roll back the local/live change too — a failed save shouldn't
-        // leave the control showing a choice that didn't actually stick.
-        theme = previous;
-        applyTheme(previous);
-        setThemeCookie(previous);
-        themeStatus = "Could not save theme.";
-        themeStatusKind = "error";
-      });
+        clearThemeSavePending();
+        if (!res.ok) {
+          // A real, observed rejection from the server — roll back for
+          // real; the control shouldn't keep showing a choice that
+          // didn't stick.
+          theme = previous;
+          applyTheme(previous);
+          setThemeCookie(previous);
+          themeStatus = "Could not save theme.";
+          themeStatusKind = "error";
+        }
+      },
+      () => {
+        // #548: fetch() itself rejecting here is ambiguous — offline,
+        // or (just as likely) this very tab navigating away before the
+        // request settled, which a reload issued right after picking a
+        // theme does every time. Either way we don't know whether the
+        // save actually landed, so don't guess by rolling back: leave
+        // the pending flag set too, so the next page's own
+        // reconciliation (syncThemeFromServer) treats the cookie as
+        // still-unconfirmed instead of blindly trusting a GET that may
+        // be racing this exact request.
+      },
+    );
   }
 
   // Mirrors settings.js's updateForgejoTokenLink — no window access, so
@@ -640,8 +669,12 @@
           renovateRebaseLabel = data.renovateRebaseLabel || "";
         // Just the control's own displayed value — (app)/+layout.svelte's
         // syncThemeFromServer already applies the theme itself and syncs
-        // the cookie on every page, this one included.
-        theme = data.theme || "";
+        // the cookie on every page, this one included. Skipped while a
+        // save is still pending (#548): this response can be racing
+        // that save's own reconciliation, and trusting it over the
+        // cookie already seeded above would show the wrong control
+        // checked for exactly the reload this ticket is about.
+        if (!isThemeSavePending()) theme = data.theme || "";
       })
       .catch((err) => {
         status = err.message || "Could not load settings.";

@@ -76,6 +76,58 @@ test.describe('settings page', () => {
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     });
 
+    // #548: unlike the race above, this one isn't closed by awaiting the
+    // PUT before reloading — a real user's reload doesn't know to wait.
+    // The save is held here so its own then/catch/finally never run in
+    // this tab at all before the reload, and the reload's own GET
+    // (syncThemeFromServer, web/src/lib/theme.ts) is left seeing the
+    // still-unsaved server value, the exact "hadn't landed yet" state
+    // the ticket describes — deterministic, not a race against real
+    // network timing.
+    test('a choice survives a reload that outraces its own save', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html');
+
+      let releasePut;
+      const putHeld = new Promise((resolve) => {
+        releasePut = resolve;
+      });
+      let firstPutIntercepted = false;
+      await page.route('**/api/settings/theme', async (route) => {
+        if (route.request().method() === 'PUT' && !firstPutIntercepted) {
+          firstPutIntercepted = true;
+          await putHeld;
+          try {
+            await route.abort();
+          } catch {
+            /* the tab that made this request already navigated away */
+          }
+          return;
+        }
+        await route.continue();
+      });
+
+      await page.click('.theme-segmented label:has-text("Dark")');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+      await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      await expect(
+        page.locator('.theme-segmented input[value="dark"]'),
+      ).toBeChecked();
+
+      releasePut();
+
+      // Not just displayed correctly on this load — the save needs to
+      // actually land server-side too, or the very next real reload
+      // would revert it right back.
+      await expect(async () => {
+        const res = await page.request.get('/api/settings/theme');
+        expect((await res.json()).theme).toBe('dark');
+      }).toPass();
+    });
+
     test('switching back to Light removes the dark attribute', async ({
       page,
     }) => {
