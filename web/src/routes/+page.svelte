@@ -462,19 +462,25 @@
       return (item.labels || []).some((l) => l.name.startsWith("autorelease:"));
     }
 
-    // Dependabot's author login is its GitHub App identity,
-    // "app/dependabot" — not "dependabot[bot]", which is the older, now-
-    // secondary identity.
+    // A GitHub App actor's login comes back in two different shapes
+    // depending on which API served it: GraphQL's Actor.login is the bare
+    // app slug ("dependabot", confirmed live via `gh api graphql` against
+    // a real Dependabot PR — "app/dependabot" is gh CLI's own display
+    // convention for a Bot actor, never a raw API value), while the REST
+    // pulls/issues endpoints append "[bot]" to the same slug
+    // ("dependabot[bot]") the way they do for every GitHub App. Both this
+    // app's own fetch paths (GraphQL, and the unauthenticated-mode REST
+    // fallback) need matching — checking only "app/dependabot", a form
+    // neither path ever actually returns, left this false unconditionally
+    // (#522).
     function isDependabotPr(item: PullRequestItem): boolean {
-      return item.author === "app/dependabot";
+      return item.author === "dependabot" || item.author === "dependabot[bot]";
     }
 
-    // Renovate's author login varies by how it's installed (a GitHub App
-    // vs. a classic bot account) — checking both forms this account has
-    // seen documented, rather than picking one and risking silent
-    // non-detection.
+    // Same GraphQL-bare-slug-vs-REST-"[bot]"-suffix split as
+    // isDependabotPr, for Renovate's own GitHub App install.
     function isRenovatePr(item: PullRequestItem): boolean {
-      return item.author === "renovate[bot]" || item.author === "app/renovate";
+      return item.author === "renovate" || item.author === "renovate[bot]";
     }
 
     function isBotManagedPr(item: PullRequestItem): boolean {

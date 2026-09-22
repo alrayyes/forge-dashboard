@@ -91,10 +91,10 @@ test.describe('pull request Renovate rebase button', () => {
     ).toBeVisible();
   });
 
-  test('the app/renovate GitHub App author form also shows the button', async ({
+  test('the renovate GitHub App author form (bare GraphQL slug) also shows the button', async ({
     page,
   }) => {
-    await mockDashboard(page, 'github', makePR({ author: 'app/renovate' }));
+    await mockDashboard(page, 'github', makePR({ author: 'renovate' }));
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();

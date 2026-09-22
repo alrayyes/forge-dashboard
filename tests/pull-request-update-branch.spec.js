@@ -516,10 +516,10 @@ test.describe('pull request update-branch button', () => {
       ).toHaveCount(0);
     });
 
-    test('a Dependabot PR (app/dependabot author) shows no Update branch button by default', async ({
+    test('a Dependabot PR (dependabot author) shows no Update branch button by default', async ({
       page,
     }) => {
-      await mockDashboard(page, makePR({ author: 'app/dependabot' }));
+      await mockDashboard(page, makePR({ author: 'dependabot' }));
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
@@ -544,7 +544,7 @@ test.describe('pull request update-branch button', () => {
       page,
     }) => {
       await mockSettings(page, true);
-      await mockDashboard(page, makePR({ author: 'app/dependabot' }));
+      await mockDashboard(page, makePR({ author: 'dependabot' }));
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
