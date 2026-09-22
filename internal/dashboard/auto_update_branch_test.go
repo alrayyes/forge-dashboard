@@ -183,6 +183,190 @@ func TestAggregator_Refresh_NoAutoUpdateEnabled_NeverCallsLister(t *testing.T) {
 	assert.Empty(t, src.updatedBranches())
 }
 
+// fakeCommenterAndUpdaterSource is fakeBranchUpdaterSource plus
+// dashboard.PullRequestCommenter — the shape github.Client has, and what the
+// Dependabot auto-rebase/recreate tests need since they exercise both
+// UpdateBranch (a mixed-in non-Dependabot PR) and CommentPullRequest
+// (the Dependabot PR itself) against the same source.
+type fakeCommenterAndUpdaterSource struct {
+	fakeBranchUpdaterSource
+
+	commentMu  sync.Mutex
+	commented  []string // "owner/name#number: body"
+	commentErr error
+}
+
+func (f *fakeCommenterAndUpdaterSource) CommentPullRequest(_ context.Context, owner, name string, number int, body string) error {
+	f.commentMu.Lock()
+	defer f.commentMu.Unlock()
+	f.commented = append(f.commented, owner+"/"+name+"#"+strconv.Itoa(number)+": "+body)
+
+	return f.commentErr
+}
+
+func (f *fakeCommenterAndUpdaterSource) comments() []string {
+	f.commentMu.Lock()
+	defer f.commentMu.Unlock()
+
+	return append([]string(nil), f.commented...)
+}
+
+func TestAggregator_Refresh_BehindDependabotPR_PostsRebaseComment(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeCommenterAndUpdaterSource also carries commentMu/commented; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot"},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
+		allowBotPRUpdates: true,
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments())
+}
+
+func TestAggregator_Refresh_BehindDependabotPR_NeverCallsUpdateBranch(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeCommenterAndUpdaterSource also carries commentMu/commented; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot"},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
+		allowBotPRUpdates: true,
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Empty(t, src.updatedBranches(), "a Dependabot PR must go through its own rebase comment, not the generic UpdateBranch")
+}
+
+func TestAggregator_Refresh_DependabotRebaseThenCIFails_PostsRecreateOnce(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeCommenterAndUpdaterSource also carries commentMu/commented; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", CI: dashboard.CIPending},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
+		allowBotPRUpdates: true,
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	// Dependabot pushed its own rebase commit: no longer behind, but that
+	// commit's own CI has now failed.
+	src.result.PullRequests = []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: false, Author: "dependabot", CI: dashboard.CIFailure},
+	}
+	agg.Refresh(t.Context())
+
+	// A third refresh, still failing, must not post a second recreate.
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{
+		"alrayyes/a#1: " + dashboard.DependabotRebaseComment,
+		"alrayyes/a#1: " + dashboard.DependabotRecreateComment,
+	}, src.comments())
+}
+
+func TestAggregator_Refresh_DependabotRebaseThenCISucceeds_NeverRecreates(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeCommenterAndUpdaterSource also carries commentMu/commented; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", CI: dashboard.CIPending},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
+		allowBotPRUpdates: true,
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	src.result.PullRequests = []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: false, Author: "dependabot", CI: dashboard.CISuccess},
+	}
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments())
+}
+
+func TestAggregator_Refresh_DependabotRebaseStillPending_DoesNotRecreateYet(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeCommenterAndUpdaterSource also carries commentMu/commented; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", CI: dashboard.CIPending},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
+		allowBotPRUpdates: true,
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	// Dependabot's own rebase commit landed (no longer behind), but that
+	// commit's checks haven't finished yet — must not treat "not yet
+	// resolved" as "failed".
+	src.result.PullRequests = []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: false, Author: "dependabot", CI: dashboard.CIPending},
+	}
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments())
+}
+
+func TestAggregator_Refresh_DependabotPRClosedAfterRebase_StopsWatchingWithoutRecreate(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeCommenterAndUpdaterSource also carries commentMu/commented; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", CI: dashboard.CIPending},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
+		allowBotPRUpdates: true,
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	// Merged or closed before its rebase's CI ever resolved.
+	src.result.PullRequests = nil
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments())
+}
+
 func TestAggregator_Refresh_ListerErrors_RefreshStillSucceeds(t *testing.T) {
 	t.Parallel()
 

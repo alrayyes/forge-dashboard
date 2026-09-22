@@ -294,6 +294,15 @@ Dependabot's own [comment commands](https://docs.github.com/en/code-security/dep
 the forge to type them yourself. GitHub only — Dependabot doesn't run on
 Forgejo.
 
+A repo with a behind pull request can also be brought up to date without a
+click at all, by enabling auto-update-branch for it in Settings. For a
+Dependabot pull request specifically, once "Allow updating bot-managed PR
+branches" is also on, that background pass drives the same `@dependabot
+rebase` command the manual button does rather than a generic branch update
+— and if that `rebase` leaves the pull request's CI failing, follows up with
+`@dependabot recreate` on its own, the same way you'd notice the failure
+and click Recreate yourself.
+
 A Renovate-authored pull request, on either forge, gets a `Renovate:
 Rebase` button that adds the configured `rebase` label (Settings' own
 `Renovate rebase label` field, described earlier) instead of you finding

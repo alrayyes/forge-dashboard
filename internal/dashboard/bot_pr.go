@@ -2,6 +2,17 @@ package dashboard
 
 import "strings"
 
+// DependabotRebaseComment and DependabotRecreateComment are Dependabot's own
+// documented PR-comment commands (docs.github.com/en/code-security/
+// dependabot/working-with-dependabot/managing-pull-requests-for-dependency-
+// updates) — the single source of truth for the exact text, shared by the
+// manual dependabot-action API handler and the auto-update-branch hook
+// (auto_update_branch.go) so the two can't drift apart.
+const (
+	DependabotRebaseComment   = "@dependabot rebase"
+	DependabotRecreateComment = "@dependabot recreate"
+)
+
 // IsBotManagedPR reports whether pr is opened and kept up to date by one
 // of the release/dependency bots this account runs — release-please,
 // Dependabot, Renovate — the Go-side port of +page.svelte's own

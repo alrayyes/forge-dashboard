@@ -3,7 +3,9 @@ package dashboard
 import (
 	"context"
 	"log/slog"
+	"strconv"
 	"strings"
+	"sync"
 )
 
 // AutoUpdateBranchLister reports what an Aggregator needs to decide
@@ -25,19 +27,34 @@ type AutoUpdateBranchLister interface {
 type autoUpdateBranchConfig struct {
 	userID []byte
 	lister AutoUpdateBranchLister
+
+	// dependabotWatch holds the key (see dependabotPRKey) of every open
+	// Dependabot pull request this hook has posted DependabotRebaseComment
+	// on and is still waiting to see the outcome of — cleared once its CI
+	// resolves (success: the rebase held; failure: DependabotRecreateComment
+	// gets posted) or it drops out of the snapshot entirely (closed/merged).
+	// In-memory only: losing it on a process restart just means that one
+	// pull request doesn't get auto-recreated, which the manual Dependabot:
+	// Recreate button still covers — not worth a persisted table for (#540).
+	dependabotWatchMu sync.Mutex
+	dependabotWatch   map[string]struct{}
 }
 
 // EnableAutoUpdateBranch turns on the hook that runs after every
 // completed refresh: any pull request the snapshot reports Behind, on a
-// repo lister currently reports enabled for userID, gets UpdateBranch
-// called on it the same way a manual click would — skipped for a
-// bot-managed pull request unless lister currently allows that too, the
-// same restraint the manual button already applies. Both are queried
-// fresh on every refresh, since this Aggregator's own dedicated
-// enable/disable endpoints (and a bot-PR-updates toggle) don't trigger a
-// rebuild the way most other settings changes do.
+// repo lister currently reports enabled for userID, gets brought up to
+// date the same way a manual click would — skipped for a bot-managed
+// pull request unless lister currently allows that too, the same
+// restraint the manual button already applies. A Dependabot pull request
+// gets DependabotRebaseComment instead of the generic UpdateBranch,
+// mirroring the manual Dependabot: Rebase button, with a follow-up
+// DependabotRecreateComment if that rebase leaves its CI failing (#540).
+// Both settings are queried fresh on every refresh, since this
+// Aggregator's own dedicated enable/disable endpoints (and a
+// bot-PR-updates toggle) don't trigger a rebuild the way most other
+// settings changes do.
 func (a *Aggregator) EnableAutoUpdateBranch(userID []byte, lister AutoUpdateBranchLister) {
-	a.autoUpdate = &autoUpdateBranchConfig{userID: userID, lister: lister}
+	a.autoUpdate = &autoUpdateBranchConfig{userID: userID, lister: lister, dependabotWatch: make(map[string]struct{})}
 }
 
 // runAutoUpdateBranch is the post-refresh hook itself — a no-op if
@@ -49,6 +66,8 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 	if a.autoUpdate == nil {
 		return
 	}
+
+	a.reconcileDependabotRebaseWatch(ctx, snap)
 
 	enabled, err := a.autoUpdate.lister.AutoUpdateBranchRepos(ctx, a.autoUpdate.userID)
 	if err != nil {
@@ -78,6 +97,12 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 			continue
 		}
 
+		if isDependabotPR(pr) {
+			a.rebaseDependabotPR(ctx, pr)
+
+			continue
+		}
+
 		updater := a.branchUpdaterFor(pr.Forge)
 		if updater == nil {
 			continue
@@ -90,6 +115,126 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 			slog.Warn("auto-update-branch failed", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
 		}
 	}
+}
+
+// dependabotPRKey identifies pr for dependabotWatch — forge and repo alone
+// aren't enough since a repo can have more than one open Dependabot PR.
+func dependabotPRKey(pr PullRequest) string {
+	return string(pr.Forge) + "/" + pr.Repo + "#" + strconv.Itoa(pr.Number)
+}
+
+// rebaseDependabotPR posts DependabotRebaseComment on pr and, only once that
+// succeeds, starts watching it for reconcileDependabotRebaseWatch to follow
+// up on. A comment failure is logged the same way UpdateBranch's own failure
+// already is; the PR simply isn't watched, so a later refresh just retries
+// the rebase rather than jumping straight to a recreate it never earned.
+func (a *Aggregator) rebaseDependabotPR(ctx context.Context, pr PullRequest) {
+	commenter := a.commenterFor(pr.Forge)
+	if commenter == nil {
+		return
+	}
+	owner, name, ok := strings.Cut(pr.Repo, "/")
+	if !ok {
+		return
+	}
+	if err := commenter.CommentPullRequest(ctx, owner, name, pr.Number, DependabotRebaseComment); err != nil {
+		slog.Warn("auto-update-branch: dependabot rebase failed", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
+
+		return
+	}
+
+	a.autoUpdate.dependabotWatchMu.Lock()
+	a.autoUpdate.dependabotWatch[dependabotPRKey(pr)] = struct{}{}
+	a.autoUpdate.dependabotWatchMu.Unlock()
+}
+
+// reconcileDependabotRebaseWatch resolves every pull request rebaseDependabotPR
+// is currently watching, against snap's own view of it: CIFailure posts
+// DependabotRecreateComment once and stops watching it, CISuccess just stops
+// watching it (the rebase held, nothing further to do), and CIPending/CINone
+// leaves it watched for the next refresh to check again. A pull request that
+// dropped out of snap entirely (closed or merged since the rebase) also stops
+// being watched, so a resolved PR doesn't sit in the map for the rest of the
+// process's life. Runs unconditionally — ahead of the enabled-repos check —
+// since a setting flipped off after the rebase already went out shouldn't
+// leave a since-failed PR un-recreated.
+func (a *Aggregator) reconcileDependabotRebaseWatch(ctx context.Context, snap Snapshot) {
+	a.autoUpdate.dependabotWatchMu.Lock()
+	if len(a.autoUpdate.dependabotWatch) == 0 {
+		a.autoUpdate.dependabotWatchMu.Unlock()
+
+		return
+	}
+	watched := make(map[string]struct{}, len(a.autoUpdate.dependabotWatch))
+	for key := range a.autoUpdate.dependabotWatch {
+		watched[key] = struct{}{}
+	}
+	a.autoUpdate.dependabotWatchMu.Unlock()
+
+	byKey := make(map[string]PullRequest, len(snap.PullRequests))
+	for _, pr := range snap.PullRequests {
+		byKey[dependabotPRKey(pr)] = pr
+	}
+
+	for key := range watched {
+		pr, stillOpen := byKey[key]
+		if !stillOpen {
+			a.clearDependabotWatch(key)
+
+			continue
+		}
+
+		switch pr.CI {
+		case CIFailure:
+			a.recreateDependabotPR(ctx, pr)
+			a.clearDependabotWatch(key)
+		case CISuccess:
+			a.clearDependabotWatch(key)
+		case CIPending, CINone:
+			// Still waiting on this rebase's own CI run — check again next refresh.
+		}
+	}
+}
+
+// clearDependabotWatch stops reconcileDependabotRebaseWatch tracking the
+// pull request key identifies.
+func (a *Aggregator) clearDependabotWatch(key string) {
+	a.autoUpdate.dependabotWatchMu.Lock()
+	delete(a.autoUpdate.dependabotWatch, key)
+	a.autoUpdate.dependabotWatchMu.Unlock()
+}
+
+// recreateDependabotPR posts DependabotRecreateComment on pr. A failure is
+// logged the same way rebaseDependabotPR's own comment failure already is.
+func (a *Aggregator) recreateDependabotPR(ctx context.Context, pr PullRequest) {
+	commenter := a.commenterFor(pr.Forge)
+	if commenter == nil {
+		return
+	}
+	owner, name, ok := strings.Cut(pr.Repo, "/")
+	if !ok {
+		return
+	}
+	if err := commenter.CommentPullRequest(ctx, owner, name, pr.Number, DependabotRecreateComment); err != nil {
+		slog.Warn("auto-update-branch: dependabot recreate failed", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
+	}
+}
+
+// commenterFor returns the configured Source driving forge, if it supports
+// PullRequestCommenter — the same "just skip it" shape branchUpdaterFor uses.
+func (a *Aggregator) commenterFor(forge Forge) PullRequestCommenter {
+	for _, src := range a.sources {
+		if src.Forge() != forge {
+			continue
+		}
+		if c, ok := src.(PullRequestCommenter); ok {
+			return c
+		}
+
+		return nil
+	}
+
+	return nil
 }
 
 // branchUpdaterFor returns the configured Source driving forge, if it
