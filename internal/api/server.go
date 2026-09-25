@@ -89,6 +89,16 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/dashboard", auth.RequireAuth(deps.AuthStore)(handleDashboard(deps)))
 	mux.Handle("GET /api/dashboard/stream", auth.RequireAuth(deps.AuthStore)(handleDashboardStream(deps)))
 	mux.Handle("POST /api/dashboard/refresh", auth.RequireAuth(deps.AuthStore)(handleDashboardRefresh(deps)))
+	// The Streamable HTTP transport itself routes GET (a standalone SSE
+	// stream), POST (JSON-RPC requests) and DELETE (session close) on
+	// this one path -- registering all three against the same handler
+	// instance, since a bare, method-less "/api/mcp" pattern conflicts
+	// with the "GET /" catch-all registered below (ServeMux requires an
+	// unambiguous method/path precedence between any two patterns).
+	mcpHandler := auth.RequireAuth(deps.AuthStore)(newMCPHandler(deps))
+	mux.Handle("GET /api/mcp", mcpHandler)
+	mux.Handle("POST /api/mcp", mcpHandler)
+	mux.Handle("DELETE /api/mcp", mcpHandler)
 	mux.Handle("GET /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 	mux.Handle("GET /api/settings/bot-pr-updates", auth.RequireAuth(deps.AuthStore)(handleBotPrUpdatesGet(deps.SettingsStore)))

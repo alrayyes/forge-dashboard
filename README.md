@@ -39,6 +39,16 @@ stale.
   browser's network tab and watch it call nothing but `/api/dashboard`,
   `/api/settings`, `/api/auth/*` and `/healthz` — and that `/api/settings`
   never echoes a token back, only whether one is set.
+- **An MCP endpoint for agents, `/api/mcp`, read-only like the rest of
+  this app.** Authenticated the same way any other `/api/*` route already
+  is — a personal API token (Settings → API tokens),
+  `Authorization: Bearer <token>` — not a separate credential system. Its
+  one tool, `get_dashboard`, mirrors `GET /api/dashboard` exactly
+  (including its own `?owner=`/`owner` semantics for a dashboard someone
+  else has shared with you) rather than adding a second, parallel path to
+  the same data. Built on the official
+  [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
+  Streamable HTTP transport.
 - **One Go binary.** The frontend — SvelteKit throughout, migrated
   incrementally one page at a time (see #326) — ends up embedded into
   the binary with `//go:embed`; a released binary needs nothing but
@@ -471,6 +481,12 @@ handlers still match it (see
 live at `docs/api/index.html` (Stoplight Elements, zero-build), published
 to <https://alrayyes.github.io/forge-dashboard/docs/api/> on every push to
 `main` that passes lint.
+
+`GET/POST/DELETE /api/mcp` sits outside this contract — it's the MCP
+Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource
+`redocly`/OpenAPI describes), not a plain request/response endpoint. See
+the preceding **Design** section for what it exposes and how it
+authenticates.
 
 ## Contributing
 
