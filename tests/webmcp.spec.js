@@ -77,7 +77,7 @@ test.describe('WebMCP get_dashboard tool', () => {
     const [response, result] = await Promise.all([
       page.waitForResponse(
         (res) =>
-          res.url().includes('/api/dashboard') &&
+          new URL(res.url()).pathname === '/api/dashboard' &&
           res.request().method() === 'GET',
       ),
       page.evaluate(() => {
