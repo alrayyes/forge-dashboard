@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.96.1](https://github.com/alrayyes/forge-dashboard/compare/v0.96.0...v0.96.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **ci:** only refresh README screenshots on a real visual change ([#582](https://github.com/alrayyes/forge-dashboard/issues/582)) ([1be8ff3](https://github.com/alrayyes/forge-dashboard/commit/1be8ff3a6a0d2385bb3c34f82457c3991ab284cb)), closes [#581](https://github.com/alrayyes/forge-dashboard/issues/581)
+* **dashboard:** give each forgejo Client its own HTTP transport ([#578](https://github.com/alrayyes/forge-dashboard/issues/578)) ([8ee2928](https://github.com/alrayyes/forge-dashboard/commit/8ee2928bd10534ad932bd8acc787cffce109aa98)), closes [#577](https://github.com/alrayyes/forge-dashboard/issues/577)
+* **dashboard:** stop webmcp get_dashboard test racing /api/dashboard/stream ([#592](https://github.com/alrayyes/forge-dashboard/issues/592)) ([9e120fe](https://github.com/alrayyes/forge-dashboard/commit/9e120fe2b4cfe1c4c523b11b04461201a64b5273)), closes [#591](https://github.com/alrayyes/forge-dashboard/issues/591)
+
 ## [0.96.0](https://github.com/alrayyes/forge-dashboard/compare/v0.95.2...v0.96.0) (2026-09-25)
 
 
