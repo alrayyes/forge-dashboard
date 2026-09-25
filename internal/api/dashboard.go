@@ -120,12 +120,57 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 	}
 }
 
+// errDashboardOwnerNotFound and errDashboardNotShared are
+// resolveDashboardFor's own sentinel errors — every caller (the HTTP
+// handler below, and the MCP get_dashboard tool) maps them to its own
+// transport's "not found"/"forbidden" shape, rather than resolveDashboardFor
+// knowing HTTP status codes or MCP error content itself.
+var (
+	errDashboardOwnerNotFound = errors.New("no user is registered under that username")
+	errDashboardNotShared     = errors.New("that user hasn't shared their dashboard with you")
+)
+
+// resolveDashboardFor returns the dashboard data ownerUsername's account
+// currently has — requester's own by default (ownerUsername empty or
+// equal to requester's own username), or another user's once that user
+// has shared their dashboard with requester (dashboard.SharingStore).
+// Shared by handleDashboard and the MCP get_dashboard tool (mcp.go) so the
+// ownership/sharing rule only lives in one place. Never blocks on either
+// forge: Manager.Get reads whatever that user's background refresh last
+// assembled — empty, not an error, for a user who hasn't saved any
+// credentials in Settings yet.
+func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, ownerUsername string) (dashboardResponse, error) {
+	if ownerUsername == "" || ownerUsername == requester.Username {
+		warmUpAggregator(ctx, deps, requester.ID, requester.Username)
+
+		return buildDashboardResponse(ctx, deps.SettingsStore, requester.ID, deps.Manager.Get(requester.ID)), nil
+	}
+
+	owner, err := deps.AuthStore.GetUserByUsername(ctx, ownerUsername)
+	if err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			return dashboardResponse{}, errDashboardOwnerNotFound
+		}
+
+		return dashboardResponse{}, fmt.Errorf("look up owner: %w", err)
+	}
+
+	shared, err := deps.SharingStore.IsSharedWith(ctx, owner.ID, requester.ID)
+	if err != nil {
+		return dashboardResponse{}, fmt.Errorf("check sharing: %w", err)
+	}
+	if !shared {
+		return dashboardResponse{}, errDashboardNotShared
+	}
+
+	warmUpAggregator(ctx, deps, owner.ID, owner.Username)
+
+	return buildDashboardResponse(ctx, deps.SettingsStore, owner.ID, deps.Manager.Get(owner.ID)), nil
+}
+
 // handleDashboard answers the requested dashboard: the signed-in user's
 // own by default, or another user's — passed as ?owner=username — when
-// that user has shared their dashboard with the caller. It never blocks
-// on either forge: Manager.Get reads whatever that user's background
-// refresh last assembled — empty, not an error, for a user who hasn't
-// saved any credentials in Settings yet.
+// that user has shared their dashboard with the caller.
 func handleDashboard(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := auth.UserFromContext(r.Context())
@@ -138,40 +183,20 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		ownerUsername := r.URL.Query().Get("owner")
-		if ownerUsername == "" || ownerUsername == u.Username {
-			warmUpAggregator(r.Context(), deps, u.ID, u.Username)
-			writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, deps.Manager.Get(u.ID)))
-
-			return
-		}
-
-		owner, err := deps.AuthStore.GetUserByUsername(r.Context(), ownerUsername)
+		resp, err := resolveDashboardFor(r.Context(), deps, u, r.URL.Query().Get("owner"))
 		if err != nil {
-			if errors.Is(err, auth.ErrNotFound) {
-				writeJSON(w, http.StatusNotFound, errorBody("no user is registered under that username"))
-
-				return
+			switch {
+			case errors.Is(err, errDashboardOwnerNotFound):
+				writeJSON(w, http.StatusNotFound, errorBody(err.Error()))
+			case errors.Is(err, errDashboardNotShared):
+				writeJSON(w, http.StatusForbidden, errorBody(err.Error()))
+			default:
+				writeJSON(w, http.StatusInternalServerError, errorBody(err.Error()))
 			}
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not look up owner"))
 
 			return
 		}
-
-		shared, err := deps.SharingStore.IsSharedWith(r.Context(), owner.ID, u.ID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not check sharing"))
-
-			return
-		}
-		if !shared {
-			writeJSON(w, http.StatusForbidden, errorBody("that user hasn't shared their dashboard with you"))
-
-			return
-		}
-
-		warmUpAggregator(r.Context(), deps, owner.ID, owner.Username)
-		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps.SettingsStore, owner.ID, deps.Manager.Get(owner.ID)))
+		writeJSON(w, http.StatusOK, resp)
 	}
 }
 

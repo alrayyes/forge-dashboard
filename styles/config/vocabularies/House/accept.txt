@@ -86,3 +86,4 @@ Vite('s)?
 dev
 README('s)?
 svelte-check
+Streamable
