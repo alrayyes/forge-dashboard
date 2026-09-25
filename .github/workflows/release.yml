@@ -106,6 +106,43 @@ jobs:
         with:
           subject-path: "dist/*.tar.gz,dist/checksums.txt"
 
+  # A release cut purely from a backend fix or a dependency bump has
+  # nothing for the screenshots job below to actually find changed —
+  # cheap enough (checkout + one git diff, no browser, no built binary)
+  # to run ahead of it and skip the whole ~10-minute capture pipeline
+  # when web/ hasn't moved since the previous release. Verified locally
+  # against this repo's own real tag history: both branches of the diff
+  # below (changed and unchanged) occur for real, on tag pairs that
+  # actually shipped.
+  check-ui-changed:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          fetch-depth: 0
+      - id: diff
+        run: |
+          tag="${{ needs.release-please.outputs.tag_name }}"
+          prev_tag=$(git describe --tags --abbrev=0 "$tag^" 2>/dev/null || true)
+          if [ -z "$prev_tag" ]; then
+            echo "no previous tag -- treating as changed"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --quiet "$prev_tag" "$tag" -- web/; then
+            echo "$prev_tag -> $tag: web/ unchanged"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$prev_tag -> $tag: web/ changed"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
   # Not release-critical — a stale or missing README screenshot is a
   # documentation nit, never a reason to hold up the binaries and image
   # `artefacts` just shipped. continue-on-error so a failure here shows
@@ -119,8 +156,8 @@ jobs:
   # the events a GITHUB_TOKEN-driven push produces, which would leave
   # this pull request's own required checks never triggered.
   screenshots:
-    needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    needs: [release-please, check-ui-changed]
+    if: needs.release-please.outputs.release_created == 'true' && needs.check-ui-changed.outputs.changed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     continue-on-error: true
