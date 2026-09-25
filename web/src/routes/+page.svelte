@@ -1672,7 +1672,15 @@
     // other transient UI in this file already honors (see
     // retryLockedAction moving focus back to a just-re-rendered locked
     // button).
+    //
+    // Only ever the "View pipeline" button living inside a row's "More
+    // actions" popover (pipelineActionCell is its only caller) — which
+    // the dialog's own "close" handler below removes from the DOM as
+    // part of closing that popover, so it can't be the thing focus
+    // actually lands back on. pipelineDialogRowKey is what that handler
+    // refocuses instead: the row's still-standing "More actions" trigger.
     let pipelineDialogTrigger: HTMLButtonElement | null = null;
+    let pipelineDialogRowKey: string | null = null;
 
     // Bumped on every open — a slow fetch from an already-closed (or
     // reopened against a different pull request) dialog is never allowed
@@ -1791,6 +1799,7 @@
     ) {
       if (!pipelineDialog) return;
       pipelineDialogTrigger = trigger;
+      pipelineDialogRowKey = prKey(item);
       if (pipelineDialogSubtitle) {
         pipelineDialogSubtitle.textContent = `${item.repo}#${item.number}`;
       }
@@ -1806,9 +1815,28 @@
     // backdrop-click handler just below — so focus returns to the row's
     // own button no matter which one the pull request's own row-action
     // group used to get here.
+    //
+    // Also closes the "More actions" popover the trigger always lives
+    // in: that popover's own click-outside/Escape handling stands down
+    // for as long as this dialog is open (modalDialogOpen()'s own
+    // comment), so left alone here it would still be open, with no way
+    // to close it short of a click elsewhere on the page, the instant
+    // this dialog closes (confirmed live). Rebuilding the row removes
+    // pipelineDialogTrigger from the DOM, so focus goes to the row's
+    // still-standing "More actions" trigger instead — refocusing the
+    // just-removed node first and rebuilding after would only lose focus
+    // to <body> the moment that node left the DOM.
     pipelineDialog?.addEventListener("close", () => {
-      pipelineDialogTrigger?.focus();
       pipelineDialogTrigger = null;
+      const rowKey = pipelineDialogRowKey;
+      pipelineDialogRowKey = null;
+      closeAllActionMenus();
+      renderPRBoard();
+      if (rowKey) {
+        document
+          .getElementById(`row-actions-trigger-${domSafeId(rowKey)}`)
+          ?.focus();
+      }
     });
 
     // <dialog>'s own ::backdrop is a separate, non-clickable pseudo-

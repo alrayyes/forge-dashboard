@@ -1149,6 +1149,30 @@ select.col-filter {
   position: relative;
   z-index: 1;
 }
+/* .row-actions-menu's own position+z-index already makes it a stacking
+   context, so .row-actions-popover's z-index:20 below only outranks
+   siblings *inside that same context* — it says nothing about how the
+   menu as a whole stacks against another row's controls. .row itself
+   never becomes a stacking context (position: relative, but z-index:
+   auto — see its own comment), so every row's z-index:1 descendants
+   compete directly in one shared ancestor context, ordered by document
+   position once the values tie: a later row always paints over an
+   earlier one there. The popover overflows below its own row into the
+   next one, so with the menu stuck at the same z-index:1 as every other
+   row's controls, that overflow rendered *underneath* the next row's
+   own Close/More actions/status pills instead of above them — reported
+   live as the popover's own "View pipeline" button showing up behind
+   the row below's buttons. Bumping the open menu's z-index (not the
+   popover's) is what actually reaches past that: it changes what the
+   whole stacking context is compared against in the shared ancestor
+   context, so an open menu now outranks every row's z-index:1 controls,
+   including a later row's. :has() rather than a JS-toggled class:
+   .row-actions-popover only exists in the DOM at all while the menu is
+   open (moreActionsCell's own `if (open)`), so this reads directly off
+   that instead of needing new state kept in sync with it. */
+.row-actions-menu:has(.row-actions-popover) {
+  z-index: 30;
+}
 .row-actions-popover {
   position: absolute;
   top: calc(100% + 6px);
