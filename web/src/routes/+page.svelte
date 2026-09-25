@@ -983,6 +983,10 @@
         .then(() => {
           delete autoMergeState[key];
           showStatus(`Enabled auto-merge for ${item.repo}#${item.number}.`);
+          // Same "close the popover this button lives in, once it has
+          // nothing left to say" reasoning doDependabotAction's own
+          // success handler uses.
+          closeAllActionMenus();
           // Same immediate-refresh pattern doMerge/doUpdateBranch already
           // use, so the row's Auto-merge pill (autoMergePill) reflects
           // the new state without waiting out the rest of the background
@@ -1409,6 +1413,14 @@
           // doUpdateBranch: posting the comment doesn't change anything
           // about this pull request itself — Dependabot's own rebase/
           // recreate run is what would, on its own schedule.
+          //
+          // Closes the "More actions" popover this button may have been
+          // reached through — left open on success, it had nothing left
+          // to say and no way to close itself short of a click elsewhere
+          // on the page (confirmed live). Left open on failure/lock
+          // below, since that's exactly when the popover is still
+          // showing something the user needs to see.
+          closeAllActionMenus();
           renderPRBoard();
         })
         .catch((err: Error & { status?: number }) => {
@@ -1579,6 +1591,10 @@
         .then(() => {
           delete renovateRebaseState[key];
           showStatus(`Asked Renovate to rebase ${item.repo}#${item.number}.`);
+          // Same "close the popover this button lives in, once it has
+          // nothing left to say" reasoning doDependabotAction's own
+          // success handler uses.
+          closeAllActionMenus();
           renderPRBoard();
         })
         .catch((err: Error & { status?: number }) => {
