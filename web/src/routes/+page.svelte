@@ -412,7 +412,6 @@
         ].filter((cell): cell is HTMLElement => cell !== null);
         const moreActions = moreActionsCell(pr, secondaryActions);
         if (moreActions) statusCell.appendChild(moreActions);
-        dedupeRowLockReasons(statusCell);
         meta.appendChild(statusCell);
       } else {
         meta.appendChild(el("div", "empty-cell"));
@@ -557,43 +556,9 @@
       wrap.appendChild(button);
       const reason = el("span", "row-action-reason", reasonText);
       reason.id = reasonId;
+      reason.setAttribute("role", "tooltip");
       wrap.appendChild(reason);
       return wrap;
-    }
-
-    // #516, a gap #360's per-row fix left standing: more than one row
-    // action (Merge, Update branch, Close, Dependabot, Renovate) can
-    // independently be locked for the exact same reason at once — same
-    // "state a system-wide fact once, not once per affected thing"
-    // principle #360 already applied across rows, applied here within
-    // one. Only the repeated *reason text* is collapsed — every button
-    // stays in the DOM with its own aria-disabled/label, since a shared
-    // reason across distinct actions is a real, tested case on its own
-    // (e.g. one 403 proactively locking both Dependabot Rebase and
-    // Recreate at once, each independently visible) and isn't itself the
-    // noise this is fixing. A dropped reason's button gets its
-    // aria-describedby repointed at the surviving reason's id rather
-    // than left dangling. Reasons that differ (a real, action-specific
-    // 403/409 alongside an unrelated proactive lock) are untouched.
-    function dedupeRowLockReasons(statusCell: HTMLElement) {
-      const keptReasonIds = new Map<string, string>();
-      for (const locked of Array.from(
-        statusCell.querySelectorAll<HTMLElement>(".row-action-locked"),
-      )) {
-        const reasonEl =
-          locked.querySelector<HTMLElement>(".row-action-reason");
-        const reasonText = reasonEl?.textContent ?? "";
-        if (!reasonText) continue;
-        const keptId = keptReasonIds.get(reasonText);
-        if (keptId) {
-          reasonEl?.remove();
-          locked
-            .querySelector<HTMLElement>(".row-action")
-            ?.setAttribute("aria-describedby", keptId);
-        } else if (reasonEl) {
-          keptReasonIds.set(reasonText, reasonEl.id);
-        }
-      }
     }
 
     // Clears every "locked for good" entry in a merge/update-branch

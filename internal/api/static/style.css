@@ -1107,16 +1107,27 @@ select.col-filter {
      of them rather than the stretched-link gap between. */
   gap: 8px;
 }
-/* Same "real, visible, wired-up reason text over a title-only tooltip or a
-   native-disabled button" shape webhooks.html's own .webhook-locked uses —
-   see lockedMergeButton's own comment in app.js. */
+/* Wired up via aria-describedby (lockedActionButton's own comment in
+   app.js), not a native title attribute or a native disabled button —
+   both drop the reason from keyboard/screen-reader reach. That's still
+   true here: .row-action-reason stays a real, permanent DOM node the
+   button's own aria-describedby points at, so a screen reader announces
+   it on focus regardless of what's visually shown. What changed (#565,
+   "the always-on reason text is ugly stacked under every locked button")
+   is only the *sighted, hovering-or-focusing* presentation: it now
+   floats as a tooltip-style bubble instead of permanently pushing the
+   row's own layout around. Revealed on both :hover and :focus-within —
+   never hover alone — since a hover-only reveal is exactly what fails
+   keyboard and touch users WCAG 1.4.13 exists to protect (a title
+   attribute has the same failure mode, which is why this was never one).
+   Hidden with opacity/pointer-events rather than display:none/
+   visibility:hidden, which some screen readers skip over even for an
+   aria-describedby target — this one shouldn't disappear from that
+   relationship just because nobody's pointer or focus is on it yet. */
 .row-action-locked {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-width: 220px;
+  display: inline-flex;
 }
 .row-action-locked .row-action {
   cursor: default;
@@ -1136,9 +1147,36 @@ select.col-filter {
   color: var(--accent-ink);
 }
 .row-action-reason {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
   font-size: 11px;
-  color: var(--ink-3);
+  color: var(--ink-2);
   white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+.row-action-locked:hover .row-action-reason,
+.row-action-locked:focus-within .row-action-reason {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-action-reason {
+    transition: none;
+  }
 }
 
 /* Collapses Dependabot/Renovate/View-pipeline behind one trigger on a
