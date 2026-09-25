@@ -283,6 +283,11 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    // Captured before opening the popover: closing the dialog also closes
+    // the "More actions" popover it was opened from (#571), which removes
+    // "View pipeline" from the DOM entirely, so focus can't land back on
+    // it. It lands on this trigger instead.
+    const moreActions = row.getByRole('button', { name: 'More actions' });
     await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
