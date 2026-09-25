@@ -1,8 +1,5 @@
 # Sends the openapi-spec-updated repository_dispatch each SDK repo's own
-# regenerate.yml listens for (rules/sdk-generation.md, issue #366). Each
-# repo's weekly cron is the fallback for a dispatch that never arrives --
-# this is what makes a spec change show up as a regeneration PR same-day
-# instead of waiting for the next tick.
+# regenerate.yml listens for (rules/sdk-generation.md, issue #366).
 name: openapi-dispatch
 
 on:
@@ -28,11 +25,15 @@ jobs:
     steps:
       # Needs repo scope on all four SDK repos -- the default GITHUB_TOKEN
       # is scoped to forge-dashboard alone and can't call another repo's
-      # dispatches endpoint. Same shape as RELEASE_TOKEN: a PAT only the
-      # owner can mint, set once as SDK_DISPATCH_TOKEN.
+      # dispatches endpoint. RELEASE_TOKEN already exists on this repo and
+      # is the account's established PAT for exactly this kind of
+      # cross-repo repository_dispatch call (alrayyes/Hush-Hush's
+      # release.yml notify-sdks job) -- SDK_DISPATCH_TOKEN was never
+      # actually created, so this job's dispatch has been failing silently
+      # on empty auth since it was added.
       - name: fire repository_dispatch at ${{ matrix.repo }}
         env:
-          GH_TOKEN: ${{ secrets.SDK_DISPATCH_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           gh api "repos/alrayyes/${{ matrix.repo }}/dispatches" \
             -f event_type=openapi-spec-updated
