@@ -203,6 +203,26 @@ func (s *GenericSource) UpdateBranch(ctx context.Context, owner, name string, nu
 	return accepted, nil
 }
 
+// ClosePullRequest implements PullRequestCloser at the Source level by
+// delegating to the underlying client, the same "Source unwraps to its
+// ForgeClient" shape EnsureWebhook/MergePullRequest/UpdateBranch already
+// use. Same #455 shape: internal/forgejo.Client already implements
+// PullRequestCloser, but GenericSource (what BuildSources actually
+// registers for Forgejo) never exposed it, so the type assertion in
+// handlePullRequestClose always failed for a real Forgejo pull request
+// (confirmed live on homelab/vps-docker#596).
+func (s *GenericSource) ClosePullRequest(ctx context.Context, owner, name string, number int) error {
+	closer, ok := s.client.(PullRequestCloser)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't close pull requests", s.forge)
+	}
+	if err := closer.ClosePullRequest(ctx, owner, name, number); err != nil {
+		return fmt.Errorf("dashboard: close pull request: %w", err)
+	}
+
+	return nil
+}
+
 // ListChecks implements PullRequestChecker at the Source level by
 // delegating to the underlying client, the same "Source unwraps to its
 // ForgeClient" shape EnsureWebhook/MergePullRequest/UpdateBranch already

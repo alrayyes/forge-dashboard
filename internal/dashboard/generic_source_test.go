@@ -331,3 +331,56 @@ func TestGenericSource_ListChecks_ClientWithoutSupport_ReturnsError(t *testing.T
 
 	require.Error(t, err)
 }
+
+// #596: internal/forgejo.Client already implements dashboard.PullRequestCloser
+// (a real EditPullRequest with State: closed), but GenericSource — the
+// Source BuildSources actually registers for Forgejo — never forwarded it,
+// the same #455 shape ListChecks above already hit. Confirmed live: closing
+// homelab/vps-docker#596 answered "forgejo doesn't support closing pull
+// requests" even though the underlying client genuinely can.
+type fakeCloserClient struct {
+	fakeForgeClient
+	closeErr error
+	calls    []string
+}
+
+func (f *fakeCloserClient) ClosePullRequest(_ context.Context, owner, name string, number int) error {
+	f.calls = append(f.calls, owner+"/"+name+fmt.Sprintf("#%d", number))
+
+	return f.closeErr
+}
+
+func TestGenericSource_ClosePullRequest_DelegatesToClient(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeCloserClient{}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	err := source.ClosePullRequest(t.Context(), "homelab", "vps-docker", 596)
+
+	require.NoError(t, err)
+	require.Len(t, client.calls, 1)
+	assert.Equal(t, "homelab/vps-docker#596", client.calls[0])
+}
+
+func TestGenericSource_ClosePullRequest_PropagatesClientError(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeCloserClient{closeErr: errors.New("boom")}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	err := source.ClosePullRequest(t.Context(), "homelab", "vps-docker", 596)
+
+	require.Error(t, err)
+}
+
+func TestGenericSource_ClosePullRequest_ClientWithoutSupport_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeForgeClient{}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	err := source.ClosePullRequest(t.Context(), "homelab", "vps-docker", 596)
+
+	require.Error(t, err)
+}
