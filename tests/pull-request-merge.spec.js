@@ -709,7 +709,7 @@ test.describe('pull request merge button', () => {
       await expect(row).not.toContainText(/unreachable/i);
     });
 
-    test('a mergeable PR that is also behind its base branch, on an unreachable forge, shows the reason once even though Update branch, Merge and Close are all independently locked (#516)', async ({
+    test('a mergeable PR that is also behind its base branch, on an unreachable forge, shows each locked action its own on-demand reason without cluttering the row (#516, #572)', async ({
       page,
     }) => {
       await mockDashboardCustom(
@@ -722,12 +722,27 @@ test.describe('pull request merge button', () => {
       const row = page.locator('#pr-rows .row').first();
       // Update branch, Merge and Close are all locked for the same
       // forge-wide reason at once here — each keeps its own Retry button
-      // (still independently clickable/aria-disabled), but the reason
-      // text itself renders only once (#360's own principle, applied
-      // within a row instead of just across rows).
-      await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(3);
-      await expect(row.locator('.row-action-reason')).toHaveCount(1);
-      await expect(row).toContainText('See the forge status above.');
+      // (still independently clickable/aria-disabled) and its own reason
+      // node, wired via aria-describedby (#572's per-button tooltip
+      // replaced #516's DOM-level dedupe: on-demand reveal on :hover/
+      // :focus-within means three identical reason nodes can never be
+      // visible at once, so the "renders only once" guarantee #516 built
+      // by removing nodes from the DOM now comes from each one starting
+      // hidden instead).
+      const retryButtons = row.getByRole('button', { name: 'Retry' });
+      await expect(retryButtons).toHaveCount(3);
+      const reasons = row.locator('.row-action-reason');
+      await expect(reasons).toHaveCount(3);
+      // Hidden with opacity/pointer-events, not display/visibility (see
+      // the CSS's own comment on why), so toBeVisible() can't tell these
+      // apart from shown -- assert the opacity itself instead.
+      for (const reason of await reasons.all()) {
+        await expect(reason).toHaveText('See the forge status above.');
+        await expect(reason).toHaveCSS('opacity', '0');
+      }
+
+      await retryButtons.first().focus();
+      await expect(reasons.first()).toHaveCSS('opacity', '1');
     });
 
     test('a mergeable PR on a forge with an exhausted rate-limit budget shows a locked Merge button', async ({
