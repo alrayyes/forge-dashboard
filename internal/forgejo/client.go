@@ -64,7 +64,16 @@ type Client struct {
 // pass nil) to get requestlog.NoopRecorder{}, the same as before this
 // parameter existed.
 func NewClient(instanceURL, token, username string, recorder ...requestlog.Recorder) *Client {
-	httpClient := &http.Client{Timeout: 30 * time.Second}
+	// A dedicated Transport, not the zero value's shared
+	// http.DefaultTransport: httptest.Server.Close() calls
+	// http.DefaultTransport.CloseIdleConnections() as a documented side
+	// effect, which is process-wide, not scoped to the server being
+	// closed. With every Client sharing that default, one parallel
+	// test's server teardown could yank the connection out from under a
+	// completely different Client's in-flight request against its own
+	// httptest server — confirmed live as a flaky
+	// "CloseIdleConnections called" failure in TestEnsureWebhook_*.
+	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{}}
 	opts := []gitea.ClientOption{
 		gitea.SetHTTPClient(httpClient),
 		// Skips the server-version probe NewClient otherwise makes on
