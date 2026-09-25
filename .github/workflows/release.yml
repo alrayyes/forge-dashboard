@@ -214,14 +214,42 @@ jobs:
           bun run capture-screenshots
           kill "$(cat server.pid)"
 
-      - name: open a pull request if the screenshots changed
+      # A raw `git diff --quiet` here used to open a pull request on
+      # *any* byte difference — but two captures against byte-for-byte
+      # identical fixture data, with no UI change at all, measured up
+      # to ~5% of pixels differing by sub-pixel antialiasing jitter
+      # alone (confirmed live, two runs back to back). -fuzz 8% absorbs
+      # that noise floor with margin while still catching a real visual
+      # change by a wide one: light-vs-dark itself, for scale, measures
+      # ~87% different at the same fuzz level.
+      - name: compare against the committed screenshots, ignoring rendering noise
+        id: compare
+        run: |
+          sudo apt-get update -y >/dev/null
+          sudo apt-get install -y imagemagick >/dev/null
+          changed=false
+          for f in docs/screenshots/dashboard-light.png docs/screenshots/dashboard-dark.png; do
+            if ! git cat-file -e "HEAD:$f" 2>/dev/null; then
+              echo "$f: new file"
+              changed=true
+              continue
+            fi
+            committed="/tmp/committed-$(basename "$f")"
+            git show "HEAD:$f" > "$committed"
+            result=$(compare -metric AE -fuzz 8% "$committed" "$f" null: 2>&1)
+            rc=$?
+            echo "$f: AE=$result (exit $rc)"
+            if [ "$rc" -ne 0 ]; then
+              changed=true
+            fi
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: open a pull request if the screenshots meaningfully changed
+        if: steps.compare.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          if git diff --quiet -- docs/screenshots; then
-            echo "Screenshots unchanged, nothing to do."
-            exit 0
-          fi
           git config user.name "release-please[bot]"
           git config user.email "release-please[bot]@users.noreply.github.com"
           branch="chore/readme-screenshots-${{ needs.release-please.outputs.tag_name }}"
