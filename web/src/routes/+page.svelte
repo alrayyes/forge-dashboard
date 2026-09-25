@@ -3051,19 +3051,28 @@
       }
     }
 
-    function refresh() {
+    // Reused by refresh() below and by the WebMCP tool further down --
+    // one fetch layer for /api/dashboard, not two.
+    function fetchDashboardData(): Promise<DashboardSnapshot> {
       const url =
         "/api/dashboard" +
         (currentOwner ? `?owner=${encodeURIComponent(currentOwner)}` : "");
-      fetch(url, { headers: { Accept: "application/json" } })
-        .then((res) => {
+
+      return fetch(url, { headers: { Accept: "application/json" } }).then(
+        (res) => {
           if (res.status === 401) {
             window.location.href = "/login.html";
             throw new Error("session expired");
           }
           if (!res.ok) throw new Error(`backend answered ${res.status}`);
+
           return res.json();
-        })
+        },
+      );
+    }
+
+    function refresh() {
+      fetchDashboardData()
         .then(applySnapshot)
         .catch((err: Error) => {
           showError(`Could not reach the backend: ${err.message}`);
@@ -3072,6 +3081,34 @@
 
     settingsLoaded.then(refresh);
     setInterval(refresh, REFRESH_INTERVAL_MS);
+
+    // ---- WebMCP (webmachinelearning/webmcp) tool: get_dashboard ----
+    // Experimental browser API -- document.modelContext only exists in
+    // Chrome 149+/Edge 150+ behind an Origin Trial (or the local
+    // about:flags#enable-webmcp-testing flag) as of this writing, so this
+    // is a no-op everywhere else rather than something to feature-detect
+    // around at every call site. Lets an in-browser AI agent call this
+    // page's own already-authenticated fetch layer directly -- the exact
+    // same fetchDashboardData()/applySnapshot() pair refresh() above
+    // already uses, never a parallel path to the same data, and riding
+    // on the browser's own session cookie exactly like the page's own
+    // poll does, so no token or credential ever passes through this
+    // tool. Calling it also syncs the visible UI (applySnapshot), so an
+    // agent and the person watching the page never see it disagree —
+    // the WebMCP explainer's own "synchronize visual UI state" guidance.
+    if (document.modelContext) {
+      document.modelContext.registerTool({
+        name: "get_dashboard",
+        description:
+          "Fetch the aggregated open pull requests, issues, and CI/forge health this dashboard already tracks across GitHub and Forgejo -- the same read-only data currently rendered on this page. Read-only: this never writes to either forge.",
+        async execute() {
+          const data = await fetchDashboardData();
+          applySnapshot(data);
+
+          return data;
+        },
+      });
+    }
 
     // ---- live updates over Server-Sent Events, on top of the poll above ----
     // The poll keeps running unconditionally — this only ever makes the
