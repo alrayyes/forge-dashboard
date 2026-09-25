@@ -294,11 +294,6 @@ test.describe('pull request pipeline checks panel', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(dialog).toBeVisible();
 
-    // The dialog's close handler closes the row's "More actions" popover
-    // and rebuilds the row, which removes "View pipeline" from the DOM
-    // entirely -- it only ever exists inside that popover. Focus goes to
-    // the row's still-standing "More actions" trigger instead.
-    const moreActions = row.getByRole('button', { name: 'More actions' });
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect(moreActions).toBeFocused();
