@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.96.0](https://github.com/alrayyes/forge-dashboard/compare/v0.95.2...v0.96.0) (2026-09-25)
+
+
+### Features
+
+* **dashboard:** add a read-only MCP endpoint exposing the dashboard ([#587](https://github.com/alrayyes/forge-dashboard/issues/587)) ([aa4504b](https://github.com/alrayyes/forge-dashboard/commit/aa4504b5fd2b31bfc97e6ef67120a677bc11d9eb))
+* **dashboard:** register a WebMCP get_dashboard tool in the frontend ([#588](https://github.com/alrayyes/forge-dashboard/issues/588)) ([a44cec7](https://github.com/alrayyes/forge-dashboard/commit/a44cec78008ccbc21205ce74cd9c417e371112aa))
+
+
+### Bug Fixes
+
+* **ci:** skip the screenshots job when a release doesn't touch web/ ([#589](https://github.com/alrayyes/forge-dashboard/issues/589)) ([96181a6](https://github.com/alrayyes/forge-dashboard/commit/96181a65ce98cb7ee5f3446d0f15a31009bae829))
+* **dashboard:** remove duplicate moreActions declaration in e2e test ([#586](https://github.com/alrayyes/forge-dashboard/issues/586)) ([f6b782d](https://github.com/alrayyes/forge-dashboard/commit/f6b782d71c75aed69b703cf7d559625523047e2e)), closes [#583](https://github.com/alrayyes/forge-dashboard/issues/583)
+
 ## [0.95.2](https://github.com/alrayyes/forge-dashboard/compare/v0.95.1...v0.95.2) (2026-09-25)
 
 
