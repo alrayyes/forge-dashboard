@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.95.2](https://github.com/alrayyes/forge-dashboard/compare/v0.95.1...v0.95.2) (2026-09-25)
+
+
+### Bug Fixes
+
+* **ci:** use RELEASE_TOKEN for the SDK dispatch, not a nonexistent secret ([#569](https://github.com/alrayyes/forge-dashboard/issues/569)) ([23ac567](https://github.com/alrayyes/forge-dashboard/commit/23ac567ce7c9292338745f613881379bb5986f7f)), closes [#566](https://github.com/alrayyes/forge-dashboard/issues/566)
+* **dashboard:** close the More actions popover behind the pipeline dialog and fix its stacking ([#571](https://github.com/alrayyes/forge-dashboard/issues/571)) ([9488336](https://github.com/alrayyes/forge-dashboard/commit/94883367775beea7272f91223809750378ba61f0)), closes [#570](https://github.com/alrayyes/forge-dashboard/issues/570)
+* **dashboard:** close the More actions popover once its action succeeds ([#568](https://github.com/alrayyes/forge-dashboard/issues/568)) ([dfa7f36](https://github.com/alrayyes/forge-dashboard/commit/dfa7f36ab620ed1f37db3a9c934acc506a6f5f85)), closes [#567](https://github.com/alrayyes/forge-dashboard/issues/567)
+* **dashboard:** forward ClosePullRequest through GenericSource for Forgejo ([#565](https://github.com/alrayyes/forge-dashboard/issues/565)) ([607d061](https://github.com/alrayyes/forge-dashboard/commit/607d06100facef2f7a9b2cb279aedde8412d8829)), closes [#564](https://github.com/alrayyes/forge-dashboard/issues/564)
+* **e2e:** update Escape-focus test for [#571](https://github.com/alrayyes/forge-dashboard/issues/571)'s refocus target ([#576](https://github.com/alrayyes/forge-dashboard/issues/576)) ([15c58f4](https://github.com/alrayyes/forge-dashboard/commit/15c58f42b2f54d122d3bee66fcb1c156d28b3f6f))
+
 ## [0.95.1](https://github.com/alrayyes/forge-dashboard/compare/v0.95.0...v0.95.1) (2026-09-22)
 
 
