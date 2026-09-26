@@ -42,12 +42,10 @@ func (f *fakeBranchUpdaterSource) updatedBranches() []string {
 // against a fixed, in-memory set — no real settings.Store needed to test
 // the Aggregator's own use of it.
 type fakeAutoUpdateBranchLister struct {
-	enabled           map[string]struct{}
-	allowBotPRUpdates bool
-	renovateLabel     string
-	err               error
-	botErr            error
-	labelErr          error
+	enabled       map[string]struct{}
+	renovateLabel string
+	err           error
+	labelErr      error
 }
 
 func (f *fakeAutoUpdateBranchLister) AutoUpdateBranchRepos(_ context.Context, _ []byte) (map[string]struct{}, error) {
@@ -56,14 +54,6 @@ func (f *fakeAutoUpdateBranchLister) AutoUpdateBranchRepos(_ context.Context, _ 
 	}
 
 	return f.enabled, nil
-}
-
-func (f *fakeAutoUpdateBranchLister) AllowsBotPRUpdates(_ context.Context, _ []byte) (bool, error) {
-	if f.botErr != nil {
-		return false, f.botErr
-	}
-
-	return f.allowBotPRUpdates, nil
 }
 
 func (f *fakeAutoUpdateBranchLister) RenovateRebaseLabel(_ context.Context, _ []byte) (string, error) {
@@ -135,12 +125,14 @@ func TestAggregator_Refresh_BehindPROnRepoNotEnabled_LeavesItAlone(t *testing.T)
 	assert.Empty(t, src.updatedBranches())
 }
 
-func TestAggregator_Refresh_BehindBotManagedPR_SkippedUnlessAllowed(t *testing.T) {
+func TestAggregator_Refresh_BehindReleasePleasePR_NeverUpdated(t *testing.T) {
 	t.Parallel()
 
-	// release-please, not Renovate or Dependabot: those two get their own
-	// routing (label / comment) once bot-PR updates are allowed, tested
-	// separately below — this covers the shared gate ahead of that routing.
+	// release-please regenerates its own PR branch and changelog together
+	// on every push to the base branch — a generic UpdateBranch call would
+	// risk fighting its own next run, and it has no dedicated rebase/label
+	// action the way Dependabot and Renovate do (tested separately below),
+	// so it's always skipped rather than gated behind a setting.
 	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
@@ -148,38 +140,14 @@ func TestAggregator_Refresh_BehindBotManagedPR_SkippedUnlessAllowed(t *testing.T
 		},
 	}}}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: false,
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
 	agg.Refresh(t.Context())
 
-	assert.Empty(t, src.updatedBranches(), "bot-managed and allowBotPRUpdates is false")
-}
-
-func TestAggregator_Refresh_BehindBotManagedPR_UpdatedWhenAllowed(t *testing.T) {
-	t.Parallel()
-
-	// release-please, not Renovate or Dependabot — see the sibling
-	// "SkippedUnlessAllowed" test's own comment.
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
-		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
-		PullRequests: []dashboard.PullRequest{
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Labels: []dashboard.Label{{Name: "autorelease: pending"}}},
-		},
-	}}}
-	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: true,
-	}
-
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
-	agg.Refresh(t.Context())
-
-	assert.Equal(t, []string{"alrayyes/a#1"}, src.updatedBranches())
+	assert.Empty(t, src.updatedBranches(), "a release-please pull request must never get the generic UpdateBranch call")
 }
 
 func TestAggregator_Refresh_NoAutoUpdateEnabled_NeverCallsLister(t *testing.T) {
@@ -267,8 +235,32 @@ func TestAggregator_Refresh_BehindDependabotPR_PostsRebaseComment(t *testing.T) 
 		},
 	}}}}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: true,
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments())
+}
+
+func TestAggregator_Refresh_BehindDependabotPRRESTAuthorForm_PostsRebaseComment(t *testing.T) {
+	t.Parallel()
+
+	// GraphQL's Actor.login comes back as the bare app slug ("dependabot"),
+	// while the REST pulls/issues endpoints append "[bot]"
+	// ("dependabot[bot]") — the same account-shape split #522 fixed for
+	// Dependabot detection generally, exercised here against the actual
+	// auto-rebase path rather than a removed standalone helper.
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeCommenterAndUpdaterSource also carries commentMu/commented; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot[bot]"},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
@@ -288,8 +280,7 @@ func TestAggregator_Refresh_BehindDependabotPR_NeverCallsUpdateBranch(t *testing
 		},
 	}}}}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: true,
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
@@ -309,8 +300,7 @@ func TestAggregator_Refresh_DependabotRebaseThenCIFails_PostsRecreateOnce(t *tes
 		},
 	}}}}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: true,
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
@@ -343,8 +333,7 @@ func TestAggregator_Refresh_DependabotRebaseThenCISucceeds_NeverRecreates(t *tes
 		},
 	}}}}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: true,
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
@@ -369,8 +358,7 @@ func TestAggregator_Refresh_DependabotRebaseStillPending_DoesNotRecreateYet(t *t
 		},
 	}}}}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: true,
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
@@ -398,8 +386,7 @@ func TestAggregator_Refresh_DependabotPRClosedAfterRebase_StopsWatchingWithoutRe
 		},
 	}}}}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: true,
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
@@ -428,28 +415,6 @@ func TestAggregator_Refresh_ListerErrors_RefreshStillSucceeds(t *testing.T) {
 	assert.True(t, agg.Get().Forges[0].Reachable, "a lister failure must not corrupt the snapshot it has nothing to do with")
 }
 
-func TestAggregator_Refresh_AllowsBotPRUpdatesErrors_RefreshStillSucceeds(t *testing.T) {
-	t.Parallel()
-
-	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
-		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
-		PullRequests: []dashboard.PullRequest{
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},
-		},
-	}}}
-	lister := &fakeAutoUpdateBranchLister{
-		enabled: map[string]struct{}{"github/alrayyes/a": {}},
-		botErr:  assert.AnError,
-	}
-
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
-
-	require.NotPanics(t, func() { agg.Refresh(t.Context()) })
-	assert.Empty(t, src.updatedBranches(), "a failure to learn the bot-pr-updates setting must not update anything it can't yet classify correctly")
-	assert.True(t, agg.Get().Forges[0].Reachable)
-}
-
 func TestAggregator_Refresh_BehindRenovatePR_AddsRebaseLabelInsteadOfUpdatingBranch(t *testing.T) {
 	t.Parallel()
 
@@ -460,9 +425,8 @@ func TestAggregator_Refresh_BehindRenovatePR_AddsRebaseLabelInsteadOfUpdatingBra
 		},
 	}}}}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: true,
-		renovateLabel:     "needs-rebase",
+		enabled:       map[string]struct{}{"github/alrayyes/a": {}},
+		renovateLabel: "needs-rebase",
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
@@ -483,9 +447,8 @@ func TestAggregator_Refresh_BehindRenovatePROnForgejo_AddsRebaseLabelInsteadOfUp
 		},
 	}}}}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"forgejo/alrayyes/a": {}},
-		allowBotPRUpdates: true,
-		renovateLabel:     "rebase",
+		enabled:       map[string]struct{}{"forgejo/alrayyes/a": {}},
+		renovateLabel: "rebase",
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
@@ -509,8 +472,7 @@ func TestAggregator_Refresh_BehindRenovatePR_LabelFailureIsLoggedNotFatal(t *tes
 		labelErr: assert.AnError,
 	}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: true,
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
@@ -530,8 +492,7 @@ func TestAggregator_Refresh_BehindNonRenovatePR_UnchangedBehavior(t *testing.T) 
 		},
 	}}}}
 	lister := &fakeAutoUpdateBranchLister{
-		enabled:           map[string]struct{}{"github/alrayyes/a": {}},
-		allowBotPRUpdates: true,
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})

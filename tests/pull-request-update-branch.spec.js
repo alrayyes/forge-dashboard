@@ -66,23 +66,9 @@ function mockDashboardCustom(page, forges, prs) {
   );
 }
 
-// The dashboard page fetches /api/settings/bot-pr-updates once at load —
-// mocked here for every test, not just the bot-managed-PR ones below,
-// the same way /api/dashboard always is.
-function mockSettings(page, allowBotPrUpdates) {
-  return page.route('**/api/settings/bot-pr-updates', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ allowBotPrUpdates }),
-    }),
-  );
-}
-
 test.describe('pull request update-branch button', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
-    await mockSettings(page, false);
   });
 
   test('a pull request reported as behind shows an Update branch button', async ({
@@ -584,22 +570,7 @@ test.describe('pull request update-branch button', () => {
       ).toHaveCount(0);
     });
 
-    test('a bot-managed PR shows Update branch once the setting is on', async ({
-      page,
-    }) => {
-      await mockSettings(page, true);
-      await mockDashboard(page, makePR({ author: 'dependabot' }));
-      await page.reload();
-
-      const row = page.locator('#pr-rows .row').first();
-      await expect(
-        row.getByRole('button', { name: 'Update branch' }),
-      ).toBeVisible();
-    });
-
-    test('a non-bot-managed PR still shows Update branch regardless of the setting', async ({
-      page,
-    }) => {
+    test('a non-bot-managed PR still shows Update branch', async ({ page }) => {
       await mockDashboard(page, makePR());
       await page.reload();
 

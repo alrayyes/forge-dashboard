@@ -52,7 +52,7 @@ func postRenovateRebase(t *testing.T, srvURL string, sessionCookie *http.Cookie,
 
 func putRenovateRebaseLabel(t *testing.T, srvURL string, sessionCookie *http.Cookie, label string) {
 	t.Helper()
-	body := `{"githubToken":"placeholder-token","forgejoUrl":"https://git.example","forgejoToken":"placeholder-token","allowBotPrUpdates":true,"renovateRebaseLabel":"` + label + `"}`
+	body := `{"githubToken":"placeholder-token","forgejoUrl":"https://git.example","forgejoToken":"placeholder-token","renovateRebaseLabel":"` + label + `"}`
 	req, err := http.NewRequest(http.MethodPut, srvURL+"/api/settings", strings.NewReader(body))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)

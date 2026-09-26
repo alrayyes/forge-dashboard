@@ -190,7 +190,7 @@ func run() error {
 	manager := dashboard.NewManager(refreshInterval)
 	defer manager.Stop()
 	// settingsStore satisfies dashboard.AutoUpdateBranchLister (#365)
-	// with its own AutoUpdateBranchRepos/AllowsBotPRUpdates methods.
+	// with its own AutoUpdateBranchRepos/RenovateRebaseLabel methods.
 	manager.SetAutoUpdateBranchLister(settingsStore)
 	manager.SetCIPollInterval(ciPollInterval)
 

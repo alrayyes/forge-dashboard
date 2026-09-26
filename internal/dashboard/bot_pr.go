@@ -13,16 +13,6 @@ const (
 	DependabotRecreateComment = "@dependabot recreate"
 )
 
-// IsBotManagedPR reports whether pr is opened and kept up to date by one
-// of the release/dependency bots this account runs — release-please,
-// Dependabot, Renovate — the Go-side port of +page.svelte's own
-// isBotManagedPr, needed here too because the background refresh loop
-// that drives auto-update-branch (#365) has no frontend button to
-// suppress the way a manual click already does.
-func IsBotManagedPR(pr PullRequest) bool {
-	return isReleasePleasePR(pr) || isDependabotPR(pr) || isRenovatePR(pr)
-}
-
 // release-please labels every PR it manages with "autorelease: pending"
 // or "autorelease: tagged" — the author is a human in this account's
 // setup, not release-please itself, so the label is the only signal.
