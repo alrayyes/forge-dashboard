@@ -29,6 +29,26 @@ async function selectForge(page, value) {
 test.describe('dashboard page', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The dashboard page also opens a live-updates EventSource against
+    // the real, unmocked /api/dashboard/stream — any test that mocks
+    // /api/dashboard itself and then reloads can otherwise have a real
+    // snapshot pushed over that stream silently overwrite the mocked one
+    // applied a moment earlier, flipping a reload assertion straight from
+    // correct to empty with no error in between (confirmed live across
+    // three separate reload-based tests in this file). 404 here also
+    // just matches this account's own real behavior for a user with no
+    // background refresh running (see "a user with no background refresh
+    // running yet" below) — this suite never saves real settings for
+    // these per-test users, so the real endpoint would 404 anyway.
+    await page.route('**/api/dashboard/stream', (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'no background refresh is running yet for this user',
+        }),
+      }),
+    );
   });
 
   test('renders the board and answers real data from /api/dashboard', async ({

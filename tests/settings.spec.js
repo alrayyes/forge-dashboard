@@ -207,14 +207,11 @@ test.describe('settings page', () => {
     await expect(toggle).toHaveText('Show');
   });
 
-  test('allowing bot-managed PR updates persists across a reload, along with the Renovate rebase label', async ({
+  test('the Renovate rebase label persists across a reload', async ({
     page,
   }) => {
     await page.goto('/settings.html');
 
-    await expect(page.locator('#renovate-rebase-label-field')).toBeHidden();
-
-    await page.check('#allow-bot-pr-updates');
     await expect(page.locator('#renovate-rebase-label-field')).toBeVisible();
     await page.fill('#renovate-rebase-label', 'retry');
     await page.click('#save-button');
@@ -223,23 +220,8 @@ test.describe('settings page', () => {
 
     await page.reload();
 
-    await expect(page.locator('#allow-bot-pr-updates')).toBeChecked();
     await expect(page.locator('#renovate-rebase-label-field')).toBeVisible();
     await expect(page.locator('#renovate-rebase-label')).toHaveValue('retry');
-  });
-
-  test('the Renovate rebase label field stays hidden until bot-managed PR updates are allowed', async ({
-    page,
-  }) => {
-    await page.goto('/settings.html');
-
-    await expect(page.locator('#renovate-rebase-label-field')).toBeHidden();
-
-    await page.check('#allow-bot-pr-updates');
-    await expect(page.locator('#renovate-rebase-label-field')).toBeVisible();
-
-    await page.uncheck('#allow-bot-pr-updates');
-    await expect(page.locator('#renovate-rebase-label-field')).toBeHidden();
   });
 
   test('a Forgejo username with no instance URL is refused before it ever reaches the server', async ({
@@ -766,19 +748,6 @@ test.describe('settings page', () => {
         .analyze();
       expect(results.violations).toEqual([]);
     });
-  });
-
-  test('has no axe-core violations with the Renovate rebase label field revealed', async ({
-    page,
-  }) => {
-    await page.goto('/settings.html');
-    await page.check('#allow-bot-pr-updates');
-    await expect(page.locator('#renovate-rebase-label-field')).toBeVisible();
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 
   test('has no axe-core violations at desktop width', async ({ page }) => {
