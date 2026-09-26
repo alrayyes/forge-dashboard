@@ -31,17 +31,6 @@ type Credentials struct {
 	// are, so neither is encrypted at rest — see EnsureWebhookCredentials.
 	WebhookToken  string
 	WebhookSecret string
-	// AllowBotPrUpdates overrides the default restraint the Update
-	// branch/Dependabot/Renovate action buttons apply to a pull request
-	// opened by release-please, Dependabot, or Renovate: those tools
-	// already keep their own PRs current on their own schedule, so a
-	// manual "Update branch" click is redundant at best and, for
-	// release-please specifically (which regenerates the PR's branch
-	// and changelog together on every push to the base branch), a
-	// genuine risk of fighting its own next run. False (the default,
-	// Go's zero value) is "leave bot-managed PRs alone"; true opts back
-	// into treating them the same as any other PR.
-	AllowBotPrUpdates bool
 	// RenovateRebaseLabel is the label Renovate's own rebase/retry
 	// trigger listens for on a given repo (Renovate's own rebaseLabel
 	// config option — "rebase" is Renovate's own default, but this is
@@ -52,9 +41,8 @@ type Credentials struct {
 	// Theme is "light", "dark", or "" (system — the default, matching
 	// theme.js's own old cookie-unset behavior). Set only from Settings
 	// (#352: no header toggle anywhere else) and read on every page load
-	// via the lightweight GET /api/settings/theme, the same
-	// "don't provision webhook credentials just to check one field"
-	// restraint GET /api/settings/bot-pr-updates already has.
+	// via the lightweight GET /api/settings/theme, which doesn't
+	// provision webhook credentials just to check one field.
 	Theme     string
 	UpdatedAt time.Time
 }
@@ -98,7 +86,6 @@ func (s *Store) Init(ctx context.Context) error {
 		forgejo_username TEXT NOT NULL DEFAULT '',
 		webhook_token TEXT NOT NULL DEFAULT '',
 		webhook_secret TEXT NOT NULL DEFAULT '',
-		allow_bot_pr_updates BOOLEAN NOT NULL DEFAULT 0,
 		renovate_rebase_label TEXT NOT NULL DEFAULT '',
 		filter_state TEXT NOT NULL DEFAULT '{}',
 		theme TEXT NOT NULL DEFAULT '',
@@ -143,7 +130,6 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 	migrations := []string{
 		`ALTER TABLE user_credentials ADD COLUMN webhook_token TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE user_credentials ADD COLUMN webhook_secret TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE user_credentials ADD COLUMN allow_bot_pr_updates BOOLEAN NOT NULL DEFAULT 0`,
 		`ALTER TABLE user_credentials ADD COLUMN renovate_rebase_label TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE user_credentials ADD COLUMN filter_state TEXT NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE user_credentials ADD COLUMN theme TEXT NOT NULL DEFAULT ''`,
@@ -179,19 +165,18 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO user_credentials
-			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, allow_bot_pr_updates, renovate_rebase_label, theme, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, renovate_rebase_label, theme, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (user_id) DO UPDATE SET
 			github_token = excluded.github_token,
 			github_username = excluded.github_username,
 			forgejo_url = excluded.forgejo_url,
 			forgejo_token = excluded.forgejo_token,
 			forgejo_username = excluded.forgejo_username,
-			allow_bot_pr_updates = excluded.allow_bot_pr_updates,
 			renovate_rebase_label = excluded.renovate_rebase_label,
 			theme = excluded.theme,
 			updated_at = excluded.updated_at`,
-		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.AllowBotPrUpdates, c.RenovateRebaseLabel, c.Theme, time.Now().UTC(),
+		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.RenovateRebaseLabel, c.Theme, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("settings: save credentials: %w", err)
@@ -207,10 +192,10 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 		encGitHubToken, encForgejoToken string
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, allow_bot_pr_updates, renovate_rebase_label, theme, updated_at
+		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, renovate_rebase_label, theme, updated_at
 		FROM user_credentials WHERE user_id = ?`,
 		encodeUserID(userID),
-	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.AllowBotPrUpdates, &c.RenovateRebaseLabel, &c.Theme, &c.UpdatedAt)
+	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.RenovateRebaseLabel, &c.Theme, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Credentials{}, ErrNotFound
 	}
@@ -226,26 +211,6 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 	}
 
 	return c, nil
-}
-
-// AllowsBotPRUpdates reports userID's own saved AllowBotPrUpdates —
-// false for a user who's never saved any settings at all, the same
-// zero-value default Credentials{} itself gives someone who has saved
-// settings but never touched this specific toggle. Exists mainly to
-// satisfy dashboard.AutoUpdateBranchLister without that package needing
-// the full Credentials shape (and the token decryption Get does) just
-// to read one bool.
-func (s *Store) AllowsBotPRUpdates(ctx context.Context, userID []byte) (bool, error) {
-	c, err := s.Get(ctx, userID)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return c.AllowBotPrUpdates, nil
 }
 
 // RenovateRebaseLabel reports userID's own saved RenovateRebaseLabel,

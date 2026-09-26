@@ -51,47 +51,6 @@ func TestSettingsGet_NothingSavedYet_ReturnsAllUnset(t *testing.T) {
 	assert.Empty(t, got.GitHubUsername)
 }
 
-func TestBotPrUpdatesGet_NothingSavedYet_ReturnsFalse(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/bot-pr-updates", "", sessionCookie)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	var got api.BotPrUpdatesResponse
-	require.NoError(t, readJSON(resp, &got))
-	assert.False(t, got.AllowBotPrUpdates)
-}
-
-// Regression test for a real bug: handleSettingsGet's EnsureWebhookCredentials
-// side effect silently provisioning a settings row (and, with it, flipping
-// GET /api/dashboard/stream from 404 to 200) for a user who never opened
-// Settings at all — surfaced when the dashboard page started calling a
-// settings endpoint on every load. This endpoint exists specifically to
-// read without that side effect; this proves it doesn't happen here.
-func TestBotPrUpdatesGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/bot-pr-updates", "", sessionCookie)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	streamReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
-	require.NoError(t, err)
-	streamReq.AddCookie(sessionCookie)
-	streamResp, err := http.DefaultClient.Do(streamReq)
-	require.NoError(t, err)
-	defer func() { _ = streamResp.Body.Close() }()
-
-	assert.Equal(t, http.StatusNotFound, streamResp.StatusCode)
-}
-
 func TestSettingsPut_ThenGet_RoundTripsNonSecretFieldsAndNeverReturnsTheToken(t *testing.T) {
 	t.Parallel()
 
@@ -135,8 +94,7 @@ func TestThemeGet_NothingSavedYet_ReturnsEmptyMeaningSystem(t *testing.T) {
 	assert.Empty(t, got.Theme)
 }
 
-// Same regression shape as TestBotPrUpdatesGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream:
-// this endpoint exists specifically so a page that only needs the theme
+// This endpoint exists specifically so a page that only needs the theme
 // doesn't also provision webhook credentials as a side effect.
 func TestThemeGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream(t *testing.T) {
 	t.Parallel()
@@ -237,7 +195,7 @@ func TestThemePut_DoesNotDisturbOtherSettings(t *testing.T) {
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings",
-		`{"githubUsername":"ryan","allowBotPrUpdates":true,"renovateRebaseLabel":"retry"}`,
+		`{"githubUsername":"ryan","renovateRebaseLabel":"retry"}`,
 		sessionCookie).Body.Close()
 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"light"}`, sessionCookie)
@@ -250,19 +208,18 @@ func TestThemePut_DoesNotDisturbOtherSettings(t *testing.T) {
 	var got api.SettingsResponse
 	require.NoError(t, readJSON(getResp, &got))
 	assert.Equal(t, "ryan", got.GitHubUsername)
-	assert.True(t, got.AllowBotPrUpdates)
 	assert.Equal(t, "retry", got.RenovateRebaseLabel)
 	assert.Equal(t, "light", got.Theme)
 }
 
-func TestSettingsPut_ThenGet_RoundTripsAllowBotPrUpdatesAndRenovateRebaseLabel(t *testing.T) {
+func TestSettingsPut_ThenGet_RoundTripsRenovateRebaseLabel(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
-		`{"allowBotPrUpdates":true,"renovateRebaseLabel":"retry"}`,
+		`{"renovateRebaseLabel":"retry"}`,
 		sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
@@ -272,7 +229,6 @@ func TestSettingsPut_ThenGet_RoundTripsAllowBotPrUpdatesAndRenovateRebaseLabel(t
 
 	var got api.SettingsResponse
 	require.NoError(t, readJSON(getResp, &got))
-	assert.True(t, got.AllowBotPrUpdates)
 	assert.Equal(t, "retry", got.RenovateRebaseLabel)
 }
 

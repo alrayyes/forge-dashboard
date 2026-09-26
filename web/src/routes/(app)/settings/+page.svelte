@@ -23,7 +23,6 @@
     forgejoTokenSet: boolean;
     webhookToken: string;
     webhookSecret: string;
-    allowBotPrUpdates: boolean;
     renovateRebaseLabel: string;
     theme: ThemePreference;
   };
@@ -191,7 +190,6 @@
   let forgejoUsername = $state("");
   let forgejoTokenSet = $state(false);
 
-  let allowBotPrUpdates = $state(false);
   let renovateRebaseLabel = $state("");
 
   let saving = $state(false);
@@ -302,7 +300,6 @@
       forgejoUrl: trimmedForgejoUrl,
       forgejoToken,
       forgejoUsername: trimmedForgejoUsername,
-      allowBotPrUpdates,
       renovateRebaseLabel: renovateRebaseLabel.trim(),
     };
 
@@ -664,7 +661,6 @@
         webhookUrlGithub = `${window.location.origin}/api/webhooks/github/${data.webhookToken}`;
         webhookUrlForgejo = `${window.location.origin}/api/webhooks/forgejo/${data.webhookToken}`;
         webhookSecret = data.webhookSecret;
-        allowBotPrUpdates = !!data.allowBotPrUpdates;
         if (!renovateRebaseLabel)
           renovateRebaseLabel = data.renovateRebaseLabel || "";
         // Just the control's own displayed value — (app)/+layout.svelte's
@@ -1372,29 +1368,13 @@
 
     <div class="card">
       <h2>Pull request behavior</h2>
-      <div class="field">
-        <label class="checkbox-filter">
-          <input
-            type="checkbox"
-            id="allow-bot-pr-updates"
-            name="allowBotPrUpdates"
-            aria-describedby="allow-bot-pr-updates-hint"
-            bind:checked={allowBotPrUpdates}
-          />
-          Allow updating bot-managed PR branches
-        </label>
-        <p class="field-hint" id="allow-bot-pr-updates-hint">
-          release-please, Dependabot, and Renovate already keep their own pull
-          requests current on their own schedule — leaving this off hides
-          "Update branch" on a PR any of them opened. Turn it on to treat those
-          PRs the same as any other.
-        </p>
-      </div>
-      <div
-        class="field"
-        id="renovate-rebase-label-field"
-        hidden={!allowBotPrUpdates}
-      >
+      <p class="field-hint">
+        release-please, Dependabot, and Renovate already keep their own pull
+        requests current on their own schedule, so "Update branch" never shows
+        on a PR any of them opened — Dependabot and Renovate get their own
+        dedicated rebase actions instead.
+      </p>
+      <div class="field" id="renovate-rebase-label-field">
         <label for="renovate-rebase-label">Renovate rebase label</label>
         <input
           id="renovate-rebase-label"

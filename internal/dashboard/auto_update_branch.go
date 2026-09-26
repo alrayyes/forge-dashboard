@@ -10,14 +10,11 @@ import (
 
 // AutoUpdateBranchLister reports what an Aggregator needs to decide
 // which behind pull requests to auto-update for userID (#365): the set
-// of repos enabled for it, and whether bot-managed pull requests are
-// included — both queried fresh on every refresh, from the same source,
-// so they can never drift out of sync with each other. Defined here in
-// the consuming package per go.md, rather than importing internal/settings'
-// concrete *Store directly. settings.Store satisfies this today.
+// of repos enabled for it. Defined here in the consuming package per
+// go.md, rather than importing internal/settings' concrete *Store
+// directly. settings.Store satisfies this today.
 type AutoUpdateBranchLister interface {
 	AutoUpdateBranchRepos(ctx context.Context, userID []byte) (map[string]struct{}, error)
-	AllowsBotPRUpdates(ctx context.Context, userID []byte) (bool, error)
 	// RenovateRebaseLabel reports userID's own configured Renovate rebase
 	// label (Credentials.RenovateRebaseLabelOrDefault) — what a behind
 	// Renovate pull request gets labeled with instead of the generic
@@ -49,18 +46,20 @@ type autoUpdateBranchConfig struct {
 // EnableAutoUpdateBranch turns on the hook that runs after every
 // completed refresh: any pull request the snapshot reports Behind, on a
 // repo lister currently reports enabled for userID, gets brought up to
-// date the same way a manual click would — skipped for a bot-managed
-// pull request unless lister currently allows that too, the same
-// restraint the manual button already applies. A Dependabot pull request
-// gets DependabotRebaseComment instead of the generic UpdateBranch,
-// mirroring the manual Dependabot: Rebase button, with a follow-up
-// DependabotRecreateComment if that rebase leaves its CI failing (#540).
-// A Renovate pull request instead gets lister's own configured rebase
-// label added (AddLabel), mirroring the manual Renovate: Rebase button —
-// Renovate has no recreate equivalent, so no watch state to track (#541).
-// All three settings are queried fresh on every refresh, since this
-// Aggregator's own dedicated enable/disable endpoints (and a
-// bot-PR-updates toggle) don't trigger a rebuild the way most other
+// date the same way a manual click would — except a release-please pull
+// request, which is always skipped (release-please regenerates its own
+// branch and changelog together on every push to the base branch, so a
+// generic branch update is a genuine risk of fighting its own next run,
+// and it has no dedicated rebase/label action the way Dependabot and
+// Renovate do). A Dependabot pull request gets DependabotRebaseComment
+// instead of the generic UpdateBranch, mirroring the manual Dependabot:
+// Rebase button, with a follow-up DependabotRecreateComment if that
+// rebase leaves its CI failing (#540). A Renovate pull request instead
+// gets lister's own configured rebase label added (AddLabel), mirroring
+// the manual Renovate: Rebase button — Renovate has no recreate
+// equivalent, so no watch state to track (#541). Both settings are
+// queried fresh on every refresh, since this Aggregator's own dedicated
+// enable/disable endpoints don't trigger a rebuild the way most other
 // settings changes do.
 func (a *Aggregator) EnableAutoUpdateBranch(userID []byte, lister AutoUpdateBranchLister) {
 	a.autoUpdate = &autoUpdateBranchConfig{userID: userID, lister: lister, dependabotWatch: make(map[string]struct{})}
@@ -88,13 +87,6 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 		return
 	}
 
-	allowBotPRUpdates, err := a.autoUpdate.lister.AllowsBotPRUpdates(ctx, a.autoUpdate.userID)
-	if err != nil {
-		slog.Warn("auto-update-branch: could not load bot-pr-updates setting", "error", err)
-
-		return
-	}
-
 	renovateLabel, err := a.autoUpdate.lister.RenovateRebaseLabel(ctx, a.autoUpdate.userID)
 	if err != nil {
 		slog.Warn("auto-update-branch: could not load renovate rebase label", "error", err)
@@ -109,7 +101,7 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 		if _, ok := enabled[string(pr.Forge)+"/"+pr.Repo]; !ok {
 			continue
 		}
-		if IsBotManagedPR(pr) && !allowBotPRUpdates {
+		if isReleasePleasePR(pr) {
 			continue
 		}
 

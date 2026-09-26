@@ -1266,7 +1266,14 @@
       // lives; this one just stays hidden, the same as the other
       // conditions below that make the button not apply at all.
       if (item.empty) return null;
-      if (isBotManagedPr(item) && !allowBotPrUpdates) return null;
+      // release-please, Dependabot, and Renovate already keep their own
+      // pull requests current on their own schedule — a manual "Update
+      // branch" click is redundant at best and, for release-please
+      // specifically (which regenerates the PR's branch and changelog
+      // together on every push to the base branch), a genuine risk of
+      // fighting its own next run. Dependabot/Renovate get their own
+      // dedicated rebase actions instead (see below).
+      if (isBotManagedPr(item)) return null;
 
       const key = prKey(item);
       const entry = updateBranchState[key] || { phase: "idle" };
@@ -1983,9 +1990,6 @@
     // budget is already exhausted.
     let lastForges: Forge[] = [];
     let sharedControlsRestored = false;
-    // Fetched once at startup below — updateBranchActionCell reads this
-    // to decide whether a bot-managed PR's row gets the button at all.
-    let allowBotPrUpdates = false;
 
     // #353: the cookie above is a fast local cache for this page's very
     // first paint, not the source of truth across devices — this fetch
@@ -2879,30 +2883,6 @@
         });
     });
 
-    // ---- bot-managed PR update setting, fetched once at startup ----
-    // /api/settings/bot-pr-updates, not /api/settings itself — that GET
-    // also provisions webhook credentials on first call, which the
-    // dashboard silently triggering on behalf of a user who's never
-    // opened Settings would be a real, surprising side effect.
-    //
-    // The first refresh() call below waits on this
-    // (settingsLoaded.then(refresh)) rather than firing independently
-    // and re-rendering a second time on its own resolve — both requests
-    // still go out concurrently, so this doesn't add a real sequential
-    // round trip.
-    const settingsLoaded = fetch("/api/settings/bot-pr-updates", {
-      headers: { Accept: "application/json" },
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data) allowBotPrUpdates = !!data.allowBotPrUpdates;
-      })
-      .catch(() => {
-        // A transient failure here just leaves bot-managed PRs
-        // suppressed (the safer default) rather than blocking the page
-        // over it.
-      });
-
     // ---- switching to a dashboard someone else shared with you ----
     let currentOwner = "";
     const ownerSelect = document.getElementById(
@@ -3044,7 +3024,7 @@
         });
     }
 
-    settingsLoaded.then(refresh);
+    refresh();
     setInterval(refresh, REFRESH_INTERVAL_MS);
 
     // ---- WebMCP (webmachinelearning/webmcp) tool: get_dashboard ----

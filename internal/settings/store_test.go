@@ -51,20 +51,16 @@ func TestStore_SetThenGet_RoundTrips(t *testing.T) {
 	assert.False(t, got.UpdatedAt.IsZero())
 }
 
-func TestStore_SetThenGet_RoundTripsAllowBotPrUpdatesAndRenovateRebaseLabel(t *testing.T) {
+func TestStore_SetThenGet_RoundTripsRenovateRebaseLabel(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 	userID := []byte("user-1")
 
-	want := settings.Credentials{
-		AllowBotPrUpdates:   true,
-		RenovateRebaseLabel: "retry",
-	}
+	want := settings.Credentials{RenovateRebaseLabel: "retry"}
 	require.NoError(t, store.Set(t.Context(), userID, want))
 
 	got, err := store.Get(t.Context(), userID)
 	require.NoError(t, err)
-	assert.True(t, got.AllowBotPrUpdates)
 	assert.Equal(t, "retry", got.RenovateRebaseLabel)
 }
 
@@ -656,28 +652,6 @@ func TestStore_Delete_RemovesAutoUpdateBranchRepos(t *testing.T) {
 	got, err := store.AutoUpdateBranchRepos(t.Context(), userID)
 	require.NoError(t, err)
 	assert.Empty(t, got)
-}
-
-func TestStore_AllowsBotPRUpdates_NeverSaved_ReturnsFalse(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	got, err := store.AllowsBotPRUpdates(t.Context(), []byte("user-1"))
-
-	require.NoError(t, err)
-	assert.False(t, got)
-}
-
-func TestStore_AllowsBotPRUpdates_ReflectsSavedCredentials(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{AllowBotPrUpdates: true}))
-
-	got, err := store.AllowsBotPRUpdates(t.Context(), userID)
-
-	require.NoError(t, err)
-	assert.True(t, got)
 }
 
 func TestStore_RenovateRebaseLabel_NeverSaved_ReturnsDefault(t *testing.T) {

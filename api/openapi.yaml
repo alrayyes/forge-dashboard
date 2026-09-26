@@ -465,44 +465,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/settings/bot-pr-updates:
-    get:
-      operationId: getBotPrUpdatesSetting
-      summary: Whether bot-managed pull request branches can be updated
-      description: |
-        A lightweight, side-effect-free read of one field —
-        allowBotPrUpdates — for the dashboard page to check on every
-        load. Deliberately not GET /api/settings itself: that handler
-        also provisions webhook credentials on first call
-        (EnsureWebhookCredentials), which the dashboard visiting on a
-        user's behalf shouldn't trigger for someone who's never opened
-        Settings at all.
-      tags: [settings]
-      security: [{ bearerAuth: [] }]
-      responses:
-        "200":
-          description: The current value.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BotPrUpdatesResponse"
-        "401":
-          description: No valid session cookie was presented.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
   /api/settings/theme:
     get:
       operationId: getTheme
       summary: The signed-in user's own saved theme preference
       description: |
         A lightweight, side-effect-free read of one field — theme — for
-        every page to check on load (#352). The same "deliberately not
-        GET /api/settings itself" restraint GET /api/settings/bot-pr-updates
-        already uses, for the same reason: this loads on every page visit
-        and shouldn't provision webhook credentials as a side effect.
+        every page to check on load (#352). Deliberately not
+        GET /api/settings itself: that handler also provisions webhook
+        credentials on first call (EnsureWebhookCredentials), which
+        every page loading shouldn't trigger for a user who's never
+        opened Settings at all.
       tags: [settings]
       security: [{ bearerAuth: [] }]
       responses:
@@ -563,10 +536,9 @@ paths:
       operationId: getFilterState
       summary: The signed-in user's own saved dashboard/Insights filter state
       description: |
-        A lightweight read of one opaque blob (#353), the same
-        "deliberately not GET /api/settings itself" restraint
-        GET /api/settings/bot-pr-updates already uses, for the same
-        reason: this loads on every dashboard/Insights visit and
+        A lightweight read of one opaque blob (#353), deliberately not
+        GET /api/settings itself for the same reason GET /api/settings/theme
+        isn't either: this loads on every dashboard/Insights visit and
         shouldn't provision webhook credentials as a side effect.
         `{}` for a user who's never saved any filters yet, not a 404.
       tags: [settings]
@@ -2321,7 +2293,6 @@ components:
           forgejoTokenSet,
           webhookToken,
           webhookSecret,
-          allowBotPrUpdates,
           renovateRebaseLabel,
           theme,
         ]
@@ -2353,15 +2324,6 @@ components:
             verify the signature header on incoming webhook deliveries
             (`X-Hub-Signature-256` on GitHub, `X-Forgejo-Signature` on
             Forgejo). Never appears in the webhook URL itself.
-        allowBotPrUpdates:
-          type: boolean
-          description: |
-            Overrides the default restraint the Update branch/Dependabot/
-            Renovate action buttons apply to a pull request opened by
-            release-please, Dependabot, or Renovate — those tools already
-            keep their own PRs current on their own schedule. False (the
-            default) leaves bot-managed PRs alone; true treats them the
-            same as any other PR.
         renovateRebaseLabel:
           type: string
           description: |
@@ -2400,18 +2362,8 @@ components:
           type: string
         forgejoUsername:
           type: string
-        allowBotPrUpdates:
-          type: boolean
         renovateRebaseLabel:
           type: string
-
-    BotPrUpdatesResponse:
-      type: object
-      description: See GET /api/settings/bot-pr-updates's own description.
-      required: [allowBotPrUpdates]
-      properties:
-        allowBotPrUpdates:
-          type: boolean
 
     ThemeResponse:
       type: object
@@ -2947,8 +2899,10 @@ components:
             Whether the signed-in user has turned on automatic branch
             updates for this repo (#365) — any of its pull requests the
             background refresh finds behind its base branch gets updated
-            the same way a manual "Update branch" click would, without
-            one. Suppressed for a bot-managed pull request (release-please,
-            Dependabot, Renovate) unless bot-PR updates are separately
-            allowed (POST /api/settings/bot-pr-updates), the same
-            restraint the manual button already applies.
+            the same way a manual "Update branch" click would. A
+            Dependabot pull request gets its own rebase comment instead,
+            and a Renovate one its own rebase label, mirroring their
+            manual action buttons. A release-please pull request is
+            always skipped: it regenerates its own branch and changelog
+            on every push to the base branch, and has no dedicated
+            rebase/label action the way Dependabot and Renovate do.

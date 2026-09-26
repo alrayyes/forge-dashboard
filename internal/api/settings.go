@@ -23,10 +23,9 @@ type SettingsResponse struct {
 	// the forge's own webhook setup, so a "set" flag alone wouldn't do.
 	WebhookToken  string `json:"webhookToken"`
 	WebhookSecret string `json:"webhookSecret"`
-	// AllowBotPrUpdates and RenovateRebaseLabel — see settings.Credentials'
-	// own doc comments; both round-trip as plain values, unlike the forge
-	// tokens above, since neither is a secret.
-	AllowBotPrUpdates   bool   `json:"allowBotPrUpdates"`
+	// RenovateRebaseLabel — see settings.Credentials' own doc comment;
+	// round-trips as a plain value, unlike the forge tokens above, since
+	// it isn't a secret.
 	RenovateRebaseLabel string `json:"renovateRebaseLabel"`
 	// Theme — see settings.Credentials' own doc comment. Round-tripped
 	// here too so the Settings page's own save confirms what it just set,
@@ -44,50 +43,15 @@ func settingsResponseOf(c settings.Credentials) SettingsResponse {
 		ForgejoTokenSet:     c.ForgejoToken != "",
 		WebhookToken:        c.WebhookToken,
 		WebhookSecret:       c.WebhookSecret,
-		AllowBotPrUpdates:   c.AllowBotPrUpdates,
 		RenovateRebaseLabel: c.RenovateRebaseLabel,
 		Theme:               c.Theme,
 	}
 }
 
-// BotPrUpdatesResponse matches components.schemas.BotPrUpdatesResponse.
-// Deliberately not folded into SettingsResponse's own GET: the dashboard
-// page (app.js) needs only this one field on every load, and reusing
-// handleSettingsGet for that would carry its EnsureWebhookCredentials
-// side effect along too — silently provisioning webhook credentials (and
-// flipping GET /api/dashboard/stream from 404 to 200) for a user who
-// only ever visited the dashboard and never opened Settings at all. This
-// handler reads the saved row without ever creating one.
-type BotPrUpdatesResponse struct {
-	AllowBotPrUpdates bool `json:"allowBotPrUpdates"`
-}
-
-func handleBotPrUpdatesGet(store *settings.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
-		creds, err := store.Get(r.Context(), u.ID)
-		if err != nil && !errors.Is(err, settings.ErrNotFound) {
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
-
-			return
-		}
-		// ErrNotFound leaves creds at its zero value — AllowBotPrUpdates
-		// false, the same default a user who has saved settings but never
-		// touched this toggle gets from settings.Store.Get itself.
-
-		writeJSON(w, http.StatusOK, BotPrUpdatesResponse{AllowBotPrUpdates: creds.AllowBotPrUpdates})
-	}
-}
-
-// ThemeResponse matches components.schemas.ThemeResponse. Same reasoning as
-// BotPrUpdatesResponse above: every page needs this on load, and none of
-// them should trigger EnsureWebhookCredentials just to read one field.
+// ThemeResponse matches components.schemas.ThemeResponse. Every page needs
+// this on load, and none of them should trigger EnsureWebhookCredentials
+// just to read one field — the same reasoning that gave Theme its own
+// dedicated GET rather than folding it into handleSettingsGet.
 type ThemeResponse struct {
 	Theme string `json:"theme"`
 }
@@ -208,7 +172,6 @@ type settingsPutRequest struct {
 	ForgejoURL          string `json:"forgejoUrl"`
 	ForgejoToken        string `json:"forgejoToken"`
 	ForgejoUsername     string `json:"forgejoUsername"`
-	AllowBotPrUpdates   bool   `json:"allowBotPrUpdates"`
 	RenovateRebaseLabel string `json:"renovateRebaseLabel"`
 }
 
@@ -241,7 +204,6 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			ForgejoURL:          req.ForgejoURL,
 			ForgejoToken:        coalesce(req.ForgejoToken, existing.ForgejoToken),
 			ForgejoUsername:     req.ForgejoUsername,
-			AllowBotPrUpdates:   req.AllowBotPrUpdates,
 			RenovateRebaseLabel: req.RenovateRebaseLabel,
 			// Theme isn't part of this request at all — it has its own
 			// dedicated PUT /api/settings/theme (handleThemePut) so
