@@ -1,26 +1,24 @@
 <!doctype html>
 <!--
-  Zero-build Stoplight Elements: the web-components bundle, not the React
-  component, so this page needs no build step of its own. Renders the same
-  spec `redocly lint` checks (api/openapi.yaml) -- complementary tools, one
-  file.
+  Zero-build Scalar: the ESM bundle straight from jsdelivr, so this page
+  needs no build step of its own. Renders the same spec `redocly lint`
+  checks (api/openapi.yaml) -- complementary tools, one file. `proxyUrl` is
+  left unset on purpose: Scalar's quickstart default routes "try it"
+  requests through proxy.scalar.com, a third party, and omitting it means
+  those calls go straight from the browser, subject to this API's own CORS
+  policy.
 -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>forge-dashboard API</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <script src="https://unpkg.com/@stoplight/elements@9.0.25/web-components.min.js"></script>
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/@stoplight/elements@9.0.25/styles.min.css"
-    />
   </head>
   <body style="margin: 0">
-    <elements-api
-      apiDescriptionUrl="../../api/openapi.yaml"
-      router="hash"
-      layout="responsive"
-    ></elements-api>
+    <div id="app"></div>
+    <script type="module">
+      import { createApiReference } from 'https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.72.1/esm.js'
+      createApiReference('#app', { url: '../../api/openapi.yaml' })
+    </script>
   </body>
 </html>
