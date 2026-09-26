@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.97.0](https://github.com/alrayyes/forge-dashboard/compare/v0.96.1...v0.97.0) (2026-09-26)
+
+
+### Features
+
+* **cmd:** add a healthcheck argument for the container's own HEALTHCHECK ([#599](https://github.com/alrayyes/forge-dashboard/issues/599)) ([b815b9e](https://github.com/alrayyes/forge-dashboard/commit/b815b9eab6bf149dd73dca8f536b8b5bef337886)), closes [#598](https://github.com/alrayyes/forge-dashboard/issues/598)
+
 ## [0.96.1](https://github.com/alrayyes/forge-dashboard/compare/v0.96.0...v0.96.1) (2026-09-25)
 
 
