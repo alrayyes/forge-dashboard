@@ -259,12 +259,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: assemble the Pages artifact
-        # Mirrors just the two paths the page's own relative apiDescriptionUrl
+        # Mirrors just the paths the page's own relative apiDescriptionUrl
         # expects -- docs/api/index.html two directories above
-        # api/openapi.yaml -- rather than uploading the whole checkout.
+        # api/openapi.yaml -- plus llms.txt (llmstxt.org), scoped to
+        # docs/api/ since that's the only page actually deployed here --
+        # rather than uploading the whole checkout.
         run: |
           mkdir -p site/docs/api site/api
           cp docs/api/index.html site/docs/api/index.html
+          cp docs/api/llms.txt site/docs/api/llms.txt
           cp api/openapi.yaml site/api/openapi.yaml
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
