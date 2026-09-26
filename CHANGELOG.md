@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.97.1](https://github.com/alrayyes/forge-dashboard/compare/v0.97.0...v0.97.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **dashboard:** remove the bot-PR-updates opt-in instead of gating on it ([#604](https://github.com/alrayyes/forge-dashboard/issues/604)) ([06f7d52](https://github.com/alrayyes/forge-dashboard/commit/06f7d5282ccba7d4b6698afa9c267a0bb3686632))
+
 ## [0.97.0](https://github.com/alrayyes/forge-dashboard/compare/v0.96.1...v0.97.0) (2026-09-26)
 
 
