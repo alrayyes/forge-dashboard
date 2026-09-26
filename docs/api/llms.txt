@@ -1,0 +1,25 @@
+# forge-dashboard
+
+> The REST API behind forge-dashboard: a single-page dashboard of open pull
+> requests, issues, and CI status across every repository a configured
+> GitHub account and Forgejo instance have write access to.
+
+Read-only against both forges — every endpoint below aggregates and
+displays; nothing here writes back to GitHub or Forgejo except the
+dashboard's own pull-request actions (merge, close, update branch) that a
+signed-in user explicitly takes. Authenticate with
+`Authorization: Bearer <token>`, a personal API token issued from the
+Settings page in the running app, the same way every other `/api/*` route
+already does. This file is scoped to `/docs/api/` — the API surface — not
+the whole forge-dashboard site.
+
+## API description
+
+- [OpenAPI spec](https://alrayyes.github.io/forge-dashboard/api/openapi.yaml): the machine-readable contract this API is built from — every endpoint, request/response shape, and auth requirement, hand-written and reviewed as the design rather than generated from handler annotations.
+- [Rendered API reference](https://alrayyes.github.io/forge-dashboard/docs/api/): the same spec rendered with Stoplight Elements, browsable one endpoint at a time.
+
+## Source
+
+- [Repository](https://github.com/alrayyes/forge-dashboard): source, architecture, and the toolchain needed to build and run it.
+- [README](https://github.com/alrayyes/forge-dashboard/blob/main/README.md): what this app is, its design decisions (passkey auth, per-user forge tokens, the read-only MCP endpoint at `/api/mcp` for agents), and how it's configured.
+- [CONTRIBUTING](https://github.com/alrayyes/forge-dashboard/blob/main/CONTRIBUTING.md): how the pieces fit together and how to get a dev environment running.
