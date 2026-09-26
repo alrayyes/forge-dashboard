@@ -892,8 +892,8 @@ func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runI
 // return; and MergePullRequest/UpdatePullRequest, both built on the
 // SDK's private getStatusCode, which closes the response body without
 // ever reading it — Forgejo's own reason for rejecting a merge or
-// update (confirmed live on homelab/vps-docker#561: "the changes on
-// this branch are already on the target branch, this will be an empty
+// update (confirmed live against a real instance: "the changes on this
+// branch are already on the target branch, this will be an empty
 // commit") never reached a caller, surfacing as a bare "unexpected
 // status: N" with nothing a person could act on. Mirrors gitea.Client's
 // own doRequest (same URL shape, same "token "+token header, same

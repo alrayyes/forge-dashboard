@@ -790,11 +790,11 @@
     // hard-to-reverse write to the real repo, not a filter toggle like
     // the CI pill next to it.
     function mergeActionCell(item: PullRequestItem): HTMLElement | null {
-      // Real incident (homelab/vps-docker#583): a pull request whose
-      // content already landed on the base branch some other way is
-      // still reported "mergeable" — merging it just produces an empty
-      // commit, and clicking Merge silently did nothing, with no
-      // explanation shown. This has to win over the early-return below
+      // Real incident: a pull request whose content already landed on
+      // the base branch some other way is still reported "mergeable" —
+      // merging it just produces an empty commit, and clicking Merge
+      // silently did nothing, with no explanation shown. This has to
+      // win over the early-return below
       // rather than fall behind it, or the button just vanishes the
       // same way it did in that incident instead of saying why; Close
       // (closeActionCell, unconditionally available) is the action that
@@ -1020,8 +1020,8 @@
     // ---- pull request close action ----
     // For a pull request that turns out not to need merging at all — a
     // duplicate, or one whose content already landed another way
-    // (confirmed live on homelab/vps-docker#561) — Close is the action
-    // that actually applies, not Merge. Own state map, parallel to
+    // (confirmed live) — Close is the action that actually applies, not
+    // Merge. Own state map, parallel to
     // mergeState, the same shape updateBranchState uses for its own
     // independent action.
     const closeState: Record<string, ActionState> = {};

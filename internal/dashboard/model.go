@@ -111,10 +111,10 @@ type PullRequest struct {
 	Behind bool `json:"behind"`
 	// Empty reports whether merging this pull request would produce an
 	// empty commit — its content already landed on the base branch some
-	// other way (confirmed live: homelab/vps-docker#583, a mechanical
-	// version-bump PR whose branch had already been merged into master
-	// through another route, leaving Merge silently a no-op with nothing
-	// in the UI explaining why). Deliberately conservative rather than
+	// other way (confirmed live: a mechanical version-bump PR whose branch
+	// had already been merged into master through another route, leaving
+	// Merge silently a no-op with nothing in the UI explaining why).
+	// Deliberately conservative rather than
 	// nilable like AutoMergeEnabled: a source that can't tell (the
 	// unauthenticated GitHub REST fallback, or a Forgejo pull request
 	// whose Additions/Deletions/ChangedFiles came back nil) just leaves

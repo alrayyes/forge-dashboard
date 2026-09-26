@@ -541,11 +541,10 @@ func TestListOpenPullRequests_MapsBehindFromBaseShaVsMergeBase(t *testing.T) {
 }
 
 // TestListOpenPullRequests_MapsEmptyFromDiffstat is a regression test for
-// a real finding: confirmed live against a Forgejo instance
-// (homelab/vps-docker#583), a pull request can be mergeable while its
-// additions/deletions/changed_files all report 0 — its content already
-// landed on the base branch some other route, so merging it would be an
-// empty commit.
+// a real finding: confirmed live against a Forgejo instance, a pull
+// request can be mergeable while its additions/deletions/changed_files
+// all report 0 — its content already landed on the base branch some
+// other route, so merging it would be an empty commit.
 func TestListOpenPullRequests_MapsEmptyFromDiffstat(t *testing.T) {
 	t.Parallel()
 
@@ -863,10 +862,11 @@ func TestMergePullRequest_NotMergeable_ClassifiesAsForgeErrorConflict(t *testing
 // regression test: the gitea SDK's own MergePullRequest is built on
 // getStatusCode, which closes the response body without ever reading it
 // — Forgejo's real reason for rejecting a merge (here, the "empty
-// commit" case confirmed live on homelab/vps-docker#561, a PR whose
-// branch content already matched its target) never reached the caller,
-// surfacing to the dashboard as a bare "merge rejected (status N)" with
-// no way to tell a user why. This client now reads the body itself.
+// commit" case confirmed live against a real Forgejo instance, a PR
+// whose branch content already matched its target) never reached the
+// caller, surfacing to the dashboard as a bare "merge rejected (status
+// N)" with no way to tell a user why. This client now reads the body
+// itself.
 func TestMergePullRequest_NotMergeable_SurfacesForgesOwnMessage(t *testing.T) {
 	t.Parallel()
 

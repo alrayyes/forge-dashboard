@@ -126,7 +126,7 @@ test.describe('pull request update-branch button', () => {
     ).toHaveCount(0);
   });
 
-  // #543/homelab/vps-docker#583: reported behind but with nothing left to
+  // #543: reported behind but with nothing left to
   // merge — its diff against base is already empty. Update branch would
   // be as much a dead end as Merge is in this state (see
   // pull-request-merge.spec.js's own empty-pull-request test), so it's

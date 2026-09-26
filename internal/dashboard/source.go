@@ -98,8 +98,7 @@ type PullRequestAutoMerger interface {
 // merging it — checked via a type assertion, the same optional-capability
 // pattern PullRequestMerger uses. For a PR that turns out not to need
 // merging at all (a duplicate, one whose content already landed another
-// way — confirmed live on homelab/vps-docker#561), Close is the action
-// that actually applies, not Merge.
+// way), Close is the action that actually applies, not Merge.
 type PullRequestCloser interface {
 	ClosePullRequest(ctx context.Context, owner, name string, number int) error
 }

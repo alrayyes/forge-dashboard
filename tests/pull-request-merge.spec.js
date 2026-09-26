@@ -167,7 +167,7 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
-  // #543/homelab/vps-docker#583: a mergeable pull request whose diff
+  // #543: a mergeable pull request whose diff
   // against its base is already empty (content landed some other way)
   // used to show a fully clickable Merge button that quietly did nothing
   // when clicked. It now shows a disabled button explaining why, so Close
