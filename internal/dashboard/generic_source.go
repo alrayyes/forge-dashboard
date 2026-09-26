@@ -210,7 +210,9 @@ func (s *GenericSource) UpdateBranch(ctx context.Context, owner, name string, nu
 // PullRequestCloser, but GenericSource (what BuildSources actually
 // registers for Forgejo) never exposed it, so the type assertion in
 // handlePullRequestClose always failed for a real Forgejo pull request
-// (confirmed live on homelab/vps-docker#596).
+// (confirmed live: closing a real tracked pull request answered "forgejo
+// doesn't support closing pull requests" even though the underlying
+// client genuinely can).
 func (s *GenericSource) ClosePullRequest(ctx context.Context, owner, name string, number int) error {
 	closer, ok := s.client.(PullRequestCloser)
 	if !ok {

@@ -1215,11 +1215,10 @@ func TestFetch_MapsBehindFromMergeStateStatus(t *testing.T) {
 }
 
 // TestFetch_MapsEmptyFromDiffstat is a regression test for a real finding
-// (homelab/vps-docker#583, the Forgejo-side counterpart already covered in
-// internal/forgejo): a pull request can be mergeable while its
-// additions/deletions/changedFiles are all 0 — its content already landed
-// on the base branch some other route, so merging it would be an empty
-// commit.
+// (the Forgejo-side counterpart already covered in internal/forgejo): a
+// pull request can be mergeable while its additions/deletions/changedFiles
+// are all 0 — its content already landed on the base branch some other
+// route, so merging it would be an empty commit.
 func TestFetch_MapsEmptyFromDiffstat(t *testing.T) {
 	t.Parallel()
 

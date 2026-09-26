@@ -336,8 +336,8 @@ func TestGenericSource_ListChecks_ClientWithoutSupport_ReturnsError(t *testing.T
 // (a real EditPullRequest with State: closed), but GenericSource — the
 // Source BuildSources actually registers for Forgejo — never forwarded it,
 // the same #455 shape ListChecks above already hit. Confirmed live: closing
-// homelab/vps-docker#596 answered "forgejo doesn't support closing pull
-// requests" even though the underlying client genuinely can.
+// a real tracked pull request answered "forgejo doesn't support closing
+// pull requests" even though the underlying client genuinely can.
 type fakeCloserClient struct {
 	fakeForgeClient
 	closeErr error
