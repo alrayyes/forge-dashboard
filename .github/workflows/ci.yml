@@ -236,7 +236,7 @@ jobs:
       - name: redocly lint
         run: bun run lint:api -- --format=github-actions
 
-  # Publishes docs/api/index.html (Stoplight Elements) to GitHub Pages,
+  # Publishes docs/api/index.html (Scalar) to GitHub Pages,
   # pointed at the same spec `api` above just linted -- gated on that job
   # rather than its own check, since a docs page built from an unlinted
   # spec isn't worth publishing. `needs:` only resolves within one workflow
