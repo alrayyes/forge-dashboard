@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -93,12 +94,63 @@ func resolveCIPollInterval(v string) time.Duration {
 }
 
 func main() {
+	// Checked before configureLogging/run: the container's own HEALTHCHECK
+	// execs this binary with "healthcheck" as its only argument, and needs
+	// nothing else this process would otherwise set up (no database, no
+	// auth service) - just a fast, self-contained answer.
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		if err := runHealthcheck(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+		return
+	}
+
 	configureLogging()
 
 	if err := run(); err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
+}
+
+// errHealthzStatus is runHealthcheck's own sentinel - err113 wants a wrapped
+// static error rather than a bare fmt.Errorf built from the status code
+// alone.
+var errHealthzStatus = errors.New("healthz check failed")
+
+// runHealthcheck exists for the container's own HEALTHCHECK: the image is
+// distroless (no shell, no curl, no wget), so there's nothing else inside it
+// that could exec a probe. Reads the same ADDR this process would otherwise
+// serve on and asks its own /healthz over loopback.
+func runHealthcheck() error {
+	addr := envOr("ADDR", ":8080")
+
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("parse addr %q: %w", addr, err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:"+port+"/healthz", nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request /healthz: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%w: /healthz returned %d", errHealthzStatus, resp.StatusCode)
+	}
+
+	return nil
 }
 
 // run holds everything main used to, restructured to return an error

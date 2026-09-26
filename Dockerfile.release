@@ -25,4 +25,11 @@ USER nonroot:nonroot
 
 EXPOSE 8080
 
+# Exec form, not shell form - distroless has no shell to interpret one. The
+# binary's own "healthcheck" argument (checked first thing in main, before
+# any of the real startup) exists for exactly this: nothing else in this
+# image (no curl, no wget) could otherwise probe /healthz.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["/forge-dashboard", "healthcheck"]
+
 ENTRYPOINT ["/forge-dashboard"]
