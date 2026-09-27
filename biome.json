@@ -24,8 +24,12 @@
     "rules": {
       "preset": "recommended",
       "nursery": {
-        "useBaseline": "warn"
+        "useBaseline": "warn",
+        "noFloatingPromises": "warn"
       }
+    },
+    "domains": {
+      "types": "all"
     }
   },
   "javascript": {
