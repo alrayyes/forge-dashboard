@@ -28,6 +28,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
+	"github.com/bradleyfalzon/ghinstallation/v2"
 	ghsdk "github.com/google/go-github/v75/github"
 )
 
@@ -58,6 +59,22 @@ type Client struct {
 	username    string
 	restClient  *ghsdk.Client
 	webhookPath string
+
+	// appAuthenticated is true for a Client built via NewAppClient — an
+	// installation token minted and silently refreshed by the Transport
+	// httpClient itself was built with (#620), not a string this Client
+	// holds and puts on every request the way token is. Fetch's own
+	// dispatch needs this as a second signal for "use GraphQL," since an
+	// App-mode Client's token field stays empty for its whole lifetime.
+	appAuthenticated bool
+
+	// permanentError, when non-empty, makes every Fetch report this forge
+	// as unreachable with this exact reason (#620) — used by
+	// NewUnreachableClient for a credential that failed to construct at
+	// all (an App installation with no PAT to fall back to), so the
+	// failure surfaces as a real forge-health error instead of the
+	// source silently never being added.
+	permanentError string
 
 	// lastRESTRate is the most recent REST rate-limit budget any REST
 	// call this Client made actually reported (#361) — GitHub tracks
@@ -145,6 +162,79 @@ func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder)
 		restClient: restClient,
 		recorder:   rec,
 	}
+}
+
+// ValidateAppPrivateKey confirms privateKeyPEM parses as a usable GitHub
+// App private key for appID (#620). Meant to be called once at process
+// startup so a malformed GITHUB_APP_PRIVATE_KEY_BASE64 fails loudly there,
+// rather than surfacing confusingly the first time some user's Settings
+// save needs it. installationID 1 is a throwaway value — this never sends
+// a real request, it only exercises ghinstallation's own PEM-parsing step.
+func ValidateAppPrivateKey(appID int64, privateKeyPEM []byte) error {
+	if _, err := ghinstallation.New(http.DefaultTransport, appID, 1, privateKeyPEM); err != nil {
+		return fmt.Errorf("github: invalid app private key: %w", err)
+	}
+
+	return nil
+}
+
+// NewAppClient returns a Client authenticated as installationID's own
+// installation of the GitHub App identified by appID/privateKeyPEM
+// (#620) — draws from that installation's own independent rate-limit
+// pool rather than the signed-in account's shared budget. Unlike
+// NewClient this can fail: ghinstallation.New parses and validates
+// privateKeyPEM itself.
+//
+// The returned Client's httpClient.Transport mints and silently
+// refreshes its own installation token on every request, so — unlike a
+// token-based Client — this one can be kept and reused for a
+// Manager/Aggregator's whole lifetime with no rebuild-on-expiry logic
+// needed.
+func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL string, recorder ...requestlog.Recorder) (*Client, error) {
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
+
+	// etagTransport is this Client's own base, exactly like NewClient's —
+	// never shared across users or across Clients (etag_transport.go's
+	// own doc comment explains why a shared cache would be wrong here).
+	// ghinstallation.New wraps it as the *outer* layer: every request's
+	// Authorization header is set by the installation-token transport,
+	// then handed down to etagTransport for its own GET-caching logic.
+	transport, err := ghinstallation.New(newETagTransport(nil), appID, installationID, privateKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("github: build app installation transport: %w", err)
+	}
+	transport.BaseURL = baseURL
+
+	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: transport}
+	restClient := ghsdk.NewClient(httpClient)
+	if u, err := url.Parse(baseURL + "/"); err == nil {
+		restClient.BaseURL = u
+	}
+
+	rec := requestlog.Recorder(requestlog.NoopRecorder{})
+	if len(recorder) > 0 && recorder[0] != nil {
+		rec = recorder[0]
+	}
+
+	return &Client{
+		httpClient:       httpClient,
+		baseURL:          baseURL,
+		graphqlURL:       baseURL + "/graphql",
+		restClient:       restClient,
+		appAuthenticated: true,
+		recorder:         rec,
+	}, nil
+}
+
+// NewUnreachableClient returns a Client whose Fetch always reports reason
+// as an unreachable GitHub forge (#620) — used when an App installation's
+// credentials fail to construct and there's no personal access token to
+// fall back to, so the failure surfaces as a real forge-health error
+// instead of the GitHub source silently never being added at all.
+func NewUnreachableClient(reason string) *Client {
+	return &Client{permanentError: reason}
 }
 
 // recordRequest builds and persists this call's own request_log entry
@@ -512,7 +602,12 @@ func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, l
 // exactly the round-trip count this exists to avoid.
 func (c *Client) Fetch(ctx context.Context) dashboard.Result {
 	switch {
-	case c.token != "":
+	case c.permanentError != "":
+		return dashboard.Result{Health: dashboard.ForgeHealth{
+			Forge: dashboard.ForgeGitHub, Reachable: false,
+			Error: c.permanentError,
+		}}
+	case c.token != "" || c.appAuthenticated:
 		return c.fetchViaGraphQL(ctx)
 	case c.username != "":
 		return c.fetchPublicViaREST(ctx)
@@ -997,7 +1092,12 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 		return fmt.Errorf("github: build graphql request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.token)
+	// App-mode (c.appAuthenticated, #620) sets no header here at all — the
+	// Transport httpClient itself was built with injects its own
+	// Authorization on every request before it reaches the wire.
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
 
 	slog.Debug("github request", "method", http.MethodPost, "url", c.graphqlURL, "cursor", variables["cursor"])
 	resp, err := c.httpClient.Do(req)

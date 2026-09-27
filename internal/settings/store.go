@@ -45,6 +45,15 @@ type Credentials struct {
 	// provision webhook credentials just to check one field.
 	Theme     string
 	UpdatedAt time.Time
+	// GitHubAppInstallationID identifies which installation of the
+	// alrayyes-automation GitHub App (#620) this user has connected — 0
+	// means none. Not a secret the way GitHubToken is (it's meaningless
+	// without the App's own private key, which never leaves server-wide
+	// config), so it isn't run through Store's AES-256-GCM cipher and is
+	// stored as a plain integer column. Wins over GitHubToken when both
+	// are set and the server has an App configured — see
+	// cmd/forge-dashboard's buildSourcesForUser.
+	GitHubAppInstallationID int64
 }
 
 // renovateRebaseLabelDefault is Renovate's own documented default for its
@@ -89,6 +98,7 @@ func (s *Store) Init(ctx context.Context) error {
 		renovate_rebase_label TEXT NOT NULL DEFAULT '',
 		filter_state TEXT NOT NULL DEFAULT '{}',
 		theme TEXT NOT NULL DEFAULT '',
+		github_app_installation_id INTEGER NOT NULL DEFAULT 0,
 		updated_at TIMESTAMP NOT NULL
 	);
 	CREATE TABLE IF NOT EXISTS webhook_deliveries (
@@ -133,6 +143,7 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 		`ALTER TABLE user_credentials ADD COLUMN renovate_rebase_label TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE user_credentials ADD COLUMN filter_state TEXT NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE user_credentials ADD COLUMN theme TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE user_credentials ADD COLUMN github_app_installation_id INTEGER NOT NULL DEFAULT 0`,
 		// Default 1 (true): a repo ignored before #511 was all-or-nothing,
 		// so it keeps ignoring both PRs and issues after upgrading.
 		`ALTER TABLE ignored_repos ADD COLUMN ignore_prs BOOLEAN NOT NULL DEFAULT 1`,
@@ -165,8 +176,8 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO user_credentials
-			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, renovate_rebase_label, theme, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, renovate_rebase_label, theme, github_app_installation_id, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (user_id) DO UPDATE SET
 			github_token = excluded.github_token,
 			github_username = excluded.github_username,
@@ -175,8 +186,9 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 			forgejo_username = excluded.forgejo_username,
 			renovate_rebase_label = excluded.renovate_rebase_label,
 			theme = excluded.theme,
+			github_app_installation_id = excluded.github_app_installation_id,
 			updated_at = excluded.updated_at`,
-		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.RenovateRebaseLabel, c.Theme, time.Now().UTC(),
+		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.RenovateRebaseLabel, c.Theme, c.GitHubAppInstallationID, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("settings: save credentials: %w", err)
@@ -192,10 +204,10 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 		encGitHubToken, encForgejoToken string
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, renovate_rebase_label, theme, updated_at
+		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, renovate_rebase_label, theme, github_app_installation_id, updated_at
 		FROM user_credentials WHERE user_id = ?`,
 		encodeUserID(userID),
-	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.RenovateRebaseLabel, &c.Theme, &c.UpdatedAt)
+	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.RenovateRebaseLabel, &c.Theme, &c.GitHubAppInstallationID, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Credentials{}, ErrNotFound
 	}

@@ -17,13 +17,18 @@ import (
 //
 // Scoped to the lifetime of one Client's own http.Client rather than
 // shared across processes or tokens: GitHub folds the Authorization
-// header into its own ETag calculation, so a cache entry from one token
-// is never valid for a different one — a problem only for something
-// that reuses a cache across rotating credentials (a GitHub App
-// installation token, say). That never happens here: a Client holds
-// exactly one token for its whole lifetime, so every cached entry was
-// always made with the same Authorization header any later request on
-// the same Client will send.
+// header into its own ETag calculation, so a cache entry from one
+// credential is never valid for a different one — a problem only for
+// something that reuses a cache across credentials. That never happens
+// here: this transport is never shared across Clients or users.
+//
+// #620: an App-mode Client's effective Authorization value does rotate
+// roughly hourly under the hood (ghinstallation's own installation-token
+// refresh), unlike a token-based Client's one fixed value for its whole
+// lifetime — but that's still just this one Client's own cache, still
+// never shared with anyone else's. A rotation makes the very next
+// request a guaranteed cache miss against an entry made under the old
+// token, which is harmless: a miss, not a wrong answer.
 type etagTransport struct {
 	base http.RoundTripper
 

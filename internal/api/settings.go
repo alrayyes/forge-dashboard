@@ -13,11 +13,16 @@ import (
 // api/openapi.yaml. Tokens are never sent back to the browser once
 // saved — *Set reports whether one is on file, not what it is.
 type SettingsResponse struct {
-	GitHubUsername  string `json:"githubUsername"`
-	GitHubTokenSet  bool   `json:"githubTokenSet"`
-	ForgejoURL      string `json:"forgejoUrl"`
-	ForgejoUsername string `json:"forgejoUsername"`
-	ForgejoTokenSet bool   `json:"forgejoTokenSet"`
+	GitHubUsername string `json:"githubUsername"`
+	GitHubTokenSet bool   `json:"githubTokenSet"`
+	// GitHubAppInstallationID and GitHubAppConfigured (#620) — see their
+	// SettingsResponse doc comments in api/openapi.yaml for the full
+	// precedence/validation story.
+	GitHubAppInstallationID int64  `json:"githubAppInstallationId"`
+	GitHubAppConfigured     bool   `json:"githubAppConfigured"`
+	ForgejoURL              string `json:"forgejoUrl"`
+	ForgejoUsername         string `json:"forgejoUsername"`
+	ForgejoTokenSet         bool   `json:"forgejoTokenSet"`
 	// WebhookToken and WebhookSecret, unlike the forge tokens above, are
 	// ours to hand back in the clear — the user has to paste them into
 	// the forge's own webhook setup, so a "set" flag alone wouldn't do.
@@ -34,17 +39,19 @@ type SettingsResponse struct {
 	Theme string `json:"theme"`
 }
 
-func settingsResponseOf(c settings.Credentials) SettingsResponse {
+func settingsResponseOf(c settings.Credentials, githubAppConfigured bool) SettingsResponse {
 	return SettingsResponse{
-		GitHubUsername:      c.GitHubUsername,
-		GitHubTokenSet:      c.GitHubToken != "",
-		ForgejoURL:          c.ForgejoURL,
-		ForgejoUsername:     c.ForgejoUsername,
-		ForgejoTokenSet:     c.ForgejoToken != "",
-		WebhookToken:        c.WebhookToken,
-		WebhookSecret:       c.WebhookSecret,
-		RenovateRebaseLabel: c.RenovateRebaseLabel,
-		Theme:               c.Theme,
+		GitHubUsername:          c.GitHubUsername,
+		GitHubTokenSet:          c.GitHubToken != "",
+		GitHubAppInstallationID: c.GitHubAppInstallationID,
+		GitHubAppConfigured:     githubAppConfigured,
+		ForgejoURL:              c.ForgejoURL,
+		ForgejoUsername:         c.ForgejoUsername,
+		ForgejoTokenSet:         c.ForgejoToken != "",
+		WebhookToken:            c.WebhookToken,
+		WebhookSecret:           c.WebhookSecret,
+		RenovateRebaseLabel:     c.RenovateRebaseLabel,
+		Theme:                   c.Theme,
 	}
 }
 
@@ -131,7 +138,7 @@ func handleThemePut(store *settings.Store) http.HandlerFunc {
 	}
 }
 
-func handleSettingsGet(store *settings.Store) http.HandlerFunc {
+func handleSettingsGet(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := auth.UserFromContext(r.Context())
 		if !ok {
@@ -140,7 +147,7 @@ func handleSettingsGet(store *settings.Store) http.HandlerFunc {
 			return
 		}
 
-		creds, err := store.Get(r.Context(), u.ID)
+		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
 
@@ -150,14 +157,14 @@ func handleSettingsGet(store *settings.Store) http.HandlerFunc {
 		// Every visit to Settings is a webhook credentials' first chance
 		// to exist — a user who never saved GitHub/Forgejo settings at
 		// all still needs a webhook URL to paste into their forge.
-		creds.WebhookToken, creds.WebhookSecret, err = store.EnsureWebhookCredentials(r.Context(), u.ID)
+		creds.WebhookToken, creds.WebhookSecret, err = deps.SettingsStore.EnsureWebhookCredentials(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load webhook credentials"))
 
 			return
 		}
 
-		writeJSON(w, http.StatusOK, settingsResponseOf(creds))
+		writeJSON(w, http.StatusOK, settingsResponseOf(creds, deps.GitHubAppConfigured))
 	}
 }
 
@@ -167,12 +174,17 @@ func handleSettingsGet(store *settings.Store) http.HandlerFunc {
 // Every other field is a plain replace: an intentionally blanked
 // GitHubUsername, say, really does clear it.
 type settingsPutRequest struct {
-	GitHubToken         string `json:"githubToken"`
-	GitHubUsername      string `json:"githubUsername"`
-	ForgejoURL          string `json:"forgejoUrl"`
-	ForgejoToken        string `json:"forgejoToken"`
-	ForgejoUsername     string `json:"forgejoUsername"`
-	RenovateRebaseLabel string `json:"renovateRebaseLabel"`
+	GitHubToken    string `json:"githubToken"`
+	GitHubUsername string `json:"githubUsername"`
+	// GitHubAppInstallationID (#620) is a plain replace like
+	// GitHubUsername, not coalesced like the token fields — 0 or omitted
+	// really does disconnect the App. See handleSettingsPut's own
+	// validation for why a non-zero value needs deps.GitHubAppConfigured.
+	GitHubAppInstallationID int64  `json:"githubAppInstallationId"`
+	ForgejoURL              string `json:"forgejoUrl"`
+	ForgejoToken            string `json:"forgejoToken"`
+	ForgejoUsername         string `json:"forgejoUsername"`
+	RenovateRebaseLabel     string `json:"renovateRebaseLabel"`
 }
 
 func handleSettingsPut(deps Deps) http.HandlerFunc {
@@ -199,12 +211,13 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		}
 
 		merged := settings.Credentials{
-			GitHubToken:         coalesce(req.GitHubToken, existing.GitHubToken),
-			GitHubUsername:      req.GitHubUsername,
-			ForgejoURL:          req.ForgejoURL,
-			ForgejoToken:        coalesce(req.ForgejoToken, existing.ForgejoToken),
-			ForgejoUsername:     req.ForgejoUsername,
-			RenovateRebaseLabel: req.RenovateRebaseLabel,
+			GitHubToken:             coalesce(req.GitHubToken, existing.GitHubToken),
+			GitHubUsername:          req.GitHubUsername,
+			GitHubAppInstallationID: req.GitHubAppInstallationID,
+			ForgejoURL:              req.ForgejoURL,
+			ForgejoToken:            coalesce(req.ForgejoToken, existing.ForgejoToken),
+			ForgejoUsername:         req.ForgejoUsername,
+			RenovateRebaseLabel:     req.RenovateRebaseLabel,
 			// Theme isn't part of this request at all — it has its own
 			// dedicated PUT /api/settings/theme (handleThemePut) so
 			// picking it applies and saves instantly rather than
@@ -230,6 +243,20 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 
 			return
 		}
+		if req.GitHubAppInstallationID < 0 {
+			writeJSON(w, http.StatusBadRequest, errorBody("githubAppInstallationId must be positive"))
+
+			return
+		}
+		// #620: a saved installation ID this server can never actually
+		// exercise (no GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY_BASE64
+		// configured) is worse than an error at save time — the same
+		// "this can never work" reasoning as the Forgejo-URL check above.
+		if merged.GitHubAppInstallationID != 0 && !deps.GitHubAppConfigured {
+			writeJSON(w, http.StatusBadRequest, errorBody("this server has no GitHub App configured; githubAppInstallationId cannot be set"))
+
+			return
+		}
 
 		if err := deps.SettingsStore.Set(r.Context(), u.ID, merged); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save settings"))
@@ -242,7 +269,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// request that started it.
 		deps.Manager.Ensure(deps.AppContext, u.ID, deps.BuildSources(u.ID, merged))
 
-		writeJSON(w, http.StatusOK, settingsResponseOf(merged))
+		writeJSON(w, http.StatusOK, settingsResponseOf(merged, deps.GitHubAppConfigured))
 	}
 }
 
