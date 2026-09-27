@@ -244,6 +244,48 @@ test.describe('pull request Enable auto-merge action', () => {
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
   });
 
+  // #621: GitHub's enablePullRequestAutoMerge mutation rejects a PR its
+  // own web UI happily arms auto-merge on — a non-required check still
+  // pending/failing while required ones pass ("unstable" mergeable_state).
+  // No status code of its own (502, same as any other unclassified
+  // GraphQL failure — see the "transient failure" case above), so this is
+  // matched on the real forge message text, same technique
+  // reactiveMergeLockReason's own 409 case already uses. The button stays
+  // retryable exactly like that other unclassified-502 case above —
+  // arming ahead of CI settling is the point of the feature, so a failed
+  // attempt here must not lock it out.
+  test('an unstable-status (502) failure explains what "unstable" means instead of showing the raw GraphQL error, and still re-enables the button', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/auto-merge', (route) =>
+      route.fulfill({
+        status: 502,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error:
+            'github: graphql: Pull request Pull request is in unstable status when enabling auto merge for https://github.com/alrayyes/forge-dashboard/pull/42',
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
+    const button = row.getByRole('button', { name: 'Enable auto-merge' });
+    await button.click();
+
+    const banner = page.locator('#error-banner');
+    await expect(banner).toContainText(
+      'a non-required check is still running or has failed',
+    );
+    await expect(banner).not.toContainText('graphql');
+    await expect(banner).not.toContainText('unstable status when enabling');
+    await expect(button).toBeVisible();
+    await expect(button).toBeEnabled();
+    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
   test('a permission-denied failure locks the button for good instead of inviting another try', async ({
     page,
   }) => {

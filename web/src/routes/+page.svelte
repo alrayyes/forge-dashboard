@@ -953,6 +953,27 @@
       return null;
     }
 
+    // #621: GitHub's enablePullRequestAutoMerge mutation rejects a PR
+    // whose mergeable_state is "unstable" (a non-required check still
+    // pending/failing while required ones pass) — a real GitHub API
+    // quirk, since GitHub's own web UI allows arming auto-merge in this
+    // exact state, which is the whole point of the feature. That
+    // rejection carries no status of its own (502, same as any other
+    // unclassified GraphQL failure — reactiveAutoMergeLockReason's own
+    // comment above), so like reactiveMergeLockReason's 409 case, this is
+    // matched on the forge's real message text rather than a status
+    // code. Unlike that 409 case, the result isn't a lock reason: this
+    // failure is meant to be retried once checks settle (arming ahead of
+    // CI is the point), so it only swaps the banner's wording, leaving
+    // reactiveAutoMergeLockReason's null (idle, button re-enabled) return
+    // for this status untouched.
+    function friendlyAutoMergeErrorMessage(message: string): string {
+      if (/\bis in unstable status\b/i.test(message)) {
+        return "GitHub reports this pull request as unstable — a non-required check is still running or has failed. Try again once it settles.";
+      }
+      return message;
+    }
+
     // No confirm step — arming auto-merge doesn't merge anything by
     // itself, the same reasoning doUpdateBranch's own comment gives.
     function doEnableAutoMerge(
@@ -1019,7 +1040,7 @@
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
           clearStatus();
           showError(
-            `Couldn't enable auto-merge for ${item.repo}#${item.number}: ${err.message}`,
+            `Couldn't enable auto-merge for ${item.repo}#${item.number}: ${friendlyAutoMergeErrorMessage(err.message)}`,
           );
           renderPRBoard();
         });
