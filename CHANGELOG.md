@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.99.1](https://github.com/alrayyes/forge-dashboard/compare/v0.99.0...v0.99.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* **dashboard:** dedupe locked row actions that render as generic Retry ([#616](https://github.com/alrayyes/forge-dashboard/issues/616)) ([3ce8e6f](https://github.com/alrayyes/forge-dashboard/commit/3ce8e6f84c19342295f5bb802224f3ff25b13ac5)), closes [#516](https://github.com/alrayyes/forge-dashboard/issues/516)
+
 ## [0.99.0](https://github.com/alrayyes/forge-dashboard/compare/v0.98.0...v0.99.0) (2026-09-27)
 
 
