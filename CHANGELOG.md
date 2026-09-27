@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.100.0](https://github.com/alrayyes/forge-dashboard/compare/v0.99.1...v0.100.0) (2026-09-27)
+
+
+### Features
+
+* **github:** support connecting via a GitHub App installation ([#622](https://github.com/alrayyes/forge-dashboard/issues/622)) ([193115f](https://github.com/alrayyes/forge-dashboard/commit/193115f4c6e31e683305b4c581e217274a319de7)), closes [#620](https://github.com/alrayyes/forge-dashboard/issues/620)
+
 ## [0.99.1](https://github.com/alrayyes/forge-dashboard/compare/v0.99.0...v0.99.1) (2026-09-27)
 
 
