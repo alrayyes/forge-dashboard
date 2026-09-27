@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.100.1](https://github.com/alrayyes/forge-dashboard/compare/v0.100.0...v0.100.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* **github:** discover App-installation repos via REST, not viewer ([#626](https://github.com/alrayyes/forge-dashboard/issues/626)) ([6284b2b](https://github.com/alrayyes/forge-dashboard/commit/6284b2b02516c0cca94478e0028b6c7717229b9d))
+
 ## [0.100.0](https://github.com/alrayyes/forge-dashboard/compare/v0.99.1...v0.100.0) (2026-09-27)
 
 
