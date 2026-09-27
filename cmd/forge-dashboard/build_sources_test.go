@@ -97,12 +97,17 @@ func generateTestGitHubAppPrivateKeyPEM() []byte {
 	})
 }
 
-// githubAppTestServer serves both the installation-token-minting endpoint
-// and /graphql, reporting back which Authorization scheme actually
-// reached it — "token ..." for an App installation, "Bearer ..." for a
-// personal access token — so a test can prove which credential
-// buildGitHubSource actually picked without needing to inspect the
-// *github.Client's own unexported fields.
+// githubAppTestServer serves the installation-token-minting endpoint,
+// GET /installation/repositories (fetchAppRepos' own repo-discovery
+// call — #625) and /graphql, reporting back which Authorization scheme
+// actually reached it — "token ..." for an App installation, "Bearer
+// ..." for a personal access token — so a test can prove which
+// credential buildGitHubSource actually picked without needing to
+// inspect the *github.Client's own unexported fields. The installation
+// listing returns zero repos: these tests only care which credential
+// won, not what it fetched, and fetchAppRepos captures the same auth
+// header on that REST call before it would ever reach /graphql for an
+// empty repo list.
 func githubAppTestServer(t *testing.T) (srv *httptest.Server, lastAuthHeader *string) {
 	t.Helper()
 	lastAuthHeader = new(string)
@@ -111,6 +116,11 @@ func githubAppTestServer(t *testing.T) (srv *httptest.Server, lastAuthHeader *st
 	mux.HandleFunc("/app/installations/42/access_tokens", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"token":"installation-token-value","expires_at":"` + time.Now().Add(time.Hour).UTC().Format(time.RFC3339) + `"}`))
+	})
+	mux.HandleFunc("/installation/repositories", func(w http.ResponseWriter, r *http.Request) {
+		*lastAuthHeader = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"total_count":0,"repositories":[]}`))
 	})
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		*lastAuthHeader = r.Header.Get("Authorization")
