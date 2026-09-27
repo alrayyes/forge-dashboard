@@ -271,6 +271,11 @@ token too.
   calls are capped at **60 requests/hour**, so this mode only sees
   everything on an account small enough to fit that budget — a token
   (5,000/hour) is what an account this size actually needs.
+- **GitHub App installation** (operator opt-in): if this deployment has
+  a GitHub App configured, a field next to the token lets you connect
+  an installation instead — its own independent rate-limit budget
+  rather than your account's shared one. See **GitHub App support**
+  under **Configuration**.
 
 ### Forgejo
 
@@ -383,16 +388,18 @@ Everything the process itself needs is environment variables — no
 config file, and nothing forge-related, since that's per-user now (see
 the preceding **Credentials** section):
 
-| Variable           | Required | Default                    | Meaning                                                                                                                                                                                                                                                                            |
-| ------------------ | -------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ADDR`             | no       | `:8080`                    | Listen address.                                                                                                                                                                                                                                                                    |
-| `DB_PATH`          | no       | `/data/forge-dashboard.db` | Where passkeys, sessions, and every user's encrypted forge credentials live.                                                                                                                                                                                                       |
-| `RP_ID`            | no       | `localhost`                | The WebAuthn relying party ID — set to your real domain in any real deployment.                                                                                                                                                                                                    |
-| `RP_ORIGIN`        | no       | `http://localhost:8080`    | The WebAuthn relying party origin — set to the real `https://` origin users reach this at.                                                                                                                                                                                         |
-| `ENCRYPTION_KEY`   | **yes**  | —                          | Base64-encoded 32-byte key for encrypting forge tokens at rest. Generate with `openssl rand -base64 32`.                                                                                                                                                                           |
-| `REFRESH_INTERVAL` | no       | `20m`                      | How often the backend re-polls a signed-in user's forges, as a Go duration (`2m30s`, `10m`). A safety net now that every tracked repo gets a webhook — lower it if you're not relying on those.                                                                                    |
-| `CI_POLL_INTERVAL` | no       | `1m`                       | How often the backend re-checks just the open pull requests whose CI is still pending, as a Go duration. A fallback for real Forgejo instances that silently drop the webhook event CI status rides on (see `docs/webhooks.md`) — set to `0s` to turn it off if you don't need it. |
-| `LOG_LEVEL`        | no       | `info`                     | `debug`, `info`, `warn`, or `error`. `debug` logs every outbound request to GitHub/Forgejo (method, URL) — turn it on to diagnose a request-volume spike from the process's own logs instead of reasoning about the code from the outside.                                         |
+| Variable                        | Required                           | Default                    | Meaning                                                                                                                                                                                                                                                                            |
+| ------------------------------- | ---------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ADDR`                          | no                                 | `:8080`                    | Listen address.                                                                                                                                                                                                                                                                    |
+| `DB_PATH`                       | no                                 | `/data/forge-dashboard.db` | Where passkeys, sessions, and every user's encrypted forge credentials live.                                                                                                                                                                                                       |
+| `RP_ID`                         | no                                 | `localhost`                | The WebAuthn relying party ID — set to your real domain in any real deployment.                                                                                                                                                                                                    |
+| `RP_ORIGIN`                     | no                                 | `http://localhost:8080`    | The WebAuthn relying party origin — set to the real `https://` origin users reach this at.                                                                                                                                                                                         |
+| `ENCRYPTION_KEY`                | **yes**                            | —                          | Base64-encoded 32-byte key for encrypting forge tokens at rest. Generate with `openssl rand -base64 32`.                                                                                                                                                                           |
+| `GITHUB_APP_ID`                 | no                                 | —                          | The numeric ID of a GitHub App this deployment lets users connect instead of pasting a personal access token — see **GitHub App support** below. Unset means the option doesn't exist at all; no other GitHub behaviour changes.                                                   |
+| `GITHUB_APP_PRIVATE_KEY_BASE64` | **yes, if `GITHUB_APP_ID` is set** | —                          | Base64-encoded PEM private key for that App, downloaded from its GitHub settings page. Validated at startup — a malformed key fails loudly there, the same way a bad `ENCRYPTION_KEY` does.                                                                                        |
+| `REFRESH_INTERVAL`              | no                                 | `20m`                      | How often the backend re-polls a signed-in user's forges, as a Go duration (`2m30s`, `10m`). A safety net now that every tracked repo gets a webhook — lower it if you're not relying on those.                                                                                    |
+| `CI_POLL_INTERVAL`              | no                                 | `1m`                       | How often the backend re-checks just the open pull requests whose CI is still pending, as a Go duration. A fallback for real Forgejo instances that silently drop the webhook event CI status rides on (see `docs/webhooks.md`) — set to `0s` to turn it off if you don't need it. |
+| `LOG_LEVEL`                     | no                                 | `info`                     | `debug`, `info`, `warn`, or `error`. `debug` logs every outbound request to GitHub/Forgejo (method, URL) — turn it on to diagnose a request-volume spike from the process's own logs instead of reasoning about the code from the outside.                                         |
 
 Repository discovery is automatic per user. With a token, the dashboard
 lists every repository it has push access to — on GitHub, one GraphQL
@@ -408,6 +415,37 @@ repositories are excluded automatically, on both forges, in either mode.
 On Forgejo, a mirrored repository is excluded too — a pull mirror has no
 pull requests or issues of its own to poll, and its canonical home is
 whichever forge it's mirrored from.
+
+### GitHub App support
+
+GitHub's primary rate limit (5,000 requests/hour, both REST and GraphQL)
+is scoped to the _account_, not the token — a personal access token's
+polling shares that exact budget with anything else acting as that same
+account: your own use of `gh`, other tools, CI. A GitHub App
+installation token draws from that installation's own independent
+budget instead, so this is worth setting up once your account's own
+usage is bumping into the shared limit.
+
+To offer this to your users:
+
+1. [Register a GitHub App](https://github.com/settings/apps/new) —
+   any name, no webhook needed. Grant it Contents, Issues, and Pull
+   requests (read and write), which is what "Add a webhook" and repo
+   discovery need; Metadata (read) comes along automatically.
+2. Generate a private key on the App's own settings page, then
+   base64-encode the downloaded `.pem`: `base64 -w0 your-key.pem`.
+3. Set `GITHUB_APP_ID` (the numeric ID the App's settings page shows)
+   and `GITHUB_APP_PRIVATE_KEY_BASE64` (the value from step 2) on the
+   deployment and restart it — a malformed key fails at startup, not on
+   a user's first save.
+
+From there it's per-user, from Settings: each person installs the App
+on their own GitHub account (its own settings page → **Install App**)
+and pastes the installation ID GitHub shows them into the new field
+next to their token. An installation always wins over a saved token
+when both are set — the token stays as an unused fallback rather than
+being cleared. Leave `GITHUB_APP_ID` unset and the field simply doesn't
+appear; nothing else about GitHub credentials changes.
 
 ## Running it
 
