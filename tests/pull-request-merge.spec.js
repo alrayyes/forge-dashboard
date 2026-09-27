@@ -709,7 +709,7 @@ test.describe('pull request merge button', () => {
       await expect(row).not.toContainText(/unreachable/i);
     });
 
-    test('a mergeable PR that is also behind its base branch, on an unreachable forge, shows each locked action its own on-demand reason without cluttering the row (#516, #572)', async ({
+    test('a mergeable PR that is also behind its base branch, on an unreachable forge, shows a single Retry for the shared forge-wide reason (#516, #609)', async ({
       page,
     }) => {
       await mockDashboardCustom(
@@ -721,28 +721,29 @@ test.describe('pull request merge button', () => {
 
       const row = page.locator('#pr-rows .row').first();
       // Update branch, Merge and Close are all locked for the same
-      // forge-wide reason at once here — each keeps its own Retry button
-      // (still independently clickable/aria-disabled) and its own reason
-      // node, wired via aria-describedby (#572's per-button tooltip
-      // replaced #516's DOM-level dedupe: on-demand reveal on :hover/
-      // :focus-within means three identical reason nodes can never be
-      // visible at once, so the "renders only once" guarantee #516 built
-      // by removing nodes from the DOM now comes from each one starting
-      // hidden instead).
+      // forge-wide reason at once here. #572's per-button tooltip made
+      // the *reason text* on-demand (hover/focus) instead of always
+      // visible, but each locked action still renders its own always-
+      // visible button — and since all three of these render the same
+      // generic "Retry" label (lockedActionButton's onRetry branch),
+      // that regressed #516's original fix: three pixel-identical
+      // buttons stacked in one row, confirmed live via screenshot
+      // against alrayyes/alrayyes.github.io#17. dedupeRetryButtons
+      // collapses them back down to the one that actually matters —
+      // clicking any of them would trigger the exact same
+      // retryLockedAction refresh anyway.
       const retryButtons = row.getByRole('button', { name: 'Retry' });
-      await expect(retryButtons).toHaveCount(3);
+      await expect(retryButtons).toHaveCount(1);
       const reasons = row.locator('.row-action-reason');
-      await expect(reasons).toHaveCount(3);
+      await expect(reasons).toHaveCount(1);
       // Hidden with opacity/pointer-events, not display/visibility (see
       // the CSS's own comment on why), so toBeVisible() can't tell these
       // apart from shown -- assert the opacity itself instead.
-      for (const reason of await reasons.all()) {
-        await expect(reason).toHaveText('See the forge status above.');
-        await expect(reason).toHaveCSS('opacity', '0');
-      }
+      await expect(reasons).toHaveText('See the forge status above.');
+      await expect(reasons).toHaveCSS('opacity', '0');
 
-      await retryButtons.first().focus();
-      await expect(reasons.first()).toHaveCSS('opacity', '1');
+      await retryButtons.focus();
+      await expect(reasons).toHaveCSS('opacity', '1');
     });
 
     test('a mergeable PR on a forge with an exhausted rate-limit budget shows a locked Merge button', async ({
