@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.99.0](https://github.com/alrayyes/forge-dashboard/compare/v0.98.0...v0.99.0) (2026-09-27)
+
+
+### Features
+
+* **ci:** add Lighthouse CI for performance/best-practices/SEO budgets ([#614](https://github.com/alrayyes/forge-dashboard/issues/614)) ([57aacfb](https://github.com/alrayyes/forge-dashboard/commit/57aacfb60c4916363286e6a6622d0758ba861eec)), closes [#613](https://github.com/alrayyes/forge-dashboard/issues/613)
+
 ## [0.98.0](https://github.com/alrayyes/forge-dashboard/compare/v0.97.1...v0.98.0) (2026-09-27)
 
 
