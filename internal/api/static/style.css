@@ -1146,6 +1146,33 @@ select.col-filter {
   background: var(--accent);
   color: var(--accent-ink);
 }
+/* lockedActionButton's own decorative hint (aria-hidden — the real
+   explanation is aria-describedby, this is sighted-only) — a small badge
+   overlapping the button's own corner, the same "something's attached
+   here" shape a notification dot uses, rather than a word inline that'd
+   change the button's own visual label. pointer-events:none so it never
+   steals the hover/focus that reveals .row-action-reason out from under
+   the button or wrap it's layered on top of. */
+.row-action-locked-hint {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--ink-3);
+  font-size: 9px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  pointer-events: none;
+}
 .row-action-reason {
   position: absolute;
   top: calc(100% + 6px);

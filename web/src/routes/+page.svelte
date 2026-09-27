@@ -554,6 +554,17 @@
         button.setAttribute("aria-disabled", "true");
       }
       wrap.appendChild(button);
+      // Purely decorative -- the real explanation is already reachable via
+      // aria-describedby regardless of whether this renders, so it never
+      // gets its own accessible name (aria-hidden) or duplicates the
+      // reason for a screen reader. Its only job is signaling to a
+      // sighted mouse/keyboard user that hovering or focusing this button
+      // reveals more: nothing about a plain greyed-out button otherwise
+      // suggests that, and the reason bubble itself stays invisible until
+      // that happens (row-action-reason's own opacity:0 default).
+      const hint = el("span", "row-action-locked-hint", "i");
+      hint.setAttribute("aria-hidden", "true");
+      wrap.appendChild(hint);
       const reason = el("span", "row-action-reason", reasonText);
       reason.id = reasonId;
       reason.setAttribute("role", "tooltip");
