@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.100.2](https://github.com/alrayyes/forge-dashboard/compare/v0.100.1...v0.100.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **dashboard:** explain an unstable auto-merge failure in plain language ([#628](https://github.com/alrayyes/forge-dashboard/issues/628)) ([b0e5df2](https://github.com/alrayyes/forge-dashboard/commit/b0e5df21be5467d6e4496c164e0bfcbedcf7614a)), closes [#621](https://github.com/alrayyes/forge-dashboard/issues/621)
+
 ## [0.100.1](https://github.com/alrayyes/forge-dashboard/compare/v0.100.0...v0.100.1) (2026-09-27)
 
 
