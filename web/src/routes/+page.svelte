@@ -1147,7 +1147,15 @@
         return wrap;
       }
 
-      const closeButton = buttonEl("row-action", "Close");
+      // "suggested" when there's nothing to merge (mergeActionCell's own
+      // item.empty branch) -- Merge stays visible-and-locked there rather
+      // than disappearing (a past incident: a vanished Merge button with
+      // no explanation read as broken, not as "nothing to do here"), so
+      // Close gets the visual nudge instead of Merge losing its own.
+      const closeButton = buttonEl(
+        item.empty ? "row-action suggested" : "row-action",
+        "Close",
+      );
       closeButton.type = "button";
       closeButton.addEventListener("click", () => {
         closeState[key] = { phase: "confirming" };

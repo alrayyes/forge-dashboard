@@ -1098,6 +1098,15 @@ select.col-filter {
   background: var(--neutral-bg);
   color: var(--ink-3);
 }
+/* closeActionCell's own "nothing to merge, Close is the right move here"
+   nudge -- --good rather than --warning/--critical, since there's nothing
+   wrong with the pull request, just nothing left for Merge to do. Border/
+   background only, same shape as every other .row-action variant, so this
+   still reads as a real button rather than a status badge. */
+.row-action.suggested {
+  background: var(--good-bg);
+  color: var(--good);
+}
 .row-action-group {
   position: relative;
   z-index: 1;
