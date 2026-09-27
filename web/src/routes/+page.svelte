@@ -412,6 +412,7 @@
         ].filter((cell): cell is HTMLElement => cell !== null);
         const moreActions = moreActionsCell(pr, secondaryActions);
         if (moreActions) statusCell.appendChild(moreActions);
+        dedupeRetryButtons(statusCell);
         meta.appendChild(statusCell);
       } else {
         meta.appendChild(el("div", "empty-cell"));
@@ -570,6 +571,40 @@
       reason.setAttribute("role", "tooltip");
       wrap.appendChild(reason);
       return wrap;
+    }
+
+    // #516 regressed by #573: that PR dropped the per-row reason-text
+    // dedup on the theory that hiding the reason behind hover/focus meant
+    // "the same clutter can't happen" -- true for the text, but it missed
+    // that Merge/Update-branch/Close all render the *button itself* as
+    // the generic label "Retry" (lockedActionButton's onRetry branch)
+    // whenever they're locked, so two of them sharing one forge-wide
+    // reason are two pixel-identical, always-visible buttons regardless
+    // of whether the reason text under them is deduped. Confirmed live,
+    // screenshot against alrayyes/alrayyes.github.io#17.
+    //
+    // Scoped to buttons whose visible label is literally "Retry" --
+    // Dependabot/Renovate's own locked actions keep their distinct labels
+    // (Rebase/Recreate) and are never touched, since #517's original
+    // design deliberately kept those visible even sharing a reason: they
+    // aren't confusable with each other the way two "Retry"s are.
+    function dedupeRetryButtons(statusCell: HTMLElement) {
+      const seenReasons = new Set<string>();
+      for (const locked of Array.from(
+        statusCell.querySelectorAll<HTMLElement>(".row-action-locked"),
+      )) {
+        const button = locked.querySelector<HTMLButtonElement>(".row-action");
+        if (button?.textContent !== "Retry") continue;
+        const reasonText =
+          locked.querySelector<HTMLElement>(".row-action-reason")
+            ?.textContent ?? "";
+        if (!reasonText) continue;
+        if (seenReasons.has(reasonText)) {
+          locked.remove();
+        } else {
+          seenReasons.add(reasonText);
+        }
+      }
     }
 
     // Clears every "locked for good" entry in a merge/update-branch
