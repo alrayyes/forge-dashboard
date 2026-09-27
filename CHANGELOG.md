@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.98.0](https://github.com/alrayyes/forge-dashboard/compare/v0.97.1...v0.98.0) (2026-09-27)
+
+
+### Features
+
+* **dashboard:** add a hover-hint badge to locked action buttons ([#609](https://github.com/alrayyes/forge-dashboard/issues/609)) ([453c080](https://github.com/alrayyes/forge-dashboard/commit/453c08019647db323e74447cd43793f862d55cdf)), closes [#607](https://github.com/alrayyes/forge-dashboard/issues/607)
+* **dashboard:** highlight Close when a pull request has nothing to merge ([#608](https://github.com/alrayyes/forge-dashboard/issues/608)) ([32b170d](https://github.com/alrayyes/forge-dashboard/commit/32b170d79597b6a17fc5c7b4cee60f7b1f212455)), closes [#606](https://github.com/alrayyes/forge-dashboard/issues/606)
+
 ## [0.97.1](https://github.com/alrayyes/forge-dashboard/compare/v0.97.0...v0.97.1) (2026-09-26)
 
 
