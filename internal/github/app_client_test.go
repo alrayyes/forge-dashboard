@@ -62,14 +62,24 @@ func TestNewAppClient_MalformedKey_ReturnsError(t *testing.T) {
 // case here needs a second one.
 const testInstallationID = 1
 
-// appInstallationTestServer serves both the installation-token-minting
-// endpoint ghinstallation's Transport calls internally and the /graphql
-// endpoint a real Fetch exercises — the same single-httptest.Server
-// pattern this package's token-based tests already use for baseURL
-// overrides, just with one more route. mintCount lets a test assert the
-// mint endpoint was actually hit, so a passing Fetch can't be accidentally
-// explained by silently falling through to the unauthenticated REST path
-// instead of GraphQL.
+// appInstallationTestServer serves the installation-token-minting
+// endpoint ghinstallation's Transport calls internally, GET
+// /installation/repositories (fetchAppRepos' own repo-discovery call —
+// #625), and /graphql for the batched per-repo query fetchAppRepos runs
+// against whatever that listing returned. This replaces an earlier
+// version of this fixture that faked a working `viewer.repositories`
+// GraphQL response for App mode — that's not how real GitHub behaves
+// for an installation token (a GitHub App installation access token has
+// no associated user, so `viewer` has no repositories connection to
+// hang affiliations off of), and no test built against that fake mock
+// ever caught #625 because of it. mintCount lets a test assert the mint
+// endpoint was actually hit, so a passing Fetch can't be accidentally
+// explained by silently falling through to the unauthenticated REST
+// path instead of GraphQL.
+//
+// The fixture is two repos, r0 with one open pull request and r1 with
+// one open issue, aliased in that order because fetchAppRepos batches
+// candidates in the order GET /installation/repositories returned them.
 func appInstallationTestServer(t *testing.T) (srv *httptest.Server, mintCount *int, lastAuthHeader *string) {
 	t.Helper()
 	mintCount = new(int)
@@ -84,15 +94,50 @@ func appInstallationTestServer(t *testing.T) (srv *httptest.Server, mintCount *i
 			"expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
 		})
 	})
+	mux.HandleFunc("/installation/repositories", func(w http.ResponseWriter, r *http.Request) {
+		*lastAuthHeader = r.Header.Get("Authorization")
+		writeJSON(t, w, map[string]any{
+			"total_count": 2,
+			"repositories": []map[string]any{
+				{"name": "repo-one", "full_name": "alrayyes/repo-one", "html_url": "https://github.com/alrayyes/repo-one", "fork": false, "archived": false, "owner": map[string]any{"login": "alrayyes"}},
+				{"name": "repo-two", "full_name": "alrayyes/repo-two", "html_url": "https://github.com/alrayyes/repo-two", "fork": false, "archived": false, "owner": map[string]any{"login": "alrayyes"}},
+			},
+		})
+	})
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		*lastAuthHeader = r.Header.Get("Authorization")
 		writeJSON(t, w, map[string]any{
 			"data": map[string]any{
-				"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
-				"viewer": map[string]any{
-					"repositories": map[string]any{
-						"pageInfo": map[string]any{"hasNextPage": false},
-						"nodes":    []map[string]any{},
+				"rateLimit": map[string]any{"limit": 5000, "cost": 2, "remaining": 4998, "resetAt": "2026-09-14T16:00:00Z"},
+				"r0": map[string]any{
+					"pullRequests": map[string]any{
+						"nodes": []map[string]any{
+							{
+								"number": 7, "title": "Fix the thing", "url": "https://github.com/alrayyes/repo-one/pull/7",
+								"isDraft": false, "author": map[string]any{"login": "alrayyes"},
+								"mergeStateStatus": "CLEAN", "headRefOid": "deadbeef",
+								"additions": 3, "deletions": 1, "changedFiles": 2,
+								"labels":    map[string]any{"nodes": []map[string]any{}},
+								"createdAt": "2026-09-20T10:00:00Z", "updatedAt": "2026-09-20T10:00:00Z",
+								"commits": map[string]any{"nodes": []map[string]any{{"commit": map[string]any{"statusCheckRollup": map[string]any{"state": "SUCCESS"}}}}},
+							},
+						},
+					},
+					"issuesTotal": map[string]any{"totalCount": 0},
+					"issues":      map[string]any{"nodes": []map[string]any{}},
+				},
+				"r1": map[string]any{
+					"pullRequests": map[string]any{"nodes": []map[string]any{}},
+					"issuesTotal":  map[string]any{"totalCount": 1},
+					"issues": map[string]any{
+						"nodes": []map[string]any{
+							{
+								"number": 3, "title": "Something's broken", "url": "https://github.com/alrayyes/repo-two/issues/3",
+								"author":    map[string]any{"login": "alrayyes"},
+								"labels":    map[string]any{"nodes": []map[string]any{}},
+								"createdAt": "2026-09-21T10:00:00Z", "updatedAt": "2026-09-21T10:00:00Z",
+							},
+						},
 					},
 				},
 			},
@@ -114,6 +159,31 @@ func TestAppClient_Fetch_UsesGraphQLPath(t *testing.T) {
 	result := client.Fetch(t.Context())
 
 	require.True(t, result.Health.Reachable)
+}
+
+// TestAppClient_Fetch_ReturnsInstallationRepositoriesPRsAndIssues is the
+// test #625 shipped without: every other case in this file only ever
+// asserted Health.Reachable, which stayed true even when the old
+// viewer-based query silently returned zero repos for an installation
+// token. This asserts the actual repo/PR/issue counts fetchAppRepos'
+// REST + batched-GraphQL discovery is supposed to produce.
+func TestAppClient_Fetch_ReturnsInstallationRepositoriesPRsAndIssues(t *testing.T) {
+	t.Parallel()
+
+	srv, _, _ := appInstallationTestServer(t)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+	assert.Equal(t, 2, result.Health.RepoCount)
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, "alrayyes/repo-one", result.PullRequests[0].Repo)
+	assert.Equal(t, 7, result.PullRequests[0].Number)
+	require.Len(t, result.Issues, 1)
+	assert.Equal(t, "alrayyes/repo-two", result.Issues[0].Repo)
+	assert.Equal(t, 3, result.Issues[0].Number)
 }
 
 func TestAppClient_Fetch_MintsAnInstallationToken(t *testing.T) {

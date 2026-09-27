@@ -45,6 +45,14 @@ const perPage = 100
 // tradeoff worth revisiting if it ever bites a real account.
 const itemsPerRepo = 50
 
+// appRepoBatchSize bounds how many repos' pull requests/issues one
+// aliased GraphQL request asks for at once in fetchAppRepos — a GitHub
+// App installation token has no "viewer" to hang a single
+// repositories(...) connection off of (#625), so that path batches the
+// REST-discovered repo list into aliased repository(owner:,name:)
+// fields instead of one connection.
+const appRepoBatchSize = 20
+
 // Client talks to GitHub, either as an authenticated user (a token,
 // GraphQL) or anonymously against one user's public repositories (a
 // username, no token, REST — GraphQL allows no anonymous access at all).
@@ -1064,6 +1072,215 @@ query($cursor: String, $since: DateTime) {
 
 var reposQuery = fmt.Sprintf(reposQueryTemplate, itemsPerRepo)
 
+// appRepoFieldsTemplate is the per-repo pull-request/issue selection
+// fetchAppRepos embeds once per alias in its batched query — the same
+// shape reposQueryTemplate's own node selection uses, minus
+// isArchived/isFork/owner/viewerPermission: fetchAppRepos already has
+// those from the REST installation/repositories listing that names
+// each repo in the first place, and there's no viewerPermission to ask
+// an installation token's "viewer" for (#625).
+const appRepoFieldsTemplate = `
+    pullRequests(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
+      nodes {
+        number
+        title
+        url
+        isDraft
+        author {
+          login
+        }
+        mergeStateStatus
+        headRefOid
+        additions
+        deletions
+        changedFiles
+        autoMergeRequest {
+          mergeMethod
+        }
+        labels(first: 20) {
+          nodes {
+            name
+            color
+          }
+        }
+        createdAt
+        updatedAt
+        commits(last: 1) {
+          nodes {
+            commit {
+              statusCheckRollup {
+                state
+              }
+            }
+          }
+        }
+      }
+    }
+    issuesTotal: issues(states: OPEN) {
+      totalCount
+    }
+    issues(states: OPEN, first: %[1]d, filterBy: {since: $since}, orderBy: {field: CREATED_AT, direction: DESC}) {
+      nodes {
+        number
+        title
+        url
+        author {
+          login
+        }
+        labels(first: 20) {
+          nodes {
+            name
+            color
+          }
+        }
+        createdAt
+        updatedAt
+      }
+    }
+`
+
+var appRepoFields = fmt.Sprintf(appRepoFieldsTemplate, itemsPerRepo)
+
+// buildAppRepoQuery returns the GraphQL query and its variables for one
+// batch of repos, aliasing each as r0, r1, ... since repository(owner:,
+// name:) can only appear once per query under its own name. Variables
+// carry every repo's owner/name rather than the query text, the same
+// injection-avoidance reason every other query in this file uses
+// variables for user-controlled values.
+func buildAppRepoQuery(repos []*ghsdk.Repository) (string, map[string]any) {
+	varDecls := make([]string, 0, len(repos)*2+1)
+	varDecls = append(varDecls, "$since: DateTime")
+	vars := make(map[string]any, len(repos)*2+1)
+
+	var fields strings.Builder
+	fields.WriteString("query(")
+	for i, r := range repos {
+		ownerVar, nameVar := fmt.Sprintf("owner%d", i), fmt.Sprintf("name%d", i)
+		varDecls = append(varDecls, fmt.Sprintf("$%s: String!", ownerVar), fmt.Sprintf("$%s: String!", nameVar))
+		vars[ownerVar] = r.GetOwner().GetLogin()
+		vars[nameVar] = r.GetName()
+	}
+	fields.WriteString(strings.Join(varDecls, ", "))
+	fields.WriteString(") {\n  rateLimit {\n    limit\n    cost\n    remaining\n    resetAt\n  }\n")
+	for i := range repos {
+		fmt.Fprintf(&fields, "  r%d: repository(owner: $owner%d, name: $name%d) {%s  }\n", i, i, i, appRepoFields)
+	}
+	fields.WriteString("}")
+
+	return fields.String(), vars
+}
+
+// decodeAppRepoBatch unpacks one buildAppRepoQuery response: its
+// aliases (r0, r1, ...) are dynamic, so — unlike reposQueryResponse —
+// there's no static struct to decode straight into. repos must be the
+// same slice, in the same order, that produced the query being decoded.
+func decodeAppRepoBatch(data json.RawMessage, repos []*ghsdk.Repository) ([]graphqlRepo, *dashboard.RateLimit, error) {
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return nil, nil, fmt.Errorf("github: decode app repo batch: %w", err)
+	}
+
+	var rateLimit *dashboard.RateLimit
+	if raw, ok := envelope["rateLimit"]; ok {
+		var rl struct {
+			Limit     int       `json:"limit"`
+			Cost      int       `json:"cost"`
+			Remaining int       `json:"remaining"`
+			ResetAt   time.Time `json:"resetAt"`
+		}
+		if err := json.Unmarshal(raw, &rl); err == nil {
+			rateLimit = &dashboard.RateLimit{Limit: rl.Limit, Remaining: rl.Remaining, ResetsAt: rl.ResetAt, Cost: rl.Cost}
+		}
+	}
+
+	result := make([]graphqlRepo, 0, len(repos))
+	for i, r := range repos {
+		raw, ok := envelope[fmt.Sprintf("r%d", i)]
+		if !ok {
+			continue
+		}
+		var repo graphqlRepo
+		if err := json.Unmarshal(raw, &repo); err != nil {
+			return nil, rateLimit, fmt.Errorf("github: decode app repo batch: %w", err)
+		}
+		repo.Name = r.GetName()
+		repo.URL = r.GetHTMLURL()
+		repo.Owner.Login = r.GetOwner().GetLogin()
+		// An App installation's own declared permissions (README's
+		// "Contents, Issues, and Pull requests (read and write)") apply
+		// uniformly to every repo the installation was granted — never
+		// Administration — so every repo fetchAppRepos returns is WRITE
+		// and never ADMIN. isFork/isArchived are already filtered out
+		// before a repo reaches this batch (fetchAppRepos), so both stay
+		// false here rather than being asked of GraphQL a second time.
+		repo.ViewerPermission = "WRITE"
+		result = append(result, repo)
+	}
+
+	return result, rateLimit, nil
+}
+
+// fetchAppRepos discovers repositories for an App-installation client
+// (c.appAuthenticated) the way fetchViaGraphQL's viewer-based discovery
+// can't (#625): a GitHub App installation access token has no
+// associated user, so GraphQL's viewer field — which reposQuery relies
+// on for the token path — resolves to null for it. Go's json package
+// silently no-ops unmarshalling JSON null into reposQueryResponse.Viewer
+// (a non-pointer struct field), so that used to come back as a
+// "successful," empty poll with no error anywhere. This instead lists
+// the installation's own granted repos via REST GET
+// /installation/repositories, then fetches each one's open pull
+// requests/issues via a batched, aliased GraphQL query —
+// repository(owner:,name:) has no such viewer restriction (FetchRepo,
+// the webhook-delivery path, already relies on exactly that).
+func (c *Client) fetchAppRepos(ctx context.Context, since *time.Time) ([]graphqlRepo, *dashboard.RateLimit, error) {
+	const installPath = "/installation/repositories"
+
+	var candidates []*ghsdk.Repository
+	opts := &ghsdk.ListOptions{PerPage: perPage}
+	for {
+		page, resp, err := c.restClient.Apps.ListRepos(ctx, opts)
+		if err != nil {
+			return nil, nil, c.restError(ctx, http.MethodGet, installPath, err)
+		}
+		c.recordRESTSuccess(ctx, http.MethodGet, installPath, resp)
+		for _, r := range page.Repositories {
+			if r.GetArchived() || r.GetFork() {
+				continue
+			}
+			candidates = append(candidates, r)
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	var repos []graphqlRepo
+	var rateLimit *dashboard.RateLimit
+	for start := 0; start < len(candidates); start += appRepoBatchSize {
+		batch := candidates[start:min(start+appRepoBatchSize, len(candidates))]
+		query, vars := buildAppRepoQuery(batch)
+		vars["since"] = sinceVariable(since)
+
+		var raw json.RawMessage
+		if err := c.graphqlDo(ctx, query, vars, &raw); err != nil {
+			return nil, rateLimit, err
+		}
+		batchRepos, batchRate, err := decodeAppRepoBatch(raw, batch)
+		if err != nil {
+			return nil, rateLimit, err
+		}
+		if batchRate != nil {
+			rateLimit = batchRate
+			slog.Info("github graphql rate limit", "cost", batchRate.Cost, "remaining", batchRate.Remaining, "limit", batchRate.Limit)
+		}
+		repos = append(repos, batchRepos...)
+	}
+
+	return repos, rateLimit, nil
+}
+
 type graphqlRequestBody struct {
 	Query     string         `json:"query"`
 	Variables map[string]any `json:"variables,omitempty"`
@@ -1175,14 +1392,31 @@ func sinceVariable(since *time.Time) any {
 	return since.Format(time.RFC3339)
 }
 
-func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
-	// Captured before the query runs, not after: an issue that changes
-	// mid-poll needs an updatedAt at or after the *next* poll's own
-	// since, or it's silently missed forever — using the end time
-	// instead would leave exactly that gap.
-	pollStartedAt := time.Now().UTC()
-	since := c.issueState.since()
+// unreachableResult turns a repo-discovery failure (either
+// fetchTokenRepos or fetchAppRepos) into the ForgeHealth shape the
+// dashboard's forge-health UI reads — shared so an App-installation
+// client's errors get the same RateLimitGraphQL/ErrorKind treatment a
+// token client's always have.
+func (c *Client) unreachableResult(err error) dashboard.Result {
+	slog.Warn("forge unreachable", "forge", dashboard.ForgeGitHub, "error", err)
+	health := dashboard.ForgeHealth{
+		Forge: dashboard.ForgeGitHub, Reachable: false,
+		Error: err.Error(), ErrorKind: dashboard.ForgeErrorUnknown,
+	}
+	if apiErr, ok := errors.AsType[*apiError](err); ok {
+		health.RateLimitGraphQL = apiErr.rateLimit
+		health.ErrorKind = apiErr.kind
+	}
+	health.RateLimitREST = c.lastRESTRate.Load()
 
+	return dashboard.Result{Health: health}
+}
+
+// fetchTokenRepos discovers repositories for a personal-access-token
+// client via GraphQL's viewer field — every repo the token can push to,
+// paginated. Unchanged by #625: this path never touched the App
+// installation bug, since a token genuinely has a viewer.
+func (c *Client) fetchTokenRepos(ctx context.Context, since *time.Time) ([]graphqlRepo, *dashboard.RateLimit, error) {
 	var repos []graphqlRepo
 	var rateLimit *dashboard.RateLimit
 	var cursor *string
@@ -1191,18 +1425,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		var resp reposQueryResponse
 		vars := map[string]any{"cursor": cursor, "since": sinceVariable(since)}
 		if err := c.graphqlDo(ctx, reposQuery, vars, &resp); err != nil {
-			slog.Warn("forge unreachable", "forge", dashboard.ForgeGitHub, "error", err)
-			health := dashboard.ForgeHealth{
-				Forge: dashboard.ForgeGitHub, Reachable: false,
-				Error: err.Error(), ErrorKind: dashboard.ForgeErrorUnknown,
-			}
-			if apiErr, ok := errors.AsType[*apiError](err); ok {
-				health.RateLimitGraphQL = apiErr.rateLimit
-				health.ErrorKind = apiErr.kind
-			}
-			health.RateLimitREST = c.lastRESTRate.Load()
-
-			return dashboard.Result{Health: health}
+			return nil, rateLimit, err
 		}
 		if resp.RateLimit != nil {
 			rateLimit = &dashboard.RateLimit{
@@ -1223,6 +1446,38 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		}
 		endCursor := resp.Viewer.Repositories.PageInfo.EndCursor
 		cursor = &endCursor
+	}
+
+	return repos, rateLimit, nil
+}
+
+func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
+	// Captured before the query runs, not after: an issue that changes
+	// mid-poll needs an updatedAt at or after the *next* poll's own
+	// since, or it's silently missed forever — using the end time
+	// instead would leave exactly that gap.
+	pollStartedAt := time.Now().UTC()
+	since := c.issueState.since()
+
+	var repos []graphqlRepo
+	var rateLimit *dashboard.RateLimit
+	var err error
+	if c.appAuthenticated {
+		repos, rateLimit, err = c.fetchAppRepos(ctx, since)
+	} else {
+		repos, rateLimit, err = c.fetchTokenRepos(ctx, since)
+	}
+	if err != nil {
+		return c.unreachableResult(err)
+	}
+	// A successful poll that discovers zero repos is exactly how #625
+	// shipped invisible: HTTP 200, no GraphQL errors, Reachable: true,
+	// and nothing in the logs at any LOG_LEVEL hinting the credential
+	// isn't actually seeing anything. Surfaced at Warn (visible at the
+	// default Info level, not only under debug) so an operator sees a
+	// working-but-empty poll without having to change LOG_LEVEL.
+	if len(repos) == 0 {
+		slog.Warn("github fetch returned no repositories", "forge", dashboard.ForgeGitHub, "appAuthenticated", c.appAuthenticated)
 	}
 
 	tracked := make([]graphqlRepo, 0, len(repos))

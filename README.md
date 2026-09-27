@@ -406,12 +406,18 @@ lists every repository it has push access to — on GitHub, one GraphQL
 query returns that whole list along with every repo's open pull requests,
 open issues, and CI status in a single request (drawing from GraphQL's
 own separate rate-limit pool, not the REST budget everything else on the
-account shares); on Forgejo, `GET /user/repos`. With only a username, it
-lists that account's public repositories (`GET /users/<username>/repos`
-on both) with no credential in play at all — GitHub's GraphQL API allows
-no anonymous access, so this mode stays REST-based there too. Either way
+account shares); on Forgejo, `GET /user/repos`. A GitHub App installation
+discovers its repos differently: GraphQL's `viewer` field means "the
+authenticated user," which an installation access token has none of, so
+this path lists the installation's own granted repos via REST
+`GET /installation/repositories` instead, then still fetches each one's
+open pull requests/issues/CI status via GraphQL (`repository(owner:,
+name:)`, which has no such restriction). With only a username, it lists
+that account's public repositories (`GET /users/<username>/repos` on
+both) with no credential in play at all — GitHub's GraphQL API allows no
+anonymous access, so this mode stays REST-based there too. Either way
 there's no per-repo allowlist to maintain — archived and forked
-repositories are excluded automatically, on both forges, in either mode.
+repositories are excluded automatically, on both forges, in every mode.
 On Forgejo, a mirrored repository is excluded too — a pull mirror has no
 pull requests or issues of its own to poll, and its canonical home is
 whichever forge it's mirrored from.
