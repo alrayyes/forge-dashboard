@@ -65,6 +65,26 @@ test.describe('pull request close button', () => {
     await expect(row.getByRole('button', { name: 'Close' })).toBeVisible();
   });
 
+  // #543's own Merge stays visible-and-locked for an empty pull request
+  // (see pull-request-merge.spec.js) rather than disappearing -- Close
+  // gets the visual nudge instead, so there's still one clear "do this"
+  // action on the row instead of a locked Merge and a Close that reads
+  // exactly like every other row's.
+  test('an empty pull request nudges toward Close instead of Merge', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'mergeable', empty: true }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row.getByRole('button', { name: 'Close' })).toHaveClass(
+      /suggested/,
+    );
+  });
+
   test('clicking Close arms a confirm step instead of closing immediately', async ({
     page,
   }) => {
