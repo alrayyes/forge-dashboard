@@ -37,10 +37,21 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      # A GitHub App installation token gets its own rate-limit budget,
+      # independent of any personal account's — the fix for release-please
+      # failing with "API rate limit already exceeded" whenever concurrent
+      # personal gh/GraphQL usage exhausts the shared per-user budget a PAT
+      # would otherwise draw from (alrayyes/forge-dashboard#618).
+      - name: Generate a GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       - id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          token: ${{ secrets.RELEASE_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
@@ -151,10 +162,11 @@ jobs:
   # Opens a pull request rather than pushing straight to main: main
   # requires the same status checks every other pull request does
   # (branch protection), so there's no bypassing that gate even for a
-  # docs-only change. RELEASE_TOKEN, not the default GITHUB_TOKEN, for
-  # the same reason release-auto-merge.yml uses it — GitHub suppresses
-  # the events a GITHUB_TOKEN-driven push produces, which would leave
-  # this pull request's own required checks never triggered.
+  # docs-only change. A minted GitHub App installation token, not the
+  # default GITHUB_TOKEN, for the same reason release-auto-merge.yml uses
+  # one — GitHub suppresses the events a GITHUB_TOKEN-driven push
+  # produces, which would leave this pull request's own required checks
+  # never triggered.
   screenshots:
     needs: [release-please, check-ui-changed]
     if: needs.release-please.outputs.release_created == 'true' && needs.check-ui-changed.outputs.changed == 'true'
@@ -173,10 +185,18 @@ jobs:
     env:
       LEFTHOOK: 0
     steps:
+      # A GitHub App installation token gets its own rate-limit budget,
+      # independent of any personal account's (alrayyes/forge-dashboard#618).
+      - name: Generate a GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
-          token: ${{ secrets.RELEASE_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
@@ -248,7 +268,7 @@ jobs:
       - name: open a pull request if the screenshots meaningfully changed
         if: steps.compare.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git config user.name "release-please[bot]"
           git config user.email "release-please[bot]@users.noreply.github.com"

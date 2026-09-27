@@ -29,13 +29,25 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      # RELEASE_TOKEN, not the default GITHUB_TOKEN: GitHub suppresses the
-      # push event a GITHUB_TOKEN-performed merge produces (to stop
-      # recursive runs), which would otherwise leave this repo's own
-      # release workflow's `push` trigger never firing after an
-      # auto-merged release PR lands on main.
+      # A GitHub App installation token gets its own rate-limit budget,
+      # independent of any personal account's — the fix for release-please
+      # failing with "API rate limit already exceeded" whenever concurrent
+      # personal gh/GraphQL usage exhausts the shared per-user budget a PAT
+      # would otherwise draw from (alrayyes/forge-dashboard#618).
+      - name: Generate a GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      # A minted GitHub App installation token, not the default
+      # GITHUB_TOKEN: GitHub suppresses the push event a
+      # GITHUB_TOKEN-performed merge produces (to stop recursive runs),
+      # which would otherwise leave this repo's own release workflow's
+      # `push` trigger never firing after an auto-merged release PR lands
+      # on main.
       - name: Enable auto-merge
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
