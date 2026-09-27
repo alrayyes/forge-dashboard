@@ -13,6 +13,9 @@ node_modules/
 /test-results/
 /playwright-report/
 
+# Lighthouse CI's own report output, uploaded as a CI artifact instead.
+/.lighthouseci/
+
 # The admin session globalSetup registers once and every admin test
 # reuses — a real session cookie, generated fresh each run.
 /tests/.auth/
