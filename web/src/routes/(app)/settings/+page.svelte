@@ -18,6 +18,8 @@
   type SettingsResponse = {
     githubUsername: string;
     githubTokenSet: boolean;
+    githubAppInstallationId: number;
+    githubAppConfigured: boolean;
     forgejoUrl: string;
     forgejoUsername: string;
     forgejoTokenSet: boolean;
@@ -182,6 +184,9 @@
   let githubTokenShown = $state(false);
   let githubUsername = $state("");
   let githubTokenSet = $state(false);
+  let githubAppInstallationId = $state("");
+  let githubAppConfigured = $state(false);
+  let githubAppInstallationIdInput: HTMLInputElement | undefined = $state();
 
   let forgejoUrl = $state("");
   let forgejoUrlInput: HTMLInputElement | undefined = $state();
@@ -290,6 +295,14 @@
       return;
     }
 
+    const trimmedInstallationId = githubAppInstallationId.trim();
+    if (trimmedInstallationId && !/^\d+$/.test(trimmedInstallationId)) {
+      status = "GitHub App installation ID must be a number.";
+      statusKind = "error";
+      githubAppInstallationIdInput?.focus();
+      return;
+    }
+
     saving = true;
     status = "Saving…";
     statusKind = "";
@@ -297,6 +310,9 @@
     const body = {
       githubToken,
       githubUsername: githubUsername.trim(),
+      githubAppInstallationId: trimmedInstallationId
+        ? Number(trimmedInstallationId)
+        : 0,
       forgejoUrl: trimmedForgejoUrl,
       forgejoToken,
       forgejoUsername: trimmedForgejoUsername,
@@ -322,6 +338,10 @@
       .then((data) => {
         if (!data) return;
         githubTokenSet = data.githubTokenSet;
+        githubAppInstallationId = data.githubAppInstallationId
+          ? String(data.githubAppInstallationId)
+          : "";
+        githubAppConfigured = data.githubAppConfigured;
         forgejoTokenSet = data.forgejoTokenSet;
         // The token fields never get pre-filled with a real value, so
         // they're cleared after a successful save rather than left
@@ -654,9 +674,14 @@
         // still at its untouched "" default, so a real edit in flight
         // never gets silently clobbered by the initial load landing late.
         if (!githubUsername) githubUsername = data.githubUsername || "";
+        if (!githubAppInstallationId)
+          githubAppInstallationId = data.githubAppInstallationId
+            ? String(data.githubAppInstallationId)
+            : "";
         if (!forgejoUrl) forgejoUrl = data.forgejoUrl || "";
         if (!forgejoUsername) forgejoUsername = data.forgejoUsername || "";
         githubTokenSet = data.githubTokenSet;
+        githubAppConfigured = data.githubAppConfigured;
         forgejoTokenSet = data.forgejoTokenSet;
         webhookUrlGithub = `${window.location.origin}/api/webhooks/github/${data.webhookToken}`;
         webhookUrlForgejo = `${window.location.origin}/api/webhooks/forgejo/${data.webhookToken}`;
@@ -1237,6 +1262,34 @@
             token deliberately scoped to a subset of repos.
           </p>
         </div>
+      </div>
+      <div class="field">
+        <label for="github-app-installation-id"
+          >GitHub App installation ID (optional, takes precedence over the token
+          above)</label
+        >
+        <input
+          id="github-app-installation-id"
+          name="githubAppInstallationId"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="e.g. 12345678"
+          aria-describedby="github-app-installation-id-hint"
+          bind:value={githubAppInstallationId}
+          bind:this={githubAppInstallationIdInput}
+          disabled={!githubAppConfigured}
+        />
+        <p class="field-hint" id="github-app-installation-id-hint">
+          {#if githubAppConfigured}
+            Uses the alrayyes-automation GitHub App's own independent rate-limit
+            pool instead of your account's shared budget. Install the App, then
+            paste the installation ID GitHub shows you here. Your token above
+            stays saved as a fallback but is ignored while this is set.
+          {:else}
+            Not available — this server has no GitHub App configured.
+          {/if}
+        </p>
       </div>
       <div class="field">
         <label for="github-username"

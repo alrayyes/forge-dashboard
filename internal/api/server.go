@@ -57,6 +57,14 @@ type Deps struct {
 	// (dashboard.WebhookTargetsPath) only ever compares by path.
 	PublicOrigin string
 
+	// GitHubAppConfigured is whether this deployment has a GitHub App set
+	// up at all (#620) — server-wide GITHUB_APP_ID/
+	// GITHUB_APP_PRIVATE_KEY_BASE64, read once at startup, never a
+	// per-user setting. handleSettingsGet/handleSettingsPut use it to
+	// explain and enforce why a saved githubAppInstallationId can't work
+	// on a server with no App configured.
+	GitHubAppConfigured bool
+
 	// AppContext is the process's own long-lived context (canceled on
 	// shutdown), not any one request's — a handler that starts a
 	// Manager-owned background refresh goroutine has to root it here, not
@@ -99,7 +107,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/mcp", mcpHandler)
 	mux.Handle("POST /api/mcp", mcpHandler)
 	mux.Handle("DELETE /api/mcp", mcpHandler)
-	mux.Handle("GET /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsGet(deps.SettingsStore)))
+	mux.Handle("GET /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsGet(deps)))
 	mux.Handle("PUT /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 	mux.Handle("GET /api/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemeGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemePut(deps.SettingsStore)))

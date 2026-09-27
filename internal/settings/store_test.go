@@ -77,6 +77,45 @@ func TestStore_SetThenGet_RoundTripsTheme(t *testing.T) {
 	assert.Equal(t, "dark", got.Theme)
 }
 
+func TestStore_SetThenGet_RoundTripsGitHubAppInstallationID(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	want := settings.Credentials{GitHubAppInstallationID: 42}
+	require.NoError(t, store.Set(t.Context(), userID, want))
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), got.GitHubAppInstallationID)
+}
+
+// TestStore_GitHubAppInstallationID_StoredAsPlainInteger confirms the
+// design decision behind it (#620): unlike GitHubToken/ForgejoToken, this
+// field is a bare, non-secret integer, meaningless without the App's own
+// server-wide private key — so it's never run through Store's cipher,
+// mirroring TestStore_TokensAreEncryptedAtRest's own raw-column-read
+// pattern but asserting the opposite: the plaintext value is right there.
+func TestStore_GitHubAppInstallationID_StoredAsPlainInteger(t *testing.T) {
+	t.Parallel()
+
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "settings.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	cipher, err := settings.NewCipher(randomKey(t))
+	require.NoError(t, err)
+	store := settings.NewStore(db, cipher)
+	require.NoError(t, store.Init(t.Context()))
+
+	userID := []byte("user-1")
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubAppInstallationID: 42}))
+
+	var rawColumn int64
+	require.NoError(t, db.QueryRow(`SELECT github_app_installation_id FROM user_credentials LIMIT 1`).Scan(&rawColumn))
+	assert.Equal(t, int64(42), rawColumn)
+}
+
 func TestStore_Get_NeverSaved_ThemeDefaultsToEmptyMeaningSystem(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)

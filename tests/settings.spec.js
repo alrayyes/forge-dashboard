@@ -257,6 +257,42 @@ test.describe('settings page', () => {
     );
   });
 
+  test('the GitHub App installation ID field is disabled with an explanatory hint when no App is configured (#620)', async ({
+    page,
+  }) => {
+    // The default, realistic state for this test environment — nothing
+    // here sets GITHUB_APP_ID, matching an ordinary deployment that
+    // hasn't opted into #620's App-based auth.
+    await page.goto('/settings.html');
+
+    const input = page.locator('#github-app-installation-id');
+    await expect(input).toBeDisabled();
+    await expect(
+      page.locator('#github-app-installation-id-hint'),
+    ).toContainText(/no github app configured/i);
+  });
+
+  test('a non-numeric GitHub App installation ID is refused before it ever reaches the server (#620)', async ({
+    page,
+  }) => {
+    // The input is disabled by default (previous test) since this
+    // environment has no App configured, so exercising the client-side
+    // format check needs the value set directly rather than typed —
+    // typing into a genuinely disabled control is a no-op in a real
+    // browser, and reflects nothing this test is actually about.
+    await page.goto('/settings.html');
+
+    await page.evaluate(() => {
+      const el = document.getElementById('github-app-installation-id');
+      el.disabled = false;
+      el.value = 'not-a-number';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.click('#save-button');
+
+    await expect(page.locator('#status')).toContainText(/must be a number/i);
+  });
+
   test('the GitHub fine-grained permissions are a real list, not one run-on line', async ({
     page,
   }) => {

@@ -1,14 +1,25 @@
 package api_test
 
 import (
+	"context"
+	"database/sql"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/api"
+	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	requestlogpkg "github.com/alrayyes/forge-dashboard/internal/requestlog"
+	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
+	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 func doJSON(t *testing.T, method, url, body string, cookie *http.Cookie) *http.Response {
@@ -288,6 +299,141 @@ func TestSettingsPut_DoesNotDisturbAlreadyGeneratedWebhookCredentials(t *testing
 	require.NoError(t, readJSON(putResp, &after))
 	assert.Equal(t, before.WebhookToken, after.WebhookToken)
 	assert.Equal(t, before.WebhookSecret, after.WebhookSecret)
+}
+
+// newTestServerWithGitHubAppConfigured is newTestServer with
+// Deps.GitHubAppConfigured set — for the #620 tests that need a server
+// where a saved githubAppInstallationId is actually allowed to work.
+func newTestServerWithGitHubAppConfigured(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	authStore := authpkg.NewStore(db)
+	require.NoError(t, authStore.Init(t.Context()))
+
+	wa, err := webauthn.New(&webauthn.Config{
+		RPID:          testRPID,
+		RPDisplayName: "Forge Board Test",
+		RPOrigins:     []string{testOrigin},
+	})
+	require.NoError(t, err)
+	authService := authpkg.NewService(wa, authStore)
+
+	cipher, err := settingspkg.NewCipher(testEncryptionKey(t))
+	require.NoError(t, err)
+	settingsStore := settingspkg.NewStore(db, cipher)
+	require.NoError(t, settingsStore.Init(t.Context()))
+
+	sharingStore := sharingpkg.NewStore(db)
+	require.NoError(t, sharingStore.Init(t.Context()))
+
+	manager := dashboard.NewManager(testRefreshInterval)
+	t.Cleanup(manager.Stop)
+
+	appCtx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	mux := api.NewMux(api.Deps{
+		Version:             testVersion,
+		AuthService:         authService,
+		AuthStore:           authStore,
+		SettingsStore:       settingsStore,
+		SharingStore:        sharingStore,
+		Manager:             manager,
+		BuildSources:        noSources,
+		RequestLog:          requestlogpkg.NewSQLiteRecorder(authStore, ""),
+		AppContext:          appCtx,
+		GitHubAppConfigured: true,
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func TestSettingsGet_ReportsGitHubAppConfigured_WhenServerHasNoneConfigured(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	var got api.SettingsResponse
+	require.NoError(t, readJSON(resp, &got))
+	assert.False(t, got.GitHubAppConfigured)
+}
+
+func TestSettingsGet_ReportsGitHubAppConfigured_WhenServerHasOneConfigured(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServerWithGitHubAppConfigured(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	var got api.SettingsResponse
+	require.NoError(t, readJSON(resp, &got))
+	assert.True(t, got.GitHubAppConfigured)
+}
+
+func TestSettingsPut_GitHubAppInstallationIdWithoutServerAppConfigured_Rejected(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":42}`, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestSettingsPut_GitHubAppInstallationIdWithServerAppConfigured_Accepted(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServerWithGitHubAppConfigured(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":42}`, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestSettingsPut_GitHubAppInstallationIdWithServerAppConfigured_RoundTrips(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServerWithGitHubAppConfigured(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":42}`, sessionCookie)
+	_ = putResp.Body.Close()
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	defer func() { _ = getResp.Body.Close() }()
+
+	var got api.SettingsResponse
+	require.NoError(t, readJSON(getResp, &got))
+	assert.EqualValues(t, 42, got.GitHubAppInstallationID)
+}
+
+func TestSettingsPut_NegativeGitHubAppInstallationId_Rejected(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServerWithGitHubAppConfigured(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":-1}`, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestSettingsPut_ForgejoTokenWithoutURL_Rejected(t *testing.T) {

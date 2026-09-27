@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -182,6 +183,11 @@ func run() error {
 		return fmt.Errorf("settings setup failed: %w", err)
 	}
 
+	githubAppID, githubAppPrivateKey, err := buildGitHubApp()
+	if err != nil {
+		return fmt.Errorf("github app setup failed: %w", err)
+	}
+
 	sharingStore := sharing.NewStore(db)
 	if err := sharingStore.Init(ctx); err != nil {
 		return fmt.Errorf("sharing setup failed: %w", err)
@@ -201,13 +207,14 @@ func run() error {
 		SettingsStore: settingsStore,
 		SharingStore:  sharingStore,
 		Manager:       manager,
-		BuildSources:  buildSourcesForUser(authStore),
+		BuildSources:  buildSourcesForUser(authStore, githubAppID, githubAppPrivateKey),
 		RequestLog:    requestlog.NewSQLiteRecorder(authStore, ""),
 		AppContext:    ctx,
 		// Same env var buildAuth already required for WebAuthn's own
 		// RPOrigins — reused rather than adding a second "what's my own
 		// address" knob. See Deps.PublicOrigin's own doc comment.
-		PublicOrigin: envOr("RP_ORIGIN", "http://localhost:8080"),
+		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),
+		GitHubAppConfigured: githubAppID != 0,
 	}
 
 	srv := &http.Server{
@@ -233,29 +240,72 @@ func run() error {
 	return nil
 }
 
+// buildGitHubSource picks this user's GitHub credential (#620): a
+// connected App installation wins over a saved personal access token
+// whenever both are set and the server has an App configured at all —
+// PAT stays saved as an unused fallback/backup. handleSettingsPut
+// already rejects saving an installation ID when the server has no App
+// configured, so the "configured but construction still fails" branch
+// below should essentially never fire outside a test; it exists so a
+// user never silently loses GitHub polling entirely if it somehow does,
+// with no PAT/username to fall back to either.
+//
+// github.Client implements dashboard.Source itself (GraphQL, one request
+// per refresh) rather than going through GenericSource's
+// one-REST-call-per-repo model.
+//
+// baseURL is always "" (the real GitHub API) from buildSourcesForUser;
+// it's a parameter purely so a test can override it, the same testability
+// NewClient/NewAppClient's own baseURL parameters already provide.
+func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPrivateKey []byte, baseURL string, recorder requestlog.Recorder) dashboard.Source {
+	appConnected := githubAppID != 0 && c.GitHubAppInstallationID != 0
+	if appConnected {
+		client, err := github.NewAppClient(githubAppID, c.GitHubAppInstallationID, githubAppPrivateKey, baseURL, recorder)
+		if err != nil {
+			slog.Error("github app installation client failed, falling back", "installationId", c.GitHubAppInstallationID, "error", err)
+		} else {
+			if c.WebhookToken != "" {
+				client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
+			}
+
+			return client
+		}
+	}
+
+	switch {
+	case c.GitHubToken != "":
+		client := github.NewClient(c.GitHubToken, "", baseURL, recorder)
+		if c.WebhookToken != "" {
+			client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
+		}
+
+		return client
+	case c.GitHubUsername != "":
+		return github.NewClient("", c.GitHubUsername, baseURL, recorder)
+	case appConnected:
+		// The App branch above failed and there's nothing to fall back to
+		// — surface it as a real forge-health error rather than silently
+		// never adding a GitHub source at all.
+		return github.NewUnreachableClient(fmt.Sprintf("github: app installation %d failed and no personal access token is saved as a fallback", c.GitHubAppInstallationID))
+	default:
+		return nil
+	}
+}
+
 // buildSourcesForUser returns the per-user dashboard.Source builder Deps.
 // BuildSources needs — a closure over authStore so every forge client it
 // builds gets a requestlog.SQLiteRecorder bound to that specific user's
 // own account ID (#482): the account whose credential made a request is
 // known here, at construction, and nowhere else past this point, so this
 // is where it has to be threaded in.
-func buildSourcesForUser(authStore *auth.Store) func(userID []byte, c settings.Credentials) []dashboard.Source {
+
+func buildSourcesForUser(authStore *auth.Store, githubAppID int64, githubAppPrivateKey []byte) func(userID []byte, c settings.Credentials) []dashboard.Source {
 	return func(userID []byte, c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, base64.RawURLEncoding.EncodeToString(userID))
 
-		switch {
-		case c.GitHubToken != "":
-			// github.Client implements dashboard.Source itself (GraphQL, one
-			// request per refresh) rather than going through GenericSource's
-			// one-REST-call-per-repo model.
-			client := github.NewClient(c.GitHubToken, "", "", recorder)
-			if c.WebhookToken != "" {
-				client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
-			}
-			sources = append(sources, client)
-		case c.GitHubUsername != "":
-			sources = append(sources, github.NewClient("", c.GitHubUsername, "", recorder))
+		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, "", recorder); src != nil {
+			sources = append(sources, src)
 		}
 
 		switch {
@@ -345,6 +395,38 @@ func buildSettingsStore(ctx context.Context, db *sql.DB) (*settings.Store, error
 	}
 
 	return store, nil
+}
+
+// buildGitHubApp reads the GitHub App server-wide identity (#620) — the
+// App itself is one thing shared by every user who installs it, so this
+// is process-wide config, not per-user settings.Credentials, the same
+// split ENCRYPTION_KEY already draws for the settings cipher. Returns
+// appID == 0 when GITHUB_APP_ID is unset: App-mode is entirely optional,
+// and every existing PAT-only deployment must keep working with no env
+// changes at all.
+func buildGitHubApp() (appID int64, privateKeyPEM []byte, err error) {
+	raw := os.Getenv("GITHUB_APP_ID")
+	if raw == "" {
+		return 0, nil, nil
+	}
+	appID, err = strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, nil, fmt.Errorf("invalid GITHUB_APP_ID: %w", err)
+	}
+
+	keyB64 := os.Getenv("GITHUB_APP_PRIVATE_KEY_BASE64")
+	if keyB64 == "" {
+		return 0, nil, errors.New("GITHUB_APP_PRIVATE_KEY_BASE64 is required when GITHUB_APP_ID is set")
+	}
+	privateKeyPEM, err = base64.StdEncoding.DecodeString(keyB64)
+	if err != nil {
+		return 0, nil, fmt.Errorf("decode GITHUB_APP_PRIVATE_KEY_BASE64: %w", err)
+	}
+	if err := github.ValidateAppPrivateKey(appID, privateKeyPEM); err != nil {
+		return 0, nil, fmt.Errorf("validate GITHUB_APP_PRIVATE_KEY_BASE64: %w", err)
+	}
+
+	return appID, privateKeyPEM, nil
 }
 
 func envOr(key, fallback string) string {

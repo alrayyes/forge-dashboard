@@ -2288,6 +2288,8 @@ components:
         [
           githubUsername,
           githubTokenSet,
+          githubAppInstallationId,
+          githubAppConfigured,
           forgejoUrl,
           forgejoUsername,
           forgejoTokenSet,
@@ -2303,6 +2305,26 @@ components:
         githubTokenSet:
           type: boolean
           description: Whether a GitHub token is currently saved.
+        githubAppInstallationId:
+          type: integer
+          format: int64
+          description: |
+            The installation ID of the alrayyes-automation GitHub App
+            this user has connected (#620), or 0 if none. Not a
+            secret — it's an opaque integer GitHub already shows the
+            user on its own installation settings page — so, unlike
+            githubTokenSet, this round-trips as a plain value. Takes
+            precedence over a saved githubToken whenever both are set
+            and the server has an App configured (see
+            githubAppConfigured).
+        githubAppConfigured:
+          type: boolean
+          description: |
+            Whether this server has a GitHub App configured at all
+            (server-wide GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY_BASE64 —
+            not a per-user setting). The Settings page uses this to
+            explain why githubAppInstallationId can't be saved when
+            it's false.
         forgejoUrl:
           type: string
         forgejoUsername:
@@ -2349,13 +2371,20 @@ components:
         A blank `githubToken` or `forgejoToken` keeps whatever token is
         already saved for that forge rather than clearing it — this is
         the only way to update the username fields without having to
-        resubmit a token you don't want to re-paste. Theme isn't
-        settable here at all — see PUT /api/settings/theme.
+        resubmit a token you don't want to re-paste. githubAppInstallationId
+        is different: a plain replace like githubUsername, not coalesced —
+        0 or omitted really does disconnect the App. Rejected (400) if
+        the server has no GitHub App configured (see
+        SettingsResponse.githubAppConfigured). Theme isn't settable
+        here at all — see PUT /api/settings/theme.
       properties:
         githubToken:
           type: string
         githubUsername:
           type: string
+        githubAppInstallationId:
+          type: integer
+          format: int64
         forgejoUrl:
           type: string
         forgejoToken:
