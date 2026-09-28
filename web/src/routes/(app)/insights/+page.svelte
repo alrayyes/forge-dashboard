@@ -322,12 +322,6 @@
         });
     });
     document.body.appendChild(filtersScript);
-
-    for (const src of ["/footer.js", "/nav.js"]) {
-      const script = document.createElement("script");
-      script.src = src;
-      document.body.appendChild(script);
-    }
   });
 </script>
 
