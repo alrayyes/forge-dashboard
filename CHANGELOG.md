@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.101.0](https://github.com/alrayyes/forge-dashboard/compare/v0.100.2...v0.101.0) (2026-09-28)
+
+
+### Features
+
+* **dashboard:** surface out-of-date bot-managed PRs instead of hiding the fix in More actions ([#635](https://github.com/alrayyes/forge-dashboard/issues/635)) ([cec4c49](https://github.com/alrayyes/forge-dashboard/commit/cec4c49b36599f9ef377d9bba2f2bf34d1f20d49)), closes [#634](https://github.com/alrayyes/forge-dashboard/issues/634)
+
+
+### Bug Fixes
+
+* **deps:** bump the go-dependencies group with 2 updates ([#633](https://github.com/alrayyes/forge-dashboard/issues/633)) ([badf367](https://github.com/alrayyes/forge-dashboard/commit/badf367cbccf48c43c824a082e1ff814ba054a3d))
+
 ## [0.100.2](https://github.com/alrayyes/forge-dashboard/compare/v0.100.1...v0.100.2) (2026-09-27)
 
 
