@@ -10,11 +10,12 @@ declare global {
   }
 
   // filters.js's own shared global (internal/api/static/filters.js) —
-  // loaded as a plain <script src> by any page that needs it, same as
-  // footer.js/nav.js, rather than ported to TypeScript here: it's still
-  // shared with the un-migrated dashboard page (index.html/app.js), so
-  // porting it only for Insights would fork the one place this logic
-  // used to live in a single tested copy.
+  // loaded as a plain <script src> by any page that needs it, rather
+  // than ported to TypeScript here: it's shared between the dashboard
+  // and insights pages, so porting it only for one would fork the one
+  // place this logic lives in a single tested copy. (nav.js and
+  // footer.js used to be injected the same way — both retired now,
+  // ported to real Svelte state/components instead.)
   interface SharedFilterState {
     shared: Record<string, string>;
     pr: Record<string, string>;

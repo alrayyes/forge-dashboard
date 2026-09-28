@@ -94,8 +94,10 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
   `web/src/routes/(app)` is that route group's own shared layout
   (header, nav — a persistent top nav plus a mobile bottom tab bar
   below `style.css`'s 420px breakpoint, real Svelte state as of #645 —
-  footer-script injection, theme sync), and every page under it gets
-  that chrome, including the dashboard
+  a shared `Footer` component (`web/src/lib/Footer.svelte`, real Svelte
+  state as of #646, also used directly by `web/src/routes/login`), theme
+  sync), and every page under it gets that chrome, including the
+  dashboard
   (`web/src/routes/(app)/+page.svelte`) and the three pages that stay
   reachable without a session (`releases`, `disclaimer`, `privacy`, a
   route check in the layout rather than living outside the group). The
