@@ -236,8 +236,21 @@ jobs:
             fi
             committed="/tmp/committed-$(basename "$f")"
             git show "HEAD:$f" > "$committed"
+            # compare exits non-zero the moment the images differ beyond
+            # -fuzz's threshold — its normal, expected way of reporting a
+            # real difference, not a crash. Under this script's own `set
+            # -e` (the run block's implicit shebang), `result=$(...)`
+            # assigning a failing command substitution aborts the whole
+            # script right here, before `rc=$?` below ever runs —
+            # confirmed live: this step failed with no diagnostic output
+            # at all, every single time the screenshots actually changed,
+            # because bash treats a failing `var=$(cmd)` as a failing
+            # simple command in its own right, not something -e defers to
+            # the next line's exit-code check.
+            set +e
             result=$(compare -metric AE -fuzz 8% "$committed" "$f" null: 2>&1)
             rc=$?
+            set -e
             echo "$f: AE=$result (exit $rc)"
             if [ "$rc" -ne 0 ]; then
               changed=true
