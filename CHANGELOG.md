@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.102.0](https://github.com/alrayyes/forge-dashboard/compare/v0.101.2...v0.102.0) (2026-09-28)
+
+
+### Features
+
+* **dashboard:** add a mobile bottom tab bar, port nav to Svelte state ([#648](https://github.com/alrayyes/forge-dashboard/issues/648)) ([7b8ddc5](https://github.com/alrayyes/forge-dashboard/commit/7b8ddc5615a7f9a05d5cd35807e340b30e563df7))
+
 ## [0.101.2](https://github.com/alrayyes/forge-dashboard/compare/v0.101.1...v0.101.2) (2026-09-28)
 
 
