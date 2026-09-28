@@ -60,7 +60,7 @@ user to the login page, from any navigation surface that exposes it.
 #### Scenario: Sign out from the header
 
 - **WHEN** a signed-in user activates the sign-out control
-- **THEN** their session ends and they are returned to `/login`
+- **THEN** their session ends and they are returned to `/login.html`
 
 ### Requirement: Accessible navigation
 

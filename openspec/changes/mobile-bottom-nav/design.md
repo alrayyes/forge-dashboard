@@ -83,7 +83,7 @@ context. Both the header links and the bottom tab bar derive their
 `aria-current` from the same reactive comparison.
 
 **Sign-out and session-fetch logic are ported verbatim in behavior**
-(same endpoints, same redirect target `/login`), just moved from
+(same endpoints, same redirect target `/login.html`), just moved from
 `fetch(...).then(...)` chains triggered by DOM events into Svelte
 `onMount`/event-handler equivalents. No API contract changes.
 
