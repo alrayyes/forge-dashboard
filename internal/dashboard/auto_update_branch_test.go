@@ -376,6 +376,43 @@ func TestAggregator_Refresh_DependabotRebaseStillPending_DoesNotRecreateYet(t *t
 	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments())
 }
 
+// TestAggregator_Refresh_DependabotRebaseSilentlyFails_DoesNotRepostForever
+// reproduces the live incident against alrayyes/forgejo-time-sync#77: a
+// token/App install with no push access on the repo means Dependabot
+// answers "@dependabot rebase" with "Sorry, only users with push access
+// can use that command." and never actually rebases anything — CI on the
+// existing commit was already CIPending (no push, no new commit, no new
+// check run), and the pull request stays Behind forever. Confirmed live:
+// 670 rebase comments over 4+ hours, one per webhook-triggered refresh,
+// because nothing checked whether this exact pull request was already
+// being watched before asking Dependabot again.
+func TestAggregator_Refresh_DependabotRebaseSilentlyFails_DoesNotRepostForever(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeCommenterAndUpdaterSource also carries commentMu/commented; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", CI: dashboard.CIPending},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+
+	// Every one of these refreshes sees the exact same still-behind,
+	// still-pending pull request — the real shape of a rebase Dependabot
+	// silently refuses, over however many webhook-triggered or polled
+	// refreshes follow.
+	for range 5 {
+		agg.Refresh(t.Context())
+	}
+
+	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments())
+}
+
 func TestAggregator_Refresh_DependabotPRClosedAfterRebase_StopsWatchingWithoutRecreate(t *testing.T) {
 	t.Parallel()
 
