@@ -151,7 +151,25 @@ func dependabotPRKey(pr PullRequest) string {
 // up on. A comment failure is logged the same way UpdateBranch's own failure
 // already is; the PR simply isn't watched, so a later refresh just retries
 // the rebase rather than jumping straight to a recreate it never earned.
+//
+// A pull request already being watched is skipped entirely — confirmed
+// live as a real incident (alrayyes/forgejo-time-sync#77): a rebase
+// Dependabot silently refuses (no push access on the repo, replying
+// "Sorry, only users with push access can use that command.") never
+// clears Behind and never moves its CI, so runAutoUpdateBranch's own
+// per-refresh loop kept finding the same still-behind pull request and
+// asking again — 670 rebase comments over 4+ hours, one per
+// webhook-triggered refresh, each Dependabot reply itself triggering
+// another refresh. reconcileDependabotRebaseWatch (run earlier in the
+// same refresh, see runAutoUpdateBranch) is the only thing that gets to
+// decide what happens to a watched pull request next: escalate once its
+// CI actually resolves, or leave it watched. Asking again here on every
+// refresh while that's still pending bypasses that decision entirely.
 func (a *Aggregator) rebaseDependabotPR(ctx context.Context, pr PullRequest) {
+	if a.isDependabotWatched(dependabotPRKey(pr)) {
+		return
+	}
+
 	commenter := a.commenterFor(pr.Forge)
 	if commenter == nil {
 		return
@@ -225,6 +243,17 @@ func (a *Aggregator) clearDependabotWatch(key string) {
 	a.autoUpdate.dependabotWatchMu.Lock()
 	delete(a.autoUpdate.dependabotWatch, key)
 	a.autoUpdate.dependabotWatchMu.Unlock()
+}
+
+// isDependabotWatched reports whether key is currently being watched —
+// rebaseDependabotPR's own guard against re-posting a rebase comment for
+// a pull request reconcileDependabotRebaseWatch hasn't resolved yet.
+func (a *Aggregator) isDependabotWatched(key string) bool {
+	a.autoUpdate.dependabotWatchMu.Lock()
+	defer a.autoUpdate.dependabotWatchMu.Unlock()
+	_, ok := a.autoUpdate.dependabotWatch[key]
+
+	return ok
 }
 
 // recreateDependabotPR posts DependabotRecreateComment on pr. A failure is
