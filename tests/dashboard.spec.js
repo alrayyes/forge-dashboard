@@ -2326,14 +2326,87 @@ test.describe('dashboard page', () => {
         pr({ number: 1, mergeStatus: 'conflicting' }),
         pr({ number: 2, autoMergeEnabled: true }),
         pr({ number: 3, mergeStatus: 'blocked' }),
+        pr({ number: 4, author: 'dependabot', behind: true }),
       ]);
       await page.reload();
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(4);
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
       expect(results.violations).toEqual([]);
+    });
+
+    // A bot-managed pull request never gets the Update-branch button
+    // (updateBranchActionCell returns null for one on purpose) — without
+    // a dedicated pill, being behind was invisible on that row, with the
+    // one relevant action (Dependabot/Renovate: Rebase) sitting unlabeled
+    // inside "More actions." Confirmed live: hush-hush-python#153 showed
+    // "out-of-date with the base branch" on GitHub with nothing on this
+    // dashboard reflecting it.
+    test('a behind Dependabot pull request shows the Out of date pill', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [pr({ author: 'dependabot', behind: true })]);
+      await page.reload();
+
+      const pill = page.locator('#pr-rows .merge-pill.behind');
+      await expect(pill).toHaveCount(1);
+      await expect(pill).toContainText('Out of date');
+    });
+
+    test('a behind Renovate pull request shows the Out of date pill', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        pr({ author: 'renovate[bot]', behind: true }),
+      ]);
+      await page.reload();
+
+      const pill = page.locator('#pr-rows .merge-pill.behind');
+      await expect(pill).toHaveCount(1);
+      await expect(pill).toContainText('Out of date');
+    });
+
+    // #359's own reasoning applies here too: a non-bot pull request
+    // already gets the Update-branch button as its one clear signal, so
+    // a second, generic pill saying the same thing would just be the
+    // duplication that issue fixed, restated for a new status.
+    test('a behind, non-bot-managed pull request shows the Update-branch button but no Out of date pill', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [pr({ behind: true })]);
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'Update branch' }),
+      ).toBeVisible();
+      await expect(row.locator('.merge-pill.behind')).toHaveCount(0);
+    });
+
+    test('a Dependabot pull request that is not behind shows no Out of date pill', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [pr({ author: 'dependabot', behind: false })]);
+      await page.reload();
+
+      await expect(page.locator('.merge-pill.behind')).toHaveCount(0);
+    });
+
+    // Mirrors updateBranchActionCell's own empty-pull-request exception
+    // (#543): nothing left to merge means updating the branch further —
+    // or here, asking the bot to rebase it — wouldn't change anything, so
+    // it's not worth flagging as something to act on.
+    test('an empty, behind Dependabot pull request shows no Out of date pill', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [
+        pr({ author: 'dependabot', behind: true, empty: true }),
+      ]);
+      await page.reload();
+
+      await expect(page.locator('.merge-pill.behind')).toHaveCount(0);
     });
   });
 

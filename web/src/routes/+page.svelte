@@ -355,6 +355,28 @@
       return pill;
     }
 
+    // Bot-managed pull requests (release-please, Dependabot, Renovate)
+    // never get updateBranchActionCell's own inline button — that
+    // function returns null for every one of them, on purpose (see its
+    // own doc comment: a manual branch update would be redundant at
+    // best, or fight release-please's next run at worst). Without this
+    // pill a bot-managed row that's actually behind had no visible sign
+    // of it at all — confirmed live against a real Dependabot PR
+    // (hush-hush-python#153) that GitHub itself flagged "out-of-date
+    // with the base branch" while this dashboard showed nothing, with
+    // the one relevant action (Dependabot: Rebase) sitting unlabeled
+    // inside "More actions." Silent for every non-bot pull request:
+    // those already get the Update-branch button as their one clear
+    // signal (#359), and a second pill saying the same thing would be
+    // exactly the duplication #359 fixed.
+    function behindPill(item: PullRequestItem): HTMLElement | null {
+      if (!item.behind || item.empty || !isBotManagedPr(item)) return null;
+      const pill = el("span", "merge-pill behind");
+      pill.appendChild(el("span", "dot"));
+      pill.appendChild(document.createTextNode("Out of date"));
+      return pill;
+    }
+
     // Silent unless auto-merge is genuinely enabled — autoMergeEnabled
     // is `null` for a forge that can't report this at all (Forgejo,
     // today), which must never render as "not enabled": strict ===
@@ -397,17 +419,39 @@
         );
         const conflictPill = mergeStatusPill(pr.mergeStatus, pr.ci);
         if (conflictPill) statusCell.appendChild(conflictPill);
+        const outOfDatePill = behindPill(pr);
+        if (outOfDatePill) statusCell.appendChild(outOfDatePill);
         const mergePill = autoMergePill(pr.autoMergeEnabled);
         if (mergePill) statusCell.appendChild(mergePill);
         const updateBranchAction = updateBranchActionCell(pr);
         if (updateBranchAction) statusCell.appendChild(updateBranchAction);
+        // Dependabot/Renovate's own Rebase asks for exactly what Update
+        // branch does on every other row — bring the branch back in sync
+        // — just through the bot's own comment command instead of this
+        // app writing to the branch directly (see updateBranchActionCell's
+        // doc comment for why bot-managed rows never get that button).
+        // Promoted inline the same way, and only the once, when it's
+        // actually the thing to do: Recreate and View pipeline are rarer
+        // and stay in "More actions" regardless (#527).
+        const dependabotRebasePromoted =
+          pr.behind && !pr.empty && pr.forge === "github" && isDependabotPr(pr);
+        const renovateRebasePromoted =
+          pr.behind && !pr.empty && isRenovatePr(pr);
+        if (dependabotRebasePromoted) {
+          statusCell.appendChild(dependabotActionButton(pr, "rebase"));
+        } else if (renovateRebasePromoted) {
+          const promoted = renovateRebaseActionCell(pr);
+          if (promoted) statusCell.appendChild(promoted);
+        }
         if (mergeAction) statusCell.appendChild(mergeAction);
         const closeAction = closeActionCell(pr);
         if (closeAction) statusCell.appendChild(closeAction);
         const secondaryActions = [
           autoMergeActionCell(pr),
-          dependabotActionCell(pr),
-          renovateRebaseActionCell(pr),
+          dependabotRebasePromoted
+            ? dependabotRecreateOnlyCell(pr)
+            : dependabotActionCell(pr),
+          renovateRebasePromoted ? null : renovateRebaseActionCell(pr),
           pipelineActionCell(pr),
         ].filter((cell): cell is HTMLElement => cell !== null);
         const moreActions = moreActionsCell(pr, secondaryActions);
@@ -1529,6 +1573,17 @@
       wrap.appendChild(dependabotActionButton(item, "rebase"));
       wrap.appendChild(dependabotActionButton(item, "recreate"));
       return wrap;
+    }
+
+    // Just Recreate, for a row whose Rebase button already moved inline
+    // (see buildRow's dependabotRebasePromoted) — Recreate still belongs
+    // in "More actions" on its own rather than disappearing along with
+    // the button it used to share a wrapper with.
+    function dependabotRecreateOnlyCell(
+      item: PullRequestItem,
+    ): HTMLElement | null {
+      if (item.forge !== "github" || !isDependabotPr(item)) return null;
+      return dependabotActionButton(item, "recreate");
     }
 
     // ---- Renovate rebase action ----

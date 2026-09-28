@@ -1022,6 +1022,20 @@ select.col-filter {
 .merge-pill.auto-merge .dot {
   background: var(--good);
 }
+/* Neutral, not warning/critical: being behind is routine for a
+   bot-managed pull request, not a problem the way conflicting/blocked
+   are. --neutral itself is only ~3.1:1 against --neutral-bg though —
+   fails WCAG AA text contrast the same way .merge-pill.blocked's own
+   pairing once did (#305) — so the label text uses --ink-3 instead, the
+   same substitution .draft-badge already makes for the identical
+   background; --neutral stays for the (non-text) dot only. */
+.merge-pill.behind {
+  background: var(--neutral-bg);
+  color: var(--ink-3);
+}
+.merge-pill.behind .dot {
+  background: var(--neutral);
+}
 
 /* Same "above .title::after's stretched-link overlay" reasoning .ci-pill
    already needs — a real button, not a badge, so it gets the same

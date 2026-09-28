@@ -303,6 +303,81 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await expect(row).toContainText(/rate limit/i);
   });
 
+  // A Dependabot PR that's actually out of date is the one case #527's
+  // "reached rarely enough to collapse" reasoning didn't cover: the
+  // person who needs Rebase right then had no visible way to find it.
+  // Promoted inline the same way updateBranchActionCell already is for
+  // every non-bot pull request — Recreate stays behind "More actions"
+  // regardless, since being behind doesn't call for it.
+  test.describe('promoted onto the row when out of date', () => {
+    test('a behind Dependabot pull request shows Rebase inline, with Recreate still behind More actions', async ({
+      page,
+    }) => {
+      await mockDashboard(page, 'github', makePR({ behind: true }));
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      ).toBeVisible();
+      await expect(
+        row.getByRole('button', { name: 'Dependabot: Recreate' }),
+      ).toHaveCount(0);
+
+      await openMoreActions(row);
+      await expect(
+        row.getByRole('button', { name: 'Dependabot: Recreate' }),
+      ).toBeVisible();
+    });
+
+    test('clicking the promoted Rebase button posts the same rebase action', async ({
+      page,
+    }) => {
+      await mockDashboard(page, 'github', makePR({ behind: true }));
+      let requestBody;
+      await page.route('**/api/pull-requests/dependabot-action', (route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      });
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
+
+      expect(requestBody).toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 42,
+        action: 'rebase',
+      });
+    });
+
+    // Mirrors updateBranchActionCell's own empty-pull-request exception
+    // (#543) — nothing left to merge means asking the bot to rebase
+    // wouldn't change anything, so Rebase stays exactly where it was
+    // rather than being promoted onto a row with nothing to gain from it.
+    test('an empty, behind Dependabot pull request keeps both buttons behind More actions', async ({
+      page,
+    }) => {
+      await mockDashboard(
+        page,
+        'github',
+        makePR({ behind: true, empty: true }),
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      ).toHaveCount(0);
+
+      await openMoreActions(row);
+      await expect(
+        row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      ).toBeVisible();
+    });
+  });
+
   test('a locked button is reachable by keyboard and has no axe-core violations', async ({
     page,
   }) => {
