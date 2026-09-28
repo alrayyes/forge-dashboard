@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.101.2](https://github.com/alrayyes/forge-dashboard/compare/v0.101.1...v0.101.2) (2026-09-28)
+
+
+### Bug Fixes
+
+* **ci:** stop the screenshots-compare step dying silently on a real diff ([#643](https://github.com/alrayyes/forge-dashboard/issues/643)) ([3ff686a](https://github.com/alrayyes/forge-dashboard/commit/3ff686a3d2ae43658c97fda0bb9fb07e934b3457))
+* **dashboard:** stop auto-update-branch re-posting a Dependabot rebase every refresh ([#641](https://github.com/alrayyes/forge-dashboard/issues/641)) ([88e6613](https://github.com/alrayyes/forge-dashboard/commit/88e661388f7c8858b733dfb03f7496442d5633d2)), closes [#640](https://github.com/alrayyes/forge-dashboard/issues/640)
+
 ## [0.101.1](https://github.com/alrayyes/forge-dashboard/compare/v0.101.0...v0.101.1) (2026-09-28)
 
 
