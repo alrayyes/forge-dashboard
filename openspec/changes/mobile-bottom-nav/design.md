@@ -70,6 +70,37 @@ real cost is deleting the page's own ~200-line duplicate header block
 and its `nav.js` injection line, both of which become dead weight the
 moment the page inherits `(app)/+layout.svelte`.
 
+**The dashboard's own remaining header content (`#forge-names`,
+`#dashboard-owner-select`, `#forge-health`, `.refreshed`/`#refreshed-at`,
+`#force-refresh-button` — real, tested, dashboard-only, not duplicated
+anywhere else) stays as the page's own plain, non-landmark markup right
+after the layout's `<header>`, not merged into that `<header>`.** A
+first attempt tried a Svelte context "slot" — the layout exposes a
+setter, the page hands it snippets for the layout to render inside its
+own `<header>` — and it failed for a structural reason, not a wiring
+bug: SvelteKit's SSR renders a layout's own template, including
+everything before `{@render children()}`, in one synchronous top-down
+pass, before the child page's script runs at all. A child cannot feed
+content into something its parent renders earlier in its own source
+order — confirmed empirically (the content was verified absent from the
+prerendered `internal/api/static/index.html` build output) and by
+reading the compiled SSR output directly, not assumed. This holds
+regardless of which Svelte primitive moves the data (`$effect`,
+top-level script, a store) — it is not an SSR-timing bug to route
+around, it is what "parent renders before child runs" means. Even a
+version of this that somehow worked would still fail: two `<header>`
+elements are two `banner` landmarks, which WAI-ARIA disallows and
+axe-core's `landmark-no-duplicate-banner` rule flags as a hard
+violation — this spec's own Accessible navigation requirement would
+reject it regardless. The actual fix: this content was always static
+shell markup (an empty `#forge-health` div, a `hidden`-by-default
+`<select>`, populated by the page's own script exactly like `#pr-rows`
+or `#stat-prs` already are) — it doesn't need cross-component
+composition at all, just its own non-landmark container
+(`.dashboard-toolbar` or similar) in the page's own template, styled to
+read visually as a continuation of the shared header without being a
+second `<header>`.
+
 **Bottom tab bar only replaces the header nav below the mobile
 breakpoint; both surfaces share one Svelte state module.** Confirmed with
 the user over the two questions left open on
