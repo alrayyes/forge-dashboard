@@ -5,10 +5,14 @@
 `(app)/+layout.svelte` currently injects `nav.js` as a real `<script
 src>` element in `onMount` (see its own header comment) because Svelte
 only allows one top-level `<script>` per component, and that file is a
-plain DOM-query IIFE shared, unmodified, by every page under `(app)`
-plus three unauthenticated pages outside it (release history,
-disclaimer, privacy — `nav.js`'s own header comment names them, gated by
-`document.body.dataset.pageRequiresAuth`). `nav.js` does four things:
+plain DOM-query IIFE shared, unmodified, by every page under `(app)` —
+release history, disclaimer, and privacy included. (An earlier version
+of this doc claimed those three lived _outside_ `(app)`, gated only by
+`document.body.dataset.pageRequiresAuth` for a nav.js loaded some other
+way — that was wrong; they're `(app)/releases`, `(app)/disclaimer`,
+`(app)/privacy`, same as every other page here, confirmed after this
+change's first pass broke them — see Decisions below.) `nav.js` does
+four things:
 highlights the current-page link via `aria-current`, fetches
 `/api/auth/session` to show `whoami` and toggle `#admin-link[hidden]`,
 and wires `#logout-button`'s click handler. `footer.js` is out of scope
@@ -44,12 +48,6 @@ new markup into the dashboard's own header instead.
 
 **Non-Goals:**
 
-- Re-homing the three unauthenticated pages (release history, disclaimer,
-  privacy) under `(app)`, or giving them their own Svelte-state nav copy —
-  they keep loading `nav.js` as-is until a separate change decides how
-  they fit. `nav.js` is retired only once nothing left in the tree loads
-  it; until then it stays, dead code for the `(app)` pages but still
-  load-bearing for those three.
 - Porting `footer.js` — split out to alrayyes/forge-dashboard#646.
 - Any visual/content change to the dashboard, insights, webhooks, or
   settings pages beyond the nav chrome itself.
@@ -162,14 +160,34 @@ CSS, so exactly one always exists. Rejected — that needs a
 first paint that pure CSS avoids; scoping the locators is a smaller,
 one-time cost against tests that already exist.
 
+**`releases`/`disclaimer`/`privacy` stay reachable without a session via
+a route check in the layout (`isPublicRoute()`, reusing
+`isCurrentRoute`'s `.html`-tolerant matching against a
+`PUBLIC_ROUTES` list), not the `document.body.dataset.pageRequiresAuth`
+flag `nav.js` used to read.** Found live: this layout's ported
+session-fetch 401 handler force-redirected all three to `/login.html`
+even with no session, because — per the Context correction above —
+they're genuinely inside `(app)` and this layout has no per-page
+opt-out at all. A DOM-dataset flag set by each page's own `onMount` and
+read by this layout's `onMount` has an inherent mount-order race with
+no guaranteed winner; a route check needs no cross-component signaling
+and no race, since `$page.url.pathname` is already known synchronously
+by the layout itself. The now-unread `pageRequiresAuth` flag and its
+`browser`-guarded assignment were removed from all three pages as dead
+code, confirmed by grepping the tree for any other reader before
+deleting it.
+
+Separately: `nav.js` and `footer.js` are still injected independently
+by `web/src/routes/(app)/insights/+page.svelte`'s own `onMount`, a
+leftover unrelated to this change (present before it started, not
+introduced by it) — the same duplicated-injection pattern the
+dashboard had before being folded in (tasks.md group 2), just not yet
+cleaned up here since insights was never broken by anything this
+change touches. Worth its own follow-up issue rather than silently
+left as a `TODO`.
+
 ## Risks / Trade-offs
 
-- **[Risk]** The three unauthenticated pages still load `nav.js`, so the
-  codebase carries two parallel nav implementations (vanilla for those
-  three, Svelte for everything under `(app)`) until a follow-up change
-  addresses them. → **Mitigation**: called out explicitly as a Non-Goal
-  here and as an out-of-scope item on the issue, not silently dropped;
-  `nav.js` stays in the tree (not deleted) until nothing loads it.
 - **[Risk]** Reusing an existing `style.css` breakpoint for the bottom
   bar couples this change to whichever rule is chosen; if that rule's
   purpose shifts later (e.g. the header itself gets restyled), the bottom

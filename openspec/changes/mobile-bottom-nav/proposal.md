@@ -56,10 +56,20 @@ navigation chrome, not their requirements.
   `(app)` despite being a signed-in page, so the new nav chrome never
   reached it. Its own duplicated header/nav markup and `nav.js`
   injection are removed as part of the move (see design.md - Decisions).
-- `internal/api/static/nav.js` — not deleted by this change: the
-  bare-route-group pages (release history/disclaimer/privacy) still load
-  it, and whether they move under `(app)` or keep a separate path is an
-  explicit non-goal here (see design.md).
+- `internal/api/static/nav.js` — not deleted by this change, though it's
+  no longer loaded by any page this change touches: an earlier version
+  of this doc claimed release history/disclaimer/privacy lived outside
+  `(app)` and still needed it — wrong, they're inside `(app)` like every
+  other page here (found live when the layout's ported session-fetch
+  broke them; fixed with a route check, not a `nav.js` dependency — see
+  design.md). It stays in the tree only because
+  `web/src/routes/(app)/insights/+page.svelte` still has its own
+  unrelated, pre-existing independent injection of it — a separate,
+  out-of-scope cleanup (see design.md - Risks).
+- `web/src/routes/(app)/releases/+page.svelte`,
+  `.../disclaimer/+page.svelte`, `.../privacy/+page.svelte` — dead
+  `document.body.dataset.pageRequiresAuth` assignment removed (nothing
+  reads it once the layout uses a route check instead).
 - `internal/api/static/style.css` — new rules for the bottom tab bar,
   reusing existing tokens (`--accent`, `--accent-ink`, `--surface`,
   `--border`) rather than introducing new ones.
