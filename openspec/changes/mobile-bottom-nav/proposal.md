@@ -50,6 +50,12 @@ navigation chrome, not their requirements.
 
 - `web/src/routes/(app)/+layout.svelte` — nav chrome rewritten as Svelte
   state instead of an injected `<script src>` tag.
+- `web/src/routes/+page.svelte` (the dashboard) — moved to
+  `web/src/routes/(app)/+page.svelte` so it actually inherits the layout
+  above; discovered mid-implementation that it wasn't already part of
+  `(app)` despite being a signed-in page, so the new nav chrome never
+  reached it. Its own duplicated header/nav markup and `nav.js`
+  injection are removed as part of the move (see design.md - Decisions).
 - `internal/api/static/nav.js` — not deleted by this change: the
   bare-route-group pages (release history/disclaimer/privacy) still load
   it, and whether they move under `(app)` or keep a separate path is an

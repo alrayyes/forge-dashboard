@@ -21,6 +21,18 @@ Existing coverage in `tests/nav.spec.js` (#269) asserts against
 assumption there's exactly one nav landmark. Adding a second nav surface
 with the same labels breaks that assumption — see Decisions below.
 
+**Discovered mid-implementation, not in the original context above:**
+`web/src/routes/+page.svelte` (the dashboard, `/`) is not actually
+inside the `(app)` route group, despite being a signed-in page like
+every other one that is. It carries its own duplicate of the header/nav
+markup and its own separate `nav.js`/`footer.js` injection. Confirmed
+live: after porting `(app)/+layout.svelte`, the built
+`internal/api/static/insights.html` had the new chrome and
+`index.html` (the dashboard) didn't. Folding it into `(app)` is now
+part of this change (tasks.md group 2) rather than a silent gap —
+see Decisions below for why, over the alternative of duplicating the
+new markup into the dashboard's own header instead.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -43,6 +55,20 @@ with the same labels breaks that assumption — see Decisions below.
   settings pages beyond the nav chrome itself.
 
 ## Decisions
+
+**Fold the dashboard root page into the `(app)` route group rather than
+duplicating the new nav markup into its own separate header.** Confirmed
+with the user after the gap above was found live. Alternative
+considered: leave `+page.svelte` where it is and copy the ported
+Svelte-state header and the new bottom tab bar into its own duplicate
+markup, same as it already duplicates today's header. Rejected — that
+re-introduces the exact duplicated-chrome problem this whole change
+exists to retire, just with twice the markup to keep in sync from now
+on instead of once. The move itself is mechanical (a route group adds
+no URL segment, so `(app)/+page.svelte` still resolves to `/`); the
+real cost is deleting the page's own ~200-line duplicate header block
+and its `nav.js` injection line, both of which become dead weight the
+moment the page inherits `(app)/+layout.svelte`.
 
 **Bottom tab bar only replaces the header nav below the mobile
 breakpoint; both surfaces share one Svelte state module.** Confirmed with
