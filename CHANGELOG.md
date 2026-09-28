@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.101.1](https://github.com/alrayyes/forge-dashboard/compare/v0.101.0...v0.101.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **dashboard:** move View pipeline out of More actions onto the row ([#638](https://github.com/alrayyes/forge-dashboard/issues/638)) ([6f9c944](https://github.com/alrayyes/forge-dashboard/commit/6f9c944e3bf85e8fed87159203b3d4979d089a78)), closes [#636](https://github.com/alrayyes/forge-dashboard/issues/636)
+
 ## [0.101.0](https://github.com/alrayyes/forge-dashboard/compare/v0.100.2...v0.101.0) (2026-09-28)
 
 
