@@ -260,6 +260,67 @@ test.describe('pull request Renovate rebase button', () => {
     await expect(row).toContainText(/rate limit/i);
   });
 
+  // Same promotion as the Dependabot rebase action's own out-of-date
+  // case — Renovate has no separate Recreate, so promoting Rebase
+  // inline leaves nothing behind "More actions" for this row at all.
+  test.describe('promoted onto the row when out of date', () => {
+    test('a behind Renovate pull request shows Rebase inline, not behind More actions', async ({
+      page,
+    }) => {
+      await mockDashboard(page, 'github', makePR({ behind: true }));
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      // Visible without opening "More actions" at all — that's the
+      // whole point, not just that it's reachable somewhere on the row.
+      await expect(
+        row.getByRole('button', { name: 'Renovate: Rebase' }),
+      ).toBeVisible();
+    });
+
+    test('clicking the promoted Rebase button posts the same request', async ({
+      page,
+    }) => {
+      await mockDashboard(page, 'github', makePR({ behind: true }));
+      let requestBody;
+      await page.route('**/api/pull-requests/renovate-rebase', (route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      });
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+
+      expect(requestBody).toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 42,
+      });
+    });
+
+    test('an empty, behind Renovate pull request keeps the button behind More actions', async ({
+      page,
+    }) => {
+      await mockDashboard(
+        page,
+        'github',
+        makePR({ behind: true, empty: true }),
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'Renovate: Rebase' }),
+      ).toHaveCount(0);
+
+      await openMoreActions(row);
+      await expect(
+        row.getByRole('button', { name: 'Renovate: Rebase' }),
+      ).toBeVisible();
+    });
+  });
+
   test('a locked button is reachable by keyboard and has no axe-core violations', async ({
     page,
   }) => {
