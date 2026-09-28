@@ -79,9 +79,51 @@ test.describe('dashboard page', () => {
   }) => {
     // CI builds the e2e binary with no goreleaser ldflags, so this is
     // always "dev" here — a real release build shows "· vX.Y.Z" linked to
-    // its GitHub release instead (see footer.js). Also carries a
-    // "Release history" link now (see releases.spec.js).
+    // its GitHub release instead (see web/src/lib/Footer.svelte). Also
+    // carries a "Release history" link now (see releases.spec.js).
     await expect(page.locator('#footer-version')).toContainText('· dev build');
+  });
+
+  test('the footer links a real released version to its GitHub release, with a release history link alongside', async ({
+    page,
+  }) => {
+    // Mocked because CI always builds "dev" (see the test above) — this
+    // is the other branch of web/src/lib/Footer.svelte's version display,
+    // otherwise never exercised end-to-end.
+    await page.route('**/api/version', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ version: '1.2.3' }),
+      }),
+    );
+    await page.reload();
+
+    const versionLink = page.locator('#footer-version a', {
+      hasText: 'v1.2.3',
+    });
+    await expect(versionLink).toHaveAttribute(
+      'href',
+      'https://github.com/alrayyes/forge-dashboard/releases/tag/v1.2.3',
+    );
+    await expect(
+      page.locator('#footer-version a', { hasText: 'Release history' }),
+    ).toBeVisible();
+  });
+
+  test('the footer shows nothing version-related while /api/version is unresolved or fails', async ({
+    page,
+  }) => {
+    // web/src/lib/Footer.svelte's resting/failure state — no version
+    // text, no release history link, rather than an error or a stale
+    // value (the release history link is gated on the same fetch that
+    // drives the version text, not shown independently).
+    await page.route('**/api/version', (route) =>
+      route.fulfill({ status: 500 }),
+    );
+    await page.reload();
+
+    await expect(page.locator('#footer-version')).toBeEmpty();
   });
 
   test('an unreachable forge shows a friendly reason, not the raw technical string', async ({
