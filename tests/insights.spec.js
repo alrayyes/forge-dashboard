@@ -83,7 +83,10 @@ test.describe('insights page', () => {
   });
 
   test('is reachable from a link in the dashboard header', async ({ page }) => {
-    const link = page.locator('a[href="/insights.html"]');
+    // Scoped to .app-nav (the header's own nav landmark): #645's mobile
+    // bottom tab bar links to the same /insights.html href, and this
+    // test is specifically about the header link, not the bottom bar.
+    const link = page.locator('.app-nav a[href="/insights.html"]');
     await expect(link).toHaveCount(1);
     await link.click();
     await expect(page).toHaveURL(/\/insights\.html$/);

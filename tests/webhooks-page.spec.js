@@ -1292,13 +1292,13 @@ test.describe('webhooks page', () => {
     await mockDashboard(page, []);
     await page.goto('/webhooks.html');
 
-    await expect(page.locator('a[aria-label="Webhooks"]')).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
-    await expect(page.locator('a[aria-label="Settings"]')).toHaveAttribute(
-      'href',
-      '/settings.html',
-    );
+    // Scoped to .app-nav: #645's mobile bottom tab bar reuses the same
+    // per-destination aria-labels, so an unscoped locator matches both.
+    await expect(
+      page.locator('.app-nav a[aria-label="Webhooks"]'),
+    ).toHaveAttribute('aria-current', 'page');
+    await expect(
+      page.locator('.app-nav a[aria-label="Settings"]'),
+    ).toHaveAttribute('href', '/settings.html');
   });
 });
