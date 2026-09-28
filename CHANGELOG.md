@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.102.1](https://github.com/alrayyes/forge-dashboard/compare/v0.102.0...v0.102.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **insights:** stop double-injecting nav.js/footer.js ([#650](https://github.com/alrayyes/forge-dashboard/issues/650)) ([1eb85e3](https://github.com/alrayyes/forge-dashboard/commit/1eb85e357c5ba6fbe3145e178ba4fcfd52b4daa9)), closes [#647](https://github.com/alrayyes/forge-dashboard/issues/647)
+
 ## [0.102.0](https://github.com/alrayyes/forge-dashboard/compare/v0.101.2...v0.102.0) (2026-09-28)
 
 
