@@ -1,36 +1,117 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { page } from "$app/state";
   import { syncThemeFromServer } from "$lib/theme";
 
   let { children } = $props();
 
-  // footer.js/nav.js are plain DOM-query IIFEs, not ES modules — loaded
-  // as real <script src> elements injected after mount rather than
-  // written directly in the markup below, since Svelte only allows one
-  // top-level <script> per component (svelte.dev/e/script_duplicate).
+  // Matches GET /api/auth/session's JSON body — see nav.js's own comment
+  // (now retired for every page under this layout) for the shape this
+  // was always fetching.
+  type Session = { displayName: string; isAdmin: boolean };
+
+  let displayName = $state("");
+  let isAdmin = $state(false);
+
+  // SvelteKit's own reactive current-URL, replacing nav.js's
+  // `a.pathname === window.location.pathname` DOM query (design.md -
+  // Decisions: "Current-page detection uses SvelteKit's own
+  // $page.url.pathname").
+  const currentPath = $derived(page.url.pathname);
+
+  // route is the SvelteKit route this layout's own links mean to point
+  // at ("/insights", not "/insights.html" — see web/src/routes/(app)/
+  // for the real per-page route paths). The header's own <a href>s below
+  // still carry the pre-Svelte ".html" filenames, because
+  // internal/api/server.go only registers GET handlers for those, not
+  // yet for the bare route path — a hard page load today lands on
+  // "/insights.html", not "/insights". Matching both forms here is what
+  // keeps aria-current correct under today's real navigation (out of
+  // this change's scope to also update the Go backend's routing) as well
+  // as a future client-side navigation to the bare route.
+  function isCurrentRoute(route: string): boolean {
+    return (
+      currentPath === route ||
+      (route !== "/" && currentPath === `${route}.html`)
+    );
+  }
+
+  // Release history, disclaimer and privacy are inside this (app) route
+  // group by file location, but are meant to stay reachable without a
+  // session (nav.js's old behavior read a document.body.dataset.
+  // pageRequiresAuth = "false" flag these three pages set, and skipped
+  // its redirect-to-login on a 401 — see the fetch below). Rather than
+  // that DOM flag (a mount-order race between this layout's onMount and
+  // each page's own, and nothing sets it once nav.js is retired here),
+  // this reuses isCurrentRoute's own tolerant path matching against
+  // currentPath directly: no child-to-parent signaling needed.
+  const PUBLIC_ROUTES = ["/releases", "/disclaimer", "/privacy"];
+
+  function isPublicRoute(): boolean {
+    return PUBLIC_ROUTES.some((route) => isCurrentRoute(route));
+  }
+
+  function signOut() {
+    fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+      window.location.href = "/login.html";
+    });
+  }
+
+  // footer.js/nav.js used to be plain DOM-query IIFEs, not ES modules —
+  // loaded as real <script src> elements injected after mount rather
+  // than written directly in the markup below, since Svelte only allows
+  // one top-level <script> per component (svelte.dev/e/script_duplicate).
+  // nav.js's own logic is ported above/below as real Svelte state now;
+  // footer.js stays exactly as it was — out of scope here, split out to
+  // alrayyes/forge-dashboard#646.
   onMount(() => {
-    for (const src of ["/footer.js", "/nav.js"]) {
-      const script = document.createElement("script");
-      script.src = src;
-      document.body.appendChild(script);
-    }
+    const script = document.createElement("script");
+    script.src = "/footer.js";
+    document.body.appendChild(script);
 
     // The header no longer has its own toggle (#352 — theme is a
     // Settings-only control now); this is the "did another device
     // change it" half, reconciling the fast local cookie theme.js
     // already applied against whatever's actually saved.
     syncThemeFromServer();
+
+    // ---- who's signed in ----
+    // Ported from nav.js verbatim in behavior: same endpoint, same 401
+    // redirect target — except release history, disclaimer and privacy
+    // (see isPublicRoute above), which stay put on a 401 instead of
+    // redirecting, same as nav.js's own pageRequiresAuth === "false" skip
+    // used to for those three pages.
+    fetch("/api/auth/session", { headers: { Accept: "application/json" } })
+      .then((res) => {
+        if (res.status === 401) {
+          if (!isPublicRoute()) {
+            window.location.href = "/login.html";
+          }
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
+      .then((session: Session | null) => {
+        if (!session) return;
+        displayName = session.displayName;
+        isAdmin = session.isAdmin;
+      })
+      .catch(() => {
+        /* a transient failure here isn't worth blocking the page over */
+      });
   });
 </script>
 
 <!--
   The header/nav/footer chrome every page shares — ported from the vanilla
   pages' duplicated HTML (internal/api/static/*.html) rather than redesigned,
-  so nav.js/footer.js keep working unmodified: both are plain DOM-query
-  scripts with no framework coupling, matching the same ids/classes this
-  markup still carries. A page migrating off this layout later can drop
-  footer.js/nav.js in favor of real Svelte state — not done yet, since
-  that's a bigger, separate change than this page's own migration.
+  so footer.js keeps working unmodified: it's a plain DOM-query script with
+  no framework coupling, matching the same ids/classes this markup still
+  carries. nav.js itself is no longer loaded here — its session fetch,
+  current-page highlight, admin-link visibility and sign-out are all real
+  Svelte state now (see the script block above and the mobile bottom tab
+  bar below); nav.js stays in the tree only for the three unauthenticated
+  pages that still load it directly.
 -->
 <div class="wrap">
   <header>
@@ -51,13 +132,15 @@
     </a>
     <div class="header-status">
       <span class="mono" id="whoami" style="font-size:12px;color:var(--ink-3);"
-      ></span>
+        >{displayName}</span
+      >
       <nav class="app-nav" aria-label="Main">
         <a
           class="theme-toggle"
           href="/"
           aria-label="Home"
           title="Home"
+          aria-current={isCurrentRoute("/") ? "page" : undefined}
           style="text-decoration:none;"
         >
           <svg
@@ -79,6 +162,7 @@
           href="/insights.html"
           aria-label="Insights"
           title="Insights"
+          aria-current={isCurrentRoute("/insights") ? "page" : undefined}
           style="text-decoration:none;"
         >
           <svg
@@ -100,6 +184,7 @@
           href="/webhooks.html"
           aria-label="Webhooks"
           title="Webhooks"
+          aria-current={isCurrentRoute("/webhooks") ? "page" : undefined}
           style="text-decoration:none;"
         >
           <svg
@@ -119,6 +204,7 @@
           href="/settings.html"
           aria-label="Settings"
           title="Settings"
+          aria-current={isCurrentRoute("/settings") ? "page" : undefined}
           style="text-decoration:none;"
         >
           <svg
@@ -135,33 +221,35 @@
             /></svg
           >
         </a>
-        <a
-          class="theme-toggle"
-          href="/admin.html"
-          id="admin-link"
-          aria-label="Admin"
-          title="Admin"
-          style="text-decoration:none;"
-          hidden
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle
-              cx="9"
-              cy="7"
-              r="4"
-            /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path
-              d="M16 3.13a4 4 0 0 1 0 7.75"
-            /></svg
+        {#if isAdmin}
+          <a
+            class="theme-toggle"
+            href="/admin.html"
+            id="admin-link"
+            aria-label="Admin"
+            title="Admin"
+            aria-current={isCurrentRoute("/admin") ? "page" : undefined}
+            style="text-decoration:none;"
           >
-        </a>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle
+                cx="9"
+                cy="7"
+                r="4"
+              /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path
+                d="M16 3.13a4 4 0 0 1 0 7.75"
+              /></svg
+            >
+          </a>
+        {/if}
       </nav>
       <button
         class="theme-toggle"
@@ -169,6 +257,7 @@
         type="button"
         aria-label="Sign out"
         title="Sign out"
+        onclick={signOut}
       >
         <svg
           width="16"
@@ -187,5 +276,100 @@
     </div>
   </header>
 </div>
+
+<!--
+  The mobile bottom tab bar (design.md - Decisions): a second, distinct
+  <nav> landmark — not a copy of .app-nav's DOM, and given its own
+  aria-label ("Mobile navigation" vs. the header's "Main") so a Playwright
+  locator scoped to `a[aria-label="..."]` can tell the two surfaces apart
+  once both exist in the DOM. Reuses the header's own icon SVGs and link
+  labels for a consistent accessible name per destination; Admin is
+  deliberately not one of these four tabs (design.md settled that as
+  header/desktop-only). Shown/hidden purely by CSS (style.css's own
+  breakpoint comment names which one) rather than an {#if isMobile} block,
+  so there's no flash-of-missing-nav on first paint and no matchMedia
+  listener needed.
+-->
+<nav class="bottom-nav" aria-label="Mobile navigation">
+  <a
+    class="bottom-nav-link"
+    href="/"
+    aria-label="Home"
+    aria-current={isCurrentRoute("/") ? "page" : undefined}
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      ><path
+        d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"
+      /></svg
+    >
+    <span class="bottom-nav-label">Home</span>
+  </a>
+  <a
+    class="bottom-nav-link"
+    href="/insights.html"
+    aria-label="Insights"
+    aria-current={isCurrentRoute("/insights") ? "page" : undefined}
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      ><path d="M3 3v18h18" /><path d="M18.7 8 13 13.7l-3-3L4 16.7" /></svg
+    >
+    <span class="bottom-nav-label">Insights</span>
+  </a>
+  <a
+    class="bottom-nav-link"
+    href="/webhooks.html"
+    aria-label="Webhooks"
+    aria-current={isCurrentRoute("/webhooks") ? "page" : undefined}
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg
+    >
+    <span class="bottom-nav-label">Webhooks</span>
+  </a>
+  <a
+    class="bottom-nav-link"
+    href="/settings.html"
+    aria-label="Settings"
+    aria-current={isCurrentRoute("/settings") ? "page" : undefined}
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      ><circle cx="12" cy="12" r="3" /><path
+        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+      /></svg
+    >
+    <span class="bottom-nav-label">Settings</span>
+  </a>
+</nav>
 
 {@render children()}

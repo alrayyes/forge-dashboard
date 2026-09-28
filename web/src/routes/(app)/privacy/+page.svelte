@@ -1,16 +1,3 @@
-<script lang="ts">
-  import { browser } from "$app/environment";
-
-  // nav.js (injected by (app)/+layout.svelte) reads this to know not to
-  // redirect a signed-out visitor to /login.html — the whole point of
-  // this page staying reachable without a session. Set here, in the
-  // component's own instance script rather than onMount, so it's on the
-  // body before the layout's onMount injects and runs nav.js at all.
-  if (browser) {
-    document.body.dataset.pageRequiresAuth = "false";
-  }
-</script>
-
 <svelte:head>
   <title>Privacy — Forge Board</title>
   <style>

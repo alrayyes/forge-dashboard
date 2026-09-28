@@ -183,7 +183,7 @@ leftover unrelated to this change (present before it started, not
 introduced by it) — the same duplicated-injection pattern the
 dashboard had before being folded in (tasks.md group 2), just not yet
 cleaned up here since insights was never broken by anything this
-change touches. Worth its own follow-up issue rather than silently
+change touches. Filed as alrayyes/forge-dashboard#647 rather than silently
 left as a `TODO`.
 
 ## Risks / Trade-offs

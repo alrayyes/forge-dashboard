@@ -1,12 +1,3 @@
-<script lang="ts">
-  import { browser } from "$app/environment";
-
-  // See privacy/+page.svelte's identical comment.
-  if (browser) {
-    document.body.dataset.pageRequiresAuth = "false";
-  }
-</script>
-
 <svelte:head>
   <title>Disclaimer — Forge Board</title>
   <style>

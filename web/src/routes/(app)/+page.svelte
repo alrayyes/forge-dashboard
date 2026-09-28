@@ -1,15 +1,22 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { syncThemeFromServer } from "$lib/theme";
 
-  // The dashboard is the one page with header content no other page
-  // needs (forge health, the owner-switcher, the refresh button) — see
-  // (app)/+layout.svelte's own comment on why that shared layout exists
-  // at all: convenience for pages that don't need anything extra. This
-  // page predates it and still doesn't fit it, so it keeps its own full
-  // header (and stays outside the (app) route group) rather than
-  // stretching that layout to carry markup every other page would just
-  // render empty and unused.
+  // This page now lives under (app) and inherits (app)/+layout.svelte's
+  // header (brand link, .app-nav, admin-link, logout-button, whoami) —
+  // its own duplicate copies of that chrome, and the nav.js injection
+  // that used to drive them, were removed when it moved here
+  // (alrayyes/forge-dashboard#645). Its own genuinely page-specific
+  // content (the forge-names subtitle, forge health, the owner-switcher,
+  // the refresh button) used to be injected into the layout's <header>
+  // via a Svelte context the layout exposed — that approach didn't work:
+  // SvelteKit's SSR renders a layout's own template (everything before
+  // {@render children()}) in one synchronous top-down pass, before this
+  // page's own script ever runs, so content this page set could never
+  // appear in that earlier part of the layout's output (confirmed
+  // against internal/api/static/index.html post-build). It's plain,
+  // non-landmark markup in this page's own template now instead — see
+  // the .dashboard-toolbar div below, right where the old duplicate
+  // <header> used to sit.
 
   type PullRequestItem = FilterableItem & {
     number: number;
@@ -60,13 +67,6 @@
   type ActionState = { phase: ActionPhase; reason?: string };
 
   onMount(() => {
-    for (const src of ["/footer.js", "/nav.js"]) {
-      const script = document.createElement("script");
-      script.src = src;
-      document.body.appendChild(script);
-    }
-    syncThemeFromServer();
-
     const filtersScript = document.createElement("script");
     filtersScript.src = "/filters.js";
     filtersScript.addEventListener("load", initDashboard);
@@ -2904,8 +2904,8 @@
         banner.appendChild(row);
       }
       document
-        .querySelector(".wrap")
-        ?.insertBefore(banner, document.querySelector(".stats"));
+        .querySelector(".stats")
+        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
     }
 
     setInterval(() => {
@@ -2925,8 +2925,8 @@
       // surfaces.
       banner.setAttribute("role", "alert");
       document
-        .querySelector(".wrap")
-        ?.insertBefore(banner, document.querySelector(".stats"));
+        .querySelector(".stats")
+        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
     }
 
     function clearError() {
@@ -2946,8 +2946,8 @@
       banner.id = "status-banner";
       banner.setAttribute("aria-live", "polite");
       document
-        .querySelector(".wrap")
-        ?.insertBefore(banner, document.querySelector(".stats"));
+        .querySelector(".stats")
+        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
       // Auto-dismisses — unlike the error banner, which stays until the
       // next successful action clears it, a routine "Merged x#42." isn't
       // meant to linger.
@@ -2959,9 +2959,6 @@
     function clearStatus() {
       document.getElementById("status-banner")?.remove();
     }
-
-    // Session/admin-link/logout are nav.js's job now — shared by every
-    // page's header, not just the dashboard's own.
 
     // ---- force-refresh: retry right now instead of waiting out the
     // rest of the background poll's own interval ----
@@ -3211,195 +3208,63 @@
 </svelte:head>
 
 <div class="wrap">
-  <header>
-    <a class="brand" href="/" aria-label="Forge Board home">
-      <div class="brand-mark" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <circle cx="6" cy="6" r="2.4" stroke="#eef1f6" stroke-width="1.6" />
-          <circle cx="6" cy="18" r="2.4" stroke="#eef1f6" stroke-width="1.6" />
-          <circle cx="18" cy="12" r="2.4" stroke="#eef1f6" stroke-width="1.6" />
-          <path d="M6 8.4V15.6" stroke="#eef1f6" stroke-width="1.6" />
-          <path d="M8.2 7.2 15.8 10.8" stroke="#eef1f6" stroke-width="1.6" />
-          <path d="M8.2 16.8 15.8 13.2" stroke="#eef1f6" stroke-width="1.6" />
-        </svg>
-      </div>
-      <div>
-        <h1>Forge Board</h1>
-        <p id="forge-names"><span class="mono">&hellip;</span></p>
-      </div>
-    </a>
-    <div class="header-status">
-      <label for="dashboard-owner-select" class="sr-only"
-        >Viewing dashboard</label
+  <!--
+    This page's own genuinely-unique content — connected forges, the
+    sharing dropdown, the forge-health panel, the ticking "refreshed"
+    clock, the manual refresh button — used to be injected into the
+    shared layout's <header> landmark (see the script block's own
+    comment for why that broke under SSR). It's plain, non-landmark
+    markup here instead, styled to read as a continuation of the header
+    above it (see .dashboard-toolbar in style.css) without actually being
+    one.
+  -->
+  <div class="dashboard-toolbar">
+    <!-- No longer sits directly under the "Forge Board" <h1> the way it
+         used to as the brand's subtitle, so the sr-only prefix below
+         gives it the same "these are the connected forges" context a
+         screen-reader user previously got for free from that
+         positioning; sighted users still get it from this toolbar's own
+         placement right under the header. forgeNames.innerHTML (below)
+         only ever replaces #forge-names's own children, never this
+         label, since the label is a sibling, not a child. -->
+    <p class="dashboard-toolbar-forges">
+      <span class="sr-only">Connected forges: </span>
+      <span id="forge-names"><span class="mono">&hellip;</span></span>
+    </p>
+    <label for="dashboard-owner-select" class="sr-only">Viewing dashboard</label
+    >
+    <select
+      id="dashboard-owner-select"
+      class="mono"
+      style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface-sunken);color:var(--ink);"
+      hidden
+    >
+      <option value="">My dashboard</option>
+    </select>
+    <div id="forge-health" aria-live="polite"></div>
+    <span class="refreshed"
+      >Refreshed <span class="mono" id="refreshed-at">&mdash;</span></span
+    >
+    <button
+      class="theme-toggle"
+      id="force-refresh-button"
+      type="button"
+      aria-label="Refresh now"
+      title="Refresh now"
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg
       >
-      <select
-        id="dashboard-owner-select"
-        class="mono"
-        style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface-sunken);color:var(--ink);"
-        hidden
-      >
-        <option value="">My dashboard</option>
-      </select>
-      <div id="forge-health" aria-live="polite"></div>
-      <span class="refreshed"
-        >Refreshed <span class="mono" id="refreshed-at">&mdash;</span></span
-      >
-      <button
-        class="theme-toggle"
-        id="force-refresh-button"
-        type="button"
-        aria-label="Refresh now"
-        title="Refresh now"
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          ><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg
-        >
-      </button>
-      <span class="mono" id="whoami" style="font-size:12px;color:var(--ink-3);"
-      ></span>
-      <nav class="app-nav" aria-label="Main">
-        <a
-          class="theme-toggle"
-          href="/"
-          aria-label="Home"
-          title="Home"
-          style="text-decoration:none;"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><path
-              d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"
-            /></svg
-          >
-        </a>
-        <a
-          class="theme-toggle"
-          href="/insights.html"
-          aria-label="Insights"
-          title="Insights"
-          style="text-decoration:none;"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><path d="M3 3v18h18" /><path
-              d="M18.7 8 13 13.7l-3-3L4 16.7"
-            /></svg
-          >
-        </a>
-        <a
-          class="theme-toggle"
-          href="/webhooks.html"
-          aria-label="Webhooks"
-          title="Webhooks"
-          style="text-decoration:none;"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg
-          >
-        </a>
-        <a
-          class="theme-toggle"
-          href="/settings.html"
-          aria-label="Settings"
-          title="Settings"
-          style="text-decoration:none;"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><circle cx="12" cy="12" r="3" /><path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-            /></svg
-          >
-        </a>
-        <a
-          class="theme-toggle"
-          href="/admin.html"
-          id="admin-link"
-          aria-label="Admin"
-          title="Admin"
-          style="text-decoration:none;"
-          hidden
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle
-              cx="9"
-              cy="7"
-              r="4"
-            /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path
-              d="M16 3.13a4 4 0 0 1 0 7.75"
-            /></svg
-          >
-        </a>
-      </nav>
-      <button
-        class="theme-toggle"
-        id="logout-button"
-        type="button"
-        aria-label="Sign out"
-        title="Sign out"
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          ><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path
-            d="M16 17l5-5-5-5"
-          /><path d="M21 12H9" /></svg
-        >
-      </button>
-    </div>
-  </header>
-
+    </button>
+  </div>
   <div class="stats">
     <div class="stat">
       <div class="n" id="stat-prs">&ndash;</div>

@@ -1,11 +1,5 @@
 <script lang="ts">
-  import { browser } from "$app/environment";
   import { onMount } from "svelte";
-
-  // See privacy/+page.svelte's identical comment.
-  if (browser) {
-    document.body.dataset.pageRequiresAuth = "false";
-  }
 
   const REPO = "alrayyes/forge-dashboard";
 

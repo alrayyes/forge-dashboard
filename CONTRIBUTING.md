@@ -92,12 +92,20 @@ bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechani
   `bun run build:web` and merged in by `scripts/sync-web-build.sh`),
   migrated incrementally, one page at a time, per #326, now complete.
   `web/src/routes/(app)` is that route group's own shared layout
-  (header, nav, footer, theme sync) for every signed-in page — the
-  dashboard (`web/src/routes/+page.svelte`) is the one exception, since
-  it's also the one page with header content (forge health, the
-  dashboard-owner switcher, the refresh button) nothing else needs.
-  `web/src/routes/login` is the one page that stays reachable without a
-  session, outside that group for the same reason. Settings
+  (header, nav — a persistent top nav plus a mobile bottom tab bar
+  below `style.css`'s 420px breakpoint, real Svelte state as of #645 —
+  footer-script injection, theme sync), and every page under it gets
+  that chrome, including the dashboard
+  (`web/src/routes/(app)/+page.svelte`) and the three pages that stay
+  reachable without a session (`releases`, `disclaimer`, `privacy`, a
+  route check in the layout rather than living outside the group). The
+  dashboard is the one page with header-adjacent content nothing else
+  needs (forge health, the dashboard-owner switcher, the refresh
+  button) — its own plain, non-landmark markup rather than merged into
+  the shared `<header>`, since a layout renders that before any child
+  page's own script runs at all. `web/src/routes/login` is the one page
+  genuinely outside `(app)` — no persistent nav chrome to inherit before
+  a session exists. Settings
   (`web/src/routes/(app)/settings`) is where a signed-in user sets
   their own tokens, theme, and manages sharing; admin
   (`web/src/routes/(app)/admin`) is the admin's user list, reachable by
