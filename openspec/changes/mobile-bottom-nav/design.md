@@ -2,16 +2,24 @@
 
 ## Context
 
-`(app)/+layout.svelte` currently injects `nav.js` and `footer.js` as real
-`<script src>` elements in `onMount` (see its own header comment) because
-Svelte only allows one top-level `<script>` per component, and those two
-files are plain DOM-query IIFEs shared, unmodified, by every page under
-`(app)` plus three unauthenticated pages outside it (release history,
+`(app)/+layout.svelte` currently injects `nav.js` as a real `<script
+src>` element in `onMount` (see its own header comment) because Svelte
+only allows one top-level `<script>` per component, and that file is a
+plain DOM-query IIFE shared, unmodified, by every page under `(app)`
+plus three unauthenticated pages outside it (release history,
 disclaimer, privacy — `nav.js`'s own header comment names them, gated by
 `document.body.dataset.pageRequiresAuth`). `nav.js` does four things:
 highlights the current-page link via `aria-current`, fetches
 `/api/auth/session` to show `whoami` and toggle `#admin-link[hidden]`,
-and wires `#logout-button`'s click handler. See proposal.md - Why.
+and wires `#logout-button`'s click handler. `footer.js` is out of scope
+here — see proposal.md - Why for why it was split out to
+alrayyes/forge-dashboard#646. See proposal.md - Why for the rest of the
+motivation.
+
+Existing coverage in `tests/nav.spec.js` (#269) asserts against
+`a[aria-label="<Page>"]` locators unscoped by container, on the
+assumption there's exactly one nav landmark. Adding a second nav surface
+with the same labels breaks that assumption — see Decisions below.
 
 ## Goals / Non-Goals
 
@@ -26,10 +34,11 @@ and wires `#logout-button`'s click handler. See proposal.md - Why.
 
 - Re-homing the three unauthenticated pages (release history, disclaimer,
   privacy) under `(app)`, or giving them their own Svelte-state nav copy —
-  they keep loading `nav.js`/`footer.js` as-is until a separate change
-  decides how they fit. `nav.js`/`footer.js` are retired only once nothing
-  left in the tree loads them; until then they stay, dead code for the
-  `(app)` pages but still load-bearing for those three.
+  they keep loading `nav.js` as-is until a separate change decides how
+  they fit. `nav.js` is retired only once nothing left in the tree loads
+  it; until then it stays, dead code for the `(app)` pages but still
+  load-bearing for those three.
+- Porting `footer.js` — split out to alrayyes/forge-dashboard#646.
 - Any visual/content change to the dashboard, insights, webhooks, or
   settings pages beyond the nav chrome itself.
 
@@ -78,6 +87,24 @@ context. Both the header links and the bottom tab bar derive their
 `fetch(...).then(...)` chains triggered by DOM events into Svelte
 `onMount`/event-handler equivalents. No API contract changes.
 
+**The header nav and the bottom tab bar are two distinct `<nav>`
+landmarks with matching `aria-label`s per link but no shared DOM, and
+existing tests scope to a container rather than relying on a single
+sitewide match.** Both surfaces reuse the same link labels ("Home",
+"Insights", "Webhooks", "Settings") for a consistent accessible name per
+destination, but that means `page.locator('a[aria-label="Home"]')`
+resolves to two elements once both surfaces exist in the DOM (one CSS-
+hidden depending on viewport) — a Playwright strict-mode violation.
+`tests/nav.spec.js`'s existing `NAV_PAGES` assertions get scoped to the
+header's own container (e.g. `header a[aria-label="Home"]`), and new
+bottom-tab-bar assertions scope to its own `<nav aria-label="Mobile
+navigation">` landmark. Alternative considered: only mount the inactive
+surface's DOM conditionally (`{#if isMobile}`) instead of hiding it with
+CSS, so exactly one always exists. Rejected — that needs a
+`matchMedia`/resize listener and reintroduces a flash-of-missing-nav on
+first paint that pure CSS avoids; scoping the locators is a smaller,
+one-time cost against tests that already exist.
+
 ## Risks / Trade-offs
 
 - **[Risk]** The three unauthenticated pages still load `nav.js`, so the
@@ -85,8 +112,7 @@ context. Both the header links and the bottom tab bar derive their
   three, Svelte for everything under `(app)`) until a follow-up change
   addresses them. → **Mitigation**: called out explicitly as a Non-Goal
   here and as an out-of-scope item on the issue, not silently dropped;
-  `nav.js`/`footer.js` stay in the tree (not deleted) until nothing loads
-  them.
+  `nav.js` stays in the tree (not deleted) until nothing loads it.
 - **[Risk]** Reusing an existing `style.css` breakpoint for the bottom
   bar couples this change to whichever rule is chosen; if that rule's
   purpose shifts later (e.g. the header itself gets restyled), the bottom
