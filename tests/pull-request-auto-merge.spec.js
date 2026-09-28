@@ -48,7 +48,9 @@ function mockDashboard(page, pr) {
 }
 
 // Enable auto-merge lives behind the row's "More actions" overflow
-// trigger (#527), same as Dependabot/Renovate/View pipeline.
+// trigger (#527), same as Dependabot/Renovate's own rarer actions — View
+// pipeline moved out of this menu entirely in #636, so it no longer
+// keeps a row's "More actions" trigger around on its own.
 async function openMoreActions(row) {
   await row.getByRole('button', { name: 'More actions' }).click();
 }
@@ -80,12 +82,13 @@ test.describe('pull request Enable auto-merge action', () => {
     await mockDashboard(page, makePR({ forge: 'forgejo' }));
     await page.reload();
 
+    // No other overflow-eligible action applies to this row either (not
+    // Dependabot/Renovate-authored, and View pipeline is inline now, not
+    // in this menu — #636), so "More actions" shouldn't even show up.
     const row = page.locator('#pr-rows .row').first();
-    // View pipeline (ci: 'pending', the default) still puts a "More
-    // actions" trigger on the row — opening it is what makes this
-    // assertion actually prove the button is absent from the menu's own
-    // contents, not just that a closed menu renders nothing.
-    await openMoreActions(row);
+    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
+      0,
+    );
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
@@ -99,7 +102,12 @@ test.describe('pull request Enable auto-merge action', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.locator('.merge-pill.auto-merge')).toBeVisible();
-    await openMoreActions(row);
+    // No other overflow-eligible action applies (not Dependabot/Renovate,
+    // View pipeline is inline — #636), so there's nothing left for "More
+    // actions" to hold at all.
+    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
+      0,
+    );
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
@@ -112,7 +120,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
+    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
+      0,
+    );
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);

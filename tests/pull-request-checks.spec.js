@@ -57,25 +57,21 @@ function mockChecks(page, body, status = 200) {
   );
 }
 
-// View pipeline lives behind the row's "More actions" overflow trigger
-// (#527) — this opens it, same as a person clicking through.
-async function openMoreActions(row) {
-  await row.getByRole('button', { name: 'More actions' }).click();
-}
-
 test.describe('pull request pipeline checks panel', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
   });
 
-  test('a pull request with CI reported shows the View pipeline button', async ({
+  // #636: inline on the row itself, not behind "More actions" — a
+  // read-only drill-down reached on nearly every row with CI configured,
+  // not the rare, mutating kind of action that menu exists for.
+  test('a pull request with CI reported shows the View pipeline button inline, not behind More actions', async ({
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
     await expect(
       row.getByRole('button', { name: 'View pipeline' }),
     ).toBeVisible();
@@ -117,7 +113,6 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -166,7 +161,6 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -204,7 +198,6 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -228,7 +221,6 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -264,7 +256,6 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -283,20 +274,19 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    // Captured before opening the popover: closing the dialog also closes
-    // the "More actions" popover it was opened from (#571), which removes
-    // "View pipeline" from the DOM entirely, so focus can't land back on
-    // it. It lands on this trigger instead.
-    const moreActions = row.getByRole('button', { name: 'More actions' });
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'View pipeline' }).click();
+    // #636: View pipeline is a plain inline row button now, not a
+    // "More actions" entry — closing the dialog rebuilds the row (same
+    // as every other row action already does) and refocuses this same
+    // button by its stable id, not a menu trigger.
+    const viewPipeline = row.getByRole('button', { name: 'View pipeline' });
+    await viewPipeline.click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(dialog).toBeVisible();
 
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
-    await expect(moreActions).toBeFocused();
+    await expect(viewPipeline).toBeFocused();
   });
 
   test('the close button closes the panel', async ({ page }) => {
@@ -305,7 +295,6 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -326,7 +315,6 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
     await row.getByRole('button', { name: 'View pipeline' }).click();
     await expect(
       page.getByRole('dialog', { name: 'Pipeline checks' }),

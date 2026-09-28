@@ -431,8 +431,8 @@
         // app writing to the branch directly (see updateBranchActionCell's
         // doc comment for why bot-managed rows never get that button).
         // Promoted inline the same way, and only the once, when it's
-        // actually the thing to do: Recreate and View pipeline are rarer
-        // and stay in "More actions" regardless (#527).
+        // actually the thing to do: Recreate is rarer and stays in "More
+        // actions" regardless (#527).
         const dependabotRebasePromoted =
           pr.behind && !pr.empty && pr.forge === "github" && isDependabotPr(pr);
         const renovateRebasePromoted =
@@ -443,6 +443,12 @@
           const promoted = renovateRebaseActionCell(pr);
           if (promoted) statusCell.appendChild(promoted);
         }
+        // Inline like every other row action, not collapsed into "More
+        // actions" (#636): it's a read-only drill-down into data the row
+        // is already summarizing (the CI pill), not a rare or mutating
+        // action the way Dependabot/Renovate's own actions are.
+        const pipelineAction = pipelineActionCell(pr);
+        if (pipelineAction) statusCell.appendChild(pipelineAction);
         if (mergeAction) statusCell.appendChild(mergeAction);
         const closeAction = closeActionCell(pr);
         if (closeAction) statusCell.appendChild(closeAction);
@@ -452,7 +458,6 @@
             ? dependabotRecreateOnlyCell(pr)
             : dependabotActionCell(pr),
           renovateRebasePromoted ? null : renovateRebaseActionCell(pr),
-          pipelineActionCell(pr),
         ].filter((cell): cell is HTMLElement => cell !== null);
         const moreActions = moreActionsCell(pr, secondaryActions);
         if (moreActions) statusCell.appendChild(moreActions);
@@ -1768,20 +1773,17 @@
       "pipeline-dialog-close",
     ) as HTMLButtonElement | null;
 
-    // The button that opened the dialog most recently — closing it (via
-    // Escape, a backdrop click, or the close button itself) moves focus
-    // back here, the same "return focus to what opened it" contract every
-    // other transient UI in this file already honors (see
-    // retryLockedAction moving focus back to a just-re-rendered locked
-    // button).
-    //
-    // Only ever the "View pipeline" button living inside a row's "More
-    // actions" popover (pipelineActionCell is its only caller) — which
-    // the dialog's own "close" handler below removes from the DOM as
-    // part of closing that popover, so it can't be the thing focus
-    // actually lands back on. pipelineDialogRowKey is what that handler
-    // refocuses instead: the row's still-standing "More actions" trigger.
-    let pipelineDialogTrigger: HTMLButtonElement | null = null;
+    // Which row's dialog this is — closing it (via Escape, a backdrop
+    // click, or the close button itself) moves focus back to that row's
+    // own "View pipeline" button, the same "return focus to what opened
+    // it" contract every other transient UI in this file already honors
+    // (see retryLockedAction moving focus back to a just-re-rendered
+    // locked button). Not a direct element reference: a later render
+    // rebuilds the whole row from scratch (applySnapshot's own 30s poll,
+    // or this very dialog's own "close" handler below), which leaves any
+    // node reference captured at open time stale — refocusing by
+    // pipelineActionCell's own stable id, once the rebuild has happened,
+    // is what actually reaches the live node.
     let pipelineDialogRowKey: string | null = null;
 
     // Bumped on every open — a slow fetch from an already-closed (or
@@ -1895,12 +1897,8 @@
         });
     }
 
-    function openPipelineDialog(
-      item: PullRequestItem,
-      trigger: HTMLButtonElement,
-    ) {
+    function openPipelineDialog(item: PullRequestItem) {
       if (!pipelineDialog) return;
-      pipelineDialogTrigger = trigger;
       pipelineDialogRowKey = prKey(item);
       if (pipelineDialogSubtitle) {
         pipelineDialogSubtitle.textContent = `${item.repo}#${item.number}`;
@@ -1915,28 +1913,18 @@
 
     // Fires for every close path — Escape, the close button, and the
     // backdrop-click handler just below — so focus returns to the row's
-    // own button no matter which one the pull request's own row-action
-    // group used to get here.
-    //
-    // Also closes the "More actions" popover the trigger always lives
-    // in: that popover's own click-outside/Escape handling stands down
-    // for as long as this dialog is open (modalDialogOpen()'s own
-    // comment), so left alone here it would still be open, with no way
-    // to close it short of a click elsewhere on the page, the instant
-    // this dialog closes (confirmed live). Rebuilding the row removes
-    // pipelineDialogTrigger from the DOM, so focus goes to the row's
-    // still-standing "More actions" trigger instead — refocusing the
-    // just-removed node first and rebuilding after would only lose focus
-    // to <body> the moment that node left the DOM.
+    // own "View pipeline" button no matter which one was used to get
+    // here. renderPRBoard() rebuilds the row from scratch first (the same
+    // poll-driven rebuild every other row action already lives with), so
+    // the refocus below has to find the freshly built node by its stable
+    // id rather than holding a reference captured at open time.
     pipelineDialog?.addEventListener("close", () => {
-      pipelineDialogTrigger = null;
       const rowKey = pipelineDialogRowKey;
       pipelineDialogRowKey = null;
-      closeAllActionMenus();
       renderPRBoard();
       if (rowKey) {
         document
-          .getElementById(`row-actions-trigger-${domSafeId(rowKey)}`)
+          .getElementById(`pipeline-trigger-${domSafeId(rowKey)}`)
           ?.focus();
       }
     });
@@ -1953,25 +1941,34 @@
 
     // Visible whenever the row has any CI at all — "none" already has
     // nothing to show a panel about, the same signal ciPill's own
-    // CI_LABELS.none already reads.
+    // CI_LABELS.none already reads. Inline on the row itself (#636), not
+    // collapsed into "More actions": a read-only drill-down into data the
+    // CI pill is already summarizing, reached on nearly every row with CI
+    // configured, not the rare, mutating kind of action that menu exists
+    // for. Given a stable id — openPipelineDialog's own "close" handler
+    // refocuses it by this id once the row it lives on has been rebuilt
+    // from scratch by a later render.
     function pipelineActionCell(item: PullRequestItem): HTMLElement | null {
       if (item.ci === "none") return null;
       const button = buttonEl("row-action", "View pipeline");
+      button.id = `pipeline-trigger-${domSafeId(prKey(item))}`;
       button.addEventListener("click", () => {
-        openPipelineDialog(item, button);
+        openPipelineDialog(item);
       });
       return button;
     }
 
     // ---- "More actions" overflow menu ----
-    // Merge/Update branch/Close stay inline — every PR row has at most
-    // one of the first two and Close is universal, so three buttons
-    // never gets crowded on their own. Dependabot Rebase/Recreate,
-    // Renovate Rebase and View pipeline are the ones that stack up
-    // together on a single bot-managed row (#527) — reached rarely
-    // enough, and only on rows that are already bot-managed or have CI
-    // to show, that collapsing them behind one trigger reads as tidying
-    // up rather than hiding something anyone reaches for often.
+    // Merge/Update branch/Close/View pipeline stay inline — every PR row
+    // has at most one of the first two, Close is universal, and View
+    // pipeline is a read-only drill-down reached on nearly every row with
+    // CI configured (#636), not the rare, mutating kind of action this
+    // menu exists for. Dependabot Recreate, and Dependabot/Renovate
+    // Rebase while it isn't currently the promoted, out-of-date-only
+    // inline action (#635), are what's left to stack up on a bot-managed
+    // row — reached rarely enough that collapsing them behind one trigger
+    // reads as tidying up rather than hiding something anyone reaches for
+    // often.
     //
     // Keyed by prKey, not a per-row DOM flag: applySnapshot rebuilds
     // every row from scratch on each 30s poll (REFRESH_INTERVAL_MS), so
@@ -2045,17 +2042,18 @@
       return wrap;
     }
 
-    // View pipeline (one of the actions this menu can hold) opens its
-    // own real, modal <dialog> — pipelineDialog further down. A modal
-    // dialog owns Escape and outside clicks while it's open (native
-    // showModal() semantics, plus its own close-and-refocus handling
-    // right below in openPipelineDialog); this menu's own click-outside/
-    // Escape handling has to stand down while one is open, or it would
-    // rebuild the row out from under the dialog's remembered focus
-    // target mid-interaction — confirmed by hand: without this guard,
-    // pressing Escape to close the checks panel also silently closed the
-    // menu underneath it and left focus nowhere, because renderPRBoard()
-    // replaced the very button openPipelineDialog was about to refocus.
+    // View pipeline opens its own real, modal <dialog> — pipelineDialog
+    // further down — independently of this menu (#636: it's an inline row
+    // button now, not one of this menu's own actions). A modal dialog
+    // still owns Escape and outside clicks while it's open (native
+    // showModal() semantics), and this menu's own click-outside/Escape
+    // handling has to stand down while one is open: a row's own "More
+    // actions" popover can legitimately be open at the same time (View
+    // pipeline is a sibling button, not something reached through that
+    // popover), and without this guard a stray Escape or outside click
+    // while the pipeline dialog is showing would close that unrelated
+    // popover out from under the dialog rather than doing nothing, as a
+    // native modal's own top-layer behavior already implies it should.
     function modalDialogOpen(): boolean {
       return document.querySelector("dialog[open]") !== null;
     }
