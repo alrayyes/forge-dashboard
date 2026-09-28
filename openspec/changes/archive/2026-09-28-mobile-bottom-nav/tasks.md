@@ -39,4 +39,4 @@ bottom-nav markup, `index.html` (the dashboard) had none.
 ## 5. Wrap-up
 
 - [x] 5.1 Update README.md if its description of the nav migration status (referencing #326) needs a note that `nav.js` no longer drives any `(app)` page's nav chrome, including the three pages that stay reachable without a session (a route check in the layout replaced the `document.body.dataset.pageRequiresAuth` flag it used to read); verify by re-reading the relevant README section against the shipped state.
-- [ ] 5.2 Open the pull request with `Closes #645`, stating the breakpoint, Admin-tab, and dashboard-relocation decisions in the description; verify CI is green before requesting merge.
+- [x] 5.2 Open the pull request with `Closes #645`, stating the breakpoint, Admin-tab, and dashboard-relocation decisions in the description; verify CI is green before requesting merge.
