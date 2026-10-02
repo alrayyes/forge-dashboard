@@ -173,6 +173,12 @@ type PullRequest struct {
 	// RateLimit's own nilable pointer already uses, so a forge with
 	// nothing to say here never renders as a false "not enabled."
 	AutoMergeEnabled *bool `json:"autoMergeEnabled,omitempty"`
+	// AutoMergeAllowed is GitHub's per-viewer viewerCanEnableAutoMerge
+	// answer (#738): false when GitHub would refuse "Enable auto-merge",
+	// e.g. a stacked PR whose base branch has no protection rule. Nil when
+	// unknown (the REST fallback, Forgejo), so clients keep today's
+	// behaviour rather than treating unknown as refused.
+	AutoMergeAllowed *bool `json:"autoMergeAllowed,omitempty"`
 	// Review is nil when the forge couldn't report review state (see
 	// ReviewState), the same omit-when-unknown shape as AutoMergeEnabled.
 	Review *ReviewState `json:"review,omitempty"`
