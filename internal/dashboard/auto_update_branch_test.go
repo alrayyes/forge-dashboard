@@ -539,3 +539,35 @@ func TestAggregator_Refresh_BehindNonRenovatePR_UnchangedBehavior(t *testing.T) 
 	assert.Equal(t, []string{"alrayyes/a#1"}, src.updatedBranches())
 	assert.Empty(t, src.labels())
 }
+
+// blockedCommenterSource is a commenter whose forge says Dependabot would
+// refuse its comments (a GitHub App with no personal token saved, #666).
+type blockedCommenterSource struct {
+	fakeCommenterAndUpdaterSource
+}
+
+func (*blockedCommenterSource) DependabotCommandsBlockedReason() string {
+	return "Dependabot ignores GitHub Apps"
+}
+
+func TestAggregator_Refresh_DependabotCommandsBlocked_PostsNothing(t *testing.T) {
+	t.Parallel()
+
+	src := &blockedCommenterSource{fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // see above
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", CI: dashboard.CIPending},
+		},
+	}}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Empty(t, src.comments())
+	require.Len(t, agg.Get().Forges, 1)
+	assert.Equal(t, "Dependabot ignores GitHub Apps", agg.Get().Forges[0].DependabotCommandsBlocked)
+}

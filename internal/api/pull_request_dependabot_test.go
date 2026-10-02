@@ -147,3 +147,27 @@ func TestPullRequestDependabotAction_Unauthenticated_Returns401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
+
+type blockedCommenterSource struct {
+	fakeCommenterSource
+}
+
+func (*blockedCommenterSource) DependabotCommandsBlockedReason() string {
+	return "Dependabot ignores GitHub Apps"
+}
+
+func TestPullRequestDependabotAction_CommandsBlocked_Returns409WithReasonAndPostsNothing(t *testing.T) {
+	t.Parallel()
+
+	source := &blockedCommenterSource{fakeCommenterSource{forge: dashboard.ForgeGitHub}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postDependabotAction(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1, "rebase")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	var body struct{ Error string }
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Equal(t, "Dependabot ignores GitHub Apps", body.Error)
+	assert.Empty(t, source.lastBody)
+}

@@ -336,6 +336,15 @@ Dependabot's own [comment commands](https://docs.github.com/en/code-security/dep
 the forge to type them yourself. GitHub only — Dependabot doesn't run on
 Forgejo.
 
+Dependabot only honours these commands from a user with push access, and
+it ignores GitHub App accounts whatever permissions the App holds
+([upstream issue](https://github.com/dependabot/dependabot-core/issues/9147)).
+So when you've connected a GitHub App, the commands go out with your saved
+personal access token instead, and the comment shows up as you. With an
+App and no saved token, both buttons are locked with that explanation
+and the background pass below skips Dependabot pull requests, rather than
+posting comments Dependabot would only refuse.
+
 A repo with a behind pull request can also be brought up to date without a
 click at all, by enabling auto-update-branch for it in Settings. For a
 Dependabot pull request specifically, once "Allow updating bot-managed PR
@@ -449,9 +458,12 @@ From there it's per-user, from Settings: each person installs the App
 on their own GitHub account (its own settings page → **Install App**)
 and pastes the installation ID GitHub shows them into the new field
 next to their token. An installation always wins over a saved token
-when both are set — the token stays as an unused fallback rather than
-being cleared. Leave `GITHUB_APP_ID` unset and the field simply doesn't
-appear; nothing else about GitHub credentials changes.
+when both are set for polling and every other action — the token stays
+saved rather than being cleared, and is used for one thing only:
+sending `@dependabot` comments, which Dependabot refuses from a GitHub
+App (see the Dependabot buttons above). Leave `GITHUB_APP_ID` unset and
+the field simply doesn't appear; nothing else about GitHub credentials
+changes.
 
 ## Running it
 

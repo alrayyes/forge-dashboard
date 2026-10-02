@@ -230,6 +230,11 @@ type ForgeHealth struct {
 	// (no webhook path configured).
 	RateLimitGraphQL *RateLimit `json:"rateLimitGraphQL,omitempty"`
 	RateLimitREST    *RateLimit `json:"rateLimitREST,omitempty"`
+	// DependabotCommandsBlocked, when non-empty, is why a "@dependabot"
+	// comment sent through this forge's credential would be refused
+	// (#666): Dependabot ignores GitHub Apps. The frontend locks the
+	// Dependabot buttons with this exact text.
+	DependabotCommandsBlocked string `json:"dependabotCommandsBlocked,omitempty"`
 }
 
 // ClientError carries a ForgeErrorKind classification alongside the

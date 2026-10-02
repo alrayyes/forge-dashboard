@@ -116,6 +116,27 @@ type BranchUpdater interface {
 	UpdateBranch(ctx context.Context, owner, name string, number int) (accepted bool, err error)
 }
 
+// DependabotCommandBlocker is implemented by a Source whose comment
+// credential Dependabot would refuse (#666) — Dependabot only honours
+// commands from a user with push access, never a GitHub App. An empty
+// reason means commands work. Optional, the same pattern
+// PullRequestCommenter uses: a Source that doesn't implement it is
+// treated as unblocked.
+type DependabotCommandBlocker interface {
+	DependabotCommandsBlockedReason() string
+}
+
+// DependabotCommandsBlockedReason returns src's reason Dependabot
+// commands can't work through it, or "" when they can (or src doesn't
+// say).
+func DependabotCommandsBlockedReason(src Source) string {
+	if b, ok := src.(DependabotCommandBlocker); ok {
+		return b.DependabotCommandsBlockedReason()
+	}
+
+	return ""
+}
+
 // PullRequestCommenter is implemented by a ForgeClient (or, for
 // github.Client, a Source directly) that can post a comment on one of its
 // own pull requests — checked via a type assertion, the same

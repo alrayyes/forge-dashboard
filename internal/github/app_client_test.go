@@ -231,3 +231,67 @@ func TestNewUnreachableClient_Fetch_ReportsTheGivenReason(t *testing.T) {
 	require.False(t, result.Health.Reachable)
 	assert.Equal(t, "github: app installation credentials are invalid", result.Health.Error)
 }
+
+// dependabotBlocker is the optional capability dashboard.Source
+// implementations expose when Dependabot would refuse their comments (#666).
+type dependabotBlocker interface {
+	DependabotCommandsBlockedReason() string
+}
+
+func TestAppClient_DependabotCommandsBlockedReason_WithoutPersonalToken_ExplainsWhy(t *testing.T) {
+	t.Parallel()
+
+	srv, _, _ := appInstallationTestServer(t)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+
+	assert.Contains(t, client.DependabotCommandsBlockedReason(), "personal access token")
+}
+
+func TestAppClient_DependabotCommandsBlockedReason_WithPersonalToken_IsEmpty(t *testing.T) {
+	t.Parallel()
+
+	srv, _, _ := appInstallationTestServer(t)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+	client.SetCommentToken("pat-value")
+
+	assert.Empty(t, client.DependabotCommandsBlockedReason())
+}
+
+func TestPATClient_DependabotCommandsBlockedReason_IsEmpty(t *testing.T) {
+	t.Parallel()
+
+	var blocker dependabotBlocker = github.NewClient("pat-value", "", "")
+
+	assert.Empty(t, blocker.DependabotCommandsBlockedReason())
+}
+
+func TestAppClient_CommentPullRequest_WithPersonalToken_PostsAsThePersonalToken(t *testing.T) {
+	t.Parallel()
+
+	var commentAuth string
+	mux := http.NewServeMux()
+	mux.HandleFunc(fmt.Sprintf("/app/installations/%d/access_tokens", testInstallationID), func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"token":      "installation-token-value",
+			"expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/repo-one/issues/7/comments", func(w http.ResponseWriter, r *http.Request) {
+		commentAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusCreated)
+		writeJSON(t, w, map[string]any{"id": 1})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+	client.SetCommentToken("pat-value")
+
+	err = client.CommentPullRequest(t.Context(), "alrayyes", "repo-one", 7, "@dependabot rebase")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer pat-value", commentAuth, "Dependabot only honours a user, so the comment must carry the personal token, not the App's")
+}

@@ -404,4 +404,52 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       .analyze();
     expect(results.violations).toEqual([]);
   });
+
+  test('a GitHub App with no personal token locks both buttons with the reason, and clicking sends nothing (#666)', async ({
+    page,
+  }) => {
+    const reason =
+      'Dependabot ignores commands from GitHub Apps. Save a personal access token in Settings to send them as you.';
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [
+            {
+              forge: 'github',
+              reachable: true,
+              repoCount: 1,
+              dependabotCommandsBlocked: reason,
+            },
+          ],
+          pullRequests: [makePR({ behind: true })],
+          issues: [],
+        }),
+      }),
+    );
+    let posted = false;
+    await page.route('**/api/pull-requests/dependabot-action', (route) => {
+      posted = true;
+      return route.fulfill({ status: 204 });
+    });
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    const rebase = row.getByRole('button', { name: 'Dependabot: Rebase' });
+    await expect(rebase).toHaveAttribute('aria-disabled', 'true');
+    await expect(rebase).toHaveAccessibleDescription(reason);
+    await rebase.click({ force: true });
+
+    await openMoreActions(row);
+    const recreate = row.getByRole('button', {
+      name: 'Dependabot: Recreate',
+    });
+    await expect(recreate).toHaveAttribute('aria-disabled', 'true');
+    await expect(recreate).toHaveAccessibleDescription(reason);
+    await recreate.click({ force: true });
+
+    expect(posted).toBe(false);
+  });
 });

@@ -48,6 +48,10 @@
     // is which and when each is reported.
     rateLimitGraphQL?: RateLimit;
     rateLimitREST?: RateLimit;
+    // #666: why Dependabot would refuse a command sent through this
+    // forge's credential (a GitHub App) — the Dependabot buttons lock
+    // with this exact text. Absent when commands work.
+    dependabotCommandsBlocked?: string;
   };
   type DashboardSnapshot = {
     generatedAt: string;
@@ -1539,6 +1543,15 @@
     ): HTMLElement {
       const key = `${prKey(item)}:${action}`;
       const entry = dependabotActionState[key] || { phase: "idle" };
+
+      const blockedReason = lastForges.find(
+        (f) => f.forge === item.forge,
+      )?.dependabotCommandsBlocked;
+      if (blockedReason)
+        return lockedActionButton(
+          DEPENDABOT_ACTION_LABELS[action],
+          blockedReason,
+        );
 
       if (entry.phase === "locked")
         return lockedActionButton(
