@@ -66,7 +66,7 @@
     | "confirming"
     | "merging"
     | "closing"
-    | "updating"
+    | "queued"
     | "requesting"
     | "enabling"
     | "locked";
@@ -86,6 +86,11 @@
   // browser tab.
   function initDashboard() {
     const REFRESH_INTERVAL_MS = 30000;
+    // When the background poll next fires — what the queued-action
+    // banner's countdown reads, so it tracks the real cadence instead of
+    // a number hard-coded next to REFRESH_INTERVAL_MS. Re-armed by the
+    // setInterval(refresh) callback itself.
+    let nextPollAt = Date.now() + REFRESH_INTERVAL_MS;
     const CI_LABELS: Record<string, string> = {
       success: "Passing",
       failure: "Failing",
@@ -630,7 +635,7 @@
     // state map — called on every fresh snapshot (applySnapshot), so a
     // lock only ever reflects the most recent data instead of latching
     // until a full page reload. Leaves in-flight phases
-    // ('confirming', 'merging', 'updating') alone; those track a request
+    // ('confirming', 'merging', 'queued') alone; those track a request
     // actually in progress, not a stale conclusion from a previous one.
     function clearStaleLocks(stateMap: Record<string, ActionState>) {
       for (const key of Object.keys(stateMap)) {
@@ -640,7 +645,7 @@
 
     // A branch update GitHub answers 202 to is its own background job,
     // not yet finished by the time the very next snapshot lands — so an
-    // "updating" phase can't just be cleared the moment the POST
+    // "queued" phase can't just be cleared the moment the POST
     // resolves (doUpdateBranch used to do exactly that, and the
     // in-flight button flickered back to a plain re-clickable one while
     // GitHub was still working, then vanished for good once a later
@@ -663,7 +668,7 @@
       const resolved: PullRequestItem[] = [];
       for (const item of prs) {
         const key = prKey(item);
-        if (stateMap[key]?.phase === "updating" && !stillBehind.has(key)) {
+        if (stateMap[key]?.phase === "queued" && !stillBehind.has(key)) {
           delete stateMap[key];
           resolved.push(item);
         }
@@ -1295,10 +1300,12 @@
     // routine and reversible in a way completing the pull request isn't.
     function doUpdateBranch(item: PullRequestItem, button: HTMLButtonElement) {
       const key = prKey(item);
-      updateBranchState[key] = { phase: "updating" };
+      updateBranchState[key] = { phase: "queued" };
       button.disabled = true;
-      button.textContent = "Updating…";
-      showStatus(`Updating the branch for ${item.repo}#${item.number}…`);
+      button.textContent = "Queued…";
+      showQueuedBanner(
+        `Branch update requested for ${item.repo}#${item.number}.`,
+      );
 
       fetch("/api/pull-requests/update-branch", {
         method: "POST",
@@ -1330,13 +1337,13 @@
           });
         })
         .then(() => {
-          // Left in the "updating" phase rather than cleared here — a
+          // Left in the "queued" phase rather than cleared here — a
           // 202 is GitHub's own background job, not necessarily done by
           // the time this refresh lands, so the button only actually
           // clears once clearResolvedUpdateBranches (called from
           // applySnapshot, which also reports the "Updated" status once
           // it happens) sees a snapshot that no longer reports this PR
-          // as behind. Until then it keeps reading "Updating…" instead
+          // as behind. Until then it keeps reading "Queued…" instead
           // of flickering back to a plain re-clickable button.
           return fetch("/api/dashboard/refresh", {
             method: "POST",
@@ -1357,6 +1364,7 @@
           showError(
             `Couldn't update the branch for ${item.repo}#${item.number}: ${err.message}`,
           );
+          renderQueuedBanner();
           renderPRBoard();
         });
     }
@@ -1398,13 +1406,13 @@
           );
       }
 
-      const updating = entry.phase === "updating";
+      const queued = entry.phase === "queued";
       const button = buttonEl(
         "row-action",
-        updating ? "Updating…" : "Update branch",
+        queued ? "Queued…" : "Update branch",
       );
       button.type = "button";
-      button.disabled = updating;
+      button.disabled = queued;
       button.addEventListener("click", () => {
         doUpdateBranch(item, button);
       });
@@ -1437,10 +1445,6 @@
       rebase: "Dependabot: Rebase",
       recreate: "Dependabot: Recreate",
     };
-    const DEPENDABOT_ACTION_PROGRESS_LABELS: Record<string, string> = {
-      rebase: "Requesting rebase…",
-      recreate: "Requesting recreate…",
-    };
 
     // No confirm step — same reasoning as doUpdateBranch: this only
     // asks Dependabot to redo its own routine, reversible work, not a
@@ -1451,10 +1455,12 @@
       button: HTMLButtonElement,
     ) {
       const key = `${prKey(item)}:${action}`;
-      dependabotActionState[key] = { phase: "requesting" };
+      dependabotActionState[key] = { phase: "queued" };
       button.disabled = true;
-      button.textContent = DEPENDABOT_ACTION_PROGRESS_LABELS[action];
-      showStatus(`Asking Dependabot to ${action} ${item.repo}#${item.number}…`);
+      button.textContent = "Queued…";
+      showQueuedBanner(
+        `Dependabot ${action} requested for ${item.repo}#${item.number}.`,
+      );
 
       fetch("/api/pull-requests/dependabot-action", {
         method: "POST",
@@ -1484,10 +1490,9 @@
           });
         })
         .then(() => {
-          delete dependabotActionState[key];
-          showStatus(
-            `Asked Dependabot to ${action} ${item.repo}#${item.number}.`,
-          );
+          // Stays "queued" — Dependabot acts on its own schedule, so the
+          // button holds until the next snapshot lands (applySnapshot
+          // clears it) rather than inviting a second comment.
           // No immediate /api/dashboard/refresh, unlike doMerge/
           // doUpdateBranch: posting the comment doesn't change anything
           // about this pull request itself — Dependabot's own rebase/
@@ -1512,6 +1517,7 @@
           showError(
             `Couldn't ask Dependabot to ${action} ${item.repo}#${item.number}: ${err.message}`,
           );
+          renderQueuedBanner();
           renderPRBoard();
         });
     }
@@ -1547,14 +1553,12 @@
           );
       }
 
-      const requesting = entry.phase === "requesting";
+      const queued = entry.phase === "queued";
       const button = buttonEl(
         "row-action",
-        requesting
-          ? DEPENDABOT_ACTION_PROGRESS_LABELS[action]
-          : DEPENDABOT_ACTION_LABELS[action],
+        queued ? "Queued…" : DEPENDABOT_ACTION_LABELS[action],
       );
-      button.disabled = requesting;
+      button.disabled = queued;
       button.addEventListener("click", () => {
         doDependabotAction(item, action, button);
       });
@@ -1656,10 +1660,12 @@
       button: HTMLButtonElement,
     ) {
       const key = prKey(item);
-      renovateRebaseState[key] = { phase: "requesting" };
+      renovateRebaseState[key] = { phase: "queued" };
       button.disabled = true;
-      button.textContent = "Requesting rebase…";
-      showStatus(`Asking Renovate to rebase ${item.repo}#${item.number}…`);
+      button.textContent = "Queued…";
+      showQueuedBanner(
+        `Renovate rebase requested for ${item.repo}#${item.number}.`,
+      );
 
       fetch("/api/pull-requests/renovate-rebase", {
         method: "POST",
@@ -1688,8 +1694,7 @@
           });
         })
         .then(() => {
-          delete renovateRebaseState[key];
-          showStatus(`Asked Renovate to rebase ${item.repo}#${item.number}.`);
+          // Stays "queued" until the next snapshot, same as Dependabot.
           // Same "close the popover this button lives in, once it has
           // nothing left to say" reasoning doDependabotAction's own
           // success handler uses.
@@ -1706,6 +1711,7 @@
           showError(
             `Couldn't ask Renovate to rebase ${item.repo}#${item.number}: ${err.message}`,
           );
+          renderQueuedBanner();
           renderPRBoard();
         });
     }
@@ -1727,12 +1733,12 @@
           return lockedActionButton("Renovate: Rebase", proactiveReason);
       }
 
-      const requesting = entry.phase === "requesting";
+      const queued = entry.phase === "queued";
       const button = buttonEl(
         "row-action",
-        requesting ? "Requesting rebase…" : "Renovate: Rebase",
+        queued ? "Queued…" : "Renovate: Rebase",
       );
-      button.disabled = requesting;
+      button.disabled = queued;
       button.addEventListener("click", () => {
         doRenovateRebase(item, button);
       });
@@ -2945,6 +2951,7 @@
 
     setInterval(() => {
       tickRefreshedAt();
+      tickQueuedCountdown();
       // Cheap to call unconditionally — it removes and, only if there's
       // still something exhausted, redraws a handful of rows.
       renderRateLimitBanner();
@@ -2993,6 +3000,87 @@
 
     function clearStatus() {
       document.getElementById("status-banner")?.remove();
+    }
+
+    // ---- queued-action banner (#680) ----
+    // Update branch and the Dependabot/Renovate rebases are requests the
+    // forge or a bot acts on later, so the page can't confirm the result
+    // until a refresh. This is the one banner that says so: the sentence
+    // lives in a polite live region and is announced once, while the
+    // per-second countdown sits in an aria-hidden sibling so a screen
+    // reader isn't read a new number every second.
+    let queuedMessage = "";
+
+    function queuedActionCount(): number {
+      return [
+        updateBranchState,
+        dependabotActionState,
+        renovateRebaseState,
+      ].reduce(
+        (sum, stateMap) =>
+          sum +
+          Object.values(stateMap).filter((entry) => entry.phase === "queued")
+            .length,
+        0,
+      );
+    }
+
+    // Bot-triggered requests (not update-branch) hold "queued" only until
+    // the next snapshot, which is what the banner promises.
+    function clearQueuedBotActions() {
+      for (const stateMap of [dependabotActionState, renovateRebaseState]) {
+        for (const key of Object.keys(stateMap)) {
+          if (stateMap[key].phase === "queued") delete stateMap[key];
+        }
+      }
+    }
+
+    function queuedCountdownText(): string {
+      const seconds = Math.max(0, Math.ceil((nextPollAt - Date.now()) / 1000));
+      return ` (next refresh in ${seconds}s)`;
+    }
+
+    function showQueuedBanner(message: string) {
+      queuedMessage = message;
+      renderQueuedBanner();
+    }
+
+    // (Re)draws the banner for whatever is queued right now, or removes
+    // it once nothing is. Leaves an unrelated status (e.g. "Updated the
+    // branch…") alone, and keeps the existing node when the sentence
+    // hasn't changed so the live region isn't re-announced.
+    function renderQueuedBanner() {
+      const existing = document.getElementById("status-banner");
+      const count = queuedActionCount();
+      if (count === 0) {
+        if (existing?.dataset.queued) existing.remove();
+        return;
+      }
+      if (existing && !existing.dataset.queued) return;
+      const sentence = `${
+        count === 1 ? queuedMessage : `${count} actions requested.`
+      } Awaiting the next refresh.`;
+      if (existing?.querySelector(".status-message")?.textContent === sentence)
+        return;
+      existing?.remove();
+      const banner = el("div", "status-banner");
+      banner.id = "status-banner";
+      banner.dataset.queued = "true";
+      banner.setAttribute("aria-live", "polite");
+      banner.appendChild(el("span", "status-message", sentence));
+      const countdown = el("span", "status-countdown", queuedCountdownText());
+      countdown.setAttribute("aria-hidden", "true");
+      banner.appendChild(countdown);
+      document
+        .querySelector(".stats")
+        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
+    }
+
+    function tickQueuedCountdown() {
+      const countdown = document.querySelector(
+        "#status-banner[data-queued] .status-countdown",
+      );
+      if (countdown) countdown.textContent = queuedCountdownText();
     }
 
     // ---- force-refresh: retry right now instead of waiting out the
@@ -3108,11 +3196,16 @@
       clearStaleLocks(mergeState);
       clearStaleLocks(closeState);
       clearStaleLocks(updateBranchState);
+      // A fresh snapshot is the "next refresh" a queued bot rebase was
+      // waiting for. Cleared before anyRowActionInFlight is consulted
+      // below, so a queued row doesn't also hold the board back.
+      clearQueuedBotActions();
 
       const prs = data.pullRequests || [];
       for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
         showStatus(`Updated the branch for ${item.repo}#${item.number}.`);
       }
+      renderQueuedBanner();
       const issues = data.issues || [];
       allPRs = prs;
       allIssues = issues;
@@ -3185,7 +3278,10 @@
     }
 
     refresh();
-    setInterval(refresh, REFRESH_INTERVAL_MS);
+    setInterval(() => {
+      nextPollAt = Date.now() + REFRESH_INTERVAL_MS;
+      refresh();
+    }, REFRESH_INTERVAL_MS);
 
     // ---- WebMCP (webmachinelearning/webmcp) tool: get_dashboard ----
     // Experimental browser API -- document.modelContext only exists in

@@ -1,0 +1,327 @@
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
+
+// #680: Update branch, Dependabot rebase and Renovate rebase all answer
+// with "Queued…" the instant they're clicked, hold that state until the
+// next refresh (or a failure), and say so in the top status banner with a
+// countdown to the next poll.
+
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
+  const username = `queued-action-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  await registerViaInvite(
+    page,
+    request,
+    baseURL,
+    username,
+    'Queued Action Test User',
+  );
+}
+
+interface MockPR {
+  forge: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  draft: boolean;
+  ci: string;
+  labels: { name: string; color: string }[];
+  createdAt: string;
+  updatedAt: string;
+  mergeStatus: string;
+  behind: boolean;
+}
+
+function makePR(overrides: Partial<MockPR> = {}): MockPR {
+  return {
+    forge: 'github',
+    repo: 'alrayyes/forge-dashboard',
+    number: 42,
+    title: 'A pull request',
+    url: 'https://example.com/42',
+    author: 'claude',
+    draft: false,
+    ci: 'success',
+    labels: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    mergeStatus: 'blocked',
+    behind: false,
+    ...overrides,
+  };
+}
+
+function snapshot(pr: MockPR) {
+  return {
+    generatedAt: new Date().toISOString(),
+    forges: [{ forge: pr.forge, reachable: true, repoCount: 1 }],
+    pullRequests: [pr],
+    issues: [],
+  };
+}
+
+function mockDashboard(page: Page, pr: MockPR) {
+  return page.route('**/api/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(snapshot(pr)),
+    }),
+  );
+}
+
+async function openMoreActions(row: Locator) {
+  await row.getByRole('button', { name: 'More actions' }).click();
+}
+
+const COUNTDOWN = /next refresh in (\d+)s/;
+
+async function countdownSeconds(page: Page): Promise<number> {
+  const text = (await page.locator('#status-banner').textContent()) ?? '';
+  const seconds = COUNTDOWN.exec(text)?.[1];
+  expect(seconds, `no countdown in banner: ${text}`).toBeDefined();
+  return Number(seconds);
+}
+
+interface Scenario {
+  name: string;
+  pr: MockPR;
+  endpoint: string;
+  openMenu: boolean;
+  button: string;
+  banner: string;
+  failure: string;
+}
+
+const scenarios: Scenario[] = [
+  {
+    name: 'Update branch',
+    pr: makePR({ behind: true }),
+    endpoint: '**/api/pull-requests/update-branch',
+    openMenu: false,
+    button: 'Update branch',
+    banner: 'Branch update requested for alrayyes/forge-dashboard#42.',
+    failure: "Couldn't update the branch for alrayyes/forge-dashboard#42",
+  },
+  {
+    name: 'Dependabot rebase',
+    pr: makePR({ author: 'dependabot' }),
+    endpoint: '**/api/pull-requests/dependabot-action',
+    openMenu: true,
+    button: 'Dependabot: Rebase',
+    banner: 'Dependabot rebase requested for alrayyes/forge-dashboard#42.',
+    failure: "Couldn't ask Dependabot to rebase alrayyes/forge-dashboard#42",
+  },
+  {
+    name: 'Renovate rebase',
+    pr: makePR({ author: 'renovate[bot]' }),
+    endpoint: '**/api/pull-requests/renovate-rebase',
+    openMenu: true,
+    button: 'Renovate: Rebase',
+    banner: 'Renovate rebase requested for alrayyes/forge-dashboard#42.',
+    failure: "Couldn't ask Renovate to rebase alrayyes/forge-dashboard#42",
+  },
+];
+
+for (const s of scenarios) {
+  test.describe(`queued state: ${s.name}`, () => {
+    test.beforeEach(async ({ page, request, baseURL }) => {
+      await registerAndSignIn(page, request, baseURL);
+      await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ allowBotPrUpdates: false }),
+        }),
+      );
+    });
+
+    async function prepare(page: Page, endpointStatus = 204) {
+      await mockDashboard(page, s.pr);
+      let hits = 0;
+      await page.route(s.endpoint, async (route: Route) => {
+        hits += 1;
+        // Slow enough that the assertions below run while still in flight.
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        if (endpointStatus === 204 || endpointStatus === 202)
+          return route.fulfill({ status: endpointStatus });
+        return route.fulfill({
+          status: endpointStatus,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'upstream broke' }),
+        });
+      });
+      // The Update branch handler force-refreshes; keep the PR behind so
+      // the queued state has to hold across that refresh.
+      await page.route('**/api/dashboard/refresh', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(snapshot(s.pr)),
+        }),
+      );
+      await page.reload();
+      const row = page.locator('#pr-rows .row').first();
+      if (s.openMenu) await openMoreActions(row);
+      return { row, hits: () => hits };
+    }
+
+    test('the button reads Queued… and is disabled right after the click, and only one request is sent', async ({
+      page,
+    }) => {
+      const { row, hits } = await prepare(page);
+      const button = row.getByRole('button', { name: s.button });
+      await button.click();
+
+      const queued = row.getByRole('button', { name: 'Queued…' });
+      await expect(queued).toBeVisible();
+      await expect(queued).toBeDisabled();
+      await page.waitForTimeout(500);
+      expect(hits()).toBe(1);
+    });
+
+    test('the status banner says the action was requested and counts down to the real next poll', async ({
+      page,
+    }) => {
+      const { row } = await prepare(page);
+      await row.getByRole('button', { name: s.button }).click();
+
+      const banner = page.locator('#status-banner');
+      await expect(banner).toContainText(s.banner);
+      await expect(banner).toContainText('Awaiting the next refresh');
+      await expect(banner).toHaveAttribute('aria-live', 'polite');
+      await expect(banner).toContainText(COUNTDOWN);
+
+      // Derived from the 30s poll cadence, never a hard-coded number.
+      const first = await countdownSeconds(page);
+      expect(first).toBeGreaterThan(0);
+      expect(first).toBeLessThanOrEqual(30);
+      await page.waitForTimeout(2500);
+      expect(await countdownSeconds(page)).toBeLessThan(first);
+    });
+
+    test('the countdown is outside the live region, so it does not chatter', async ({
+      page,
+    }) => {
+      const { row } = await prepare(page);
+      await row.getByRole('button', { name: s.button }).click();
+
+      const countdown = page.locator('#status-banner .status-countdown');
+      await expect(countdown).toHaveAttribute('aria-hidden', 'true');
+      // The announced text is stable: no digits that change each second.
+      const announced = page.locator('#status-banner .status-message');
+      await expect(announced).toHaveText(
+        new RegExp(`^${s.banner.replace(/[#.]/g, '\\$&')}`),
+      );
+      await expect(announced).not.toContainText(/\d+s/);
+    });
+
+    test('the queued state survives the re-render that follows the request completing', async ({
+      page,
+    }) => {
+      const { row, hits } = await prepare(page);
+      await row.getByRole('button', { name: s.button }).click();
+      // The mock holds the response for 300ms; the handler re-renders the
+      // board (and Update branch force-refreshes) once it lands.
+      await expect.poll(hits).toBe(1);
+      await page.waitForTimeout(800);
+
+      const fresh = page.locator('#pr-rows .row').first();
+      if (s.openMenu) await openMoreActions(fresh);
+      await expect(
+        fresh.getByRole('button', { name: 'Queued…' }),
+      ).toBeDisabled();
+      await expect(page.locator('#status-banner')).toContainText(COUNTDOWN);
+    });
+
+    test('a failure re-enables the button and shows the error banner', async ({
+      page,
+    }) => {
+      const { row } = await prepare(page, 502);
+      await row.getByRole('button', { name: s.button }).click();
+      await expect(row.getByRole('button', { name: 'Queued…' })).toBeVisible();
+
+      const error = page.locator('#error-banner');
+      await expect(error).toContainText(s.failure);
+      await expect(error).toContainText('upstream broke');
+      await expect(page.locator('#status-banner')).toHaveCount(0);
+      await expect(row.getByRole('button', { name: 'Queued…' })).toHaveCount(0);
+      await expect(row.getByRole('button', { name: s.button })).toBeEnabled();
+    });
+
+    test('has no axe violations while queued', async ({ page }) => {
+      const { row } = await prepare(page);
+      await row.getByRole('button', { name: s.button }).click();
+      await expect(page.locator('#status-banner')).toContainText(COUNTDOWN);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
+}
+
+test.describe('queued state: bot rebases clear on the next refresh', () => {
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+    await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ allowBotPrUpdates: false }),
+      }),
+    );
+  });
+
+  test('a Renovate rebase stays queued after the request succeeds, then clears on the next snapshot', async ({
+    page,
+  }) => {
+    const pr = makePR({ author: 'renovate[bot]' });
+    await mockDashboard(page, pr);
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
+      route.fulfill({ status: 204 }),
+    );
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snapshot(pr)),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
+    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+
+    // The request is done, but nothing has refreshed yet.
+    await page.waitForTimeout(500);
+    await expect(page.locator('#status-banner')).toContainText(COUNTDOWN);
+    await openMoreActions(row).catch(() => undefined);
+    await expect(row.getByRole('button', { name: 'Queued…' })).toBeDisabled();
+
+    await page.click('#force-refresh-button');
+
+    await expect(page.locator('#status-banner')).toHaveCount(0);
+    await openMoreActions(page.locator('#pr-rows .row').first()).catch(
+      () => undefined,
+    );
+    await expect(
+      page.getByRole('button', { name: 'Renovate: Rebase' }),
+    ).toBeEnabled();
+  });
+});
