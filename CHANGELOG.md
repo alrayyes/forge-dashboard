@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.103.1](https://github.com/alrayyes/forge-dashboard/compare/v0.103.0...v0.103.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **dashboard:** stop re-posting [@dependabot](https://github.com/dependabot) rebase after a refused recreate ([#661](https://github.com/alrayyes/forge-dashboard/issues/661)) ([7cc08d0](https://github.com/alrayyes/forge-dashboard/commit/7cc08d05721542a138f74f8dfe45d18191057388)), closes [#660](https://github.com/alrayyes/forge-dashboard/issues/660)
+
 ## [0.103.0](https://github.com/alrayyes/forge-dashboard/compare/v0.102.1...v0.103.0) (2026-09-28)
 
 
