@@ -1026,16 +1026,4 @@
       {/each}
     </div>
   </div>
-
-  <footer>
-    Read-only mirror of both forges &middot; credentials never leave <span
-      class="mono">forge-dashboard</span
-    >'s backend &middot;
-    <a
-      href="https://github.com/alrayyes/forge-dashboard"
-      target="_blank"
-      rel="noopener noreferrer">Source</a
-    >
-    <span id="footer-version"></span>
-  </footer>
 </div>

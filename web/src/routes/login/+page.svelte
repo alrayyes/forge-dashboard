@@ -6,6 +6,7 @@
     prepareCreationOptions,
     prepareRequestOptions,
   } from "$lib/webauthn";
+  import Footer from "$lib/Footer.svelte";
 
   let mode = $state<"login" | "register">("login");
 
@@ -25,13 +26,10 @@
   let inviteUsername = $state<string | null>(null);
 
   // Outside the (app) route group — no session yet, so none of its
-  // shared header/nav chrome applies — but footer.js (the version
-  // string) is still shared with every other page, same as before.
+  // shared header/nav chrome applies — but the shared Footer component
+  // (version string included) is still rendered on this page too, same
+  // as before footer.js's own injection was retired.
   onMount(() => {
-    const script = document.createElement("script");
-    script.src = "/footer.js";
-    document.body.appendChild(script);
-
     const params = new URLSearchParams(window.location.search);
     const token = params.get("invite");
     if (token) {
@@ -416,15 +414,5 @@
     </p>
   </div>
 
-  <footer>
-    Read-only mirror of both forges &middot; credentials never leave <span
-      class="mono">forge-dashboard</span
-    >'s backend &middot;
-    <a
-      href="https://github.com/alrayyes/forge-dashboard"
-      target="_blank"
-      rel="noopener noreferrer">Source</a
-    >
-    <span id="footer-version"></span>
-  </footer>
+  <Footer />
 </div>

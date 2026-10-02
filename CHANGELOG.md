@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.103.2](https://github.com/alrayyes/forge-dashboard/compare/v0.103.1...v0.103.2) (2026-10-02)
+
+
+### Bug Fixes
+
+* **web:** don't offer Enable auto-merge on a clean pull request ([#663](https://github.com/alrayyes/forge-dashboard/issues/663)) ([e7aa8d7](https://github.com/alrayyes/forge-dashboard/commit/e7aa8d75e5071ae218ed374862a7ec115ebbb9ef)), closes [#662](https://github.com/alrayyes/forge-dashboard/issues/662)
+
+## [0.103.1](https://github.com/alrayyes/forge-dashboard/compare/v0.103.0...v0.103.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **dashboard:** stop re-posting [@dependabot](https://github.com/dependabot) rebase after a refused recreate ([#661](https://github.com/alrayyes/forge-dashboard/issues/661)) ([7cc08d0](https://github.com/alrayyes/forge-dashboard/commit/7cc08d05721542a138f74f8dfe45d18191057388)), closes [#660](https://github.com/alrayyes/forge-dashboard/issues/660)
+
+## [0.103.0](https://github.com/alrayyes/forge-dashboard/compare/v0.102.1...v0.103.0) (2026-09-28)
+
+
+### Features
+
+* **footer:** extract a shared Footer component ([#655](https://github.com/alrayyes/forge-dashboard/issues/655)) ([7c937cc](https://github.com/alrayyes/forge-dashboard/commit/7c937cc841da8e7491b3d874847c5ee4519ab211))
+
 ## [0.102.1](https://github.com/alrayyes/forge-dashboard/compare/v0.102.0...v0.102.1) (2026-09-28)
 
 
