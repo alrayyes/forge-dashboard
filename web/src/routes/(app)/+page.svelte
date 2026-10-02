@@ -60,6 +60,7 @@
     forges: Forge[];
     pullRequests: PullRequestItem[];
     issues: IssueItem[];
+    repos?: Filters.RepoRef[];
   };
   type ActionPhase =
     | "idle"
@@ -2103,6 +2104,9 @@
     // both boards.
     const sharedState = Filters.loadState();
     let allPRs: PullRequestItem[] = [];
+    // repos[] from the last snapshot, keyed forge+fullName, for the host
+    // chip and sync status on a "Group by repository" header (#679).
+    let reposByKey = new Map<string, Filters.RepoRef>();
     let allIssues: IssueItem[] = [];
     // The latest snapshot's own forges array — mergeActionCell/
     // updateBranchActionCell read this to pre-emptively lock a row's
@@ -2338,6 +2342,32 @@
       // (not a styled div) so it's announced as structure, not
       // decoration. Off by default — this is a chosen mode, not a
       // permanent change to how the flat list already reads.
+      // Forge badge, instance host chip, repo name and sync status
+      // (#679). Host and status come from repos[]; a repo missing from
+      // it gets neither rather than a guess.
+      function appendRepoHeading(
+        heading: HTMLElement,
+        forge: string,
+        repo: string,
+      ) {
+        const badge = el("span", `forge-badge ${FORGE_CLASSES[forge]}`);
+        badge.appendChild(el("span", "dot"));
+        badge.appendChild(
+          document.createTextNode(FORGE_LABELS[forge] || forge),
+        );
+        heading.appendChild(badge);
+        const info = reposByKey.get(Filters.repoKey(forge, repo));
+        const host = Filters.hostFromUrl(info?.url);
+        if (host) heading.appendChild(el("span", "group-host", host));
+        heading.appendChild(el("span", "group-name", repo));
+        if (info) {
+          const status = Filters.repoSyncStatus(info);
+          heading.appendChild(
+            el("span", `group-sync ${status.toLowerCase()}`, status),
+          );
+        }
+      }
+
       function renderGrouped(
         container: HTMLElement,
         items: (PullRequestItem | IssueItem)[],
@@ -2346,7 +2376,7 @@
         const keyOf =
           groupBy === "forge"
             ? (item: FilterableItem) => FORGE_LABELS[item.forge] || item.forge
-            : (item: FilterableItem) => item.repo;
+            : (item: FilterableItem) => Filters.repoKey(item.forge, item.repo);
 
         const groups: Record<string, (PullRequestItem | IssueItem)[]> = {};
         const order: string[] = [];
@@ -2358,12 +2388,24 @@
           }
           groups[key].push(item);
         }
-        order.sort();
+        // Sorted by what the heading reads, so "forge:" prefixes on a
+        // repo key never change the visible order.
+        const labelOf = (key: string) => {
+          const first = groups[key][0];
+
+          return groupBy === "forge" ? key : first.repo;
+        };
+        order.sort((a, b) => labelOf(a).localeCompare(labelOf(b)));
 
         for (const key of order) {
+          const first = groups[key][0];
           const heading = document.createElement("h3");
           heading.className = "group-heading";
-          heading.appendChild(document.createTextNode(key));
+          if (groupBy === "repo") {
+            appendRepoHeading(heading, first.forge, first.repo);
+          } else {
+            heading.appendChild(document.createTextNode(key));
+          }
           heading.appendChild(
             el("span", "group-count", String(groups[key].length)),
           );
@@ -3116,6 +3158,12 @@
       const issues = data.issues || [];
       allPRs = prs;
       allIssues = issues;
+      reposByKey = new Map(
+        (data.repos || []).map((r) => [
+          Filters.repoKey(r.forge, r.fullName),
+          r,
+        ]),
+      );
       updateSharedFilterOptions();
       if (!sharedControlsRestored) {
         sharedControlsRestored = true;
@@ -3374,8 +3422,8 @@
       id="shared-group-select"
       aria-label="Group rows by"
     >
-      <option value="">No grouping</option>
-      <option value="repo">Group by repo</option>
+      <option value="">Flat list</option>
+      <option value="repo">Group by repository</option>
       <option value="forge">Group by forge</option>
     </select>
     <select

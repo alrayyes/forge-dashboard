@@ -92,6 +92,45 @@ export const FORGE_LABELS: Record<string, string> = {
   github: 'GitHub',
   forgejo: 'Forgejo',
 };
+// The slice of /api/dashboard's repos[] that a repo group header needs.
+export interface RepoRef {
+  forge: string;
+  fullName: string;
+  url: string;
+  hasWebhook: boolean;
+}
+
+export type RepoSyncStatus = 'Webhook' | 'Polling';
+
+// A repo is identified by forge plus full name: the same owner/name can
+// exist on both forges.
+export function repoKey(forge: string, fullName: string): string {
+  return `${forge}:${fullName}`;
+}
+
+// The instance host a repo lives on, read from its web URL (#679).
+// Forgejo's comes from the forge's own response and GitHub's is always
+// github.com, so no API field is needed. Empty when the URL is missing or
+// not absolute, so the caller can omit the chip rather than guess.
+export function hostFromUrl(url: string | undefined): string {
+  if (!url) return '';
+  try {
+    return new URL(url).host;
+  } catch {
+    return '';
+  }
+}
+
+// "Webhook" once a signature-verified delivery has been recorded for the
+// repo, "Polling" otherwise: the dashboard's periodic refresh is what keeps
+// it current until then. The text carries the meaning, colour only adds to
+// it.
+export function repoSyncStatus(
+  repo: Pick<RepoRef, 'hasWebhook'>,
+): RepoSyncStatus {
+  return repo.hasWebhook ? 'Webhook' : 'Polling';
+}
+
 export const DEPENDENCY_DASHBOARD_TITLE = 'Dependency Dashboard';
 const FILTERS_COOKIE = 'forge-board-filters';
 

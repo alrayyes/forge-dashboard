@@ -637,6 +637,43 @@ section.board {
 .group-heading:first-child {
   border-top: none;
 }
+.group-name {
+  font-family: "IBM Plex Mono", monospace;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink);
+}
+/* The instance host chip: monospace and bordered so it reads as a
+   technical identifier beside the repo name (#679). */
+.group-host {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 2px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--ink-2);
+  background: var(--surface);
+}
+/* Sync status. The text label is the signal; colour only reinforces it. */
+.group-sync {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--ink-2);
+  background: var(--surface);
+}
+.group-sync.webhook {
+  color: var(--good);
+  background: var(--good-bg);
+  border-color: var(--good);
+}
 .group-count {
   font-family: "IBM Plex Mono", monospace;
   font-weight: 500;
@@ -842,6 +879,10 @@ select.col-filter {
 }
 .forge-badge.fj .dot {
   background: var(--fj);
+}
+.group-heading .forge-badge {
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .repo-name {
