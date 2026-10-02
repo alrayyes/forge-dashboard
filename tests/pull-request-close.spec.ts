@@ -223,7 +223,9 @@ test.describe('pull request close button', () => {
     ).toHaveAttribute('aria-expanded', 'true');
   });
 
-  test('Escape closes the menu, returns focus to the trigger and drops the pending confirm', async ({
+  // #764: the first Escape ends the confirm and puts focus back on Close;
+  // the menu stays, and a second Escape closes it as it always did.
+  test('Escape drops the pending confirm and keeps the menu; a second Escape closes it', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -242,6 +244,15 @@ test.describe('pull request close button', () => {
 
     await page.keyboard.press('Escape');
 
+    await expect(
+      row.getByRole('button', { name: 'Confirm close?' }),
+    ).toHaveCount(0);
+    await expect(
+      row.getByRole('button', { name: 'Close', exact: true }),
+    ).toBeFocused();
+    await expect(row.locator('.row-actions-popover')).toBeVisible();
+
+    await page.keyboard.press('Escape');
     await expect(row.locator('.row-actions-popover')).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: 'More actions' }),

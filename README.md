@@ -300,7 +300,12 @@ to finish" (it unlocks on its own at the next refresh), a merge conflict, a
 draft, a branch that's behind, or "Blocked by the forge" when the forge says no
 without saying why. A failing check is named only when CI itself reports
 failing. A token missing the right permission, or the forge being unreachable,
-locks it too. Merge asks for confirmation first. If the forge still refuses,
+locks it too. Merge asks for confirmation first: the button turns into Confirm
+and Cancel, and the step ends on Cancel, a click anywhere else (which still does
+what it would have done), Escape, or after 8 seconds, shown by a thin line that
+runs down and waits while the pointer or keyboard focus is in the pair. Only one
+Merge or Close is armed at a time, and a double-click on Merge arms it without
+confirming. If the forge still refuses,
 the server re-reads the pull request and answers with a code and a short
 reason, which the row and a toast show: already merged or closed (the row
 switches to "Merged" or "Closed" and drops off the list on the next snapshot),
@@ -316,7 +321,9 @@ tone, on every open pull request regardless of mergeability. For one that turns
 out not to need merging at all (a duplicate, or one whose content already
 landed another way) it's the action that applies. It asks for confirmation the
 same way Merge does, inside the menu. Confirming closes the menu and shows
-progress on the row; Escape closes the menu and drops an unconfirmed Close.
+progress on the row. Escape drops an unconfirmed Close and leaves the menu open,
+a second Escape closes the menu, and closing the menu any other way drops it
+too.
 
 Every other action (Close, Update branch, Enable auto-merge, Dependabot and
 Renovate `rebase`) answers a refusal the same way as Merge. A pull request found
