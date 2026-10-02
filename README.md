@@ -299,7 +299,7 @@ right permission, or the forge being unreachable all hide or lock the
 button instead of letting the click fail. Merge asks for confirmation
 first; Update branch doesn't, since a merge from the base branch is
 easy to reverse and a merge itself isn't. On a pull request that's behind
-but also has merge conflicts, Update branch is locked with a note that the
+but also conflicts with its base, Update branch is locked with a note that the
 conflicts need fixing by hand, since the forge would refuse the update.
 Close is always available on an open pull request, regardless of
 mergeability — for one that turns out not to need merging at all (a
