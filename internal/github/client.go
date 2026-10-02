@@ -869,8 +869,60 @@ func authorLogin(a *graphqlActor) string {
 	return a.Login
 }
 
-type statusCheckRollup struct {
+type stateCount struct {
 	State string `json:"state"`
+	Count int    `json:"count"`
+}
+
+type statusCheckRollup struct {
+	State    string `json:"state"`
+	Contexts *struct {
+		CheckRunCountsByState      []stateCount `json:"checkRunCountsByState"`
+		StatusContextCountsByState []stateCount `json:"statusContextCountsByState"`
+	} `json:"contexts"`
+}
+
+// settleFailedRollup applies #722's rule to a FAILURE/ERROR rollup. GitHub
+// counts a cancelled run (superseded by a newer push or a concurrency
+// group) as a failure until the new run replaces it, so a re-running
+// pull request reads as failing while its real pipeline is still queued.
+// With no genuinely failed context and at least one still waiting or
+// running, the rollup is stale: pending. A real failure stays a failure
+// even while others run, and cancelled-only with nothing running stays a
+// failure because nothing is coming to replace it. Without counts (an
+// older response shape) the rollup state stands.
+func (r *statusCheckRollup) settleFailedRollup() dashboard.CIStatus {
+	if r.Contexts == nil {
+		return dashboard.CIFailure
+	}
+	var failed, running bool
+	for _, c := range r.Contexts.CheckRunCountsByState {
+		if c.Count == 0 {
+			continue
+		}
+		switch c.State {
+		case "FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE", "STALE":
+			failed = true
+		case "QUEUED", "IN_PROGRESS", "PENDING", "WAITING", "REQUESTED":
+			running = true
+		}
+	}
+	for _, c := range r.Contexts.StatusContextCountsByState {
+		if c.Count == 0 {
+			continue
+		}
+		switch c.State {
+		case "FAILURE", "ERROR":
+			failed = true
+		case "PENDING", "EXPECTED":
+			running = true
+		}
+	}
+	if running && !failed {
+		return dashboard.CIPending
+	}
+
+	return dashboard.CIFailure
 }
 
 type prCommitNode struct {
@@ -887,11 +939,12 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 	if len(commits) == 0 || commits[0].Commit.StatusCheckRollup == nil {
 		return dashboard.CINone
 	}
-	switch commits[0].Commit.StatusCheckRollup.State {
+	rollup := commits[0].Commit.StatusCheckRollup
+	switch rollup.State {
 	case "SUCCESS":
 		return dashboard.CISuccess
 	case "ERROR", "FAILURE":
-		return dashboard.CIFailure
+		return rollup.settleFailedRollup()
 	case "PENDING", "EXPECTED":
 		return dashboard.CIPending
 	default:
@@ -1117,6 +1170,10 @@ query($cursor: String, $since: DateTime) {
                 commit {
                   statusCheckRollup {
                     state
+                    contexts(first: 1) {
+                      checkRunCountsByState { state count }
+                      statusContextCountsByState { state count }
+                    }
                   }
                 }
               }
@@ -1199,6 +1256,10 @@ const appRepoFieldsTemplate = `
             commit {
               statusCheckRollup {
                 state
+                contexts(first: 1) {
+                  checkRunCountsByState { state count }
+                  statusContextCountsByState { state count }
+                }
               }
             }
           }
@@ -1884,6 +1945,10 @@ query($owner: String!, $name: String!) {
             commit {
               statusCheckRollup {
                 state
+                contexts(first: 1) {
+                  checkRunCountsByState { state count }
+                  statusContextCountsByState { state count }
+                }
               }
             }
           }
@@ -2274,19 +2339,29 @@ func (c *Client) ciStatusREST(ctx context.Context, owner, name, sha string) (das
 }
 
 func statusFromCheckRuns(runs []*ghsdk.CheckRun) dashboard.CIStatus {
-	failed := false
+	// Same rule as settleFailedRollup (#722): a real failure wins even
+	// while others run; a cancelled run alone is only pending-stale when
+	// something is still queued or running.
+	var cancelled, running bool
 	for _, r := range runs {
 		if r.GetStatus() != "completed" {
-			return dashboard.CIPending
+			running = true
+
+			continue
 		}
 		switch r.GetConclusion() {
 		case "success", "neutral", "skipped":
 			// counts as passing
+		case "cancelled":
+			cancelled = true
 		default:
-			failed = true
+			return dashboard.CIFailure
 		}
 	}
-	if failed {
+	if running {
+		return dashboard.CIPending
+	}
+	if cancelled {
 		return dashboard.CIFailure
 	}
 
