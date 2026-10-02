@@ -1343,11 +1343,9 @@ func TestFetch_MergeStateStatusBlockedButActuallyBehind_ReportsBehindTrue(t *tes
 			writeJSON(t, w, map[string]any{
 				"data": map[string]any{
 					"pr0": map[string]any{
-						"repository": map[string]any{
-							"pullRequest": map[string]any{
-								"baseRef": map[string]any{
-									"compare": map[string]any{"behindBy": 1},
-								},
+						"pullRequest": map[string]any{
+							"baseRef": map[string]any{
+								"compare": map[string]any{"behindBy": 1},
 							},
 						},
 					},
@@ -1382,11 +1380,9 @@ func TestFetch_MergeStateStatusBlockedAndNotBehind_StaysFalse(t *testing.T) {
 			writeJSON(t, w, map[string]any{
 				"data": map[string]any{
 					"pr0": map[string]any{
-						"repository": map[string]any{
-							"pullRequest": map[string]any{
-								"baseRef": map[string]any{
-									"compare": map[string]any{"behindBy": 0},
-								},
+						"pullRequest": map[string]any{
+							"baseRef": map[string]any{
+								"compare": map[string]any{"behindBy": 0},
 							},
 						},
 					},

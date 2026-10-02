@@ -1616,16 +1616,19 @@ type behindCheck struct {
 // behindComparison is one aliased branch of buildBehindCompareQuery's own
 // response shape — every alias shares this exact shape, so a single type
 // decodes all of them via map[string]behindComparison.
+//
+// The alias (pr0, pr1, ...) IS the repository field, so each value starts
+// at pullRequest — there is no "repository" key inside it (#665). An
+// earlier version of this struct added that level, which decoded every
+// real response to behindBy 0 and silently disabled the #495 fix.
 type behindComparison struct {
-	Repository struct {
-		PullRequest struct {
-			BaseRef struct {
-				Compare struct {
-					BehindBy int `json:"behindBy"`
-				} `json:"compare"`
-			} `json:"baseRef"`
-		} `json:"pullRequest"`
-	} `json:"repository"`
+	PullRequest struct {
+		BaseRef struct {
+			Compare struct {
+				BehindBy int `json:"behindBy"`
+			} `json:"compare"`
+		} `json:"baseRef"`
+	} `json:"pullRequest"`
 }
 
 // buildBehindCompareQuery batches checks into one GraphQL request, one
@@ -1688,7 +1691,7 @@ func (c *Client) resolveAmbiguousBehind(ctx context.Context, prs []dashboard.Pul
 		if !ok {
 			continue
 		}
-		if cmp.Repository.PullRequest.BaseRef.Compare.BehindBy > 0 {
+		if cmp.PullRequest.BaseRef.Compare.BehindBy > 0 {
 			prs[chk.prIndex].Behind = true
 		}
 	}
