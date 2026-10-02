@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.108.0](https://github.com/alrayyes/forge-dashboard/compare/v0.107.0...v0.108.0) (2026-10-02)
+
+
+### Features
+
+* **checks:** required vs advisory split in the pipeline inspector ([#699](https://github.com/alrayyes/forge-dashboard/issues/699)) ([2f503f3](https://github.com/alrayyes/forge-dashboard/commit/2f503f30dd0ab492bed0865e19df2c69585d31b4))
+
 ## [0.107.0](https://github.com/alrayyes/forge-dashboard/compare/v0.106.0...v0.107.0) (2026-10-02)
 
 
