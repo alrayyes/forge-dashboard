@@ -2,6 +2,14 @@
   import { onMount } from "svelte";
   import * as Filters from "$lib/filters";
   import type { FilterableItem, SharedFilterState } from "$lib/filters";
+  import {
+    type ActionRequestError,
+    interpretActionFailure,
+    readActionFailure,
+    type SettledState,
+    settledBadge,
+    showSettled,
+  } from "$lib/action-error";
   import { type ActionRef, createFeedbackStore } from "$lib/feedback";
   import { mountFeedbackUI } from "$lib/feedback-ui";
   import {
@@ -90,7 +98,9 @@
     | "queued"
     | "requesting"
     | "enabling"
-    | "locked";
+    | "locked"
+    // Found already merged or closed on the forge (the row lagged it).
+    | SettledState;
   type ActionState = {
     phase: ActionPhase;
     reason?: string;
@@ -611,41 +621,6 @@
     const { isReleasePleasePr, isDependabotPr, isRenovatePr, isBotManagedPr } =
       Filters;
 
-    // Strips the "github: <method> <path>: " / "forgejo: <method>
-    // <path>: " diagnostic prefix restError/forgejoError wrap every
-    // message in — useful in the full error banner, just noise in a
-    // locked-row reason read right next to the button it's locking.
-    function forgeMessageOnly(message: string): string {
-      const match = /^(?:github|forgejo): \S+ \S+: (.+)$/.exec(message || "");
-      return match ? match[1] : message;
-    }
-
-    // Mirrors webhooks.js's reactiveLockReason, plus 409 — GitHub's
-    // merge endpoint uses that one status for two different causes: a PR
-    // that's genuinely no longer mergeable, and a merge method the repo
-    // doesn't allow (#349, collapsed into the same status by
-    // forgeErrorKindFromStatus). The forge's own message, already
-    // reaching the client, is what decides which reason to show, rather
-    // than a second, independently-authored guess keyed only on the
-    // status code.
-    function reactiveMergeLockReason(
-      forge: string,
-
-      status: number | undefined,
-      message: string,
-    ): string | null {
-      if (status === 403) return PERMISSION_REASON;
-      if (status === 429) return rateLimitedReason(forge);
-      if (status === 409) {
-        const real = forgeMessageOnly(message);
-        if (!real || /not mergeable/i.test(real)) {
-          return "No longer mergeable — refresh to see the current state.";
-        }
-        return real;
-      }
-      return null;
-    }
-
     let actionLockReasonCounter = 0;
 
     // Same aria-disabled + visible, wired-up reason shape webhooks.js's
@@ -902,11 +877,7 @@
             throw new Error("session expired");
           }
           if (res.status === 204) return null;
-          return res.json().then((body) => {
-            const err: Error & { status?: number } = new Error(
-              body?.error || `backend answered ${res.status}`,
-            );
-            err.status = res.status;
+          return readActionFailure(res).then((err) => {
             throw err;
           });
         })
@@ -932,7 +903,7 @@
               if (data) applySnapshot(data, true);
             });
         })
-        .catch((err: Error & { status?: number }) => {
+        .catch((err: ActionRequestError) => {
           // A raw network failure (no HTTP status at all — the fetch
           // itself rejected, not just a non-204 response) is genuinely
           // ambiguous: the request might have reached the backend and
@@ -985,16 +956,34 @@
             return;
           }
 
-          const lockReason = reactiveMergeLockReason(
-            item.forge,
-            err.status,
-            err.message,
+          // The server re-read the pull request and said why (its code);
+          // this only renders that answer.
+          const outcome = interpretActionFailure(err, (resetsAt) =>
+            resetsAt
+              ? rateLimitReasonText(
+                  FORGE_LABELS[item.forge] || item.forge,
+                  resetsAt,
+                )
+              : rateLimitedReason(item.forge),
           );
-          mergeState[key] = lockReason
-            ? { phase: "locked", reason: lockReason }
-            : { phase: "idle" };
-          if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          failAction(fkey, "merge", err.message, !lockReason);
+          if (outcome.kind === "settled") {
+            mergeState[key] = { phase: outcome.state };
+            showSettled(feedback, fkey, actionRef(item), outcome);
+            // Same immediate refresh the success path makes, so the row
+            // drops off the open list as soon as the forge shows it.
+            refreshDashboardNow().catch(() => renderPRBoard());
+            renderPRBoard();
+            return;
+          }
+          if (outcome.kind === "locked") {
+            mergeState[key] = { phase: "locked", reason: outcome.reason };
+            if (outcome.code === "permission")
+              forgePermissionDenied[item.forge] = true;
+            failAction(fkey, "merge", outcome.reason, false);
+          } else {
+            mergeState[key] = { phase: "idle" };
+            failAction(fkey, "merge", outcome.reason, true);
+          }
           renderPRBoard();
         });
     }
@@ -1056,6 +1045,11 @@
     // hard-to-reverse write to the real repo, not a filter toggle like
     // the CI pill next to it.
     function mergeActionCell(item: PullRequestItem): HTMLElement | null {
+      // Found already merged or closed on the forge: say so, nothing to click.
+      const settled = mergeState[prKey(item)]?.phase;
+      if (settled === "merged" || settled === "closed")
+        return settledBadge(settled);
+
       // Real incident: a pull request whose content already landed on
       // the base branch some other way is still reported "mergeable" —
       // merging it just produces an empty commit, and clicking Merge
@@ -1168,7 +1162,7 @@
     // framing that it's left for a follow-up rather than folded in here.
     const autoMergeState: Record<string, ActionState> = {};
 
-    // Mirrors reactiveMergeLockReason's 403/429 handling. No specific
+    // Mirrors doMerge's 403/429 handling. No specific
     // case for "repo doesn't allow auto-merge" — GitHub's own mutation
     // error for that doesn't come back with a status this app classifies
     // any more specifically than 502, so it falls through to the generic
@@ -1191,7 +1185,7 @@
     // exact state, which is the whole point of the feature. That
     // rejection carries no status of its own (502, same as any other
     // unclassified GraphQL failure — reactiveAutoMergeLockReason's own
-    // comment above), so like reactiveMergeLockReason's 409 case, this is
+    // comment above), so like doMerge's 409 case, this is
     // matched on the forge's real message text rather than a status
     // code. Unlike that 409 case, the result isn't a lock reason: this
     // failure is meant to be retried once checks settle (arming ahead of
@@ -1363,7 +1357,7 @@
     // independent action.
     const closeState: Record<string, ActionState> = {};
 
-    // Mirrors reactiveMergeLockReason's 403/429 handling; no special
+    // Mirrors doMerge's 403/429 handling; no special
     // "not mergeable" 409 case here, since Close doesn't need
     // mergeability at all — a 409 here is the forge's own real message
     // (already-merged, already-closed) passed straight through instead.
@@ -1561,7 +1555,7 @@
     // independent lock/in-flight state rather than sharing one.
     const updateBranchState: Record<string, ActionState> = {};
 
-    // Mirrors reactiveMergeLockReason's 403/429 handling exactly; 409
+    // Mirrors doMerge's 403/429 handling exactly; 409
     // reads differently here since the forge is reporting the two
     // branches can't be merged cleanly, not that the pull request
     // itself stopped being mergeable.
@@ -1927,7 +1921,10 @@
     // not a two-step interaction a moved target can break.
     function anyRowActionInFlight(): boolean {
       const inFlight = (entry: ActionState) =>
-        entry.phase !== "idle" && entry.phase !== "locked";
+        entry.phase !== "idle" &&
+        entry.phase !== "locked" &&
+        entry.phase !== "merged" &&
+        entry.phase !== "closed";
 
       return [
         mergeState,

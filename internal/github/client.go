@@ -469,6 +469,37 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	return nil
 }
 
+// ReadPullRequestState implements dashboard.PullRequestStateReader via
+// GitHub's "Get a pull request": merged and state say whether there's
+// anything left to merge; mergeable_state says why a merge was refused.
+func (c *Client) ReadPullRequestState(ctx context.Context, owner, name string, number int) (dashboard.PullRequestState, error) {
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	pr, resp, err := c.restClient.PullRequests.Get(ctx, owner, name, number)
+	if err != nil {
+		return dashboard.PullRequestState{}, asClientError(c.restError(ctx, http.MethodGet, path, err))
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+
+	st := dashboard.PullRequestState{
+		Merged: pr.GetMerged(),
+		Closed: pr.GetState() == "closed",
+		Draft:  pr.GetDraft(),
+	}
+	switch pr.GetMergeableState() {
+	case "dirty":
+		st.Conflicting = true
+	case "behind":
+		st.Behind = true
+	case "blocked":
+		st.Blocked = true
+	case "unstable":
+		st.ChecksFailing = true
+	}
+
+	return st, nil
+}
+
 // ClosePullRequest implements dashboard.PullRequestCloser: closes
 // owner/name#number without merging it, via the same Edit call GitHub's
 // own PR-editing endpoint uses for any field change.
@@ -728,7 +759,7 @@ func asClientError(err error) error {
 		return nil
 	}
 	if apiErr, ok := errors.AsType[*apiError](err); ok {
-		return &dashboard.ClientError{Kind: apiErr.kind, Err: err}
+		return &dashboard.ClientError{Kind: apiErr.kind, Err: err, RateLimit: apiErr.rateLimit}
 	}
 
 	return err
@@ -2063,8 +2094,9 @@ func (c *Client) restError(ctx context.Context, method, path string, err error) 
 		c.recordRequest(ctx, method, path, statusCodeOf(rateLimitErr.Response), string(dashboard.ForgeErrorRateLimited), rateLimitOf(rateLimitErr.Rate))
 
 		return &apiError{
-			msg:  fmt.Sprintf("github: %s %s: rate limit exceeded", method, path),
-			kind: dashboard.ForgeErrorRateLimited,
+			msg:       fmt.Sprintf("github: %s %s: rate limit exceeded", method, path),
+			kind:      dashboard.ForgeErrorRateLimited,
+			rateLimit: rateLimitOf(rateLimitErr.Rate),
 		}
 	}
 	if abuseErr, ok := errors.AsType[*ghsdk.AbuseRateLimitError](err); ok {
@@ -2078,8 +2110,9 @@ func (c *Client) restError(ctx context.Context, method, path string, err error) 
 		c.recordRequest(ctx, method, path, statusCodeOf(abuseErr.Response), string(dashboard.ForgeErrorRateLimited), rl)
 
 		return &apiError{
-			msg:  fmt.Sprintf("github: %s %s: rate limited", method, path),
-			kind: dashboard.ForgeErrorRateLimited,
+			msg:       fmt.Sprintf("github: %s %s: rate limited", method, path),
+			kind:      dashboard.ForgeErrorRateLimited,
+			rateLimit: rl,
 		}
 	}
 	if errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err); ok {
@@ -2095,8 +2128,9 @@ func (c *Client) restError(ctx context.Context, method, path string, err error) 
 		c.recordRequest(ctx, method, path, statusCodeOf(errResp.Response), string(kind), rl)
 
 		return &apiError{
-			msg:  fmt.Sprintf("github: %s %s: %s", method, path, errResp.Message),
-			kind: kind,
+			msg:       fmt.Sprintf("github: %s %s: %s", method, path, errResp.Message),
+			kind:      kind,
+			rateLimit: rl,
 		}
 	}
 

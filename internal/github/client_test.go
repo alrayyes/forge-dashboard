@@ -2856,3 +2856,132 @@ func TestListChecks_NoProtectionLookupSucceeds_RequiredIsAbsentFromJSON(t *testi
 	require.NoError(t, err)
 	assert.NotContains(t, string(body), "required")
 }
+
+// Real response shapes from GitHub's "Merge a pull request" docs. The
+// merge endpoint answers 405 for a PR that can't be merged, 409 when the
+// head moved after the request was built, and 403 for a token that isn't
+// allowed to merge. The forge's own text has to survive to the caller,
+// because the API layer classifies the refusal from it.
+func TestMergePullRequest_RefusalsKeepTheForgesOwnMessage(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		status  int
+		message string
+		kind    dashboard.ForgeErrorKind
+	}{
+		{"405 not mergeable", http.StatusMethodNotAllowed, "Pull Request is not mergeable", dashboard.ForgeErrorConflict},
+		{"409 head modified", http.StatusConflict, "Head branch was modified. Review and try the merge again.", dashboard.ForgeErrorConflict},
+		{"403 no permission", http.StatusForbidden, "Resource not accessible by personal access token", dashboard.ForgeErrorUnauthorized},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]any{"allow_merge_commit": true})
+			})
+			mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				writeJSON(t, w, map[string]any{"message": tc.message, "documentation_url": "https://docs.github.com/rest/pulls/pulls#merge-a-pull-request"})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			err := github.NewClient("test-token", "", srv.URL).MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+			require.Error(t, err)
+			var clientErr *dashboard.ClientError
+			require.ErrorAs(t, err, &clientErr)
+			assert.Equal(t, tc.kind, clientErr.Kind)
+			assert.Contains(t, err.Error(), tc.message)
+		})
+	}
+}
+
+func TestMergePullRequest_RateLimited_CarriesWhenTheBudgetResets(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"allow_merge_commit": true})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Limit", "5000")
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "1893456000")
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]any{"message": "API rate limit exceeded for user ID 1."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	err := github.NewClient("test-token", "", srv.URL).MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorRateLimited, clientErr.Kind)
+	require.NotNil(t, clientErr.RateLimit)
+	assert.Equal(t, int64(1893456000), clientErr.RateLimit.ResetsAt.Unix())
+}
+
+// "Get a pull request" fields the re-read uses: merged, state,
+// draft and mergeable_state (clean, dirty, behind, blocked, unstable,
+// draft, has_hooks, unknown).
+func TestReadPullRequestState_MapsGetPullRequestFields(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		body map[string]any
+		want dashboard.PullRequestState
+	}{
+		{"already merged", map[string]any{"state": "closed", "merged": true, "merged_at": "2026-10-01T10:00:00Z", "mergeable_state": "unknown"}, dashboard.PullRequestState{Merged: true, Closed: true}},
+		{"closed unmerged", map[string]any{"state": "closed", "merged": false, "mergeable_state": "unknown"}, dashboard.PullRequestState{Closed: true}},
+		{"conflicting", map[string]any{"state": "open", "merged": false, "mergeable": false, "mergeable_state": "dirty"}, dashboard.PullRequestState{Conflicting: true}},
+		{"behind", map[string]any{"state": "open", "merged": false, "mergeable_state": "behind"}, dashboard.PullRequestState{Behind: true}},
+		{"blocked", map[string]any{"state": "open", "merged": false, "mergeable_state": "blocked"}, dashboard.PullRequestState{Blocked: true}},
+		{"unstable", map[string]any{"state": "open", "merged": false, "mergeable_state": "unstable"}, dashboard.PullRequestState{ChecksFailing: true}},
+		{"draft", map[string]any{"state": "open", "merged": false, "draft": true, "mergeable_state": "draft"}, dashboard.PullRequestState{Draft: true}},
+		{"clean", map[string]any{"state": "open", "merged": false, "mergeable": true, "mergeable_state": "clean"}, dashboard.PullRequestState{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, http.MethodGet, r.Method)
+				tc.body["number"] = 5
+				writeJSON(t, w, tc.body)
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			got, err := github.NewClient("test-token", "", srv.URL).ReadPullRequestState(t.Context(), "alrayyes", "a", 5)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestReadPullRequestState_ForgeFails_ReturnsClassifiedError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		writeJSON(t, w, map[string]any{"message": "Not Found"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	_, err := github.NewClient("test-token", "", srv.URL).ReadPullRequestState(t.Context(), "alrayyes", "a", 5)
+
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+}

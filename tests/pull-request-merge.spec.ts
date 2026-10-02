@@ -520,7 +520,11 @@ test.describe('pull request merge button', () => {
       route.fulfill({
         status: 502,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: PUT .../merge: EOF' }),
+        body: JSON.stringify({
+          error: 'github: PUT .../merge: EOF',
+          code: 'unknown',
+          message: 'EOF',
+        }),
       }),
     );
     await page.reload();
@@ -553,7 +557,11 @@ test.describe('pull request merge button', () => {
       route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: PUT .../merge: Forbidden' }),
+        body: JSON.stringify({
+          error: 'github: PUT .../merge: Forbidden',
+          code: 'permission',
+          message: 'Missing permission — check your token in Settings.',
+        }),
       }),
     );
     await page.reload();
@@ -580,6 +588,8 @@ test.describe('pull request merge button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           error: 'github: PUT .../merge: Pull Request is not mergeable',
+          code: 'not_mergeable',
+          message: 'No longer mergeable. Refresh to see the current state.',
         }),
       }),
     );
@@ -609,6 +619,8 @@ test.describe('pull request merge button', () => {
         body: JSON.stringify({
           error:
             'github: PUT .../merge: Merge commits are not allowed on this repository.',
+          code: 'not_mergeable',
+          message: 'Merge commits are not allowed on this repository.',
         }),
       }),
     );
@@ -633,7 +645,12 @@ test.describe('pull request merge button', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
       }),
     );
     await page.reload();
@@ -665,6 +682,8 @@ test.describe('pull request merge button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           error: 'github: PUT .../merge: Pull Request is not mergeable',
+          code: 'not_mergeable',
+          message: 'No longer mergeable. Refresh to see the current state.',
         }),
       }),
     );
@@ -705,7 +724,12 @@ test.describe('pull request merge button', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
       }),
     );
     await page.reload();
@@ -857,6 +881,8 @@ test.describe('pull request merge button', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             error: 'github: PUT .../merge: Forbidden',
+            code: 'permission',
+            message: 'Missing permission — check your token in Settings.',
           }),
         }),
       );

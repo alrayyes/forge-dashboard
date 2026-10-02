@@ -367,6 +367,31 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	return nil
 }
 
+// ReadPullRequestState implements dashboard.PullRequestStateReader via
+// Forgejo's "Get a pull request". It reports merged, state and a single
+// mergeable verdict, with no mergeable_state to say why a PR isn't
+// mergeable, so an open PR that isn't mergeable is Blocked and no more
+// specific.
+func (c *Client) ReadPullRequestState(ctx context.Context, owner, name string, number int) (dashboard.PullRequestState, error) {
+	c.setContext(ctx)
+
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+	pr, resp, err := c.sdk.GetPullRequest(owner, name, int64(number))
+	if err != nil {
+		return dashboard.PullRequestState{}, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+	}
+	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
+
+	closed := pr.State == gitea.StateClosed
+
+	return dashboard.PullRequestState{
+		Merged:  pr.HasMerged,
+		Closed:  closed,
+		Blocked: !closed && !pr.Mergeable,
+	}, nil
+}
+
 // ClosePullRequest implements dashboard.PullRequestCloser: closes
 // owner/name#number without merging it. EditPullRequest goes through the
 // SDK's own getParsedResponse, not the getStatusCode MergePullRequest and
@@ -1056,7 +1081,14 @@ func (c *Client) rawRequest(ctx context.Context, method, path string, body io.Re
 		return nil, resp, fmt.Errorf("forgejo: read response body: %w", err)
 	}
 	if httpResp.StatusCode >= 300 {
-		return nil, resp, fmt.Errorf("%s", rawRequestErrorMessage(respBody))
+		msg := rawRequestErrorMessage(respBody)
+		if msg == "" {
+			// Forgejo sometimes refuses with an empty reason, e.g. merging an
+			// already-merged PR. Say the status, never the raw body.
+			msg = httpResp.Status
+		}
+
+		return nil, resp, fmt.Errorf("%s", msg)
 	}
 	// The success path's own recording — a failure here returns to the
 	// caller, which persists its own entry via forgejoError(ctx, method,
@@ -1077,7 +1109,9 @@ func rawRequestErrorMessage(body []byte) string {
 	var errBody struct {
 		Message string `json:"message"`
 	}
-	if err := json.Unmarshal(body, &errBody); err == nil && errBody.Message != "" {
+	if err := json.Unmarshal(body, &errBody); err == nil {
+		// A JSON envelope with an empty message has nothing readable in
+		// it; its other fields are just a swagger link.
 		return errBody.Message
 	}
 

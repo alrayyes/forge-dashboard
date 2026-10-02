@@ -196,7 +196,11 @@ test.describe('rate-limited actions (#732)', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message: "The forge's API rate limit is reached.",
+        }),
       }),
     );
     await page.reload();
@@ -220,7 +224,11 @@ test.describe('rate-limited actions (#732)', () => {
       route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: PUT .../merge: Forbidden' }),
+        body: JSON.stringify({
+          error: 'github: PUT .../merge: Forbidden',
+          code: 'permission',
+          message: 'Missing permission — check your token in Settings.',
+        }),
       }),
     );
     await page.reload();
@@ -245,7 +253,11 @@ test.describe('rate-limited actions (#732)', () => {
       return route.fulfill({
         status: 502,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: PUT .../merge: Bad Gateway' }),
+        body: JSON.stringify({
+          error: 'github: PUT .../merge: Bad Gateway',
+          code: 'unknown',
+          message: 'Bad Gateway',
+        }),
       });
     });
     await page.reload();

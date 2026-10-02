@@ -187,6 +187,24 @@ func (s *GenericSource) MergePullRequest(ctx context.Context, owner, name string
 	return nil
 }
 
+// ReadPullRequestState implements PullRequestStateReader at the Source
+// level by delegating to the underlying client, the same shape
+// MergePullRequest uses. The client's own error is returned as is, so its
+// ClientError classification survives.
+func (s *GenericSource) ReadPullRequestState(ctx context.Context, owner, name string, number int) (PullRequestState, error) {
+	reader, ok := s.client.(PullRequestStateReader)
+	if !ok {
+		return PullRequestState{}, fmt.Errorf("dashboard: %s's client can't read pull request state", s.forge)
+	}
+
+	state, err := reader.ReadPullRequestState(ctx, owner, name, number)
+	if err != nil {
+		return state, fmt.Errorf("dashboard: read pull request state: %w", err)
+	}
+
+	return state, nil
+}
+
 // UpdateBranch implements BranchUpdater at the Source level by delegating
 // to the underlying client, the same "Source unwraps to its ForgeClient"
 // shape EnsureWebhook/MergePullRequest already use.

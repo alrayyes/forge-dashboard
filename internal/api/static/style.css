@@ -1314,6 +1314,19 @@ select.col-filter {
   background: var(--good-bg);
   color: var(--good);
 }
+/* A row whose pull request turned out to be merged or closed already
+   (#750): a plain status word where the action button was. */
+.row-settled {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--neutral-bg);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
 /* mergeActionCell's locked Merge (#705): the reason is the content, so it
    sits beside the button as plain text instead of the hover bubble. Same
    aria-describedby wiring as .row-action-reason, which this replaces. */
