@@ -995,6 +995,10 @@ type graphqlPullRequest struct {
 	// isn't a reliable behind/not-behind signal.
 	HeadRefOid       string                   `json:"headRefOid"`
 	AutoMergeRequest *graphqlAutoMergeRequest `json:"autoMergeRequest"`
+	// ViewerCanEnableAutoMerge is GitHub's own per-viewer answer to
+	// whether enablePullRequestAutoMerge would be accepted (#738). A
+	// pointer so a response without the field maps to unknown, not false.
+	ViewerCanEnableAutoMerge *bool `json:"viewerCanEnableAutoMerge"`
 	// The three review fields ride on the existing query, so review state
 	// costs no per-PR calls (#683). ReviewDecision is null when no review
 	// is required by branch protection; the two pointers being nil means
@@ -1148,6 +1152,7 @@ query($cursor: String, $since: DateTime) {
             autoMergeRequest {
               mergeMethod
             }
+            viewerCanEnableAutoMerge
             reviewDecision
             reviewRequests(first: 1) {
               totalCount
@@ -1234,6 +1239,7 @@ const appRepoFieldsTemplate = `
         autoMergeRequest {
           mergeMethod
         }
+        viewerCanEnableAutoMerge
         reviewDecision
         reviewRequests(first: 1) {
           totalCount
@@ -1772,6 +1778,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		Behind:           p.MergeStateStatus == "BEHIND",
 		Empty:            p.Additions == 0 && p.Deletions == 0 && p.ChangedFiles == 0,
 		AutoMergeEnabled: new(p.AutoMergeRequest != nil),
+		AutoMergeAllowed: p.ViewerCanEnableAutoMerge,
 		Review:           reviewFromGraphQL(p),
 	}
 }
@@ -1923,6 +1930,7 @@ query($owner: String!, $name: String!) {
         autoMergeRequest {
           mergeMethod
         }
+        viewerCanEnableAutoMerge
         reviewDecision
         reviewRequests(first: 1) {
           totalCount

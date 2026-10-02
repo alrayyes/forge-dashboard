@@ -2,6 +2,7 @@ package github_test
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1513,6 +1514,79 @@ func TestFetch_MapsAutoMergeFromAutoMergeRequest(t *testing.T) {
 			require.Len(t, result.PullRequests, 1)
 			require.NotNil(t, result.PullRequests[0].AutoMergeEnabled)
 			assert.Equal(t, tc.want, *result.PullRequests[0].AutoMergeEnabled)
+		})
+	}
+}
+
+// TestFetch_MapsAutoMergeAllowedFromViewerCanEnableAutoMerge uses the real
+// shape of alrayyes/pipeline-analytics#367 (#738): a stacked pull request
+// whose base branch has no protection rule, where GitHub reports
+// viewerCanEnableAutoMerge false. A response without the field maps to
+// nil, so an older or partial response never hides a working action.
+func TestFetch_MapsAutoMergeAllowedFromViewerCanEnableAutoMerge(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		fields map[string]any
+		want   *bool
+	}{
+		{"unprotected stacked base is false", map[string]any{"viewerCanEnableAutoMerge": false}, new(false)},
+		{"protected base is true", map[string]any{"viewerCanEnableAutoMerge": true}, new(true)},
+		{"absent field is unknown", map[string]any{}, nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var query string
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+				var body struct {
+					Query string `json:"query"`
+				}
+				_ = json.NewDecoder(r.Body).Decode(&body)
+				query = body.Query
+
+				pr := map[string]any{
+					"number": 367, "title": "feat(runs): handler", "url": "https://github.com/alrayyes/pipeline-analytics/pull/367",
+					"isDraft": false, "author": map[string]any{"login": "ryankes"},
+					"mergeStateStatus": "CLEAN",
+					"autoMergeRequest": nil,
+					"labels":           map[string]any{"nodes": []map[string]any{}},
+					"createdAt":        "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+					"commits": map[string]any{"nodes": []map[string]any{}},
+				}
+				maps.Copy(pr, tc.fields)
+				writeJSON(t, w, map[string]any{
+					"data": map[string]any{
+						"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+						"viewer": map[string]any{
+							"repositories": map[string]any{
+								"pageInfo": map[string]any{"hasNextPage": false},
+								"nodes": []map[string]any{
+									{
+										"name": "pipeline-analytics", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+										"owner":        map[string]any{"login": "alrayyes"},
+										"pullRequests": map[string]any{"nodes": []map[string]any{pr}},
+										"issues":       map[string]any{"nodes": []map[string]any{}},
+									},
+								},
+							},
+						},
+					},
+				})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("test-token", "", srv.URL)
+			result := client.Fetch(t.Context())
+
+			assert.Contains(t, query, "viewerCanEnableAutoMerge")
+			require.Len(t, result.PullRequests, 1)
+			assert.Equal(t, tc.want, result.PullRequests[0].AutoMergeAllowed)
 		})
 	}
 }
