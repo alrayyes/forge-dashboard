@@ -374,11 +374,11 @@
       return pill;
     }
 
-    // Bot-managed pull requests (release-please, Dependabot, Renovate)
-    // never get updateBranchActionCell's own inline button — that
-    // function returns null for every one of them, on purpose (see its
-    // own doc comment: a manual branch update would be redundant at
-    // best, or fight release-please's next run at worst). Without this
+    // Dependabot and Renovate pull requests never get
+    // updateBranchActionCell's own inline button — that function returns
+    // null for them on purpose (see its own doc comment: their own Rebase
+    // actions do that job). release-please does get the button (#728),
+    // so it's left out here the same way a plain pull request is. Without this
     // pill a bot-managed row that's actually behind had no visible sign
     // of it at all — confirmed live against a real Dependabot PR
     // (hush-hush-python#153) that GitHub itself flagged "out-of-date
@@ -389,7 +389,13 @@
     // signal (#359), and a second pill saying the same thing would be
     // exactly the duplication #359 fixed.
     function behindPill(item: PullRequestItem): HTMLElement | null {
-      if (!item.behind || item.empty || !isBotManagedPr(item)) return null;
+      if (
+        !item.behind ||
+        item.empty ||
+        !isBotManagedPr(item) ||
+        isReleasePleasePr(item)
+      )
+        return null;
       const pill = el("span", "merge-pill behind");
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode("Out of date"));
@@ -448,7 +454,7 @@
         // branch does on every other row — bring the branch back in sync
         // — just through the bot's own comment command instead of this
         // app writing to the branch directly (see updateBranchActionCell's
-        // doc comment for why bot-managed rows never get that button).
+        // doc comment for why those rows never get that button).
         // Promoted inline the same way, and only the once, when it's
         // actually the thing to do: Recreate is rarer and stays in "More
         // actions" regardless (#527).
@@ -519,12 +525,10 @@
     }
 
     // ---- bot-managed PR detection ----
-    // release-please, Dependabot, and Renovate all keep their own pull
-    // requests current on their own schedule — a manual Update branch
-    // click is redundant at best and, for release-please specifically
-    // (which regenerates the branch and changelog together on every
-    // push to the base branch), a genuine risk of fighting its own next
-    // run.
+    // Dependabot and Renovate keep their own pull requests current through
+    // their own Rebase actions, so Update branch is hidden on them.
+    // release-please is bot-managed too but is exempt from that (#728): it
+    // has no rebase command and doesn't regenerate on every push to base.
 
     // Bot-author predicates live in $lib/filters, shared with the Bot PRs
     // quick filter pill.
@@ -1396,14 +1400,14 @@
       // lives; this one just stays hidden, the same as the other
       // conditions below that make the button not apply at all.
       if (item.empty) return null;
-      // release-please, Dependabot, and Renovate already keep their own
-      // pull requests current on their own schedule — a manual "Update
-      // branch" click is redundant at best and, for release-please
-      // specifically (which regenerates the PR's branch and changelog
-      // together on every push to the base branch), a genuine risk of
-      // fighting its own next run. Dependabot/Renovate get their own
-      // dedicated rebase actions instead (see below).
-      if (isBotManagedPr(item)) return null;
+      // Dependabot and Renovate have their own Rebase actions (below), so a
+      // generic Update branch would be redundant there. release-please has
+      // no such command, and it only regenerates its PR when the release
+      // notes change (its always-update option defaults to false), so a
+      // behind release PR can sit stale with nothing else to fix it. It
+      // force-pushes its branch when it does regenerate, so a base-into-head
+      // update is overwritten harmlessly (#728).
+      if (isBotManagedPr(item) && !isReleasePleasePr(item)) return null;
 
       // Both forges refuse to update a branch that doesn't merge cleanly,
       // so a click could only fail (#701). Derived from the snapshot on

@@ -622,12 +622,51 @@ test.describe('pull request update-branch button', () => {
   });
 
   test.describe('bot-managed PRs', () => {
-    test('a release-please PR (autorelease label) shows no Update branch button by default', async ({
+    // release-please only regenerates its PR when the release notes change
+    // (always-update defaults to false) and force-pushes the branch when it
+    // does, so a behind release PR can sit stale with no bot action to fix
+    // it, and a base-into-head update is overwritten harmlessly (#728).
+    test('a behind release-please PR (autorelease label) shows Update branch (#728)', async ({
       page,
     }) => {
       await mockDashboard(
         page,
         makePR({ labels: [{ name: 'autorelease: pending', color: 'fbca04' }] }),
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'Update branch' }),
+      ).toBeVisible();
+      await expect(row.locator('.merge-pill.behind')).toHaveCount(0);
+    });
+
+    test('a conflicting release-please PR shows the locked Update branch button (#728, #701)', async ({
+      page,
+    }) => {
+      await mockDashboard(
+        page,
+        makePR({
+          mergeStatus: 'conflicting',
+          labels: [{ name: 'autorelease: pending', color: 'fbca04' }],
+        }),
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await expect(row).toContainText('Conflicts need fixing by hand');
+    });
+
+    test('an empty release-please PR shows no Update branch button', async ({
+      page,
+    }) => {
+      await mockDashboard(
+        page,
+        makePR({
+          empty: true,
+          labels: [{ name: 'autorelease: pending', color: 'fbca04' }],
+        }),
       );
       await page.reload();
 
