@@ -16,7 +16,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
@@ -50,6 +52,18 @@ type Client struct {
 	// to requestlog.NoopRecorder{}), so every call site can call it
 	// unconditionally.
 	recorder requestlog.Recorder
+
+	// reviews caches each pull request's review state by its updated_at,
+	// so the per-PR reviews call (see reviewState) only repeats when the
+	// PR changed. Forgejo bumps updated_at when a review is submitted.
+	reviewsMu sync.Mutex
+	reviews   map[string]cachedReview
+}
+
+// cachedReview is one pull request's review state as of updatedAt.
+type cachedReview struct {
+	updatedAt time.Time
+	state     *dashboard.ReviewState
 }
 
 // NewClient returns a Client against instanceURL (e.g.
@@ -106,6 +120,7 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 		instanceURL: strings.TrimSuffix(instanceURL, "/"),
 		httpClient:  httpClient,
 		recorder:    rec,
+		reviews:     map[string]cachedReview{},
 	}
 }
 
@@ -584,6 +599,95 @@ func isEmpty(p *gitea.PullRequest) bool {
 	return *p.Additions == 0 && *p.Deletions == 0 && *p.ChangedFiles == 0
 }
 
+// reviewState resolves p's review state. The requested-reviewer count is
+// free on the PR object, but approvals and changes requested need one
+// reviews call (GET /repos/{owner}/{repo}/pulls/{index}/reviews), so that
+// call is made only for non-draft PRs and cached against updated_at: a
+// steady-state refresh costs no extra requests, and each changed PR costs
+// one. A failed call returns nil (unknown) rather than guessing "none".
+func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.PullRequest) *dashboard.ReviewState {
+	if p.Draft {
+		return nil
+	}
+	var updated time.Time
+	if p.Updated != nil {
+		updated = *p.Updated
+	}
+	key := fmt.Sprintf("%s/%s#%d", owner, name, p.Index)
+
+	c.reviewsMu.Lock()
+	hit, ok := c.reviews[key]
+	c.reviewsMu.Unlock()
+	if ok && hit.updatedAt.Equal(updated) {
+		return hit.state
+	}
+
+	reviews, err := c.listReviews(ctx, owner, name, p.Index)
+	if err != nil {
+		slog.Debug("forgejo reviews unavailable", "repo", owner+"/"+name, "pr", p.Index, "err", err)
+
+		return nil
+	}
+
+	// Latest opinionated, non-dismissed review per reviewer wins.
+	sort.SliceStable(reviews, func(i, j int) bool { return reviews[i].Submitted.Before(reviews[j].Submitted) })
+	latest := map[string]gitea.ReviewStateType{}
+	for _, r := range reviews {
+		if r.Dismissed || (r.State != gitea.ReviewStateApproved && r.State != gitea.ReviewStateRequestChanges) {
+			continue
+		}
+		who := ""
+		switch {
+		case r.Reviewer != nil:
+			who = "u:" + r.Reviewer.UserName
+		case r.ReviewerTeam != nil:
+			who = "t:" + r.ReviewerTeam.Name
+		}
+		latest[who] = r.State
+	}
+	var approvals, changes int
+	for _, st := range latest {
+		if st == gitea.ReviewStateApproved {
+			approvals++
+		} else {
+			changes++
+		}
+	}
+	requested := len(p.RequestedReviewers) + len(p.RequestedReviewersTeams)
+	state := &dashboard.ReviewState{
+		Decision:           dashboard.DeriveReviewDecision(approvals, changes, requested),
+		Approvals:          approvals,
+		RequestedReviewers: requested,
+	}
+
+	c.reviewsMu.Lock()
+	c.reviews[key] = cachedReview{updatedAt: updated, state: state}
+	c.reviewsMu.Unlock()
+
+	return state
+}
+
+// listReviews pages through one PR's reviews.
+func (c *Client) listReviews(ctx context.Context, owner, name string, index int64) ([]*gitea.PullReview, error) {
+	c.setContext(ctx)
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", owner, name, index)
+	opt := gitea.ListPullReviewsOptions{PageSize: pageLimit}
+	var all []*gitea.PullReview
+	for {
+		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+		batch, resp, err := c.sdk.ListPullReviews(owner, name, index, opt)
+		if err != nil {
+			return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+		}
+		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
+		all = append(all, batch...)
+		if resp.NextPage == 0 {
+			return all, nil
+		}
+		opt.Page = resp.NextPage
+	}
+}
+
 // ListOpenPullRequests returns every open pull request against repo, with
 // CI already resolved. repo is owner-qualified ("alrayyes/tempus-fugit").
 func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
@@ -637,6 +741,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 				// state. nil here means "this forge can't say," not "not
 				// enabled."
 				AutoMergeEnabled: nil,
+				Review:           c.reviewState(ctx, owner, name, p),
 			})
 		}
 		if resp.NextPage == 0 {

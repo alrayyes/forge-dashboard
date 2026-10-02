@@ -83,6 +83,46 @@ type Check struct {
 	URL string `json:"url"`
 }
 
+// ReviewDecision is where a pull request stands on code review. Matches
+// components.schemas.ReviewState's decision.
+type ReviewDecision string
+
+// The coarse review states both forges can map onto. GitHub reports its
+// own reviewDecision (null when no review is required, which becomes
+// ReviewNone or a derived value); Forgejo has no such field, so
+// DeriveReviewDecision builds one from its reviews and requested reviewers.
+const (
+	ReviewApproved         ReviewDecision = "approved"
+	ReviewChangesRequested ReviewDecision = "changes_requested"
+	ReviewRequired         ReviewDecision = "review_required"
+	ReviewNone             ReviewDecision = "none"
+)
+
+// ReviewState matches components.schemas.ReviewState. A nil
+// *ReviewState on PullRequest means the forge couldn't report review
+// state, never "no reviews" (that is Decision == ReviewNone).
+type ReviewState struct {
+	Decision           ReviewDecision `json:"decision"`
+	Approvals          int            `json:"approvals"`
+	RequestedReviewers int            `json:"requestedReviewers"`
+}
+
+// DeriveReviewDecision builds a decision from counts, for forges with no
+// decision field of their own: a standing change request wins, then any
+// approval, then an outstanding review request, else nothing.
+func DeriveReviewDecision(approvals, changesRequested, requested int) ReviewDecision {
+	switch {
+	case changesRequested > 0:
+		return ReviewChangesRequested
+	case approvals > 0:
+		return ReviewApproved
+	case requested > 0:
+		return ReviewRequired
+	default:
+		return ReviewNone
+	}
+}
+
 // PullRequest matches components.schemas.PullRequest in api/openapi.yaml.
 type PullRequest struct {
 	Forge       Forge       `json:"forge"`
@@ -127,6 +167,9 @@ type PullRequest struct {
 	// RateLimit's own nilable pointer already uses, so a forge with
 	// nothing to say here never renders as a false "not enabled."
 	AutoMergeEnabled *bool `json:"autoMergeEnabled,omitempty"`
+	// Review is nil when the forge couldn't report review state (see
+	// ReviewState), the same omit-when-unknown shape as AutoMergeEnabled.
+	Review *ReviewState `json:"review,omitempty"`
 }
 
 // Issue matches components.schemas.Issue in api/openapi.yaml.

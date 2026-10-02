@@ -3,8 +3,11 @@ package forgejo_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1213,4 +1216,138 @@ func TestListChecks_PullRequestLookupFails_ReturnsError(t *testing.T) {
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+}
+
+// reviewPRServer serves one open PR per entry in prs (number, draft,
+// updated_at, requested reviewer logins) and counts calls to each PR's
+// reviews endpoint. reviews maps a PR number to its review list; a number
+// absent from it gets a 500.
+func reviewPRServer(t *testing.T, prs []map[string]any, reviews map[int][]map[string]any, calls *atomic.Int32) *httptest.Server {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, prs)
+	})
+	for n, rs := range reviews {
+		mux.HandleFunc(fmt.Sprintf("/api/v1/repos/alrayyes/a/pulls/%d/reviews", n), func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			if r.URL.Query().Get("page") != "" && r.URL.Query().Get("page") != "1" {
+				writeJSON(t, w, []map[string]any{})
+
+				return
+			}
+			writeJSON(t, w, rs)
+		})
+	}
+
+	return httptest.NewServer(mux)
+}
+
+func reviewPR(number int, draft bool, updated string, requested ...string) map[string]any {
+	users := make([]map[string]string, 0, len(requested))
+	for _, l := range requested {
+		users = append(users, map[string]string{"login": l})
+	}
+
+	return map[string]any{
+		"number": number, "title": "t", "html_url": "https://x", "draft": draft,
+		"user": map[string]string{"login": "u"}, "updated_at": updated,
+		"requested_reviewers": users,
+	}
+}
+
+func review(login, state string, dismissed bool, submitted string) map[string]any {
+	return map[string]any{
+		"user": map[string]string{"login": login}, "state": state,
+		"dismissed": dismissed, "submitted_at": submitted,
+	}
+}
+
+func TestListOpenPullRequests_MapsReviewState(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	srv := reviewPRServer(t,
+		[]map[string]any{
+			reviewPR(1, false, "2026-09-02T00:00:00Z", "bob"),
+			reviewPR(2, false, "2026-09-02T00:00:00Z"),
+			reviewPR(3, false, "2026-09-02T00:00:00Z"),
+			reviewPR(4, true, "2026-09-02T00:00:00Z", "bob"),
+			reviewPR(5, false, "2026-09-02T00:00:00Z"),
+		},
+		map[int][]map[string]any{
+			1: {},
+			// Only each reviewer's latest, non-dismissed, opinionated review counts.
+			2: {
+				review("bob", "REQUEST_CHANGES", false, "2026-09-01T00:00:00Z"),
+				review("bob", "APPROVED", false, "2026-09-01T12:00:00Z"),
+				review("amy", "COMMENT", false, "2026-09-01T13:00:00Z"),
+				review("cat", "APPROVED", true, "2026-09-01T14:00:00Z"),
+			},
+			3: {review("bob", "REQUEST_CHANGES", false, "2026-09-01T00:00:00Z"), review("amy", "APPROVED", false, "2026-09-01T00:00:00Z")},
+			4: {},
+		},
+		&calls)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+	require.NoError(t, err)
+	require.Len(t, prs, 5)
+
+	assert.Equal(t, &dashboard.ReviewState{Decision: dashboard.ReviewRequired, RequestedReviewers: 1}, prs[0].Review)
+	assert.Equal(t, &dashboard.ReviewState{Decision: dashboard.ReviewApproved, Approvals: 1}, prs[1].Review)
+	assert.Equal(t, &dashboard.ReviewState{Decision: dashboard.ReviewChangesRequested, Approvals: 1}, prs[2].Review)
+	// Drafts cost no reviews call and stay unknown.
+	assert.Nil(t, prs[3].Review)
+	// A failed reviews call (no handler, so 404) is unknown, never "none".
+	assert.Nil(t, prs[4].Review)
+	assert.Equal(t, int32(3), calls.Load())
+}
+
+func TestListOpenPullRequests_CachesReviewsUntilUpdatedAtChanges(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	updated := "2026-09-02T00:00:00Z"
+	var mu sync.Mutex
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		writeJSON(t, w, []map[string]any{reviewPR(1, false, updated)})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/1/reviews", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		writeJSON(t, w, []map[string]any{})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	list := func() {
+		_, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+		require.NoError(t, err)
+	}
+
+	list()
+	list()
+	assert.Equal(t, int32(1), calls.Load(), "an unchanged PR must be served from the cache")
+
+	mu.Lock()
+	updated = "2026-09-03T00:00:00Z"
+	mu.Unlock()
+	list()
+	assert.Equal(t, int32(2), calls.Load(), "a newer updated_at must refetch")
 }

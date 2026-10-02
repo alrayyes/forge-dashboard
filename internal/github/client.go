@@ -931,6 +931,19 @@ type graphqlPullRequest struct {
 	// isn't a reliable behind/not-behind signal.
 	HeadRefOid       string                   `json:"headRefOid"`
 	AutoMergeRequest *graphqlAutoMergeRequest `json:"autoMergeRequest"`
+	// The three review fields ride on the existing query, so review state
+	// costs no per-PR calls (#683). ReviewDecision is null when no review
+	// is required by branch protection; the two pointers being nil means
+	// the response carried no review data at all.
+	ReviewDecision *string `json:"reviewDecision"`
+	ReviewRequests *struct {
+		TotalCount int `json:"totalCount"`
+	} `json:"reviewRequests"`
+	LatestReviews *struct {
+		Nodes []struct {
+			State string `json:"state"`
+		} `json:"nodes"`
+	} `json:"latestReviews"`
 	// Additions, Deletions and ChangedFiles feed mapPullRequest's own
 	// Empty computation — GraphQL always returns these as plain (never
 	// null) Ints, unlike Forgejo's SDK.
@@ -1071,6 +1084,15 @@ query($cursor: String, $since: DateTime) {
             autoMergeRequest {
               mergeMethod
             }
+            reviewDecision
+            reviewRequests(first: 1) {
+              totalCount
+            }
+            latestReviews(first: 10) {
+              nodes {
+                state
+              }
+            }
             labels(first: 20) {
               nodes {
                 name
@@ -1143,6 +1165,15 @@ const appRepoFieldsTemplate = `
         changedFiles
         autoMergeRequest {
           mergeMethod
+        }
+        reviewDecision
+        reviewRequests(first: 1) {
+          totalCount
+        }
+        latestReviews(first: 10) {
+          nodes {
+            state
+          }
         }
         labels(first: 20) {
           nodes {
@@ -1615,6 +1646,43 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 	return result
 }
 
+// reviewFromGraphQL maps the three review fields onto a ReviewState, or
+// nil when the response carried none. approvals and changes come from
+// latestReviews, GitHub's latest review per user (first: 10, so a PR with
+// more reviewers than that undercounts). A null reviewDecision means no
+// branch protection requires a review, so the decision is derived from
+// the same counts rather than reported as unknown.
+func reviewFromGraphQL(p graphqlPullRequest) *dashboard.ReviewState {
+	if p.ReviewRequests == nil || p.LatestReviews == nil {
+		return nil
+	}
+
+	var approvals, changes int
+	for _, n := range p.LatestReviews.Nodes {
+		switch n.State {
+		case "APPROVED":
+			approvals++
+		case "CHANGES_REQUESTED":
+			changes++
+		}
+	}
+	requested := p.ReviewRequests.TotalCount
+
+	decision := dashboard.DeriveReviewDecision(approvals, changes, requested)
+	if p.ReviewDecision != nil {
+		switch *p.ReviewDecision {
+		case "APPROVED":
+			decision = dashboard.ReviewApproved
+		case "CHANGES_REQUESTED":
+			decision = dashboard.ReviewChangesRequested
+		case "REVIEW_REQUIRED":
+			decision = dashboard.ReviewRequired
+		}
+	}
+
+	return &dashboard.ReviewState{Decision: decision, Approvals: approvals, RequestedReviewers: requested}
+}
+
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	return dashboard.PullRequest{
 		Forge:            dashboard.ForgeGitHub,
@@ -1632,6 +1700,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		Behind:           p.MergeStateStatus == "BEHIND",
 		Empty:            p.Additions == 0 && p.Deletions == 0 && p.ChangedFiles == 0,
 		AutoMergeEnabled: new(p.AutoMergeRequest != nil),
+		Review:           reviewFromGraphQL(p),
 	}
 }
 
@@ -1781,6 +1850,15 @@ query($owner: String!, $name: String!) {
         changedFiles
         autoMergeRequest {
           mergeMethod
+        }
+        reviewDecision
+        reviewRequests(first: 1) {
+          totalCount
+        }
+        latestReviews(first: 10) {
+          nodes {
+            state
+          }
         }
         labels(first: 20) {
           nodes {
