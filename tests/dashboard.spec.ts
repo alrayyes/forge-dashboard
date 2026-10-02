@@ -37,16 +37,17 @@ async function registerAndSignIn(
   );
 }
 
-// The forge filter is a segmented control (radio inputs, visually hidden
-// in favor of their <label>) rather than a <select> — clicking the label
-// is what a real user (or a screen reader's activation gesture) does,
-// same as any other radio group.
+// The forge filter is one of the quick filter pills (#678): toggle buttons
+// with aria-pressed, in a role=group. Value '' is the "All" pill.
 function forgeRadio(page: Page, value: string) {
-  return page.locator(`.filter-bar input[data-col="forge"][value="${value}"]`);
+  const name = { '': 'All', github: 'GitHub', forgejo: 'Forgejo' }[value];
+  return page
+    .locator('.quick-pills')
+    .getByRole('button', { name, exact: true });
 }
 
 async function selectForge(page: Page, value: string) {
-  await forgeRadio(page, value).check();
+  await forgeRadio(page, value).click();
 }
 
 test.describe('dashboard page', () => {
@@ -991,7 +992,10 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toContainText(
         'A Forgejo PR',
       );
-      await expect(forgeRadio(page, 'forgejo')).toBeChecked();
+      await expect(forgeRadio(page, 'forgejo')).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
     });
 
     test('the free-text title filter survives a reload', async ({ page }) => {
@@ -1091,7 +1095,10 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
       await page.reload();
-      await expect(forgeRadio(page, 'github')).toBeChecked();
+      await expect(forgeRadio(page, 'github')).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
       await expect(
@@ -1240,7 +1247,10 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toContainText(
         'A Forgejo PR',
       );
-      await expect(forgeRadio(page, 'forgejo')).toBeChecked();
+      await expect(forgeRadio(page, 'forgejo')).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
     });
   });
 
@@ -3233,5 +3243,205 @@ test.describe('login page', () => {
       () => document.documentElement.clientWidth,
     );
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  });
+});
+
+// Quick filter pills and the "/" search shortcut (#678). Patterns: pills
+// are toggle buttons with aria-pressed inside a labelled role=group
+// (https://opensource.ebay.com/evo-web/components/filter-chip/accessibility,
+// https://patternfly.org/2022.11/components/chip-group/accessibility);
+// "/" focuses search like GitHub's own shortcut
+// (https://docs.github.com/en/get-started/accessibility/keyboard-shortcuts).
+test.describe('quick filter pills and "/" shortcut (#678)', () => {
+  const now = new Date().toISOString();
+  function pr(over: Record<string, unknown>) {
+    return {
+      forge: 'github',
+      repo: 'alrayyes/app',
+      number: 1,
+      title: 'x',
+      url: 'https://example.com/1',
+      author: 'ryan',
+      draft: false,
+      ci: 'success',
+      mergeStatus: 'mergeable',
+      labels: [],
+      createdAt: now,
+      updatedAt: now,
+      ...over,
+    };
+  }
+  const PRS = [
+    pr({ number: 1, title: 'Plain ready', ci: 'success' }),
+    pr({ number: 2, title: 'Broken build', ci: 'failure' }),
+    pr({ number: 3, title: 'Bump dep', author: 'dependabot[bot]' }),
+    pr({
+      number: 4,
+      title: 'Renovate bump',
+      author: 'renovate',
+      ci: 'pending',
+    }),
+    pr({
+      number: 5,
+      title: 'Release 1.0',
+      labels: [{ name: 'autorelease: pending' }],
+      ci: 'pending',
+    }),
+    pr({ number: 6, title: 'Draft one', draft: true }),
+    pr({
+      number: 7,
+      title: 'Forgejo PR',
+      forge: 'forgejo',
+      repo: 'ryan/infra',
+      mergeStatus: 'conflicting',
+    }),
+  ];
+  const ISSUES = [
+    {
+      forge: 'github',
+      repo: 'alrayyes/app',
+      number: 10,
+      title: 'An issue',
+      url: 'https://example.com/10',
+      author: 'ryan',
+      labels: [],
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+
+  const pill = (page: Page, name: string) =>
+    page.locator('.quick-pills').getByRole('button', { name, exact: true });
+  const rowTitles = (page: Page) => page.locator('#pr-rows > .row');
+
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+    await page.route('**/api/dashboard/stream', (route) =>
+      route.fulfill({ status: 404, body: '{}' }),
+    );
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: now,
+          forges: [
+            { forge: 'github', reachable: true, repoCount: 1 },
+            { forge: 'forgejo', reachable: true, repoCount: 1 },
+          ],
+          pullRequests: PRS,
+          issues: ISSUES,
+        }),
+      }),
+    );
+    await page.reload();
+    await expect(rowTitles(page)).toHaveCount(PRS.length);
+  });
+
+  test('shows all six pills in a labelled group with exactly one active', async ({
+    page,
+  }) => {
+    const group = page.getByRole('group', { name: 'Quick filters' });
+    await expect(group.getByRole('button')).toHaveText([
+      'All',
+      'GitHub',
+      'Forgejo',
+      'Failing CI',
+      'Bot PRs',
+      'Ready to Merge',
+    ]);
+    await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
+    await expect(group.locator('[aria-pressed="true"]')).toHaveCount(1);
+  });
+
+  test('Failing CI keeps only ci=failure pull requests', async ({ page }) => {
+    await pill(page, 'Failing CI').click();
+    await expect(pill(page, 'Failing CI')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'false');
+    await expect(rowTitles(page)).toHaveCount(1);
+    await expect(rowTitles(page)).toContainText('Broken build');
+  });
+
+  test('Ready to Merge keeps mergeable, passing, non-draft pull requests', async ({
+    page,
+  }) => {
+    await pill(page, 'Ready to Merge').click();
+    await expect(rowTitles(page)).toHaveCount(2);
+    await expect(rowTitles(page).nth(0)).toContainText('Plain ready');
+    await expect(rowTitles(page).nth(1)).toContainText('Bump dep');
+  });
+
+  test('Bot PRs keeps dependabot, renovate and release-please pull requests', async ({
+    page,
+  }) => {
+    await pill(page, 'Bot PRs').click();
+    await expect(rowTitles(page)).toHaveCount(3);
+    await expect(page.locator('#pr-rows')).toContainText('Bump dep');
+    await expect(page.locator('#pr-rows')).toContainText('Renovate bump');
+    await expect(page.locator('#pr-rows')).toContainText('Release 1.0');
+  });
+
+  test('choosing a pill clears the previous one, All clears everything', async ({
+    page,
+  }) => {
+    await pill(page, 'Forgejo').click();
+    await expect(rowTitles(page)).toHaveCount(1);
+    await pill(page, 'Failing CI').click();
+    await expect(pill(page, 'Forgejo')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    await expect(rowTitles(page)).toHaveCount(1);
+    await expect(rowTitles(page)).toContainText('Broken build');
+    await pill(page, 'All').click();
+    await expect(rowTitles(page)).toHaveCount(PRS.length);
+    await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('quick filters leave the issues board alone, forge pills do not', async ({
+    page,
+  }) => {
+    await pill(page, 'Failing CI').click();
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+    await pill(page, 'Forgejo').click();
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(0);
+  });
+
+  test('the active pill survives a reload', async ({ page }) => {
+    await pill(page, 'Bot PRs').click();
+    await expect(rowTitles(page)).toHaveCount(3);
+    await page.reload();
+    await expect(pill(page, 'Bot PRs')).toHaveAttribute('aria-pressed', 'true');
+    await expect(rowTitles(page)).toHaveCount(3);
+  });
+
+  test('"/" focuses the title search, but types a slash once an input has focus', async ({
+    page,
+  }) => {
+    const title = page.locator('.filter-bar .col-filter[data-col="title"]');
+    await page.locator('body').click({ position: { x: 1, y: 1 } });
+    await page.keyboard.press('/');
+    await expect(title).toBeFocused();
+    await expect(title).toHaveValue('');
+    await page.keyboard.press('/');
+    await expect(title).toHaveValue('/');
+  });
+
+  test('"/" with a modifier held does not steal focus', async ({ page }) => {
+    const title = page.locator('.filter-bar .col-filter[data-col="title"]');
+    await page.locator('body').click({ position: { x: 1, y: 1 } });
+    await page.keyboard.press('Control+/');
+    await expect(title).not.toBeFocused();
+  });
+
+  test('has no axe-core violations with a pill active', async ({ page }) => {
+    await pill(page, 'Failing CI').click();
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 });
