@@ -19,5 +19,7 @@ JetBrains Mono, with indigo for GitHub and orange for Forgejo.
   this app.
 - `dashboard-inline-feedback.png`: feedback on the row, a toast stack
   and an activity panel instead of a top banner.
+- `dashboard-pr-kinds.png`: release and dependency pull requests told apart with
+  chips, filter pills and a group-by-kind view.
 
 The design is dark only. The app keeps its light theme.
