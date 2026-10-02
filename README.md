@@ -535,6 +535,21 @@ docker run --rm -p 8080:8080 \
   forge-dashboard
 ```
 
+The image carries a `HEALTHCHECK` that runs `/forge-dashboard healthcheck`,
+which asks `GET /readyz`. It means "can serve": the database answers and its
+tables exist, and the first dashboard refresh has finished (a forge that
+failed that refresh still counts). Read it with:
+
+```sh
+docker inspect --format '{{.State.Health.Status}}' <container>
+```
+
+`starting` is normal for up to 30 seconds after boot, then `healthy`. A
+healthy container stays healthy when a forge goes unreachable. That shows
+on the dashboard, not here. `GET /healthz` stays the cheap liveness answer
+(the process is up). In Compose, `depends_on` with
+`condition: service_healthy` waits on the same state.
+
 Generate `ENCRYPTION_KEY` once and keep it — losing it makes every saved
 credential unrecoverable, and every user has to re-enter theirs from the
 Settings page.
