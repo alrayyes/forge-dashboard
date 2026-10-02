@@ -307,6 +307,17 @@ duplicate, or one whose content already landed another way), it's the
 action that actually applies —
 and asks for confirmation the same way Merge does.
 
+A locked action offers Retry only when waiting might fix it, such as a 502 or
+an unreachable forge. When a forge's API budget is spent, its actions are
+greyed out with no Retry, and the reason says when they come back ("GitHub
+API rate limit reached. Actions resume at 14:32 (in 12 min)."). That line shows
+once under each repo group heading and as each disabled button's accessible
+description. The actions re-enable by themselves at the reset time, with a
+polite "Rate limit reset, actions available again" toast. A missing token
+permission locks the action with no Retry either, and the reason points to
+Settings. Read-only actions such as View pipeline stay enabled, and the header
+shows each forge's remaining budget and reset time as text.
+
 A GitHub pull request that isn't already auto-merging gets an "Enable
 auto-merge" action in the row's "More actions" menu, arming the forge's
 own native auto-merge (GitHub's `enablePullRequestAutoMerge` mutation)
@@ -326,16 +337,34 @@ would merge right now rather than arming a standing intent — different
 enough framing that it's left for a follow-up rather than folded into
 this one.
 
+Merge, close, auto-merge, Update branch, and the Dependabot and Renovate
+actions all report on the row you acted on, not in a banner at the top of
+the page. The row gets a
+status line under its actions ("Merging…", "Queued", "Waiting for Dependabot",
+or "Failed" with the reason and a Retry button), and each pull request in
+flight has its own. A toast appears bottom-right when something completes or
+fails: up to three at a time, the newest on top, with the `owner/repo#N`, a
+one-line message, "Show row" (scrolls to the row and focuses it) and a
+dismiss button. Success toasts go after about six seconds and wait while you
+hover or focus them. Error toasts stay until you dismiss them. The sticky
+"Activity" control keeps a count and opens a panel of in-flight and recent
+actions per pull request, with "Show row" and "Clear finished", so a dismissed
+toast isn't lost. One polite live region announces each event once and never
+reads out the countdown, and with reduced motion on, toasts appear without
+animation. The banner at the top is left for global conditions such as a rate
+limit or an unreachable forge.
+
 Update branch, `Dependabot: Rebase` and `Renovate: Rebase` only ask the
 forge or a bot to act, and the result shows up on a later refresh. So the
-button turns into a disabled "Queued…" the moment you click it, and the
-status banner at the top says the request went out and counts down to the
-next background poll. If the countdown runs out before the refresh lands, it
-reads "Refreshing…" instead. An unrelated refresh doesn't clear it. Update
-branch clears once a refresh shows the branch caught up. A Dependabot or
-Renovate request clears once a refresh shows the pull request is no longer
-behind or is gone, or after five minutes if the bot never acts. If the
-request fails, the button comes back and the error banner says why.
+button turns into a disabled "Queued…" the moment you click it, and the row's
+status line says the request went out and counts down to the next background
+poll. If the countdown runs out before the refresh lands, it reads
+"Refreshing…" instead. An unrelated refresh doesn't clear it. Update branch
+clears once a refresh shows the branch caught up. A Dependabot or Renovate
+request clears once a refresh shows the pull request is no longer behind or is
+gone. If the bot never acts, it times out after five minutes with an error
+toast and a Retry. If the request fails, the button comes back and the row and
+an error toast say why.
 
 A Dependabot or Renovate pull request gets no Update branch button: each
 has its own `Rebase` action instead (below). A release-please pull request
