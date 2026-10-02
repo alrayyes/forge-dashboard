@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.104.0](https://github.com/alrayyes/forge-dashboard/compare/v0.103.2...v0.104.0) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** lock Dependabot commands for a GitHub App, use the PAT if saved ([#668](https://github.com/alrayyes/forge-dashboard/issues/668)) ([c74b86e](https://github.com/alrayyes/forge-dashboard/commit/c74b86e4678155384a70fcf72fcebb2b8bf1b824)), closes [#666](https://github.com/alrayyes/forge-dashboard/issues/666)
+
+
+### Bug Fixes
+
+* **github:** decode the behind-compare response at its real shape ([#669](https://github.com/alrayyes/forge-dashboard/issues/669)) ([63b4193](https://github.com/alrayyes/forge-dashboard/commit/63b4193ea3302f2af939bca31ec95d5ce0036f50)), closes [#665](https://github.com/alrayyes/forge-dashboard/issues/665)
+
 ## [0.103.2](https://github.com/alrayyes/forge-dashboard/compare/v0.103.1...v0.103.2) (2026-10-02)
 
 
