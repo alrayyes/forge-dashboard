@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import {
   type APIRequestContext,
   expect,
+  type Locator,
   type Page,
   test,
 } from '@playwright/test';
@@ -96,6 +97,9 @@ function mockDashboardCustom(page: Page, forges: MockForge[], prs: MockPR[]) {
     }),
   );
 }
+
+const mergeButton = (row: Locator) =>
+  row.getByRole('button', { name: 'Merge', exact: true });
 
 test.describe('pull request merge button', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
@@ -289,15 +293,22 @@ test.describe('pull request merge button', () => {
   // a row that's already armed for its second click, so the confirm
   // click lands on whatever's now in that row's old position instead of
   // the button itself.
+  //
+  // #764: the snapshot is now delivered by the background poll, not the
+  // Refresh now button, since clicking anywhere else, Refresh now included,
+  // disarms the confirm on purpose. Focus is kept in the group from the
+  // keyboard, which also pauses the 8 second countdown.
   test('a pull request being confirmed for merge stays in place even if a live refresh reorders the board', async ({
     page,
   }) => {
+    await page.clock.install({ time: new Date() });
     const target = makePR({ number: 42, repo: 'alrayyes/backup-git-repos' });
     await mockDashboard(page, target);
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'Merge' }).click();
+    await mergeButton(row).focus();
+    await page.keyboard.press('Enter');
     await expect(
       row.getByRole('button', { name: 'Confirm merge?' }),
     ).toBeVisible();
@@ -310,7 +321,7 @@ test.describe('pull request merge button', () => {
       repo: 'alrayyes/other-repo',
       updatedAt: new Date().toISOString(),
     });
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -322,7 +333,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.click('#force-refresh-button');
+    await page.clock.fastForward(31_000);
 
     // The board stays frozen at the pre-refresh state while the row is
     // mid-interaction — the new pull request doesn't even appear yet —
@@ -332,9 +343,10 @@ test.describe('pull request merge button', () => {
       row.getByRole('button', { name: 'Confirm merge?' }),
     ).toBeVisible();
 
-    // Cancelling clears the in-flight state, so the board catches back
-    // up to the live order right away instead of staying stale.
+    // Cancelling clears the in-flight state, so the update that was held
+    // behind the armed row is now one Show updates click away (#710).
     await row.getByRole('button', { name: 'Cancel' }).click();
+    await page.locator('#show-updates-button').click();
     await expect(page.locator('#pr-rows .row')).toHaveCount(2);
   });
 
