@@ -34,6 +34,7 @@
     shared: {},
     pr: {},
     issue: { hideDependencyDashboard: "1" },
+    view: {},
   });
 
   // Never lets created/updated leak into a chart just because the main
