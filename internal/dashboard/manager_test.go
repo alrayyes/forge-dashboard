@@ -371,3 +371,71 @@ func TestManager_Ensure_NoCIPollIntervalSet_NeverPolls(t *testing.T) {
 	}, time.Second, 5*time.Millisecond)
 	assert.Equal(t, 0, src.repoFetchCallCount("alrayyes/a"))
 }
+
+// gatedSource blocks Fetch until release is closed, so a test can hold an
+// Aggregator mid-way through its first refresh.
+type gatedSource struct {
+	release chan struct{}
+	health  dashboard.ForgeHealth
+}
+
+func (s *gatedSource) Fetch(ctx context.Context) dashboard.Result {
+	select {
+	case <-s.release:
+	case <-ctx.Done():
+	}
+
+	return dashboard.Result{Health: s.health}
+}
+
+func (s *gatedSource) Forge() dashboard.Forge { return s.health.Forge }
+
+func TestManager_FirstRefreshComplete_NoAggregatorYet_IsTrue(t *testing.T) {
+	t.Parallel()
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	assert.True(t, m.FirstRefreshComplete(), "nothing has signed in, so there is no first refresh to wait for")
+}
+
+func TestManager_FirstRefreshComplete_FalseUntilTheFirstRefreshFinishes(t *testing.T) {
+	t.Parallel()
+
+	src := &gatedSource{release: make(chan struct{})}
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), []byte("user-a"), []dashboard.Source{src})
+	assert.False(t, m.FirstRefreshComplete())
+
+	close(src.release)
+
+	require.Eventually(t, m.FirstRefreshComplete, time.Second, 5*time.Millisecond)
+}
+
+func TestManager_FirstRefreshComplete_UnreachableForgeStillCounts(t *testing.T) {
+	t.Parallel()
+
+	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: false}}
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), []byte("user-a"), []dashboard.Source{src})
+
+	require.Eventually(t, m.FirstRefreshComplete, time.Second, 5*time.Millisecond)
+}
+
+func TestManager_FirstRefreshComplete_StaysTrueWhenAnotherAggregatorStarts(t *testing.T) {
+	t.Parallel()
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), []byte("user-a"), []dashboard.Source{&countingSource{}})
+	require.Eventually(t, m.FirstRefreshComplete, time.Second, 5*time.Millisecond)
+
+	m.Ensure(t.Context(), []byte("user-b"), []dashboard.Source{&gatedSource{release: make(chan struct{})}})
+
+	assert.True(t, m.FirstRefreshComplete(), "a later sign-in must not flip a serving container back to unready")
+}

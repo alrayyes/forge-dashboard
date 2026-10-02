@@ -559,7 +559,8 @@ not here.
 
 ## API
 
-`api/openapi.yaml` is the contract: `GET /healthz` for liveness,
+`api/openapi.yaml` is the contract: `GET /healthz` for liveness, `GET /readyz`
+for readiness,
 `GET /api/dashboard` for the signed-in user's aggregated snapshot (or,
 with `?owner=<username>`, one shared with them), `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the

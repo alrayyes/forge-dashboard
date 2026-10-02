@@ -1,11 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"net"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +27,7 @@ func listenOnFreePort(t *testing.T) net.Listener {
 	return l
 }
 
-func TestRunHealthcheckSucceedsWhenHealthzAnswers200(t *testing.T) {
+func TestRunHealthcheckSucceedsWhenReadyzAnswers200(t *testing.T) {
 	l := listenOnFreePort(t)
 
 	srv := &http.Server{ReadHeaderTimeout: time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -36,7 +39,7 @@ func TestRunHealthcheckSucceedsWhenHealthzAnswers200(t *testing.T) {
 	require.NoError(t, runHealthcheck())
 }
 
-func TestRunHealthcheckFailsWhenHealthzAnswersNon200(t *testing.T) {
+func TestRunHealthcheckFailsWhenReadyzAnswersNon200(t *testing.T) {
 	l := listenOnFreePort(t)
 
 	srv := &http.Server{ReadHeaderTimeout: time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -67,4 +70,59 @@ func TestRunHealthcheckFallsBackToDefaultAddrWhenEnvUnset(t *testing.T) {
 	// a test process, so this just proves the fallback is used (a
 	// connection-refused error) rather than an empty-addr parse error.
 	require.Error(t, runHealthcheck())
+}
+
+// serveRoutes serves the given status per path and 404 for anything else,
+// so a probe aimed at the wrong endpoint fails the test.
+func serveRoutes(t *testing.T, routes map[string]int) {
+	t.Helper()
+
+	l := listenOnFreePort(t)
+	mux := http.NewServeMux()
+	for path, status := range routes {
+		mux.HandleFunc("GET "+path, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(status) })
+	}
+	srv := &http.Server{ReadHeaderTimeout: time.Second, Handler: mux}
+	go func() { _ = srv.Serve(l) }()
+	t.Cleanup(func() { _ = srv.Close() })
+}
+
+func TestRunHealthcheckProbesReadyzNotHealthz(t *testing.T) {
+	// /healthz would say 200 here; only /readyz's 503 may decide the result.
+	serveRoutes(t, map[string]int{"/healthz": http.StatusOK, "/readyz": http.StatusServiceUnavailable})
+
+	err := runHealthcheck()
+
+	require.ErrorIs(t, err, errReadyzStatus)
+}
+
+func TestRunHealthcheckSucceedsOnReadyz200EvenIfHealthzIsNot(t *testing.T) {
+	serveRoutes(t, map[string]int{"/readyz": http.StatusOK})
+
+	require.NoError(t, runHealthcheck())
+}
+
+func TestSchemaPinger_MigratedDatabase_Passes(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	require.NoError(t, auth.NewStore(db).Init(t.Context()))
+
+	require.NoError(t, schemaPinger{db: db}.PingContext(t.Context()))
+}
+
+func TestSchemaPinger_DatabaseWithoutSchema_Fails(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "empty.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	require.Error(t, schemaPinger{db: db}.PingContext(t.Context()))
+}
+
+func TestSchemaPinger_ClosedDatabase_Fails(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	require.Error(t, schemaPinger{db: db}.PingContext(t.Context()))
 }
