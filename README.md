@@ -461,7 +461,10 @@ one `GET /repos/{owner}/{repo}/pulls/{index}/reviews` call per open,
 non-draft pull request. Those results are cached until the pull
 request's `updated_at` changes, so after the first refresh a quiet
 dashboard spends none of them. A pull request whose review state couldn't
-be read has no `review` and never matches the filter.
+be read has no `review` and never matches the filter. Needs review means a
+review is outstanding: the forge requires one, or a reviewer was asked and
+hasn't answered. A pull request nobody was asked to review doesn't
+count.
 
 ### GitHub App support
 
