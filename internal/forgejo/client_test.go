@@ -1351,3 +1351,117 @@ func TestListOpenPullRequests_CachesReviewsUntilUpdatedAtChanges(t *testing.T) {
 	list()
 	assert.Equal(t, int32(2), calls.Load(), "a newer updated_at must refetch")
 }
+
+func forgejoChecksServer(t *testing.T, protections any, protStatus int) *forgejo.Client {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"ref": "main"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{
+			{"context": "ci/build", "status": "success"},
+			{"context": "ci/lint", "status": "failure"},
+			{"context": "codecov/patch", "status": "success"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/branch_protections", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(protStatus)
+		writeJSON(t, w, protections)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return forgejo.NewClient(srv.URL, "test-token", "")
+}
+
+func requiredOf(checks []dashboard.Check) map[string]string {
+	out := map[string]string{}
+	for _, c := range checks {
+		switch {
+		case c.Required == nil:
+			out[c.Name] = "unknown"
+		case *c.Required:
+			out[c.Name] = "required"
+		default:
+			out[c.Name] = "advisory"
+		}
+	}
+
+	return out
+}
+
+func TestListChecks_StatusCheckContextsPatterns_SplitRequiredFromAdvisory(t *testing.T) {
+	t.Parallel()
+
+	client := forgejoChecksServer(t, []map[string]any{
+		{"rule_name": "release/**", "enable_status_check": true, "status_check_contexts": []string{"other"}},
+		{"rule_name": "main", "enable_status_check": true, "status_check_contexts": []string{"ci/build", "ci/li*"}},
+	}, http.StatusOK)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"ci/build": "required", "ci/lint": "required", "codecov/patch": "advisory"}, requiredOf(checks))
+}
+
+func TestListChecks_BranchWithoutProtectionOrStatusCheck_EverythingIsAdvisory(t *testing.T) {
+	t.Parallel()
+
+	client := forgejoChecksServer(t, []map[string]any{
+		{"rule_name": "main", "enable_status_check": false, "status_check_contexts": []string{"ci/build"}},
+	}, http.StatusOK)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"ci/build": "advisory", "ci/lint": "advisory", "codecov/patch": "advisory"}, requiredOf(checks))
+}
+
+func TestListChecks_ProtectionsForbidden_RequiredStaysUnknown(t *testing.T) {
+	t.Parallel()
+
+	client := forgejoChecksServer(t, map[string]string{"message": "forbidden"}, http.StatusForbidden)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"ci/build": "unknown", "ci/lint": "unknown", "codecov/patch": "unknown"}, requiredOf(checks))
+}
+
+func TestListChecks_ActionsJobMatchingAPattern_IsRequiredButNonMatchStaysUnknown(t *testing.T) {
+	t.Parallel()
+
+	// An Actions job's commit-status context is "<workflow> / <job>
+	// (<event>)", which the jobs API doesn't give us, so a job that
+	// matches no pattern could still be required under that longer name.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"ref": "main"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42, "path": ".forgejo/workflows/ci.yml", "event": "push"}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"jobs": []map[string]any{
+			{"name": "build", "status": "success"},
+			{"name": "docs", "status": "success"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/branch_protections", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{{"rule_name": "main", "enable_status_check": true, "status_check_contexts": []string{"*/ build (*)"}}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"build": "required", "docs": "unknown"}, requiredOf(checks))
+}

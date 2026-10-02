@@ -37,7 +37,14 @@
   // Matches components.schemas.Check in api/openapi.yaml — one job/check
   // run against a pull request's head commit, as returned by
   // GET /api/pull-requests/checks.
-  type Check = { name: string; state: string; url: string };
+  // `required` is absent when the forge couldn't tell (#681) — not the
+  // same as false.
+  type Check = {
+    name: string;
+    state: string;
+    url: string;
+    required?: boolean;
+  };
   type RateLimit = { limit: number; remaining: number; resetsAt: string };
   type Forge = {
     forge: string;
@@ -1798,6 +1805,68 @@
       );
     }
 
+    // A required check that failed (or timed out) is what actually blocks
+    // the merge — flagged in text, not colour alone.
+    function isBlocking(check: Check): boolean {
+      return (
+        check.required === true &&
+        (check.state === "failure" || check.state === "timed_out")
+      );
+    }
+
+    function pipelineCheckRow(check: Check): HTMLElement {
+      const row = el("li", "pipeline-check");
+      const status = el("span", `pipeline-check-status ${check.state}`);
+      status.appendChild(el("span", "dot"));
+      status.appendChild(
+        document.createTextNode(CHECK_STATE_LABELS[check.state] || check.state),
+      );
+      row.appendChild(status);
+      row.appendChild(el("span", "pipeline-check-name", check.name));
+      if (isBlocking(check)) {
+        row.appendChild(el("span", "pipeline-check-flag", "Blocking"));
+      }
+      // A skipped check never ran — its own page on the forge has
+      // nothing to show beyond "this was skipped," which the status
+      // label right above already says. No link rather than one that
+      // leads nowhere useful. Same reasoning for an empty check.url: a
+      // legacy commit status can be set with no target_url at all, and
+      // an empty href resolves to the current page — silently sending
+      // "View run" to the dashboard's own homepage instead of nowhere.
+      if (check.state !== "skipped" && check.url) {
+        const link = document.createElement("a");
+        link.className = "pipeline-check-link";
+        link.href = check.url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "View run";
+        link.setAttribute("aria-label", `View run: ${check.name}`);
+        row.appendChild(link);
+      }
+      return row;
+    }
+
+    function pipelineCheckList(checks: Check[]): HTMLElement {
+      const list = el("ul", "pipeline-check-list");
+      checks.forEach((check) => list.appendChild(pipelineCheckRow(check)));
+      return list;
+    }
+
+    function pipelineGroup(title: string, checks: Check[], id: string) {
+      const group = el("div", "pipeline-group");
+      group.setAttribute("role", "group");
+      group.setAttribute("aria-labelledby", id);
+      const heading = el(
+        "h3",
+        "pipeline-group-title",
+        `${title} (${checks.length})`,
+      );
+      heading.id = id;
+      group.appendChild(heading);
+      group.appendChild(pipelineCheckList(checks));
+      return group;
+    }
+
     function renderPipelineChecks(checks: Check[]) {
       if (!pipelineDialogBody) return;
       pipelineDialogBody.innerHTML = "";
@@ -1807,38 +1876,32 @@
         );
         return;
       }
-      const list = el("ul", "pipeline-check-list");
-      checks.forEach((check) => {
-        const row = el("li", "pipeline-check");
-        const status = el("span", `pipeline-check-status ${check.state}`);
-        status.appendChild(el("span", "dot"));
-        status.appendChild(
-          document.createTextNode(
-            CHECK_STATE_LABELS[check.state] || check.state,
-          ),
+      // Without a single known `required` value the forge told us nothing
+      // about branch protection: the flat list, as before.
+      if (!checks.some((check) => check.required !== undefined)) {
+        pipelineDialogBody.appendChild(pipelineCheckList(checks));
+        return;
+      }
+      // Blocking failures first within Required; a stable sort keeps the
+      // forge's own order otherwise.
+      const required = checks
+        .filter((check) => check.required === true)
+        .sort((a, b) => Number(isBlocking(b)) - Number(isBlocking(a)));
+      const advisory = checks.filter((check) => check.required === false);
+      // Never filed under Advisory on a guess.
+      const unknown = checks.filter((check) => check.required === undefined);
+      if (required.length)
+        pipelineDialogBody.appendChild(
+          pipelineGroup("Required", required, "pipeline-group-required"),
         );
-        row.appendChild(status);
-        row.appendChild(el("span", "pipeline-check-name", check.name));
-        // A skipped check never ran — its own page on the forge has
-        // nothing to show beyond "this was skipped," which the status
-        // label right above already says. No link rather than one that
-        // leads nowhere useful. Same reasoning for an empty check.url: a
-        // legacy commit status can be set with no target_url at all, and
-        // an empty href resolves to the current page — silently sending
-        // "View run" to the dashboard's own homepage instead of nowhere.
-        if (check.state !== "skipped" && check.url) {
-          const link = document.createElement("a");
-          link.className = "pipeline-check-link";
-          link.href = check.url;
-          link.target = "_blank";
-          link.rel = "noopener";
-          link.textContent = "View run";
-          link.setAttribute("aria-label", `View run: ${check.name}`);
-          row.appendChild(link);
-        }
-        list.appendChild(row);
-      });
-      pipelineDialogBody.appendChild(list);
+      if (advisory.length)
+        pipelineDialogBody.appendChild(
+          pipelineGroup("Advisory", advisory, "pipeline-group-advisory"),
+        );
+      if (unknown.length)
+        pipelineDialogBody.appendChild(
+          pipelineGroup("Status unknown", unknown, "pipeline-group-unknown"),
+        );
     }
 
     function renderPipelineError(message: string, onRetry: () => void) {

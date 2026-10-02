@@ -1845,6 +1845,27 @@ footer a.mono:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Text badge, so a blocking failure doesn't rely on colour alone. */
+.pipeline-check-flag {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  color: var(--critical);
+}
+.pipeline-group + .pipeline-group {
+  margin-top: 16px;
+}
+.pipeline-group-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
 .pipeline-check-link {
   flex: none;
   font-size: 12px;
