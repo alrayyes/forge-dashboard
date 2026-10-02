@@ -107,8 +107,14 @@ interface Scenario {
   endpoint: string;
   openMenu: boolean;
   button: string;
+  // What the disabled button reads once clicked: a bot rebase says what
+  // was requested (#707), Update branch is a plain queue.
+  queuedLabel: string;
   // The row's inline status.
   waiting: string;
+  // Only Update branch waits on the dashboard's own next refresh; a bot
+  // rebase waits on the bot (#707).
+  awaitsRefresh: boolean;
   // The toast sentence, without the reference the toast shows itself.
   toast: string;
   // What the live region says, once.
@@ -123,6 +129,8 @@ const scenarios: Scenario[] = [
     endpoint: '**/api/pull-requests/update-branch',
     openMenu: false,
     button: 'Update branch',
+    queuedLabel: 'Queued…',
+    awaitsRefresh: true,
     waiting: 'Queued',
     toast: 'Branch update requested.',
     announced: 'Branch update requested. Awaiting the next refresh.',
@@ -134,9 +142,11 @@ const scenarios: Scenario[] = [
     endpoint: '**/api/pull-requests/dependabot-action',
     openMenu: true,
     button: 'Dependabot: Rebase',
-    waiting: 'Waiting for Dependabot',
+    queuedLabel: 'Rebase requested',
+    awaitsRefresh: false,
+    waiting: 'Dependabot will pick this up shortly',
     toast: 'Dependabot rebase requested.',
-    announced: 'Dependabot rebase requested. Awaiting the next refresh.',
+    announced: 'Dependabot rebase requested. It will pick this up shortly.',
     failure: "Couldn't ask Dependabot to rebase: upstream broke",
   },
   {
@@ -145,9 +155,11 @@ const scenarios: Scenario[] = [
     endpoint: '**/api/pull-requests/renovate-rebase',
     openMenu: true,
     button: 'Renovate: Rebase',
-    waiting: 'Waiting for Renovate',
+    queuedLabel: 'Rebase requested',
+    awaitsRefresh: false,
+    waiting: 'Renovate will pick this up shortly',
     toast: 'Renovate rebase requested.',
-    announced: 'Renovate rebase requested. Awaiting the next refresh.',
+    announced: 'Renovate rebase requested. It will pick this up shortly.',
     failure: "Couldn't ask Renovate to rebase: upstream broke",
   },
 ];
@@ -202,7 +214,7 @@ for (const s of scenarios) {
       const button = row.getByRole('button', { name: s.button });
       await button.click();
 
-      const queued = row.getByRole('button', { name: 'Queued…' });
+      const queued = row.getByRole('button', { name: s.queuedLabel });
       await expect(queued).toBeVisible();
       await expect(queued).toBeDisabled();
       await page.waitForTimeout(500);
@@ -217,7 +229,8 @@ for (const s of scenarios) {
 
       const line = inline(page);
       await expect(line).toContainText(s.waiting);
-      await expect(line).toContainText('Awaiting the next refresh');
+      if (s.awaitsRefresh)
+        await expect(line).toContainText('Awaiting the next refresh');
       await expect(line).toContainText(COUNTDOWN);
       await expect(page.locator('#status-banner')).toHaveCount(0);
       await expect(page.locator('#error-banner')).toHaveCount(0);
@@ -280,7 +293,7 @@ for (const s of scenarios) {
       const fresh = page.locator('#pr-rows .row').first();
       if (s.openMenu) await openMoreActions(fresh);
       await expect(
-        fresh.getByRole('button', { name: 'Queued…' }),
+        fresh.getByRole('button', { name: s.queuedLabel }),
       ).toBeDisabled();
       await expect(inline(page)).toContainText(COUNTDOWN);
     });
@@ -333,7 +346,7 @@ for (const s of scenarios) {
       const fresh = page.locator('#pr-rows .row').first();
       if (s.openMenu) await openMoreActions(fresh);
       await expect(
-        fresh.getByRole('button', { name: 'Queued…' }),
+        fresh.getByRole('button', { name: s.queuedLabel }),
       ).toBeDisabled();
     });
 
@@ -364,7 +377,9 @@ for (const s of scenarios) {
     }) => {
       const { row } = await prepare(page, 502);
       await row.getByRole('button', { name: s.button }).click();
-      await expect(row.getByRole('button', { name: 'Queued…' })).toBeVisible();
+      await expect(
+        row.getByRole('button', { name: s.queuedLabel }),
+      ).toBeVisible();
 
       const toast = page.locator('#feedback-toasts .feedback-toast').first();
       await expect(toast).toContainText(s.failure);
@@ -375,7 +390,9 @@ for (const s of scenarios) {
       await expect(line).not.toContainText(COUNTDOWN);
       await expect(page.locator('#error-banner')).toHaveCount(0);
       await expect(page.locator('#status-banner')).toHaveCount(0);
-      await expect(row.getByRole('button', { name: 'Queued…' })).toHaveCount(0);
+      await expect(
+        row.getByRole('button', { name: s.queuedLabel }),
+      ).toHaveCount(0);
       await expect(row.getByRole('button', { name: s.button })).toBeEnabled();
     });
 
@@ -393,7 +410,7 @@ for (const s of scenarios) {
   });
 }
 
-test.describe('queued state: bot rebases clear on the next refresh', () => {
+test.describe('queued state: bot rebases move on once a snapshot shows pickup', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
     await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
@@ -405,7 +422,7 @@ test.describe('queued state: bot rebases clear on the next refresh', () => {
     );
   });
 
-  test('a Renovate rebase stays queued after the request succeeds, then clears once a snapshot shows it landed', async ({
+  test('a Renovate rebase stays queued after the request succeeds, then moves to Rebasing… once a snapshot shows it landed', async ({
     page,
   }) => {
     const pr = makePR({ author: 'renovate[bot]', behind: true });
@@ -431,20 +448,18 @@ test.describe('queued state: bot rebases clear on the next refresh', () => {
     await page.waitForTimeout(500);
     await expect(row.locator('.row-feedback')).toContainText(COUNTDOWN);
     await openMoreActions(row).catch(() => undefined);
-    await expect(row.getByRole('button', { name: 'Queued…' })).toBeDisabled();
+    await expect(
+      row.getByRole('button', { name: 'Rebase requested' }),
+    ).toBeDisabled();
 
     await page.click('#force-refresh-button');
 
-    await expect(row.locator('.row-feedback')).toHaveCount(0);
-    await expect(
-      page.locator('#feedback-toasts .feedback-toast').first(),
-    ).toContainText('Renovate rebase finished.');
-    await openMoreActions(page.locator('#pr-rows .row').first()).catch(
-      () => undefined,
-    );
-    await expect(
-      page.getByRole('button', { name: 'Renovate: Rebase' }),
-    ).toBeEnabled();
+    // Picked up (#707): the row says Rebasing… until CI restarts rather
+    // than going quiet. The pill and the line are covered by
+    // bot-rebase-pickup.spec.ts; what matters here is that the request
+    // is no longer "waiting for the bot".
+    await expect(row.locator('.row-feedback')).not.toContainText(COUNTDOWN);
+    await expect(row.locator('.merge-pill.rebasing')).toHaveText('Rebasing…');
   });
 
   // #711: a bot that never acts must not pin the button disabled for good.
@@ -482,8 +497,9 @@ test.describe('queued state: bot rebases clear on the next refresh', () => {
       (window as unknown as { __skew: number }).__skew = 4 * 60_000;
     });
     await page.click('#force-refresh-button');
+    // Past two minutes the line says the bot is slow, not broken (#707).
     await expect(row.locator('.row-feedback')).toContainText(
-      'Waiting for Renovate',
+      'Still waiting on Renovate (4m)',
     );
 
     await page.evaluate(() => {

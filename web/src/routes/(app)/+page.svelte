@@ -10,7 +10,11 @@
     settledBadge,
     showSettled,
   } from "$lib/action-error";
-  import { type ActionRef, createFeedbackStore } from "$lib/feedback";
+  import {
+    type ActionRef,
+    type BotRequest,
+    createFeedbackStore,
+  } from "$lib/feedback";
   import { mountFeedbackUI } from "$lib/feedback-ui";
   import {
     budgetText,
@@ -96,6 +100,8 @@
     | "merging"
     | "closing"
     | "queued"
+    // A bot rebase the bot has picked up, until CI restarts (#707).
+    | "rebasing"
     | "requesting"
     | "enabling"
     | "locked"
@@ -107,6 +113,8 @@
     // Only on a queued bot rebase (#706): what the snapshot has to show
     // before the wait counts as over.
     queued?: { prKey: string; wasBehind: boolean; at: number };
+    // Only while "rebasing": when the pickup was seen.
+    rebasingSince?: number;
   };
 
   onMount(initDashboard);
@@ -458,6 +466,21 @@
       return pill;
     }
 
+    // #707: a bot rebase the bot has picked up. The Out of date pill is
+    // already gone (the pull request isn't behind any more); this one
+    // stays until CI shows as restarted, so the row doesn't go quiet in
+    // between. Words, not just a tint.
+    function rebasingPill(item: PullRequestItem): HTMLElement | null {
+      const rebasing =
+        dependabotActionState[`${prKey(item)}:rebase`]?.phase === "rebasing" ||
+        renovateRebaseState[prKey(item)]?.phase === "rebasing";
+      if (!rebasing) return null;
+      const pill = el("span", "merge-pill rebasing");
+      pill.appendChild(el("span", "dot"));
+      pill.appendChild(document.createTextNode("Rebasing…"));
+      return pill;
+    }
+
     // Silent unless auto-merge is genuinely enabled — autoMergeEnabled
     // is `null` for a forge that can't report this at all (Forgejo,
     // today), which must never render as "not enabled": strict ===
@@ -515,6 +538,8 @@
         if (conflictPill) statusCell.appendChild(conflictPill);
         const outOfDatePill = behindPill(pr);
         if (outOfDatePill) statusCell.appendChild(outOfDatePill);
+        const rebasing = rebasingPill(pr);
+        if (rebasing) statusCell.appendChild(rebasing);
         const mergePill = autoMergePill(pr.autoMergeEnabled);
         if (mergePill) statusCell.appendChild(mergePill);
         const updateBranchAction = updateBranchActionCell(pr);
@@ -1742,6 +1767,19 @@
       recreate: "Dependabot: Recreate",
     };
 
+    // What the row line needs to talk about the bot (#707).
+    function botRequest(
+      item: PullRequestItem,
+      bot: "Dependabot" | "Renovate",
+    ): BotRequest {
+      return {
+        bot,
+        trigger: bot === "Renovate" ? "label" : "comment",
+        url: item.url,
+        forgeLabel: FORGE_LABELS[item.forge] || item.forge,
+      };
+    }
+
     // No confirm step — same reasoning as doUpdateBranch: this only
     // asks Dependabot to redo its own routine, reversible work, not a
     // merge.
@@ -1756,7 +1794,7 @@
         queued: queuedBotInfo(item),
       };
       button.disabled = true;
-      button.textContent = "Queued…";
+      button.textContent = queuedBotLabel(action === "rebase");
       const fkey = `dependabot:${key}`;
       feedback.start({
         actionKey: fkey,
@@ -1765,6 +1803,7 @@
         phase: "queued",
         inline: "Waiting for Dependabot",
         message: `Dependabot ${action} requested.`,
+        bot: action === "rebase" ? botRequest(item, "Dependabot") : undefined,
         retry: () => doDependabotAction(item, action, buttonEl("row-action")),
       });
 
@@ -1812,7 +1851,10 @@
           // showing something the user needs to see.
           feedback.update(fkey, {
             toast: true,
-            announce: `Dependabot ${action} requested. Awaiting the next refresh.`,
+            announce:
+              action === "rebase"
+                ? "Dependabot rebase requested. It will pick this up shortly."
+                : `Dependabot ${action} requested. Awaiting the next refresh.`,
           });
           closeAllActionMenus();
           renderPRBoard();
@@ -1867,10 +1909,12 @@
           );
       }
 
-      const queued = entry.phase === "queued";
+      const queued = entry.phase === "queued" || entry.phase === "rebasing";
       const button = buttonEl(
         "row-action",
-        queued ? "Queued…" : DEPENDABOT_ACTION_LABELS[action],
+        queued
+          ? queuedBotLabel(action === "rebase")
+          : DEPENDABOT_ACTION_LABELS[action],
       );
       button.disabled = queued;
       button.addEventListener("click", () => {
@@ -1920,11 +1964,14 @@
     // that state already swaps the button for a single-click "Retry",
     // not a two-step interaction a moved target can break.
     function anyRowActionInFlight(): boolean {
+      // "rebasing" is a bot already acting on its own: nothing the user
+      // is mid-way through, so snapshots keep landing in place (#707).
       const inFlight = (entry: ActionState) =>
         entry.phase !== "idle" &&
         entry.phase !== "locked" &&
         entry.phase !== "merged" &&
-        entry.phase !== "closed";
+        entry.phase !== "closed" &&
+        entry.phase !== "rebasing";
 
       return [
         mergeState,
@@ -2117,7 +2164,7 @@
         queued: queuedBotInfo(item),
       };
       button.disabled = true;
-      button.textContent = "Queued…";
+      button.textContent = queuedBotLabel(true);
       const fkey = `renovate:${key}`;
       feedback.start({
         actionKey: fkey,
@@ -2126,6 +2173,7 @@
         phase: "queued",
         inline: "Waiting for Renovate",
         message: "Renovate rebase requested.",
+        bot: botRequest(item, "Renovate"),
         retry: () => doRenovateRebase(item, buttonEl("row-action")),
       });
 
@@ -2162,7 +2210,8 @@
           // success handler uses.
           feedback.update(fkey, {
             toast: true,
-            announce: "Renovate rebase requested. Awaiting the next refresh.",
+            announce:
+              "Renovate rebase requested. It will pick this up shortly.",
           });
           closeAllActionMenus();
           renderPRBoard();
@@ -2198,10 +2247,10 @@
           return lockedActionButton("Renovate: Rebase", proactiveReason);
       }
 
-      const queued = entry.phase === "queued";
+      const queued = entry.phase === "queued" || entry.phase === "rebasing";
       const button = buttonEl(
         "row-action",
-        queued ? "Queued…" : "Renovate: Rebase",
+        queued ? queuedBotLabel(true) : "Renovate: Rebase",
       );
       button.disabled = queued;
       button.addEventListener("click", () => {
@@ -3703,6 +3752,14 @@
     // landed. A bot that ignores the request would otherwise leave a
     // disabled button and a "waiting" line up for good.
     const QUEUED_BOT_EXPIRY_MS = 5 * 60 * 1000;
+    // How long "Rebasing…" waits for CI to show as restarted (#707).
+    const BOT_REBASING_CAP_MS = 2 * 60 * 1000;
+
+    // The disabled button's label while a bot has the request. A rebase
+    // says what was asked for; Recreate stays a plain queue.
+    function queuedBotLabel(rebase: boolean): string {
+      return rebase ? "Rebase requested" : "Queued…";
+    }
 
     function queuedBotInfo(item: PullRequestItem) {
       return {
@@ -3719,34 +3776,53 @@
     // so it must not end the wait. Expires after a while so a bot that
     // never acts doesn't pin the button disabled; the row, an error toast
     // and Activity then say so.
-    function clearResolvedQueuedBotActions(prs: PullRequestItem[]) {
+    function clearResolvedQueuedBotActions(prs: PullRequestItem[]): boolean {
+      let changed = false;
       const byKey = new Map(prs.map((p) => [prKey(p), p]));
       for (const stateMap of [dependabotActionState, renovateRebaseState]) {
+        const bot =
+          stateMap === dependabotActionState ? "Dependabot" : "Renovate";
         for (const key of Object.keys(stateMap)) {
           const entry = stateMap[key];
-          if (entry.phase !== "queued" || !entry.queued) continue;
-          const current = byKey.get(entry.queued.prKey);
-          const landed =
-            !current || (entry.queued.wasBehind && !current.behind);
-          const expired =
-            !landed && Date.now() - entry.queued.at > QUEUED_BOT_EXPIRY_MS;
-          if (!landed && !expired) continue;
-          delete stateMap[key];
           const fkey =
             stateMap === dependabotActionState
               ? `dependabot:${key}`
               : `renovate:${key}`;
-          const bot =
-            stateMap === dependabotActionState ? "Dependabot" : "Renovate";
-          if (landed) {
-            const message = `${bot} rebase finished.`;
+          if (entry.phase === "rebasing") {
+            // Picked up (#707): done once CI shows as restarted, or after
+            // a while for a repo whose CI never will.
+            const current = byKey.get(entry.queued?.prKey ?? "");
+            const ciRestarted = !current || current.ci === "pending";
+            const gaveUp =
+              Date.now() - (entry.rebasingSince ?? 0) > BOT_REBASING_CAP_MS;
+            if (ciRestarted || gaveUp) {
+              finishBotRebase(stateMap, key, fkey, bot);
+              changed = true;
+            }
+            continue;
+          }
+          if (entry.phase !== "queued" || !entry.queued) continue;
+          const current = byKey.get(entry.queued.prKey);
+          const landed =
+            !current || (entry.queued.wasBehind && !current.behind);
+          if (landed && current && current.ci !== "pending") {
+            // The bot has rebased it; CI hasn't restarted yet.
+            entry.phase = "rebasing";
+            entry.rebasingSince = Date.now();
+            changed = true;
+            const message = `${bot} picked up the rebase.`;
             feedback.update(fkey, {
-              phase: "done",
+              phase: "rebasing",
+              inline: "Rebasing…",
               message,
-              toast: true,
-              announce: message,
+              announce: `${bot} picked up the rebase. Waiting for CI to restart.`,
             });
-          } else {
+          } else if (landed) {
+            finishBotRebase(stateMap, key, fkey, bot);
+            changed = true;
+          } else if (Date.now() - entry.queued.at > QUEUED_BOT_EXPIRY_MS) {
+            changed = true;
+            delete stateMap[key];
             const reason = "No change seen after 5 minutes.";
             feedback.update(fkey, {
               phase: "expired",
@@ -3759,6 +3835,23 @@
           }
         }
       }
+      return changed;
+    }
+
+    function finishBotRebase(
+      stateMap: Record<string, ActionState>,
+      key: string,
+      fkey: string,
+      bot: string,
+    ) {
+      delete stateMap[key];
+      const message = `${bot} rebase finished.`;
+      feedback.update(fkey, {
+        phase: "done",
+        message,
+        toast: true,
+        announce: message,
+      });
     }
 
     function queuedCountdownText(): string {
@@ -3886,7 +3979,7 @@
       // action — not just any snapshot (#706). Cleared before
       // anyRowActionInFlight is consulted below, so a resolved row
       // doesn't also hold the board back.
-      clearResolvedQueuedBotActions(prs);
+      const botStateChanged = clearResolvedQueuedBotActions(prs);
       for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
         feedback.update(`update-branch:${prKey(item)}`, {
           phase: "done",
@@ -3917,6 +4010,10 @@
       // and either updates rows in place or holds the change behind the
       // updates bar — see reconcilePRs.
       ingestPRs(prs, userAsked);
+      // A bot request changing state (picked up, finished, expired) changes
+      // the row's button, pill and line even when the pull request's own
+      // data didn't, so the board redraws for it (#707).
+      if (botStateChanged) renderPRBoard();
       issueBoard.setItems(issues);
 
       const failingCount = prs.filter((p) => p.ci === "failure").length;

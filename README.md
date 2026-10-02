@@ -351,9 +351,9 @@ this one.
 Merge, close, auto-merge, Update branch, and the Dependabot and Renovate
 actions all report on the row you acted on, not in a banner at the top of
 the page. The row gets a
-status line under its actions ("Merging…", "Queued", "Waiting for Dependabot",
-or "Failed" with the reason and a Retry button), and each pull request in
-flight has its own. A toast appears bottom-right when something completes or
+status line under its actions ("Merging…", "Queued", "Rebasing…", or "Failed"
+with the reason and a Retry button), and each pull request in flight has its
+own. A toast appears bottom-right when something completes or
 fails: up to three at a time, the newest on top, with the `owner/repo#N`, a
 one-line message, "Show row" (scrolls to the row and focuses it) and a
 dismiss button. Success toasts go after about six seconds and wait while you
@@ -366,16 +366,28 @@ animation. The banner at the top is left for global conditions such as a rate
 limit or an unreachable forge.
 
 Update branch, `Dependabot: Rebase` and `Renovate: Rebase` only ask the
-forge or a bot to act, and the result shows up on a later refresh. So the
-button turns into a disabled "Queued…" the moment you click it, and the row's
-status line says the request went out and counts down to the next background
-poll. If the countdown runs out before the refresh lands, it reads
+forge or a bot to act, and the result shows up on a later refresh. Update
+branch turns into a disabled "Queued…" the moment you click it, and the
+row's status line says the request went out and counts down to the next
+background poll. If the countdown runs out before the refresh lands, it reads
 "Refreshing…" instead. An unrelated refresh doesn't clear it. Update branch
-clears once a refresh shows the branch caught up. A Dependabot or Renovate
-request clears once a refresh shows the pull request is no longer behind or is
-gone. If the bot never acts, it times out after five minutes with an error
-toast and a Retry. If the request fails, the button comes back and the row and
-an error toast say why.
+clears once a refresh shows the branch caught up. If the request fails, the
+button comes back and the row and an error toast say why.
+
+A bot `rebase` waits on the bot, not on the dashboard. The button becomes a
+disabled `Rebase requested`, and the row says the bot will pick it up shortly
+and that it can take a few minutes (a "Requested" age ticks along, kept out
+of what a screen reader announces). Dependabot is asked with the
+`@dependabot rebase` comment and Renovate with the `rebase` label, and the
+copy says which. After two minutes with the pull request still behind, the
+line changes to "Still waiting on Dependabot (3m). It queues requests, this is
+normal." with a link to the pull request on its forge. Once a refresh shows the
+pull request is no longer behind, the row shows a "Rebasing…" pill until CI
+shows as restarted (or two minutes pass, for a repo whose CI never restarts),
+then finishes with a toast. If the bot never acts, the request times out after
+five minutes with an error toast and a Retry. Pickup is read from the
+refreshes the page already gets, so a `rebase` requested on a pull request that
+wasn't behind has nothing to show it landed and runs to that timeout.
 
 A Dependabot or Renovate pull request gets no Update branch button: each
 has its own `Rebase` action instead (below). A release-please pull request
