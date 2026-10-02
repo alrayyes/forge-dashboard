@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.103.0](https://github.com/alrayyes/forge-dashboard/compare/v0.102.1...v0.103.0) (2026-09-28)
+
+
+### Features
+
+* **footer:** extract a shared Footer component ([#655](https://github.com/alrayyes/forge-dashboard/issues/655)) ([7c937cc](https://github.com/alrayyes/forge-dashboard/commit/7c937cc841da8e7491b3d874847c5ee4519ab211))
+
 ## [0.102.1](https://github.com/alrayyes/forge-dashboard/compare/v0.102.0...v0.102.1) (2026-09-28)
 
 
