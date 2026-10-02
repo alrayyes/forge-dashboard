@@ -414,7 +414,15 @@
       const row = el("div", "row");
 
       row.appendChild(repoCell(item));
-      row.appendChild(titleCell(item, onLabelClick, activeLabel));
+      const titleCellEl = titleCell(item, onLabelClick, activeLabel);
+      row.appendChild(titleCellEl);
+      if (isPR) {
+        row.dataset.prKey = prKey(item);
+        if (updatedMarkers.has(prKey(item)))
+          titleCellEl.appendChild(
+            el("span", "updated-just-now", "Updated just now"),
+          );
+      }
 
       const meta = el("div", "row-meta");
       meta.appendChild(el("div", "author", item.author));
@@ -791,7 +799,7 @@
           })
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
-              if (data) applySnapshot(data);
+              if (data) applySnapshot(data, true);
             });
         })
         .catch((err: Error & { status?: number }) => {
@@ -822,13 +830,13 @@
                   // reports as the same success the happy path does
                   // rather than a false failure.
                   delete mergeState[key];
-                  applySnapshot(data);
+                  applySnapshot(data, true);
                   showStatus(`Merged ${item.repo}#${item.number}.`);
                   return;
                 }
                 mergeState[key] = { phase: "idle" };
                 if (data) {
-                  applySnapshot(data);
+                  applySnapshot(data, true);
                 } else {
                   renderPRBoard();
                 }
@@ -1066,7 +1074,7 @@
           })
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
-              if (data) applySnapshot(data);
+              if (data) applySnapshot(data, true);
             });
         })
         .catch((err: Error & { status?: number }) => {
@@ -1195,7 +1203,7 @@
           })
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
-              if (data) applySnapshot(data);
+              if (data) applySnapshot(data, true);
             });
         })
         .catch((err: Error & { status?: number }) => {
@@ -1359,7 +1367,7 @@
           })
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
-              if (data) applySnapshot(data);
+              if (data) applySnapshot(data, true);
             });
         })
         .catch((err: Error & { status?: number }) => {
@@ -1626,26 +1634,161 @@
       ].some((stateMap) => Object.values(stateMap).some(inFlight));
     }
 
-    // The latest pull-request list applySnapshot had to withhold from
-    // prBoard while a row was mid-interaction (see anyRowActionInFlight) —
-    // applied the moment nothing's in flight anymore, so the board never
-    // stays stale past the interaction that froze it.
-    let pendingPRSnapshot: PullRequestItem[] | null = null;
+    // #710: rows stay where they are until the user asks. shownPRs is what
+    // the board is showing; latestPRs is the newest snapshot's list that
+    // hasn't been applied yet. Each incoming snapshot is compared with
+    // what's shown:
+    //   - a row whose own content changed (CI, merge status, behind,
+    //     labels, title) is updated where it stands and marked briefly;
+    //   - rows added, removed or reordered wait behind the "N updates
+    //     available" bar until Show updates, or a filter, sort or page
+    //     change, applies the whole snapshot in one render.
+    // Nothing is applied at all while the guard below holds or updates
+    // are paused, and a refresh the user asked for (Refresh now, or the
+    // one after their own merge/close/rebase) applies in full unless that
+    // guard holds, in which case it lands the moment the guard lifts.
+    let shownPRs: PullRequestItem[] = [];
+    let latestPRs: PullRequestItem[] | null = null;
+    // The newest snapshot in the server's own order, so a sort change can
+    // go back to "Last activity" rather than re-sorting an already
+    // re-sorted list.
+    let rawPRs: PullRequestItem[] = [];
+    let latestIsUserAsked = false;
 
-    // Every merge/update-branch/Dependabot/Renovate call site re-renders
-    // the PR board through here, not prBoard.render() directly, so a
-    // snapshot that arrived mid-interaction gets applied the instant that
-    // interaction's own re-render shows nothing is in flight anymore,
-    // rather than waiting on the next poll or SSE push.
-    function renderPRBoard() {
-      if (!anyRowActionInFlight() && pendingPRSnapshot) {
-        const prs = pendingPRSnapshot;
-        pendingPRSnapshot = null;
-        prBoard.setItems(prs);
+    // How long "Updated just now" stays on a row changed in place.
+    const UPDATED_MARKER_MS = 2500;
+    const updatedMarkers = new Set<string>();
 
-        return;
+    // Extends #212's anyRowActionInFlight: also while focus is inside a
+    // row, a More actions menu is open or a dialog is open. A re-render
+    // under any of those would drop focus or close the menu.
+    //
+    // A refresh the user asked for from inside a row (Retry, an action's
+    // own follow-up refresh) is the one case focus-in-row doesn't hold:
+    // the click that triggered it is what's focused there.
+    function interactionHoldsBoard(userAsked: boolean): boolean {
+      const focusInRow =
+        !userAsked && Boolean(document.activeElement?.closest("#pr-rows"));
+
+      return (
+        anyRowActionInFlight() ||
+        Object.keys(openActionMenus).length > 0 ||
+        modalDialogOpen() ||
+        focusInRow
+      );
+    }
+
+    const updatesCount = document.getElementById("updates-count");
+    const showUpdatesButton = document.getElementById(
+      "show-updates-button",
+    ) as HTMLButtonElement | null;
+    const pauseUpdatesButton = document.getElementById(
+      "pause-updates-button",
+    ) as HTMLButtonElement | null;
+    const pausedHint = document.getElementById("updates-paused-hint");
+
+    function updatesPaused(): boolean {
+      return sharedState.view.paused === "1";
+    }
+
+    // The live region's text only changes when the count does, so a poll
+    // that finds the same pending changes announces nothing.
+    function showUpdatesBar(count: number) {
+      const text =
+        count === 0
+          ? ""
+          : `${count} ${count === 1 ? "update" : "updates"} available`;
+      if (updatesCount && updatesCount.textContent !== text)
+        updatesCount.textContent = text;
+      if (showUpdatesButton) showUpdatesButton.hidden = count === 0;
+    }
+
+    function syncPauseControl() {
+      pauseUpdatesButton?.setAttribute("aria-pressed", String(updatesPaused()));
+      if (pausedHint) pausedHint.hidden = !updatesPaused();
+    }
+
+    function markUpdated(keys: string[]) {
+      for (const key of keys) {
+        updatedMarkers.add(key);
+        setTimeout(() => {
+          updatedMarkers.delete(key);
+          document
+            .querySelectorAll<HTMLElement>("#pr-rows .row")
+            .forEach((row) => {
+              if (row.dataset.prKey === key)
+                row.querySelector(".updated-just-now")?.remove();
+            });
+        }, UPDATED_MARKER_MS);
       }
+    }
+
+    // Applies whatever is pending (or just re-sorts what's shown) without
+    // rendering; the caller renders once. Called before any user-driven
+    // filter, sort or page change.
+    function applyPendingNow() {
+      shownPRs = Filters.sortItems(rawPRs, sharedState.view.sort);
+      prBoard.replaceItems(shownPRs);
+      latestPRs = null;
+      latestIsUserAsked = false;
+      showUpdatesBar(0);
+    }
+
+    // Returns true when it rendered the board.
+    function reconcilePRs(): boolean {
+      if (!latestPRs) {
+        showUpdatesBar(0);
+
+        return false;
+      }
+      const userAsked = latestIsUserAsked || shownPRs.length === 0;
+      const diff = Filters.diffItems(shownPRs, latestPRs);
+      const structural = diff.added + diff.removed + diff.moved;
+      const held =
+        interactionHoldsBoard(userAsked) || (updatesPaused() && !userAsked);
+
+      if (held) {
+        showUpdatesBar(structural + diff.changed.length);
+
+        return false;
+      }
+      if (userAsked) {
+        shownPRs = latestPRs;
+        latestPRs = null;
+        latestIsUserAsked = false;
+        showUpdatesBar(0);
+        prBoard.setItems(shownPRs);
+
+        return true;
+      }
+      if (diff.changed.length > 0) {
+        const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
+        shownPRs = shownPRs.map((p) => fresh.get(prKey(p)) ?? p);
+        markUpdated(diff.changed);
+        prBoard.setItems(shownPRs, true);
+      }
+      if (structural === 0) latestPRs = null;
+      showUpdatesBar(structural);
+
+      return diff.changed.length > 0;
+    }
+
+    function ingestPRs(prs: PullRequestItem[], userAsked: boolean) {
+      rawPRs = prs;
+      latestPRs = Filters.sortItems(prs, sharedState.view.sort);
+      latestIsUserAsked = latestIsUserAsked || userAsked;
+      reconcilePRs();
+    }
+
+    // Every merge/update-branch/Dependabot/Renovate/menu call site
+    // re-renders the PR board through here, not prBoard.render()
+    // directly, so a snapshot held by the guard lands the instant the
+    // interaction that held it is over. The second pass is for the
+    // re-render itself dropping focus from a row the user just left.
+    function renderPRBoard() {
+      if (reconcilePRs()) return;
       prBoard.render();
+      reconcilePRs();
     }
 
     // Same 403/429 handling as reactiveDependabotActionLockReason; 404
@@ -2197,6 +2340,7 @@
       if (sharedControlsRestored) {
         updateSharedFilterOptions();
         syncSharedControlsToState();
+        applyPendingNow();
         renderBoth();
       }
     });
@@ -2324,6 +2468,11 @@
         "shared-group-select",
       ) as HTMLSelectElement | null;
       if (groupSelect) groupSelect.value = sharedState.shared.groupBy || "";
+      const sortSelect = document.getElementById(
+        "pr-sort-select",
+      ) as HTMLSelectElement | null;
+      if (sortSelect) sortSelect.value = sharedState.view.sort || "";
+      syncPauseControl();
     }
 
     function renderBoth() {
@@ -2381,7 +2530,13 @@
     // hideDependencyDashboard for issues). Everything else it filters
     // and groups by comes from the shared state above.
     type Board = {
-      setItems: (items: (PullRequestItem | IssueItem)[]) => void;
+      setItems: (
+        items: (PullRequestItem | IssueItem)[],
+        keepPage?: boolean,
+      ) => void;
+      // Swaps the list without rendering: a user-driven change applies the
+      // pending snapshot, then renders once itself (#710).
+      replaceItems: (items: (PullRequestItem | IssueItem)[]) => void;
       render: () => void;
       resetPage: () => void;
       toggleStatus?: (value: string) => string;
@@ -2395,6 +2550,7 @@
       onStatusClick: ((status: string) => void) | undefined,
       idPrefix: string,
       extraState: Record<string, string>,
+      onUserChange?: () => void,
     ): Board {
       const section = document
         .getElementById(containerId)
@@ -2494,6 +2650,7 @@
       }
 
       function setPage(page: number) {
+        onUserChange?.();
         state.page = page;
         render();
       }
@@ -2612,6 +2769,7 @@
         `${idPrefix}-page-size`,
       ) as HTMLSelectElement | null;
       pageSizeSelect?.addEventListener("change", () => {
+        onUserChange?.();
         state.pageSize = Number(pageSizeSelect.value) || 25;
         state.page = 1;
         render();
@@ -2627,6 +2785,7 @@
         if (statusSelect) {
           statusSelect.value = extraState.status || "";
           statusSelect.addEventListener("change", () => {
+            onUserChange?.();
             extraState.status = statusSelect.value.trim().toLowerCase();
             state.page = 1;
             Filters.saveState(sharedState);
@@ -2656,17 +2815,22 @@
       }
 
       return {
-        setItems: (items) => {
+        setItems: (items, keepPage) => {
           state.items = items;
-          state.page = 1;
+          if (!keepPage) state.page = 1;
           render();
+        },
+        replaceItems: (items) => {
+          state.items = items;
         },
         render,
         resetPage: () => {
+          onUserChange?.();
           state.page = 1;
         },
         toggleStatus: isPR
           ? (value: string) => {
+              onUserChange?.();
               const next = extraState.status === value ? "" : value;
               extraState.status = next;
               state.page = 1;
@@ -2686,6 +2850,7 @@
       handleStatusClick,
       "pr",
       sharedState.pr,
+      applyPendingNow,
     );
     const issueBoard = createBoard(
       "issue-rows",
@@ -2696,6 +2861,31 @@
       "issue",
       sharedState.issue,
     );
+
+    showUpdatesButton?.addEventListener("click", () => {
+      applyPendingNow();
+      prBoard.render();
+      // The button hides itself once nothing's pending; keep focus on the
+      // bar instead of dropping it to the page.
+      pauseUpdatesButton?.focus();
+    });
+    pauseUpdatesButton?.addEventListener("click", () => {
+      sharedState.view.paused = updatesPaused() ? "" : "1";
+      Filters.saveState(sharedState);
+      syncPauseControl();
+      reconcilePRs();
+    });
+    syncPauseControl();
+    // Focus leaving a row (or a dialog closing) lifts the hold. Deferred a
+    // tick so document.activeElement has settled on the new target.
+    document.getElementById("pr-rows")?.addEventListener("focusout", () => {
+      setTimeout(reconcilePRs, 0);
+    });
+    document
+      .getElementById("pipeline-dialog")
+      ?.addEventListener("close", () => {
+        setTimeout(reconcilePRs, 0);
+      });
 
     const statFailingTile = document.getElementById("stat-failing-tile");
     statFailingTile?.addEventListener("click", () => {
@@ -2800,6 +2990,19 @@
       sharedState.shared.groupBy = sharedGroupSelect.value || "";
       prBoard.resetPage();
       issueBoard.resetPage();
+      Filters.saveState(sharedState);
+      renderBoth();
+    });
+
+    // #710: the sort control. Applies any pending snapshot too, in the one
+    // render, through prBoard.resetPage's own user-change hook.
+    const sortSelect = document.getElementById(
+      "pr-sort-select",
+    ) as HTMLSelectElement | null;
+    if (sortSelect) sortSelect.value = sharedState.view.sort || "";
+    sortSelect?.addEventListener("change", () => {
+      sharedState.view.sort = sortSelect.value;
+      prBoard.resetPage();
       Filters.saveState(sharedState);
       renderBoth();
     });
@@ -3214,7 +3417,7 @@
           if (!res.ok) throw new Error(`backend answered ${res.status}`);
           return res.json();
         })
-        .then(applySnapshot);
+        .then((data) => applySnapshot(data, true));
     }
 
     forceRefreshButton?.addEventListener("click", () => {
@@ -3276,11 +3479,11 @@
       // the SSE stream) — hidden rather than left clickable-but-wrong
       // while viewing someone else's shared one.
       if (forceRefreshButton) forceRefreshButton.hidden = Boolean(currentOwner);
-      refresh();
+      refresh(true);
     });
 
     // ---- main fetch/render loop ----
-    function applySnapshot(data: DashboardSnapshot) {
+    function applySnapshot(data: DashboardSnapshot, userAsked = false) {
       clearError();
       lastGeneratedAt = data.generatedAt;
       tickRefreshedAt();
@@ -3329,18 +3532,10 @@
       // same filtered-vs-total wording its own count already uses), so
       // the tile never disagrees with the board sitting right below it.
       //
-      // #212: withheld from the PR board while any row is mid-interaction
-      // — see anyRowActionInFlight's own comment — rather than applied
-      // immediately, so a live poll or SSE push can't reorder a row out
-      // from under a click that's already armed it. renderPRBoard applies
-      // it the moment that interaction's own re-render shows nothing's
-      // in flight anymore.
-      if (anyRowActionInFlight()) {
-        pendingPRSnapshot = prs;
-      } else {
-        pendingPRSnapshot = null;
-        prBoard.setItems(prs);
-      }
+      // #212, #710: ingestPRs compares this against what the board shows
+      // and either updates rows in place or holds the change behind the
+      // updates bar — see reconcilePRs.
+      ingestPRs(prs, userAsked);
       issueBoard.setItems(issues);
 
       const failingCount = prs.filter((p) => p.ci === "failure").length;
@@ -3380,9 +3575,9 @@
       );
     }
 
-    function refresh() {
+    function refresh(userAsked = false) {
       fetchDashboardData()
-        .then(applySnapshot)
+        .then((data) => applySnapshot(data, userAsked))
         .catch((err: Error) => {
           showError(`Could not reach the backend: ${err.message}`);
         });
@@ -3584,6 +3779,15 @@
     </div>
     <select
       class="group-select"
+      id="pr-sort-select"
+      aria-label="Sort pull requests by"
+    >
+      <option value="">Sort: Last activity</option>
+      <option value="created">Sort: Created</option>
+      <option value="repo">Sort: Repository</option>
+    </select>
+    <select
+      class="group-select"
       id="shared-group-select"
       aria-label="Group rows by"
     >
@@ -3656,6 +3860,27 @@
       class="clear-filters"
       id="clear-filters-button"
       disabled>Clear filters</button
+    >
+  </div>
+
+  <div class="updates-bar" id="updates-bar">
+    <span
+      class="updates-count"
+      id="updates-count"
+      role="status"
+      aria-live="polite"
+    ></span>
+    <button type="button" class="updates-show" id="show-updates-button" hidden
+      >Show updates</button
+    >
+    <span class="updates-paused" id="updates-paused-hint" hidden
+      >Live updates paused</span
+    >
+    <button
+      type="button"
+      class="updates-pause"
+      id="pause-updates-button"
+      aria-pressed="false">Pause live updates</button
     >
   </div>
 
