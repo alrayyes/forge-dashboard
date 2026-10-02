@@ -703,6 +703,7 @@ test.describe('dashboard page', () => {
     await page.reload();
 
     const titleCell = page.locator('#issue-rows .title-cell').first();
+    await expect(titleCell).toBeVisible();
     const box = await titleCell.boundingBox();
     // The row is ~390px wide minus padding; a healthy title-cell spans
     // nearly all of it. The bug collapsed it to well under 100px.

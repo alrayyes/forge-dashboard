@@ -54,7 +54,18 @@ async function registerViaInvite(
   await page.goto(
     `/login.html?invite=${encodeURIComponent(invite.token)}&username=${encodeURIComponent(username)}`,
   );
-  await page.click('#register-submit');
+  // Under heavy host load (many workers plus other processes) the invite
+  // page has been seen not showing its form for the whole 30s test budget
+  // (#736). A wedged page load gets one fresh attempt after 10s instead of
+  // eating the budget; a second miss fails with its own message.
+  const submit = page.locator('#register-submit');
+  try {
+    await submit.waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    await page.reload();
+    await submit.waitFor({ state: 'visible', timeout: 10000 });
+  }
+  await submit.click();
   await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
 }
 

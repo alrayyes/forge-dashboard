@@ -860,7 +860,11 @@ test.describe('pull request merge button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    const box = await row.getByRole('button', { name: 'Merge' }).boundingBox();
+    const merge = row.getByRole('button', { name: 'Merge' });
+    // boundingBox() doesn't wait for the element; under load the row can
+    // still be rendering (#736).
+    await expect(merge).toBeVisible();
+    const box = await merge.boundingBox();
 
     expect(box).not.toBeNull();
     expect(box?.width).toBeGreaterThanOrEqual(28);

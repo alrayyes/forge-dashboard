@@ -74,6 +74,14 @@ function snapshot(prs: MockPR[]) {
 }
 
 async function push(page: Page, prs: MockPR[]) {
+  // The rows can render from the first fetch before the dashboard has
+  // attached its stream handler; a push that lands in that gap is dropped
+  // and the updates bar never appears (#736).
+  await page.waitForFunction(
+    () =>
+      (window as unknown as { __es?: { onmessage: unknown } }).__es
+        ?.onmessage != null,
+  );
   await page.evaluate((data) => window.__push(data), snapshot(prs));
 }
 
