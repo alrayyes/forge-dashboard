@@ -89,6 +89,44 @@ async function openClose(row: Locator) {
   return row.getByRole('button', { name: 'Close', exact: true });
 }
 
+// Holds requestAnimationFrame callbacks queued after holdFrames() until
+// releaseFrames(), the way a loaded CI runner delays them. The menu moves
+// focus into its popover from one of these, so a held frame is how a test
+// makes "focus() landed first, the frame fires later" deterministic (#770).
+async function controlFrames(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as {
+      __hold: boolean;
+      __held: FrameRequestCallback[];
+    };
+    w.__hold = false;
+    w.__held = [];
+    const native = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+      if (!w.__hold) return native(cb);
+      w.__held.push(cb);
+      return 0;
+    };
+  });
+}
+
+async function holdFrames(page: Page) {
+  await page.evaluate(() => {
+    (window as unknown as { __hold: boolean }).__hold = true;
+  });
+}
+
+async function releaseFrames(page: Page) {
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __hold: boolean;
+      __held: FrameRequestCallback[];
+    };
+    w.__hold = false;
+    for (const cb of w.__held.splice(0)) cb(performance.now());
+  });
+}
+
 test.describe('pull request close button', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
@@ -469,6 +507,58 @@ test.describe('pull request close button', () => {
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
     await expect(button).toHaveAccessibleDescription(/rate limit reached/i);
+  });
+
+  // #770: opening the menu queues a frame that moves focus to the first
+  // item. On a slow runner it fired after the user (or a test) had already
+  // focused another item, and pulled focus off it.
+  test('a delayed menu-open frame does not pull focus off the item the user reached', async ({
+    page,
+  }) => {
+    await controlFrames(page);
+    await mockDashboard(page, makePR());
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await holdFrames(page);
+    const close = await openClose(row);
+    await close.focus();
+    await expect(close).toBeFocused();
+    await releaseFrames(page);
+
+    await expect(close).toBeFocused();
+  });
+
+  test('a delayed menu-open frame does not pull focus off a locked Close', async ({
+    page,
+  }) => {
+    await controlFrames(page);
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/close', (route: Route) =>
+      route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await (await openClose(row)).click();
+    await row.getByRole('button', { name: 'Confirm close?' }).click();
+
+    await holdFrames(page);
+    const button = await openClose(row);
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await button.focus();
+    await releaseFrames(page);
+
+    await expect(button).toBeFocused();
   });
 
   test('a locked Close button is reachable by keyboard and has no axe-core violations', async ({

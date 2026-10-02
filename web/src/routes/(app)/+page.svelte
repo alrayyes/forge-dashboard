@@ -2673,11 +2673,14 @@
           // the state change reach someone not looking at that exact
           // spot" reasoning mergeActionCell's own focus() call already
           // uses for Confirm merge?.
+          //
+          // The frame can run late on a busy page. By then the user may
+          // already have reached an item, so focus only moves when it
+          // isn't inside the popover yet (#770).
           requestAnimationFrame(() => {
-            document
-              .getElementById(popoverId)
-              ?.querySelector<HTMLElement>("button")
-              ?.focus();
+            const popover = document.getElementById(popoverId);
+            if (!popover || popover.contains(document.activeElement)) return;
+            popover.querySelector<HTMLElement>("button")?.focus();
           });
         }
       });
