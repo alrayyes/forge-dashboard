@@ -26,3 +26,6 @@ The design is dark only. The app keeps its light theme.
 
 - `dashboard-rate-limit.png`: a rate-limited forge with disabled actions and
   no Retry, next to a transient error that does offer Try again.
+- `dashboard-rate-limit-readonly.png`: Stitch's answer to a request for a
+  read-only rate-limit mode. It largely repeats the rate-limit screen and
+  does not draw the banner, queue or paused refresh that were asked for.
