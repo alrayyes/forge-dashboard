@@ -17,5 +17,7 @@ JetBrains Mono, with indigo for GitHub and orange for Forgejo.
   and a stable sort.
 - `dashboard-forgejo-auto-merge.png`: auto-merge on Forgejo, handled by
   this app.
+- `dashboard-inline-feedback.png`: feedback on the row, a toast stack
+  and an activity panel instead of a top banner.
 
 The design is dark only. The app keeps its light theme.
