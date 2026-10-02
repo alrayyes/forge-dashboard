@@ -225,7 +225,7 @@ test.describe('pull request update-branch button', () => {
     });
   });
 
-  test('shows an in-progress status while updating, then a success status', async ({
+  test('shows a queued status while updating, then a success status', async ({
     page,
   }) => {
     const pr = makePR();
@@ -256,7 +256,7 @@ test.describe('pull request update-branch button', () => {
 
     const status = page.locator('#status-banner');
     await expect(status).toContainText(
-      'Updating the branch for alrayyes/forge-dashboard#42…',
+      'Branch update requested for alrayyes/forge-dashboard#42.',
     );
     await expect(status).toHaveAttribute('aria-live', 'polite');
     await expect(status).toContainText(
@@ -292,7 +292,7 @@ test.describe('pull request update-branch button', () => {
     await expect(page.locator('#error-banner')).toHaveCount(0);
   });
 
-  test('a 202 whose immediate refresh still reports it behind keeps showing "Updating…", not a fresh re-clickable button', async ({
+  test('a 202 whose immediate refresh still reports it behind keeps showing "Queued…", not a fresh re-clickable button', async ({
     page,
   }) => {
     // The exact shape of the reported flicker: GitHub answers 202 and
@@ -325,7 +325,7 @@ test.describe('pull request update-branch button', () => {
     await row.getByRole('button', { name: 'Update branch' }).click();
     await refreshResponse;
 
-    await expect(row.getByRole('button', { name: 'Updating…' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Queued…' })).toBeVisible();
     await expect(
       row.getByRole('button', { name: 'Update branch' }),
     ).toHaveCount(0);
@@ -357,11 +357,11 @@ test.describe('pull request update-branch button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
-    await expect(row.getByRole('button', { name: 'Updating…' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Queued…' })).toBeVisible();
 
     await page.click('#force-refresh-button');
 
-    await expect(row.getByRole('button', { name: 'Updating…' })).toHaveCount(0);
+    await expect(row.getByRole('button', { name: 'Queued…' })).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: 'Update branch' }),
     ).toHaveCount(0);
