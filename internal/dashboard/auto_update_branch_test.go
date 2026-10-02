@@ -413,6 +413,69 @@ func TestAggregator_Refresh_DependabotRebaseSilentlyFails_DoesNotRepostForever(t
 	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments())
 }
 
+// TestAggregator_Refresh_DependabotRefusesRecreate_DoesNotRebaseAgain
+// reproduces #660: after a recreate clears the watch the pull request is
+// still Behind (Dependabot refused both commands), and the next refresh
+// used to post a rebase again, forever.
+func TestAggregator_Refresh_DependabotRefusesRecreate_DoesNotRebaseAgain(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // see above
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", CI: dashboard.CIPending},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	src.result.PullRequests[0].CI = dashboard.CIFailure
+	for range 5 {
+		agg.Refresh(t.Context())
+	}
+
+	assert.Equal(t, []string{
+		"alrayyes/a#1: " + dashboard.DependabotRebaseComment,
+		"alrayyes/a#1: " + dashboard.DependabotRecreateComment,
+	}, src.comments())
+}
+
+// A rebase that worked clears Behind, so a later Behind is a new request.
+func TestAggregator_Refresh_DependabotBehindAgainAfterSuccessfulRebase_RebasesAgain(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // see above
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", CI: dashboard.CIPending},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	src.result.PullRequests[0].Behind = false
+	src.result.PullRequests[0].CI = dashboard.CISuccess
+	agg.Refresh(t.Context())
+
+	src.result.PullRequests[0].Behind = true
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{
+		"alrayyes/a#1: " + dashboard.DependabotRebaseComment,
+		"alrayyes/a#1: " + dashboard.DependabotRebaseComment,
+	}, src.comments())
+}
+
 func TestAggregator_Refresh_DependabotPRClosedAfterRebase_StopsWatchingWithoutRecreate(t *testing.T) {
 	t.Parallel()
 

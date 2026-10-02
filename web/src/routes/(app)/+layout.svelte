@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { syncThemeFromServer } from "$lib/theme";
+  import Footer from "$lib/Footer.svelte";
 
   let { children } = $props();
 
@@ -57,18 +58,12 @@
     });
   }
 
-  // footer.js/nav.js used to be plain DOM-query IIFEs, not ES modules —
-  // loaded as real <script src> elements injected after mount rather
-  // than written directly in the markup below, since Svelte only allows
-  // one top-level <script> per component (svelte.dev/e/script_duplicate).
-  // nav.js's own logic is ported above/below as real Svelte state now;
-  // footer.js stays exactly as it was — out of scope here, split out to
-  // alrayyes/forge-dashboard#646.
+  // nav.js used to be a plain DOM-query IIFE — its own logic is ported
+  // above/below as real Svelte state now. footer.js's own injection is
+  // gone too: Footer.svelte (imported above) is rendered directly at the
+  // end of this layout's template instead (alrayyes/forge-dashboard's
+  // shared-footer-component change).
   onMount(() => {
-    const script = document.createElement("script");
-    script.src = "/footer.js";
-    document.body.appendChild(script);
-
     // The header no longer has its own toggle (#352 — theme is a
     // Settings-only control now); this is the "did another device
     // change it" half, reconciling the fast local cookie theme.js
@@ -373,3 +368,5 @@
 </nav>
 
 {@render children()}
+
+<Footer />

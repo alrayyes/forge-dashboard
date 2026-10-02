@@ -109,16 +109,4 @@
       from them — that's between you and whichever forge you've connected.
     </p>
   </div>
-
-  <footer>
-    Read-only mirror of both forges &middot; credentials never leave <span
-      class="mono">forge-dashboard</span
-    >'s backend &middot;
-    <a
-      href="https://github.com/alrayyes/forge-dashboard"
-      target="_blank"
-      rel="noopener noreferrer">Source</a
-    >
-    <span id="footer-version"></span>
-  </footer>
 </div>
