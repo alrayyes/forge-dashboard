@@ -8,9 +8,25 @@ export type ActionRef = { key: string; repo: string; number: number };
 export type FeedbackPhase =
   | 'working'
   | 'queued'
+  // A bot rebase the bot has picked up, until CI shows as restarted (#707).
+  | 'rebasing'
   | 'done'
   | 'failed'
   | 'expired';
+
+// Set on a Dependabot/Renovate rebase request (#707): the row line then
+// says the bot, not the dashboard's own refresh, is what's being waited on.
+export type BotRequest = {
+  // "Dependabot" or "Renovate".
+  bot: string;
+  // How the request reached the bot, in the words of the row line:
+  // "comment" is a command comment, "label" the rebase label.
+  trigger: 'comment' | 'label';
+  // The pull request on its forge, for the "still waiting" link.
+  url: string;
+  // "GitHub" or "Forgejo".
+  forgeLabel: string;
+};
 
 export type ActivityEntry = {
   id: number;
@@ -26,6 +42,7 @@ export type ActivityEntry = {
   message: string;
   startedAt: number;
   updatedAt: number;
+  bot?: BotRequest;
   // Offered as "Retry" once the entry has failed or expired.
   retry?: () => void;
   canRetry: boolean;
@@ -54,6 +71,7 @@ export type StartInput = {
   message: string;
   // Spoken once, if given. Never includes a countdown.
   announce?: string;
+  bot?: BotRequest;
   retry?: () => void;
 };
 
@@ -84,6 +102,7 @@ export function isFinished(phase: FeedbackPhase): boolean {
 export const PHASE_LABELS: Record<FeedbackPhase, string> = {
   working: 'In progress',
   queued: 'Queued',
+  rebasing: 'Rebasing',
   done: 'Done',
   failed: 'Failed',
   expired: 'Timed out',
@@ -152,6 +171,7 @@ export function createFeedbackStore(now: () => number = Date.now) {
         message: input.message,
         startedAt: now(),
         updatedAt: now(),
+        bot: input.bot,
         retry: input.retry,
         canRetry: false,
       });
