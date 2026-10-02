@@ -116,15 +116,18 @@ func main() {
 	}
 }
 
-// errHealthzStatus is runHealthcheck's own sentinel - err113 wants a wrapped
+// errReadyzStatus is runHealthcheck's own sentinel - err113 wants a wrapped
 // static error rather than a bare fmt.Errorf built from the status code
 // alone.
-var errHealthzStatus = errors.New("healthz check failed")
+var errReadyzStatus = errors.New("readyz check failed")
 
 // runHealthcheck exists for the container's own HEALTHCHECK: the image is
 // distroless (no shell, no curl, no wget), so there's nothing else inside it
 // that could exec a probe. Reads the same ADDR this process would otherwise
-// serve on and asks its own /healthz over loopback.
+// serve on and asks its own /readyz over loopback. Readiness, not liveness:
+// Docker has one health state, and "healthy" is what Compose's
+// service_healthy and the deploy pipeline act on, so it has to mean "can
+// serve", not just "started". /healthz stays the cheap liveness answer.
 func runHealthcheck() error {
 	addr := envOr("ADDR", ":8080")
 
@@ -136,19 +139,19 @@ func runHealthcheck() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:"+port+"/healthz", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:"+port+"/readyz", nil)
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("request /healthz: %w", err)
+		return fmt.Errorf("request /readyz: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: /healthz returned %d", errHealthzStatus, resp.StatusCode)
+		return fmt.Errorf("%w: /readyz returned %d", errReadyzStatus, resp.StatusCode)
 	}
 
 	return nil
@@ -207,6 +210,8 @@ func run() error {
 		SettingsStore: settingsStore,
 		SharingStore:  sharingStore,
 		Manager:       manager,
+		Database:      schemaPinger{db: db},
+		Dashboard:     manager,
 		BuildSources:  buildSourcesForUser(authStore, githubAppID, githubAppPrivateKey),
 		RequestLog:    requestlog.NewSQLiteRecorder(authStore, ""),
 		AppContext:    ctx,
@@ -327,6 +332,26 @@ func buildSourcesForUser(authStore *auth.Store, githubAppID int64, githubAppPriv
 
 		return sources
 	}
+}
+
+// schemaPinger is /readyz's database check: the connection answers and the
+// tables the app reads on every request exist. The Init calls in run have
+// already created them by the time the listener is up, so a failure here
+// means the file went away or broke underneath a running process.
+type schemaPinger struct{ db *sql.DB }
+
+func (p schemaPinger) PingContext(ctx context.Context) error {
+	if err := p.db.PingContext(ctx); err != nil {
+		return fmt.Errorf("ping: %w", err)
+	}
+
+	var one int
+	err := p.db.QueryRowContext(ctx, "SELECT 1 FROM users LIMIT 1").Scan(&one)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("schema probe: %w", err)
+	}
+
+	return nil
 }
 
 // openDatabase opens (creating the containing directory if needed) the
