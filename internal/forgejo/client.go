@@ -16,6 +16,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -854,7 +856,25 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	if sha == "" {
 		return nil, nil
 	}
+	var base string
+	if pr.Base != nil {
+		base = pr.Base.Ref
+	}
+	checks, probes, err := c.listChecksForSHA(ctx, owner, name, sha)
+	if err != nil {
+		return nil, err
+	}
+	c.markRequired(ctx, owner, name, base, checks, probes)
 
+	return checks, nil
+}
+
+// listChecksForSHA is ListChecks' per-commit half: every Actions job for
+// the commit, or the legacy commit statuses when there are none. The
+// parallel probes slice holds, per check, the longer commit-status context
+// an Actions job reports under ("<workflow> / <job> (<event>)"), or ""
+// for a legacy status whose name already is its context.
+func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) ([]dashboard.Check, []string, error) {
 	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
 	runs, runsResp, err := c.sdk.ListRepoActionRuns(owner, name, gitea.ListRepoActionRunsOptions{
@@ -870,21 +890,22 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 			// error worth surfacing.
 			c.recordRequest(ctx, http.MethodGet, runsPath, runsResp.StatusCode, string(dashboard.ForgeErrorNotFound))
 
-			return c.checksFromCombinedStatus(ctx, owner, name, sha)
+			return c.statusChecks(ctx, owner, name, sha)
 		}
 
-		return nil, c.forgejoError(ctx, http.MethodGet, runsPath, runsResp, err)
+		return nil, nil, c.forgejoError(ctx, http.MethodGet, runsPath, runsResp, err)
 	}
 	c.recordRequest(ctx, http.MethodGet, runsPath, runsResp.StatusCode, requestlog.OutcomeSuccess)
 	if len(runs.WorkflowRuns) == 0 {
-		return c.checksFromCombinedStatus(ctx, owner, name, sha)
+		return c.statusChecks(ctx, owner, name, sha)
 	}
 
 	var checks []dashboard.Check
+	var probes []string
 	for _, run := range runs.WorkflowRuns {
 		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, j := range jobs {
 			checks = append(checks, dashboard.Check{
@@ -892,10 +913,19 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 				State: checkStateFromWorkflowStatus(j.Status),
 				URL:   j.HTMLURL,
 			})
+			probes = append(probes, workflowContext(run, j.Name))
 		}
 	}
 
-	return checks, nil
+	return checks, probes, nil
+}
+
+// statusChecks wraps checksFromCombinedStatus for listChecksForSHA's
+// three-value return.
+func (c *Client) statusChecks(ctx context.Context, owner, name, sha string) ([]dashboard.Check, []string, error) {
+	checks, err := c.checksFromCombinedStatus(ctx, owner, name, sha)
+
+	return checks, nil, err
 }
 
 // checksFromCombinedStatus is ListChecks' own fallback: the legacy
@@ -1052,4 +1082,127 @@ func rawRequestErrorMessage(body []byte) string {
 	}
 
 	return strings.TrimSpace(string(body))
+}
+
+// workflowContext is the commit-status context Forgejo reports an Actions
+// job under, as best the runs API lets us rebuild it: the workflow file's
+// stem stands in for the workflow's own name (the API doesn't return the
+// `name:` key), so a protection pattern naming that longer context only
+// matches when the two agree.
+func workflowContext(run *gitea.ActionWorkflowRun, job string) string {
+	stem := strings.TrimSuffix(path.Base(run.Path), path.Ext(run.Path))
+
+	return fmt.Sprintf("%s / %s (%s)", stem, job, run.Event)
+}
+
+// markRequired sets Check.Required from the base branch's protection rule
+// (enable_status_check + status_check_contexts, which are glob patterns).
+// Listing protections needs admin on the repo, so a failure leaves every
+// check's Required nil rather than guessing. With the list in hand, a
+// branch no rule covers, or a rule without status checks, requires
+// nothing. A legacy status is matched by its context. An Actions job is
+// reported under a longer context than its job name that the API doesn't
+// hand us in full, so it is required when a pattern matches either, and
+// otherwise stays unknown: only a status check we can map is advisory.
+func (c *Client) markRequired(ctx context.Context, owner, name, base string, checks []dashboard.Check, probes []string) {
+	if base == "" || len(checks) == 0 {
+		return
+	}
+	c.setContext(ctx)
+
+	protPath := fmt.Sprintf("/repos/%s/%s/branch_protections", owner, name)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", protPath)
+	var opt gitea.ListBranchProtectionsOptions
+	opt.PageSize = pageLimit
+	rules, resp, err := c.sdk.ListBranchProtections(owner, name, opt)
+	if err != nil {
+		slog.Debug("forgejo branch protections unreadable, required stays unknown", "repo", owner+"/"+name, "branch", base, "error", err)
+
+		return
+	}
+	c.recordRequest(ctx, http.MethodGet, protPath, resp.StatusCode, requestlog.OutcomeSuccess)
+
+	var patterns []*regexp.Regexp
+	if rule := protectionForBranch(rules, base); rule != nil && rule.EnableStatusCheck {
+		for _, p := range rule.StatusCheckContexts {
+			patterns = append(patterns, globRegexp(p, false))
+		}
+	}
+	matches := func(s string) bool {
+		for _, re := range patterns {
+			if re.MatchString(s) {
+				return true
+			}
+		}
+
+		return false
+	}
+	for i := range checks {
+		isJob := i < len(probes) && probes[i] != ""
+		switch {
+		case matches(checks[i].Name) || (isJob && matches(probes[i])):
+			checks[i].Required = new(true)
+		case !isJob:
+			checks[i].Required = new(false)
+		}
+	}
+}
+
+// protectionForBranch picks the rule governing branch: an exact rule name
+// first, then the first glob that matches (`*` within a path segment, `**`
+// across them, as Forgejo's branch rules define it).
+func protectionForBranch(rules []*gitea.BranchProtection, branch string) *gitea.BranchProtection {
+	ruleName := func(r *gitea.BranchProtection) string {
+		if r.RuleName != "" {
+			return r.RuleName
+		}
+
+		return r.BranchName
+	}
+	for _, r := range rules {
+		if ruleName(r) == branch {
+			return r
+		}
+	}
+	for _, r := range rules {
+		if globRegexp(ruleName(r), true).MatchString(branch) {
+			return r
+		}
+	}
+
+	return nil
+}
+
+// globRegexp compiles a Forgejo glob to an anchored regexp. With
+// segments, `*` stops at `/` and `**` crosses it (branch rule names);
+// without, `*` matches anything (status check patterns).
+func globRegexp(pattern string, segments bool) *regexp.Regexp {
+	var b strings.Builder
+	b.WriteString("^")
+	for i := 0; i < len(pattern); i++ {
+		switch ch := pattern[i]; ch {
+		case '*':
+			doubled := i+1 < len(pattern) && pattern[i+1] == '*'
+			switch {
+			case doubled:
+				i++
+				b.WriteString(".*")
+			case segments:
+				b.WriteString("[^/]*")
+			default:
+				b.WriteString(".*")
+			}
+		case '?':
+			if segments {
+				b.WriteString("[^/]")
+			} else {
+				b.WriteString(".")
+			}
+		default:
+			b.WriteString(regexp.QuoteMeta(string(ch)))
+		}
+	}
+	b.WriteString("$")
+
+	return regexp.MustCompile(b.String())
 }

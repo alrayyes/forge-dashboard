@@ -81,6 +81,12 @@ type Check struct {
 	// own details page for the legacy commit-status case — never the
 	// pull request's own page.
 	URL string `json:"url"`
+	// Required reports whether the base branch's protection makes this
+	// check block the merge. A pointer so "unknown" (nil, omitted from
+	// the JSON) stays distinct from "advisory" (false): a token that
+	// can't read protection, or a check whose protection name can't be
+	// mapped, must not read as advisory.
+	Required *bool `json:"required,omitempty"`
 }
 
 // ReviewDecision is where a pull request stands on code review. Matches
