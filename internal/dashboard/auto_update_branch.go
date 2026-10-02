@@ -41,6 +41,15 @@ type autoUpdateBranchConfig struct {
 	// Recreate button still covers — not worth a persisted table for (#540).
 	dependabotWatchMu sync.Mutex
 	dependabotWatch   map[string]struct{}
+
+	// dependabotAttempted holds every Dependabot pull request this hook has
+	// already sent a rebase to and that hasn't yet stopped being Behind (or
+	// left the snapshot). Unlike dependabotWatch it survives the recreate
+	// that clears the watch: a rebase or recreate that worked clears Behind,
+	// so a pull request still Behind means Dependabot refused (no push
+	// access on the repo) and asking again can only loop (#660). Guarded by
+	// dependabotWatchMu.
+	dependabotAttempted map[string]struct{}
 }
 
 // EnableAutoUpdateBranch turns on the hook that runs after every
@@ -62,7 +71,7 @@ type autoUpdateBranchConfig struct {
 // enable/disable endpoints don't trigger a rebuild the way most other
 // settings changes do.
 func (a *Aggregator) EnableAutoUpdateBranch(userID []byte, lister AutoUpdateBranchLister) {
-	a.autoUpdate = &autoUpdateBranchConfig{userID: userID, lister: lister, dependabotWatch: make(map[string]struct{})}
+	a.autoUpdate = &autoUpdateBranchConfig{userID: userID, lister: lister, dependabotWatch: make(map[string]struct{}), dependabotAttempted: make(map[string]struct{})}
 }
 
 // runAutoUpdateBranch is the post-refresh hook itself — a no-op if
@@ -76,6 +85,7 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 	}
 
 	a.reconcileDependabotRebaseWatch(ctx, snap)
+	a.pruneDependabotAttempts(snap)
 
 	enabled, err := a.autoUpdate.lister.AutoUpdateBranchRepos(ctx, a.autoUpdate.userID)
 	if err != nil {
@@ -166,7 +176,7 @@ func dependabotPRKey(pr PullRequest) string {
 // CI actually resolves, or leave it watched. Asking again here on every
 // refresh while that's still pending bypasses that decision entirely.
 func (a *Aggregator) rebaseDependabotPR(ctx context.Context, pr PullRequest) {
-	if a.isDependabotWatched(dependabotPRKey(pr)) {
+	if a.isDependabotWatched(dependabotPRKey(pr)) || a.wasDependabotAttempted(dependabotPRKey(pr)) {
 		return
 	}
 
@@ -186,6 +196,7 @@ func (a *Aggregator) rebaseDependabotPR(ctx context.Context, pr PullRequest) {
 
 	a.autoUpdate.dependabotWatchMu.Lock()
 	a.autoUpdate.dependabotWatch[dependabotPRKey(pr)] = struct{}{}
+	a.autoUpdate.dependabotAttempted[dependabotPRKey(pr)] = struct{}{}
 	a.autoUpdate.dependabotWatchMu.Unlock()
 }
 
@@ -235,6 +246,35 @@ func (a *Aggregator) reconcileDependabotRebaseWatch(ctx context.Context, snap Sn
 			// Still waiting on this rebase's own CI run — check again next refresh.
 		}
 	}
+}
+
+// pruneDependabotAttempts forgets every attempt whose pull request is no
+// longer Behind or no longer in snap, so a later Behind is a fresh request.
+func (a *Aggregator) pruneDependabotAttempts(snap Snapshot) {
+	behind := make(map[string]struct{}, len(snap.PullRequests))
+	for _, pr := range snap.PullRequests {
+		if pr.Behind {
+			behind[dependabotPRKey(pr)] = struct{}{}
+		}
+	}
+
+	a.autoUpdate.dependabotWatchMu.Lock()
+	defer a.autoUpdate.dependabotWatchMu.Unlock()
+	for key := range a.autoUpdate.dependabotAttempted {
+		if _, ok := behind[key]; !ok {
+			delete(a.autoUpdate.dependabotAttempted, key)
+		}
+	}
+}
+
+// wasDependabotAttempted reports whether a rebase was already sent for key
+// while it has stayed Behind.
+func (a *Aggregator) wasDependabotAttempted(key string) bool {
+	a.autoUpdate.dependabotWatchMu.Lock()
+	defer a.autoUpdate.dependabotWatchMu.Unlock()
+	_, ok := a.autoUpdate.dependabotAttempted[key]
+
+	return ok
 }
 
 // clearDependabotWatch stops reconcileDependabotRebaseWatch tracking the
