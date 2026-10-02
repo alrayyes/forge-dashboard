@@ -207,7 +207,7 @@ test.describe('pull request Renovate rebase button', () => {
       'polite',
     );
     await expect(row.locator('.row-feedback')).toContainText(
-      'Awaiting the next refresh',
+      'will pick this up shortly',
     );
     await expect(page.locator('#status-banner')).toHaveCount(0);
   });
