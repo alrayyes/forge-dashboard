@@ -1314,6 +1314,45 @@ select.col-filter {
   background: var(--good-bg);
   color: var(--good);
 }
+/* mergeActionCell's locked Merge (#705): the reason is the content, so it
+   sits beside the button as plain text instead of the hover bubble. Same
+   aria-describedby wiring as .row-action-reason, which this replaces. */
+.row-action-locked-visible {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.row-action-note {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 220px;
+  text-align: right;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ink-2);
+  white-space: normal;
+}
+.row-action-note-reason {
+  font-weight: 600;
+  color: var(--ink);
+}
+.row-action-note-next {
+  color: var(--ink-3);
+}
+/* Close inside "More actions" (#705): set apart and in the danger tone,
+   border and wording as well as colour. */
+.row-actions-popover .row-action-group.close-group,
+.row-actions-popover .row-action-locked.close-group {
+  align-self: stretch;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.row-action.close {
+  background: var(--critical-bg);
+  color: var(--critical);
+}
 .row-action-group {
   position: relative;
   z-index: 1;

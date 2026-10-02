@@ -84,6 +84,16 @@ async function openMoreActions(row: Locator) {
   await row.getByRole('button', { name: 'More actions' }).click();
 }
 
+// #705: Close is always in "More actions", so the menu no longer vanishes
+// for a row with nothing else to offer. What these tests pin is that the
+// menu holds Close and nothing more.
+async function expectMenuHoldsOnlyClose(row: Locator) {
+  await openMoreActions(row);
+  const items = row.locator('.row-actions-popover').getByRole('button');
+  await expect(items).toHaveCount(1);
+  await expect(items.first()).toHaveText('Close');
+}
+
 test.describe('pull request Enable auto-merge action', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
@@ -115,9 +125,7 @@ test.describe('pull request Enable auto-merge action', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByText('A pull request')).toBeVisible();
-    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-      0,
-    );
+    await expectMenuHoldsOnlyClose(row);
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
@@ -149,11 +157,9 @@ test.describe('pull request Enable auto-merge action', () => {
 
     // No other overflow-eligible action applies to this row either (not
     // Dependabot/Renovate-authored, and View pipeline is inline now, not
-    // in this menu — #636), so "More actions" shouldn't even show up.
+    // in this menu — #636), so "More actions" holds Close alone.
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-      0,
-    );
+    await expectMenuHoldsOnlyClose(row);
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
@@ -169,10 +175,8 @@ test.describe('pull request Enable auto-merge action', () => {
     await expect(row.locator('.merge-pill.auto-merge')).toBeVisible();
     // No other overflow-eligible action applies (not Dependabot/Renovate,
     // View pipeline is inline — #636), so there's nothing left for "More
-    // actions" to hold at all.
-    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-      0,
-    );
+    // actions" to hold but Close.
+    await expectMenuHoldsOnlyClose(row);
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
@@ -185,9 +189,7 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-      0,
-    );
+    await expectMenuHoldsOnlyClose(row);
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);

@@ -99,6 +99,8 @@ test.describe('rate-limited actions (#732)', () => {
     await page.reload();
 
     const row = firstRow(page);
+    // Close sits in "More actions" since #705, still locked like the rest.
+    await row.getByRole('button', { name: 'More actions' }).click();
     for (const label of ['Merge', 'Update branch', 'Close']) {
       const button = await expectLockedWithoutRetry(row, label);
       // The reason is the accessible description, not a hover-only tooltip.

@@ -2179,14 +2179,17 @@ test.describe('dashboard page', () => {
       await expect(row.locator('.ci-pill')).toContainText('Passing');
     });
 
-    test('shows "Passed" once there is no Merge button on the row', async ({
-      page,
-    }) => {
+    // #705: the row now keeps a locked Merge, so "no Merge button" means
+    // no clickable one.
+    test('shows "Passed" once Merge is locked on the row', async ({ page }) => {
       await mockOnePR(page, { mergeStatus: 'blocked' });
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+      await expect(row.getByRole('button', { name: 'Merge' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
       await expect(row.locator('.ci-pill')).toContainText('Passed');
     });
 
