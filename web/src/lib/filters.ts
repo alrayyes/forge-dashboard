@@ -19,6 +19,7 @@ export interface FilterableItem {
   draft?: boolean;
   mergeStatus?: string;
   labels?: { name: string }[];
+  review?: { decision: string };
 }
 
 // release-please labels every PR it manages with "autorelease: pending"
@@ -46,7 +47,12 @@ export function isBotManagedPr(item: FilterableItem): boolean {
 }
 
 // The pull-request-only quick filter pills (#678). Stored as pr.quick.
-export const QUICK_FILTERS = ['failing', 'bots', 'ready'] as const;
+export const QUICK_FILTERS = [
+  'failing',
+  'bots',
+  'ready',
+  'needs-review',
+] as const;
 export type QuickFilter = (typeof QUICK_FILTERS)[number];
 
 export function matchesQuickFilter(
@@ -61,6 +67,16 @@ export function matchesQuickFilter(
     case 'ready':
       return (
         item.mergeStatus === 'mergeable' && item.ci === 'success' && !item.draft
+      );
+    case 'needs-review':
+      // Unknown review state (no review object) never matches: the forge
+      // couldn't say, which isn't the same as nobody having reviewed it.
+      // A PR with changes requested is waiting on its author, not a
+      // reviewer.
+      return (
+        !item.draft &&
+        (item.review?.decision === 'review_required' ||
+          item.review?.decision === 'none')
       );
     default:
       return true;

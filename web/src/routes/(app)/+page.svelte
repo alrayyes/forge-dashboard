@@ -3464,6 +3464,12 @@
         data-pill="ready"
         aria-pressed="false">Ready to Merge</button
       >
+      <button
+        type="button"
+        class="quick-pill"
+        data-pill="needs-review"
+        aria-pressed="false">Needs Review</button
+      >
     </div>
     <select
       class="group-select"
