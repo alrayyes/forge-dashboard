@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.111.0](https://github.com/alrayyes/forge-dashboard/compare/v0.110.0...v0.111.0) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** keep Merge on the row, locked with a reason, and move Close into More actions ([#748](https://github.com/alrayyes/forge-dashboard/issues/748)) ([4f7359b](https://github.com/alrayyes/forge-dashboard/commit/4f7359b241c24710ac89b2c9f91f19b2e7cb6d1e)), closes [#705](https://github.com/alrayyes/forge-dashboard/issues/705)
+
 ## [0.110.0](https://github.com/alrayyes/forge-dashboard/compare/v0.109.0...v0.110.0) (2026-10-02)
 
 
