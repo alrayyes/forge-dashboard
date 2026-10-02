@@ -2202,6 +2202,29 @@ func TestUpdateBranch_CannotMergeCleanly_ClassifiesAsForgeErrorConflict(t *testi
 	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
 }
 
+// GitHub's update-branch endpoint answers 422, not 409, when the head
+// can't be updated cleanly (#701).
+func TestUpdateBranch_UnprocessableEntity_ClassifiesAsForgeErrorConflict(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		writeJSON(t, w, map[string]any{"message": "merge conflict between base and head"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	_, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+}
+
 func TestListChecks_ReturnsEveryCheckRunForThePullRequestsHeadSHA(t *testing.T) {
 	t.Parallel()
 
