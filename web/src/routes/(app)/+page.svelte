@@ -3,6 +3,7 @@
   import * as Filters from "$lib/filters";
   import type { FilterableItem, SharedFilterState } from "$lib/filters";
   import {
+    type ActionCode,
     type ActionRequestError,
     interpretActionFailure,
     readActionFailure,
@@ -517,7 +518,12 @@
         if (outOfDatePill) statusCell.appendChild(outOfDatePill);
         const mergePill = autoMergePill(pr.autoMergeEnabled);
         if (mergePill) statusCell.appendChild(mergePill);
-        const updateBranchAction = updateBranchActionCell(pr);
+        // Found already merged or closed: the badge replaces Merge, and
+        // nothing else on the row has anything left to do.
+        const settledRow = isSettled(pr);
+        const updateBranchAction = settledRow
+          ? null
+          : updateBranchActionCell(pr);
         if (updateBranchAction) statusCell.appendChild(updateBranchAction);
         // Dependabot/Renovate's own Rebase asks for exactly what Update
         // branch does on every other row — bring the branch back in sync
@@ -528,9 +534,13 @@
         // actually the thing to do: Recreate is rarer and stays in "More
         // actions" regardless (#527).
         const dependabotRebasePromoted =
-          pr.behind && !pr.empty && pr.forge === "github" && isDependabotPr(pr);
+          !settledRow &&
+          pr.behind &&
+          !pr.empty &&
+          pr.forge === "github" &&
+          isDependabotPr(pr);
         const renovateRebasePromoted =
-          pr.behind && !pr.empty && isRenovatePr(pr);
+          !settledRow && pr.behind && !pr.empty && isRenovatePr(pr);
         if (dependabotRebasePromoted) {
           statusCell.appendChild(dependabotActionButton(pr, "rebase"));
         } else if (renovateRebasePromoted) {
@@ -547,14 +557,18 @@
         // Close lives in "More actions" behind its confirm step (#705):
         // it's rarely what the row needs, and the one button left beside
         // a waiting Merge read as "close is what you do next".
-        const secondaryActions = [
-          autoMergeActionCell(pr),
-          dependabotRebasePromoted
-            ? dependabotRecreateOnlyCell(pr)
-            : dependabotActionCell(pr),
-          renovateRebasePromoted ? null : renovateRebaseActionCell(pr),
-          closeActionCell(pr),
-        ].filter((cell): cell is HTMLElement => cell !== null);
+        const secondaryActions = (
+          settledRow
+            ? []
+            : [
+                autoMergeActionCell(pr),
+                dependabotRebasePromoted
+                  ? dependabotRecreateOnlyCell(pr)
+                  : dependabotActionCell(pr),
+                renovateRebasePromoted ? null : renovateRebaseActionCell(pr),
+                closeActionCell(pr),
+              ]
+        ).filter((cell): cell is HTMLElement => cell !== null);
         const moreActions = moreActionsCell(pr, secondaryActions);
         if (moreActions) statusCell.appendChild(moreActions);
         dedupeRetryButtons(statusCell);
@@ -832,6 +846,58 @@
       );
     }
 
+    function isSettled(item: PullRequestItem): boolean {
+      const phase = mergeState[prKey(item)]?.phase;
+      return phase === "merged" || phase === "closed";
+    }
+
+    // Renders the server's answer to a refused action (#751): the same for
+    // Merge, Close, Update branch, auto-merge and the bot rebases. The
+    // server re-read the pull request and said why (its code); this only
+    // shows it. A pull request found merged or closed settles the whole
+    // row, whichever button was clicked. setState stores the action's own
+    // locked or idle state; retryable names codes that pass by themselves.
+    function renderActionRefusal(
+      item: PullRequestItem,
+      err: ActionRequestError,
+      fkey: string,
+      what: string,
+      setState: (next: ActionState) => void,
+      retryable?: ReadonlySet<ActionCode>,
+    ) {
+      const outcome = interpretActionFailure(
+        err,
+        (resetsAt) =>
+          resetsAt
+            ? rateLimitReasonText(
+                FORGE_LABELS[item.forge] || item.forge,
+                resetsAt,
+              )
+            : rateLimitedReason(item.forge),
+        retryable,
+      );
+      if (outcome.kind === "settled") {
+        setState({ phase: "idle" });
+        mergeState[prKey(item)] = { phase: outcome.state };
+        showSettled(feedback, fkey, actionRef(item), outcome);
+        // Same immediate refresh the success path makes, so the row
+        // drops off the open list as soon as the forge shows it.
+        refreshDashboardNow().catch(() => renderPRBoard());
+        renderPRBoard();
+        return;
+      }
+      if (outcome.kind === "locked") {
+        setState({ phase: "locked", reason: outcome.reason });
+        if (outcome.code === "permission")
+          forgePermissionDenied[item.forge] = true;
+        failAction(fkey, what, outcome.reason, false);
+      } else {
+        setState({ phase: "idle" });
+        failAction(fkey, what, outcome.reason, true);
+      }
+      renderPRBoard();
+    }
+
     // Actually calls the merge endpoint, once the confirm click lands —
     // mergeActionCell's own click handler only ever flips into
     // "confirming", so a single accidental click can never merge
@@ -956,35 +1022,9 @@
             return;
           }
 
-          // The server re-read the pull request and said why (its code);
-          // this only renders that answer.
-          const outcome = interpretActionFailure(err, (resetsAt) =>
-            resetsAt
-              ? rateLimitReasonText(
-                  FORGE_LABELS[item.forge] || item.forge,
-                  resetsAt,
-                )
-              : rateLimitedReason(item.forge),
-          );
-          if (outcome.kind === "settled") {
-            mergeState[key] = { phase: outcome.state };
-            showSettled(feedback, fkey, actionRef(item), outcome);
-            // Same immediate refresh the success path makes, so the row
-            // drops off the open list as soon as the forge shows it.
-            refreshDashboardNow().catch(() => renderPRBoard());
-            renderPRBoard();
-            return;
-          }
-          if (outcome.kind === "locked") {
-            mergeState[key] = { phase: "locked", reason: outcome.reason };
-            if (outcome.code === "permission")
-              forgePermissionDenied[item.forge] = true;
-            failAction(fkey, "merge", outcome.reason, false);
-          } else {
-            mergeState[key] = { phase: "idle" };
-            failAction(fkey, "merge", outcome.reason, true);
-          }
-          renderPRBoard();
+          renderActionRefusal(item, err, fkey, "merge", (next) => {
+            mergeState[key] = next;
+          });
         });
     }
 
@@ -1162,47 +1202,12 @@
     // framing that it's left for a follow-up rather than folded in here.
     const autoMergeState: Record<string, ActionState> = {};
 
-    // Mirrors doMerge's 403/429 handling. No specific
-    // case for "repo doesn't allow auto-merge" — GitHub's own mutation
-    // error for that doesn't come back with a status this app classifies
-    // any more specifically than 502, so it falls through to the generic
-    // error banner the same way any other unclassified failure already
-    // does here.
-    function reactiveAutoMergeLockReason(
-      forge: string,
-
-      status: number | undefined,
-    ): string | null {
-      if (status === 403) return PERMISSION_REASON;
-      if (status === 429) return rateLimitedReason(forge);
-      return null;
-    }
-
-    // #621: GitHub's enablePullRequestAutoMerge mutation rejects a PR
-    // whose mergeable_state is "unstable" (a non-required check still
-    // pending/failing while required ones pass) — a real GitHub API
-    // quirk, since GitHub's own web UI allows arming auto-merge in this
-    // exact state, which is the whole point of the feature. That
-    // rejection carries no status of its own (502, same as any other
-    // unclassified GraphQL failure — reactiveAutoMergeLockReason's own
-    // comment above), so like doMerge's 409 case, this is
-    // matched on the forge's real message text rather than a status
-    // code. Unlike that 409 case, the result isn't a lock reason: this
-    // failure is meant to be retried once checks settle (arming ahead of
-    // CI is the point), so it only swaps the banner's wording, leaving
-    // reactiveAutoMergeLockReason's null (idle, button re-enabled) return
-    // for this status untouched.
-    function friendlyAutoMergeErrorMessage(message: string): string {
-      if (/\bis in unstable status\b/i.test(message)) {
-        return "GitHub reports this pull request as unstable — a non-required check is still running or has failed. Try again once it settles.";
-      }
-      // #662: the mutation also rejects a pull request that went clean
-      // since the last refresh.
-      if (/\bis in clean status\b/i.test(message)) {
-        return "This pull request is already ready to merge, so there's nothing for auto-merge to wait for. Use Merge instead.";
-      }
-      return message;
-    }
+    // A refusal that passes by itself: GitHub rejects arming auto-merge
+    // while a non-required check is still running (#621), and the point of
+    // arming ahead of CI is to try again once it settles.
+    const AUTO_MERGE_RETRYABLE: ReadonlySet<ActionCode> = new Set([
+      "checks_pending",
+    ]);
 
     // No confirm step — arming auto-merge doesn't merge anything by
     // itself, the same reasoning doUpdateBranch's own comment gives.
@@ -1244,11 +1249,7 @@
             throw new Error("session expired");
           }
           if (res.status === 204) return null;
-          return res.json().then((body) => {
-            const err: Error & { status?: number } = new Error(
-              body?.error || `backend answered ${res.status}`,
-            );
-            err.status = res.status;
+          return readActionFailure(res).then((err) => {
             throw err;
           });
         })
@@ -1277,22 +1278,17 @@
               if (data) applySnapshot(data, true);
             });
         })
-        .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveAutoMergeLockReason(
-            item.forge,
-            err.status,
-          );
-          autoMergeState[key] = lockReason
-            ? { phase: "locked", reason: lockReason }
-            : { phase: "idle" };
-          if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          failAction(
+        .catch((err: ActionRequestError) => {
+          renderActionRefusal(
+            item,
+            err,
             fkey,
             "enable auto-merge",
-            friendlyAutoMergeErrorMessage(err.message),
-            !lockReason,
+            (next) => {
+              autoMergeState[key] = next;
+            },
+            AUTO_MERGE_RETRYABLE,
           );
-          renderPRBoard();
         });
     }
 
@@ -1357,21 +1353,6 @@
     // independent action.
     const closeState: Record<string, ActionState> = {};
 
-    // Mirrors doMerge's 403/429 handling; no special
-    // "not mergeable" 409 case here, since Close doesn't need
-    // mergeability at all — a 409 here is the forge's own real message
-    // (already-merged, already-closed) passed straight through instead.
-    function reactiveCloseLockReason(
-      forge: string,
-
-      status: number | undefined,
-      message: string,
-    ): string | null {
-      if (status === 403) return PERMISSION_REASON;
-      if (status === 429) return rateLimitedReason(forge);
-      return null;
-    }
-
     function doClose(item: PullRequestItem, confirmButton: HTMLButtonElement) {
       const key = prKey(item);
       closeState[key] = { phase: "closing" };
@@ -1427,11 +1408,7 @@
             throw new Error("session expired");
           }
           if (res.status === 204) return null;
-          return res.json().then((body) => {
-            const err: Error & { status?: number } = new Error(
-              body?.error || `backend answered ${res.status}`,
-            );
-            err.status = res.status;
+          return readActionFailure(res).then((err) => {
             throw err;
           });
         })
@@ -1452,18 +1429,10 @@
               if (data) applySnapshot(data, true);
             });
         })
-        .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveCloseLockReason(
-            item.forge,
-            err.status,
-            err.message,
-          );
-          closeState[key] = lockReason
-            ? { phase: "locked", reason: lockReason }
-            : { phase: "idle" };
-          if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          failAction(fkey, "close", err.message, !lockReason);
-          renderPRBoard();
+        .catch((err: ActionRequestError) => {
+          renderActionRefusal(item, err, fkey, "close", (next) => {
+            closeState[key] = next;
+          });
         });
     }
 
@@ -1555,22 +1524,6 @@
     // independent lock/in-flight state rather than sharing one.
     const updateBranchState: Record<string, ActionState> = {};
 
-    // Mirrors doMerge's 403/429 handling exactly; 409
-    // reads differently here since the forge is reporting the two
-    // branches can't be merged cleanly, not that the pull request
-    // itself stopped being mergeable.
-    function reactiveUpdateBranchLockReason(
-      forge: string,
-
-      status: number | undefined,
-    ): string | null {
-      if (status === 403) return PERMISSION_REASON;
-      if (status === 429) return rateLimitedReason(forge);
-      if (status === 409)
-        return "Can't update cleanly — resolve the conflict on the forge.";
-      return null;
-    }
-
     // No confirm step, unlike doMerge — bringing a branch up to date is
     // routine and reversible in a way completing the pull request isn't.
     function doUpdateBranch(item: PullRequestItem, button: HTMLButtonElement) {
@@ -1610,11 +1563,7 @@
           // rather than finishing it inline (GitHub) — not a failure,
           // same as 204.
           if (res.status === 204 || res.status === 202) return null;
-          return res.json().then((body) => {
-            const err: Error & { status?: number } = new Error(
-              body?.error || `backend answered ${res.status}`,
-            );
-            err.status = res.status;
+          return readActionFailure(res).then((err) => {
             throw err;
           });
         })
@@ -1640,17 +1589,10 @@
               if (data) applySnapshot(data, true);
             });
         })
-        .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveUpdateBranchLockReason(
-            item.forge,
-            err.status,
-          );
-          updateBranchState[key] = lockReason
-            ? { phase: "locked", reason: lockReason }
-            : { phase: "idle" };
-          if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          failAction(fkey, "update the branch", err.message, !lockReason);
-          renderPRBoard();
+        .catch((err: ActionRequestError) => {
+          renderActionRefusal(item, err, fkey, "update the branch", (next) => {
+            updateBranchState[key] = next;
+          });
         });
     }
 
@@ -1722,21 +1664,6 @@
     // still being clickable.
     const dependabotActionState: Record<string, ActionState> = {};
 
-    // Mirrors reactiveUpdateBranchLockReason's 403/429 handling; 409
-    // reads as Dependabot's own comment command not applying right now
-    // rather than a merge conflict.
-    function reactiveDependabotActionLockReason(
-      forge: string,
-
-      status: number | undefined,
-    ): string | null {
-      if (status === 403) return PERMISSION_REASON;
-      if (status === 429) return rateLimitedReason(forge);
-      if (status === 409)
-        return "Dependabot can't act on this pull request right now.";
-      return null;
-    }
-
     const DEPENDABOT_ACTION_LABELS: Record<string, string> = {
       rebase: "Dependabot: Rebase",
       recreate: "Dependabot: Recreate",
@@ -1787,11 +1714,7 @@
             throw new Error("session expired");
           }
           if (res.status === 204) return null;
-          return res.json().then((body) => {
-            const err: Error & { status?: number } = new Error(
-              body?.error || `backend answered ${res.status}`,
-            );
-            err.status = res.status;
+          return readActionFailure(res).then((err) => {
             throw err;
           });
         })
@@ -1817,22 +1740,16 @@
           closeAllActionMenus();
           renderPRBoard();
         })
-        .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveDependabotActionLockReason(
-            item.forge,
-            err.status,
-          );
-          dependabotActionState[key] = lockReason
-            ? { phase: "locked", reason: lockReason }
-            : { phase: "idle" };
-          if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          failAction(
+        .catch((err: ActionRequestError) => {
+          renderActionRefusal(
+            item,
+            err,
             fkey,
             `ask Dependabot to ${action}`,
-            err.message,
-            !lockReason,
+            (next) => {
+              dependabotActionState[key] = next;
+            },
           );
-          renderPRBoard();
         });
     }
 
@@ -2092,21 +2009,6 @@
       reconcilePRs();
     }
 
-    // Same 403/429 handling as reactiveDependabotActionLockReason; 404
-    // reads as the configured label not existing on this repo (Forgejo
-    // requires the label to already exist) rather than the pull request
-    // itself being missing.
-    function reactiveRenovateRebaseLockReason(
-      forge: string,
-
-      status: number | undefined,
-    ): string | null {
-      if (status === 403) return PERMISSION_REASON;
-      if (status === 429) return rateLimitedReason(forge);
-      if (status === 404) return "Rebase label doesn't exist on this repo.";
-      return null;
-    }
-
     function doRenovateRebase(
       item: PullRequestItem,
       button: HTMLButtonElement,
@@ -2147,11 +2049,7 @@
             throw new Error("session expired");
           }
           if (res.status === 204) return null;
-          return res.json().then((body) => {
-            const err: Error & { status?: number } = new Error(
-              body?.error || `backend answered ${res.status}`,
-            );
-            err.status = res.status;
+          return readActionFailure(res).then((err) => {
             throw err;
           });
         })
@@ -2167,17 +2065,16 @@
           closeAllActionMenus();
           renderPRBoard();
         })
-        .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveRenovateRebaseLockReason(
-            item.forge,
-            err.status,
+        .catch((err: ActionRequestError) => {
+          renderActionRefusal(
+            item,
+            err,
+            fkey,
+            "ask Renovate to rebase",
+            (next) => {
+              renovateRebaseState[key] = next;
+            },
           );
-          renovateRebaseState[key] = lockReason
-            ? { phase: "locked", reason: lockReason }
-            : { phase: "idle" };
-          if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          failAction(fkey, "ask Renovate to rebase", err.message, !lockReason);
-          renderPRBoard();
         });
     }
 

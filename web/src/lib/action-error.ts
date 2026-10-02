@@ -1,8 +1,9 @@
 // The structured answer a refused pull request action carries
 // (components.schemas.ActionError). The server decides why an action was
 // refused by re-reading the pull request; this file only turns that answer
-// into what the row, the toast and the row's state show. Written for every
-// action, not just Merge, so the others can adopt it without a second copy.
+// into what the row, the toast and the row's state show. Every pull request
+// action (Merge, Close, Update branch, Enable auto-merge, the Dependabot and
+// Renovate rebases) renders its failures through here.
 
 import type { ActionRef, FeedbackStore } from './feedback';
 import { PERMISSION_REASON } from './rate-limit';
@@ -16,6 +17,10 @@ export type ActionCode =
   | 'checks_pending'
   | 'checks_failing'
   | 'blocked_by_protection'
+  | 'already_up_to_date'
+  | 'auto_merge_not_allowed'
+  | 'ready_to_merge'
+  | 'label_missing'
   | 'permission'
   | 'rate_limited'
   | 'unknown';
@@ -51,6 +56,10 @@ const CODES: ReadonlySet<string> = new Set<ActionCode>([
   'checks_pending',
   'checks_failing',
   'blocked_by_protection',
+  'already_up_to_date',
+  'auto_merge_not_allowed',
+  'ready_to_merge',
+  'label_missing',
   'permission',
   'rate_limited',
   'unknown',
@@ -88,11 +97,18 @@ export async function readActionFailure(
 // What a refusal means for the row. rateLimitedReason builds the sentence
 // for a rate limit: it gets the server's resetsAt when there was one, and
 // can fall back to the budget the last snapshot showed when there wasn't.
+//
+// retryable names the codes an action treats as passing by themselves, so
+// the row keeps its button and offers Retry instead of locking. Rate limit
+// and permission never are: they lock, with no Retry (#732, #734).
 export function interpretActionFailure(
   err: ActionRequestError,
   rateLimitedReason: (resetsAt: string | undefined) => string,
+  retryable: ReadonlySet<ActionCode> = new Set(),
 ): ActionOutcome {
   const code = err.code ?? 'unknown';
+  if (retryable.has(code) && code !== 'permission' && code !== 'rate_limited')
+    return { kind: 'failed', reason: err.message };
   switch (code) {
     case 'already_merged':
       return { kind: 'settled', state: 'merged', message: 'Already merged.' };

@@ -413,6 +413,8 @@ test.describe('pull request close button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           error: 'github: PATCH .../pulls/42: Forbidden',
+          code: 'permission',
+          message: 'Missing permission — check your token in Settings.',
         }),
       }),
     );
@@ -437,7 +439,12 @@ test.describe('pull request close button', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
       }),
     );
     await page.reload();
@@ -461,7 +468,12 @@ test.describe('pull request close button', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
       }),
     );
     await page.reload();

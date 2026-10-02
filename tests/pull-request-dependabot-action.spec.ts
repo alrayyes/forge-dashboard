@@ -278,6 +278,8 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           error: 'github: POST .../comments: Forbidden',
+          code: 'permission',
+          message: 'Missing permission — check your token in Settings.',
         }),
       }),
     );
@@ -309,7 +311,11 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
           return route.fulfill({
             status: 403,
             contentType: 'application/json',
-            body: JSON.stringify({ error: 'Forbidden' }),
+            body: JSON.stringify({
+              error: 'Forbidden',
+              code: 'permission',
+              message: 'Missing permission — check your token in Settings.',
+            }),
           });
         }
         return route.fulfill({ status: 204 });
@@ -339,7 +345,12 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
       }),
     );
     await page.reload();
@@ -439,7 +450,12 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
       }),
     );
     await page.reload();
