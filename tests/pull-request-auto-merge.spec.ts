@@ -228,7 +228,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Enable auto-merge' }).click();
 
-    const banner = page.locator('#error-banner');
+    const banner = page.locator(
+      '#feedback-toasts .feedback-toast[data-kind="error"]',
+    );
     await expect(banner).toContainText('already ready to merge');
     await expect(banner).not.toContainText('graphql');
   });
@@ -325,14 +327,17 @@ test.describe('pull request Enable auto-merge action', () => {
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Enable auto-merge' }).click();
 
-    const status = page.locator('#status-banner');
-    await expect(status).toContainText(
-      'Enabling auto-merge for alrayyes/forge-dashboard#42…',
+    await expect(row.locator('.row-feedback')).toContainText(
+      'Enabling auto-merge…',
     );
-    await expect(status).toHaveAttribute('aria-live', 'polite');
-    await expect(status).toContainText(
-      'Enabled auto-merge for alrayyes/forge-dashboard#42.',
+    await expect(page.locator('#feedback-live')).toHaveAttribute(
+      'aria-live',
+      'polite',
     );
+    const toast = page.locator('#feedback-toasts .feedback-toast').first();
+    await expect(toast).toContainText('alrayyes/forge-dashboard#42');
+    await expect(toast).toContainText('Auto-merge enabled.');
+    await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
   test('a transient failure shows an error and re-enables the button for another try', async ({
@@ -356,7 +361,8 @@ test.describe('pull request Enable auto-merge action', () => {
     const button = row.getByRole('button', { name: 'Enable auto-merge' });
     await button.click();
 
-    await expect(page.locator('#error-banner')).toContainText('not allowed');
+    await expect(page.locator('#feedback-toasts')).toContainText('not allowed');
+    await expect(page.locator('#error-banner')).toHaveCount(0);
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
@@ -393,7 +399,9 @@ test.describe('pull request Enable auto-merge action', () => {
     const button = row.getByRole('button', { name: 'Enable auto-merge' });
     await button.click();
 
-    const banner = page.locator('#error-banner');
+    const banner = page.locator(
+      '#feedback-toasts .feedback-toast[data-kind="error"]',
+    );
     await expect(banner).toContainText(
       'a non-required check is still running or has failed',
     );

@@ -303,14 +303,15 @@ test.describe('pull request update-branch button', () => {
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
 
-    const status = page.locator('#status-banner');
-    await expect(status).toContainText(
-      'Branch update requested for alrayyes/forge-dashboard#42.',
+    const toasts = page.locator('#feedback-toasts');
+    await expect(toasts).toContainText('alrayyes/forge-dashboard#42');
+    await expect(toasts).toContainText('Branch update requested.');
+    await expect(page.locator('#feedback-live')).toHaveAttribute(
+      'aria-live',
+      'polite',
     );
-    await expect(status).toHaveAttribute('aria-live', 'polite');
-    await expect(status).toContainText(
-      'Updated the branch for alrayyes/forge-dashboard#42.',
-    );
+    await expect(toasts).toContainText('Branch updated.');
+    await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
   test('a 202 (scheduled as a background job) is treated as success, not a failure', async ({
@@ -414,9 +415,10 @@ test.describe('pull request update-branch button', () => {
     await expect(
       row.getByRole('button', { name: 'Update branch' }),
     ).toHaveCount(0);
-    await expect(page.locator('#status-banner')).toContainText(
-      'Updated the branch for alrayyes/forge-dashboard#42.',
+    await expect(page.locator('#feedback-toasts')).toContainText(
+      'Branch updated.',
     );
+    await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
   test('a transient failure shows an error and returns to a re-clickable button', async ({
@@ -436,14 +438,18 @@ test.describe('pull request update-branch button', () => {
     const button = row.getByRole('button', { name: 'Update branch' });
     await button.click();
 
-    await expect(page.locator('#error-banner')).toContainText('EOF');
+    await expect(
+      page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
+    ).toContainText('EOF');
+    await expect(row.locator('.row-feedback')).toContainText('Failed');
+    await expect(page.locator('#error-banner')).toHaveCount(0);
     await expect(page.locator('#status-banner')).toHaveCount(0);
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('a permission-denied failure locks the button with a real Retry, not a dead end', async ({
+  test('a permission-denied failure locks the button with no Retry and points to Settings', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -461,10 +467,13 @@ test.describe('pull request update-branch button', () => {
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
 
-    const button = row.getByRole('button', { name: 'Retry' }).first();
-    await expect(button).toBeVisible();
-    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/permission/i);
+    const button = row.getByRole('button', {
+      name: 'Update branch',
+      exact: true,
+    });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    await expect(button).toHaveAccessibleDescription(/token in Settings/);
   });
 
   // #532: a Retry button shared .row-action-locked's plain grey/
@@ -477,10 +486,10 @@ test.describe('pull request update-branch button', () => {
     await mockDashboard(page, makePR());
     await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
-        status: 403,
+        status: 409,
         contentType: 'application/json',
         body: JSON.stringify({
-          error: 'github: PUT .../update-branch: Forbidden',
+          error: 'github: PUT .../update-branch: Merge conflict',
         }),
       }),
     );
@@ -516,7 +525,7 @@ test.describe('pull request update-branch button', () => {
     await expect(row).toContainText(/can't update cleanly/i);
   });
 
-  test('a rate-limited (429) failure locks the button with a real Retry', async ({
+  test('a rate-limited (429) failure locks the button with no Retry and says when it resets', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -532,10 +541,13 @@ test.describe('pull request update-branch button', () => {
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
 
-    const button = row.getByRole('button', { name: 'Retry' });
-    await expect(button).toBeVisible();
-    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/rate limit/i);
+    const button = row.getByRole('button', {
+      name: 'Update branch',
+      exact: true,
+    });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    await expect(button).toHaveAccessibleDescription(/rate limit reached/i);
   });
 
   test('clicking Retry re-fetches the dashboard, and a stale lock clears once the fresh data no longer justifies it', async ({
@@ -543,14 +555,17 @@ test.describe('pull request update-branch button', () => {
   }) => {
     // The actual bug (#351): updateBranchState used to latch 'locked'
     // forever — only a full page reload cleared it, even after a real
-    // refresh brought back data that no longer justified the lock.
+    // refresh brought back data that no longer justified the lock. (A 409
+    // here: a rate limit no longer offers Retry, #732.)
     const pr = makePR();
     await mockDashboard(page, pr);
     await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
-        status: 429,
+        status: 409,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: PUT .../update-branch: Merge conflict',
+        }),
       }),
     );
     await page.reload();
@@ -610,8 +625,11 @@ test.describe('pull request update-branch button', () => {
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
 
-    const button = row.getByRole('button', { name: 'Retry' });
-    await expect(button).toBeVisible();
+    const button = row.getByRole('button', {
+      name: 'Update branch',
+      exact: true,
+    });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
     await button.focus();
     await expect(button).toBeFocused();
 
@@ -749,9 +767,15 @@ test.describe('pull request update-branch button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', { name: 'Retry' }).first();
-      await expect(button).toBeVisible();
-      await expect(row).toContainText(/rate limit exhausted/i);
+      const button = row.getByRole('button', {
+        name: 'Update branch',
+        exact: true,
+      });
+      await expect(button).toHaveAttribute('aria-disabled', 'true');
+      await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+      await expect(button).toHaveAccessibleDescription(
+        /GitHub API rate limit reached\. Actions resume at/,
+      );
     });
 
     // Merge and Update branch share the same forge-wide permission memory
@@ -790,15 +814,19 @@ test.describe('pull request update-branch button', () => {
       await rows.nth(0).getByRole('button', { name: 'Merge' }).click();
       await rows.nth(0).getByRole('button', { name: 'Confirm merge?' }).click();
       await expect(
-        rows.nth(0).getByRole('button', { name: 'Retry' }).first(),
-      ).toBeVisible();
+        rows.nth(0).getByRole('button', { name: 'Merge', exact: true }),
+      ).toHaveAttribute('aria-disabled', 'true');
 
       const updateBranchButton = rows
         .nth(1)
-        .getByRole('button', { name: 'Retry' })
-        .first();
-      await expect(updateBranchButton).toBeVisible();
-      await expect(rows.nth(1)).toContainText(/permission/i);
+        .getByRole('button', { name: 'Update branch', exact: true });
+      await expect(updateBranchButton).toHaveAttribute('aria-disabled', 'true');
+      await expect(
+        rows.nth(1).getByRole('button', { name: 'Retry' }),
+      ).toHaveCount(0);
+      await expect(updateBranchButton).toHaveAccessibleDescription(
+        /token in Settings/,
+      );
     });
   });
 });

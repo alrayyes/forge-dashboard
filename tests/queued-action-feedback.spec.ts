@@ -9,10 +9,11 @@ import {
 } from '@playwright/test';
 import { registerViaInvite } from './register-helper';
 
-// #680: Update branch, Dependabot rebase and Renovate rebase all answer
-// with "Queued…" the instant they're clicked, hold that state until the
-// next refresh (or a failure), and say so in the top status banner with a
-// countdown to the next poll.
+// #680, #714: Update branch, Dependabot rebase and Renovate rebase all
+// answer with "Queued…" the instant they're clicked and hold that state
+// until the next refresh (or a failure). The row says so in its own inline
+// status line, with a countdown to the next poll; a toast and the
+// Activity panel carry the same events. The top banner is not used.
 
 async function registerAndSignIn(
   page: Page,
@@ -89,10 +90,14 @@ async function openMoreActions(row: Locator) {
 
 const COUNTDOWN = /next refresh in (\d+)s/;
 
+const inline = (page: Page) =>
+  page.locator('#pr-rows .row').first().locator('.row-feedback');
+
 async function countdownSeconds(page: Page): Promise<number> {
-  const text = (await page.locator('#status-banner').textContent()) ?? '';
+  const text =
+    (await inline(page).locator('.feedback-countdown').textContent()) ?? '';
   const seconds = COUNTDOWN.exec(text)?.[1];
-  expect(seconds, `no countdown in banner: ${text}`).toBeDefined();
+  expect(seconds, `no countdown on the row: ${text}`).toBeDefined();
   return Number(seconds);
 }
 
@@ -102,7 +107,12 @@ interface Scenario {
   endpoint: string;
   openMenu: boolean;
   button: string;
-  banner: string;
+  // The row's inline status.
+  waiting: string;
+  // The toast sentence, without the reference the toast shows itself.
+  toast: string;
+  // What the live region says, once.
+  announced: string;
   failure: string;
 }
 
@@ -113,8 +123,10 @@ const scenarios: Scenario[] = [
     endpoint: '**/api/pull-requests/update-branch',
     openMenu: false,
     button: 'Update branch',
-    banner: 'Branch update requested for alrayyes/forge-dashboard#42.',
-    failure: "Couldn't update the branch for alrayyes/forge-dashboard#42",
+    waiting: 'Queued',
+    toast: 'Branch update requested.',
+    announced: 'Branch update requested. Awaiting the next refresh.',
+    failure: "Couldn't update the branch: upstream broke",
   },
   {
     name: 'Dependabot rebase',
@@ -122,8 +134,10 @@ const scenarios: Scenario[] = [
     endpoint: '**/api/pull-requests/dependabot-action',
     openMenu: true,
     button: 'Dependabot: Rebase',
-    banner: 'Dependabot rebase requested for alrayyes/forge-dashboard#42.',
-    failure: "Couldn't ask Dependabot to rebase alrayyes/forge-dashboard#42",
+    waiting: 'Waiting for Dependabot',
+    toast: 'Dependabot rebase requested.',
+    announced: 'Dependabot rebase requested. Awaiting the next refresh.',
+    failure: "Couldn't ask Dependabot to rebase: upstream broke",
   },
   {
     name: 'Renovate rebase',
@@ -131,8 +145,10 @@ const scenarios: Scenario[] = [
     endpoint: '**/api/pull-requests/renovate-rebase',
     openMenu: true,
     button: 'Renovate: Rebase',
-    banner: 'Renovate rebase requested for alrayyes/forge-dashboard#42.',
-    failure: "Couldn't ask Renovate to rebase alrayyes/forge-dashboard#42",
+    waiting: 'Waiting for Renovate',
+    toast: 'Renovate rebase requested.',
+    announced: 'Renovate rebase requested. Awaiting the next refresh.',
+    failure: "Couldn't ask Renovate to rebase: upstream broke",
   },
 ];
 
@@ -193,17 +209,18 @@ for (const s of scenarios) {
       expect(hits()).toBe(1);
     });
 
-    test('the status banner says the action was requested and counts down to the real next poll', async ({
+    test('the row says the action is waiting and counts down to the real next poll, with no banner', async ({
       page,
     }) => {
       const { row } = await prepare(page);
       await row.getByRole('button', { name: s.button }).click();
 
-      const banner = page.locator('#status-banner');
-      await expect(banner).toContainText(s.banner);
-      await expect(banner).toContainText('Awaiting the next refresh');
-      await expect(banner).toHaveAttribute('aria-live', 'polite');
-      await expect(banner).toContainText(COUNTDOWN);
+      const line = inline(page);
+      await expect(line).toContainText(s.waiting);
+      await expect(line).toContainText('Awaiting the next refresh');
+      await expect(line).toContainText(COUNTDOWN);
+      await expect(page.locator('#status-banner')).toHaveCount(0);
+      await expect(page.locator('#error-banner')).toHaveCount(0);
 
       // Derived from the 30s poll cadence, never a hard-coded number.
       const first = await countdownSeconds(page);
@@ -213,20 +230,41 @@ for (const s of scenarios) {
       expect(await countdownSeconds(page)).toBeLessThan(first);
     });
 
+    test('a toast confirms the request and Activity lists it as queued', async ({
+      page,
+    }) => {
+      const { row } = await prepare(page);
+      await row.getByRole('button', { name: s.button }).click();
+
+      const toast = page.locator('#feedback-toasts .feedback-toast').first();
+      await expect(toast).toContainText('alrayyes/forge-dashboard#42');
+      await expect(toast).toContainText(s.toast);
+      await page.locator('#activity-toggle').click();
+      const item = page.locator('#activity-panel .activity-item').first();
+      await expect(item).toContainText('Queued');
+      await expect(item).toContainText(s.toast);
+    });
+
     test('the countdown is outside the live region, so it does not chatter', async ({
       page,
     }) => {
       const { row } = await prepare(page);
       await row.getByRole('button', { name: s.button }).click();
 
-      const countdown = page.locator('#status-banner .status-countdown');
+      const countdown = inline(page).locator('.feedback-countdown');
       await expect(countdown).toHaveAttribute('aria-hidden', 'true');
-      // The announced text is stable: no digits that change each second.
-      const announced = page.locator('#status-banner .status-message');
-      await expect(announced).toHaveText(
-        new RegExp(`^${s.banner.replace(/[#.]/g, '\\$&')}`),
+      // The announced text is stable: said once, no digits that change
+      // each second.
+      const live = page.locator('#feedback-live');
+      await expect(live).toHaveText(
+        `alrayyes/forge-dashboard#42: ${s.announced}`,
       );
-      await expect(announced).not.toContainText(/\d+s/);
+      await page.waitForTimeout(2200);
+      await expect(live).toHaveText(
+        `alrayyes/forge-dashboard#42: ${s.announced}`,
+      );
+      await expect(live).not.toContainText(/\d+s/);
+      await expect(live.locator('.feedback-countdown')).toHaveCount(0);
     });
 
     test('the queued state survives the re-render that follows the request completing', async ({
@@ -244,14 +282,14 @@ for (const s of scenarios) {
       await expect(
         fresh.getByRole('button', { name: 'Queued…' }),
       ).toBeDisabled();
-      await expect(page.locator('#status-banner')).toContainText(COUNTDOWN);
+      await expect(inline(page)).toContainText(COUNTDOWN);
     });
 
     // #706: the banner used to vanish about a second after the click,
     // because any snapshot (the live stream pushes one constantly)
     // cleared a queued bot rebase. It has to hold until a snapshot that
     // actually reflects the action lands.
-    test('the banner survives well past a second and an unrelated stream push', async ({
+    test('the inline line survives well past a second and an unrelated stream push', async ({
       page,
     }) => {
       await page.addInitScript(() => {
@@ -270,12 +308,12 @@ for (const s of scenarios) {
       });
       const { row } = await prepare(page);
       await row.getByRole('button', { name: s.button }).click();
-      const banner = page.locator('#status-banner');
-      await expect(banner).toContainText(COUNTDOWN);
+      const line = inline(page);
+      await expect(line).toContainText(COUNTDOWN);
 
       await page.waitForTimeout(3200);
-      await expect(banner).toContainText(s.banner);
-      await expect(banner).toContainText(COUNTDOWN);
+      await expect(line).toContainText(s.waiting);
+      await expect(line).toContainText(COUNTDOWN);
 
       // A snapshot that doesn't change this pull request's state.
       await page.evaluate(
@@ -287,8 +325,11 @@ for (const s of scenarios) {
         JSON.stringify(snapshot(s.pr)),
       );
       await page.waitForTimeout(1500);
-      await expect(banner).toContainText(s.banner);
-      await expect(banner).toContainText(COUNTDOWN);
+      await expect(line).toContainText(s.waiting);
+      await expect(line).toContainText(COUNTDOWN);
+      await expect(
+        page.locator('#feedback-toasts .feedback-toast'),
+      ).toHaveCount(1);
       const fresh = page.locator('#pr-rows .row').first();
       if (s.openMenu) await openMoreActions(fresh);
       await expect(
@@ -296,7 +337,7 @@ for (const s of scenarios) {
       ).toBeDisabled();
     });
 
-    test('the banner says Refreshing… rather than vanishing when the countdown hits zero', async ({
+    test('the row says Refreshing… rather than vanishing when the countdown hits zero', async ({
       page,
     }) => {
       await page.addInitScript(() => {
@@ -307,27 +348,32 @@ for (const s of scenarios) {
       });
       const { row } = await prepare(page);
       await row.getByRole('button', { name: s.button }).click();
-      const banner = page.locator('#status-banner');
-      await expect(banner).toContainText(COUNTDOWN);
+      const line = inline(page);
+      await expect(line).toContainText(COUNTDOWN);
 
       await page.evaluate(() => {
         (window as unknown as { __skew: number }).__skew = 60_000;
       });
-      await expect(banner).toContainText('Refreshing…');
-      await expect(banner).toContainText(s.banner);
-      await expect(banner).not.toContainText(COUNTDOWN);
+      await expect(line).toContainText('Refreshing…');
+      await expect(line).toContainText(s.waiting);
+      await expect(line).not.toContainText(COUNTDOWN);
     });
 
-    test('a failure re-enables the button and shows the error banner', async ({
+    test('a failure re-enables the button, fails the row line and raises an error toast', async ({
       page,
     }) => {
       const { row } = await prepare(page, 502);
       await row.getByRole('button', { name: s.button }).click();
       await expect(row.getByRole('button', { name: 'Queued…' })).toBeVisible();
 
-      const error = page.locator('#error-banner');
-      await expect(error).toContainText(s.failure);
-      await expect(error).toContainText('upstream broke');
+      const toast = page.locator('#feedback-toasts .feedback-toast').first();
+      await expect(toast).toContainText(s.failure);
+      await expect(toast).toContainText('alrayyes/forge-dashboard#42');
+      const line = inline(page);
+      await expect(line).toContainText('Failed');
+      await expect(line).toContainText('upstream broke');
+      await expect(line).not.toContainText(COUNTDOWN);
+      await expect(page.locator('#error-banner')).toHaveCount(0);
       await expect(page.locator('#status-banner')).toHaveCount(0);
       await expect(row.getByRole('button', { name: 'Queued…' })).toHaveCount(0);
       await expect(row.getByRole('button', { name: s.button })).toBeEnabled();
@@ -336,7 +382,8 @@ for (const s of scenarios) {
     test('has no axe violations while queued', async ({ page }) => {
       const { row } = await prepare(page);
       await row.getByRole('button', { name: s.button }).click();
-      await expect(page.locator('#status-banner')).toContainText(COUNTDOWN);
+      await expect(inline(page)).toContainText(COUNTDOWN);
+      await page.locator('#activity-toggle').click();
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -382,18 +429,79 @@ test.describe('queued state: bot rebases clear on the next refresh', () => {
 
     // The request is done, but nothing has refreshed yet.
     await page.waitForTimeout(500);
-    await expect(page.locator('#status-banner')).toContainText(COUNTDOWN);
+    await expect(row.locator('.row-feedback')).toContainText(COUNTDOWN);
     await openMoreActions(row).catch(() => undefined);
     await expect(row.getByRole('button', { name: 'Queued…' })).toBeDisabled();
 
     await page.click('#force-refresh-button');
 
-    await expect(page.locator('#status-banner')).toHaveCount(0);
+    await expect(row.locator('.row-feedback')).toHaveCount(0);
+    await expect(
+      page.locator('#feedback-toasts .feedback-toast').first(),
+    ).toContainText('Renovate rebase finished.');
     await openMoreActions(page.locator('#pr-rows .row').first()).catch(
       () => undefined,
     );
     await expect(
       page.getByRole('button', { name: 'Renovate: Rebase' }),
+    ).toBeEnabled();
+  });
+
+  // #711: a bot that never acts must not pin the button disabled for good.
+  test('a bot rebase nobody picked up expires after five minutes with an error toast', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __skew: number };
+      w.__skew = 0;
+      const real = Date.now.bind(Date);
+      Date.now = () => real() + w.__skew;
+    });
+    const pr = makePR({ author: 'renovate[bot]', behind: true });
+    await mockDashboard(page, pr);
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
+      route.fulfill({ status: 204 }),
+    );
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        // Still behind: the bot did nothing.
+        body: JSON.stringify(snapshot(pr)),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
+    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    await expect(row.locator('.row-feedback')).toContainText(COUNTDOWN);
+
+    // Four minutes in, still waiting.
+    await page.evaluate(() => {
+      (window as unknown as { __skew: number }).__skew = 4 * 60_000;
+    });
+    await page.click('#force-refresh-button');
+    await expect(row.locator('.row-feedback')).toContainText(
+      'Waiting for Renovate',
+    );
+
+    await page.evaluate(() => {
+      (window as unknown as { __skew: number }).__skew = 5 * 60_000 + 5_000;
+    });
+    await page.waitForTimeout(5200);
+    await page.click('#force-refresh-button');
+
+    const line = page.locator('#pr-rows .row').first().locator('.row-feedback');
+    await expect(line).toContainText('Timed out');
+    await expect(line.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(
+      page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
+    ).toContainText("Renovate hasn't acted");
+    const fresh = page.locator('#pr-rows .row').first();
+    await openMoreActions(fresh);
+    await expect(
+      fresh.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toBeEnabled();
   });
 });

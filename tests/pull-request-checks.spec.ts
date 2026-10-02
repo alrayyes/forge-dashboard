@@ -515,7 +515,8 @@ test.describe('pull request pipeline checks panel', () => {
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(dialog).toContainText(/unreachable/i);
-    await expect(page.locator('#error-banner')).toContainText(/unreachable/i);
+    // The dialog carries the error; the top banner is for global conditions.
+    await expect(page.locator('#error-banner')).toHaveCount(0);
 
     await dialog.getByRole('button', { name: 'Retry' }).click();
     await expect(dialog.locator('.pipeline-check')).toHaveCount(1);
