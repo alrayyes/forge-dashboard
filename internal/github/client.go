@@ -2312,7 +2312,18 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	if sha == "" {
 		return nil, nil
 	}
+	checks, err := c.listChecksForSHA(ctx, owner, name, sha)
+	if err != nil {
+		return nil, err
+	}
+	c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
 
+	return checks, nil
+}
+
+// listChecksForSHA is ListChecks' per-commit half: the check runs, or the
+// legacy commit statuses when the commit has no check runs at all.
+func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) ([]dashboard.Check, error) {
 	checkRunsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
 	slog.Debug("github request", "method", http.MethodGet, "url", checkRunsPath)
 	runs, runsResp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{
@@ -2356,6 +2367,88 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	}
 
 	return checks, nil
+}
+
+// markRequired sets Check.Required from the base branch's protection.
+// Two places can require a check on GitHub, and a classic branch
+// protection rule isn't visible through the rules API (nor the reverse),
+// so both are read: required_status_checks under branch protection
+// (needs admin; 404 "Branch not protected" is a real "none") and the
+// active rulesets' required_status_checks rule (readable with read
+// access). A listed check is required. An unlisted one is advisory only
+// when both lookups answered; otherwise it stays unknown (nil), because
+// the unreadable source might be the one that requires it. Failures here
+// never fail the checks list itself.
+func (c *Client) markRequired(ctx context.Context, owner, name, base string, checks []dashboard.Check) {
+	if base == "" || len(checks) == 0 {
+		return
+	}
+	required := map[string]bool{}
+	protKnown := c.protectionContexts(ctx, owner, name, base, required)
+	rulesKnown := c.rulesetContexts(ctx, owner, name, base, required)
+
+	for i := range checks {
+		switch {
+		case required[checks[i].Name]:
+			checks[i].Required = new(true)
+		case protKnown && rulesKnown:
+			checks[i].Required = new(false)
+		}
+	}
+}
+
+// protectionContexts adds the classic branch protection rule's required
+// contexts to required, and reports whether the lookup gave a real answer.
+func (c *Client) protectionContexts(ctx context.Context, owner, name, base string, required map[string]bool) bool {
+	path := fmt.Sprintf("/repos/%s/%s/branches/%s/protection/required_status_checks", owner, name, base)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	prot, resp, err := c.restClient.Repositories.GetRequiredStatusChecks(ctx, owner, name, base)
+	switch {
+	case err == nil:
+		c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+		if prot.Contexts != nil {
+			for _, ctxName := range *prot.Contexts {
+				required[ctxName] = true
+			}
+		}
+		if prot.Checks != nil {
+			for _, rc := range *prot.Checks {
+				required[rc.Context] = true
+			}
+		}
+
+		return true
+	// GitHub answers a 404 "Branch not protected" for a branch with no
+	// classic rule; go-github maps it to ErrBranchNotProtected. An
+	// insufficient token gets a plain 403/404 instead.
+	case errors.Is(err, ghsdk.ErrBranchNotProtected):
+		return true
+	default:
+		slog.Debug("github branch protection unreadable, required stays unknown", "repo", owner+"/"+name, "branch", base, "error", err)
+
+		return false
+	}
+}
+
+// rulesetContexts adds the active rulesets' required_status_checks to
+// required, and reports whether the lookup gave a real answer.
+func (c *Client) rulesetContexts(ctx context.Context, owner, name, base string, required map[string]bool) bool {
+	path := fmt.Sprintf("/repos/%s/%s/rules/branches/%s", owner, name, base)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	rules, resp, err := c.restClient.Repositories.GetRulesForBranch(ctx, owner, name, base, nil)
+	if err != nil {
+		slog.Debug("github rulesets unreadable, required stays unknown", "repo", owner+"/"+name, "branch", base, "error", err)
+
+		return false
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+	for _, rule := range rules.RequiredStatusChecks {
+		for _, rc := range rule.Parameters.RequiredStatusChecks {
+			required[rc.Context] = true
+		}
+	}
+
+	return true
 }
 
 // checkStateFromRun maps one check run's status/conclusion pair to a

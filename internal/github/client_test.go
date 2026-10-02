@@ -2665,3 +2665,120 @@ func TestFetch_ReviewFieldsAbsentMeansUnknown(t *testing.T) {
 	require.Len(t, result.PullRequests, 1)
 	assert.Nil(t, result.PullRequests[0].Review)
 }
+
+// requiredChecksServer serves one PR (base branch main) with three check
+// runs, plus whatever protection/rules handlers the caller adds.
+func requiredChecksServer(t *testing.T, extra func(mux *http.ServeMux)) *github.Client {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"ref": "main"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "build", "status": "completed", "conclusion": "success"},
+			{"name": "lint", "status": "completed", "conclusion": "failure"},
+			{"name": "codecov", "status": "completed", "conclusion": "success"},
+		}})
+	})
+	extra(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return github.NewClient("test-token", "", srv.URL)
+}
+
+func requiredOf(checks []dashboard.Check) map[string]string {
+	out := map[string]string{}
+	for _, c := range checks {
+		switch {
+		case c.Required == nil:
+			out[c.Name] = "unknown"
+		case *c.Required:
+			out[c.Name] = "required"
+		default:
+			out[c.Name] = "advisory"
+		}
+	}
+
+	return out
+}
+
+func TestListChecks_BranchProtectionRequiredChecks_SplitRequiredFromAdvisory(t *testing.T) {
+	t.Parallel()
+
+	client := requiredChecksServer(t, func(mux *http.ServeMux) {
+		mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, map[string]any{"strict": true, "contexts": []string{"build"}, "checks": []map[string]any{{"context": "build", "app_id": 15368}}})
+		})
+		mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, []map[string]any{})
+		})
+	})
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"build": "required", "lint": "advisory", "codecov": "advisory"}, requiredOf(checks))
+}
+
+func TestListChecks_RulesetRequiredStatusChecks_CountAsRequired(t *testing.T) {
+	t.Parallel()
+
+	client := requiredChecksServer(t, func(mux *http.ServeMux) {
+		mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			writeJSON(t, w, map[string]string{"message": "Branch not protected"})
+		})
+		mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, []map[string]any{{
+				"type":       "required_status_checks",
+				"parameters": map[string]any{"strict_required_status_checks_policy": false, "required_status_checks": []map[string]any{{"context": "lint"}}},
+			}})
+		})
+	})
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"build": "advisory", "lint": "required", "codecov": "advisory"}, requiredOf(checks))
+}
+
+func TestListChecks_ProtectionUnreadable_RequiredStaysUnknownUnlessARuleSaysSo(t *testing.T) {
+	t.Parallel()
+
+	client := requiredChecksServer(t, func(mux *http.ServeMux) {
+		mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			writeJSON(t, w, map[string]string{"message": "Resource not accessible by personal access token"})
+		})
+		mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, []map[string]any{{
+				"type":       "required_status_checks",
+				"parameters": map[string]any{"required_status_checks": []map[string]any{{"context": "build"}}},
+			}})
+		})
+	})
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	// build is known required from the ruleset; the others could still be
+	// required by a protection rule this token can't read, so never guess.
+	assert.Equal(t, map[string]string{"build": "required", "lint": "unknown", "codecov": "unknown"}, requiredOf(checks))
+}
+
+func TestListChecks_NoProtectionLookupSucceeds_RequiredIsAbsentFromJSON(t *testing.T) {
+	t.Parallel()
+
+	client := requiredChecksServer(t, func(*http.ServeMux) {})
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 3)
+	body, err := json.Marshal(checks[0])
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), "required")
+}

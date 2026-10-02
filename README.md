@@ -386,6 +386,19 @@ dashboard refresh. Falls back to the legacy combined commit-status
 API's own per-check entries when a repo (or an older Forgejo instance)
 reports no Actions/Workflow runs at all for that commit.
 
+When the forge says which checks the base branch's protection requires,
+the panel groups them: a `Required` group first, with a failing required
+check flagged `Blocking`, then `Advisory`. GitHub's classic required
+status checks and its rulesets are both read, and Forgejo's
+`status_check_contexts` patterns. Reading branch protection needs more
+permission than listing checks (admin on GitHub's classic rules and on
+Forgejo), so with a token that can't, or for a check the dashboard can't
+match to a protection entry, the check lands under `Status unknown`
+rather than being guessed advisory. A Forgejo Actions job is only marked
+required when a pattern matches its job name or its workflow-file
+context; it is never marked advisory. If nothing is known for any check,
+the panel stays the flat list.
+
 ## Webhooks
 
 Optional. Without one, the dashboard still refreshes on its own schedule
