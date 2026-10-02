@@ -23,3 +23,6 @@ JetBrains Mono, with indigo for GitHub and orange for Forgejo.
   chips, filter pills and a group-by-kind view.
 
 The design is dark only. The app keeps its light theme.
+
+- `dashboard-rate-limit.png`: a rate-limited forge with disabled actions and
+  no Retry, next to a transient error that does offer Try again.
