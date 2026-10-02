@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import * as Filters from "$lib/filters";
+  import type { FilterableItem, SharedFilterState } from "$lib/filters";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, admin-link, logout-button, whoami) —
@@ -70,15 +72,9 @@
     | "locked";
   type ActionState = { phase: ActionPhase; reason?: string };
 
-  onMount(() => {
-    const filtersScript = document.createElement("script");
-    filtersScript.src = "/filters.js";
-    filtersScript.addEventListener("load", initDashboard);
-    document.body.appendChild(filtersScript);
-  });
+  onMount(initDashboard);
 
-  // Everything below only ever runs once filters.js (the global Filters,
-  // shared with Insights) has loaded — a straight TypeScript port of
+  // Everything below only ever runs once the page has mounted — a straight TypeScript port of
   // app.js, kept in its original imperative, DOM-query-driven shape
   // rather than rewritten as reactive Svelte state: this page's own
   // state (per-row merge/update-branch/Dependabot/Renovate action locks,
@@ -96,7 +92,7 @@
       pending: "Running",
       none: "No checks",
     };
-    const FORGE_LABELS = window.Filters.FORGE_LABELS;
+    const FORGE_LABELS = Filters.FORGE_LABELS;
     const FORGE_CLASSES: Record<string, string> = {
       github: "gh",
       forgejo: "fj",
@@ -106,7 +102,7 @@
 
     // ---- formatting ----
     function relativeTime(iso: string): string {
-      const mins = window.Filters.minutesAgo(iso);
+      const mins = Filters.minutesAgo(iso);
       if (mins < 1) return "just now";
       if (mins < 60) return `${mins}m ago`;
       const hours = Math.round(mins / 60);
@@ -2135,7 +2131,7 @@
     // from — both entity types combined, forge-scoped, not just one
     // board's own items, since picking "author: alice" should narrow
     // both boards.
-    const sharedState = window.Filters.loadState();
+    const sharedState = Filters.loadState();
     let allPRs: PullRequestItem[] = [];
     let allIssues: IssueItem[] = [];
     // The latest snapshot's own forges array — mergeActionCell/
@@ -2153,8 +2149,8 @@
     // resolving" happens second, via sharedControlsRestored below — a
     // real server value always wins, but this page never sits idle
     // waiting for it first.
-    window.Filters.loadStateFromServer().then((got) => {
-      if (got) window.Filters.applyServerState(sharedState, got);
+    Filters.loadStateFromServer().then((got) => {
+      if (got) Filters.applyServerState(sharedState, got);
       if (sharedControlsRestored) {
         updateSharedFilterOptions();
         syncSharedControlsToState();
@@ -2179,7 +2175,7 @@
       const shared: Record<string, string> = { ...sharedState.shared };
       if (excludeKey) shared[excludeKey] = "";
       return items.filter((item) =>
-        window.Filters.matchesFilters(item, false, shared, undefined),
+        Filters.matchesFilters(item, false, shared, undefined),
       );
     }
 
@@ -2211,36 +2207,33 @@
     // everything on a value nothing can match, with no visible cause
     // (#112).
     function updateSharedFilterOptions() {
-      const staleRepo = window.Filters.populateRepoSelect(
+      const staleRepo = Filters.populateRepoSelect(
         document.getElementById(
           "shared-repo-select",
         ) as HTMLSelectElement | null,
         sharedPoolExcluding("repo"),
       );
-      const staleAuthor = window.Filters.populateSelect(
+      const staleAuthor = Filters.populateSelect(
         document.getElementById(
           "shared-author-select",
         ) as HTMLSelectElement | null,
-        window.Filters.distinctValues(
+        Filters.distinctValues(
           (item) => item.author,
           sharedPoolExcluding("author"),
         ),
         sharedState.shared.author,
       );
-      window.Filters.populateDatalist(
+      Filters.populateDatalist(
         document.getElementById(
           "shared-title-options",
         ) as HTMLDataListElement | null,
-        window.Filters.distinctValues(
-          (item) => item.title,
-          sharedPoolExcluding(""),
-        ),
+        Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
       );
-      const staleLabel = window.Filters.populateSelect(
+      const staleLabel = Filters.populateSelect(
         document.getElementById(
           "shared-label-select",
         ) as HTMLSelectElement | null,
-        window.Filters.distinctValues(
+        Filters.distinctValues(
           (item) => (item.labels || []).map((l) => l.name),
           sharedPoolExcluding("label"),
         ),
@@ -2251,7 +2244,7 @@
       if (staleAuthor) sharedState.shared.author = "";
       if (staleLabel) sharedState.shared.label = "";
       if (staleRepo || staleAuthor || staleLabel)
-        window.Filters.saveState(sharedState);
+        Filters.saveState(sharedState);
     }
 
     // Restores the shared bar's controls to match the filters just
@@ -2308,7 +2301,7 @@
       sharedState.shared.label = next;
       prBoard.resetPage();
       issueBoard.resetPage();
-      window.Filters.saveState(sharedState);
+      Filters.saveState(sharedState);
       const select = document.getElementById(
         "shared-label-select",
       ) as HTMLSelectElement | null;
@@ -2469,12 +2462,7 @@
         const container = document.getElementById(containerId);
         if (!container) return;
         const visible = state.items.filter((item) =>
-          window.Filters.matchesFilters(
-            item,
-            isPR,
-            sharedState.shared,
-            extraState,
-          ),
+          Filters.matchesFilters(item, isPR, sharedState.shared, extraState),
         );
 
         container.innerHTML = "";
@@ -2559,7 +2547,7 @@
           statusSelect.addEventListener("change", () => {
             extraState.status = statusSelect.value.trim().toLowerCase();
             state.page = 1;
-            window.Filters.saveState(sharedState);
+            Filters.saveState(sharedState);
             render();
           });
         }
@@ -2580,7 +2568,7 @@
           extraState.hideDependencyDashboard =
             hideDependencyDashboardCheckbox.checked ? "1" : "";
           state.page = 1;
-          window.Filters.saveState(sharedState);
+          Filters.saveState(sharedState);
           render();
         });
       }
@@ -2600,7 +2588,7 @@
               const next = extraState.status === value ? "" : value;
               extraState.status = next;
               state.page = 1;
-              window.Filters.saveState(sharedState);
+              Filters.saveState(sharedState);
               render();
               return next;
             }
@@ -2668,7 +2656,7 @@
           // discrete, already-complete pick), so passing col
           // unconditionally is safe — saveState itself only debounces
           // when it's 'title'.
-          window.Filters.saveState(sharedState, col);
+          Filters.saveState(sharedState, col);
           renderBoth();
         };
         c.addEventListener("input", apply);
@@ -2682,7 +2670,7 @@
       sharedState.shared.groupBy = sharedGroupSelect.value || "";
       prBoard.resetPage();
       issueBoard.resetPage();
-      window.Filters.saveState(sharedState);
+      Filters.saveState(sharedState);
       renderBoth();
     });
 
@@ -2746,7 +2734,7 @@
       updateSharedFilterOptions();
       prBoard.resetPage();
       issueBoard.resetPage();
-      window.Filters.saveState(sharedState);
+      Filters.saveState(sharedState);
       renderBoth();
     });
 

@@ -2,7 +2,7 @@
 // Settings page (the only place a user can actually change it, #352).
 //
 // The cookie stays the fast, synchronous, pre-paint local cache —
-// app.html's own <script src="/theme.js"> reads it before first paint,
+// app.html's own inline theme script reads it before first paint,
 // same contract every page already relied on before the header toggle
 // existed. This module owns everything downstream of that: writing the
 // cookie, applying data-theme after the fact, and reconciling the cookie
@@ -92,7 +92,7 @@ export function isThemeSavePending(): boolean {
 
 // Called from every page's root layout on mount. A 401 (not signed in —
 // the login page itself) or any network failure just leaves whatever
-// theme.js already applied from the cookie alone.
+// the inline theme script already applied from the cookie alone.
 export async function syncThemeFromServer(): Promise<void> {
   try {
     const res = await fetch('/api/settings/theme', {

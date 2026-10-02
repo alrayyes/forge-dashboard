@@ -6,7 +6,7 @@
   // rateLimitGraphQL exists on the real ForgeHealth this page reads but
   // is deliberately not modeled here at all, the same restraint that
   // kept this page's own FORGE_LABELS local instead of reaching for the
-  // shared window.Filters one.
+  // shared $lib/filters one.
   type ForgeHealthEntry = { forge: string; rateLimitREST?: RateLimit };
   type Repo = {
     forge: string;
@@ -31,10 +31,9 @@
     both: "Ignore both",
   };
 
-  // Kept local rather than reaching into the shared /filters.js global
-  // (window.Filters.FORGE_LABELS, loaded by the dashboard and Insights
-  // pages) — it's a two-entry map, and duplicating that is cheaper than
-  // depending on that ambient type just for this.
+  // Kept local rather than importing $lib/filters (which the dashboard
+  // and Insights pages use) — it's a two-entry map, and duplicating that
+  // is cheaper than pulling in the whole filter module just for this.
   const FORGE_LABELS: Record<string, string> = {
     github: "GitHub",
     forgejo: "Forgejo",

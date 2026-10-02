@@ -17,7 +17,7 @@ export default defineConfig({
       // build/ here, not straight into ../internal/api/static: that
       // directory also holds hand-maintained static assets this
       // SvelteKit build doesn't own at all (style.css, favicon.svg,
-      // theme.js, filters.js, nav.js, footer.js — see this repo's own
+      // plus anything else static — see this repo's own
       // CONTRIBUTING.md), and scripts/sync-web-build.sh merges this
       // build into it rather than letting the adapter's own
       // directory-clearing behavior touch files it doesn't own.

@@ -5,10 +5,27 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
 		<!-- Synchronous, before first paint, so there's no flash of the
-		     wrong theme — theme.js reads the cookie $lib/theme.ts writes
+		     wrong theme. Reads the forge-board-theme cookie $lib/theme.ts writes
 		     (from Settings, the only place theme is ever set — #352) and
-		     applies it immediately. See theme.js's own header comment. -->
-		<script src="/theme.js"></script>
+		     applies it immediately. A cookie, not localStorage, so it rides
+		     along on every request and survives a login on a fresh tab. Every
+		     authenticated page reconciles it against the server on load
+		     (syncThemeFromServer); this only applies what the cookie has. -->
+		<script>
+			(() => {
+				try {
+					const match = document.cookie.match(
+						/(?:^|; )forge-board-theme=([^;]*)/,
+					);
+					const stored = match ? decodeURIComponent(match[1]) : null;
+					if (stored === "dark" || stored === "light") {
+						document.documentElement.setAttribute("data-theme", stored);
+					}
+				} catch {
+					/* private browsing, etc. */
+				}
+			})();
+		</script>
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link
