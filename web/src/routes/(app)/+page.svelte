@@ -1392,8 +1392,9 @@
     }
 
     // Only rendered when the forge reports this pull request as behind
-    // its base — independent of mergeStatus, so it can show alongside
-    // the merge button rather than instead of it.
+    // its base, so it can show alongside the merge button rather than
+    // instead of it. A conflicting pull request gets it locked, with the
+    // reason, rather than clickable.
     function updateBranchActionCell(item: PullRequestItem): HTMLElement | null {
       if (!item.behind) return null;
       // Already reported empty (its content landed on the base branch
@@ -1411,6 +1412,16 @@
       // fighting its own next run. Dependabot/Renovate get their own
       // dedicated rebase actions instead (see below).
       if (isBotManagedPr(item)) return null;
+
+      // Both forges refuse to update a branch that doesn't merge cleanly,
+      // so a click could only fail (#701). Derived from the snapshot on
+      // every render, not latched in updateBranchState, so the real
+      // button comes back as soon as a refresh stops reporting conflicts.
+      if (item.mergeStatus === "conflicting")
+        return lockedActionButton(
+          "Update branch",
+          "Conflicts need fixing by hand — resolve them on the forge.",
+        );
 
       const key = prKey(item);
       const entry = updateBranchState[key] || { phase: "idle" };
