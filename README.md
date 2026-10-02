@@ -537,8 +537,10 @@ docker run --rm -p 8080:8080 \
 
 The image carries a `HEALTHCHECK` that runs `/forge-dashboard healthcheck`,
 which asks `GET /readyz`. It means "can serve": the database answers and its
-tables exist, and the first dashboard refresh has finished (a forge that
-failed that refresh still counts). Read it with:
+tables exist. Once someone has signed in and a first dashboard refresh has
+finished, it also waits on that, and a forge that failed the refresh still
+counts. A freshly started container has no refresh to wait for, since the
+app only fetches from the forges after a sign-in. Read it with:
 
 ```sh
 docker inspect --format '{{.State.Health.Status}}' <container>
