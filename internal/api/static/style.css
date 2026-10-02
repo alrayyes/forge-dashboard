@@ -1230,6 +1230,17 @@ select.col-filter {
   background: var(--neutral);
 }
 
+/* #707: a bot rebase the bot has picked up, until CI restarts. Same
+   neutral substitution .merge-pill.behind makes for its text; the label
+   says "Rebasing…", so colour is never the only signal. */
+.merge-pill.rebasing {
+  background: var(--neutral-bg);
+  color: var(--ink-3);
+}
+.merge-pill.rebasing .dot {
+  background: var(--neutral);
+}
+
 /* Same "above .title::after's stretched-link overlay" reasoning .ci-pill
    already needs — a real button, not a badge, so it gets the same
    cursor/focus-visible treatment too.
@@ -1783,6 +1794,10 @@ select.col-filter {
   border-left: 3px solid var(--border-strong);
   background: var(--surface-sunken);
   border-radius: 4px;
+}
+
+.feedback-requested {
+  color: var(--ink-3);
 }
 
 .row-feedback-line[data-phase="failed"],
