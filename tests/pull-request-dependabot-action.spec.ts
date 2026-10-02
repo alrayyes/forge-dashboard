@@ -226,12 +226,20 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
-    const status = page.locator('#status-banner');
-    await expect(status).toContainText(
-      'Dependabot rebase requested for alrayyes/forge-dashboard#42.',
+    await expect(page.locator('#feedback-toasts')).toContainText(
+      'alrayyes/forge-dashboard#42',
     );
-    await expect(status).toHaveAttribute('aria-live', 'polite');
-    await expect(status).toContainText('Awaiting the next refresh');
+    await expect(page.locator('#feedback-toasts')).toContainText(
+      'Dependabot rebase requested.',
+    );
+    await expect(page.locator('#feedback-live')).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+    await expect(row.locator('.row-feedback')).toContainText(
+      'Awaiting the next refresh',
+    );
+    await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
   test('a transient failure shows an error and re-enables the button for another try', async ({
@@ -252,7 +260,9 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     const button = row.getByRole('button', { name: 'Dependabot: Rebase' });
     await button.click();
 
-    await expect(page.locator('#error-banner')).toContainText('EOF');
+    await expect(page.locator('#feedback-toasts')).toContainText('EOF');
+    await expect(row.locator('.row-feedback')).toContainText('Failed');
+    await expect(page.locator('#error-banner')).toHaveCount(0);
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');

@@ -2,6 +2,19 @@
   import { onMount } from "svelte";
   import * as Filters from "$lib/filters";
   import type { FilterableItem, SharedFilterState } from "$lib/filters";
+  import { type ActionRef, createFeedbackStore } from "$lib/feedback";
+  import { mountFeedbackUI } from "$lib/feedback-ui";
+  import {
+    budgetText,
+    isRateLimited,
+    msUntilReset,
+    classifyLockReason,
+    formatResetTime,
+    offersRetry,
+    PERMISSION_REASON,
+    type RateLimit,
+    rateLimitReasonText,
+  } from "$lib/rate-limit";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, admin-link, logout-button, whoami) —
@@ -46,7 +59,6 @@
     url: string;
     required?: boolean;
   };
-  type RateLimit = { limit: number; remaining: number; resetsAt: string };
   type Forge = {
     forge: string;
     reachable: boolean;
@@ -106,6 +118,35 @@
     // a number hard-coded next to REFRESH_INTERVAL_MS. Re-armed by the
     // setInterval(refresh) callback itself.
     let nextPollAt = Date.now() + REFRESH_INTERVAL_MS;
+
+    // Per-pull-request action feedback (#714): inline row lines, toasts
+    // and the Activity panel. State lives here, outside the DOM, so it
+    // outlasts every row rebuild and snapshot.
+    const feedback = createFeedbackStore();
+    const feedbackUI = mountFeedbackUI(feedback, {
+      countdownText: () => queuedCountdownText(),
+    });
+    function actionRef(item: PullRequestItem): ActionRef {
+      return { key: prKey(item), repo: item.repo, number: item.number };
+    }
+    // A failed action: the row gets a Failed line (with Retry unless the
+    // failure locked the button), and an error toast that stays.
+    function failAction(
+      actionKey: string,
+      what: string,
+      reason: string,
+      canRetry: boolean,
+    ) {
+      const message = `Couldn't ${what}: ${reason}`;
+      feedback.update(actionKey, {
+        phase: "failed",
+        inline: reason,
+        message,
+        toast: true,
+        announce: message,
+        canRetry,
+      });
+    }
     const CI_LABELS: Record<string, string> = {
       success: "Passing",
       failure: "Failing",
@@ -113,6 +154,10 @@
       none: "No checks",
     };
     const FORGE_LABELS = Filters.FORGE_LABELS;
+    const FORGE_SHORT_LABELS: Record<string, string> = {
+      github: "GH",
+      forgejo: "FJ",
+    };
     const FORGE_CLASSES: Record<string, string> = {
       github: "gh",
       forgejo: "fj",
@@ -502,6 +547,7 @@
       }
       row.appendChild(meta);
       row.appendChild(el("div", "go", "→"));
+      if (isPR) feedbackUI.decorateRow(row, prKey(item as PullRequestItem));
       return row;
     }
 
@@ -533,6 +579,20 @@
       return key.replace(/[^a-zA-Z0-9_-]/g, "-");
     }
 
+    // One line under a group heading while that forge's REST budget is
+    // spent, so the reset time is stated once instead of on every row
+    // (#732). Plain text, not a live region: the same sentence is already
+    // each disabled button's accessible description.
+    function groupRateLimitNote(forgeName: string): HTMLElement | null {
+      const health = lastForges.find((f) => f.forge === forgeName);
+      if (!isRateLimited(health?.rateLimitREST)) return null;
+      return el(
+        "p",
+        "group-rate-limit",
+        rateLimitedReason(forgeName, health?.rateLimitREST),
+      );
+    }
+
     // ---- bot-managed PR detection ----
     // Dependabot and Renovate keep their own pull requests current through
     // their own Rebase actions, so Update branch is hidden on them.
@@ -562,13 +622,13 @@
     // than a second, independently-authored guess keyed only on the
     // status code.
     function reactiveMergeLockReason(
+      forge: string,
+
       status: number | undefined,
       message: string,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       if (status === 409) {
         const real = forgeMessageOnly(message);
         if (!real || /not mergeable/i.test(real)) {
@@ -593,8 +653,12 @@
     function lockedActionButton(
       label: string,
       reasonText: string,
-      onRetry: (() => void) | undefined = undefined,
+      requestedRetry: (() => void) | undefined = undefined,
     ): HTMLElement {
+      // Retry only for a reason waiting can fix (a 502, an unreachable
+      // forge). A rate limit or a missing permission can't clear by
+      // clicking, so it stays a greyed-out action with its own label (#732).
+      const onRetry = offersRetry(reasonText) ? requestedRetry : undefined;
       const wrap = el("span", "row-action-locked");
       const button = buttonEl("row-action", onRetry ? "Retry" : label);
       button.type = "button";
@@ -708,14 +772,9 @@
     // lock re-derives from current data immediately instead of waiting
     // out the rest of the poll interval.
     function retryLockedAction(item: PullRequestItem) {
-      showStatus(`Checking ${item.repo}#${item.number}…`);
-      refreshDashboardNow()
-        .then(() => {
-          clearStatus();
-        })
-        .catch((err: Error) => {
-          showError(`Could not refresh: ${err.message}`);
-        });
+      refreshDashboardNow().catch((err: Error) => {
+        showError(`Could not refresh: ${err.message}`);
+      });
     }
 
     // Set once any merge/update-branch call against a forge comes back
@@ -732,7 +791,10 @@
     // forge that's currently unreachable or already out of rate-limit
     // budget will fail the exact same way after a real, wasted request
     // as it would before one.
-    function proactiveActionLockReason(forgeName: string): string | null {
+    function proactiveActionLockReason(
+      forgeName: string,
+      budget: "rest" | "graphql" = "rest",
+    ): string | null {
       const health = lastForges.find((f) => f.forge === forgeName);
       if (health && health.reachable === false) {
         // The specific reason (unreachable, rate-limited, ...) is
@@ -742,21 +804,34 @@
         // (#360).
         return "See the forge status above.";
       }
-      // #361: every action this locks (Merge, Update branch, Dependabot,
-      // Renovate) is a REST call — checking rateLimitGraphQL here would
-      // have kept a REST-exhausted row looking clickable right up until
-      // the click itself failed, since GraphQL's own budget is a
-      // completely separate allowance that says nothing about REST's.
-      if (health?.rateLimitREST && health.rateLimitREST.remaining === 0) {
-        const resetTime = new Date(
-          health.rateLimitREST.resetsAt,
-        ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        return `Rate limit exhausted · resets ${resetTime}`;
-      }
+      // #361: Merge, Update branch, Close and the bot commands are REST
+      // calls, so REST's budget decides them; auto-merge is a GraphQL
+      // mutation and asks for that budget instead. The two are separate
+      // allowances, and one saying nothing about the other would leave a
+      // row looking clickable until the click itself failed.
+      const spent =
+        health?.[budget === "rest" ? "rateLimitREST" : "rateLimitGraphQL"];
+      if (isRateLimited(spent)) return rateLimitedReason(forgeName, spent);
       if (forgePermissionDenied[forgeName]) {
-        return "Missing permission — check your token in Settings.";
+        return PERMISSION_REASON;
       }
       return null;
+    }
+
+    // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
+    // min)." Built fresh from the latest snapshot, so a 429 from a click
+    // reads the same as a budget the snapshot already showed spent (#732).
+    function rateLimitedReason(forgeName: string, known?: RateLimit): string {
+      const health = lastForges.find((f) => f.forge === forgeName);
+      const limit =
+        known ??
+        [health?.rateLimitREST, health?.rateLimitGraphQL].find(
+          (l) => l && Date.parse(l.resetsAt) > Date.now(),
+        );
+      return rateLimitReasonText(
+        FORGE_LABELS[forgeName] || forgeName,
+        limit?.resetsAt,
+      );
     }
 
     // Actually calls the merge endpoint, once the confirm click lands —
@@ -768,7 +843,23 @@
       mergeState[key] = { phase: "merging" };
       confirmButton.disabled = true;
       confirmButton.textContent = "Merging…";
-      showStatus(`Merging ${item.repo}#${item.number}…`);
+      const fkey = `merge:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Merge",
+        phase: "working",
+        inline: "Merging…",
+        message: "Merging…",
+        announce: "Merging…",
+        // A merge is never re-sent without the confirm step.
+        retry: () => {
+          feedback.drop(fkey);
+          mergeState[key] = { phase: "confirming" };
+          renderPRBoard();
+          document.getElementById(`merge-confirm-${domSafeId(key)}`)?.focus();
+        },
+      });
 
       fetch("/api/pull-requests/merge", {
         method: "POST",
@@ -798,7 +889,12 @@
         })
         .then(() => {
           delete mergeState[key];
-          showStatus(`Merged ${item.repo}#${item.number}.`);
+          feedback.update(fkey, {
+            phase: "done",
+            message: "Merged.",
+            toast: true,
+            announce: "Merged.",
+          });
           // Pulls a fresh snapshot right away rather than waiting out
           // the rest of the background poll's own interval — the same
           // call the "Refresh now" button makes — so the just-merged PR
@@ -842,7 +938,12 @@
                   // rather than a false failure.
                   delete mergeState[key];
                   applySnapshot(data, true);
-                  showStatus(`Merged ${item.repo}#${item.number}.`);
+                  feedback.update(fkey, {
+                    phase: "done",
+                    message: "Merged.",
+                    toast: true,
+                    announce: "Merged.",
+                  });
                   return;
                 }
                 mergeState[key] = { phase: "idle" };
@@ -851,31 +952,26 @@
                 } else {
                   renderPRBoard();
                 }
-                clearStatus();
-                showError(
-                  `Couldn't merge ${item.repo}#${item.number}: ${err.message}`,
-                );
+                failAction(fkey, "merge", err.message, true);
               })
               .catch(() => {
                 mergeState[key] = { phase: "idle" };
-                clearStatus();
-                showError(
-                  `Couldn't merge ${item.repo}#${item.number}: ${err.message}`,
-                );
+                failAction(fkey, "merge", err.message, true);
                 renderPRBoard();
               });
             return;
           }
 
-          const lockReason = reactiveMergeLockReason(err.status, err.message);
+          const lockReason = reactiveMergeLockReason(
+            item.forge,
+            err.status,
+            err.message,
+          );
           mergeState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't merge ${item.repo}#${item.number}: ${err.message}`,
-          );
+          failAction(fkey, "merge", err.message, !lockReason);
           renderPRBoard();
         });
     }
@@ -995,12 +1091,12 @@
     // error banner the same way any other unclassified failure already
     // does here.
     function reactiveAutoMergeLockReason(
+      forge: string,
+
       status: number | undefined,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       return null;
     }
 
@@ -1040,7 +1136,17 @@
       autoMergeState[key] = { phase: "enabling" };
       button.disabled = true;
       button.textContent = "Enabling…";
-      showStatus(`Enabling auto-merge for ${item.repo}#${item.number}…`);
+      const fkey = `auto-merge:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Enable auto-merge",
+        phase: "working",
+        inline: "Enabling auto-merge…",
+        message: "Enabling auto-merge…",
+        announce: "Enabling auto-merge…",
+        retry: () => doEnableAutoMerge(item, buttonEl("row-action")),
+      });
 
       fetch("/api/pull-requests/auto-merge", {
         method: "POST",
@@ -1070,7 +1176,12 @@
         })
         .then(() => {
           delete autoMergeState[key];
-          showStatus(`Enabled auto-merge for ${item.repo}#${item.number}.`);
+          feedback.update(fkey, {
+            phase: "done",
+            message: "Auto-merge enabled.",
+            toast: true,
+            announce: "Auto-merge enabled.",
+          });
           // Same "close the popover this button lives in, once it has
           // nothing left to say" reasoning doDependabotAction's own
           // success handler uses.
@@ -1089,14 +1200,19 @@
             });
         })
         .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveAutoMergeLockReason(err.status);
+          const lockReason = reactiveAutoMergeLockReason(
+            item.forge,
+            err.status,
+          );
           autoMergeState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't enable auto-merge for ${item.repo}#${item.number}: ${friendlyAutoMergeErrorMessage(err.message)}`,
+          failAction(
+            fkey,
+            "enable auto-merge",
+            friendlyAutoMergeErrorMessage(err.message),
+            !lockReason,
           );
           renderPRBoard();
         });
@@ -1133,7 +1249,10 @@
         return lockedActionButton("Enable auto-merge", entry.reason ?? "");
 
       if (entry.phase === "idle") {
-        const proactiveReason = proactiveActionLockReason(item.forge);
+        const proactiveReason = proactiveActionLockReason(
+          item.forge,
+          "graphql",
+        );
         if (proactiveReason)
           return lockedActionButton("Enable auto-merge", proactiveReason);
       }
@@ -1165,13 +1284,13 @@
     // mergeability at all — a 409 here is the forge's own real message
     // (already-merged, already-closed) passed straight through instead.
     function reactiveCloseLockReason(
+      forge: string,
+
       status: number | undefined,
       message: string,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       return null;
     }
 
@@ -1180,7 +1299,23 @@
       closeState[key] = { phase: "closing" };
       confirmButton.disabled = true;
       confirmButton.textContent = "Closing…";
-      showStatus(`Closing ${item.repo}#${item.number}…`);
+      const fkey = `close:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Close",
+        phase: "working",
+        inline: "Closing…",
+        message: "Closing…",
+        announce: "Closing…",
+        // Like merge, a close is never re-sent without its confirm step.
+        retry: () => {
+          feedback.drop(fkey);
+          closeState[key] = { phase: "confirming" };
+          renderPRBoard();
+          document.getElementById(`close-confirm-${domSafeId(key)}`)?.focus();
+        },
+      });
 
       fetch("/api/pull-requests/close", {
         method: "POST",
@@ -1210,7 +1345,12 @@
         })
         .then(() => {
           delete closeState[key];
-          showStatus(`Closed ${item.repo}#${item.number}.`);
+          feedback.update(fkey, {
+            phase: "done",
+            message: "Closed.",
+            toast: true,
+            announce: "Closed.",
+          });
           return fetch("/api/dashboard/refresh", {
             method: "POST",
             headers: { Accept: "application/json" },
@@ -1221,15 +1361,16 @@
             });
         })
         .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveCloseLockReason(err.status, err.message);
+          const lockReason = reactiveCloseLockReason(
+            item.forge,
+            err.status,
+            err.message,
+          );
           closeState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't close ${item.repo}#${item.number}: ${err.message}`,
-          );
+          failAction(fkey, "close", err.message, !lockReason);
           renderPRBoard();
         });
     }
@@ -1315,12 +1456,12 @@
     // branches can't be merged cleanly, not that the pull request
     // itself stopped being mergeable.
     function reactiveUpdateBranchLockReason(
+      forge: string,
+
       status: number | undefined,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       if (status === 409)
         return "Can't update cleanly — resolve the conflict on the forge.";
       return null;
@@ -1333,9 +1474,16 @@
       updateBranchState[key] = { phase: "queued" };
       button.disabled = true;
       button.textContent = "Queued…";
-      showQueuedBanner(
-        `Branch update requested for ${item.repo}#${item.number}.`,
-      );
+      const fkey = `update-branch:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Update branch",
+        phase: "queued",
+        inline: "Queued",
+        message: "Branch update requested.",
+        retry: () => doUpdateBranch(item, buttonEl("row-action")),
+      });
 
       fetch("/api/pull-requests/update-branch", {
         method: "POST",
@@ -1367,6 +1515,10 @@
           });
         })
         .then(() => {
+          feedback.update(fkey, {
+            toast: true,
+            announce: "Branch update requested. Awaiting the next refresh.",
+          });
           // Left in the "queued" phase rather than cleared here — a
           // 202 is GitHub's own background job, not necessarily done by
           // the time this refresh lands, so the button only actually
@@ -1385,16 +1537,15 @@
             });
         })
         .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveUpdateBranchLockReason(err.status);
+          const lockReason = reactiveUpdateBranchLockReason(
+            item.forge,
+            err.status,
+          );
           updateBranchState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't update the branch for ${item.repo}#${item.number}: ${err.message}`,
-          );
-          renderQueuedBanner();
+          failAction(fkey, "update the branch", err.message, !lockReason);
           renderPRBoard();
         });
     }
@@ -1471,12 +1622,12 @@
     // reads as Dependabot's own comment command not applying right now
     // rather than a merge conflict.
     function reactiveDependabotActionLockReason(
+      forge: string,
+
       status: number | undefined,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       if (status === 409)
         return "Dependabot can't act on this pull request right now.";
       return null;
@@ -1502,9 +1653,16 @@
       };
       button.disabled = true;
       button.textContent = "Queued…";
-      showQueuedBanner(
-        `Dependabot ${action} requested for ${item.repo}#${item.number}.`,
-      );
+      const fkey = `dependabot:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: DEPENDABOT_ACTION_LABELS[action],
+        phase: "queued",
+        inline: "Waiting for Dependabot",
+        message: `Dependabot ${action} requested.`,
+        retry: () => doDependabotAction(item, action, buttonEl("row-action")),
+      });
 
       fetch("/api/pull-requests/dependabot-action", {
         method: "POST",
@@ -1548,20 +1706,28 @@
           // on the page (confirmed live). Left open on failure/lock
           // below, since that's exactly when the popover is still
           // showing something the user needs to see.
+          feedback.update(fkey, {
+            toast: true,
+            announce: `Dependabot ${action} requested. Awaiting the next refresh.`,
+          });
           closeAllActionMenus();
           renderPRBoard();
         })
         .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveDependabotActionLockReason(err.status);
+          const lockReason = reactiveDependabotActionLockReason(
+            item.forge,
+            err.status,
+          );
           dependabotActionState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't ask Dependabot to ${action} ${item.repo}#${item.number}: ${err.message}`,
+          failAction(
+            fkey,
+            `ask Dependabot to ${action}`,
+            err.message,
+            !lockReason,
           );
-          renderQueuedBanner();
           renderPRBoard();
         });
     }
@@ -1824,12 +1990,12 @@
     // requires the label to already exist) rather than the pull request
     // itself being missing.
     function reactiveRenovateRebaseLockReason(
+      forge: string,
+
       status: number | undefined,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       if (status === 404) return "Rebase label doesn't exist on this repo.";
       return null;
     }
@@ -1845,9 +2011,16 @@
       };
       button.disabled = true;
       button.textContent = "Queued…";
-      showQueuedBanner(
-        `Renovate rebase requested for ${item.repo}#${item.number}.`,
-      );
+      const fkey = `renovate:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Renovate: Rebase",
+        phase: "queued",
+        inline: "Waiting for Renovate",
+        message: "Renovate rebase requested.",
+        retry: () => doRenovateRebase(item, buttonEl("row-action")),
+      });
 
       fetch("/api/pull-requests/renovate-rebase", {
         method: "POST",
@@ -1880,20 +2053,23 @@
           // Same "close the popover this button lives in, once it has
           // nothing left to say" reasoning doDependabotAction's own
           // success handler uses.
+          feedback.update(fkey, {
+            toast: true,
+            announce: "Renovate rebase requested. Awaiting the next refresh.",
+          });
           closeAllActionMenus();
           renderPRBoard();
         })
         .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveRenovateRebaseLockReason(err.status);
+          const lockReason = reactiveRenovateRebaseLockReason(
+            item.forge,
+            err.status,
+          );
           renovateRebaseState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't ask Renovate to rebase ${item.repo}#${item.number}: ${err.message}`,
-          );
-          renderQueuedBanner();
+          failAction(fkey, "ask Renovate to rebase", err.message, !lockReason);
           renderPRBoard();
         });
     }
@@ -2097,7 +2273,6 @@
     function loadPipelineChecks(item: PullRequestItem) {
       const token = ++pipelineRequestToken;
       renderPipelineLoading();
-      showStatus(`Loading pipeline checks for ${item.repo}#${item.number}…`);
 
       fetch(
         `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
@@ -2121,14 +2296,11 @@
         })
         .then((data) => {
           if (token !== pipelineRequestToken) return;
-          clearStatus();
           renderPipelineChecks(data.checks || []);
         })
         .catch((err: Error & { status?: number }) => {
           if (token !== pipelineRequestToken) return;
-          clearStatus();
           const message = `Couldn't load pipeline checks for ${item.repo}#${item.number}: ${err.message}`;
-          showError(message);
           renderPipelineError(message, () => loadPipelineChecks(item));
         });
     }
@@ -2666,6 +2838,8 @@
             el("span", "group-count", String(groups[key].length)),
           );
           container.appendChild(heading);
+          const note = isPR ? groupRateLimitNote(first.forge) : null;
+          if (note) container.appendChild(note);
           for (const item of groups[key]) {
             container.appendChild(
               buildRow(
@@ -3140,6 +3314,18 @@
           (f.reachable ? " reachable" : " unreachable");
         chip.appendChild(document.createTextNode(label));
         item.appendChild(chip);
+        // The remaining budget and when it comes back, as text (#732). Kept
+        // out of the live region: the numbers change on every poll.
+        const budget = f.rateLimitREST;
+        if (budget) {
+          const text = el(
+            "span",
+            "forge-health-budget",
+            budgetText(FORGE_SHORT_LABELS[f.forge] || f.forge, budget),
+          );
+          text.setAttribute("aria-live", "off");
+          item.appendChild(text);
+        }
         // The reason has to be real text, not just chip.title — a hover
         // tooltip never reaches a touch device and isn't reliably
         // announced by a screen reader either. The raw technical string
@@ -3254,33 +3440,53 @@
         : `resets in ${seconds}s`;
     }
 
+    // Rebuilt only when what it says changes. The ticking countdown is
+    // updated in place and hidden from assistive tech (WCAG 4.1.3): the
+    // banner is an alert, so replacing it every second would have a screen
+    // reader read it out every second. The reset time in the label is the
+    // static, spoken version of the same fact (#732).
     function renderRateLimitBanner() {
-      document.getElementById("rate-limit-banner")?.remove();
-      if (rateLimitAlerts.length === 0) return;
+      const existing = document.getElementById("rate-limit-banner");
+      if (rateLimitAlerts.length === 0) {
+        existing?.remove();
+        return;
+      }
+      const signature = rateLimitAlerts
+        .map((a) => `${a.label}|${a.severity}|${a.resetsAt}|${a.remaining}`)
+        .join(";");
+      if (existing && existing.dataset.signature === signature) {
+        existing
+          .querySelectorAll<HTMLElement>(".rate-limit-banner-timer")
+          .forEach((timer, i) => {
+            timer.textContent = bannerTimerText(rateLimitAlerts[i]);
+          });
+        return;
+      }
+      existing?.remove();
       const banner = el("div", "rate-limit-banner");
       banner.id = "rate-limit-banner";
+      banner.dataset.signature = signature;
       banner.setAttribute("role", "alert");
       for (const alert of rateLimitAlerts) {
         const exceeded = alert.severity === "exceeded";
         const row = el("div", `rate-limit-banner-row${exceeded ? "" : " low"}`);
+        const resetAt = `resets at ${formatResetTime(alert.resetsAt)}`;
         row.appendChild(
           el(
             "span",
             "rate-limit-banner-label",
             exceeded
-              ? `Rate limit exceeded — ${alert.label}`
-              : `Rate limit running low — ${alert.label}`,
+              ? `Rate limit exceeded — ${alert.label}, ${resetAt}`
+              : `Rate limit running low — ${alert.label}, ${resetAt}`,
           ),
         );
-        row.appendChild(
-          el(
-            "span",
-            "rate-limit-banner-timer",
-            exceeded
-              ? countdownLabel(alert.resetsAt)
-              : `${alert.remaining.toLocaleString()} of ${alert.limit.toLocaleString()} requests left — ${countdownLabel(alert.resetsAt)}`,
-          ),
+        const timer = el(
+          "span",
+          "rate-limit-banner-timer",
+          bannerTimerText(alert),
         );
+        timer.setAttribute("aria-hidden", "true");
+        row.appendChild(timer);
         banner.appendChild(row);
       }
       document
@@ -3288,9 +3494,70 @@
         ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
     }
 
+    function bannerTimerText(alert: RateLimitAlert): string {
+      return alert.severity === "exceeded"
+        ? countdownLabel(alert.resetsAt)
+        : `${alert.remaining.toLocaleString()} of ${alert.limit.toLocaleString()} requests left — ${countdownLabel(alert.resetsAt)}`;
+    }
+
+    // ---- automatic re-enable at the reset time (#732) ----
+    // Locked actions derive from the clock (isRateLimited), so all a timer
+    // has to do is draw the board again at the reset time, drop any lock a
+    // 429 left behind, and say so once. The next snapshot then confirms:
+    // if the forge still reports an exhausted budget with a later reset,
+    // the actions lock again.
+    let rateLimitResetTimer: number | undefined;
+
+    function scheduleRateLimitReset() {
+      window.clearTimeout(rateLimitResetTimer);
+      rateLimitResetTimer = undefined;
+      let soonest: number | null = null;
+      for (const f of lastForges) {
+        for (const limit of [f.rateLimitREST, f.rateLimitGraphQL]) {
+          if (!isRateLimited(limit)) continue;
+          const wait = msUntilReset(limit.resetsAt);
+          if (wait !== null && (soonest === null || wait < soonest))
+            soonest = wait;
+        }
+      }
+      if (soonest === null) return;
+      rateLimitResetTimer = window.setTimeout(onRateLimitReset, soonest);
+    }
+
+    function onRateLimitReset() {
+      for (const state of [
+        mergeState,
+        closeState,
+        updateBranchState,
+        autoMergeState,
+        dependabotActionState,
+        renovateRebaseState,
+      ]) {
+        for (const key of Object.keys(state)) {
+          const entry = state[key];
+          if (
+            entry.phase === "locked" &&
+            classifyLockReason(entry.reason ?? "") === "rate_limit"
+          )
+            delete state[key];
+        }
+      }
+      rateLimitAlerts = computeRateLimitAlerts(lastForges).filter(
+        (a) => Date.parse(a.resetsAt) > Date.now(),
+      );
+      renderRateLimitBanner();
+      renderPRBoard();
+      feedback.notify({
+        title: "Rate limit",
+        message: "Rate limit reset, actions available again",
+        announce: "Rate limit reset, actions available again",
+      });
+      scheduleRateLimitReset();
+    }
+
     setInterval(() => {
       tickRefreshedAt();
-      tickQueuedCountdown();
+      feedbackUI.tick();
       // Cheap to call unconditionally — it removes and, only if there's
       // still something exhausted, redraws a handful of rows.
       renderRateLimitBanner();
@@ -3314,59 +3581,16 @@
       document.getElementById("error-banner")?.remove();
     }
 
-    // showStatus/clearStatus: the same shape as showError/clearError,
-    // for a row action's own in-progress/success text rather than a
-    // failure — a real click otherwise had nothing to show for it
-    // beyond the row silently vanishing on the next refresh.
-    // aria-live="polite" rather than showError's role="alert": routine
-    // progress/success isn't urgent enough to interrupt a screen reader
-    // the way a failure is.
-    function showStatus(message: string) {
-      document.getElementById("status-banner")?.remove();
-      const banner = el("div", "status-banner", message);
-      banner.id = "status-banner";
-      banner.setAttribute("aria-live", "polite");
-      document
-        .querySelector(".stats")
-        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
-      // Auto-dismisses — unlike the error banner, which stays until the
-      // next successful action clears it, a routine "Merged x#42." isn't
-      // meant to linger.
-      setTimeout(() => {
-        if (banner.parentNode) banner.remove();
-      }, 4000);
-    }
-
-    function clearStatus() {
-      document.getElementById("status-banner")?.remove();
-    }
-
-    // ---- queued-action banner (#680) ----
+    // ---- queued actions (#680, #714) ----
     // Update branch and the Dependabot/Renovate rebases are requests the
     // forge or a bot acts on later, so the page can't confirm the result
-    // until a refresh. This is the one banner that says so: the sentence
-    // lives in a polite live region and is announced once, while the
-    // per-second countdown sits in an aria-hidden sibling so a screen
-    // reader isn't read a new number every second.
-    let queuedMessage = "";
-
-    function queuedActionCount(): number {
-      return [
-        updateBranchState,
-        dependabotActionState,
-        renovateRebaseState,
-      ].reduce(
-        (sum, stateMap) =>
-          sum +
-          Object.values(stateMap).filter((entry) => entry.phase === "queued")
-            .length,
-        0,
-      );
-    }
+    // until a refresh. The row says so inline, with a countdown to the
+    // next poll that sits in an aria-hidden span (feedback-ui.ts) so a
+    // screen reader isn't read a new number every second.
 
     // How long a bot rebase may stay queued without a snapshot showing it
     // landed. A bot that ignores the request would otherwise leave a
-    // disabled button and a banner up for good.
+    // disabled button and a "waiting" line up for good.
     const QUEUED_BOT_EXPIRY_MS = 5 * 60 * 1000;
 
     function queuedBotInfo(item: PullRequestItem) {
@@ -3381,8 +3605,9 @@
     // snapshot shows the rebase landed: the pull request is gone, or it
     // was behind when asked and no longer is. Any other snapshot (the
     // live stream pushes one all the time) says nothing about the bot,
-    // so it must not clear the banner. Expires after a while so a bot
-    // that never acts doesn't pin the button disabled.
+    // so it must not end the wait. Expires after a while so a bot that
+    // never acts doesn't pin the button disabled; the row, an error toast
+    // and Activity then say so.
     function clearResolvedQueuedBotActions(prs: PullRequestItem[]) {
       const byKey = new Map(prs.map((p) => [prKey(p), p]));
       for (const stateMap of [dependabotActionState, renovateRebaseState]) {
@@ -3392,8 +3617,35 @@
           const current = byKey.get(entry.queued.prKey);
           const landed =
             !current || (entry.queued.wasBehind && !current.behind);
-          if (landed || Date.now() - entry.queued.at > QUEUED_BOT_EXPIRY_MS)
-            delete stateMap[key];
+          const expired =
+            !landed && Date.now() - entry.queued.at > QUEUED_BOT_EXPIRY_MS;
+          if (!landed && !expired) continue;
+          delete stateMap[key];
+          const fkey =
+            stateMap === dependabotActionState
+              ? `dependabot:${key}`
+              : `renovate:${key}`;
+          const bot =
+            stateMap === dependabotActionState ? "Dependabot" : "Renovate";
+          if (landed) {
+            const message = `${bot} rebase finished.`;
+            feedback.update(fkey, {
+              phase: "done",
+              message,
+              toast: true,
+              announce: message,
+            });
+          } else {
+            const reason = "No change seen after 5 minutes.";
+            feedback.update(fkey, {
+              phase: "expired",
+              inline: reason,
+              message: `${bot} hasn't acted: ${reason}`,
+              toast: true,
+              announce: `${bot} hasn't acted: ${reason}`,
+              canRetry: true,
+            });
+          }
         }
       }
     }
@@ -3402,49 +3654,6 @@
       const seconds = Math.max(0, Math.ceil((nextPollAt - Date.now()) / 1000));
       // The snapshot is late, not lost: say so instead of "0s".
       return seconds === 0 ? " Refreshing…" : ` (next refresh in ${seconds}s)`;
-    }
-
-    function showQueuedBanner(message: string) {
-      queuedMessage = message;
-      renderQueuedBanner();
-    }
-
-    // (Re)draws the banner for whatever is queued right now, or removes
-    // it once nothing is. Leaves an unrelated status (e.g. "Updated the
-    // branch…") alone, and keeps the existing node when the sentence
-    // hasn't changed so the live region isn't re-announced.
-    function renderQueuedBanner() {
-      const existing = document.getElementById("status-banner");
-      const count = queuedActionCount();
-      if (count === 0) {
-        if (existing?.dataset.queued) existing.remove();
-        return;
-      }
-      if (existing && !existing.dataset.queued) return;
-      const sentence = `${
-        count === 1 ? queuedMessage : `${count} actions requested.`
-      } Awaiting the next refresh.`;
-      if (existing?.querySelector(".status-message")?.textContent === sentence)
-        return;
-      existing?.remove();
-      const banner = el("div", "status-banner");
-      banner.id = "status-banner";
-      banner.dataset.queued = "true";
-      banner.setAttribute("aria-live", "polite");
-      banner.appendChild(el("span", "status-message", sentence));
-      const countdown = el("span", "status-countdown", queuedCountdownText());
-      countdown.setAttribute("aria-hidden", "true");
-      banner.appendChild(countdown);
-      document
-        .querySelector(".stats")
-        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
-    }
-
-    function tickQueuedCountdown() {
-      const countdown = document.querySelector(
-        "#status-banner[data-queued] .status-countdown",
-      );
-      if (countdown) countdown.textContent = queuedCountdownText();
     }
 
     // ---- force-refresh: retry right now instead of waiting out the
@@ -3548,6 +3757,7 @@
       lastForges = data.forges || [];
       rateLimitAlerts = computeRateLimitAlerts(lastForges);
       renderRateLimitBanner();
+      scheduleRateLimitReset();
 
       // A locked merge/update-branch reason only reflects what the
       // forge said at the moment of the last attempt — re-derived here
@@ -3567,9 +3777,13 @@
       // doesn't also hold the board back.
       clearResolvedQueuedBotActions(prs);
       for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
-        showStatus(`Updated the branch for ${item.repo}#${item.number}.`);
+        feedback.update(`update-branch:${prKey(item)}`, {
+          phase: "done",
+          message: "Branch updated.",
+          toast: true,
+          announce: "Branch updated.",
+        });
       }
-      renderQueuedBanner();
       const issues = data.issues || [];
       allPRs = prs;
       allIssues = issues;
@@ -3713,6 +3927,32 @@
     above it (see .dashboard-toolbar in style.css) without actually being
     one.
   -->
+  <!-- #714: the Activity control stays in view while the page scrolls;
+       its panel lists in-flight and recent per-pull-request actions. -->
+  <div class="activity-bar">
+    <button
+      type="button"
+      class="activity-toggle"
+      id="activity-toggle"
+      aria-expanded="false"
+      aria-controls="activity-panel">Activity 0</button
+    >
+    <div
+      class="activity-panel"
+      id="activity-panel"
+      role="region"
+      aria-label="Activity"
+      hidden
+    >
+      <div class="activity-panel-head">
+        <p class="activity-title">Recent actions</p>
+        <button type="button" class="activity-clear" disabled
+          >Clear finished</button
+        >
+      </div>
+      <ul class="activity-list"></ul>
+    </div>
+  </div>
   <div class="dashboard-toolbar">
     <!-- No longer sits directly under the "Forge Board" <h1> the way it
          used to as the brand's subtitle, so the sr-only prefix below
@@ -4041,3 +4281,19 @@
   </div>
   <div class="pipeline-dialog-body" id="pipeline-dialog-body"></div>
 </dialog>
+
+<!-- #714: the one polite live region for per-pull-request feedback, and
+     the toast stack. Neither the toasts nor the Activity panel is live
+     itself, so each event is spoken once. -->
+<div
+  id="feedback-live"
+  class="sr-only"
+  role="status"
+  aria-live="polite"
+  aria-atomic="true"
+></div>
+<ul
+  id="feedback-toasts"
+  class="feedback-toasts"
+  aria-label="Notifications"
+></ul>
