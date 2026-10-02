@@ -69,7 +69,7 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 		label := creds.RenovateRebaseLabelOrDefault()
 		if err := labeler.AddLabel(r.Context(), owner, name, req.Number, label); err != nil {
 			slog.Warn("renovate rebase label failed", "forge", req.Forge, "repo", req.FullName, "number", req.Number, "label", label, "error", err)
-			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
+			writeActionRefusal(r.Context(), w, labeler, dashboard.PullRequestActionRenovateRebase, owner, name, req.Number, err)
 
 			return
 		}

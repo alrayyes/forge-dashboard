@@ -972,6 +972,16 @@ paths:
         rebase precedence Merge already uses; no override is exposed
         here either. The pull request stays open and unmerged until the
         forge's own required checks pass on their own.
+
+        When the forge refuses, the server re-reads the pull request and
+        answers an `ActionError` (see Merge): `already_merged` or
+        `already_closed` when the row was stale, otherwise a `code` and a
+        plain-words `message` safe to show a person.
+        `auto_merge_not_allowed` means the repo doesn't allow auto-merge
+        (or not for this pull request); `ready_to_merge` means it is
+        already clean, so there is nothing to wait for and Merge is the
+        action; `checks_pending` means a non-required check is still
+        running, so trying again later can work.
       tags: [pull-requests]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -1004,25 +1014,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "404":
-          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token). `code` is `unknown`.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "429":
-          description: The forge rate-limited the request.
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "502":
           description: The forge was unreachable, or answered with something this app couldn't classify more specifically — including the repo rejecting auto-merge for a reason this app has no more specific status for.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
 
   /api/pull-requests/close:
     post:
@@ -1032,6 +1042,12 @@ paths:
         Closes the named pull request — for one that turns out not to
         need merging at all (a duplicate, or one whose content already
         landed another way), not a substitute for Merge.
+
+        When the forge refuses, the server re-reads the pull request and
+        answers an `ActionError` (see Merge): `already_merged` or
+        `already_closed` when the row was stale, otherwise a `code` and a
+        plain-words `message` safe to show a person.
+        Closing a merged pull request is `already_merged`.
       tags: [pull-requests]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -1064,25 +1080,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "404":
-          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token). `code` is `unknown`.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "429":
-          description: The forge rate-limited the request.
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "502":
           description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
 
   /api/pull-requests/update-branch:
     post:
@@ -1095,6 +1111,13 @@ paths:
         failure; a follow-up refresh a moment later reflects the result.
         Forgejo's equivalent is always synchronous, so it only ever
         answers 204.
+
+        When the forge refuses, the server re-reads the pull request and
+        answers an `ActionError` (see Merge): `already_merged` or
+        `already_closed` when the row was stale, otherwise a `code` and a
+        plain-words `message` safe to show a person.
+        `conflict` means the branches can't be merged cleanly;
+        `already_up_to_date` means there was nothing to bring in.
       tags: [pull-requests]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -1129,31 +1152,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "404":
-          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token). `code` is `unknown`.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "409":
           description: The forge rejected the update because the branches can't be merged cleanly — a real conflict updating would need to resolve by hand.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "429":
-          description: The forge rate-limited the request.
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "502":
           description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
 
   /api/pull-requests/dependabot-action:
     post:
@@ -1166,6 +1189,13 @@ paths:
         endpoint; `action` is validated server-side to one of the two
         values below and nothing else is ever sent. GitHub only —
         Dependabot doesn't run on Forgejo.
+
+        When the forge refuses, the server re-reads the pull request and
+        answers an `ActionError` (see Merge): `already_merged` or
+        `already_closed` when the row was stale, otherwise a `code` and a
+        plain-words `message` safe to show a person.
+        A connected App with no personal token saved is `permission`, with
+        the reason in `message`; nothing is posted.
       tags: [pull-requests]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -1198,13 +1228,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "404":
-          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token). `code` is `unknown`.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "409":
           description: |
             Either the forge rejected the comment because of the pull
@@ -1216,19 +1246,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "429":
-          description: The forge rate-limited the request.
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "502":
           description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
 
   /api/pull-requests/renovate-rebase:
     post:
@@ -1242,6 +1272,11 @@ paths:
         is a label rather than a comment command. Works on both GitHub
         and Forgejo, unlike the Dependabot actions, since Renovate runs
         on both.
+
+        When the forge refuses, the server re-reads the pull request and
+        answers an `ActionError` (see Merge): `already_merged` or
+        `already_closed` when the row was stale, otherwise a `code` and a
+        plain-words `message` safe to show a person.
       tags: [pull-requests]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -1274,25 +1309,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "404":
           description: The forge reported the repo or pull request doesn't exist, or (Forgejo only) the configured label doesn't exist on that repo — Forgejo's labels API takes an existing label's ID, not an arbitrary name, so it has to already be there.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "429":
-          description: The forge rate-limited the request.
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "502":
           description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
 
   /api/pull-requests/checks:
     get:
@@ -2131,9 +2166,9 @@ components:
       type: object
       required: [error, code, message]
       description: >-
-        The structured result of a refused pull request action (Merge
-        today; the other actions adopt it next, so it isn't merge-specific).
-        `error` is the same
+        The structured result of a refused pull request action (Merge,
+        Close, Update branch, Enable auto-merge, Dependabot and Renovate
+        rebase). `error` is the same
         string every Error carries (the forge's own text, for logs);
         `code` and `message` are what a client should act on and show.
       properties:
@@ -2151,6 +2186,9 @@ components:
             - checks_pending
             - checks_failing
             - blocked_by_protection
+            - already_up_to_date
+            - auto_merge_not_allowed
+            - ready_to_merge
             - permission
             - rate_limited
             - unknown
@@ -2159,6 +2197,12 @@ components:
             request's real state. `already_merged` and `already_closed`
             mean the dashboard's row was stale: the pull request has
             nothing left to merge.
+
+            Three codes belong to one action each: `already_up_to_date`
+            (Update branch: nothing to bring in), `auto_merge_not_allowed`
+            (Enable auto-merge: the repo or pull request doesn't allow it)
+            and `ready_to_merge` (Enable auto-merge: already clean, use
+            Merge).
         message:
           type: string
           description: A short reason in plain words, safe to show a person.

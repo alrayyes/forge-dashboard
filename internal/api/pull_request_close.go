@@ -66,7 +66,7 @@ func handlePullRequestClose(deps Deps) http.HandlerFunc {
 
 		if err := closer.ClosePullRequest(r.Context(), owner, name, req.Number); err != nil {
 			slog.Warn("pull request close failed", "forge", req.Forge, "repo", req.FullName, "number", req.Number, "error", err)
-			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
+			writeActionRefusal(r.Context(), w, closer, dashboard.PullRequestActionClose, owner, name, req.Number, err)
 
 			return
 		}

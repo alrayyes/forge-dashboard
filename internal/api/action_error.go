@@ -27,9 +27,9 @@ type actionErrorBody struct {
 // stays what clientErrorStatus already gave for the original error, except
 // that a PR found already merged or closed is always a 409.
 //
-// Shared by every pull request action that adopts the structured result;
-// Merge is the first.
-func writeActionRefusal(ctx context.Context, w http.ResponseWriter, src any, owner, name string, number int, actionErr error) {
+// Shared by every pull request action: Merge, Close, Update branch, Enable
+// auto-merge, and the Dependabot and Renovate rebases.
+func writeActionRefusal(ctx context.Context, w http.ResponseWriter, src any, action dashboard.PullRequestAction, owner, name string, number int, actionErr error) {
 	var state *dashboard.PullRequestState
 	if !refusalNeedsNoReRead(actionErr) {
 		if reader, ok := src.(dashboard.PullRequestStateReader); ok {
@@ -41,7 +41,7 @@ func writeActionRefusal(ctx context.Context, w http.ResponseWriter, src any, own
 		}
 	}
 
-	refusal := dashboard.ClassifyActionRefusal(actionErr, state)
+	refusal := dashboard.ClassifyActionRefusalFor(action, actionErr, state)
 	status := clientErrorStatus(actionErr)
 	if refusal.Code == dashboard.ActionAlreadyMerged || refusal.Code == dashboard.ActionAlreadyClosed {
 		status = http.StatusConflict

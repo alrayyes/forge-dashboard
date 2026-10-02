@@ -68,7 +68,7 @@ func handlePullRequestUpdateBranch(deps Deps) http.HandlerFunc {
 		accepted, err := updater.UpdateBranch(r.Context(), owner, name, req.Number)
 		if err != nil {
 			slog.Warn("pull request branch update failed", "forge", req.Forge, "repo", req.FullName, "number", req.Number, "error", err)
-			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
+			writeActionRefusal(r.Context(), w, updater, dashboard.PullRequestActionUpdateBranch, owner, name, req.Number, err)
 
 			return
 		}

@@ -318,6 +318,16 @@ landed another way) it's the action that applies. It asks for confirmation the
 same way Merge does, inside the menu. Confirming closes the menu and shows
 progress on the row; Escape closes the menu and drops an unconfirmed Close.
 
+Every other action (Close, Update branch, Enable auto-merge, Dependabot and
+Renovate `rebase`) answers a refusal the same way as Merge. A pull request found
+already merged or closed switches its row to "Merged" or "Closed" with a polite
+toast, whichever button was clicked. Otherwise the reason is in plain words,
+and Retry shows only for a reason that can pass by itself. A few codes belong
+to one action: update branch can say there is nothing to bring in,
+Enable auto-merge can say the repo doesn't allow it or that the pull request is
+already ready to merge, and Renovate `rebase` can say the label is missing on the
+repo.
+
 A locked action offers Retry only when waiting might fix it, such as a 502 or
 an unreachable forge. When a forge's API budget is spent, its actions are
 greyed out with no Retry, and the reason says when they come back ("GitHub

@@ -1565,3 +1565,41 @@ func TestClosePullRequest_AlreadyMerged_KeepsForgesOwnMessage(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "it was already merged")
 }
+
+// Forgejo's update endpoint answers a conflict with 409 and says so in the
+// message; a merged or closed PR is a 422. Both must keep their text, and
+// the conflict must stay a conflict for Update branch to classify.
+func TestUpdateBranch_Refusals_KeepForgesOwnMessage(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		status  int
+		message string
+		kind    dashboard.ForgeErrorKind
+	}{
+		{"conflict", http.StatusConflict, "merge failed because of conflict", dashboard.ForgeErrorConflict},
+		{"permission", http.StatusForbidden, "User not allowed to update this pull request", dashboard.ForgeErrorUnauthorized},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5/update", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				writeJSON(t, w, map[string]any{"message": tc.message, "url": "https://forge.example/api/swagger"})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			_, err := forgejo.NewClient(srv.URL, "test-token", "").UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+			require.Error(t, err)
+			var clientErr *dashboard.ClientError
+			require.ErrorAs(t, err, &clientErr)
+			assert.Equal(t, tc.kind, clientErr.Kind)
+			assert.Contains(t, err.Error(), tc.message)
+		})
+	}
+}
