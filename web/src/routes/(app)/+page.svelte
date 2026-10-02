@@ -78,7 +78,13 @@
     | "requesting"
     | "enabling"
     | "locked";
-  type ActionState = { phase: ActionPhase; reason?: string };
+  type ActionState = {
+    phase: ActionPhase;
+    reason?: string;
+    // Only on a queued bot rebase (#706): what the snapshot has to show
+    // before the wait counts as over.
+    queued?: { prKey: string; wasBehind: boolean; at: number };
+  };
 
   onMount(initDashboard);
 
@@ -1474,7 +1480,10 @@
       button: HTMLButtonElement,
     ) {
       const key = `${prKey(item)}:${action}`;
-      dependabotActionState[key] = { phase: "queued" };
+      dependabotActionState[key] = {
+        phase: "queued",
+        queued: queuedBotInfo(item),
+      };
       button.disabled = true;
       button.textContent = "Queued…";
       showQueuedBanner(
@@ -1679,7 +1688,10 @@
       button: HTMLButtonElement,
     ) {
       const key = prKey(item);
-      renovateRebaseState[key] = { phase: "queued" };
+      renovateRebaseState[key] = {
+        phase: "queued",
+        queued: queuedBotInfo(item),
+      };
       button.disabled = true;
       button.textContent = "Queued…";
       showQueuedBanner(
@@ -3141,19 +3153,44 @@
       );
     }
 
-    // Bot-triggered requests (not update-branch) hold "queued" only until
-    // the next snapshot, which is what the banner promises.
-    function clearQueuedBotActions() {
+    // How long a bot rebase may stay queued without a snapshot showing it
+    // landed. A bot that ignores the request would otherwise leave a
+    // disabled button and a banner up for good.
+    const QUEUED_BOT_EXPIRY_MS = 5 * 60 * 1000;
+
+    function queuedBotInfo(item: PullRequestItem) {
+      return {
+        prKey: prKey(item),
+        wasBehind: Boolean(item.behind),
+        at: Date.now(),
+      };
+    }
+
+    // Bot-triggered requests (not update-branch) hold "queued" until a
+    // snapshot shows the rebase landed: the pull request is gone, or it
+    // was behind when asked and no longer is. Any other snapshot (the
+    // live stream pushes one all the time) says nothing about the bot,
+    // so it must not clear the banner. Expires after a while so a bot
+    // that never acts doesn't pin the button disabled.
+    function clearResolvedQueuedBotActions(prs: PullRequestItem[]) {
+      const byKey = new Map(prs.map((p) => [prKey(p), p]));
       for (const stateMap of [dependabotActionState, renovateRebaseState]) {
         for (const key of Object.keys(stateMap)) {
-          if (stateMap[key].phase === "queued") delete stateMap[key];
+          const entry = stateMap[key];
+          if (entry.phase !== "queued" || !entry.queued) continue;
+          const current = byKey.get(entry.queued.prKey);
+          const landed =
+            !current || (entry.queued.wasBehind && !current.behind);
+          if (landed || Date.now() - entry.queued.at > QUEUED_BOT_EXPIRY_MS)
+            delete stateMap[key];
         }
       }
     }
 
     function queuedCountdownText(): string {
       const seconds = Math.max(0, Math.ceil((nextPollAt - Date.now()) / 1000));
-      return ` (next refresh in ${seconds}s)`;
+      // The snapshot is late, not lost: say so instead of "0s".
+      return seconds === 0 ? " Refreshing…" : ` (next refresh in ${seconds}s)`;
     }
 
     function showQueuedBanner(message: string) {
@@ -3312,12 +3349,12 @@
       clearStaleLocks(mergeState);
       clearStaleLocks(closeState);
       clearStaleLocks(updateBranchState);
-      // A fresh snapshot is the "next refresh" a queued bot rebase was
-      // waiting for. Cleared before anyRowActionInFlight is consulted
-      // below, so a queued row doesn't also hold the board back.
-      clearQueuedBotActions();
-
       const prs = data.pullRequests || [];
+      // Only a snapshot that shows the rebase landed ends a queued bot
+      // action — not just any snapshot (#706). Cleared before
+      // anyRowActionInFlight is consulted below, so a resolved row
+      // doesn't also hold the board back.
+      clearResolvedQueuedBotActions(prs);
       for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
         showStatus(`Updated the branch for ${item.repo}#${item.number}.`);
       }
