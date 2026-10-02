@@ -787,6 +787,78 @@ select.col-filter {
   outline-offset: 1px;
 }
 
+/* #710: the slim bar under the filter bar. The count is a polite live
+   region and stays empty (zero height of text) until updates are held, so
+   it announces when the count changes and not on every poll. */
+.updates-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  margin-bottom: 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.updates-count {
+  font-weight: 600;
+  color: var(--ink);
+}
+.updates-paused {
+  color: var(--ink-2);
+}
+.updates-bar button {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+.updates-bar .updates-show {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.updates-bar .updates-pause {
+  margin-left: auto;
+}
+.updates-bar .updates-pause[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.updates-bar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* The marker is words, so it doesn't rely on colour or motion; the fade
+   only plays for people who haven't asked for reduced motion. */
+.updated-just-now {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .updated-just-now {
+    animation: updated-fade 2.5s ease-out;
+  }
+}
+@keyframes updated-fade {
+  from {
+    background: var(--warning-bg);
+  }
+  to {
+    background: transparent;
+  }
+}
+
 /* A segmented control, not tabs — it reshapes what's already on screen
    rather than navigating anywhere, and stays fully visible at rest so the
    active forge is never hidden behind a closed dropdown the way the old

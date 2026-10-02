@@ -6,6 +6,11 @@ export interface SharedFilterState {
   shared: Record<string, string>;
   pr: Record<string, string>;
   issue: Record<string, string>;
+  // How the pull request list is shown rather than what it's filtered
+  // by (#710): sort ('' = last activity, the server's own order) and
+  // paused ('1' = hold live updates). Kept apart from shared/pr/issue so
+  // "Clear filters" never resets them.
+  view: Record<string, string>;
 }
 
 export interface FilterableItem {
@@ -19,7 +24,7 @@ export interface FilterableItem {
   draft?: boolean;
   mergeStatus?: string;
   labels?: { name: string }[];
-  review?: { decision: string };
+  review?: { decision: string; requestedReviewers: number };
 }
 
 // release-please labels every PR it manages with "autorelease: pending"
@@ -69,14 +74,15 @@ export function matchesQuickFilter(
         item.mergeStatus === 'mergeable' && item.ci === 'success' && !item.draft
       );
     case 'needs-review':
-      // Unknown review state (no review object) never matches: the forge
-      // couldn't say, which isn't the same as nobody having reviewed it.
-      // A PR with changes requested is waiting on its author, not a
-      // reviewer.
+      // A review is outstanding: the forge requires one, or someone was
+      // asked. "none" with nobody asked is merely unreviewed, approved and
+      // changes_requested aren't waiting on a reviewer, and an unknown
+      // state (no review object) isn't the same as nobody having reviewed.
       return (
         !item.draft &&
         (item.review?.decision === 'review_required' ||
-          item.review?.decision === 'none')
+          (item.review?.decision === 'none' &&
+            item.review.requestedReviewers > 0))
       );
     default:
       return true;
@@ -176,6 +182,7 @@ function defaultState(): SharedFilterState {
     shared: {},
     pr: {},
     issue: { hideDependencyDashboard: '1' },
+    view: {},
   };
 }
 
@@ -196,6 +203,8 @@ export function loadState(): SharedFilterState {
     Object.assign(state.pr, parsed.pr);
   if (parsed.issue && typeof parsed.issue === 'object')
     Object.assign(state.issue, parsed.issue);
+  if (parsed.view && typeof parsed.view === 'object')
+    Object.assign(state.view, parsed.view);
   return state;
 }
 
@@ -274,7 +283,8 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
       if (
         (!parsed.shared || Object.keys(parsed.shared).length === 0) &&
         (!parsed.pr || Object.keys(parsed.pr).length === 0) &&
-        (!parsed.issue || Object.keys(parsed.issue).length === 0)
+        (!parsed.issue || Object.keys(parsed.issue).length === 0) &&
+        (!parsed.view || Object.keys(parsed.view).length === 0)
       ) {
         return null;
       }
@@ -299,6 +309,8 @@ export function applyServerState(
   if (got.pr && typeof got.pr === 'object') Object.assign(state.pr, got.pr);
   if (got.issue && typeof got.issue === 'object')
     Object.assign(state.issue, got.issue);
+  if (got.view && typeof got.view === 'object')
+    Object.assign(state.view, got.view);
 }
 
 export function minutesAgo(iso: string): number {
@@ -477,4 +489,100 @@ export function populateRepoSelect(
   }
   select.value = '';
   return Boolean(previous);
+}
+
+// ---- stable rows (#710) ----
+
+export const SORT_OPTIONS = ['', 'created', 'repo'] as const;
+
+interface SortableItem {
+  forge: string;
+  repo: string;
+  number: number;
+  createdAt: string;
+}
+
+// '' (Last activity) keeps the order the server sent, which already is
+// updatedAt descending. The other two sort on fields that don't change
+// when someone comments, so a row only moves when the sort does.
+export function sortItems<T extends SortableItem>(
+  items: T[],
+  sort: string | undefined,
+): T[] {
+  if (sort === 'created')
+    return [...items].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  if (sort === 'repo')
+    return [...items].sort(
+      (a, b) =>
+        a.repo.localeCompare(b.repo) ||
+        a.forge.localeCompare(b.forge) ||
+        a.number - b.number,
+    );
+  return items;
+}
+
+export function itemKey(item: {
+  forge: string;
+  repo: string;
+  number: number;
+}): string {
+  return `${item.forge}:${item.repo}#${item.number}`;
+}
+
+export interface ListDiff {
+  added: number;
+  removed: number;
+  moved: number;
+  // Keys of rows present on both sides whose own content differs.
+  changed: string[];
+}
+
+// Rows that aren't part of the longest run still in the same relative
+// order are the ones that moved: one PR jumping to the top counts once,
+// not as everything it jumped over.
+function movedCount(shown: string[], latest: string[]): number {
+  const index = new Map(latest.map((key, i) => [key, i]));
+  const sequence = shown
+    .map((key) => index.get(key))
+    .filter((i): i is number => i !== undefined);
+  const best: number[] = [];
+  let longest = 0;
+  for (let i = 0; i < sequence.length; i++) {
+    best[i] = 1;
+    for (let j = 0; j < i; j++)
+      if (sequence[j] < sequence[i]) best[i] = Math.max(best[i], best[j] + 1);
+    longest = Math.max(longest, best[i]);
+  }
+  return sequence.length - longest;
+}
+
+// updatedAt is left out of "changed": it moves on every touch, and the
+// row's own relative-time text is refreshed along with any real change.
+function contentSignature(item: object): string {
+  const { updatedAt: _ignored, ...rest } = item as Record<string, unknown>;
+  return JSON.stringify(rest);
+}
+
+export function diffItems<T extends SortableItem>(
+  shown: T[],
+  latest: T[],
+): ListDiff {
+  const shownKeys = shown.map(itemKey);
+  const latestByKey = new Map(latest.map((item) => [itemKey(item), item]));
+  const shownSet = new Set(shownKeys);
+  const changed: string[] = [];
+  for (const item of shown) {
+    const next = latestByKey.get(itemKey(item));
+    if (next && contentSignature(next) !== contentSignature(item))
+      changed.push(itemKey(item));
+  }
+  return {
+    added: latest.filter((item) => !shownSet.has(itemKey(item))).length,
+    removed: shownKeys.filter((key) => !latestByKey.has(key)).length,
+    moved: movedCount(shownKeys, latest.map(itemKey)),
+    changed,
+  };
 }
