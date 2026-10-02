@@ -402,6 +402,21 @@ required when a pattern matches its job name or its workflow-file
 context; it is never marked advisory. If nothing is known for any check,
 the panel stays the flat list.
 
+## Live updates
+
+The board polls every 30 seconds and takes pushes over a live stream, but
+rows don't move while you're reading. A change to a row's own content (CI,
+merge status, behind, labels, title) updates that row where it stands and
+marks it "Updated just now" for a couple of seconds. Anything that would
+add, remove or reorder rows waits behind an "N updates available" bar
+under the filter bar; **Show updates** applies it all in one render, and so
+does changing a filter, the sort or the page. Nothing re-renders while
+focus is inside a row, a More actions menu is open, a modal window is open, or a
+row action is in flight. **Pause live updates** stops every automatic
+update until you turn it back on (Refresh now still works). The **Sort**
+control offers Last activity (the default, the server's order), Created and
+Repository. Pause and sort are saved with your other filters.
+
 ## Webhooks
 
 Optional. Without one, the dashboard still refreshes on its own schedule
@@ -467,7 +482,10 @@ one `GET /repos/{owner}/{repo}/pulls/{index}/reviews` call per open,
 non-draft pull request. Those results are cached until the pull
 request's `updated_at` changes, so after the first refresh a quiet
 dashboard spends none of them. A pull request whose review state couldn't
-be read has no `review` and never matches the filter.
+be read has no `review` and never matches the filter. Needs review means a
+review is outstanding: the forge requires one, or a reviewer was asked and
+hasn't answered. A pull request nobody was asked to review doesn't
+count.
 
 ### GitHub App support
 
