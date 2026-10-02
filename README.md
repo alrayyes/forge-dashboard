@@ -333,15 +333,13 @@ Renovate request clears once a refresh shows the pull request is no longer
 behind or is gone, or after five minutes if the bot never acts. If the
 request fails, the button comes back and the error banner says why.
 
-A pull request opened by release-please, Dependabot, or Renovate keeps
-itself current on its own schedule — for release-please specifically,
-a manual Update branch click can fight its own next run, since it
-regenerates the branch and changelog together on every push to the base
-branch. Update branch stays hidden on a PR any of them opened unless
-"Allow updating bot-managed PR branches" is turned on in Settings, which
-also reveals a field for the label Renovate's own rebase/retry trigger
-listens for on your repos (its own `rebaseLabel` config option, genuinely
-per-repo configurable — leave blank for Renovate's own default, `rebase`).
+A Dependabot or Renovate pull request gets no Update branch button: each
+has its own `Rebase` action instead (below). A release-please pull request
+does get one, because release-please has no `rebase` command. It only
+regenerates its pull request when the release notes change. A release
+pull request can therefore fall behind with nothing else to catch it up. When
+release-please does regenerate it, it force-pushes the branch, so the
+merge commit Update branch adds is overwritten rather than conflicting.
 
 A Dependabot-authored pull request on GitHub instead gets its own pair of
 buttons — `Dependabot: Rebase` and `Dependabot: Recreate` — that trigger
@@ -361,8 +359,7 @@ posting comments Dependabot would only refuse.
 
 A repo with a behind pull request can also be brought up to date without a
 click at all, by enabling auto-update-branch for it in Settings. For a
-Dependabot pull request specifically, once "Allow updating bot-managed PR
-branches" is also on, that background pass drives the same `@dependabot
+Dependabot pull request specifically, that background pass drives the same `@dependabot
 rebase` command the manual button does rather than a generic branch update
 — and if that `rebase` leaves the pull request's CI failing, follows up with
 `@dependabot recreate` on its own, the same way you'd notice the failure
@@ -370,6 +367,9 @@ and click Recreate yourself. A Renovate pull request gets the same
 treatment as the manual `Renovate: Rebase` button below it — the
 configured `rebase` label added instead of a generic branch update,
 since that's Renovate's own rebase/retry trigger, not a comment command.
+The background pass always skips release-please pull requests, so nothing
+writes to a release branch unattended. The manual Update branch button is
+the way to catch one up.
 
 A Renovate-authored pull request, on either forge, gets a `Renovate:
 Rebase` button that adds the configured `rebase` label (Settings' own
