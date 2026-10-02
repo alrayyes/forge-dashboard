@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.105.0](https://github.com/alrayyes/forge-dashboard/compare/v0.104.0...v0.105.0) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** quick filter pills and '/' search shortcut ([#685](https://github.com/alrayyes/forge-dashboard/issues/685)) ([b3ff6bf](https://github.com/alrayyes/forge-dashboard/commit/b3ff6bf2b58ca5901ee47b0c2dd59dd799035425)), closes [#678](https://github.com/alrayyes/forge-dashboard/issues/678)
+
 ## [0.104.0](https://github.com/alrayyes/forge-dashboard/compare/v0.103.2...v0.104.0) (2026-10-02)
 
 
