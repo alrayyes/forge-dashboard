@@ -13,5 +13,9 @@ JetBrains Mono, with indigo for GitHub and orange for Forgejo.
   with Close only in the overflow menu.
 - `dashboard-bot-rebase.png`: a Dependabot update request from queued to
   picked up.
+- `dashboard-stable-feed.png`: rows that stay put, with an updates bar
+  and a stable sort.
+- `dashboard-forgejo-auto-merge.png`: auto-merge on Forgejo, handled by
+  this app.
 
 The design is dark only. The app keeps its light theme.
