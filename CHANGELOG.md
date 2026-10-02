@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.106.0](https://github.com/alrayyes/forge-dashboard/compare/v0.105.0...v0.106.0) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** queued state and countdown for actions ([#689](https://github.com/alrayyes/forge-dashboard/issues/689)) ([34b9468](https://github.com/alrayyes/forge-dashboard/commit/34b94689e6858841a48a679b3614b0a8c819489b)), closes [#680](https://github.com/alrayyes/forge-dashboard/issues/680)
+
 ## [0.105.0](https://github.com/alrayyes/forge-dashboard/compare/v0.104.0...v0.105.0) (2026-10-02)
 
 
