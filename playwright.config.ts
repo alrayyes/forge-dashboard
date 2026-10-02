@@ -3,21 +3,20 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: 'tests',
   use: {
-    baseURL: 'http://localhost:8080',
+    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8080',
   },
   reporter: 'list',
   // Registers the very first user (who becomes admin) once, before any
   // test file runs — see the file's own header comment for why this
   // can't be a per-file beforeAll.
   globalSetup: './tests/admin-global-setup.ts',
-  // Every test here drives a real WebAuthn ceremony through Chrome's CDP
-  // virtual authenticator against one shared Go binary — real CTAP2 crypto,
-  // real HTTP round trips. Two of those running at once under CI's default
-  // worker count is a genuine resource/timing race, not a bug in the tests
-  // themselves: confirmed live across three separate runs, each timing out
-  // on a different, otherwise-passing assertion (a toHaveURL after login, a
-  // dashboard stat never leaving its loading placeholder). Local runs stay
-  // parallel — this is a CI-under-load problem, not a test-isolation one.
+  // Every test drives a real WebAuthn ceremony through Chrome's CDP virtual
+  // authenticator against one shared Go binary. CI runs one worker. Locally
+  // the default worker count stays: measured on #736, the server idles
+  // (about 10% of one core, every request but the SSE stream under 50 ms)
+  // and fewer workers didn't make failures go away, so the failures were
+  // test races and a starved browser, not server contention. Use
+  // tests/run-local.sh for a fresh database per run.
   workers: process.env.CI ? 1 : undefined,
   retries: process.env.CI ? 1 : 0,
 });
