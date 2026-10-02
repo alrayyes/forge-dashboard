@@ -3340,6 +3340,12 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
         requestedReviewers: 1,
       },
     }),
+    pr({
+      number: 13,
+      ci: 'pending',
+      title: 'Reviewer asked, no rule',
+      review: { decision: 'none', approvals: 0, requestedReviewers: 1 },
+    }),
   ];
   const ISSUES = [
     {
@@ -3420,9 +3426,11 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(rowTitles(page).nth(1)).toContainText('Bump dep');
   });
 
-  // Review state comes from /api/dashboard's review object (#683). Unknown
-  // state (no review key at all) is not the same as "nobody reviewed it".
-  test('Needs Review keeps open, non-draft pull requests with no approval', async ({
+  // Review state comes from /api/dashboard's review object (#683). Needs
+  // Review means a review is outstanding (#713): the forge requires one, or
+  // someone was asked. Not merely "no approval yet", and unknown state (no
+  // review key at all) never matches.
+  test('Needs Review keeps non-draft pull requests with a review outstanding', async ({
     page,
   }) => {
     await pill(page, 'Needs Review').click();
@@ -3432,7 +3440,13 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     );
     await expect(rowTitles(page)).toHaveCount(2);
     await expect(page.locator('#pr-rows')).toContainText('Awaiting review');
-    await expect(page.locator('#pr-rows')).toContainText('Nobody looked');
+    await expect(page.locator('#pr-rows')).toContainText(
+      'Reviewer asked, no rule',
+    );
+    await expect(page.locator('#pr-rows')).not.toContainText('Nobody looked');
+    await expect(page.locator('#pr-rows')).not.toContainText(
+      'Changes asked for',
+    );
     await expect(page.locator('#pr-rows')).not.toContainText(
       'Approved already',
     );

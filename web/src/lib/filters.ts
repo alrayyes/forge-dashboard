@@ -19,7 +19,7 @@ export interface FilterableItem {
   draft?: boolean;
   mergeStatus?: string;
   labels?: { name: string }[];
-  review?: { decision: string };
+  review?: { decision: string; requestedReviewers: number };
 }
 
 // release-please labels every PR it manages with "autorelease: pending"
@@ -69,14 +69,15 @@ export function matchesQuickFilter(
         item.mergeStatus === 'mergeable' && item.ci === 'success' && !item.draft
       );
     case 'needs-review':
-      // Unknown review state (no review object) never matches: the forge
-      // couldn't say, which isn't the same as nobody having reviewed it.
-      // A PR with changes requested is waiting on its author, not a
-      // reviewer.
+      // A review is outstanding: the forge requires one, or someone was
+      // asked. "none" with nobody asked is merely unreviewed, approved and
+      // changes_requested aren't waiting on a reviewer, and an unknown
+      // state (no review object) isn't the same as nobody having reviewed.
       return (
         !item.draft &&
         (item.review?.decision === 'review_required' ||
-          item.review?.decision === 'none')
+          (item.review?.decision === 'none' &&
+            item.review.requestedReviewers > 0))
       );
     default:
       return true;
