@@ -1020,6 +1020,11 @@
       if (/\bis in unstable status\b/i.test(message)) {
         return "GitHub reports this pull request as unstable — a non-required check is still running or has failed. Try again once it settles.";
       }
+      // #662: the mutation also rejects a pull request that went clean
+      // since the last refresh.
+      if (/\bis in clean status\b/i.test(message)) {
+        return "This pull request is already ready to merge, so there's nothing for auto-merge to wait for. Use Merge instead.";
+      }
       return message;
     }
 
@@ -1107,6 +1112,14 @@
       if (item.forge !== "github") return null;
       if (item.autoMergeEnabled === true) return null;
       if (item.empty || item.mergeStatus === "conflicting") return null;
+      // #662: GitHub rejects arming auto-merge on a pull request that is
+      // already clean — nothing left to wait for, and Merge covers it.
+      if (
+        item.mergeStatus === "mergeable" &&
+        item.ci === "success" &&
+        !item.behind
+      )
+        return null;
 
       const key = prKey(item);
       const entry = autoMergeState[key] || { phase: "idle" };

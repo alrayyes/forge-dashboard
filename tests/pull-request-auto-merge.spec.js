@@ -128,6 +128,46 @@ test.describe('pull request Enable auto-merge action', () => {
     ).toHaveCount(0);
   });
 
+  test('a pull request that is already mergeable with green checks shows no button — there is nothing left to wait for (#662)', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'mergeable', ci: 'success', behind: false }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(
+      row.getByRole('button', { name: 'Enable auto-merge' }),
+    ).toHaveCount(0);
+  });
+
+  test('a clean-status (502) failure points at Merge instead of showing the raw GraphQL error (#662)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/auto-merge', (route) =>
+      route.fulfill({
+        status: 502,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error:
+            'github: graphql: Pull request Pull request is in clean status when enabling auto merge for https://github.com/alrayyes/forge-dashboard/pull/42',
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
+    await row.getByRole('button', { name: 'Enable auto-merge' }).click();
+
+    const banner = page.locator('#error-banner');
+    await expect(banner).toContainText('already ready to merge');
+    await expect(banner).not.toContainText('graphql');
+  });
+
   test('clicking calls the API immediately, with no confirm step', async ({
     page,
   }) => {
