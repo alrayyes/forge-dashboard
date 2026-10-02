@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.111.1](https://github.com/alrayyes/forge-dashboard/compare/v0.111.0...v0.111.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **dashboard:** explain a refused merge from the server's code and show a stale row as merged ([#758](https://github.com/alrayyes/forge-dashboard/issues/758)) ([89b9649](https://github.com/alrayyes/forge-dashboard/commit/89b964963bb1f10dc5fc8e9e83f54cd44b86eb9f))
+
 ## [0.111.0](https://github.com/alrayyes/forge-dashboard/compare/v0.110.0...v0.111.0) (2026-10-02)
 
 
