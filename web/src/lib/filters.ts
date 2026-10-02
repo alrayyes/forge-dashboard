@@ -16,7 +16,76 @@ export interface FilterableItem {
   createdAt: string;
   updatedAt: string;
   ci?: string;
+  draft?: boolean;
+  mergeStatus?: string;
   labels?: { name: string }[];
+}
+
+// release-please labels every PR it manages with "autorelease: pending"
+// or "autorelease: tagged" — the author is a human in this account's
+// setup, not release-please itself, so the label is the only signal.
+export function isReleasePleasePr(item: FilterableItem): boolean {
+  return (item.labels || []).some((l) => l.name.startsWith('autorelease:'));
+}
+
+// A GitHub App actor's login comes back in two shapes depending on which
+// API served it: GraphQL's Actor.login is the bare app slug
+// ("dependabot"), while the REST endpoints append "[bot]"
+// ("dependabot[bot]"). Both fetch paths need matching (#522).
+export function isDependabotPr(item: FilterableItem): boolean {
+  return item.author === 'dependabot' || item.author === 'dependabot[bot]';
+}
+
+// Same bare-slug-vs-"[bot]" split as isDependabotPr, for Renovate.
+export function isRenovatePr(item: FilterableItem): boolean {
+  return item.author === 'renovate' || item.author === 'renovate[bot]';
+}
+
+export function isBotManagedPr(item: FilterableItem): boolean {
+  return isReleasePleasePr(item) || isDependabotPr(item) || isRenovatePr(item);
+}
+
+// The pull-request-only quick filter pills (#678). Stored as pr.quick.
+export const QUICK_FILTERS = ['failing', 'bots', 'ready'] as const;
+export type QuickFilter = (typeof QUICK_FILTERS)[number];
+
+export function matchesQuickFilter(
+  item: FilterableItem,
+  quick: string | undefined,
+): boolean {
+  switch (quick) {
+    case 'failing':
+      return item.ci === 'failure';
+    case 'bots':
+      return isBotManagedPr(item);
+    case 'ready':
+      return (
+        item.mergeStatus === 'mergeable' && item.ci === 'success' && !item.draft
+      );
+    default:
+      return true;
+  }
+}
+
+// The pill that's active for a state: a quick filter wins, then a forge,
+// else "all". Exactly one pill is ever active.
+export function activePill(state: SharedFilterState): string {
+  if (state.pr.quick) return state.pr.quick;
+  if (state.shared.forge) return state.shared.forge;
+  return 'all';
+}
+
+// Activates one pill in place: clears the other pill's effect first, so
+// choosing one always deselects the rest. Mutated, not replaced — board
+// closures hold these exact objects.
+export function setPill(state: SharedFilterState, pill: string): void {
+  // Set to '' rather than deleted, so a merge of the server's copy
+  // over a stale cookie still clears the old pill.
+  state.shared.forge = '';
+  state.pr.quick = '';
+  if (pill === 'github' || pill === 'forgejo') state.shared.forge = pill;
+  else if ((QUICK_FILTERS as readonly string[]).includes(pill))
+    state.pr.quick = pill;
 }
 
 export const FORGE_LABELS: Record<string, string> = {
@@ -215,6 +284,7 @@ export function matchesFilters(
   )
     return false;
   if (isPR && extra?.status && item.ci !== extra.status) return false;
+  if (isPR && !matchesQuickFilter(item, extra?.quick)) return false;
   // Renovate's one permanently-open, constantly-rewritten housekeeping
   // issue per repo — never a pull request, so this only ever matches
   // on the issues board. Exact title match: that's the fixed title

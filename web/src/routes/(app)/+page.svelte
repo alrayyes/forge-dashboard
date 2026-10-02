@@ -507,40 +507,10 @@
     // push to the base branch), a genuine risk of fighting its own next
     // run.
 
-    // release-please labels every PR it manages with
-    // "autorelease: pending" or "autorelease: tagged" — the author is a
-    // human in this account's setup, not release-please itself, so the
-    // label is the only signal.
-    function isReleasePleasePr(item: PullRequestItem): boolean {
-      return (item.labels || []).some((l) => l.name.startsWith("autorelease:"));
-    }
-
-    // A GitHub App actor's login comes back in two different shapes
-    // depending on which API served it: GraphQL's Actor.login is the bare
-    // app slug ("dependabot", confirmed live via `gh api graphql` against
-    // a real Dependabot PR — "app/dependabot" is gh CLI's own display
-    // convention for a Bot actor, never a raw API value), while the REST
-    // pulls/issues endpoints append "[bot]" to the same slug
-    // ("dependabot[bot]") the way they do for every GitHub App. Both this
-    // app's own fetch paths (GraphQL, and the unauthenticated-mode REST
-    // fallback) need matching — checking only "app/dependabot", a form
-    // neither path ever actually returns, left this false unconditionally
-    // (#522).
-    function isDependabotPr(item: PullRequestItem): boolean {
-      return item.author === "dependabot" || item.author === "dependabot[bot]";
-    }
-
-    // Same GraphQL-bare-slug-vs-REST-"[bot]"-suffix split as
-    // isDependabotPr, for Renovate's own GitHub App install.
-    function isRenovatePr(item: PullRequestItem): boolean {
-      return item.author === "renovate" || item.author === "renovate[bot]";
-    }
-
-    function isBotManagedPr(item: PullRequestItem): boolean {
-      return (
-        isReleasePleasePr(item) || isDependabotPr(item) || isRenovatePr(item)
-      );
-    }
+    // Bot-author predicates live in $lib/filters, shared with the Bot PRs
+    // quick filter pill.
+    const { isReleasePleasePr, isDependabotPr, isRenovatePr, isBotManagedPr } =
+      Filters;
 
     // Strips the "github: <method> <path>: " / "forgejo: <method>
     // <path>: " diagnostic prefix restError/forgejoError wrap every
@@ -2255,6 +2225,7 @@
     // filter back to its lowercase canonical form over whatever case
     // the user is mid-typing.
     function syncSharedControlsToState() {
+      syncQuickPills();
       const bar = document.querySelector(".filter-bar");
       if (!bar) return;
       bar
@@ -2663,6 +2634,54 @@
         c.addEventListener("change", apply);
       });
 
+    // ---- quick filter pills (#678) ----
+    // Toggle buttons with aria-pressed: exactly one is active at a time.
+    // The pill logic itself lives in $lib/filters (setPill/activePill).
+    const quickPills = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".quick-pills .quick-pill"),
+    );
+    function syncQuickPills() {
+      const active = Filters.activePill(sharedState);
+      for (const b of quickPills)
+        b.setAttribute("aria-pressed", String(b.dataset.pill === active));
+    }
+    for (const b of quickPills) {
+      b.addEventListener("click", () => {
+        Filters.setPill(sharedState, b.dataset.pill ?? "all");
+        prBoard.resetPage();
+        issueBoard.resetPage();
+        updateSharedFilterOptions();
+        Filters.saveState(sharedState);
+        syncQuickPills();
+        renderBoth();
+      });
+    }
+    syncQuickPills();
+
+    // "/" focuses the title search, as on GitHub — only when nothing
+    // editable has focus and no modifier is held, so typing a slash into
+    // a field, or a browser/OS shortcut, is untouched.
+    const titleSearch = document.querySelector<HTMLInputElement>(
+      '.filter-bar .col-filter[data-col="title"]',
+    );
+    function onSlashShortcut(e: KeyboardEvent) {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)
+        return;
+      const t = e.target;
+      if (
+        t instanceof HTMLElement &&
+        (t.isContentEditable ||
+          t instanceof HTMLInputElement ||
+          t instanceof HTMLTextAreaElement ||
+          t instanceof HTMLSelectElement)
+      )
+        return;
+      if (!titleSearch) return;
+      e.preventDefault();
+      titleSearch.focus();
+    }
+    document.addEventListener("keydown", onSlashShortcut);
+
     const sharedGroupSelect = document.getElementById(
       "shared-group-select",
     ) as HTMLSelectElement | null;
@@ -2681,6 +2700,7 @@
       return (
         Object.keys(sharedState.shared).every((k) => !sharedState.shared[k]) &&
         !sharedState.pr.status &&
+        !sharedState.pr.quick &&
         sharedState.issue.hideDependencyDashboard === "1"
       );
     }
@@ -2708,6 +2728,7 @@
       for (const k of Object.keys(sharedState.issue))
         delete sharedState.issue[k];
       sharedState.issue.hideDependencyDashboard = "1";
+      syncQuickPills();
 
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>(
@@ -3214,6 +3235,8 @@
         }
       };
     }
+
+    return () => document.removeEventListener("keydown", onSlashShortcut);
   }
 </script>
 
@@ -3308,40 +3331,44 @@
     role="search"
     aria-label="Filter pull requests and issues"
   >
-    <fieldset class="forge-segmented">
-      <legend class="sr-only">Filter by forge</legend>
-      <label>
-        <input
-          type="radio"
-          name="forge"
-          class="col-filter"
-          data-col="forge"
-          value=""
-          checked
-        />
-        <span>All</span>
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="forge"
-          class="col-filter"
-          data-col="forge"
-          value="github"
-        />
-        <span>GitHub</span>
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="forge"
-          class="col-filter"
-          data-col="forge"
-          value="forgejo"
-        />
-        <span>Forgejo</span>
-      </label>
-    </fieldset>
+    <div class="quick-pills" role="group" aria-label="Quick filters">
+      <button
+        type="button"
+        class="quick-pill"
+        data-pill="all"
+        aria-pressed="true">All</button
+      >
+      <button
+        type="button"
+        class="quick-pill"
+        data-pill="github"
+        aria-pressed="false">GitHub</button
+      >
+      <button
+        type="button"
+        class="quick-pill"
+        data-pill="forgejo"
+        aria-pressed="false">Forgejo</button
+      >
+      <button
+        type="button"
+        class="quick-pill"
+        data-pill="failing"
+        aria-pressed="false">Failing CI</button
+      >
+      <button
+        type="button"
+        class="quick-pill"
+        data-pill="bots"
+        aria-pressed="false">Bot PRs</button
+      >
+      <button
+        type="button"
+        class="quick-pill"
+        data-pill="ready"
+        aria-pressed="false">Ready to Merge</button
+      >
+    </div>
     <select
       class="group-select"
       id="shared-group-select"
@@ -3359,15 +3386,19 @@
     >
       <option value="">All repos</option>
     </select>
-    <input
-      class="col-filter"
-      data-col="title"
-      type="text"
-      placeholder="Title"
-      aria-label="Filter by title"
-      list="shared-title-options"
-      autocomplete="off"
-    />
+    <span class="search-wrap">
+      <input
+        class="col-filter"
+        data-col="title"
+        type="text"
+        placeholder="Title"
+        aria-label="Filter by title"
+        aria-keyshortcuts="/"
+        list="shared-title-options"
+        autocomplete="off"
+      />
+      <kbd class="search-hint" aria-hidden="true">/</kbd>
+    </span>
     <datalist id="shared-title-options"></datalist>
     <select
       class="col-filter"
