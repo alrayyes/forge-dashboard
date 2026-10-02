@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import * as Filters from "$lib/filters";
+  import type { FilterableItem, SharedFilterState } from "$lib/filters";
 
   type RateLimit = {
     limit: number;
@@ -20,7 +22,7 @@
   };
 
   // ---- shared filter state — the same cookie/object app.js reads and
-  // writes (via the global Filters, filters.js), not a separate
+  // writes (via the shared $lib/filters module), not a separate
   // preference store: filtering to a repo here or on the main dashboard
   // is one choice, not two independent ones. Only sharedState.shared
   // (forge/repo/label/author/title) and
@@ -138,17 +140,12 @@
 
   const prItems = $derived(
     lastSnapshot.pullRequests.filter((item) =>
-      window.Filters.matchesFilters(item, true, chartFilters(), undefined),
+      Filters.matchesFilters(item, true, chartFilters(), undefined),
     ),
   );
   const issueItems = $derived(
     lastSnapshot.issues.filter((item) =>
-      window.Filters.matchesFilters(
-        item,
-        false,
-        chartFilters(),
-        sharedState.issue,
-      ),
+      Filters.matchesFilters(item, false, chartFilters(), sharedState.issue),
     ),
   );
 
@@ -180,22 +177,22 @@
 
   function updateSharedFilterOptions() {
     const scoped = forgeScopedItems();
-    const staleRepo = window.Filters.populateRepoSelect(
+    const staleRepo = Filters.populateRepoSelect(
       sharedRepoSelect ?? null,
       scoped,
     );
-    const staleAuthor = window.Filters.populateSelect(
+    const staleAuthor = Filters.populateSelect(
       sharedAuthorSelect ?? null,
-      window.Filters.distinctValues((item) => item.author, scoped),
+      Filters.distinctValues((item) => item.author, scoped),
       sharedState.shared.author,
     );
-    window.Filters.populateDatalist(
+    Filters.populateDatalist(
       sharedTitleDatalist ?? null,
-      window.Filters.distinctValues((item) => item.title, scoped),
+      Filters.distinctValues((item) => item.title, scoped),
     );
-    const staleLabel = window.Filters.populateSelect(
+    const staleLabel = Filters.populateSelect(
       sharedLabelSelect ?? null,
-      window.Filters.distinctValues(
+      Filters.distinctValues(
         (item) => (item.labels || []).map((l) => l.name),
         scoped,
       ),
@@ -204,8 +201,7 @@
     if (staleRepo) sharedState.shared.repo = "";
     if (staleAuthor) sharedState.shared.author = "";
     if (staleLabel) sharedState.shared.label = "";
-    if (staleRepo || staleAuthor || staleLabel)
-      window.Filters.saveState(sharedState);
+    if (staleRepo || staleAuthor || staleLabel) Filters.saveState(sharedState);
   }
 
   function syncSharedControlsToState() {
@@ -244,7 +240,7 @@
               : c.value.trim().toLowerCase();
           sharedState.shared[col] = value;
           if (col === "forge") updateSharedFilterOptions();
-          window.Filters.saveState(sharedState, col);
+          Filters.saveState(sharedState, col);
         };
         c.addEventListener("input", apply);
         c.addEventListener("change", apply);
@@ -252,76 +248,66 @@
   }
 
   // Matches sharedState's own initial default above — resynced from the
-  // real cookie/server value once filters.js has loaded, in onMount.
+  // real cookie/server value in onMount.
   let hideDependencyDashboard = $state(true);
 
   function toggleHideDependencyDashboard() {
     sharedState.issue.hideDependencyDashboard = hideDependencyDashboard
       ? "1"
       : "";
-    window.Filters.saveState(sharedState);
+    Filters.saveState(sharedState);
   }
 
   onMount(() => {
-    // filters.js loads asynchronously (a real <script src>, same as
-    // footer.js/nav.js) — everything that touches window.Filters has to
-    // wait for it, so the rest of this page's own setup runs from its
-    // onload rather than synchronously here.
-    const filtersScript = document.createElement("script");
-    filtersScript.src = "/filters.js";
-    filtersScript.addEventListener("load", () => {
-      sharedState = window.Filters.loadState();
+    sharedState = Filters.loadState();
+    hideDependencyDashboard = sharedState.issue.hideDependencyDashboard === "1";
+    wireFilterBar();
+
+    // #353: the same cross-device reconciliation app.js's own copy of
+    // this does — see its comment for the full reasoning. Insights and
+    // the main dashboard share the one saved filter state, so this
+    // page has to pull it too rather than only ever seeing whatever
+    // the cookie already has.
+    Filters.loadStateFromServer().then((got) => {
+      if (got) Filters.applyServerState(sharedState, got);
       hideDependencyDashboard =
         sharedState.issue.hideDependencyDashboard === "1";
-      wireFilterBar();
-
-      // #353: the same cross-device reconciliation app.js's own copy of
-      // this does — see its comment for the full reasoning. Insights and
-      // the main dashboard share the one saved filter state, so this
-      // page has to pull it too rather than only ever seeing whatever
-      // the cookie already has.
-      window.Filters.loadStateFromServer().then((got) => {
-        if (got) window.Filters.applyServerState(sharedState, got);
-        hideDependencyDashboard =
-          sharedState.issue.hideDependencyDashboard === "1";
-        if (sharedControlsRestored) {
-          updateSharedFilterOptions();
-          syncSharedControlsToState();
-        }
-      });
-
-      fetch("/api/dashboard", { headers: { Accept: "application/json" } })
-        .then((res) => {
-          if (res.status === 401) {
-            window.location.href = "/login.html";
-            throw new Error("session expired");
-          }
-          if (!res.ok) throw new Error(`backend answered ${res.status}`);
-          return res.json();
-        })
-        .then(
-          (data: {
-            pullRequests?: FilterableItem[];
-            issues?: FilterableItem[];
-            forges?: Forge[];
-          }) => {
-            lastSnapshot.pullRequests = data.pullRequests || [];
-            lastSnapshot.issues = data.issues || [];
-            lastSnapshot.forges = data.forges || [];
-            updateSharedFilterOptions();
-            if (!sharedControlsRestored) {
-              sharedControlsRestored = true;
-              syncSharedControlsToState();
-            }
-          },
-        )
-        .catch(() => {
-          // A transient failure here just leaves the empty states
-          // showing — the dashboard page itself is where a real error
-          // banner belongs.
-        });
+      if (sharedControlsRestored) {
+        updateSharedFilterOptions();
+        syncSharedControlsToState();
+      }
     });
-    document.body.appendChild(filtersScript);
+
+    fetch("/api/dashboard", { headers: { Accept: "application/json" } })
+      .then((res) => {
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          throw new Error("session expired");
+        }
+        if (!res.ok) throw new Error(`backend answered ${res.status}`);
+        return res.json();
+      })
+      .then(
+        (data: {
+          pullRequests?: FilterableItem[];
+          issues?: FilterableItem[];
+          forges?: Forge[];
+        }) => {
+          lastSnapshot.pullRequests = data.pullRequests || [];
+          lastSnapshot.issues = data.issues || [];
+          lastSnapshot.forges = data.forges || [];
+          updateSharedFilterOptions();
+          if (!sharedControlsRestored) {
+            sharedControlsRestored = true;
+            syncSharedControlsToState();
+          }
+        },
+      )
+      .catch(() => {
+        // A transient failure here just leaves the empty states
+        // showing — the dashboard page itself is where a real error
+        // banner belongs.
+      });
   });
 </script>
 
@@ -1015,7 +1001,7 @@
 
     <div id="rate-limit-list">
       {#each lastSnapshot.forges as f (f.forge)}
-        {@const label = window.Filters?.FORGE_LABELS[f.forge] || f.forge}
+        {@const label = Filters.FORGE_LABELS[f.forge] || f.forge}
         <div class="rate-limit-row" data-forge={f.forge}>
           <h3 class="rate-limit-forge-name">{label}</h3>
           <div class="rate-limit-budgets">

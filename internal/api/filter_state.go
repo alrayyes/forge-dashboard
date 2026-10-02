@@ -11,7 +11,7 @@ import (
 
 // maxFilterStateBytes caps the request body PUT /api/settings/filter-state
 // accepts — filter state is a handful of short strings (#353), generous
-// headroom over anything filters.js could ever actually produce, just
+// headroom over anything the frontend filter bar could ever actually produce, just
 // enough to refuse an obviously abusive body outright rather than
 // storing it.
 const maxFilterStateBytes = 16 * 1024
@@ -45,7 +45,7 @@ func handleFilterStateGet(store *settings.Store) http.HandlerFunc {
 
 // handleFilterStatePut stores the request body verbatim as the signed-in
 // user's new filter state — validated only as well-formed JSON, never
-// interpreted, so filters.js's own shape can evolve without a matching
+// interpreted, so the frontend's own filter shape can evolve without a matching
 // change here.
 func handleFilterStatePut(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

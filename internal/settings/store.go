@@ -39,7 +39,7 @@ type Credentials struct {
 	// default" — see renovateRebaseLabelOrDefault.
 	RenovateRebaseLabel string
 	// Theme is "light", "dark", or "" (system — the default, matching
-	// theme.js's own old cookie-unset behavior). Set only from Settings
+	// the pre-paint theme script's cookie-unset behavior). Set only from Settings
 	// (#352: no header toggle anywhere else) and read on every page load
 	// via the lightweight GET /api/settings/theme, which doesn't
 	// provision webhook credentials just to check one field.

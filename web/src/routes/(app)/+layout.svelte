@@ -66,7 +66,7 @@
   onMount(() => {
     // The header no longer has its own toggle (#352 — theme is a
     // Settings-only control now); this is the "did another device
-    // change it" half, reconciling the fast local cookie theme.js
+    // change it" half, reconciling the fast local cookie theme the inline script
     // already applied against whatever's actually saved.
     syncThemeFromServer();
 
