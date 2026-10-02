@@ -524,7 +524,7 @@ test.describe('pull request merge button', () => {
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('a permission-denied failure locks the button with a real Retry, not a dead end', async ({
+  test('a permission-denied failure locks the button with no Retry and points to Settings', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -541,12 +541,12 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    // .first(): the 403 also proactively locks Close for this forge
-    // (write permission is account-wide) - either Retry does the same thing.
-    const button = row.getByRole('button', { name: 'Retry' }).first();
-    await expect(button).toBeVisible();
-    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/permission/i);
+    // The 403 also proactively locks Close for this forge (write
+    // permission is account-wide), and neither offers a Retry.
+    const button = row.getByRole('button', { name: 'Merge', exact: true });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    await expect(button).toHaveAccessibleDescription(/token in Settings/);
   });
 
   test('a not-mergeable (409) failure locks the button with a refresh-and-recheck reason', async ({
@@ -604,7 +604,7 @@ test.describe('pull request merge button', () => {
     await expect(row).not.toContainText(/no longer mergeable/i);
   });
 
-  test('a rate-limited (429) failure locks the button with a real Retry', async ({
+  test('a rate-limited (429) failure locks the button with no Retry and says when it resets', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -621,10 +621,10 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    const button = row.getByRole('button', { name: 'Retry' });
-    await expect(button).toBeVisible();
-    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/rate limit/i);
+    const button = row.getByRole('button', { name: 'Merge', exact: true });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    await expect(button).toHaveAccessibleDescription(/rate limit reached/i);
   });
 
   test('clicking Retry re-fetches the dashboard, and a stale lock clears once the fresh data no longer justifies it', async ({
@@ -634,14 +634,17 @@ test.describe('pull request merge button', () => {
     // only a full page reload cleared it, even after a real refresh
     // brought back data that no longer justified the lock. This is the
     // regression test for the fix, not just for the Retry button's own
+    // (a 409 here: a rate limit no longer offers Retry, #732)
     // click wiring.
     const pr = makePR();
     await mockDashboard(page, pr);
     await page.route('**/api/pull-requests/merge', (route) =>
       route.fulfill({
-        status: 429,
+        status: 409,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: PUT .../merge: Pull Request is not mergeable',
+        }),
       }),
     );
     await page.reload();
@@ -690,8 +693,8 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    const button = row.getByRole('button', { name: 'Retry' });
-    await expect(button).toBeVisible();
+    const button = row.getByRole('button', { name: 'Merge', exact: true });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
     await button.focus();
     await expect(button).toBeFocused();
 
@@ -809,9 +812,12 @@ test.describe('pull request merge button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', { name: 'Retry' }).first();
-      await expect(button).toBeVisible();
-      await expect(row).toContainText(/rate limit exhausted/i);
+      const button = row.getByRole('button', { name: 'Merge', exact: true });
+      await expect(button).toHaveAttribute('aria-disabled', 'true');
+      await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+      await expect(button).toHaveAccessibleDescription(
+        /GitHub API rate limit reached\. Actions resume at/,
+      );
     });
 
     test('a permission failure on one PR also locks Merge for a different, not-yet-tried PR on the same forge', async ({
@@ -839,8 +845,8 @@ test.describe('pull request merge button', () => {
       await rows.nth(0).getByRole('button', { name: 'Merge' }).click();
       await rows.nth(0).getByRole('button', { name: 'Confirm merge?' }).click();
       await expect(
-        rows.nth(0).getByRole('button', { name: 'Retry' }).first(),
-      ).toBeVisible();
+        rows.nth(0).getByRole('button', { name: 'Merge', exact: true }),
+      ).toHaveAttribute('aria-disabled', 'true');
 
       // The second PR's own Merge button was never clicked, and never
       // itself made a request — it's locked purely from the first PR's
@@ -848,10 +854,14 @@ test.describe('pull request merge button', () => {
       // property, not a per-PR one.
       const secondButton = rows
         .nth(1)
-        .getByRole('button', { name: 'Retry' })
-        .first();
-      await expect(secondButton).toBeVisible();
-      await expect(rows.nth(1)).toContainText(/permission/i);
+        .getByRole('button', { name: 'Merge', exact: true });
+      await expect(secondButton).toHaveAttribute('aria-disabled', 'true');
+      await expect(
+        rows.nth(1).getByRole('button', { name: 'Retry' }),
+      ).toHaveCount(0);
+      await expect(secondButton).toHaveAccessibleDescription(
+        /token in Settings/,
+      );
     });
   });
 

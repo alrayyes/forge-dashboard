@@ -273,7 +273,7 @@ test.describe('pull request close button', () => {
     await expect(button).toBeEnabled();
   });
 
-  test('a permission-denied failure locks the button with a real Retry, not a dead end', async ({
+  test('a permission-denied failure locks the button with no Retry and points to Settings', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -292,13 +292,13 @@ test.describe('pull request close button', () => {
     await row.getByRole('button', { name: 'Close' }).click();
     await row.getByRole('button', { name: 'Confirm close?' }).click();
 
-    const button = row.getByRole('button', { name: 'Retry' });
-    await expect(button).toBeVisible();
-    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/permission/i);
+    const button = row.getByRole('button', { name: 'Close', exact: true });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    await expect(button).toHaveAccessibleDescription(/token in Settings/);
   });
 
-  test('a rate-limited (429) failure locks the button with a real Retry', async ({
+  test('a rate-limited (429) failure locks the button with no Retry and says when it resets', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -315,9 +315,10 @@ test.describe('pull request close button', () => {
     await row.getByRole('button', { name: 'Close' }).click();
     await row.getByRole('button', { name: 'Confirm close?' }).click();
 
-    const button = row.getByRole('button', { name: 'Retry' });
-    await expect(button).toBeVisible();
-    await expect(row).toContainText(/rate limit/i);
+    const button = row.getByRole('button', { name: 'Close', exact: true });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    await expect(button).toHaveAccessibleDescription(/rate limit reached/i);
   });
 
   test('a locked Close button is reachable by keyboard and has no axe-core violations', async ({
@@ -337,8 +338,8 @@ test.describe('pull request close button', () => {
     await row.getByRole('button', { name: 'Close' }).click();
     await row.getByRole('button', { name: 'Confirm close?' }).click();
 
-    const button = row.getByRole('button', { name: 'Retry' });
-    await expect(button).toBeVisible();
+    const button = row.getByRole('button', { name: 'Close', exact: true });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
     await button.focus();
     await expect(button).toBeFocused();
 

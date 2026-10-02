@@ -307,6 +307,17 @@ duplicate, or one whose content already landed another way), it's the
 action that actually applies —
 and asks for confirmation the same way Merge does.
 
+A locked action offers Retry only when waiting might fix it, such as a 502 or
+an unreachable forge. When a forge's API budget is spent, its actions are
+greyed out with no Retry, and the reason says when they come back ("GitHub
+API rate limit reached. Actions resume at 14:32 (in 12 min)."). That line shows
+once under each repo group heading and as each disabled button's accessible
+description. The actions re-enable by themselves at the reset time, with a
+polite "Rate limit reset, actions available again" toast. A missing token
+permission locks the action with no Retry either, and the reason points to
+Settings. Read-only actions such as View pipeline stay enabled, and the header
+shows each forge's remaining budget and reset time as text.
+
 A GitHub pull request that isn't already auto-merging gets an "Enable
 auto-merge" action in the row's "More actions" menu, arming the forge's
 own native auto-merge (GitHub's `enablePullRequestAutoMerge` mutation)
