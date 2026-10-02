@@ -4,6 +4,17 @@
   import type { FilterableItem, SharedFilterState } from "$lib/filters";
   import { type ActionRef, createFeedbackStore } from "$lib/feedback";
   import { mountFeedbackUI } from "$lib/feedback-ui";
+  import {
+    budgetText,
+    isRateLimited,
+    msUntilReset,
+    classifyLockReason,
+    formatResetTime,
+    offersRetry,
+    PERMISSION_REASON,
+    type RateLimit,
+    rateLimitReasonText,
+  } from "$lib/rate-limit";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, admin-link, logout-button, whoami) —
@@ -47,7 +58,6 @@
     url: string;
     required?: boolean;
   };
-  type RateLimit = { limit: number; remaining: number; resetsAt: string };
   type Forge = {
     forge: string;
     reachable: boolean;
@@ -143,6 +153,10 @@
       none: "No checks",
     };
     const FORGE_LABELS = Filters.FORGE_LABELS;
+    const FORGE_SHORT_LABELS: Record<string, string> = {
+      github: "GH",
+      forgejo: "FJ",
+    };
     const FORGE_CLASSES: Record<string, string> = {
       github: "gh",
       forgejo: "fj",
@@ -558,6 +572,20 @@
       return key.replace(/[^a-zA-Z0-9_-]/g, "-");
     }
 
+    // One line under a group heading while that forge's REST budget is
+    // spent, so the reset time is stated once instead of on every row
+    // (#732). Plain text, not a live region: the same sentence is already
+    // each disabled button's accessible description.
+    function groupRateLimitNote(forgeName: string): HTMLElement | null {
+      const health = lastForges.find((f) => f.forge === forgeName);
+      if (!isRateLimited(health?.rateLimitREST)) return null;
+      return el(
+        "p",
+        "group-rate-limit",
+        rateLimitedReason(forgeName, health?.rateLimitREST),
+      );
+    }
+
     // ---- bot-managed PR detection ----
     // release-please, Dependabot, and Renovate all keep their own pull
     // requests current on their own schedule — a manual Update branch
@@ -589,13 +617,13 @@
     // than a second, independently-authored guess keyed only on the
     // status code.
     function reactiveMergeLockReason(
+      forge: string,
+
       status: number | undefined,
       message: string,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       if (status === 409) {
         const real = forgeMessageOnly(message);
         if (!real || /not mergeable/i.test(real)) {
@@ -620,8 +648,12 @@
     function lockedActionButton(
       label: string,
       reasonText: string,
-      onRetry: (() => void) | undefined = undefined,
+      requestedRetry: (() => void) | undefined = undefined,
     ): HTMLElement {
+      // Retry only for a reason waiting can fix (a 502, an unreachable
+      // forge). A rate limit or a missing permission can't clear by
+      // clicking, so it stays a greyed-out action with its own label (#732).
+      const onRetry = offersRetry(reasonText) ? requestedRetry : undefined;
       const wrap = el("span", "row-action-locked");
       const button = buttonEl("row-action", onRetry ? "Retry" : label);
       button.type = "button";
@@ -754,7 +786,10 @@
     // forge that's currently unreachable or already out of rate-limit
     // budget will fail the exact same way after a real, wasted request
     // as it would before one.
-    function proactiveActionLockReason(forgeName: string): string | null {
+    function proactiveActionLockReason(
+      forgeName: string,
+      budget: "rest" | "graphql" = "rest",
+    ): string | null {
       const health = lastForges.find((f) => f.forge === forgeName);
       if (health && health.reachable === false) {
         // The specific reason (unreachable, rate-limited, ...) is
@@ -764,21 +799,34 @@
         // (#360).
         return "See the forge status above.";
       }
-      // #361: every action this locks (Merge, Update branch, Dependabot,
-      // Renovate) is a REST call — checking rateLimitGraphQL here would
-      // have kept a REST-exhausted row looking clickable right up until
-      // the click itself failed, since GraphQL's own budget is a
-      // completely separate allowance that says nothing about REST's.
-      if (health?.rateLimitREST && health.rateLimitREST.remaining === 0) {
-        const resetTime = new Date(
-          health.rateLimitREST.resetsAt,
-        ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        return `Rate limit exhausted · resets ${resetTime}`;
-      }
+      // #361: Merge, Update branch, Close and the bot commands are REST
+      // calls, so REST's budget decides them; auto-merge is a GraphQL
+      // mutation and asks for that budget instead. The two are separate
+      // allowances, and one saying nothing about the other would leave a
+      // row looking clickable until the click itself failed.
+      const spent =
+        health?.[budget === "rest" ? "rateLimitREST" : "rateLimitGraphQL"];
+      if (isRateLimited(spent)) return rateLimitedReason(forgeName, spent);
       if (forgePermissionDenied[forgeName]) {
-        return "Missing permission — check your token in Settings.";
+        return PERMISSION_REASON;
       }
       return null;
+    }
+
+    // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
+    // min)." Built fresh from the latest snapshot, so a 429 from a click
+    // reads the same as a budget the snapshot already showed spent (#732).
+    function rateLimitedReason(forgeName: string, known?: RateLimit): string {
+      const health = lastForges.find((f) => f.forge === forgeName);
+      const limit =
+        known ??
+        [health?.rateLimitREST, health?.rateLimitGraphQL].find(
+          (l) => l && Date.parse(l.resetsAt) > Date.now(),
+        );
+      return rateLimitReasonText(
+        FORGE_LABELS[forgeName] || forgeName,
+        limit?.resetsAt,
+      );
     }
 
     // Actually calls the merge endpoint, once the confirm click lands —
@@ -909,7 +957,11 @@
             return;
           }
 
-          const lockReason = reactiveMergeLockReason(err.status, err.message);
+          const lockReason = reactiveMergeLockReason(
+            item.forge,
+            err.status,
+            err.message,
+          );
           mergeState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
@@ -1034,12 +1086,12 @@
     // error banner the same way any other unclassified failure already
     // does here.
     function reactiveAutoMergeLockReason(
+      forge: string,
+
       status: number | undefined,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       return null;
     }
 
@@ -1143,7 +1195,10 @@
             });
         })
         .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveAutoMergeLockReason(err.status);
+          const lockReason = reactiveAutoMergeLockReason(
+            item.forge,
+            err.status,
+          );
           autoMergeState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
@@ -1186,7 +1241,10 @@
         return lockedActionButton("Enable auto-merge", entry.reason ?? "");
 
       if (entry.phase === "idle") {
-        const proactiveReason = proactiveActionLockReason(item.forge);
+        const proactiveReason = proactiveActionLockReason(
+          item.forge,
+          "graphql",
+        );
         if (proactiveReason)
           return lockedActionButton("Enable auto-merge", proactiveReason);
       }
@@ -1218,13 +1276,13 @@
     // mergeability at all — a 409 here is the forge's own real message
     // (already-merged, already-closed) passed straight through instead.
     function reactiveCloseLockReason(
+      forge: string,
+
       status: number | undefined,
       message: string,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       return null;
     }
 
@@ -1295,7 +1353,11 @@
             });
         })
         .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveCloseLockReason(err.status, err.message);
+          const lockReason = reactiveCloseLockReason(
+            item.forge,
+            err.status,
+            err.message,
+          );
           closeState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
@@ -1386,12 +1448,12 @@
     // branches can't be merged cleanly, not that the pull request
     // itself stopped being mergeable.
     function reactiveUpdateBranchLockReason(
+      forge: string,
+
       status: number | undefined,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       if (status === 409)
         return "Can't update cleanly — resolve the conflict on the forge.";
       return null;
@@ -1467,7 +1529,10 @@
             });
         })
         .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveUpdateBranchLockReason(err.status);
+          const lockReason = reactiveUpdateBranchLockReason(
+            item.forge,
+            err.status,
+          );
           updateBranchState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
@@ -1549,12 +1614,12 @@
     // reads as Dependabot's own comment command not applying right now
     // rather than a merge conflict.
     function reactiveDependabotActionLockReason(
+      forge: string,
+
       status: number | undefined,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       if (status === 409)
         return "Dependabot can't act on this pull request right now.";
       return null;
@@ -1641,7 +1706,10 @@
           renderPRBoard();
         })
         .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveDependabotActionLockReason(err.status);
+          const lockReason = reactiveDependabotActionLockReason(
+            item.forge,
+            err.status,
+          );
           dependabotActionState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
@@ -1914,12 +1982,12 @@
     // requires the label to already exist) rather than the pull request
     // itself being missing.
     function reactiveRenovateRebaseLockReason(
+      forge: string,
+
       status: number | undefined,
     ): string | null {
-      if (status === 403)
-        return "Missing permission — check your token in Settings.";
-      if (status === 429)
-        return "Rate limit exceeded — try again once it resets.";
+      if (status === 403) return PERMISSION_REASON;
+      if (status === 429) return rateLimitedReason(forge);
       if (status === 404) return "Rebase label doesn't exist on this repo.";
       return null;
     }
@@ -1985,7 +2053,10 @@
           renderPRBoard();
         })
         .catch((err: Error & { status?: number }) => {
-          const lockReason = reactiveRenovateRebaseLockReason(err.status);
+          const lockReason = reactiveRenovateRebaseLockReason(
+            item.forge,
+            err.status,
+          );
           renovateRebaseState[key] = lockReason
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
@@ -2759,6 +2830,8 @@
             el("span", "group-count", String(groups[key].length)),
           );
           container.appendChild(heading);
+          const note = isPR ? groupRateLimitNote(first.forge) : null;
+          if (note) container.appendChild(note);
           for (const item of groups[key]) {
             container.appendChild(
               buildRow(
@@ -3233,6 +3306,18 @@
           (f.reachable ? " reachable" : " unreachable");
         chip.appendChild(document.createTextNode(label));
         item.appendChild(chip);
+        // The remaining budget and when it comes back, as text (#732). Kept
+        // out of the live region: the numbers change on every poll.
+        const budget = f.rateLimitREST;
+        if (budget) {
+          const text = el(
+            "span",
+            "forge-health-budget",
+            budgetText(FORGE_SHORT_LABELS[f.forge] || f.forge, budget),
+          );
+          text.setAttribute("aria-live", "off");
+          item.appendChild(text);
+        }
         // The reason has to be real text, not just chip.title — a hover
         // tooltip never reaches a touch device and isn't reliably
         // announced by a screen reader either. The raw technical string
@@ -3347,38 +3432,119 @@
         : `resets in ${seconds}s`;
     }
 
+    // Rebuilt only when what it says changes. The ticking countdown is
+    // updated in place and hidden from assistive tech (WCAG 4.1.3): the
+    // banner is an alert, so replacing it every second would have a screen
+    // reader read it out every second. The reset time in the label is the
+    // static, spoken version of the same fact (#732).
     function renderRateLimitBanner() {
-      document.getElementById("rate-limit-banner")?.remove();
-      if (rateLimitAlerts.length === 0) return;
+      const existing = document.getElementById("rate-limit-banner");
+      if (rateLimitAlerts.length === 0) {
+        existing?.remove();
+        return;
+      }
+      const signature = rateLimitAlerts
+        .map((a) => `${a.label}|${a.severity}|${a.resetsAt}|${a.remaining}`)
+        .join(";");
+      if (existing && existing.dataset.signature === signature) {
+        existing
+          .querySelectorAll<HTMLElement>(".rate-limit-banner-timer")
+          .forEach((timer, i) => {
+            timer.textContent = bannerTimerText(rateLimitAlerts[i]);
+          });
+        return;
+      }
+      existing?.remove();
       const banner = el("div", "rate-limit-banner");
       banner.id = "rate-limit-banner";
+      banner.dataset.signature = signature;
       banner.setAttribute("role", "alert");
       for (const alert of rateLimitAlerts) {
         const exceeded = alert.severity === "exceeded";
         const row = el("div", `rate-limit-banner-row${exceeded ? "" : " low"}`);
+        const resetAt = `resets at ${formatResetTime(alert.resetsAt)}`;
         row.appendChild(
           el(
             "span",
             "rate-limit-banner-label",
             exceeded
-              ? `Rate limit exceeded — ${alert.label}`
-              : `Rate limit running low — ${alert.label}`,
+              ? `Rate limit exceeded — ${alert.label}, ${resetAt}`
+              : `Rate limit running low — ${alert.label}, ${resetAt}`,
           ),
         );
-        row.appendChild(
-          el(
-            "span",
-            "rate-limit-banner-timer",
-            exceeded
-              ? countdownLabel(alert.resetsAt)
-              : `${alert.remaining.toLocaleString()} of ${alert.limit.toLocaleString()} requests left — ${countdownLabel(alert.resetsAt)}`,
-          ),
+        const timer = el(
+          "span",
+          "rate-limit-banner-timer",
+          bannerTimerText(alert),
         );
+        timer.setAttribute("aria-hidden", "true");
+        row.appendChild(timer);
         banner.appendChild(row);
       }
       document
         .querySelector(".stats")
         ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
+    }
+
+    function bannerTimerText(alert: RateLimitAlert): string {
+      return alert.severity === "exceeded"
+        ? countdownLabel(alert.resetsAt)
+        : `${alert.remaining.toLocaleString()} of ${alert.limit.toLocaleString()} requests left — ${countdownLabel(alert.resetsAt)}`;
+    }
+
+    // ---- automatic re-enable at the reset time (#732) ----
+    // Locked actions derive from the clock (isRateLimited), so all a timer
+    // has to do is draw the board again at the reset time, drop any lock a
+    // 429 left behind, and say so once. The next snapshot then confirms:
+    // if the forge still reports an exhausted budget with a later reset,
+    // the actions lock again.
+    let rateLimitResetTimer: number | undefined;
+
+    function scheduleRateLimitReset() {
+      window.clearTimeout(rateLimitResetTimer);
+      rateLimitResetTimer = undefined;
+      let soonest: number | null = null;
+      for (const f of lastForges) {
+        for (const limit of [f.rateLimitREST, f.rateLimitGraphQL]) {
+          if (!isRateLimited(limit)) continue;
+          const wait = msUntilReset(limit.resetsAt);
+          if (wait !== null && (soonest === null || wait < soonest))
+            soonest = wait;
+        }
+      }
+      if (soonest === null) return;
+      rateLimitResetTimer = window.setTimeout(onRateLimitReset, soonest);
+    }
+
+    function onRateLimitReset() {
+      for (const state of [
+        mergeState,
+        closeState,
+        updateBranchState,
+        autoMergeState,
+        dependabotActionState,
+        renovateRebaseState,
+      ]) {
+        for (const key of Object.keys(state)) {
+          const entry = state[key];
+          if (
+            entry.phase === "locked" &&
+            classifyLockReason(entry.reason ?? "") === "rate_limit"
+          )
+            delete state[key];
+        }
+      }
+      rateLimitAlerts = computeRateLimitAlerts(lastForges).filter(
+        (a) => Date.parse(a.resetsAt) > Date.now(),
+      );
+      renderRateLimitBanner();
+      renderPRBoard();
+      feedback.notify({
+        title: "Rate limit",
+        message: "Rate limit reset, actions available again",
+        announce: "Rate limit reset, actions available again",
+      });
+      scheduleRateLimitReset();
     }
 
     setInterval(() => {
@@ -3583,6 +3749,7 @@
       lastForges = data.forges || [];
       rateLimitAlerts = computeRateLimitAlerts(lastForges);
       renderRateLimitBanner();
+      scheduleRateLimitReset();
 
       // A locked merge/update-branch reason only reflects what the
       // forge said at the moment of the last attempt — re-derived here

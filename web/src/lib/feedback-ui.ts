@@ -233,20 +233,24 @@ export function mountFeedbackUI(
     const item = node('li', 'feedback-toast');
     item.dataset.kind = toast.kind;
     const head = node('div', 'feedback-toast-head');
-    head.appendChild(node('span', 'feedback-toast-ref', refText(toast.ref)));
+    const subject = toast.ref ? refText(toast.ref) : (toast.title ?? 'Notice');
+    head.appendChild(node('span', 'feedback-toast-ref', subject));
     const dismiss = button(
       'feedback-toast-dismiss',
       '×',
-      `Dismiss notification for ${refText(toast.ref)}`,
+      `Dismiss notification for ${subject}`,
     );
     dismiss.addEventListener('click', () => store.dismissToast(toast.id));
     head.appendChild(dismiss);
     item.appendChild(head);
     item.appendChild(node('p', 'feedback-toast-message', toast.message));
     const foot = node('div', 'feedback-toast-foot');
-    const show = button('feedback-link', 'Show row');
-    show.addEventListener('click', () => showRow(toast.ref));
-    foot.appendChild(show);
+    const ref = toast.ref;
+    if (ref) {
+      const show = button('feedback-link', 'Show row');
+      show.addEventListener('click', () => showRow(ref));
+      foot.appendChild(show);
+    }
     if (toast.retry) {
       const run = toast.retry;
       const retry = button('feedback-link', 'Retry');
@@ -256,7 +260,7 @@ export function mountFeedbackUI(
       });
       foot.appendChild(retry);
     }
-    item.appendChild(foot);
+    if (foot.childNodes.length > 0) item.appendChild(foot);
 
     if (toast.kind === 'success') {
       const timer: ToastTimer = {

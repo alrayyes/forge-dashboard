@@ -2259,3 +2259,25 @@ footer a.mono:focus-visible {
 .search-wrap:focus-within .search-hint {
   display: none;
 }
+
+/* One line under a repo group heading while its forge's API budget is
+   spent (#732): the reset time, stated once. Plain text, in the same
+   critical colour as the page banner. */
+.group-rate-limit {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--critical);
+  border-radius: var(--radius);
+  background: var(--critical-bg);
+  color: var(--critical);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* The header's budget text, e.g. "GH: 0/5,000 reqs, resets 14:32". */
+.forge-health-budget {
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--ink-2);
+}
