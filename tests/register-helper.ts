@@ -10,13 +10,11 @@
 // every spec file's own registerAndSignIn/registerUser wrapper — most of
 // which also use their own `request` fixture for other things — doesn't
 // need a second, differently-shaped helper just for this.
-const { expect, request } = require('@playwright/test');
-const { addVirtualAuthenticator } = require('./webauthn-helper');
-const {
-  STORAGE_STATE_PATH: ADMIN_STORAGE_STATE,
-} = require('./admin-global-setup');
+import { expect, type Page, request } from '@playwright/test';
+import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
+import { addVirtualAuthenticator } from './webauthn-helper';
 
-// admin-global-setup.js bootstraps the very first user ("admin") once,
+// admin-global-setup.ts bootstraps the very first user ("admin") once,
 // before any test file runs — so by the time any spec file's own tests
 // run, self-registration is already closed (#477): every other account
 // this suite creates has to go through an admin-issued invite instead of
@@ -29,11 +27,11 @@ const {
 // (named `_request`, unused) is accepted only for call-site consistency
 // — see the top-of-file comment.
 async function registerViaInvite(
-  page,
-  _request,
-  baseURL,
-  username,
-  displayName,
+  page: Page,
+  _request: unknown,
+  baseURL: string | undefined,
+  username: string,
+  displayName: string,
 ) {
   const adminRequest = await request.newContext({
     baseURL,
@@ -60,4 +58,4 @@ async function registerViaInvite(
   await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
 }
 
-module.exports = { registerViaInvite };
+export { registerViaInvite };

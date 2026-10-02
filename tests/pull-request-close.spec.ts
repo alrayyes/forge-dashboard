@@ -1,8 +1,18 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  type Route,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `pr-close-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -13,7 +23,28 @@ async function registerAndSignIn(page, request, baseURL) {
   );
 }
 
-function makePR(overrides) {
+interface MockLabel {
+  name: string;
+  color: string;
+}
+
+interface MockPR {
+  empty?: boolean;
+  forge: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  draft: boolean;
+  ci: string;
+  labels: MockLabel[];
+  createdAt: string;
+  updatedAt: string;
+  mergeStatus: string;
+}
+
+function makePR(overrides: Partial<MockPR> = {}): MockPR {
   return {
     forge: 'github',
     repo: 'alrayyes/forge-dashboard',
@@ -31,8 +62,8 @@ function makePR(overrides) {
   };
 }
 
-function mockDashboard(page, pr) {
-  return page.route('**/api/dashboard*', (route) =>
+function mockDashboard(page: Page, pr?: MockPR) {
+  return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -66,7 +97,7 @@ test.describe('pull request close button', () => {
   });
 
   // #543's own Merge stays visible-and-locked for an empty pull request
-  // (see pull-request-merge.spec.js) rather than disappearing -- Close
+  // (see pull-request-merge.spec.ts) rather than disappearing -- Close
   // gets the visual nudge instead, so there's still one clear "do this"
   // action on the row instead of a locked Merge and a Close that reads
   // exactly like every other row's.
@@ -90,7 +121,7 @@ test.describe('pull request close button', () => {
   }) => {
     await mockDashboard(page, makePR());
     let closeCalled = false;
-    await page.route('**/api/pull-requests/close', (route) => {
+    await page.route('**/api/pull-requests/close', (route: Route) => {
       closeCalled = true;
       return route.fulfill({ status: 204 });
     });
@@ -125,7 +156,7 @@ test.describe('pull request close button', () => {
   }) => {
     await mockDashboard(page, makePR());
     let closeCalled = false;
-    await page.route('**/api/pull-requests/close', (route) => {
+    await page.route('**/api/pull-requests/close', (route: Route) => {
       closeCalled = true;
       return route.fulfill({ status: 204 });
     });
@@ -144,12 +175,12 @@ test.describe('pull request close button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    let requestBody;
-    await page.route('**/api/pull-requests/close', (route) => {
+    let requestBody: unknown;
+    await page.route('**/api/pull-requests/close', (route: Route) => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -180,11 +211,11 @@ test.describe('pull request close button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/close', async (route) => {
+    await page.route('**/api/pull-requests/close', async (route: Route) => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -213,7 +244,7 @@ test.describe('pull request close button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route) =>
+    await page.route('**/api/pull-requests/close', (route: Route) =>
       route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -240,7 +271,7 @@ test.describe('pull request close button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route) =>
+    await page.route('**/api/pull-requests/close', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -265,7 +296,7 @@ test.describe('pull request close button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route) =>
+    await page.route('**/api/pull-requests/close', (route: Route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',
@@ -287,7 +318,7 @@ test.describe('pull request close button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route) =>
+    await page.route('**/api/pull-requests/close', (route: Route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',

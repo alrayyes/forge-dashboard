@@ -1,8 +1,11 @@
-const { test, expect } = require('@playwright/test');
-const { registerViaInvite } = require('./register-helper');
-const {
-  STORAGE_STATE_PATH: ADMIN_STORAGE_STATE,
-} = require('./admin-global-setup');
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  test,
+} from '@playwright/test';
+import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
+import { registerViaInvite } from './register-helper';
 
 // Coverage for issue #269: one persistent nav, shared markup, present and
 // consistent on every page rather than a per-page "back to X" link.
@@ -14,7 +17,11 @@ const {
 // page — an unscoped locator would match two elements there and fail
 // Playwright's strict mode. See openspec/changes/mobile-bottom-nav/
 // design.md - Decisions.
-async function registerAndSignIn(page, request, baseURL) {
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `nav-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(page, request, baseURL, username, 'Nav Test User');
 }

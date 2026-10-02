@@ -1,7 +1,33 @@
-const { test, expect } = require('@playwright/test');
-const { registerViaInvite } = require('./register-helper');
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+interface WebMCPTool {
+  name: string;
+  description: string;
+  execute: (args: Record<string, unknown>) => Promise<unknown>;
+}
+
+declare global {
+  interface Window {
+    __webmcpTools: WebMCPTool[];
+  }
+  interface Document {
+    modelContext?: {
+      registerTool(tool: WebMCPTool): Promise<void>;
+    };
+  }
+}
+
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `webmcp-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(page, request, baseURL, username, 'WebMCP Test User');
 }
@@ -17,14 +43,14 @@ async function registerAndSignIn(page, request, baseURL) {
 // browser would do on an agent's behalf) does the right thing -- fetches
 // real data through the same /api/dashboard endpoint the page's own poll
 // already uses, not a parallel path.
-async function stubModelContext(page) {
+async function stubModelContext(page: Page) {
   await page.addInitScript(() => {
     window.__webmcpTools = [];
     // A minimal stand-in for the real WebMCP interface -- just enough
     // surface for +page.svelte's own registerTool() call to succeed and
     // be observable from the test.
     document.modelContext = {
-      registerTool(tool) {
+      registerTool(tool: WebMCPTool) {
         window.__webmcpTools.push(tool);
 
         return Promise.resolve();
@@ -84,6 +110,8 @@ test.describe('WebMCP get_dashboard tool', () => {
         const tool = window.__webmcpTools.find(
           (t) => t.name === 'get_dashboard',
         );
+
+        if (!tool) throw new Error('get_dashboard tool not registered');
 
         return tool.execute({});
       }),

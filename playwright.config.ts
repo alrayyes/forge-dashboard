@@ -1,7 +1,6 @@
-// @ts-check
-const { defineConfig } = require('@playwright/test');
+import { defineConfig } from '@playwright/test';
 
-module.exports = defineConfig({
+export default defineConfig({
   testDir: 'tests',
   use: {
     baseURL: 'http://localhost:8080',
@@ -10,7 +9,7 @@ module.exports = defineConfig({
   // Registers the very first user (who becomes admin) once, before any
   // test file runs — see the file's own header comment for why this
   // can't be a per-file beforeAll.
-  globalSetup: require.resolve('./tests/admin-global-setup.js'),
+  globalSetup: './tests/admin-global-setup.ts',
   // Every test here drives a real WebAuthn ceremony through Chrome's CDP
   // virtual authenticator against one shared Go binary — real CTAP2 crypto,
   // real HTTP round trips. Two of those running at once under CI's default

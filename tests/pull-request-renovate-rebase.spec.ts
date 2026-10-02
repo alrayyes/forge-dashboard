@@ -1,8 +1,19 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `pr-renovate-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -13,7 +24,29 @@ async function registerAndSignIn(page, request, baseURL) {
   );
 }
 
-function makePR(overrides) {
+interface MockLabel {
+  name: string;
+  color: string;
+}
+
+interface MockPR {
+  empty?: boolean;
+  forge: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  draft: boolean;
+  ci: string;
+  labels: MockLabel[];
+  createdAt: string;
+  updatedAt: string;
+  mergeStatus: string;
+  behind: boolean;
+}
+
+function makePR(overrides: Partial<MockPR> = {}): MockPR {
   return {
     forge: 'github',
     repo: 'alrayyes/forge-dashboard',
@@ -32,8 +65,8 @@ function makePR(overrides) {
   };
 }
 
-function mockDashboard(page, forge, pr) {
-  return page.route('**/api/dashboard*', (route) =>
+function mockDashboard(page: Page, forge: string, pr?: MockPR) {
+  return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -47,8 +80,8 @@ function mockDashboard(page, forge, pr) {
   );
 }
 
-function mockSettings(page, allowBotPrUpdates) {
-  return page.route('**/api/settings/bot-pr-updates', (route) =>
+function mockSettings(page: Page, allowBotPrUpdates?: boolean) {
+  return page.route('**/api/settings/bot-pr-updates', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -59,7 +92,7 @@ function mockSettings(page, allowBotPrUpdates) {
 
 // Renovate: Rebase lives behind the row's "More actions" overflow trigger
 // (#527) — this opens it, same as a person clicking through.
-async function openMoreActions(row) {
+async function openMoreActions(row: Locator) {
   await row.getByRole('button', { name: 'More actions' }).click();
 }
 
@@ -128,8 +161,8 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    let requestBody;
-    await page.route('**/api/pull-requests/renovate-rebase', (route) => {
+    let requestBody: unknown;
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
@@ -150,10 +183,13 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/renovate-rebase', async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      return route.fulfill({ status: 204 });
-    });
+    await page.route(
+      '**/api/pull-requests/renovate-rebase',
+      async (route: Route) => {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return route.fulfill({ status: 204 });
+      },
+    );
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
@@ -174,7 +210,7 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/renovate-rebase', (route) =>
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
       route.fulfill({
         status: 502,
         contentType: 'application/json',
@@ -198,7 +234,7 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/renovate-rebase', (route) =>
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
       route.fulfill({
         status: 404,
         contentType: 'application/json',
@@ -220,7 +256,7 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/renovate-rebase', (route) =>
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -242,7 +278,7 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/renovate-rebase', (route) =>
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',
@@ -282,11 +318,14 @@ test.describe('pull request Renovate rebase button', () => {
       page,
     }) => {
       await mockDashboard(page, 'github', makePR({ behind: true }));
-      let requestBody;
-      await page.route('**/api/pull-requests/renovate-rebase', (route) => {
-        requestBody = route.request().postDataJSON();
-        return route.fulfill({ status: 204 });
-      });
+      let requestBody: unknown;
+      await page.route(
+        '**/api/pull-requests/renovate-rebase',
+        (route: Route) => {
+          requestBody = route.request().postDataJSON();
+          return route.fulfill({ status: 204 });
+        },
+      );
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
@@ -325,7 +364,7 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/renovate-rebase', (route) =>
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',

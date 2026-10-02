@@ -20,7 +20,7 @@ now describes the first slice of.
 
 Fixture data, not a real account's actual repositories — regenerated
 automatically by the release workflow on every release (see
-`scripts/capture-screenshots.js`), so it's never more than one release
+`scripts/capture-screenshots.ts`), so it's never more than one release
 stale.
 
 ## Design

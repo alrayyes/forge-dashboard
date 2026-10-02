@@ -1,8 +1,18 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  type Route,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `pr-update-branch-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -13,7 +23,29 @@ async function registerAndSignIn(page, request, baseURL) {
   );
 }
 
-function makePR(overrides) {
+interface MockLabel {
+  name: string;
+  color: string;
+}
+
+interface MockPR {
+  empty?: boolean;
+  forge: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  draft: boolean;
+  ci: string;
+  labels: MockLabel[];
+  createdAt: string;
+  updatedAt: string;
+  mergeStatus: string;
+  behind: boolean;
+}
+
+function makePR(overrides: Partial<MockPR> = {}): MockPR {
   return {
     forge: 'github',
     repo: 'alrayyes/forge-dashboard',
@@ -32,8 +64,8 @@ function makePR(overrides) {
   };
 }
 
-function mockDashboard(page, pr) {
-  return page.route('**/api/dashboard*', (route) =>
+function mockDashboard(page: Page, pr?: MockPR) {
+  return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -47,12 +79,19 @@ function mockDashboard(page, pr) {
   );
 }
 
+interface MockForge {
+  forge: string;
+  reachable: boolean;
+  repoCount: number;
+  rateLimitREST?: { limit: number; remaining: number; resetsAt: string };
+}
+
 // mockDashboardCustom, unlike mockDashboard above, takes its own forges
 // array and a real list of pull requests — for the proactive-lock tests,
 // which need to control ForgeHealth directly and (for the cross-action
 // permission-lock test) more than one row.
-function mockDashboardCustom(page, forges, prs) {
-  return page.route('**/api/dashboard*', (route) =>
+function mockDashboardCustom(page: Page, forges: MockForge[], prs: MockPR[]) {
+  return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -115,7 +154,7 @@ test.describe('pull request update-branch button', () => {
   // #543: reported behind but with nothing left to
   // merge — its diff against base is already empty. Update branch would
   // be as much a dead end as Merge is in this state (see
-  // pull-request-merge.spec.js's own empty-pull-request test), so it's
+  // pull-request-merge.spec.ts's own empty-pull-request test), so it's
   // hidden entirely rather than shown as clickable or locked; the reason
   // lives on the Merge row's own locked button instead.
   test('an empty pull request shows no Update branch button even though behind', async ({
@@ -154,12 +193,12 @@ test.describe('pull request update-branch button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    let requestBody;
-    await page.route('**/api/pull-requests/update-branch', (route) => {
+    let requestBody: unknown;
+    await page.route('**/api/pull-requests/update-branch', (route: Route) => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -191,11 +230,14 @@ test.describe('pull request update-branch button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/update-branch', async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      return route.fulfill({ status: 204 });
-    });
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route(
+      '**/api/pull-requests/update-branch',
+      async (route: Route) => {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return route.fulfill({ status: 204 });
+      },
+    );
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -227,10 +269,10 @@ test.describe('pull request update-branch button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({ status: 202 }),
     );
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -261,10 +303,10 @@ test.describe('pull request update-branch button', () => {
     // and back, which reads as nothing happened.
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({ status: 202 }),
     );
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -294,11 +336,11 @@ test.describe('pull request update-branch button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({ status: 202 }),
     );
     let refreshCount = 0;
-    await page.route('**/api/dashboard/refresh', (route) => {
+    await page.route('**/api/dashboard/refresh', (route: Route) => {
       refreshCount += 1;
       return route.fulfill({
         status: 200,
@@ -332,7 +374,7 @@ test.describe('pull request update-branch button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 502,
         contentType: 'application/json',
@@ -356,7 +398,7 @@ test.describe('pull request update-branch button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -384,7 +426,7 @@ test.describe('pull request update-branch button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -406,7 +448,7 @@ test.describe('pull request update-branch button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -429,7 +471,7 @@ test.describe('pull request update-branch button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',
@@ -455,7 +497,7 @@ test.describe('pull request update-branch button', () => {
     // refresh brought back data that no longer justified the lock.
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',
@@ -469,7 +511,7 @@ test.describe('pull request update-branch button', () => {
     await expect(row.getByRole('button', { name: 'Retry' })).toBeVisible();
 
     let refreshCalled = false;
-    await page.route('**/api/dashboard/refresh', (route) => {
+    await page.route('**/api/dashboard/refresh', (route: Route) => {
       refreshCalled = true;
       return route.fulfill({
         status: 200,
@@ -507,7 +549,7 @@ test.describe('pull request update-branch button', () => {
     // contrast bug (filed as #305) unrelated to this button; this scan is
     // about the locked-button markup this change actually adds.
     await mockDashboard(page, makePR({ mergeStatus: 'mergeable' }));
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',
@@ -647,7 +689,7 @@ test.describe('pull request update-branch button', () => {
         [{ forge: 'github', reachable: true, repoCount: 2 }],
         [first, second],
       );
-      await page.route('**/api/pull-requests/merge', (route) =>
+      await page.route('**/api/pull-requests/merge', (route: Route) =>
         route.fulfill({
           status: 403,
           contentType: 'application/json',

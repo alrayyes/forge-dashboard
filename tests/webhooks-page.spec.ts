@@ -1,8 +1,18 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  type Route,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `webhooks-page-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -13,8 +23,12 @@ async function registerAndSignIn(page, request, baseURL) {
   );
 }
 
-function mockDashboard(page, repos, forges) {
-  return page.route('**/api/dashboard*', (route) =>
+function mockDashboard(
+  page: Page,
+  repos: Record<string, unknown>[],
+  forges?: Record<string, unknown>[],
+) {
+  return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -71,17 +85,17 @@ test.describe('webhooks page', () => {
   });
 
   test.describe('filters and sorting', () => {
-    function repoFilter(page) {
+    function repoFilter(page: Page) {
       return page.locator('#webhooks-repo-filter');
     }
 
-    function forgeRadio(page, value) {
+    function forgeRadio(page: Page, value: string) {
       return page.locator(
         `.webhooks-filter-bar input[data-filter="forge"][value="${value}"]`,
       );
     }
 
-    async function seedRepos(page) {
+    async function seedRepos(page: Page) {
       await mockDashboard(page, [
         { forge: 'github', fullName: 'alrayyes/b', hasWebhook: true },
         { forge: 'forgejo', fullName: 'alrayyes/a', hasWebhook: false },
@@ -90,7 +104,7 @@ test.describe('webhooks page', () => {
       await page.goto('/webhooks.html');
     }
 
-    function rowRepoNames(page) {
+    function rowRepoNames(page: Page) {
       return page
         .locator('#webhooks-rows tr td:nth-child(2)')
         .allTextContents();
@@ -244,7 +258,7 @@ test.describe('webhooks page', () => {
         canManageWebhooks: true,
       },
     ]);
-    let requestBody;
+    let requestBody: unknown;
     await page.route('**/api/webhooks/ensure', (route) => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
@@ -595,7 +609,7 @@ test.describe('webhooks page', () => {
   });
 
   test.describe('bulk "set up webhooks for all repos" action (#380)', () => {
-    function bulkButton(page) {
+    function bulkButton(page: Page) {
       return page.getByRole('button', { name: /Set up webhooks for/ });
     }
 
@@ -705,7 +719,7 @@ test.describe('webhooks page', () => {
           canManageWebhooks: true,
         },
       ]);
-      const requested = [];
+      const requested: unknown[] = [];
       await page.route('**/api/webhooks/ensure', (route) => {
         requested.push(route.request().postDataJSON());
         return route.fulfill({ status: 204 });
@@ -794,7 +808,7 @@ test.describe('webhooks page', () => {
       await mockDashboard(page, [
         { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
       ]);
-      let requestBody;
+      let requestBody: unknown;
       await page.route('**/api/repos/ignore', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
@@ -831,7 +845,7 @@ test.describe('webhooks page', () => {
       await mockDashboard(page, [
         { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
       ]);
-      let requestBody;
+      let requestBody: unknown;
       await page.route('**/api/repos/ignore', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
@@ -865,7 +879,7 @@ test.describe('webhooks page', () => {
       await mockDashboard(page, [
         { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
       ]);
-      let requestBody;
+      let requestBody: unknown;
       await page.route('**/api/repos/ignore', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
@@ -937,7 +951,7 @@ test.describe('webhooks page', () => {
           ignoredIssues: true,
         },
       ]);
-      let requestBody;
+      let requestBody: unknown;
       await page.route('**/api/repos/unignore', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
@@ -1025,7 +1039,7 @@ test.describe('webhooks page', () => {
           autoUpdateBranch: false,
         },
       ]);
-      let requestBody;
+      let requestBody: unknown;
       await page.route('**/api/repos/auto-update-branch/enable', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
@@ -1058,7 +1072,7 @@ test.describe('webhooks page', () => {
           autoUpdateBranch: true,
         },
       ]);
-      let requestBody;
+      let requestBody: unknown;
       await page.route('**/api/repos/auto-update-branch/disable', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
@@ -1204,7 +1218,7 @@ test.describe('webhooks page', () => {
           autoUpdateBranch: false,
         },
       ]);
-      const requested = [];
+      const requested: unknown[] = [];
       await page.route('**/api/repos/auto-update-branch/enable', (route) => {
         requested.push(route.request().postDataJSON());
         return route.fulfill({ status: 204 });
@@ -1239,7 +1253,7 @@ test.describe('webhooks page', () => {
           autoUpdateBranch: true,
         },
       ]);
-      const requested = [];
+      const requested: unknown[] = [];
       await page.route('**/api/repos/auto-update-branch/disable', (route) => {
         requested.push(route.request().postDataJSON());
         return route.fulfill({ status: 204 });

@@ -1,8 +1,19 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `pr-auto-merge-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -13,7 +24,24 @@ async function registerAndSignIn(page, request, baseURL) {
   );
 }
 
-function makePR(overrides) {
+interface MockPR {
+  behind?: boolean;
+  forge: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  draft: boolean;
+  ci: string;
+  labels: string[];
+  createdAt: string;
+  updatedAt: string;
+  mergeStatus: string;
+  autoMergeEnabled: boolean;
+}
+
+function makePR(overrides: Partial<MockPR> = {}): MockPR {
   return {
     forge: 'github',
     repo: 'alrayyes/forge-dashboard',
@@ -32,8 +60,8 @@ function makePR(overrides) {
   };
 }
 
-function mockDashboard(page, pr) {
-  return page.route('**/api/dashboard*', (route) =>
+function mockDashboard(page: Page, pr?: MockPR) {
+  return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -51,7 +79,7 @@ function mockDashboard(page, pr) {
 // trigger (#527), same as Dependabot/Renovate's own rarer actions — View
 // pipeline moved out of this menu entirely in #636, so it no longer
 // keeps a row's "More actions" trigger around on its own.
-async function openMoreActions(row) {
+async function openMoreActions(row: Locator) {
   await row.getByRole('button', { name: 'More actions' }).click();
 }
 
@@ -147,7 +175,7 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route) =>
+    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
       route.fulfill({
         status: 502,
         contentType: 'application/json',
@@ -172,12 +200,12 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    let requestBody;
-    await page.route('**/api/pull-requests/auto-merge', (route) => {
+    let requestBody: unknown;
+    await page.route('**/api/pull-requests/auto-merge', (route: Route) => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -206,10 +234,10 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route) =>
+    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
       route.fulfill({ status: 204 }),
     );
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -235,11 +263,14 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      return route.fulfill({ status: 204 });
-    });
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route(
+      '**/api/pull-requests/auto-merge',
+      async (route: Route) => {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return route.fulfill({ status: 204 });
+      },
+    );
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -271,7 +302,7 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route) =>
+    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
       route.fulfill({
         status: 502,
         contentType: 'application/json',
@@ -308,7 +339,7 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route) =>
+    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
       route.fulfill({
         status: 502,
         contentType: 'application/json',
@@ -340,7 +371,7 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route) =>
+    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -362,7 +393,7 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route) =>
+    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',
@@ -384,7 +415,7 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route) =>
+    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',

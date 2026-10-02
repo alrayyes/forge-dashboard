@@ -1,8 +1,59 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  type Route,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+interface RateLimit {
+  limit: number;
+  remaining: number;
+  resetsAt: string;
+  cost?: number;
+}
+
+interface ForgeStatus {
+  forge: string;
+  reachable: boolean;
+  repoCount: number;
+  rateLimitGraphQL?: RateLimit;
+  rateLimitREST?: RateLimit;
+}
+
+interface PullRequestFixture {
+  forge: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  draft: boolean;
+  labels: { name: string; color: string }[];
+  createdAt: string;
+  updatedAt: string;
+  ci: string;
+}
+
+interface IssueFixture {
+  forge: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  labels: { name: string; color: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `insights-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -14,14 +65,18 @@ async function registerAndSignIn(page, request, baseURL) {
 }
 
 function mockDashboard(
-  page,
+  page: Page,
   {
     pullRequests = [],
     issues = [],
     forges = [{ forge: 'github', reachable: true, repoCount: 1 }],
+  }: {
+    pullRequests?: PullRequestFixture[];
+    issues?: IssueFixture[];
+    forges?: ForgeStatus[];
   } = {},
 ) {
-  return page.route('**/api/dashboard*', (route) =>
+  return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -35,7 +90,10 @@ function mockDashboard(
   );
 }
 
-function pr(ci, overrides = {}) {
+function pr(
+  ci: string,
+  overrides: Partial<PullRequestFixture> = {},
+): PullRequestFixture {
   return {
     forge: 'github',
     repo: 'alrayyes/forge-dashboard',
@@ -52,7 +110,7 @@ function pr(ci, overrides = {}) {
   };
 }
 
-function issue(overrides = {}) {
+function issue(overrides: Partial<IssueFixture> = {}): IssueFixture {
   return {
     forge: 'github',
     repo: 'alrayyes/forge-dashboard',
@@ -67,13 +125,13 @@ function issue(overrides = {}) {
   };
 }
 
-function prsForRepo(repo, count) {
+function prsForRepo(repo: string, count: number) {
   return Array.from({ length: count }, (_, i) =>
     pr('success', { repo, number: i + 1 }),
   );
 }
 
-function hoursAgo(hours) {
+function hoursAgo(hours: number) {
   return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 }
 
@@ -457,15 +515,15 @@ test.describe('insights page', () => {
       );
       await expect(reset).toContainText(/resets in \d+m \d+s/);
 
-      function totalSeconds(text) {
+      function totalSeconds(text: string) {
         const match = text.match(/resets in (\d+)m (\d+)s/);
         expect(match).not.toBeNull();
-        return Number(match[1]) * 60 + Number(match[2]);
+        return Number(match?.[1]) * 60 + Number(match?.[2]);
       }
 
-      const firstSeconds = totalSeconds(await reset.textContent());
+      const firstSeconds = totalSeconds((await reset.textContent()) ?? '');
       await expect(async () => {
-        const seconds = totalSeconds(await reset.textContent());
+        const seconds = totalSeconds((await reset.textContent()) ?? '');
         expect(seconds).toBeLessThan(firstSeconds);
       }).toPass({ timeout: 3000 });
     });

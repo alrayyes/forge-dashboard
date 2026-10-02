@@ -208,7 +208,7 @@ jobs:
           ./forge-dashboard &
           echo $! > server.pid
           npx wait-on http://localhost:8080/healthz
-          # Real node, not bun's own runtime — this shells out to a
+          # Real node (via tsx), not bun's own runtime — this shells out to a
           # browser process, the exact case javascript.md's "install a
           # real node" rule is about; ubuntu-24.04 ships one already.
           bun run capture-screenshots
