@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.112.1](https://github.com/alrayyes/forge-dashboard/compare/v0.112.0...v0.112.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **dashboard:** keep focus on the More actions item the user reached ([#771](https://github.com/alrayyes/forge-dashboard/issues/771)) ([38b8d9e](https://github.com/alrayyes/forge-dashboard/commit/38b8d9e882bfe59c5a1272645bd2dc7ce897a7ca)), closes [#770](https://github.com/alrayyes/forge-dashboard/issues/770)
+
 ## [0.112.0](https://github.com/alrayyes/forge-dashboard/compare/v0.111.1...v0.112.0) (2026-10-02)
 
 
