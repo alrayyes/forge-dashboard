@@ -2985,3 +2985,41 @@ func TestReadPullRequestState_ForgeFails_ReturnsClassifiedError(t *testing.T) {
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
 }
+
+// GraphQL refuses auto-merge with a 200 and an errors array, no status of
+// its own, so the API layer reads the reason from the message. The texts
+// below are the ones the dashboard has seen live (#621, #662) and GitHub's
+// own wording for a repo that disallows auto-merge.
+func TestEnableAutoMerge_RefusalKeepsGitHubsOwnMessage(t *testing.T) {
+	t.Parallel()
+
+	for _, message := range []string{
+		"Pull request is in clean status",
+		"Pull request is in unstable status",
+		"Auto merge is not allowed for this repository",
+	} {
+		t.Run(message, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+				body := readGraphQLRequest(t, r)
+				if strings.Contains(body.Query, "enablePullRequestAutoMerge") {
+					writeJSON(t, w, map[string]any{"data": nil, "errors": []map[string]any{{"type": "UNPROCESSABLE", "message": message}}})
+
+					return
+				}
+				writeJSON(t, w, map[string]any{"data": map[string]any{"repository": map[string]any{
+					"mergeCommitAllowed": true, "pullRequest": map[string]any{"id": "PR_kwABC"},
+				}}})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			err := github.NewClient("test-token", "", srv.URL).EnableAutoMerge(t.Context(), "alrayyes", "a", 5)
+
+			require.Error(t, err)
+			assert.Contains(t, dashboard.ForgeMessage(err), message)
+		})
+	}
+}

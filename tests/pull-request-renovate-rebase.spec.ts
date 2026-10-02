@@ -246,7 +246,12 @@ test.describe('pull request Renovate rebase button', () => {
       route.fulfill({
         status: 404,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'forgejo: no label "rebase"' }),
+        body: JSON.stringify({
+          error: 'forgejo: no label "rebase"',
+          code: 'label_missing',
+          message:
+            "The rebase label doesn't exist on this repo. Create it there first.",
+        }),
       }),
     );
     await page.reload();
@@ -268,7 +273,11 @@ test.describe('pull request Renovate rebase button', () => {
       route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: POST .../labels: Forbidden' }),
+        body: JSON.stringify({
+          error: 'github: POST .../labels: Forbidden',
+          code: 'permission',
+          message: 'Missing permission — check your token in Settings.',
+        }),
       }),
     );
     await page.reload();
@@ -290,7 +299,12 @@ test.describe('pull request Renovate rebase button', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
       }),
     );
     await page.reload();
@@ -376,7 +390,12 @@ test.describe('pull request Renovate rebase button', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
       }),
     );
     await page.reload();

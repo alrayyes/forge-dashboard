@@ -77,7 +77,7 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 				continue
 			}
 			if reason := dashboard.DependabotCommandsBlockedReason(src); reason != "" {
-				writeJSON(w, http.StatusConflict, errorBody(reason))
+				writeJSON(w, http.StatusConflict, actionErrorBody{Error: reason, Code: string(dashboard.ActionPermission), Message: reason})
 
 				return
 			}
@@ -99,7 +99,7 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 
 		if err := commenter.CommentPullRequest(r.Context(), owner, name, req.Number, body); err != nil {
 			slog.Warn("dependabot pull request action failed", "forge", req.Forge, "repo", req.FullName, "number", req.Number, "action", req.Action, "error", err)
-			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
+			writeActionRefusal(r.Context(), w, commenter, dashboard.PullRequestActionDependabot, owner, name, req.Number, err)
 
 			return
 		}

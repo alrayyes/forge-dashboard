@@ -221,6 +221,9 @@ test.describe('pull request Enable auto-merge action', () => {
         body: JSON.stringify({
           error:
             'github: graphql: Pull request Pull request is in clean status when enabling auto merge for https://github.com/alrayyes/forge-dashboard/pull/42',
+          code: 'ready_to_merge',
+          message:
+            "This pull request is already ready to merge, so there's nothing for auto-merge to wait for. Use Merge instead.",
         }),
       }),
     );
@@ -352,7 +355,9 @@ test.describe('pull request Enable auto-merge action', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           error:
-            'github: graphql: Auto merge is not allowed for this repository',
+            'github: graphql: Something the forge said that nothing classifies',
+          code: 'unknown',
+          message: 'Something the forge said that nothing classifies',
         }),
       }),
     );
@@ -363,7 +368,9 @@ test.describe('pull request Enable auto-merge action', () => {
     const button = row.getByRole('button', { name: 'Enable auto-merge' });
     await button.click();
 
-    await expect(page.locator('#feedback-toasts')).toContainText('not allowed');
+    await expect(page.locator('#feedback-toasts')).toContainText(
+      'nothing classifies',
+    );
     await expect(page.locator('#error-banner')).toHaveCount(0);
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();
@@ -391,6 +398,9 @@ test.describe('pull request Enable auto-merge action', () => {
         body: JSON.stringify({
           error:
             'github: graphql: Pull request Pull request is in unstable status when enabling auto merge for https://github.com/alrayyes/forge-dashboard/pull/42',
+          code: 'checks_pending',
+          message:
+            'GitHub reports this pull request as unstable: a non-required check is still running or has failed. Try again once it settles.',
         }),
       }),
     );
@@ -422,7 +432,11 @@ test.describe('pull request Enable auto-merge action', () => {
       route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: graphql: Forbidden' }),
+        body: JSON.stringify({
+          error: 'github: graphql: Forbidden',
+          code: 'permission',
+          message: 'Missing permission — check your token in Settings.',
+        }),
       }),
     );
     await page.reload();
@@ -444,7 +458,12 @@ test.describe('pull request Enable auto-merge action', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
       }),
     );
     await page.reload();
@@ -466,7 +485,12 @@ test.describe('pull request Enable auto-merge action', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
       }),
     );
     await page.reload();
