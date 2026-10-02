@@ -29,3 +29,5 @@ The design is dark only. The app keeps its light theme.
 - `dashboard-rate-limit-readonly.png`: Stitch's answer to a request for a
   read-only rate-limit mode. It largely repeats the rate-limit screen and
   does not draw the banner, queue or paused refresh that were asked for.
+- `dashboard-inline-confirm.png`: an armed Merge with Confirm, Cancel and a
+  hint to cancel by pressing the escape key or clicking away.
