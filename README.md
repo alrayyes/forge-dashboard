@@ -582,6 +582,23 @@ docker run --rm -p 8080:8080 \
   forge-dashboard
 ```
 
+The image carries a `HEALTHCHECK` that runs `/forge-dashboard healthcheck`,
+which asks `GET /readyz`. It means "can serve": the database answers and its
+tables exist. Once someone has signed in and a first dashboard refresh has
+finished, it also waits on that, and a forge that failed the refresh still
+counts. A freshly started container has no refresh to wait for, since the
+app only fetches from the forges after a sign-in. Read it with:
+
+```sh
+docker inspect --format '{{.State.Health.Status}}' <container>
+```
+
+`starting` is normal for up to 30 seconds after boot, then `healthy`. A
+healthy container stays healthy when a forge goes unreachable. That shows
+on the dashboard, not here. `GET /healthz` stays the cheap liveness answer
+(the process is up). In Compose, `depends_on` with
+`condition: service_healthy` waits on the same state.
+
 Generate `ENCRYPTION_KEY` once and keep it — losing it makes every saved
 credential unrecoverable, and every user has to re-enter theirs from the
 Settings page.
@@ -606,7 +623,8 @@ not here.
 
 ## API
 
-`api/openapi.yaml` is the contract: `GET /healthz` for liveness,
+`api/openapi.yaml` is the contract: `GET /healthz` for liveness, `GET /readyz`
+for readiness,
 `GET /api/dashboard` for the signed-in user's aggregated snapshot (or,
 with `?owner=<username>`, one shared with them), `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the
