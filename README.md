@@ -323,9 +323,12 @@ Update branch, `Dependabot: Rebase` and `Renovate: Rebase` only ask the
 forge or a bot to act, and the result shows up on a later refresh. So the
 button turns into a disabled "Queued…" the moment you click it, and the
 status banner at the top says the request went out and counts down to the
-next background poll. Update branch clears once a refresh shows the branch
-caught up; a Dependabot or Renovate request clears on the next refresh. If
-the request fails, the button comes back and the error banner says why.
+next background poll. If the countdown runs out before the refresh lands, it
+reads "Refreshing…" instead. An unrelated refresh doesn't clear it. Update
+branch clears once a refresh shows the branch caught up. A Dependabot or
+Renovate request clears once a refresh shows the pull request is no longer
+behind or is gone, or after five minutes if the bot never acts. If the
+request fails, the button comes back and the error banner says why.
 
 A pull request opened by release-please, Dependabot, or Renovate keeps
 itself current on its own schedule — for release-please specifically,
