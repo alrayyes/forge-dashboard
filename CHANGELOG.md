@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.113.0](https://github.com/alrayyes/forge-dashboard/compare/v0.112.1...v0.113.0) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** confirm step gets a Cancel and disarms on outside click, Escape and a timeout ([#768](https://github.com/alrayyes/forge-dashboard/issues/768)) ([4d0c390](https://github.com/alrayyes/forge-dashboard/commit/4d0c3909359db376aff477df7ac720a833615c71))
+
 ## [0.112.1](https://github.com/alrayyes/forge-dashboard/compare/v0.112.0...v0.112.1) (2026-10-02)
 
 
