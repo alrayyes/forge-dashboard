@@ -1,8 +1,40 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+interface MockPR {
+  forge: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  draft: boolean;
+  ci: string;
+  labels: string[];
+  createdAt: string;
+  updatedAt: string;
+  mergeStatus: string;
+  [key: string]: unknown;
+}
+
+interface MockForge {
+  forge: string;
+  reachable: boolean;
+  repoCount: number;
+  rateLimitREST?: { limit: number; remaining: number; resetsAt: string };
+}
+
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `pr-merge-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -13,7 +45,7 @@ async function registerAndSignIn(page, request, baseURL) {
   );
 }
 
-function makePR(overrides) {
+function makePR(overrides?: Partial<MockPR>): MockPR {
   return {
     forge: 'github',
     repo: 'alrayyes/forge-dashboard',
@@ -31,7 +63,7 @@ function makePR(overrides) {
   };
 }
 
-function mockDashboard(page, pr) {
+function mockDashboard(page: Page, pr?: MockPR) {
   return page.route('**/api/dashboard*', (route) =>
     route.fulfill({
       status: 200,
@@ -50,7 +82,7 @@ function mockDashboard(page, pr) {
 // array and a real list of pull requests — for the proactive-lock tests,
 // which need to control ForgeHealth directly and (for the forge-wide
 // permission-lock test) more than one row.
-function mockDashboardCustom(page, forges, prs) {
+function mockDashboardCustom(page: Page, forges: MockForge[], prs: MockPR[]) {
   return page.route('**/api/dashboard*', (route) =>
     route.fulfill({
       status: 200,
@@ -171,7 +203,7 @@ test.describe('pull request merge button', () => {
   // against its base is already empty (content landed some other way)
   // used to show a fully clickable Merge button that quietly did nothing
   // when clicked. It now shows a disabled button explaining why, so Close
-  // (always available, see pull-request-close.spec.js) reads as the one
+  // (always available, see pull-request-close.spec.ts) reads as the one
   // real action instead of a silent dead end.
   test('an empty pull request shows a disabled Merge button explaining why, not a clickable one', async ({
     page,
@@ -309,7 +341,7 @@ test.describe('pull request merge button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    let requestBody;
+    let requestBody: unknown;
     await page.route('**/api/pull-requests/merge', (route) => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
@@ -831,7 +863,7 @@ test.describe('pull request merge button', () => {
     const box = await row.getByRole('button', { name: 'Merge' }).boundingBox();
 
     expect(box).not.toBeNull();
-    expect(box.width).toBeGreaterThanOrEqual(28);
-    expect(box.height).toBeGreaterThanOrEqual(28);
+    expect(box?.width).toBeGreaterThanOrEqual(28);
+    expect(box?.height).toBeGreaterThanOrEqual(28);
   });
 });

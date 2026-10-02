@@ -20,10 +20,13 @@
     "@lhci/cli": "0.15.1",
     "@playwright/test": "1.63.0",
     "@redocly/cli": "2.54.2",
+    "@types/node": "26.6.2",
     "lefthook": "2.1.14",
     "markdownlint-cli2": "0.23.3",
     "prettier": "3.9.9",
     "prettier-plugin-svelte": "4.1.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
     "wait-on": "9.1.0"
   },
   "trustedDependencies": [
@@ -39,8 +42,9 @@
     "lint:mechanics": "./scripts/lint-mechanics.sh",
     "test:e2e": "playwright test",
     "test:lighthouse": "lhci autorun",
-    "capture-screenshots": "node scripts/capture-screenshots.js",
+    "capture-screenshots": "tsx scripts/capture-screenshots.ts",
     "build:web": "bun run --filter web build && ./scripts/sync-web-build.sh",
-    "check:web": "bun run --filter web check"
+    "check:web": "bun run --filter web check",
+    "check:tests": "tsc -p tsconfig.json"
   }
 }

@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
+import AxeBuilder from '@axe-core/playwright';
+import { expect, test } from '@playwright/test';
 
 const PAGES = [
   { path: '/disclaimer.html', title: 'Disclaimer' },

@@ -9,14 +9,15 @@
 // confusing failure in an unrelated later test. globalSetup has no
 // such per-worker lifecycle: it runs once for the whole test run, full
 // stop, which is exactly what "the first real registration" needs.
-const { chromium } = require('@playwright/test');
-const path = require('node:path');
-const { addVirtualAuthenticator } = require('./webauthn-helper');
 
-const ADMIN_TEST_USERNAME = 'admin';
-const STORAGE_STATE_PATH = path.join(__dirname, '.auth', 'admin.json');
+import path from 'node:path';
+import { chromium, type FullConfig } from '@playwright/test';
+import { addVirtualAuthenticator } from './webauthn-helper';
 
-module.exports = async function globalSetup(config) {
+export const ADMIN_TEST_USERNAME = 'admin';
+export const STORAGE_STATE_PATH = path.join(__dirname, '.auth', 'admin.json');
+
+export default async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0].use.baseURL;
   const browser = await chromium.launch();
   const context = await browser.newContext();
@@ -32,7 +33,4 @@ module.exports = async function globalSetup(config) {
 
   await context.storageState({ path: STORAGE_STATE_PATH });
   await browser.close();
-};
-
-module.exports.ADMIN_TEST_USERNAME = ADMIN_TEST_USERNAME;
-module.exports.STORAGE_STATE_PATH = STORAGE_STATE_PATH;
+}

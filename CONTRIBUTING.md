@@ -53,6 +53,7 @@ golangci-lint run
 golangci-lint fmt          # the fixer; `run` stays the check
 
 bunx playwright test       # accessibility + journey tests against a running binary
+bun run check:tests        # tsc over the tests; Playwright itself never type-checks
 bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechanics too
 ```
 

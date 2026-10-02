@@ -1,8 +1,18 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  type Route,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `pr-checks-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -13,7 +23,23 @@ async function registerAndSignIn(page, request, baseURL) {
   );
 }
 
-function makePR(overrides) {
+interface MockPR {
+  forge: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  draft: boolean;
+  ci: string;
+  labels: string[];
+  createdAt: string;
+  updatedAt: string;
+  mergeStatus: string;
+  behind: boolean;
+}
+
+function makePR(overrides: Partial<MockPR> = {}): MockPR {
   return {
     forge: 'github',
     repo: 'alrayyes/forge-dashboard',
@@ -32,8 +58,8 @@ function makePR(overrides) {
   };
 }
 
-function mockDashboard(page, forge, pr) {
-  return page.route('**/api/dashboard*', (route) =>
+function mockDashboard(page: Page, forge: string, pr?: MockPR) {
+  return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -47,8 +73,8 @@ function mockDashboard(page, forge, pr) {
   );
 }
 
-function mockChecks(page, body, status = 200) {
-  return page.route('**/api/pull-requests/checks*', (route) =>
+function mockChecks(page: Page, body: unknown, status = 200) {
+  return page.route('**/api/pull-requests/checks*', (route: Route) =>
     route.fulfill({
       status,
       contentType: 'application/json',
@@ -91,7 +117,7 @@ test.describe('pull request pipeline checks panel', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    let requestURL;
+    let requestURL = '';
     await mockChecks(page, {
       checks: [
         {
@@ -234,7 +260,7 @@ test.describe('pull request pipeline checks panel', () => {
   }) => {
     await mockDashboard(page, 'github', makePR());
     let attempts = 0;
-    await page.route('**/api/pull-requests/checks*', (route) => {
+    await page.route('**/api/pull-requests/checks*', (route: Route) => {
       attempts += 1;
       if (attempts === 1) {
         return route.fulfill({

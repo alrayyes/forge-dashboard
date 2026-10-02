@@ -3,17 +3,18 @@
 // storageState) — not the per-test `request` fixture a test callback
 // destructures, which has no `.newContext()` of its own (its plain
 // `.post()`/`.get()` etc. still work fine, and stay as `request` below).
-// See register-helper.js's own top-of-file comment for the real bug this
+// See register-helper.ts's own top-of-file comment for the real bug this
 // distinction caused live.
-const { test, expect, request: apiRequest } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
-const {
-  ADMIN_TEST_USERNAME: ADMIN_USERNAME,
-  STORAGE_STATE_PATH: ADMIN_STORAGE_STATE,
-} = require('./admin-global-setup');
 
-function uniqueUsername(prefix) {
+import AxeBuilder from '@axe-core/playwright';
+import { request as apiRequest, expect, test } from '@playwright/test';
+import {
+  STORAGE_STATE_PATH as ADMIN_STORAGE_STATE,
+  ADMIN_TEST_USERNAME as ADMIN_USERNAME,
+} from './admin-global-setup';
+import { registerViaInvite } from './register-helper';
+
+function uniqueUsername(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
@@ -22,7 +23,11 @@ function uniqueUsername(prefix) {
 // covered separately, in its own test below; this is just setup for
 // tests whose actual concern is something else (a non-admin's own view
 // of the page, the user-management table).
-async function createInviteAsAdmin(baseURL, username, displayName) {
+async function createInviteAsAdmin(
+  baseURL: string | undefined,
+  username: string,
+  displayName: string,
+) {
   const adminRequest = await apiRequest.newContext({
     baseURL,
     storageState: ADMIN_STORAGE_STATE,

@@ -5,21 +5,21 @@
 // so the main e2e suite never picks this up.
 //
 // The dashboard's own /api/dashboard fetch is mocked with fixture data,
-// the same way tests/dashboard.spec.js's own route mocks work: this runs
+// the same way tests/dashboard.spec.ts's own route mocks work: this runs
 // in CI with no live GitHub/Forgejo credentials, and a screenshot only
 // needs to look like the real product, not show a real account's actual
 // open pull requests — the same reason the registered display name,
 // username, and every repo except this project's own are fictional
 // rather than Ryan's real name or infrastructure (#250).
 
-const path = require('node:path');
-const { chromium } = require('@playwright/test');
-const { addVirtualAuthenticator } = require('../tests/webauthn-helper');
+import path from 'node:path';
+import { chromium } from '@playwright/test';
+import { addVirtualAuthenticator } from '../tests/webauthn-helper';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
 const OUT_DIR = path.join(__dirname, '..', 'docs', 'screenshots');
 
-function daysAgo(n) {
+function daysAgo(n: number) {
   return new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
 }
 
@@ -140,7 +140,7 @@ async function main() {
   );
   await page.reload();
   await page.waitForFunction(
-    () => document.getElementById('stat-prs').textContent !== '–',
+    () => document.getElementById('stat-prs')?.textContent !== '–',
   );
 
   await page.screenshot({
@@ -148,7 +148,7 @@ async function main() {
   });
 
   // #352: theme is a Settings-only control now, not a header toggle —
-  // same real PUT tests/theme-helper.js's setTheme uses, then a reload
+  // same real PUT tests/theme-helper.ts's setTheme uses, then a reload
   // so the layout's own theme sync picks it up.
   await page.evaluate(() =>
     fetch('/api/settings/theme', {
@@ -160,7 +160,7 @@ async function main() {
   );
   await page.reload();
   await page.waitForFunction(
-    () => document.getElementById('stat-prs').textContent !== '–',
+    () => document.getElementById('stat-prs')?.textContent !== '–',
   );
   await page.waitForFunction(
     () => document.documentElement.getAttribute('data-theme') === 'dark',

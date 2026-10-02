@@ -164,6 +164,10 @@ pre-push:
     - name: svelte-check
       run: bun run check:web
 
+    # Playwright runs TypeScript without checking it — this is the check.
+    - name: tests-types
+      run: bun run check:tests
+
     # Proves the image still builds before anyone pushes, without publishing
     # anything.
     - name: docker-build

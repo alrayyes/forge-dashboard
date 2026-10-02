@@ -1,8 +1,8 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import { expect, test } from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-function uniqueUsername(prefix) {
+function uniqueUsername(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 

@@ -1,30 +1,32 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const http = require('node:http');
-const { registerViaInvite } = require('./register-helper');
-const {
-  STORAGE_STATE_PATH: ADMIN_STORAGE_STATE,
-} = require('./admin-global-setup');
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
+import AxeBuilder from '@axe-core/playwright';
+import { expect, test } from '@playwright/test';
+import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
+import { registerViaInvite } from './register-helper';
 
-function uniqueUsername(prefix) {
+function uniqueUsername(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
-// startFakeForgejo is the same minimal shape webhooks.spec.js's own
+// startFakeForgejo is the same minimal shape webhooks.spec.ts's own
 // startFakeForgejo uses — a real, controllable HTTP server standing in
 // for a Forgejo instance, since a page.route() mock only intercepts the
 // browser's own fetches and can't stand in for what the Go server
 // itself calls out to. An empty repo list is enough here: this test's
 // whole point is that the outbound call itself gets logged, not what
 // its response contained.
-function startFakeForgejo() {
+function startFakeForgejo(): Promise<{ server: http.Server; url: string }> {
   const server = http.createServer((_req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify([]));
   });
-  return new Promise((resolve) => {
+  return new Promise<{ server: http.Server; url: string }>((resolve) => {
     server.listen(0, '127.0.0.1', () =>
-      resolve({ server, url: `http://127.0.0.1:${server.address().port}` }),
+      resolve({
+        server,
+        url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+      }),
     );
   });
 }
@@ -52,7 +54,7 @@ test.describe('admin area — outbound request log', () => {
       // settings.js populates the form from a fetch that fires as part
       // of navigation, not after it — racing the two together means the
       // listener is attached before the fetch can happen (same reason
-      // webhooks.spec.js does this).
+      // webhooks.spec.ts does this).
       await Promise.all([
         userPage.waitForResponse((res) => res.url().includes('/api/settings')),
         userPage.goto('/settings.html'),
@@ -122,7 +124,7 @@ test.describe('admin area — outbound request log', () => {
           .getAttribute('href');
         expect(exportHref).toContain(`account=${encodeURIComponent(username)}`);
 
-        const exportRes = await adminPage.request.get(exportHref);
+        const exportRes = await adminPage.request.get(exportHref ?? '');
         expect(exportRes.status()).toBe(200);
         expect(exportRes.headers()['content-type']).toContain('text/csv');
         const csv = await exportRes.text();
@@ -155,7 +157,7 @@ test.describe('admin area — outbound request log', () => {
         const opt = document.createElement('option');
         opt.value = 'no-such-user-at-all';
         opt.textContent = 'no-such-user-at-all';
-        select.appendChild(opt);
+        select?.appendChild(opt);
       });
       await adminPage.selectOption(
         '#request-filter-account',

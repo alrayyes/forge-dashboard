@@ -1,9 +1,32 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
-const { setTheme } = require('./theme-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  type Route,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
+import { setTheme } from './theme-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+interface MockItem {
+  forge: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  labels: string[];
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `dashboard-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -18,11 +41,11 @@ async function registerAndSignIn(page, request, baseURL) {
 // in favor of their <label>) rather than a <select> — clicking the label
 // is what a real user (or a screen reader's activation gesture) does,
 // same as any other radio group.
-function forgeRadio(page, value) {
+function forgeRadio(page: Page, value: string) {
   return page.locator(`.filter-bar input[data-col="forge"][value="${value}"]`);
 }
 
-async function selectForge(page, value) {
+async function selectForge(page: Page, value: string) {
   await forgeRadio(page, value).check();
 }
 
@@ -80,7 +103,7 @@ test.describe('dashboard page', () => {
     // CI builds the e2e binary with no goreleaser ldflags, so this is
     // always "dev" here — a real release build shows "· vX.Y.Z" linked to
     // its GitHub release instead (see web/src/lib/Footer.svelte). Also
-    // carries a "Release history" link now (see releases.spec.js).
+    // carries a "Release history" link now (see releases.spec.ts).
     await expect(page.locator('#footer-version')).toContainText('· dev build');
   });
 
@@ -291,7 +314,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 90 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -319,10 +342,10 @@ test.describe('dashboard page', () => {
       await expect(banner).toContainText('GitHub REST');
       await expect(banner).toContainText(/resets in 1m \d+s/);
 
-      function totalSeconds(text) {
-        const match = text.match(/resets in (?:(\d+)m )?(\d+)s/);
+      function totalSeconds(text: string | null) {
+        const match = text?.match(/resets in (?:(\d+)m )?(\d+)s/);
         expect(match).not.toBeNull();
-        return Number(match[1] || 0) * 60 + Number(match[2]);
+        return Number(match?.[1] || 0) * 60 + Number(match?.[2]);
       }
 
       const firstSeconds = totalSeconds(await banner.textContent());
@@ -340,7 +363,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -373,7 +396,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 60 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -396,7 +419,7 @@ test.describe('dashboard page', () => {
       await page.reload();
       await expect(page.locator('#rate-limit-banner')).toBeVisible();
 
-      await page.route('**/api/dashboard/refresh', (route) =>
+      await page.route('**/api/dashboard/refresh', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -428,7 +451,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -461,7 +484,7 @@ test.describe('dashboard page', () => {
 
     test('a budget at or above 5% shows no row at all', async ({ page }) => {
       const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -490,7 +513,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -682,7 +705,7 @@ test.describe('dashboard page', () => {
     const box = await titleCell.boundingBox();
     // The row is ~390px wide minus padding; a healthy title-cell spans
     // nearly all of it. The bug collapsed it to well under 100px.
-    expect(box.width).toBeGreaterThan(300);
+    expect(box?.width).toBeGreaterThan(300);
 
     const scrollWidth = await page.evaluate(
       () => document.documentElement.scrollWidth,
@@ -899,7 +922,7 @@ test.describe('dashboard page', () => {
 
   test.describe('theme and filters persist across a reload', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -948,7 +971,7 @@ test.describe('dashboard page', () => {
       // every load — the mechanism itself is unchanged by #352 moving
       // where theme gets set from (the header toggle) to Settings; this
       // pins that mechanism directly rather than through Settings' own
-      // control, which settings.spec.js already covers.
+      // control, which settings.spec.ts already covers.
       await setTheme(page, 'dark');
       await page.reload();
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -986,7 +1009,7 @@ test.describe('dashboard page', () => {
     test('the shared forge filter persists and applies to both boards, while CI status stays scoped to pull requests only', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1080,8 +1103,8 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('server-synced filter state (#353)', () => {
-    function mockTwoForges(page) {
-      return page.route('**/api/dashboard*', (route) =>
+    function mockTwoForges(page: Page) {
+      return page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1223,7 +1246,7 @@ test.describe('dashboard page', () => {
 
   test.describe('grouping', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1418,7 +1441,7 @@ test.describe('dashboard page', () => {
 
   test.describe('repo and author filters are selects, title is autocomplete', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1515,7 +1538,7 @@ test.describe('dashboard page', () => {
 
   test.describe('the repo/author/label filters and group-by stay consistent with the active forge', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1748,7 +1771,7 @@ test.describe('dashboard page', () => {
       // up empty and clear together rather than only Author doing so —
       // neither one, on its own, is a value still reachable given what
       // the other was set to.
-      await page.route('**/api/dashboard/refresh', (route) =>
+      await page.route('**/api/dashboard/refresh', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1810,7 +1833,7 @@ test.describe('dashboard page', () => {
     test('a PR-only filter like CI status is not part of the shared repo/author/label narrowing', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1868,7 +1891,7 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('pagination', () => {
-    function makePR(n) {
+    function makePR(n: number): MockItem {
       return {
         forge: 'github',
         repo: 'alrayyes/forge-dashboard',
@@ -1886,7 +1909,7 @@ test.describe('dashboard page', () => {
     test('a filtered set under one page shows no pagination controls', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1906,11 +1929,11 @@ test.describe('dashboard page', () => {
     test('a set over one page paginates, and changing the page size re-pages from page 1', async ({
       page,
     }) => {
-      var prs = [];
-      var i;
+      var prs: MockItem[] = [];
+      var i: number;
       for (i = 1; i <= 30; i++) prs.push(makePR(i));
 
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1947,12 +1970,12 @@ test.describe('dashboard page', () => {
     test('a filter narrowing the set below one page hides pagination and resets to page 1', async ({
       page,
     }) => {
-      var prs = [];
-      var i;
+      var prs: MockItem[] = [];
+      var i: number;
       for (i = 1; i <= 30; i++) prs.push(makePR(i));
       prs[0].title = 'the only match';
 
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1978,7 +2001,7 @@ test.describe('dashboard page', () => {
 
   test.describe('CI status click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2098,8 +2121,8 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('CI pill wording for a passed pipeline', () => {
-    function mockOnePR(page, overrides) {
-      return page.route('**/api/dashboard*', (route) =>
+    function mockOnePR(page: Page, overrides: Partial<MockItem>) {
+      return page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2247,8 +2270,8 @@ test.describe('dashboard page', () => {
       };
     }
 
-    function mockDashboard(page, pullRequests) {
-      return page.route('**/api/dashboard*', (route) =>
+    function mockDashboard(page: Page, pullRequests: MockItem[]) {
+      return page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2456,7 +2479,7 @@ test.describe('dashboard page', () => {
     test('clicking it calls the endpoint and updates the dashboard from its response', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2546,7 +2569,7 @@ test.describe('dashboard page', () => {
     test('a failed refresh shows the existing error banner rather than failing silently', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard/refresh', (route) =>
+      await page.route('**/api/dashboard/refresh', (route: Route) =>
         route.fulfill({
           status: 404,
           contentType: 'application/json',
@@ -2566,7 +2589,7 @@ test.describe('dashboard page', () => {
     test('is hidden while viewing a dashboard someone else shared', async ({
       page,
     }) => {
-      await page.route('**/api/sharing', (route) =>
+      await page.route('**/api/sharing', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2593,7 +2616,7 @@ test.describe('dashboard page', () => {
 
   test.describe('label click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2675,7 +2698,7 @@ test.describe('dashboard page', () => {
       // Label is one of the shared fields now — override the fixture with
       // a matching-labeled PR so this actually exercises the cross-board
       // effect, not just an already-empty PR board staying empty.
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2800,7 +2823,7 @@ test.describe('dashboard page', () => {
       // among an item's first three never renders a chip for it at all
       // — before the select existed, there was nothing left to click to
       // undo the filter.
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2850,7 +2873,7 @@ test.describe('dashboard page', () => {
     test('a label chip renders with its real background color and a contrasting text color', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard*', (route) =>
+      await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2929,8 +2952,14 @@ test.describe('dashboard page', () => {
       updatedAt: new Date().toISOString(),
     };
 
-    function mockDashboard(page, { pullRequests = [], issues = [] } = {}) {
-      return page.route('**/api/dashboard*', (route) =>
+    function mockDashboard(
+      page: Page,
+      {
+        pullRequests = [],
+        issues = [],
+      }: { pullRequests?: MockItem[]; issues?: MockItem[] } = {},
+    ) {
+      return page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -3061,8 +3090,8 @@ test.describe('dashboard page', () => {
       updatedAt: new Date().toISOString(),
     };
 
-    function mockDashboard(page) {
-      return page.route('**/api/dashboard*', (route) =>
+    function mockDashboard(page: Page) {
+      return page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',

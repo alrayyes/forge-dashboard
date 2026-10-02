@@ -1,8 +1,17 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `settings-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -89,8 +98,8 @@ test.describe('settings page', () => {
     }) => {
       await page.goto('/settings.html');
 
-      let releasePut;
-      const putHeld = new Promise((resolve) => {
+      let releasePut: () => void = () => {};
+      const putHeld = new Promise<void>((resolve) => {
         releasePut = resolve;
       });
       let firstPutIntercepted = false;
@@ -283,7 +292,9 @@ test.describe('settings page', () => {
     await page.goto('/settings.html');
 
     await page.evaluate(() => {
-      const el = document.getElementById('github-app-installation-id');
+      const el = document.getElementById(
+        'github-app-installation-id',
+      ) as HTMLInputElement;
       el.disabled = false;
       el.value = 'not-a-number';
       el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -597,7 +608,9 @@ test.describe('settings page', () => {
         await expect(page.locator('#token-expiry-preset')).toHaveValue('30');
         const optionValues = await page
           .locator('#token-expiry-preset option')
-          .evaluateAll((opts) => opts.map((o) => o.value));
+          .evaluateAll((opts) =>
+            opts.map((o) => (o as HTMLOptionElement).value),
+          );
         expect(optionValues).toEqual(['7', '30', '60', '90', 'custom']);
       });
 
@@ -640,7 +653,8 @@ test.describe('settings page', () => {
         const max = await dateField.getAttribute('max');
         const min = await dateField.getAttribute('min');
         const daysOut = Math.round(
-          (new Date(max) - new Date(min)) / (24 * 60 * 60 * 1000),
+          (new Date(max ?? '').getTime() - new Date(min ?? '').getTime()) /
+            (24 * 60 * 60 * 1000),
         );
         expect(daysOut).toBe(365); // min is tomorrow, max is 366 days from today
 

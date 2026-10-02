@@ -2,19 +2,18 @@
 // `.newContext()` builds an isolated context carrying a chosen
 // storageState) — not the per-test `request` fixture a test callback
 // destructures, which has no `.newContext()` of its own. See
-// register-helper.js's own top-of-file comment for the real bug this
+// register-helper.ts's own top-of-file comment for the real bug this
 // distinction caused live.
-const { test, expect, request: apiRequest } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { addVirtualAuthenticator } = require('./webauthn-helper');
-const { registerViaInvite } = require('./register-helper');
-const {
-  STORAGE_STATE_PATH: ADMIN_STORAGE_STATE,
-} = require('./admin-global-setup');
+
+import AxeBuilder from '@axe-core/playwright';
+import { request as apiRequest, expect, test } from '@playwright/test';
+import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
+import { registerViaInvite } from './register-helper';
+import { addVirtualAuthenticator } from './webauthn-helper';
 
 // One username per test run so parallel/repeated runs never collide on
 // "already registered" — the server has no reset endpoint and shouldn't.
-function uniqueUsername(prefix) {
+function uniqueUsername(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
 
@@ -59,13 +58,13 @@ test.describe('passkey login', () => {
     // /api/version needs no session, so this works on the one page a
     // visitor can reach before ever authenticating.
     await page.goto('/login.html');
-    // Also carries a "Release history" link now (see releases.spec.js) —
+    // Also carries a "Release history" link now (see releases.spec.ts) —
     // this test's own concern is just that the version itself shows up
     // with no session at all.
     await expect(page.locator('#footer-version')).toContainText('· dev build');
   });
 
-  // admin-global-setup.js already registered "admin" before any test
+  // admin-global-setup.ts already registered "admin" before any test
   // file runs, so self-registration is closed for this whole suite the
   // same way it is for any real deployment past its first account —
   // #477's own requirement. Register via an admin-issued invite instead.
@@ -129,7 +128,7 @@ test.describe('passkey login', () => {
   test('the register button is absent once a user exists and no invite is present', async ({
     page,
   }) => {
-    // admin-global-setup.js's own "admin" account already exists by the
+    // admin-global-setup.ts's own "admin" account already exists by the
     // time this runs, so registration-status answers closed — no invite
     // query param on this visit, so the page has to ask the server
     // rather than default to showing the button.

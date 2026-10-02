@@ -1,7 +1,33 @@
-const { test, expect } = require('@playwright/test');
-const crypto = require('node:crypto');
-const http = require('node:http');
-const { registerViaInvite } = require('./register-helper');
+import crypto from 'node:crypto';
+import http from 'node:http';
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
+
+declare global {
+  interface Window {
+    __testSSEMessages: string[];
+    __testES: EventSource;
+  }
+}
+
+interface FakeIssue {
+  number: number;
+  title: string;
+  html_url: string;
+  user: { login: string };
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface FakeForgejo {
+  server: http.Server;
+  url: string;
+}
 
 // startFakeForgejo runs a real, controllable HTTP server standing in for a
 // Forgejo instance — the backend's own forgejo.Client (code.gitea.io/sdk/gitea)
@@ -14,11 +40,11 @@ const { registerViaInvite } = require('./register-helper');
 // pushing a new one before firing the webhook is enough to change what the
 // next fetch answers with — closer to a real "someone just opened a ticket"
 // than reconfiguring a route mid-test.
-function startFakeForgejo(issues) {
+function startFakeForgejo(issues: FakeIssue[]): Promise<FakeForgejo> {
   const server = http.createServer((req, res) => {
-    const url = new URL(req.url, 'http://localhost');
+    const url = new URL(req.url ?? '/', 'http://localhost');
     const page = url.searchParams.get('page');
-    const reply = (body) => {
+    const reply = (body: unknown) => {
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify(body));
     };
@@ -44,13 +70,21 @@ function startFakeForgejo(issues) {
     reply({ message: 'not found in this test fixture' });
   });
   return new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', () =>
-      resolve({ server, url: `http://127.0.0.1:${server.address().port}` }),
-    );
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (address === null || typeof address === 'string') {
+        throw new Error('fake forgejo is not listening on a TCP port');
+      }
+      resolve({ server, url: `http://127.0.0.1:${address.port}` });
+    });
   });
 }
 
-async function registerAndSignIn(page, request, baseURL) {
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `webhooks-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -100,7 +134,8 @@ test.describe('webhook-triggered live updates', () => {
     await page.evaluate(() => {
       window.__testSSEMessages = [];
       window.__testES = new EventSource('/api/dashboard/stream');
-      window.__testES.onmessage = (e) => window.__testSSEMessages.push(e.data);
+      window.__testES.onmessage = (e: MessageEvent<string>) =>
+        window.__testSSEMessages.push(e.data);
     });
     await expect
       .poll(() => page.evaluate(() => window.__testES.readyState))
@@ -259,7 +294,7 @@ test.describe('webhook-triggered live updates', () => {
   test('a newly created issue sorts to page 1 even with 25+ older issues already tracked', async ({
     page,
   }) => {
-    // The board's default page size is 25 (dashboard.spec.js) — 30 older
+    // The board's default page size is 25 (dashboard.spec.ts) — 30 older
     // issues is enough to guarantee a naive "just append" merge would
     // knock the new one off the first page, the real incident this is a
     // regression test for: a webhook firing for a repo pushed that

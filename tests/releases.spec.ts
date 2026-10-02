@@ -1,8 +1,17 @@
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
-const { registerViaInvite } = require('./register-helper');
+import AxeBuilder from '@axe-core/playwright';
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  test,
+} from '@playwright/test';
+import { registerViaInvite } from './register-helper';
 
-async function registerAndSignIn(page, request, baseURL) {
+async function registerAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+) {
   const username = `releases-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
@@ -20,7 +29,7 @@ async function registerAndSignIn(page, request, baseURL) {
 // is written to degrade to a visible fallback link rather than an error
 // banner or a broken page when that happens. This waits for either
 // outcome rather than assuming the happy path.
-async function waitForReleasesToSettle(page) {
+async function waitForReleasesToSettle(page: Page) {
   await Promise.race([
     page.waitForSelector('.release', { timeout: 15000 }),
     page.waitForSelector('#status.error', { timeout: 15000 }),
