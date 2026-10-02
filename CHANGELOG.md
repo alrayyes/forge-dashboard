@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.107.0](https://github.com/alrayyes/forge-dashboard/compare/v0.106.0...v0.107.0) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** review state and Needs Review filter ([#696](https://github.com/alrayyes/forge-dashboard/issues/696)) ([e1e9770](https://github.com/alrayyes/forge-dashboard/commit/e1e97703e856b09d7ff59c99f10f3534dd40afad))
+
 ## [0.106.0](https://github.com/alrayyes/forge-dashboard/compare/v0.105.0...v0.106.0) (2026-10-02)
 
 
