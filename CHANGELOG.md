@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.112.0](https://github.com/alrayyes/forge-dashboard/compare/v0.111.1...v0.112.0) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** say a bot rebase was requested and picked up ([#760](https://github.com/alrayyes/forge-dashboard/issues/760)) ([0cea82b](https://github.com/alrayyes/forge-dashboard/commit/0cea82b48698d80fe7a1dd1945bbaae7aecd8a0d)), closes [#707](https://github.com/alrayyes/forge-dashboard/issues/707)
+
+
+### Bug Fixes
+
+* **dashboard:** every PR action explains a refusal and reflects an already merged or closed PR ([#766](https://github.com/alrayyes/forge-dashboard/issues/766)) ([ff8bed8](https://github.com/alrayyes/forge-dashboard/commit/ff8bed85180ace184e98fb5359221c416187d060))
+
 ## [0.111.1](https://github.com/alrayyes/forge-dashboard/compare/v0.111.0...v0.111.1) (2026-10-02)
 
 
