@@ -230,7 +230,8 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	snap := newEmptySnapshot()
 	snap.GeneratedAt = time.Now().UTC()
-	for _, r := range results {
+	for i, r := range results {
+		r.Health.DependabotCommandsBlocked = DependabotCommandsBlockedReason(a.sources[i])
 		snap.Forges = append(snap.Forges, r.Health)
 		snap.PullRequests = append(snap.PullRequests, r.PullRequests...)
 		snap.Issues = append(snap.Issues, r.Issues...)

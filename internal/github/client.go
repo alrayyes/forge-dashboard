@@ -76,6 +76,13 @@ type Client struct {
 	// App-mode Client's token field stays empty for its whole lifetime.
 	appAuthenticated bool
 
+	// commentRestClient, when set, posts CommentPullRequest as a real user
+	// (#666): Dependabot ignores "@dependabot" commands from GitHub App
+	// accounts whatever permissions the App holds, so an App-mode Client
+	// can only send them with a personal token the user saved too. Nil
+	// otherwise — a PAT Client's own restClient already is a user.
+	commentRestClient *ghsdk.Client
+
 	// permanentError, when non-empty, makes every Fetch report this forge
 	// as unreachable with this exact reason (#620) — used by
 	// NewUnreachableClient for a credential that failed to construct at
@@ -243,6 +250,36 @@ func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL str
 // instead of the GitHub source silently never being added at all.
 func NewUnreachableClient(reason string) *Client {
 	return &Client{permanentError: reason}
+}
+
+// dependabotAppBlockedReason is shown on the Dependabot buttons when the
+// credential is a GitHub App with no personal token to send commands as.
+const dependabotAppBlockedReason = "Dependabot ignores commands from GitHub Apps. Save a personal access token in Settings to send them as you."
+
+// SetCommentToken makes CommentPullRequest post with token (a user's
+// personal access token) instead of this Client's own credential, so
+// Dependabot accepts the command (#666). Only meaningful on an App-mode
+// Client; every other request still uses the App.
+func (c *Client) SetCommentToken(token string) {
+	if token == "" {
+		return
+	}
+	restClient := ghsdk.NewClient(&http.Client{Timeout: 30 * time.Second}).WithAuthToken(token)
+	if u, err := url.Parse(c.baseURL + "/"); err == nil {
+		restClient.BaseURL = u
+	}
+	c.commentRestClient = restClient
+}
+
+// DependabotCommandsBlockedReason implements
+// dashboard.DependabotCommandBlocker: an App-authenticated Client with no
+// comment token can't make Dependabot listen.
+func (c *Client) DependabotCommandsBlockedReason() string {
+	if c.appAuthenticated && c.commentRestClient == nil {
+		return dependabotAppBlockedReason
+	}
+
+	return ""
 }
 
 // recordRequest builds and persists this call's own request_log entry
@@ -580,11 +617,21 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 func (c *Client) CommentPullRequest(ctx context.Context, owner, name string, number int, body string) error {
 	path := fmt.Sprintf("/repos/%s/%s/issues/%d/comments", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPost, "url", path)
-	_, resp, err := c.restClient.Issues.CreateComment(ctx, owner, name, number, &ghsdk.IssueComment{Body: &body})
+	rest := c.restClient
+	if c.commentRestClient != nil {
+		rest = c.commentRestClient
+	}
+	_, resp, err := rest.Issues.CreateComment(ctx, owner, name, number, &ghsdk.IssueComment{Body: &body})
 	if err != nil {
 		return asClientError(c.restError(ctx, http.MethodPost, path, err))
 	}
-	c.recordRESTSuccess(ctx, http.MethodPost, path, resp)
+	if c.commentRestClient != nil {
+		// The personal token has its own budget; recording it as the App's
+		// would make forge-health report the wrong number.
+		c.recordRequest(ctx, http.MethodPost, path, resp.StatusCode, requestlog.OutcomeSuccess, nil)
+	} else {
+		c.recordRESTSuccess(ctx, http.MethodPost, path, resp)
+	}
 
 	return nil
 }

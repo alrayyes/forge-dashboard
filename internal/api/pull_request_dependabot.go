@@ -76,6 +76,11 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 			if string(src.Forge()) != req.Forge {
 				continue
 			}
+			if reason := dashboard.DependabotCommandsBlockedReason(src); reason != "" {
+				writeJSON(w, http.StatusConflict, errorBody(reason))
+
+				return
+			}
 			c, supported := src.(dashboard.PullRequestCommenter)
 			if !supported {
 				writeJSON(w, http.StatusBadRequest, errorBody(req.Forge+" doesn't support commenting on pull requests"))

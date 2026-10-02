@@ -267,6 +267,9 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 			if c.WebhookToken != "" {
 				client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
 			}
+			// Dependabot ignores GitHub Apps, so its commands go out as the
+			// saved personal token when there is one (#666).
+			client.SetCommentToken(c.GitHubToken)
 
 			return client
 		}

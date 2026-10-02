@@ -339,6 +339,9 @@ func (a *Aggregator) commenterFor(forge Forge) PullRequestCommenter {
 		if src.Forge() != forge {
 			continue
 		}
+		if DependabotCommandsBlockedReason(src) != "" {
+			return nil
+		}
 		if c, ok := src.(PullRequestCommenter); ok {
 			return c
 		}
