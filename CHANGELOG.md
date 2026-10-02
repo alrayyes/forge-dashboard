@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.110.0](https://github.com/alrayyes/forge-dashboard/compare/v0.109.0...v0.110.0) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** show action feedback on the row, as toasts and in an activity panel ([#726](https://github.com/alrayyes/forge-dashboard/issues/726)) ([aa36076](https://github.com/alrayyes/forge-dashboard/commit/aa36076ec5dd1409890f39adba296e27e634b461))
+
 ## [0.109.0](https://github.com/alrayyes/forge-dashboard/compare/v0.108.1...v0.109.0) (2026-10-02)
 
 
