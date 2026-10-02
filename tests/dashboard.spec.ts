@@ -3295,12 +3295,57 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       repo: 'ryan/infra',
       mergeStatus: 'conflicting',
     }),
+    // Review state (#683): 8-11 have a known state, 6 (a draft), 1-5 and 7
+    // have none, which must never match Needs Review.
+    pr({
+      number: 8,
+      ci: 'pending',
+      title: 'Awaiting review',
+      review: {
+        decision: 'review_required',
+        approvals: 0,
+        requestedReviewers: 1,
+      },
+    }),
+    pr({
+      number: 9,
+      ci: 'pending',
+      title: 'Nobody looked',
+      review: { decision: 'none', approvals: 0, requestedReviewers: 0 },
+    }),
+    pr({
+      number: 10,
+      ci: 'pending',
+      title: 'Approved already',
+      review: { decision: 'approved', approvals: 1, requestedReviewers: 0 },
+    }),
+    pr({
+      number: 11,
+      ci: 'pending',
+      title: 'Changes asked for',
+      review: {
+        decision: 'changes_requested',
+        approvals: 0,
+        requestedReviewers: 0,
+      },
+    }),
+    pr({
+      number: 12,
+      ci: 'pending',
+      title: 'Draft awaiting review',
+      draft: true,
+      review: {
+        decision: 'review_required',
+        approvals: 0,
+        requestedReviewers: 1,
+      },
+    }),
   ];
   const ISSUES = [
     {
       forge: 'github',
       repo: 'alrayyes/app',
-      number: 10,
+      number: 110,
       title: 'An issue',
       url: 'https://example.com/10',
       author: 'ryan',
@@ -3338,7 +3383,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(rowTitles(page)).toHaveCount(PRS.length);
   });
 
-  test('shows all six pills in a labelled group with exactly one active', async ({
+  test('shows all seven pills in a labelled group with exactly one active', async ({
     page,
   }) => {
     const group = page.getByRole('group', { name: 'Quick filters' });
@@ -3349,6 +3394,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       'Failing CI',
       'Bot PRs',
       'Ready to Merge',
+      'Needs Review',
     ]);
     await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
     await expect(group.locator('[aria-pressed="true"]')).toHaveCount(1);
@@ -3372,6 +3418,37 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(rowTitles(page)).toHaveCount(2);
     await expect(rowTitles(page).nth(0)).toContainText('Plain ready');
     await expect(rowTitles(page).nth(1)).toContainText('Bump dep');
+  });
+
+  // Review state comes from /api/dashboard's review object (#683). Unknown
+  // state (no review key at all) is not the same as "nobody reviewed it".
+  test('Needs Review keeps open, non-draft pull requests with no approval', async ({
+    page,
+  }) => {
+    await pill(page, 'Needs Review').click();
+    await expect(pill(page, 'Needs Review')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(rowTitles(page)).toHaveCount(2);
+    await expect(page.locator('#pr-rows')).toContainText('Awaiting review');
+    await expect(page.locator('#pr-rows')).toContainText('Nobody looked');
+    await expect(page.locator('#pr-rows')).not.toContainText(
+      'Approved already',
+    );
+    await expect(page.locator('#pr-rows')).not.toContainText('Draft awaiting');
+    await expect(page.locator('#pr-rows')).not.toContainText('Plain ready');
+  });
+
+  test('Needs Review has no axe-core violations', async ({ page }) => {
+    await pill(page, 'Needs Review').click();
+    await expect(rowTitles(page)).toHaveCount(2);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    expect(results.violations).toEqual([]);
   });
 
   test('Bot PRs keeps dependabot, renovate and release-please pull requests', async ({

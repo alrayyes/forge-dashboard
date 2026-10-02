@@ -2513,3 +2513,132 @@ func TestEnableAutoMerge_RepoDoesNotAllowAutoMerge_ReturnsError(t *testing.T) {
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr)
 }
+
+func TestFetch_MapsReviewState(t *testing.T) {
+	t.Parallel()
+
+	reviews := func(states ...string) map[string]any {
+		nodes := make([]map[string]any, 0, len(states))
+		for _, s := range states {
+			nodes = append(nodes, map[string]any{"state": s})
+		}
+
+		return map[string]any{"nodes": nodes}
+	}
+
+	cases := []struct {
+		name     string
+		decision any
+		requests int
+		latest   map[string]any
+		want     dashboard.ReviewState
+	}{
+		{"review required", "REVIEW_REQUIRED", 2, reviews(), dashboard.ReviewState{Decision: dashboard.ReviewRequired, RequestedReviewers: 2}},
+		{"approved counts approvals", "APPROVED", 0, reviews("APPROVED", "APPROVED", "COMMENTED"), dashboard.ReviewState{Decision: dashboard.ReviewApproved, Approvals: 2}},
+		{"changes requested", "CHANGES_REQUESTED", 1, reviews("CHANGES_REQUESTED", "APPROVED"), dashboard.ReviewState{Decision: dashboard.ReviewChangesRequested, Approvals: 1, RequestedReviewers: 1}},
+		{"null decision, nothing happened", nil, 0, reviews(), dashboard.ReviewState{Decision: dashboard.ReviewNone}},
+		{"null decision derives approval", nil, 0, reviews("APPROVED"), dashboard.ReviewState{Decision: dashboard.ReviewApproved, Approvals: 1}},
+		{"null decision derives requested", nil, 1, reviews(), dashboard.ReviewState{Decision: dashboard.ReviewRequired, RequestedReviewers: 1}},
+		{"null decision derives changes", nil, 0, reviews("CHANGES_REQUESTED"), dashboard.ReviewState{Decision: dashboard.ReviewChangesRequested}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var seenQuery string
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+				var body struct {
+					Query string `json:"query"`
+				}
+				assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				seenQuery = body.Query
+				writeJSON(t, w, map[string]any{
+					"data": map[string]any{
+						"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+						"viewer": map[string]any{
+							"repositories": map[string]any{
+								"pageInfo": map[string]any{"hasNextPage": false},
+								"nodes": []map[string]any{
+									{
+										"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+										"owner": map[string]any{"login": "alrayyes"},
+										"pullRequests": map[string]any{
+											"nodes": []map[string]any{
+												{
+													"number": 12, "title": "Add NTP alarm", "url": "https://github.com/alrayyes/a/pull/12",
+													"isDraft": false, "author": map[string]any{"login": "ryankes"},
+													"mergeStateStatus": "CLEAN",
+													"reviewDecision":   tc.decision,
+													"reviewRequests":   map[string]any{"totalCount": tc.requests},
+													"latestReviews":    tc.latest,
+													"labels":           map[string]any{"nodes": []map[string]any{}},
+													"createdAt":        "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+													"commits": map[string]any{"nodes": []map[string]any{}},
+												},
+											},
+										},
+										"issues": map[string]any{"nodes": []map[string]any{}},
+									},
+								},
+							},
+						},
+					},
+				})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("test-token", "", srv.URL)
+			result := client.Fetch(t.Context())
+
+			require.Len(t, result.PullRequests, 1)
+			require.NotNil(t, result.PullRequests[0].Review)
+			assert.Equal(t, tc.want, *result.PullRequests[0].Review)
+			// Same single query, no extra per-PR calls (#683).
+			assert.Contains(t, seenQuery, "reviewDecision")
+			assert.Contains(t, seenQuery, "reviewRequests")
+			assert.Contains(t, seenQuery, "latestReviews")
+		})
+	}
+}
+
+// TestFetch_ReviewFieldsAbsentMeansUnknown covers a response without any
+// review fields (an older stub, a partial response): unknown, not "none".
+func TestFetch_ReviewFieldsAbsentMeansUnknown(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+				"viewer": map[string]any{
+					"repositories": map[string]any{
+						"pageInfo": map[string]any{"hasNextPage": false},
+						"nodes": []map[string]any{{
+							"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+							"owner": map[string]any{"login": "alrayyes"},
+							"pullRequests": map[string]any{"nodes": []map[string]any{{
+								"number": 12, "title": "x", "url": "https://x", "isDraft": false,
+								"author": map[string]any{"login": "u"}, "mergeStateStatus": "CLEAN",
+								"labels":    map[string]any{"nodes": []map[string]any{}},
+								"createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
+								"commits": map[string]any{"nodes": []map[string]any{}},
+							}}},
+							"issues": map[string]any{"nodes": []map[string]any{}},
+						}},
+					},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Nil(t, result.PullRequests[0].Review)
+}
