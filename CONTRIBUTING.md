@@ -52,10 +52,26 @@ go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 golangci-lint run
 golangci-lint fmt          # the fixer; `run` stays the check
 
-bunx playwright test       # accessibility + journey tests against a running binary
+./tests/run-local.sh       # the Playwright suite in one command, see below
 bun run check:tests        # tsc over the tests; Playwright itself never type-checks
 bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechanics too
 ```
+
+### Running the Playwright suite locally
+
+`./tests/run-local.sh` builds the binary, starts it on a throwaway SQLite
+database and a random key, runs the suite, and removes everything after.
+The first-user setup (`tests/admin-global-setup.ts`) only works on an empty
+database, so a fresh one per run is the point: don't point the suite at a
+database you've used before. Extra arguments go to Playwright
+(`./tests/run-local.sh tests/auth.spec.ts --workers=2`), and `PORT=8081`
+moves it off 8080 when a dev server is already running there.
+
+A run takes about two minutes on 16 cores. Locally it uses the default worker
+count; CI uses one worker and one retry. A red run that passes alone usually
+means a test raced the page, so fix the wait rather than adding a retry. A
+test that stays flaky gets `test.fixme`/an annotation naming the reason and a
+linked issue.
 
 ## How it fits together
 
