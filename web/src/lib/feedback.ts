@@ -36,7 +36,10 @@ export type ToastKind = 'success' | 'error';
 export type Toast = {
   id: number;
   actionKey: string;
-  ref: ActionRef;
+  // Absent for a notice that isn't about one pull request, such as a
+  // rate limit resetting; `title` stands in for the reference then.
+  ref?: ActionRef;
+  title?: string;
   kind: ToastKind;
   message: string;
   retry?: () => void;
@@ -61,6 +64,13 @@ export type UpdateInput = {
   toast?: boolean;
   announce?: string;
   canRetry?: boolean;
+};
+
+export type NoticeInput = {
+  title: string;
+  message: string;
+  // Spoken once, if given. Never includes a countdown.
+  announce?: string;
 };
 
 export const MAX_VISIBLE_TOASTS = 3;
@@ -174,6 +184,25 @@ export function createFeedbackStore(now: () => number = Date.now) {
         );
       }
       say(entry.ref, patch.announce);
+      emit();
+    },
+
+    // A success toast that isn't tied to a pull request or an Activity
+    // entry (a rate limit that has reset, say).
+    notify(input: NoticeInput) {
+      toasts = [
+        {
+          id: nextId++,
+          actionKey: `notice:${input.title}`,
+          title: input.title,
+          kind: 'success',
+          message: input.message,
+        },
+        ...toasts,
+      ];
+      if (input.announce) {
+        for (const fn of Array.from(announcers)) fn(input.announce);
+      }
       emit();
     },
 
