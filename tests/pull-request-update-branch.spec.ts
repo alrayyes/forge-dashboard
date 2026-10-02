@@ -805,7 +805,11 @@ test.describe('pull request update-branch button', () => {
         route.fulfill({
           status: 403,
           contentType: 'application/json',
-          body: JSON.stringify({ error: 'github: PUT .../merge: Forbidden' }),
+          body: JSON.stringify({
+            error: 'github: PUT .../merge: Forbidden',
+            code: 'permission',
+            message: 'Missing permission — check your token in Settings.',
+          }),
         }),
       );
       await page.reload();

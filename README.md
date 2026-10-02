@@ -300,7 +300,13 @@ to finish" (it unlocks on its own at the next refresh), a merge conflict, a
 draft, a branch that's behind, or "Blocked by the forge" when the forge says no
 without saying why. A failing check is named only when CI itself reports
 failing. A token missing the right permission, or the forge being unreachable,
-locks it too. Merge asks for confirmation first. Update branch appears when the
+locks it too. Merge asks for confirmation first. If the forge still refuses,
+the server re-reads the pull request and answers with a code and a short
+reason, which the row and a toast show: already merged or closed (the row
+switches to "Merged" or "Closed" and drops off the list on the next snapshot),
+a conflict, behind the base branch, a check pending or failing, branch
+protection, a missing permission, or a rate limit with its reset time. The
+codes are in `api/openapi.yaml` (`ActionError`). Update branch appears when the
 forge reports it's possible; it doesn't ask, since a merge from the base branch
 is easy to reverse and a merge itself isn't. On a pull request that's behind
 but also conflicts with its base, Update branch is locked with a note that the

@@ -212,6 +212,20 @@ export function createFeedbackStore(now: () => number = Date.now) {
       emit();
     },
 
+    // Drops the failed or timed-out entries on one pull request, except
+    // the one named: a refusal that settles the row (already merged) makes
+    // the earlier failures on it moot.
+    dropFailedFor(prKey: string, exceptActionKey: string) {
+      const before = entries.length;
+      entries = entries.filter(
+        (e) =>
+          e.ref.key !== prKey ||
+          e.actionKey === exceptActionKey ||
+          (e.phase !== 'failed' && e.phase !== 'expired'),
+      );
+      if (entries.length !== before) emit();
+    },
+
     dismissToast(id: number) {
       const before = toasts.length;
       toasts = toasts.filter((t) => t.id !== id);

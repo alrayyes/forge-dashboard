@@ -1,0 +1,151 @@
+// The structured answer a refused pull request action carries
+// (components.schemas.ActionError). The server decides why an action was
+// refused by re-reading the pull request; this file only turns that answer
+// into what the row, the toast and the row's state show. Written for every
+// action, not just Merge, so the others can adopt it without a second copy.
+
+import type { ActionRef, FeedbackStore } from './feedback';
+import { PERMISSION_REASON } from './rate-limit';
+
+export type ActionCode =
+  | 'already_merged'
+  | 'already_closed'
+  | 'not_mergeable'
+  | 'conflict'
+  | 'behind'
+  | 'checks_pending'
+  | 'checks_failing'
+  | 'blocked_by_protection'
+  | 'permission'
+  | 'rate_limited'
+  | 'unknown';
+
+export type ActionFailure = {
+  status?: number;
+  code: ActionCode;
+  message: string;
+  resetsAt?: string;
+};
+
+// A failed request, carrying the server's answer when there was one. A
+// request that never got a response has no status and no code: that is the
+// ambiguous-outcome case (#447), which callers handle separately.
+export type ActionRequestError = Error & { status?: number; code?: ActionCode };
+
+export type SettledState = 'merged' | 'closed';
+
+export type ActionOutcome =
+  // The pull request has nothing left to do: it is already merged or closed.
+  | { kind: 'settled'; state: SettledState; message: string }
+  // A refusal that waiting won't fix and clicking again won't help.
+  | { kind: 'locked'; code: ActionCode; reason: string }
+  // Anything else: show the reason, leave the action clickable.
+  | { kind: 'failed'; reason: string };
+
+const CODES: ReadonlySet<string> = new Set<ActionCode>([
+  'already_merged',
+  'already_closed',
+  'not_mergeable',
+  'conflict',
+  'behind',
+  'checks_pending',
+  'checks_failing',
+  'blocked_by_protection',
+  'permission',
+  'rate_limited',
+  'unknown',
+]);
+
+// Reads a non-2xx response into an error carrying the server's code. A body
+// with no code (an old backend, a proxy's error page) reads as 'unknown'
+// with whatever text it had, so a row never says only "failed".
+export async function readActionFailure(
+  res: Response,
+): Promise<ActionRequestError> {
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  const code = (
+    typeof body?.code === 'string' && CODES.has(body.code)
+      ? body.code
+      : 'unknown'
+  ) as ActionCode;
+  const text =
+    (typeof body?.message === 'string' && body.message) ||
+    (typeof body?.error === 'string' && body.error) ||
+    `backend answered ${res.status}`;
+  const err: ActionRequestError = new Error(text);
+  err.status = res.status;
+  err.code = code;
+  (err as Error & { resetsAt?: string }).resetsAt =
+    typeof body?.resetsAt === 'string' ? body.resetsAt : undefined;
+  return err;
+}
+
+// What a refusal means for the row. rateLimitedReason builds the sentence
+// for a rate limit: it gets the server's resetsAt when there was one, and
+// can fall back to the budget the last snapshot showed when there wasn't.
+export function interpretActionFailure(
+  err: ActionRequestError,
+  rateLimitedReason: (resetsAt: string | undefined) => string,
+): ActionOutcome {
+  const code = err.code ?? 'unknown';
+  switch (code) {
+    case 'already_merged':
+      return { kind: 'settled', state: 'merged', message: 'Already merged.' };
+    case 'already_closed':
+      return { kind: 'settled', state: 'closed', message: 'Already closed.' };
+    case 'permission':
+      return { kind: 'locked', code, reason: PERMISSION_REASON };
+    case 'rate_limited':
+      return {
+        kind: 'locked',
+        code,
+        reason: rateLimitedReason(
+          (err as Error & { resetsAt?: string }).resetsAt,
+        ),
+      };
+    case 'unknown':
+      return { kind: 'failed', reason: err.message };
+    default:
+      return { kind: 'locked', code, reason: err.message };
+  }
+}
+
+export const SETTLED_LABELS: Record<SettledState, string> = {
+  merged: 'Merged',
+  closed: 'Closed',
+};
+
+// The row's replacement for the action button once the pull request is
+// found merged or closed. Plain text, not a button: there is nothing left
+// to click, and it is gone on the next snapshot.
+export function settledBadge(state: SettledState): HTMLElement {
+  const badge = document.createElement('span');
+  badge.className = 'row-settled';
+  badge.dataset.state = state;
+  badge.textContent = SETTLED_LABELS[state];
+  return badge;
+}
+
+// Shows a settled outcome: finishes the action's feedback entry with a
+// polite toast, and clears the row's earlier failure lines, which described
+// a state that no longer matters.
+export function showSettled(
+  store: FeedbackStore,
+  actionKey: string,
+  ref: ActionRef,
+  outcome: Extract<ActionOutcome, { kind: 'settled' }>,
+) {
+  store.dropFailedFor(ref.key, actionKey);
+  store.update(actionKey, {
+    phase: 'done',
+    inline: outcome.message,
+    message: `${outcome.message} Nothing left to do.`,
+    toast: true,
+    announce: `${outcome.message} Nothing left to do.`,
+  });
+}
