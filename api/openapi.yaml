@@ -1196,7 +1196,7 @@ paths:
         "409":
           description: |
             Either the forge rejected the comment because of the pull
-            request's current state, or Dependabot would refuse it (#666):
+            request's current state, or Dependabot would refuse it:
             the connected GitHub credential is an App with no personal
             access token saved, and Dependabot ignores App accounts. The
             error text is ForgeHealth.dependabotCommandsBlocked in the
@@ -2696,7 +2696,7 @@ components:
           type: string
           description: >-
             Why a "@dependabot" comment sent through this forge's credential
-            would be refused (#666). Dependabot only honours commands from a
+            would be refused. Dependabot only honours commands from a
             user with push access and ignores GitHub App accounts whatever
             permissions the App holds. Set only for GitHub when the
             connected credential is an App with no personal access token
