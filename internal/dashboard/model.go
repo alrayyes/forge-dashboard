@@ -301,6 +301,9 @@ type ForgeHealth struct {
 type ClientError struct {
 	Kind ForgeErrorKind
 	Err  error
+	// RateLimit is the budget the failing response reported, when it
+	// reported one. Lets a write's caller say when a rate limit clears.
+	RateLimit *RateLimit
 }
 
 func (e *ClientError) Error() string {

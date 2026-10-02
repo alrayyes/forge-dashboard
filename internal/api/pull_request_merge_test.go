@@ -3,9 +3,11 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +22,9 @@ import (
 type fakePullRequestMergerSource struct {
 	forge      dashboard.Forge
 	mergeErr   error
+	state      dashboard.PullRequestState
+	stateErr   error
+	stateReads int
 	lastOwner  string
 	lastName   string
 	lastNumber int
@@ -35,6 +40,12 @@ func (f *fakePullRequestMergerSource) MergePullRequest(_ context.Context, owner,
 	f.lastOwner, f.lastName, f.lastNumber = owner, name, number
 
 	return f.mergeErr
+}
+
+func (f *fakePullRequestMergerSource) ReadPullRequestState(_ context.Context, _, _ string, _ int) (dashboard.PullRequestState, error) {
+	f.stateReads++
+
+	return f.state, f.stateErr
 }
 
 // fakeSourceWithoutMergeSupport implements dashboard.Source only — the
@@ -177,4 +188,185 @@ func TestPullRequestMerge_Unauthenticated_Returns401(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+type actionErrorBody struct {
+	Error    string     `json:"error"`
+	Code     string     `json:"code"`
+	Message  string     `json:"message"`
+	ResetsAt *time.Time `json:"resetsAt"`
+}
+
+func mergeRefusal(kind dashboard.ForgeErrorKind, text string) error {
+	return &dashboard.ClientError{Kind: kind, Err: errors.New(text)}
+}
+
+func TestPullRequestMerge_RefusedOnAnAlreadyMergedPR_AnswersAlreadyMerged(t *testing.T) {
+	t.Parallel()
+
+	source := &fakePullRequestMergerSource{
+		forge:    dashboard.ForgeGitHub,
+		mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "github: PUT /repos/alrayyes/a/pulls/1/merge: Pull Request is not mergeable"),
+		state:    dashboard.PullRequestState{Merged: true, Closed: true},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	var body actionErrorBody
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, "already_merged", body.Code)
+	assert.NotEmpty(t, body.Message)
+	assert.Contains(t, body.Error, "Pull Request is not mergeable")
+}
+
+func TestPullRequestMerge_RefusedOnAClosedPR_AnswersAlreadyClosed(t *testing.T) {
+	t.Parallel()
+
+	source := &fakePullRequestMergerSource{
+		forge:    dashboard.ForgeForgejo,
+		mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "forgejo: POST x: not mergeable"),
+		state:    dashboard.PullRequestState{Closed: true},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := postMergePullRequest(t, srvURL, sessionCookie, "forgejo", "alrayyes/a", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	var body actionErrorBody
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, "already_closed", body.Code)
+}
+
+func TestPullRequestMerge_RefusedWithAConflict_AnswersConflictFromTheReRead(t *testing.T) {
+	t.Parallel()
+
+	source := &fakePullRequestMergerSource{
+		forge:    dashboard.ForgeGitHub,
+		mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "github: PUT x: Pull Request is not mergeable"),
+		state:    dashboard.PullRequestState{Conflicting: true},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	var body actionErrorBody
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, "conflict", body.Code)
+	assert.Equal(t, 1, source.stateReads)
+}
+
+func TestPullRequestMerge_ReReadFails_ReturnsTheOriginalErrorWithCodeUnknown(t *testing.T) {
+	t.Parallel()
+
+	source := &fakePullRequestMergerSource{
+		forge:    dashboard.ForgeGitHub,
+		mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "github: PUT x: Head branch was modified. Review and try the merge again."),
+		stateErr: mergeRefusal(dashboard.ForgeErrorUnreachable, "github: GET x: timeout"),
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	var body actionErrorBody
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, "unknown", body.Code)
+	assert.Contains(t, body.Error, "Head branch was modified")
+	assert.Equal(t, "Head branch was modified. Review and try the merge again.", body.Message)
+}
+
+func TestPullRequestMerge_SourceWithoutStateReader_AnswersUnknownWithTheOriginalStatus(t *testing.T) {
+	t.Parallel()
+
+	source := &mergeOnlySource{forge: dashboard.ForgeGitHub, err: mergeRefusal(dashboard.ForgeErrorConflict, "github: PUT x: Pull Request is not mergeable")}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	var body actionErrorBody
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, "unknown", body.Code)
+}
+
+func TestPullRequestMerge_PermissionAndRateLimit_SkipTheReReadAndKeepTheirStatus(t *testing.T) {
+	t.Parallel()
+
+	reset := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{"403", mergeRefusal(dashboard.ForgeErrorUnauthorized, "github: PUT x: Resource not accessible"), http.StatusForbidden, "permission"},
+		{"429", &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("github: PUT x: rate limit exceeded"), RateLimit: &dashboard.RateLimit{ResetsAt: reset}}, http.StatusTooManyRequests, "rate_limited"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			source := &fakePullRequestMergerSource{forge: dashboard.ForgeGitHub, mergeErr: tc.err}
+			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+			resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, tc.status, resp.StatusCode)
+			var body actionErrorBody
+			require.NoError(t, readJSON(resp, &body))
+			assert.Equal(t, tc.code, body.Code)
+			assert.Equal(t, 0, source.stateReads)
+			if tc.code == "rate_limited" {
+				require.NotNil(t, body.ResetsAt)
+				assert.True(t, reset.Equal(*body.ResetsAt))
+			}
+		})
+	}
+}
+
+// mergeOnlySource merges but cannot re-read a PR's state.
+type mergeOnlySource struct {
+	forge dashboard.Forge
+	err   error
+}
+
+func (f *mergeOnlySource) Forge() dashboard.Forge { return f.forge }
+
+func (f *mergeOnlySource) Fetch(_ context.Context) dashboard.Result {
+	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true}}
+}
+
+func (f *mergeOnlySource) MergePullRequest(_ context.Context, _, _ string, _ int) error {
+	return f.err
+}
+
+// The Forgejo case reported live: Merge on an already-merged PR is refused
+// with an empty message, so only the re-read (merged=true) can say why.
+func TestPullRequestMerge_ForgejoEmptyRefusalOnMergedPR_AnswersAlreadyMergedFromTheReRead(t *testing.T) {
+	t.Parallel()
+
+	source := &fakePullRequestMergerSource{
+		forge:    dashboard.ForgeForgejo,
+		mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "forgejo: POST /repos/alrayyes/a/pulls/1/merge: 405 Method Not Allowed"),
+		state:    dashboard.PullRequestState{Merged: true, Closed: true},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := postMergePullRequest(t, srvURL, sessionCookie, "forgejo", "alrayyes/a", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	var body actionErrorBody
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, "already_merged", body.Code)
+	assert.NotContains(t, body.Message, "{")
 }

@@ -1465,3 +1465,103 @@ func TestListChecks_ActionsJobMatchingAPattern_IsRequiredButNonMatchStaysUnknown
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"build": "required", "docs": "unknown"}, requiredOf(checks))
 }
+
+// Gitea/Forgejo's "Get a pull request" answers state, merged and
+// mergeable. It has no mergeable_state equivalent, so only merged, closed
+// and a not-mergeable verdict can be told apart. Not verified against a
+// live instance: shapes follow the swagger the SDK is generated from.
+func TestReadPullRequestState_MapsGetPullRequestFields(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		body map[string]any
+		want dashboard.PullRequestState
+	}{
+		{"already merged", map[string]any{"state": "closed", "merged": true, "mergeable": false, "merged_at": "2026-10-01T10:00:00Z"}, dashboard.PullRequestState{Merged: true, Closed: true}},
+		{"closed unmerged", map[string]any{"state": "closed", "merged": false, "mergeable": true}, dashboard.PullRequestState{Closed: true}},
+		{"open and not mergeable", map[string]any{"state": "open", "merged": false, "mergeable": false}, dashboard.PullRequestState{Blocked: true}},
+		{"open and mergeable", map[string]any{"state": "open", "merged": false, "mergeable": true}, dashboard.PullRequestState{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+				tc.body["number"] = 5
+				writeJSON(t, w, tc.body)
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			got, err := forgejo.NewClient(srv.URL, "test-token", "").ReadPullRequestState(t.Context(), "alrayyes", "a", 5)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestReadPullRequestState_ForgeFails_ReturnsClassifiedError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	_, err := forgejo.NewClient(srv.URL, "test-token", "").ReadPullRequestState(t.Context(), "alrayyes", "a", 5)
+
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+}
+
+// Reported live on Forgejo (mobile): Merge on an already-merged PR answers
+// 405 with {"message":"","url":".../api/swagger"}, an empty reason. The
+// refusal text can't explain it, so the error must stay readable (never
+// raw JSON) and stay classified as a conflict, leaving the re-read of the
+// PR (merged=true) to say already_merged.
+func TestMergePullRequest_AlreadyMergedWithEmptyMessage_NeverSurfacesRawJSON(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"default_merge_style": "merge"})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeJSON(t, w, map[string]any{"message": "", "url": "https://forge.example/api/swagger"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	err := forgejo.NewClient(srv.URL, "test-token", "").MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+	assert.NotContains(t, err.Error(), "{")
+	assert.NotContains(t, err.Error(), "swagger")
+}
+
+func TestClosePullRequest_AlreadyMerged_KeepsForgesOwnMessage(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		writeJSON(t, w, map[string]any{"message": "cannot change state of this pull request, it was already merged", "url": "https://forge.example/api/swagger"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	err := forgejo.NewClient(srv.URL, "test-token", "").ClosePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "it was already merged")
+}

@@ -73,7 +73,7 @@ func handlePullRequestMerge(deps Deps) http.HandlerFunc {
 
 		if err := merger.MergePullRequest(r.Context(), owner, name, req.Number); err != nil {
 			slog.Warn("pull request merge failed", "forge", req.Forge, "repo", req.FullName, "number", req.Number, "error", err)
-			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
+			writeActionRefusal(r.Context(), w, merger, owner, name, req.Number, err)
 
 			return
 		}
