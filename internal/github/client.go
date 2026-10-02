@@ -602,7 +602,18 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 			return true, nil
 		}
 
-		return false, asClientError(c.restError(ctx, http.MethodPut, path, err))
+		// The update-branch endpoint answers 422 when the head can't be
+		// updated cleanly. That's a conflict here, but 422 stays unclassified
+		// in forgeErrorKindFromStatus, where it can mean any validation
+		// failure on other endpoints.
+		restErr := c.restError(ctx, http.MethodPut, path, err)
+		if apiErr, ok := errors.AsType[*apiError](restErr); ok && apiErr.kind == dashboard.ForgeErrorUnknown {
+			if errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err); ok && errResp.Response != nil && errResp.Response.StatusCode == http.StatusUnprocessableEntity {
+				apiErr.kind = dashboard.ForgeErrorConflict
+			}
+		}
+
+		return false, asClientError(restErr)
 	}
 	c.recordRESTSuccess(ctx, http.MethodPut, path, resp)
 

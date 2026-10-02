@@ -169,6 +169,55 @@ test.describe('pull request update-branch button', () => {
     ).toHaveCount(0);
   });
 
+  // #701: both forges refuse to update a branch that doesn't merge
+  // cleanly, so offering the button on a conflicting PR only sets up a
+  // failed click. It stays visible as a locked, non-actionable control
+  // with a text reason, the same shape as the other locked actions.
+  test('a behind PR with merge conflicts shows no active Update branch button, only the reason', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'conflicting', behind: true }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    const button = row.getByRole('button', { name: 'Update branch' });
+    await expect(button).toBeVisible();
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row).toContainText('Conflicts need fixing by hand');
+
+    let requested = false;
+    await page.route('**/api/pull-requests/update-branch', (route: Route) => {
+      requested = true;
+      return route.fulfill({ status: 204 });
+    });
+    await button.click({ force: true });
+    expect(requested).toBe(false);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a conflicting PR that is not behind still shows no Update branch button', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'conflicting', behind: false }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(
+      row.getByRole('button', { name: 'Update branch' }),
+    ).toHaveCount(0);
+  });
+
   test('a pull request that is both mergeable and behind shows both buttons at once', async ({
     page,
   }) => {
