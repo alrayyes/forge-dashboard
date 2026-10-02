@@ -247,6 +247,77 @@ for (const s of scenarios) {
       await expect(page.locator('#status-banner')).toContainText(COUNTDOWN);
     });
 
+    // #706: the banner used to vanish about a second after the click,
+    // because any snapshot (the live stream pushes one constantly)
+    // cleared a queued bot rebase. It has to hold until a snapshot that
+    // actually reflects the action lands.
+    test('the banner survives well past a second and an unrelated stream push', async ({
+      page,
+    }) => {
+      await page.addInitScript(() => {
+        const w = window as unknown as {
+          __streams: EventSource[];
+          EventSource: typeof EventSource;
+        };
+        w.__streams = [];
+        const Real = w.EventSource;
+        w.EventSource = class extends Real {
+          constructor(url: string | URL, init?: EventSourceInit) {
+            super(url, init);
+            w.__streams.push(this);
+          }
+        };
+      });
+      const { row } = await prepare(page);
+      await row.getByRole('button', { name: s.button }).click();
+      const banner = page.locator('#status-banner');
+      await expect(banner).toContainText(COUNTDOWN);
+
+      await page.waitForTimeout(3200);
+      await expect(banner).toContainText(s.banner);
+      await expect(banner).toContainText(COUNTDOWN);
+
+      // A snapshot that doesn't change this pull request's state.
+      await page.evaluate(
+        (data) => {
+          const w = window as unknown as { __streams: EventSource[] };
+          for (const stream of w.__streams)
+            stream.onmessage?.(new MessageEvent('message', { data }));
+        },
+        JSON.stringify(snapshot(s.pr)),
+      );
+      await page.waitForTimeout(1500);
+      await expect(banner).toContainText(s.banner);
+      await expect(banner).toContainText(COUNTDOWN);
+      const fresh = page.locator('#pr-rows .row').first();
+      if (s.openMenu) await openMoreActions(fresh);
+      await expect(
+        fresh.getByRole('button', { name: 'Queued…' }),
+      ).toBeDisabled();
+    });
+
+    test('the banner says Refreshing… rather than vanishing when the countdown hits zero', async ({
+      page,
+    }) => {
+      await page.addInitScript(() => {
+        const w = window as unknown as { __skew: number };
+        w.__skew = 0;
+        const real = Date.now.bind(Date);
+        Date.now = () => real() + w.__skew;
+      });
+      const { row } = await prepare(page);
+      await row.getByRole('button', { name: s.button }).click();
+      const banner = page.locator('#status-banner');
+      await expect(banner).toContainText(COUNTDOWN);
+
+      await page.evaluate(() => {
+        (window as unknown as { __skew: number }).__skew = 60_000;
+      });
+      await expect(banner).toContainText('Refreshing…');
+      await expect(banner).toContainText(s.banner);
+      await expect(banner).not.toContainText(COUNTDOWN);
+    });
+
     test('a failure re-enables the button and shows the error banner', async ({
       page,
     }) => {
@@ -287,10 +358,10 @@ test.describe('queued state: bot rebases clear on the next refresh', () => {
     );
   });
 
-  test('a Renovate rebase stays queued after the request succeeds, then clears on the next snapshot', async ({
+  test('a Renovate rebase stays queued after the request succeeds, then clears once a snapshot shows it landed', async ({
     page,
   }) => {
-    const pr = makePR({ author: 'renovate[bot]' });
+    const pr = makePR({ author: 'renovate[bot]', behind: true });
     await mockDashboard(page, pr);
     await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
       route.fulfill({ status: 204 }),
@@ -299,7 +370,8 @@ test.describe('queued state: bot rebases clear on the next refresh', () => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(snapshot(pr)),
+        // The refresh that follows shows the rebase landed.
+        body: JSON.stringify(snapshot({ ...pr, behind: false })),
       }),
     );
     await page.reload();
