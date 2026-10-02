@@ -32,6 +32,11 @@ type Deps struct {
 	SettingsStore *settings.Store
 	SharingStore  *sharing.Store
 
+	// Database and Dashboard back GET /readyz. Either may be nil, in which
+	// case that check is skipped.
+	Database  DatabasePinger
+	Dashboard FirstRefreshGate
+
 	// Manager holds each signed-in user's own Aggregator, built from
 	// their saved Credentials via BuildSources.
 	Manager *dashboard.Manager
@@ -73,7 +78,7 @@ type Deps struct {
 	AppContext context.Context
 }
 
-// NewMux wires the handlers registered against api/openapi.yaml: liveness,
+// NewMux wires the handlers registered against api/openapi.yaml: liveness, readiness,
 // passkey registration/login/session, per-user settings, the aggregated
 // dashboard snapshot, and the static frontend that consumes it.
 //
@@ -84,6 +89,7 @@ func NewMux(deps Deps) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", handleHealth)
+	mux.HandleFunc("GET /readyz", handleReady(deps))
 	mux.HandleFunc("GET /api/version", handleVersion(deps.Version))
 
 	mux.HandleFunc("GET /api/auth/registration-status", handleRegistrationStatus(deps.AuthService))

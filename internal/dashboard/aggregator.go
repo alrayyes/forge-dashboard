@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -28,6 +29,11 @@ type Aggregator struct {
 	// autoUpdate is nil unless EnableAutoUpdateBranch was called — see
 	// auto_update_branch.go.
 	autoUpdate *autoUpdateBranchConfig
+
+	// firstRefreshed flips once, when the first refreshOnce finishes —
+	// every source answered or reported itself unreachable. Readiness
+	// (Manager.FirstRefreshComplete) reads it; it never flips back.
+	firstRefreshed atomic.Bool
 }
 
 // NewAggregator returns an Aggregator whose Get answers an empty snapshot
@@ -41,6 +47,12 @@ func NewAggregator(sources []Source) *Aggregator {
 		repoRefresh: newKeyedCoalescer(),
 	}
 }
+
+// FirstRefreshDone reports whether the first Refresh has completed, with
+// every source's result or its unreachable ForgeHealth entry in the
+// snapshot. A forge that failed still counts: done means "tried", not
+// "succeeded".
+func (a *Aggregator) FirstRefreshDone() bool { return a.firstRefreshed.Load() }
 
 // Subscribe returns a channel that receives the new Snapshot after every
 // completed Refresh, and a function to stop receiving them. The channel is
@@ -243,6 +255,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	previous := a.snap
 	a.snap = snap
 	a.mu.Unlock()
+	a.firstRefreshed.Store(true)
 
 	logRateLimitTransitions(previous.Forges, snap.Forges)
 

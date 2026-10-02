@@ -24,6 +24,10 @@ type Manager struct {
 	// Aggregator this Manager builds before that point, or ever, if
 	// it's never called, skips the CI-poll fallback (#177) entirely.
 	ciPollInterval time.Duration
+	// firstRefreshSeen latches once any Aggregator finishes its first
+	// refresh, so a later sign-in (a new Aggregator, mid-refresh) can't
+	// flip a serving process back to unready.
+	firstRefreshSeen bool
 }
 
 type managedAggregator struct {
@@ -126,6 +130,30 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 	if m.ciPollInterval > 0 {
 		go agg.RunCIPoll(runCtx, m.ciPollInterval)
 	}
+}
+
+// FirstRefreshComplete is the readiness answer for the dashboard half of
+// /readyz. It is true when no Aggregator exists yet (Aggregators are built
+// lazily per signed-in user, so a fresh process has nothing to wait for),
+// and once any Aggregator has finished its first refresh, whether every
+// forge answered or not. After that it stays true for the life of the
+// Manager: forge reachability is dashboard data, not readiness.
+func (m *Manager) FirstRefreshComplete() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.firstRefreshSeen || len(m.users) == 0 {
+		return true
+	}
+	for _, entry := range m.users {
+		if entry.agg.FirstRefreshDone() {
+			m.firstRefreshSeen = true
+
+			return true
+		}
+	}
+
+	return false
 }
 
 // Get returns userID's current snapshot — empty, not nil arrays, if
