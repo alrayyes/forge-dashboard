@@ -110,20 +110,31 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
-  test('a conflicting pull request shows no Merge button', async ({ page }) => {
+  // #705: a Merge that can't be clicked yet stays on the row, locked,
+  // with its reason — the full state matrix is in
+  // pull-request-merge-states.spec.ts.
+  test('a conflicting pull request shows a locked Merge button, not a clickable one', async ({
+    page,
+  }) => {
     await mockDashboard(page, makePR({ mergeStatus: 'conflicting' }));
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+    const button = row.getByRole('button', { name: 'Merge' });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(button).toHaveAccessibleDescription(/merge conflict/i);
   });
 
-  test('a blocked pull request shows no Merge button', async ({ page }) => {
+  test('a blocked pull request shows a locked Merge button, not a clickable one', async ({
+    page,
+  }) => {
     await mockDashboard(page, makePR({ mergeStatus: 'blocked' }));
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+    const button = row.getByRole('button', { name: 'Merge' });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(button).toHaveAccessibleDescription(/blocked/i);
   });
 
   // #385: GitHub's own mergeStateStatus reports CLEAN (mapped to
@@ -131,7 +142,7 @@ test.describe('pull request merge button', () => {
   // check as required, even while that check is still running — so a
   // PR with CI still pending could show a fully clickable Merge button
   // despite its own checks not having finished.
-  test('a mergeable pull request whose CI is still running shows no Merge button', async ({
+  test('a mergeable pull request whose CI is still running shows a locked Merge button', async ({
     page,
   }) => {
     await mockDashboard(
@@ -141,10 +152,14 @@ test.describe('pull request merge button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+    const button = row.getByRole('button', { name: 'Merge' });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(button).toHaveAccessibleDescription(
+      /waiting for ci to finish/i,
+    );
   });
 
-  test('the Merge button appears once CI resolves, without a page reload', async ({
+  test('the Merge button unlocks once CI resolves, without a page reload', async ({
     page,
   }) => {
     await mockDashboard(
@@ -154,7 +169,10 @@ test.describe('pull request merge button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+    await expect(row.getByRole('button', { name: 'Merge' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
 
     await page.route('**/api/dashboard/refresh', (route) =>
       route.fulfill({
@@ -170,7 +188,10 @@ test.describe('pull request merge button', () => {
     );
     await page.click('#force-refresh-button');
 
-    await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
+    const unlocked = row.getByRole('button', { name: 'Merge' });
+    await expect(unlocked).toBeEnabled();
+    await expect(unlocked).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(row).not.toContainText(/waiting for ci/i);
   });
 
   test('a mergeable pull request whose CI already succeeded still shows a Merge button', async ({

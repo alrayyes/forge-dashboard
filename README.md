@@ -293,19 +293,24 @@ scope(s): [read:user]`, before it was added to the token.
 
 ## Pull request actions
 
-Merge and Update branch appear on a pull request row when the forge
-reports it's actually possible — a merge conflict, a token missing the
-right permission, or the forge being unreachable all hide or lock the
-button instead of letting the click fail. Merge asks for confirmation
-first; Update branch doesn't, since a merge from the base branch is
-easy to reverse and a merge itself isn't. On a pull request that's behind
+Every open pull request row has a Merge button. It's clickable when the forge
+reports the merge is actually possible. Otherwise it stays on the row, locked
+(`aria-disabled`, no click), with the reason printed beside it: "Waiting for CI
+to finish" (it unlocks on its own at the next refresh), a merge conflict, a
+draft, a branch that's behind, or "Blocked by the forge" when the forge says no
+without saying why. A failing check is named only when CI itself reports
+failing. A token missing the right permission, or the forge being unreachable,
+locks it too. Merge asks for confirmation first. Update branch appears when the
+forge reports it's possible; it doesn't ask, since a merge from the base branch
+is easy to reverse and a merge itself isn't. On a pull request that's behind
 but also conflicts with its base, Update branch is locked with a note that the
 conflicts need fixing by hand, since the forge would refuse the update.
-Close is always available on an open pull request, regardless of
-mergeability — for one that turns out not to need merging at all (a
-duplicate, or one whose content already landed another way), it's the
-action that actually applies —
-and asks for confirmation the same way Merge does.
+Close isn't a row button: it lives in the "More actions" menu, in the danger
+tone, on every open pull request regardless of mergeability. For one that turns
+out not to need merging at all (a duplicate, or one whose content already
+landed another way) it's the action that applies. It asks for confirmation the
+same way Merge does, inside the menu. Confirming closes the menu and shows
+progress on the row; Escape closes the menu and drops an unconfirmed Close.
 
 A locked action offers Retry only when waiting might fix it, such as a 502 or
 an unreachable forge. When a forge's API budget is spent, its actions are

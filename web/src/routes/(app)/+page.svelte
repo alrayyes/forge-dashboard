@@ -494,7 +494,12 @@
         const statusCell = el("div", "status-cell");
         const mergeAction = mergeActionCell(pr);
         statusCell.appendChild(
-          ciPill(pr.ci, onStatusClick, mergeAction !== null),
+          ciPill(
+            pr.ci,
+            onStatusClick,
+            mergeAction !== null &&
+              !mergeAction.classList.contains("row-action-locked"),
+          ),
         );
         const conflictPill = mergeStatusPill(pr.mergeStatus, pr.ci);
         if (conflictPill) statusCell.appendChild(conflictPill);
@@ -529,14 +534,16 @@
         const pipelineAction = pipelineActionCell(pr);
         if (pipelineAction) statusCell.appendChild(pipelineAction);
         if (mergeAction) statusCell.appendChild(mergeAction);
-        const closeAction = closeActionCell(pr);
-        if (closeAction) statusCell.appendChild(closeAction);
+        // Close lives in "More actions" behind its confirm step (#705):
+        // it's rarely what the row needs, and the one button left beside
+        // a waiting Merge read as "close is what you do next".
         const secondaryActions = [
           autoMergeActionCell(pr),
           dependabotRebasePromoted
             ? dependabotRecreateOnlyCell(pr)
             : dependabotActionCell(pr),
           renovateRebasePromoted ? null : renovateRebaseActionCell(pr),
+          closeActionCell(pr),
         ].filter((cell): cell is HTMLElement => cell !== null);
         const moreActions = moreActionsCell(pr, secondaryActions);
         if (moreActions) statusCell.appendChild(moreActions);
@@ -654,6 +661,7 @@
       label: string,
       reasonText: string,
       requestedRetry: (() => void) | undefined = undefined,
+      visibleNote: string | undefined = undefined,
     ): HTMLElement {
       // Retry only for a reason waiting can fix (a 502, an unreachable
       // forge). A rate limit or a missing permission can't clear by
@@ -670,6 +678,21 @@
         button.setAttribute("aria-disabled", "true");
       }
       wrap.appendChild(button);
+      if (visibleNote !== undefined) {
+        // The reason is the point of this button (Merge waiting on CI,
+        // #705), so it's printed beside it instead of floating as a
+        // hover/focus bubble. Still the aria-describedby target, so the
+        // accessible description is unchanged. A second line, when given,
+        // says what happens next.
+        wrap.classList.add("row-action-locked-visible");
+        const note = el("span", "row-action-note");
+        note.id = reasonId;
+        note.appendChild(el("span", "row-action-note-reason", reasonText));
+        if (visibleNote)
+          note.appendChild(el("span", "row-action-note-next", visibleNote));
+        wrap.appendChild(note);
+        return wrap;
+      }
       // Purely decorative -- the real explanation is already reachable via
       // aria-describedby regardless of whether this renders, so it never
       // gets its own accessible name (aria-hidden) or duplicates the
@@ -976,9 +999,59 @@
         });
     }
 
-    // Only rendered at all when mergeStatus is "mergeable" — the same
-    // restraint mergeStatusPill/autoMergePill already use for a row
-    // that has nothing to say. First click only arms a confirm step
+    // Why Merge can't be clicked yet, in words that are true for what the
+    // dashboard actually knows. mergeStatus is coarse (see
+    // dashboard.MergeStatus): GitHub's BEHIND and DRAFT both arrive as
+    // "unknown", and Forgejo reports any non-mergeable PR as "blocked", so
+    // a failing check is only named when CI itself says failing.
+    function mergeNotReady(
+      item: PullRequestItem,
+    ): { reason: string; next?: string } | null {
+      if (item.mergeStatus === "conflicting")
+        return {
+          reason: "Merge conflict",
+          next: "Resolve it on the forge to unlock Merge",
+        };
+      // Draft and behind only explain a non-mergeable status: a forge that
+      // still calls the PR mergeable (Forgejo does for a behind one)
+      // keeps a clickable Merge, as before.
+      const mergeable = item.mergeStatus === "mergeable";
+      if (item.draft && !mergeable)
+        return {
+          reason: "Draft pull request",
+          next: "Mark it ready for review to unlock Merge",
+        };
+      if (item.ci === "pending")
+        return {
+          reason: "Waiting for CI to finish",
+          next: "Merge unlocks automatically",
+        };
+      if (item.behind && !mergeable)
+        return {
+          reason: "Behind the base branch",
+          next: "Bring it up to date to unlock Merge",
+        };
+      if (item.mergeStatus === "blocked")
+        return item.ci === "failure"
+          ? {
+              reason: "Blocked, CI is failing",
+              next: "Fix the failing check to unlock Merge",
+            }
+          : {
+              reason: "Blocked by the forge",
+              next: "A required check or review is missing",
+            };
+      if (item.mergeStatus !== "mergeable")
+        return {
+          reason: "Merge status not known yet",
+          next: "Merge unlocks once the forge reports it",
+        };
+      return null;
+    }
+
+    // Always rendered for an open pull request (#705): clickable when
+    // mergeNotReady has nothing to say, locked with a visible reason
+    // otherwise. First click only arms a confirm step
     // (doMerge is never reachable from it directly); merging is a real,
     // hard-to-reverse write to the real repo, not a filter toggle like
     // the CI pill next to it.
@@ -1006,8 +1079,19 @@
       // unchanged: a required check already blocks mergeStatus itself,
       // and GitHub lets a one-click merge over a non-required failure
       // anyway, so there's nothing extra to enforce here for that case.
-      if (item.mergeStatus !== "mergeable" || item.ci === "pending")
-        return null;
+      //
+      // #705: that used to drop the button entirely, which left Close as
+      // the only action on a row waiting for CI. Merge stays on the row,
+      // locked, with the reason in plain sight; the next snapshot builds
+      // it again, so it unlocks by itself.
+      const notReady = mergeNotReady(item);
+      if (notReady)
+        return lockedActionButton(
+          "Merge",
+          notReady.reason,
+          undefined,
+          notReady.next ?? "",
+        );
 
       const key = prKey(item);
       const entry = mergeState[key] || { phase: "idle" };
@@ -1317,6 +1401,20 @@
         },
       });
 
+      // The confirm was the menu's last job, and progress shows on the row
+      // itself (Closing…, then a toast). Leaving it open would also hold
+      // back the next snapshot, so the closed pull request would linger
+      // until someone dismissed the menu (#705). Focus goes back to the
+      // trigger rather than falling to the page when the confirm button
+      // disappears.
+      if (openActionMenus[key]) {
+        delete openActionMenus[key];
+        renderPRBoard();
+        document
+          .getElementById(`row-actions-trigger-${domSafeId(key)}`)
+          ?.focus();
+      }
+
       fetch("/api/pull-requests/close", {
         method: "POST",
         headers: {
@@ -1375,27 +1473,39 @@
         });
     }
 
+    function markClose(locked: HTMLElement): HTMLElement {
+      locked.classList.add("close-group");
+      return locked;
+    }
+
     // Shown for every open pull request row, gated only on the forge
     // itself being reachable/within budget — unlike Merge, Close needs
-    // no particular mergeability or CI state to make sense.
+    // no particular mergeability or CI state to make sense. Rendered
+    // inside "More actions" (#705), so its confirm step has to survive
+    // the menu: openActionMenus persists across the re-render, and the
+    // confirm button is focused by id the same as before.
     function closeActionCell(item: PullRequestItem): HTMLElement | null {
       const key = prKey(item);
       const entry = closeState[key] || { phase: "idle" };
 
       if (entry.phase === "locked")
-        return lockedActionButton("Close", entry.reason ?? "", () =>
-          retryLockedAction(item),
+        return markClose(
+          lockedActionButton("Close", entry.reason ?? "", () =>
+            retryLockedAction(item),
+          ),
         );
 
       if (entry.phase === "idle") {
         const proactiveReason = proactiveActionLockReason(item.forge);
         if (proactiveReason)
-          return lockedActionButton("Close", proactiveReason, () =>
-            retryLockedAction(item),
+          return markClose(
+            lockedActionButton("Close", proactiveReason, () =>
+              retryLockedAction(item),
+            ),
           );
       }
 
-      const wrap = el("span", "row-action-group");
+      const wrap = el("span", "row-action-group close-group");
 
       const confirming = entry.phase === "confirming";
       if (confirming || entry.phase === "closing") {
@@ -1428,7 +1538,7 @@
       // no explanation read as broken, not as "nothing to do here"), so
       // Close gets the visual nudge instead of Merge losing its own.
       const closeButton = buttonEl(
-        item.empty ? "row-action suggested" : "row-action",
+        item.empty ? "row-action suggested" : "row-action close",
         "Close",
       );
       closeButton.type = "button";
@@ -2387,6 +2497,10 @@
 
     function closeAllActionMenus() {
       for (const key of Object.keys(openActionMenus)) {
+        // A "Confirm close?" armed inside the menu doesn't outlive it:
+        // reopening the menu later shouldn't find a destructive confirm
+        // already waiting (#705).
+        if (closeState[key]?.phase === "confirming") delete closeState[key];
         delete openActionMenus[key];
       }
     }
