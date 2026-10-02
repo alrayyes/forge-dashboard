@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.109.0](https://github.com/alrayyes/forge-dashboard/compare/v0.108.1...v0.109.0) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** keep rows still, show changes only when asked ([#719](https://github.com/alrayyes/forge-dashboard/issues/719)) ([43d9b47](https://github.com/alrayyes/forge-dashboard/commit/43d9b47752a8a8f66be8f4034a816cf3e28fade3)), closes [#710](https://github.com/alrayyes/forge-dashboard/issues/710)
+* **docker:** a readiness check in the image, not just liveness ([#727](https://github.com/alrayyes/forge-dashboard/issues/727)) ([a6ad803](https://github.com/alrayyes/forge-dashboard/commit/a6ad80365e49fd9043d8ef34c63e6f0a230d2454))
+
+
+### Bug Fixes
+
+* **dashboard:** offer Update branch on a behind release-please PR ([#729](https://github.com/alrayyes/forge-dashboard/issues/729)) ([1a7bfa4](https://github.com/alrayyes/forge-dashboard/commit/1a7bfa49788b66dac17446146eabed2fc73f119e))
+* **github:** a cancelled run no longer makes a re-running PR show CI failing ([#725](https://github.com/alrayyes/forge-dashboard/issues/725)) ([77cc6b5](https://github.com/alrayyes/forge-dashboard/commit/77cc6b5c8c4f2121cd06f95e94f6102efcc7324e)), closes [#722](https://github.com/alrayyes/forge-dashboard/issues/722)
+
 ## [0.108.1](https://github.com/alrayyes/forge-dashboard/compare/v0.108.0...v0.108.1) (2026-10-02)
 
 
