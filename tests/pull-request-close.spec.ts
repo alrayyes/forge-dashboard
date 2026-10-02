@@ -233,9 +233,11 @@ test.describe('pull request close button', () => {
     await row.getByRole('button', { name: 'Close' }).click();
     await row.getByRole('button', { name: 'Confirm close?' }).click();
 
-    const status = page.locator('#status-banner');
-    await expect(status).toContainText('Closing alrayyes/forge-dashboard#42…');
-    await expect(status).toContainText('Closed alrayyes/forge-dashboard#42.');
+    await expect(row.locator('.row-feedback')).toContainText('Closing…');
+    const toast = page.locator('#feedback-toasts .feedback-toast').first();
+    await expect(toast).toContainText('alrayyes/forge-dashboard#42');
+    await expect(toast).toContainText('Closed.');
+    await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
   // Regression coverage for #501's own fix: the forge's real rejection
@@ -259,9 +261,13 @@ test.describe('pull request close button', () => {
     await row.getByRole('button', { name: 'Close' }).click();
     await row.getByRole('button', { name: 'Confirm close?' }).click();
 
-    await expect(page.locator('#error-banner')).toContainText(
+    await expect(page.locator('#feedback-toasts')).toContainText(
       'pull request already merged',
     );
+    await expect(row.locator('.row-feedback')).toContainText(
+      'pull request already merged',
+    );
+    await expect(page.locator('#error-banner')).toHaveCount(0);
     const button = row.getByRole('button', { name: 'Close' });
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();

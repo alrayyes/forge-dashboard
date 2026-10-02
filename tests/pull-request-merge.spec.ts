@@ -404,10 +404,16 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    const status = page.locator('#status-banner');
-    await expect(status).toContainText('Merging alrayyes/forge-dashboard#42…');
-    await expect(status).toHaveAttribute('aria-live', 'polite');
-    await expect(status).toContainText('Merged alrayyes/forge-dashboard#42.');
+    // The row says what is happening, and a toast reports the result.
+    await expect(row.locator('.row-feedback')).toContainText('Merging…');
+    await expect(page.locator('#feedback-live')).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+    const toast = page.locator('#feedback-toasts .feedback-toast').first();
+    await expect(toast).toContainText('alrayyes/forge-dashboard#42');
+    await expect(toast).toContainText('Merged.');
+    await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
   test('a raw network failure whose refresh confirms the merge went through reports success, not a false failure', async ({
@@ -443,9 +449,10 @@ test.describe('pull request merge button', () => {
 
     await expect(page.locator('#pr-rows .row')).toHaveCount(0);
     await expect(page.locator('#error-banner')).toHaveCount(0);
-    await expect(page.locator('#status-banner')).toContainText(
+    await expect(page.locator('#feedback-toasts')).toContainText(
       'alrayyes/forge-dashboard#42',
     );
+    await expect(page.locator('#feedback-toasts')).toContainText('Merged.');
   });
 
   test('a raw network failure whose refresh shows the pull request still there reports the real failure', async ({
@@ -474,8 +481,11 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    await expect(page.locator('#error-banner')).toContainText(
-      "Couldn't merge alrayyes/forge-dashboard#42",
+    await expect(page.locator('#feedback-toasts')).toContainText(
+      "Couldn't merge",
+    );
+    await expect(page.locator('#feedback-toasts')).toContainText(
+      'alrayyes/forge-dashboard#42',
     );
     await expect(page.locator('#pr-rows .row')).toHaveCount(1);
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
@@ -498,13 +508,15 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
-    await expect(page.locator('#error-banner')).toContainText('EOF');
-    await expect(page.locator('#error-banner')).toHaveAttribute(
-      'role',
-      'alert',
+    const failed = page.locator(
+      '#feedback-toasts .feedback-toast[data-kind="error"]',
     );
-    // No lingering "Merging…" status once the error banner is showing —
-    // otherwise both would compete for attention at once.
+    await expect(failed).toContainText('EOF');
+    // No lingering "Merging…" line once it has failed — the row says
+    // Failed, not both.
+    await expect(row.locator('.row-feedback')).toContainText('Failed');
+    await expect(row.locator('.row-feedback')).not.toContainText('Merging…');
+    await expect(page.locator('#error-banner')).toHaveCount(0);
     await expect(page.locator('#status-banner')).toHaveCount(0);
     const button = row.getByRole('button', { name: 'Merge' });
     await expect(button).toBeVisible();
@@ -689,9 +701,7 @@ test.describe('pull request merge button', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('has no axe-core violations with the status banner rendered', async ({
-    page,
-  }) => {
+  test('has no axe-core violations with a toast showing', async ({ page }) => {
     await mockDashboard(page, makePR());
     await page.route('**/api/pull-requests/merge', async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -714,7 +724,9 @@ test.describe('pull request merge button', () => {
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
-    await expect(page.locator('#status-banner')).toBeVisible();
+    await expect(
+      page.locator('#feedback-toasts .feedback-toast').first(),
+    ).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

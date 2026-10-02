@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import * as Filters from "$lib/filters";
   import type { FilterableItem, SharedFilterState } from "$lib/filters";
+  import { type ActionRef, createFeedbackStore } from "$lib/feedback";
+  import { mountFeedbackUI } from "$lib/feedback-ui";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, admin-link, logout-button, whoami) —
@@ -105,6 +107,35 @@
     // a number hard-coded next to REFRESH_INTERVAL_MS. Re-armed by the
     // setInterval(refresh) callback itself.
     let nextPollAt = Date.now() + REFRESH_INTERVAL_MS;
+
+    // Per-pull-request action feedback (#714): inline row lines, toasts
+    // and the Activity panel. State lives here, outside the DOM, so it
+    // outlasts every row rebuild and snapshot.
+    const feedback = createFeedbackStore();
+    const feedbackUI = mountFeedbackUI(feedback, {
+      countdownText: () => queuedCountdownText(),
+    });
+    function actionRef(item: PullRequestItem): ActionRef {
+      return { key: prKey(item), repo: item.repo, number: item.number };
+    }
+    // A failed action: the row gets a Failed line (with Retry unless the
+    // failure locked the button), and an error toast that stays.
+    function failAction(
+      actionKey: string,
+      what: string,
+      reason: string,
+      canRetry: boolean,
+    ) {
+      const message = `Couldn't ${what}: ${reason}`;
+      feedback.update(actionKey, {
+        phase: "failed",
+        inline: reason,
+        message,
+        toast: true,
+        announce: message,
+        canRetry,
+      });
+    }
     const CI_LABELS: Record<string, string> = {
       success: "Passing",
       failure: "Failing",
@@ -495,6 +526,7 @@
       }
       row.appendChild(meta);
       row.appendChild(el("div", "go", "→"));
+      if (isPR) feedbackUI.decorateRow(row, prKey(item as PullRequestItem));
       return row;
     }
 
@@ -703,14 +735,9 @@
     // lock re-derives from current data immediately instead of waiting
     // out the rest of the poll interval.
     function retryLockedAction(item: PullRequestItem) {
-      showStatus(`Checking ${item.repo}#${item.number}…`);
-      refreshDashboardNow()
-        .then(() => {
-          clearStatus();
-        })
-        .catch((err: Error) => {
-          showError(`Could not refresh: ${err.message}`);
-        });
+      refreshDashboardNow().catch((err: Error) => {
+        showError(`Could not refresh: ${err.message}`);
+      });
     }
 
     // Set once any merge/update-branch call against a forge comes back
@@ -763,7 +790,23 @@
       mergeState[key] = { phase: "merging" };
       confirmButton.disabled = true;
       confirmButton.textContent = "Merging…";
-      showStatus(`Merging ${item.repo}#${item.number}…`);
+      const fkey = `merge:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Merge",
+        phase: "working",
+        inline: "Merging…",
+        message: "Merging…",
+        announce: "Merging…",
+        // A merge is never re-sent without the confirm step.
+        retry: () => {
+          feedback.drop(fkey);
+          mergeState[key] = { phase: "confirming" };
+          renderPRBoard();
+          document.getElementById(`merge-confirm-${domSafeId(key)}`)?.focus();
+        },
+      });
 
       fetch("/api/pull-requests/merge", {
         method: "POST",
@@ -793,7 +836,12 @@
         })
         .then(() => {
           delete mergeState[key];
-          showStatus(`Merged ${item.repo}#${item.number}.`);
+          feedback.update(fkey, {
+            phase: "done",
+            message: "Merged.",
+            toast: true,
+            announce: "Merged.",
+          });
           // Pulls a fresh snapshot right away rather than waiting out
           // the rest of the background poll's own interval — the same
           // call the "Refresh now" button makes — so the just-merged PR
@@ -837,7 +885,12 @@
                   // rather than a false failure.
                   delete mergeState[key];
                   applySnapshot(data, true);
-                  showStatus(`Merged ${item.repo}#${item.number}.`);
+                  feedback.update(fkey, {
+                    phase: "done",
+                    message: "Merged.",
+                    toast: true,
+                    announce: "Merged.",
+                  });
                   return;
                 }
                 mergeState[key] = { phase: "idle" };
@@ -846,17 +899,11 @@
                 } else {
                   renderPRBoard();
                 }
-                clearStatus();
-                showError(
-                  `Couldn't merge ${item.repo}#${item.number}: ${err.message}`,
-                );
+                failAction(fkey, "merge", err.message, true);
               })
               .catch(() => {
                 mergeState[key] = { phase: "idle" };
-                clearStatus();
-                showError(
-                  `Couldn't merge ${item.repo}#${item.number}: ${err.message}`,
-                );
+                failAction(fkey, "merge", err.message, true);
                 renderPRBoard();
               });
             return;
@@ -867,10 +914,7 @@
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't merge ${item.repo}#${item.number}: ${err.message}`,
-          );
+          failAction(fkey, "merge", err.message, !lockReason);
           renderPRBoard();
         });
     }
@@ -1035,7 +1079,17 @@
       autoMergeState[key] = { phase: "enabling" };
       button.disabled = true;
       button.textContent = "Enabling…";
-      showStatus(`Enabling auto-merge for ${item.repo}#${item.number}…`);
+      const fkey = `auto-merge:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Enable auto-merge",
+        phase: "working",
+        inline: "Enabling auto-merge…",
+        message: "Enabling auto-merge…",
+        announce: "Enabling auto-merge…",
+        retry: () => doEnableAutoMerge(item, buttonEl("row-action")),
+      });
 
       fetch("/api/pull-requests/auto-merge", {
         method: "POST",
@@ -1065,7 +1119,12 @@
         })
         .then(() => {
           delete autoMergeState[key];
-          showStatus(`Enabled auto-merge for ${item.repo}#${item.number}.`);
+          feedback.update(fkey, {
+            phase: "done",
+            message: "Auto-merge enabled.",
+            toast: true,
+            announce: "Auto-merge enabled.",
+          });
           // Same "close the popover this button lives in, once it has
           // nothing left to say" reasoning doDependabotAction's own
           // success handler uses.
@@ -1089,9 +1148,11 @@
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't enable auto-merge for ${item.repo}#${item.number}: ${friendlyAutoMergeErrorMessage(err.message)}`,
+          failAction(
+            fkey,
+            "enable auto-merge",
+            friendlyAutoMergeErrorMessage(err.message),
+            !lockReason,
           );
           renderPRBoard();
         });
@@ -1172,7 +1233,23 @@
       closeState[key] = { phase: "closing" };
       confirmButton.disabled = true;
       confirmButton.textContent = "Closing…";
-      showStatus(`Closing ${item.repo}#${item.number}…`);
+      const fkey = `close:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Close",
+        phase: "working",
+        inline: "Closing…",
+        message: "Closing…",
+        announce: "Closing…",
+        // Like merge, a close is never re-sent without its confirm step.
+        retry: () => {
+          feedback.drop(fkey);
+          closeState[key] = { phase: "confirming" };
+          renderPRBoard();
+          document.getElementById(`close-confirm-${domSafeId(key)}`)?.focus();
+        },
+      });
 
       fetch("/api/pull-requests/close", {
         method: "POST",
@@ -1202,7 +1279,12 @@
         })
         .then(() => {
           delete closeState[key];
-          showStatus(`Closed ${item.repo}#${item.number}.`);
+          feedback.update(fkey, {
+            phase: "done",
+            message: "Closed.",
+            toast: true,
+            announce: "Closed.",
+          });
           return fetch("/api/dashboard/refresh", {
             method: "POST",
             headers: { Accept: "application/json" },
@@ -1218,10 +1300,7 @@
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't close ${item.repo}#${item.number}: ${err.message}`,
-          );
+          failAction(fkey, "close", err.message, !lockReason);
           renderPRBoard();
         });
     }
@@ -1325,9 +1404,16 @@
       updateBranchState[key] = { phase: "queued" };
       button.disabled = true;
       button.textContent = "Queued…";
-      showQueuedBanner(
-        `Branch update requested for ${item.repo}#${item.number}.`,
-      );
+      const fkey = `update-branch:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Update branch",
+        phase: "queued",
+        inline: "Queued",
+        message: "Branch update requested.",
+        retry: () => doUpdateBranch(item, buttonEl("row-action")),
+      });
 
       fetch("/api/pull-requests/update-branch", {
         method: "POST",
@@ -1359,6 +1445,10 @@
           });
         })
         .then(() => {
+          feedback.update(fkey, {
+            toast: true,
+            announce: "Branch update requested. Awaiting the next refresh.",
+          });
           // Left in the "queued" phase rather than cleared here — a
           // 202 is GitHub's own background job, not necessarily done by
           // the time this refresh lands, so the button only actually
@@ -1382,11 +1472,7 @@
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't update the branch for ${item.repo}#${item.number}: ${err.message}`,
-          );
-          renderQueuedBanner();
+          failAction(fkey, "update the branch", err.message, !lockReason);
           renderPRBoard();
         });
     }
@@ -1494,9 +1580,16 @@
       };
       button.disabled = true;
       button.textContent = "Queued…";
-      showQueuedBanner(
-        `Dependabot ${action} requested for ${item.repo}#${item.number}.`,
-      );
+      const fkey = `dependabot:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: DEPENDABOT_ACTION_LABELS[action],
+        phase: "queued",
+        inline: "Waiting for Dependabot",
+        message: `Dependabot ${action} requested.`,
+        retry: () => doDependabotAction(item, action, buttonEl("row-action")),
+      });
 
       fetch("/api/pull-requests/dependabot-action", {
         method: "POST",
@@ -1540,6 +1633,10 @@
           // on the page (confirmed live). Left open on failure/lock
           // below, since that's exactly when the popover is still
           // showing something the user needs to see.
+          feedback.update(fkey, {
+            toast: true,
+            announce: `Dependabot ${action} requested. Awaiting the next refresh.`,
+          });
           closeAllActionMenus();
           renderPRBoard();
         })
@@ -1549,11 +1646,12 @@
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't ask Dependabot to ${action} ${item.repo}#${item.number}: ${err.message}`,
+          failAction(
+            fkey,
+            `ask Dependabot to ${action}`,
+            err.message,
+            !lockReason,
           );
-          renderQueuedBanner();
           renderPRBoard();
         });
     }
@@ -1837,9 +1935,16 @@
       };
       button.disabled = true;
       button.textContent = "Queued…";
-      showQueuedBanner(
-        `Renovate rebase requested for ${item.repo}#${item.number}.`,
-      );
+      const fkey = `renovate:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Renovate: Rebase",
+        phase: "queued",
+        inline: "Waiting for Renovate",
+        message: "Renovate rebase requested.",
+        retry: () => doRenovateRebase(item, buttonEl("row-action")),
+      });
 
       fetch("/api/pull-requests/renovate-rebase", {
         method: "POST",
@@ -1872,6 +1977,10 @@
           // Same "close the popover this button lives in, once it has
           // nothing left to say" reasoning doDependabotAction's own
           // success handler uses.
+          feedback.update(fkey, {
+            toast: true,
+            announce: "Renovate rebase requested. Awaiting the next refresh.",
+          });
           closeAllActionMenus();
           renderPRBoard();
         })
@@ -1881,11 +1990,7 @@
             ? { phase: "locked", reason: lockReason }
             : { phase: "idle" };
           if (err.status === 403) forgePermissionDenied[item.forge] = true;
-          clearStatus();
-          showError(
-            `Couldn't ask Renovate to rebase ${item.repo}#${item.number}: ${err.message}`,
-          );
-          renderQueuedBanner();
+          failAction(fkey, "ask Renovate to rebase", err.message, !lockReason);
           renderPRBoard();
         });
     }
@@ -2089,7 +2194,6 @@
     function loadPipelineChecks(item: PullRequestItem) {
       const token = ++pipelineRequestToken;
       renderPipelineLoading();
-      showStatus(`Loading pipeline checks for ${item.repo}#${item.number}…`);
 
       fetch(
         `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
@@ -2113,14 +2217,11 @@
         })
         .then((data) => {
           if (token !== pipelineRequestToken) return;
-          clearStatus();
           renderPipelineChecks(data.checks || []);
         })
         .catch((err: Error & { status?: number }) => {
           if (token !== pipelineRequestToken) return;
-          clearStatus();
           const message = `Couldn't load pipeline checks for ${item.repo}#${item.number}: ${err.message}`;
-          showError(message);
           renderPipelineError(message, () => loadPipelineChecks(item));
         });
     }
@@ -3282,7 +3383,7 @@
 
     setInterval(() => {
       tickRefreshedAt();
-      tickQueuedCountdown();
+      feedbackUI.tick();
       // Cheap to call unconditionally — it removes and, only if there's
       // still something exhausted, redraws a handful of rows.
       renderRateLimitBanner();
@@ -3306,59 +3407,16 @@
       document.getElementById("error-banner")?.remove();
     }
 
-    // showStatus/clearStatus: the same shape as showError/clearError,
-    // for a row action's own in-progress/success text rather than a
-    // failure — a real click otherwise had nothing to show for it
-    // beyond the row silently vanishing on the next refresh.
-    // aria-live="polite" rather than showError's role="alert": routine
-    // progress/success isn't urgent enough to interrupt a screen reader
-    // the way a failure is.
-    function showStatus(message: string) {
-      document.getElementById("status-banner")?.remove();
-      const banner = el("div", "status-banner", message);
-      banner.id = "status-banner";
-      banner.setAttribute("aria-live", "polite");
-      document
-        .querySelector(".stats")
-        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
-      // Auto-dismisses — unlike the error banner, which stays until the
-      // next successful action clears it, a routine "Merged x#42." isn't
-      // meant to linger.
-      setTimeout(() => {
-        if (banner.parentNode) banner.remove();
-      }, 4000);
-    }
-
-    function clearStatus() {
-      document.getElementById("status-banner")?.remove();
-    }
-
-    // ---- queued-action banner (#680) ----
+    // ---- queued actions (#680, #714) ----
     // Update branch and the Dependabot/Renovate rebases are requests the
     // forge or a bot acts on later, so the page can't confirm the result
-    // until a refresh. This is the one banner that says so: the sentence
-    // lives in a polite live region and is announced once, while the
-    // per-second countdown sits in an aria-hidden sibling so a screen
-    // reader isn't read a new number every second.
-    let queuedMessage = "";
-
-    function queuedActionCount(): number {
-      return [
-        updateBranchState,
-        dependabotActionState,
-        renovateRebaseState,
-      ].reduce(
-        (sum, stateMap) =>
-          sum +
-          Object.values(stateMap).filter((entry) => entry.phase === "queued")
-            .length,
-        0,
-      );
-    }
+    // until a refresh. The row says so inline, with a countdown to the
+    // next poll that sits in an aria-hidden span (feedback-ui.ts) so a
+    // screen reader isn't read a new number every second.
 
     // How long a bot rebase may stay queued without a snapshot showing it
     // landed. A bot that ignores the request would otherwise leave a
-    // disabled button and a banner up for good.
+    // disabled button and a "waiting" line up for good.
     const QUEUED_BOT_EXPIRY_MS = 5 * 60 * 1000;
 
     function queuedBotInfo(item: PullRequestItem) {
@@ -3373,8 +3431,9 @@
     // snapshot shows the rebase landed: the pull request is gone, or it
     // was behind when asked and no longer is. Any other snapshot (the
     // live stream pushes one all the time) says nothing about the bot,
-    // so it must not clear the banner. Expires after a while so a bot
-    // that never acts doesn't pin the button disabled.
+    // so it must not end the wait. Expires after a while so a bot that
+    // never acts doesn't pin the button disabled; the row, an error toast
+    // and Activity then say so.
     function clearResolvedQueuedBotActions(prs: PullRequestItem[]) {
       const byKey = new Map(prs.map((p) => [prKey(p), p]));
       for (const stateMap of [dependabotActionState, renovateRebaseState]) {
@@ -3384,8 +3443,35 @@
           const current = byKey.get(entry.queued.prKey);
           const landed =
             !current || (entry.queued.wasBehind && !current.behind);
-          if (landed || Date.now() - entry.queued.at > QUEUED_BOT_EXPIRY_MS)
-            delete stateMap[key];
+          const expired =
+            !landed && Date.now() - entry.queued.at > QUEUED_BOT_EXPIRY_MS;
+          if (!landed && !expired) continue;
+          delete stateMap[key];
+          const fkey =
+            stateMap === dependabotActionState
+              ? `dependabot:${key}`
+              : `renovate:${key}`;
+          const bot =
+            stateMap === dependabotActionState ? "Dependabot" : "Renovate";
+          if (landed) {
+            const message = `${bot} rebase finished.`;
+            feedback.update(fkey, {
+              phase: "done",
+              message,
+              toast: true,
+              announce: message,
+            });
+          } else {
+            const reason = "No change seen after 5 minutes.";
+            feedback.update(fkey, {
+              phase: "expired",
+              inline: reason,
+              message: `${bot} hasn't acted: ${reason}`,
+              toast: true,
+              announce: `${bot} hasn't acted: ${reason}`,
+              canRetry: true,
+            });
+          }
         }
       }
     }
@@ -3394,49 +3480,6 @@
       const seconds = Math.max(0, Math.ceil((nextPollAt - Date.now()) / 1000));
       // The snapshot is late, not lost: say so instead of "0s".
       return seconds === 0 ? " Refreshing…" : ` (next refresh in ${seconds}s)`;
-    }
-
-    function showQueuedBanner(message: string) {
-      queuedMessage = message;
-      renderQueuedBanner();
-    }
-
-    // (Re)draws the banner for whatever is queued right now, or removes
-    // it once nothing is. Leaves an unrelated status (e.g. "Updated the
-    // branch…") alone, and keeps the existing node when the sentence
-    // hasn't changed so the live region isn't re-announced.
-    function renderQueuedBanner() {
-      const existing = document.getElementById("status-banner");
-      const count = queuedActionCount();
-      if (count === 0) {
-        if (existing?.dataset.queued) existing.remove();
-        return;
-      }
-      if (existing && !existing.dataset.queued) return;
-      const sentence = `${
-        count === 1 ? queuedMessage : `${count} actions requested.`
-      } Awaiting the next refresh.`;
-      if (existing?.querySelector(".status-message")?.textContent === sentence)
-        return;
-      existing?.remove();
-      const banner = el("div", "status-banner");
-      banner.id = "status-banner";
-      banner.dataset.queued = "true";
-      banner.setAttribute("aria-live", "polite");
-      banner.appendChild(el("span", "status-message", sentence));
-      const countdown = el("span", "status-countdown", queuedCountdownText());
-      countdown.setAttribute("aria-hidden", "true");
-      banner.appendChild(countdown);
-      document
-        .querySelector(".stats")
-        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
-    }
-
-    function tickQueuedCountdown() {
-      const countdown = document.querySelector(
-        "#status-banner[data-queued] .status-countdown",
-      );
-      if (countdown) countdown.textContent = queuedCountdownText();
     }
 
     // ---- force-refresh: retry right now instead of waiting out the
@@ -3559,9 +3602,13 @@
       // doesn't also hold the board back.
       clearResolvedQueuedBotActions(prs);
       for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
-        showStatus(`Updated the branch for ${item.repo}#${item.number}.`);
+        feedback.update(`update-branch:${prKey(item)}`, {
+          phase: "done",
+          message: "Branch updated.",
+          toast: true,
+          announce: "Branch updated.",
+        });
       }
-      renderQueuedBanner();
       const issues = data.issues || [];
       allPRs = prs;
       allIssues = issues;
@@ -3705,6 +3752,32 @@
     above it (see .dashboard-toolbar in style.css) without actually being
     one.
   -->
+  <!-- #714: the Activity control stays in view while the page scrolls;
+       its panel lists in-flight and recent per-pull-request actions. -->
+  <div class="activity-bar">
+    <button
+      type="button"
+      class="activity-toggle"
+      id="activity-toggle"
+      aria-expanded="false"
+      aria-controls="activity-panel">Activity 0</button
+    >
+    <div
+      class="activity-panel"
+      id="activity-panel"
+      role="region"
+      aria-label="Activity"
+      hidden
+    >
+      <div class="activity-panel-head">
+        <p class="activity-title">Recent actions</p>
+        <button type="button" class="activity-clear" disabled
+          >Clear finished</button
+        >
+      </div>
+      <ul class="activity-list"></ul>
+    </div>
+  </div>
   <div class="dashboard-toolbar">
     <!-- No longer sits directly under the "Forge Board" <h1> the way it
          used to as the brand's subtitle, so the sr-only prefix below
@@ -4033,3 +4106,19 @@
   </div>
   <div class="pipeline-dialog-body" id="pipeline-dialog-body"></div>
 </dialog>
+
+<!-- #714: the one polite live region for per-pull-request feedback, and
+     the toast stack. Neither the toasts nor the Activity panel is live
+     itself, so each event is spoken once. -->
+<div
+  id="feedback-live"
+  class="sr-only"
+  role="status"
+  aria-live="polite"
+  aria-atomic="true"
+></div>
+<ul
+  id="feedback-toasts"
+  class="feedback-toasts"
+  aria-label="Notifications"
+></ul>

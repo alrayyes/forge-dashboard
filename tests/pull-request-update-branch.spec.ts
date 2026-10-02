@@ -303,14 +303,15 @@ test.describe('pull request update-branch button', () => {
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
 
-    const status = page.locator('#status-banner');
-    await expect(status).toContainText(
-      'Branch update requested for alrayyes/forge-dashboard#42.',
+    const toasts = page.locator('#feedback-toasts');
+    await expect(toasts).toContainText('alrayyes/forge-dashboard#42');
+    await expect(toasts).toContainText('Branch update requested.');
+    await expect(page.locator('#feedback-live')).toHaveAttribute(
+      'aria-live',
+      'polite',
     );
-    await expect(status).toHaveAttribute('aria-live', 'polite');
-    await expect(status).toContainText(
-      'Updated the branch for alrayyes/forge-dashboard#42.',
-    );
+    await expect(toasts).toContainText('Branch updated.');
+    await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
   test('a 202 (scheduled as a background job) is treated as success, not a failure', async ({
@@ -414,9 +415,10 @@ test.describe('pull request update-branch button', () => {
     await expect(
       row.getByRole('button', { name: 'Update branch' }),
     ).toHaveCount(0);
-    await expect(page.locator('#status-banner')).toContainText(
-      'Updated the branch for alrayyes/forge-dashboard#42.',
+    await expect(page.locator('#feedback-toasts')).toContainText(
+      'Branch updated.',
     );
+    await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
   test('a transient failure shows an error and returns to a re-clickable button', async ({
@@ -436,7 +438,11 @@ test.describe('pull request update-branch button', () => {
     const button = row.getByRole('button', { name: 'Update branch' });
     await button.click();
 
-    await expect(page.locator('#error-banner')).toContainText('EOF');
+    await expect(
+      page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
+    ).toContainText('EOF');
+    await expect(row.locator('.row-feedback')).toContainText('Failed');
+    await expect(page.locator('#error-banner')).toHaveCount(0);
     await expect(page.locator('#status-banner')).toHaveCount(0);
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();
