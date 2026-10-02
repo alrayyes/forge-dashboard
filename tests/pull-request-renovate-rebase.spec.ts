@@ -179,7 +179,7 @@ test.describe('pull request Renovate rebase button', () => {
     });
   });
 
-  test('shows an in-progress status while requesting, then a success status', async ({
+  test('shows a queued status while requesting, which holds until the next refresh', async ({
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
@@ -198,12 +198,10 @@ test.describe('pull request Renovate rebase button', () => {
 
     const status = page.locator('#status-banner');
     await expect(status).toContainText(
-      'Asking Renovate to rebase alrayyes/forge-dashboard#42…',
+      'Renovate rebase requested for alrayyes/forge-dashboard#42.',
     );
     await expect(status).toHaveAttribute('aria-live', 'polite');
-    await expect(status).toContainText(
-      'Asked Renovate to rebase alrayyes/forge-dashboard#42.',
-    );
+    await expect(status).toContainText('Awaiting the next refresh');
   });
 
   test('a transient failure shows an error and re-enables the button for another try', async ({

@@ -209,7 +209,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     expect(requestBody).toMatchObject({ action: 'recreate' });
   });
 
-  test('shows an in-progress status while requesting, then a success status', async ({
+  test('shows a queued status while requesting, which holds until the next refresh', async ({
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
@@ -228,12 +228,10 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
 
     const status = page.locator('#status-banner');
     await expect(status).toContainText(
-      'Asking Dependabot to rebase alrayyes/forge-dashboard#42…',
+      'Dependabot rebase requested for alrayyes/forge-dashboard#42.',
     );
     await expect(status).toHaveAttribute('aria-live', 'polite');
-    await expect(status).toContainText(
-      'Asked Dependabot to rebase alrayyes/forge-dashboard#42.',
-    );
+    await expect(status).toContainText('Awaiting the next refresh');
   });
 
   test('a transient failure shows an error and re-enables the button for another try', async ({
