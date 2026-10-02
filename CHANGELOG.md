@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.108.1](https://github.com/alrayyes/forge-dashboard/compare/v0.108.0...v0.108.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **dashboard:** keep the queued-action banner until the action lands ([#711](https://github.com/alrayyes/forge-dashboard/issues/711)) ([a00d7b3](https://github.com/alrayyes/forge-dashboard/commit/a00d7b3e24463a52a9c33a7031c0b2169364e5fb)), closes [#706](https://github.com/alrayyes/forge-dashboard/issues/706)
+* **dashboard:** lock Update branch on a PR with merge conflicts ([#702](https://github.com/alrayyes/forge-dashboard/issues/702)) ([59078bb](https://github.com/alrayyes/forge-dashboard/commit/59078bb5b3026b4bd2471d66cfc1e98e31a7cbae))
+
 ## [0.108.0](https://github.com/alrayyes/forge-dashboard/compare/v0.107.0...v0.108.0) (2026-10-02)
 
 
