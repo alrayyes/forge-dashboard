@@ -255,6 +255,235 @@ test.describe('pull request pipeline checks panel', () => {
     );
   });
 
+  // #681: required (blocks the merge) vs advisory, from the forge's own
+  // branch protection. Absent `required` means the forge couldn't tell.
+  test('checks with a known required flag are grouped Required first, then Advisory', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR());
+    await mockChecks(page, {
+      checks: [
+        { name: 'codecov', state: 'success', url: '', required: false },
+        { name: 'build', state: 'success', url: '', required: true },
+        { name: 'lint', state: 'failure', url: '', required: true },
+        { name: 'docs', state: 'failure', url: '', required: false },
+      ],
+    });
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const required = dialog.getByRole('group', { name: /^Required/ });
+    const advisory = dialog.getByRole('group', { name: /^Advisory/ });
+    await expect(required).toContainText('Required (2)');
+    await expect(advisory).toContainText('Advisory (2)');
+
+    // Required comes first in the DOM, failing required checks first
+    // within it.
+    const groups = dialog.locator('.pipeline-group');
+    await expect(groups.nth(0)).toContainText('Required');
+    await expect(groups.nth(1)).toContainText('Advisory');
+    const requiredItems = required.locator('.pipeline-check');
+    await expect(requiredItems.nth(0)).toContainText('lint');
+    await expect(requiredItems.nth(1)).toContainText('build');
+    await expect(advisory.locator('.pipeline-check')).toHaveCount(2);
+  });
+
+  test('a failing required check is flagged "Blocking" in text, an advisory failure is not', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR());
+    await mockChecks(page, {
+      checks: [
+        { name: 'lint', state: 'failure', url: '', required: true },
+        { name: 'build', state: 'success', url: '', required: true },
+        { name: 'docs', state: 'failure', url: '', required: false },
+      ],
+    });
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const items = dialog.locator('.pipeline-check');
+    await expect(
+      items.filter({ hasText: 'lint' }).getByText('Blocking'),
+    ).toBeVisible();
+    await expect(
+      items.filter({ hasText: 'build' }).getByText('Blocking'),
+    ).toHaveCount(0);
+    await expect(
+      items.filter({ hasText: 'docs' }).getByText('Blocking'),
+    ).toHaveCount(0);
+  });
+
+  test('with no known required flag on any check the flat list shows unchanged', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR());
+    await mockChecks(page, {
+      checks: [
+        { name: 'build', state: 'success', url: '' },
+        { name: 'test', state: 'failure', url: '' },
+      ],
+    });
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog.locator('.pipeline-check')).toHaveCount(2);
+    await expect(dialog.locator('.pipeline-group')).toHaveCount(0);
+    await expect(dialog.getByText('Blocking')).toHaveCount(0);
+  });
+
+  test('checks of unknown required status sit apart from known groups, never in Advisory', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR());
+    await mockChecks(page, {
+      checks: [
+        { name: 'build', state: 'success', url: '', required: true },
+        { name: 'mystery', state: 'success', url: '' },
+      ],
+    });
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog.getByRole('group', { name: /^Advisory/ })).toHaveCount(
+      0,
+    );
+    await expect(
+      dialog.getByRole('group', { name: /^Status unknown/ }),
+    ).toContainText('mystery');
+  });
+
+  test('the grouped panel has no axe-core violations and Escape still closes it', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR());
+    await mockChecks(page, {
+      checks: [
+        {
+          name: 'build',
+          state: 'success',
+          url: 'https://example.com/1',
+          required: true,
+        },
+        {
+          name: 'lint',
+          state: 'failure',
+          url: 'https://example.com/2',
+          required: true,
+        },
+        {
+          name: 'codecov',
+          state: 'success',
+          url: 'https://example.com/3',
+          required: false,
+        },
+      ],
+    });
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(
+      dialog.getByRole('group', { name: /^Required/ }),
+    ).toBeVisible();
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+  });
+
+  test('at phone width the grouped panel is a bottom sheet, traps focus and has no axe-core violations', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await mockDashboard(page, 'github', makePR());
+    await mockChecks(page, {
+      checks: [
+        {
+          name: 'build',
+          state: 'success',
+          url: 'https://example.com/1',
+          required: true,
+        },
+        {
+          name: 'codecov',
+          state: 'success',
+          url: 'https://example.com/2',
+          required: false,
+        },
+      ],
+    });
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(
+      dialog.getByRole('group', { name: /^Required/ }),
+    ).toBeVisible();
+
+    const box = await dialog.boundingBox();
+    if (!box) throw new Error('dialog has no bounding box');
+    // Anchored to the bottom edge, full width.
+    expect(Math.round(box.y + box.height)).toBe(800);
+    expect(Math.round(box.width)).toBe(390);
+
+    for (let i = 0; i < 8; i++) {
+      await page.keyboard.press('Tab');
+      expect(
+        await page.evaluate(() => {
+          // A modal dialog makes the page behind it inert: focus is in
+          // the dialog, or has left the document for the browser's own
+          // chrome (body), never on a page element behind it.
+          const active = document.activeElement;
+          return (
+            active === document.body || !!active?.closest('#pipeline-dialog')
+          );
+        }),
+      ).toBe(true);
+    }
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('a failed fetch shows an error and a Retry that re-fetches', async ({
     page,
   }) => {
