@@ -39,6 +39,7 @@ interface MockPR {
   updatedAt: string;
   mergeStatus: string;
   autoMergeEnabled: boolean;
+  autoMergeAllowed?: boolean;
 }
 
 function makePR(overrides: Partial<MockPR> = {}): MockPR {
@@ -95,6 +96,42 @@ test.describe('pull request Enable auto-merge action', () => {
       page,
       makePR({ mergeStatus: 'blocked', ci: 'pending' }),
     );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
+    await expect(
+      row.getByRole('button', { name: 'Enable auto-merge' }),
+    ).toBeVisible();
+  });
+
+  test('a pull request GitHub will not let auto-merge shows no button, and the rest of the row stays (#738)', async ({
+    page,
+  }) => {
+    // The pipeline-analytics#367 shape: a stacked PR on an unprotected
+    // base, where GitHub reports viewerCanEnableAutoMerge false.
+    await mockDashboard(page, makePR({ autoMergeAllowed: false }));
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row.getByText('A pull request')).toBeVisible();
+    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
+      0,
+    );
+    await expect(
+      row.getByRole('button', { name: 'Enable auto-merge' }),
+    ).toHaveCount(0);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a pull request GitHub reports auto-merge as allowed shows the button as before (#738)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR({ autoMergeAllowed: true }));
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();

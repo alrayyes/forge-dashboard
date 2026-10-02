@@ -27,6 +27,7 @@
     ci: string;
     mergeStatus: string;
     autoMergeEnabled: boolean | null;
+    autoMergeAllowed?: boolean;
     behind: boolean;
     empty: boolean;
   };
@@ -1108,6 +1109,9 @@
     function autoMergeActionCell(item: PullRequestItem): HTMLElement | null {
       if (item.forge !== "github") return null;
       if (item.autoMergeEnabled === true) return null;
+      // #738: GitHub says per viewer whether it would accept the request;
+      // only an explicit false hides it, so unknown keeps today's behaviour.
+      if (item.autoMergeAllowed === false) return null;
       if (item.empty || item.mergeStatus === "conflicting") return null;
       // #662: GitHub rejects arming auto-merge on a pull request that is
       // already clean — nothing left to wait for, and Merge covers it.
