@@ -3445,3 +3445,154 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     expect(results.violations).toEqual([]);
   });
 });
+
+test.describe('repo group headers: host and sync status (#679)', () => {
+  const now = new Date().toISOString();
+  function pr(over: Record<string, unknown>) {
+    return {
+      forge: 'github',
+      repo: 'alrayyes/app',
+      number: 1,
+      title: 'x',
+      url: 'https://github.com/alrayyes/app/pull/1',
+      author: 'ryan',
+      draft: false,
+      ci: 'success',
+      mergeStatus: 'mergeable',
+      labels: [],
+      createdAt: now,
+      updatedAt: now,
+      ...over,
+    };
+  }
+  const PRS = [
+    pr({ number: 1 }),
+    pr({
+      number: 2,
+      forge: 'forgejo',
+      repo: 'ryan/infra',
+      url: 'https://git.internal.homelab/ryan/infra/pulls/2',
+    }),
+    pr({
+      number: 3,
+      repo: 'alrayyes/wiki',
+      url: 'https://github.com/alrayyes/wiki/pull/3',
+    }),
+  ];
+  const REPOS = [
+    {
+      forge: 'github',
+      fullName: 'alrayyes/app',
+      url: 'https://github.com/alrayyes/app',
+      hasWebhook: true,
+    },
+    {
+      forge: 'forgejo',
+      fullName: 'ryan/infra',
+      url: 'https://git.internal.homelab/ryan/infra',
+      hasWebhook: false,
+    },
+  ];
+
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+    await page.route('**/api/dashboard/stream', (route) =>
+      route.fulfill({ status: 404, body: '{}' }),
+    );
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: now,
+          forges: [
+            { forge: 'github', reachable: true, repoCount: 2 },
+            { forge: 'forgejo', reachable: true, repoCount: 1 },
+          ],
+          repos: REPOS,
+          pullRequests: PRS,
+          issues: [],
+        }),
+      }),
+    );
+    await page.reload();
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(PRS.length);
+  });
+
+  const header = (page: Page, name: string) =>
+    page.locator('#pr-rows > h3.group-heading', { hasText: name });
+
+  test('the flat list shows no host chip or status pill', async ({ page }) => {
+    await expect(page.locator('.group-host')).toHaveCount(0);
+    await expect(page.locator('.group-sync')).toHaveCount(0);
+  });
+
+  test('a group header shows forge badge, host chip, repo name and status', async ({
+    page,
+  }) => {
+    await page.selectOption('#shared-group-select', 'repo');
+
+    const gh = header(page, 'alrayyes/app');
+    await expect(gh.locator('.forge-badge')).toHaveText('GitHub');
+    await expect(gh.locator('.group-host')).toHaveText('github.com');
+    await expect(gh.locator('.group-sync')).toHaveText('Webhook');
+
+    const fj = header(page, 'ryan/infra');
+    await expect(fj.locator('.forge-badge')).toHaveText('Forgejo');
+    await expect(fj.locator('.group-host')).toHaveText('git.internal.homelab');
+    await expect(fj.locator('.group-sync')).toHaveText('Polling');
+  });
+
+  test('a repo missing from repos[] gets no host or status guess', async ({
+    page,
+  }) => {
+    await page.selectOption('#shared-group-select', 'repo');
+    const wiki = header(page, 'alrayyes/wiki');
+    await expect(wiki).toHaveCount(1);
+    await expect(wiki.locator('.group-host')).toHaveCount(0);
+    await expect(wiki.locator('.group-sync')).toHaveCount(0);
+  });
+
+  test('grouping is reachable and switchable by keyboard alone', async ({
+    page,
+  }) => {
+    const select = page.getByRole('combobox', { name: 'Group rows by' });
+    await select.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(select).toHaveValue('repo');
+    await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(3);
+    await page.keyboard.press('ArrowUp');
+    await expect(select).toHaveValue('');
+    await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(0);
+  });
+
+  test('the options read "Flat list" and "Group by repository"', async ({
+    page,
+  }) => {
+    const select = page.getByRole('combobox', { name: 'Group rows by' });
+    await expect(select.locator('option')).toHaveText([
+      'Flat list',
+      'Group by repository',
+      'Group by forge',
+    ]);
+  });
+
+  for (const theme of ['light', 'dark']) {
+    test(`has no axe-core violations with grouped headers, ${theme} theme`, async ({
+      page,
+    }) => {
+      await setTheme(page, theme);
+      await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      await page.selectOption('#shared-group-select', 'repo');
+      await expect(
+        header(page, 'ryan/infra').locator('.group-sync'),
+      ).toBeVisible();
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+});
