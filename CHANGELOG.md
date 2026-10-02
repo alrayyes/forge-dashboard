@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.103.2](https://github.com/alrayyes/forge-dashboard/compare/v0.103.1...v0.103.2) (2026-10-02)
+
+
+### Bug Fixes
+
+* **web:** don't offer Enable auto-merge on a clean pull request ([#663](https://github.com/alrayyes/forge-dashboard/issues/663)) ([e7aa8d7](https://github.com/alrayyes/forge-dashboard/commit/e7aa8d75e5071ae218ed374862a7ec115ebbb9ef)), closes [#662](https://github.com/alrayyes/forge-dashboard/issues/662)
+
 ## [0.103.1](https://github.com/alrayyes/forge-dashboard/compare/v0.103.0...v0.103.1) (2026-10-02)
 
 
