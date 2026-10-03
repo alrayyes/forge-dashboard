@@ -155,6 +155,21 @@ type PullRequest struct {
 	// field stays orthogonal there too, for the same reason CI sits
 	// beside MergeStatus rather than inside it: one fact per field.
 	Behind bool `json:"behind"`
+	// BaseBranch and HeadBranch name the branch the pull request targets and
+	// the branch it comes from (#860). A stack is worked out from them: B is
+	// stacked on A when B's base branch is A's head branch.
+	BaseBranch string `json:"baseBranch"`
+	HeadBranch string `json:"headBranch"`
+	// CrossRepository is true when the head branch lives in another
+	// repository (a fork). Such a pull request is never part of a stack.
+	CrossRepository bool `json:"crossRepository"`
+	// Stack, StackedOn and StackChildren say where the pull request sits in
+	// a stack of pull requests (#860); AnnotateStacks fills them. Stack and
+	// StackedOn are null when there is none, and StackChildren is always a
+	// list.
+	Stack         *StackPosition `json:"stack"`
+	StackedOn     *StackRef      `json:"stackedOn"`
+	StackChildren []int          `json:"stackChildren"`
 	// RequestedReviewerLogins lists who was asked to review this pull
 	// request, by login (#695). Teams have no login and are left out.
 	// Always a list, empty when nobody was asked, so a client can range

@@ -78,6 +78,13 @@ func TestAllowedActions(t *testing.T) {
 			p.Behind = true
 			p.Labels = []dashboard.Label{{Name: "autorelease: pending"}}
 		}), []string{"auto_merge", "close", "merge", "update_branch"}},
+		{"stacked on an open parent: merge is blocked and auto-merge is gone", ghPR(func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840} }), []string{"close", "merge:stacked"}},
+		{"stacked beats CI pending as the reason", ghPR(func(p *dashboard.PullRequest) {
+			p.StackedOn = &dashboard.StackRef{Number: 840}
+			p.CI = dashboard.CIPending
+		}), []string{"close", "merge:stacked"}},
+		{"empty beats stacked", ghPR(func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840}; p.Empty = true }), []string{"close", "merge:already_up_to_date"}},
+		{"the bottom of a stack merges as usual", ghPR(func(p *dashboard.PullRequest) { p.StackChildren = []int{853} }), []string{"close", "merge"}},
 		{"empty and behind: no update branch", ghPR(func(p *dashboard.PullRequest) { p.Empty = true; p.Behind = true }), []string{"close", "merge:already_up_to_date"}},
 	}
 	for _, tc := range cases {
@@ -104,5 +111,23 @@ func TestAllowedActions_BlockedMergeSaysWhatToDoNext(t *testing.T) {
 	if assert.NotNil(t, merge.Blocked) {
 		assert.Equal(t, "Waiting for CI to finish", merge.Blocked.Message)
 		assert.Equal(t, "Merge unlocks automatically", merge.Blocked.Next)
+	}
+}
+
+func TestAllowedActions_StackedMergeNamesTheParent(t *testing.T) {
+	t.Parallel()
+
+	pr := ghPR(func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840} })
+
+	var merge dashboard.ActionAvailability
+	for _, a := range dashboard.AllowedActions(pr) {
+		if a.Action == dashboard.ActionMerge {
+			merge = a
+		}
+	}
+
+	if assert.NotNil(t, merge.Blocked) {
+		assert.Equal(t, "Stacked on #840. Merge that one first.", merge.Blocked.Message)
+		assert.Equal(t, "Merge unlocks once #840 merges and this pull request is retargeted.", merge.Blocked.Next)
 	}
 }

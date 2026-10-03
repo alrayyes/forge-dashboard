@@ -783,6 +783,9 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 				MergeStatus:             mergeStatusFromMergeable(p.Mergeable),
 				Behind:                  isBehind(p),
 				HeadSHA:                 sha,
+				BaseBranch:              branchRef(p.Base),
+				HeadBranch:              branchRef(p.Head),
+				CrossRepository:         p.Head != nil && p.Base != nil && p.Head.RepoID != p.Base.RepoID,
 				RequestedReviewerLogins: requestedLogins(p),
 				Empty:                   isEmpty(p),
 				// No read capability for this in the SDK at all — only
@@ -1278,4 +1281,13 @@ func requestedLogins(p *gitea.PullRequest) []string {
 	}
 
 	return logins
+}
+
+// branchRef is a pull request branch's name, empty when the forge sent none.
+func branchRef(b *gitea.PRBranchInfo) string {
+	if b == nil {
+		return ""
+	}
+
+	return b.Ref
 }

@@ -1,5 +1,7 @@
 package dashboard
 
+import "strconv"
+
 // ActionName is one thing a client can do to a pull request. Matches
 // components.schemas.AllowedAction.action.
 type ActionName string
@@ -67,6 +69,14 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 	switch {
 	case pr.Empty:
 		return blocked(ActionAlreadyUpToDate, "Already up to date with the target branch — merging would be empty.", "")
+	case pr.StackedOn != nil:
+		// Merging it would land it in the parent's branch, not the base it
+		// will end up on (#860). It outranks the other reasons: it is the one
+		// that stays until the parent merges.
+		parent := "#" + strconv.Itoa(pr.StackedOn.Number)
+
+		return blocked(ActionStacked, "Stacked on "+parent+". Merge that one first.",
+			"Merge unlocks once "+parent+" merges and this pull request is retargeted.")
 	case pr.MergeStatus == MergeConflicting:
 		return blocked(ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge")
 	case pr.Draft && pr.MergeStatus != MergeMergeable:
@@ -120,6 +130,10 @@ func autoMergeOffered(pr PullRequest) bool {
 	case pr.AutoMergeAllowed != nil && !*pr.AutoMergeAllowed:
 		return false
 	case pr.Empty, pr.MergeStatus == MergeConflicting:
+		return false
+	case pr.StackedOn != nil:
+		// Its base is the parent's branch, which has nothing to wait for, so
+		// GitHub offers no auto-merge either (#860).
 		return false
 	case pr.MergeStatus == MergeMergeable && pr.CI == CISuccess && !pr.Behind:
 		return false

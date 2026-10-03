@@ -163,7 +163,7 @@ func ciFromRESTCheckRuns(t *testing.T, runs []map[string]string) dashboard.CISta
 }
 
 // restPullRequest fetches the one pull request of the unauthenticated REST
-// fallback's fixture, whose head is cafef00d.
+// fallback's fixture.
 func restPullRequest(t *testing.T, runs []map[string]string) dashboard.PullRequest {
 	t.Helper()
 
@@ -189,7 +189,8 @@ func restPullRequest(t *testing.T, runs []map[string]string) dashboard.PullReque
 			"draft": false, "user": map[string]string{"login": "ryankes"},
 			"labels":     []map[string]string{},
 			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
-			"head": map[string]string{"sha": "cafef00d"},
+			"head": map[string]any{"sha": "cafef00d", "ref": "feat/child", "repo": map[string]string{"full_name": "alrayyes/a"}},
+			"base": map[string]any{"ref": "feat/parent", "repo": map[string]string{"full_name": "alrayyes/a"}},
 		}})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, _ *http.Request) {
@@ -205,13 +206,6 @@ func restPullRequest(t *testing.T, runs []map[string]string) dashboard.PullReque
 	require.Len(t, result.PullRequests, 1)
 
 	return result.PullRequests[0]
-}
-
-// The unauthenticated REST fallback carries the head SHA too (#759).
-func TestFetch_NoToken_MapsTheHeadCommitSHA(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "cafef00d", restPullRequest(t, nil).HeadSHA)
 }
 
 func TestFetch_NoToken_CheckRunCI_CancelledRunWhileOthersRun(t *testing.T) {
@@ -266,4 +260,23 @@ func TestFetch_NoToken_CheckRunCI_CancelledRunWhileOthersRun(t *testing.T) {
 			assert.Equal(t, tc.expected, ciFromRESTCheckRuns(t, tc.runs))
 		})
 	}
+}
+
+// The unauthenticated REST fallback carries the branches too (#860), and a
+// head in another repository is a fork.
+func TestFetch_NoToken_MapsTheBranches(t *testing.T) {
+	t.Parallel()
+
+	pr := restPullRequest(t, nil)
+
+	assert.Equal(t, "feat/parent", pr.BaseBranch)
+	assert.Equal(t, "feat/child", pr.HeadBranch)
+	assert.False(t, pr.CrossRepository)
+}
+
+// The unauthenticated REST fallback carries the head SHA too (#759).
+func TestFetch_NoToken_MapsTheHeadCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "cafef00d", restPullRequest(t, nil).HeadSHA)
 }
