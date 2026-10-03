@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.118.0](https://github.com/alrayyes/forge-dashboard/compare/v0.117.0...v0.118.0) (2026-10-03)
+
+
+### Features
+
+* **api:** carry the actions each pull request allows ([#823](https://github.com/alrayyes/forge-dashboard/issues/823)) ([bab0018](https://github.com/alrayyes/forge-dashboard/commit/bab0018123d92fffefb65ae1ac233f24b0ddbfc8))
+
 ## [0.117.0](https://github.com/alrayyes/forge-dashboard/compare/v0.116.0...v0.117.0) (2026-10-03)
 
 
