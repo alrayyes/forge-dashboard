@@ -453,6 +453,17 @@ Pickup is read from the
 refreshes the page already gets, so a `rebase` requested on a pull request that
 wasn't behind has nothing to show it landed and runs to that timeout.
 
+The server keeps these requests too (#808). A successful Dependabot or Renovate
+request shows up on the pull request as `botRequest`, with the bot, the action,
+a phase (`queued`, `rebasing` or `expired`), when it was asked and `expiresAt`,
+when the server stops waiting in that phase. It moves along on each snapshot
+from a fetch that started after the request: a changed head, or a pull request
+that was behind and isn't, means the bot pushed; CI showing pending, two minutes
+after the push or the pull request leaving ends it; five minutes queued makes it
+`expired`, and an expired one goes after an hour. The record is in memory per
+account, so a server restart forgets it and a browser reload doesn't. The page
+still tracks its own copy until it reads this field.
+
 A queued Dependabot request names itself: `Rebase requested` or
 `Recreate requested`. While `Recreate requested` shows, the row hides
 `Dependabot: Rebase`, since recreating rebuilds the whole pull request.

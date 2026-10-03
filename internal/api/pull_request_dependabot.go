@@ -104,6 +104,8 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		deps.Manager.RecordBotRequest(u.ID, dashboard.Forge(req.Forge), req.FullName, req.Number, dashboard.BotDependabot, dashboard.BotAction(req.Action))
+
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

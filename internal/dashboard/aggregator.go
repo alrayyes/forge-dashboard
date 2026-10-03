@@ -39,6 +39,15 @@ type Aggregator struct {
 	settled      map[string]time.Time
 	settleWindow time.Duration
 
+	// botRequests holds the Dependabot and Renovate rebases asked for
+	// through this app (#808), keyed by settledKey. fetchSeq numbers fetches
+	// as they start, so a request knows which answers came too early to
+	// show what it did. Lock order: mu before botMu, never the other way.
+	botMu       sync.Mutex
+	botRequests map[string]*botEntry
+	fetchSeq    atomic.Uint64
+	now         func() time.Time
+
 	// firstRefreshed flips once, when the first refreshOnce finishes —
 	// every source answered or reported itself unreachable. Readiness
 	// (Manager.FirstRefreshComplete) reads it; it never flips back.
@@ -60,6 +69,11 @@ func WithSettleWindow(d time.Duration) AggregatorOption {
 	return func(a *Aggregator) { a.settleWindow = d }
 }
 
+// WithClock sets the clock bot request deadlines read, for tests.
+func WithClock(now func() time.Time) AggregatorOption {
+	return func(a *Aggregator) { a.now = now }
+}
+
 // NewAggregator returns an Aggregator whose Get answers an empty snapshot
 // until the first Refresh (or Run) completes.
 func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
@@ -71,6 +85,8 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		repoRefresh:  newKeyedCoalescer(),
 		settled:      make(map[string]time.Time),
 		settleWindow: defaultSettleWindow,
+		botRequests:  make(map[string]*botEntry),
+		now:          time.Now,
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -245,13 +261,14 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 	}
 
 	a.repoRefresh.do(string(forge)+"/"+fullName, func() {
+		seq := a.fetchSeq.Add(1)
 		prs, issues, err := refresher.FetchRepo(ctx, owner, name, fullName)
 		if err != nil {
 			slog.Warn("scoped refresh failed", "forge", forge, "repo", fullName, "error", err)
 
 			return
 		}
-		a.mergeRepo(ctx, forge, fullName, prs, issues)
+		a.mergeRepo(ctx, forge, fullName, seq, prs, issues)
 	})
 
 	return true
@@ -259,7 +276,7 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 
 // mergeRepo replaces forge/fullName's own entries in the current snapshot
 // with prs and issues, leaving every other repo's data untouched.
-func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, prs []PullRequest, issues []Issue) {
+func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue) {
 	a.mu.Lock()
 	current := a.snap
 	a.mu.Unlock()
@@ -280,6 +297,7 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 		merged.Issues = append(merged.Issues, i)
 	}
 	merged.Issues = append(merged.Issues, issues...)
+	a.applyBotRequests(merged.PullRequests, seq, func(f Forge, repo string) bool { return f == forge && repo == fullName })
 	AnnotateStacks(merged.PullRequests)
 	sortByRecency(merged.PullRequests, merged.Issues)
 
@@ -328,6 +346,7 @@ func readyToMerge(pr PullRequest) bool {
 }
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
+	seq := a.fetchSeq.Add(1)
 	results := make([]Result, len(a.sources))
 
 	var wg sync.WaitGroup
@@ -350,6 +369,11 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		snap.Repos = append(snap.Repos, r.Repos...)
 	}
 	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
+	reachable := make(map[Forge]bool, len(snap.Forges))
+	for _, h := range snap.Forges {
+		reachable[h.Forge] = h.Reachable
+	}
+	a.applyBotRequests(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
 	AnnotateStacks(snap.PullRequests)
 	sortByRecency(snap.PullRequests, snap.Issues)
 
