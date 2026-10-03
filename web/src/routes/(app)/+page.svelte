@@ -1669,12 +1669,18 @@
       const key = prKey(item);
       const entry = closeState[key] || { phase: "idle" };
 
-      if (entry.phase === "locked")
-        return markClose(
+      if (entry.phase === "locked") {
+        // Confirming closes the menu, so the lock would only show after
+        // reopening it. The trigger reads these to say so itself (#747).
+        const locked = markClose(
           lockedActionButton("Close", entry.reason ?? "", () =>
             retryLockedAction(item),
           ),
         );
+        locked.dataset.lockLabel = "Close";
+        locked.dataset.lockReason = entry.reason ?? "";
+        return locked;
+      }
 
       if (entry.phase === "idle") {
         const proactiveReason = proactiveActionLockReason(item.forge);
@@ -2685,6 +2691,31 @@
         }
       });
       wrap.appendChild(trigger);
+
+      // A lock found only inside a closed menu would go unseen, so the
+      // row carries a visible cue and the trigger the reason (#747). The
+      // cue is aria-hidden: the same words reach assistive tech through
+      // the trigger's description.
+      const locks = actions.filter((a) => a.dataset.lockLabel);
+      if (locks.length > 0 && !open) {
+        const labels = locks.map((a) => a.dataset.lockLabel).join(", ");
+        const cue = el("span", "row-actions-lock", `${labels} locked`);
+        cue.setAttribute("aria-hidden", "true");
+        wrap.appendChild(cue);
+        const why = el(
+          "span",
+          "sr-only",
+          locks
+            .map(
+              (a) =>
+                `${a.dataset.lockLabel} is locked. ${a.dataset.lockReason}`,
+            )
+            .join(" "),
+        );
+        why.id = `row-actions-lock-${domKey}`;
+        wrap.appendChild(why);
+        trigger.setAttribute("aria-describedby", why.id);
+      }
 
       if (open) {
         const popover = el("div", "row-actions-popover");
