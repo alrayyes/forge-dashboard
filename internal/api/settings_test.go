@@ -551,3 +551,19 @@ func TestSettingsPut_Rejections_NameTheField(t *testing.T) {
 		})
 	}
 }
+
+// The message for a value of the wrong type is plain words, not a Go type
+// name (#810).
+func TestSettingsPut_WrongTypeMessageIsPlainWords(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":"abc"}`, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	var body map[string]string
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, "githubAppInstallationId must be a whole number", body["error"])
+}
