@@ -99,6 +99,8 @@
     pullRequests: PullRequestItem[];
     issues: IssueItem[];
     repos?: Filters.RepoRef[];
+    // Drafts the API left out (#791). 0 when the request asked for them.
+    hiddenDrafts?: number;
   };
   type ActionPhase =
     | "idle"
@@ -1007,7 +1009,7 @@
           // call the "Refresh now" button makes — so the just-merged PR
           // drops off the board as soon as the forge itself reflects
           // the merge.
-          return fetch("/api/dashboard/refresh", {
+          return fetch(withDrafts("/api/dashboard/refresh"), {
             method: "POST",
             headers: { Accept: "application/json" },
           })
@@ -1029,7 +1031,7 @@
           // value — the same resilience doUpdateBranch's own fix
           // (#447) already applies to its own ambiguous-outcome case.
           if (err.status === undefined) {
-            fetch("/api/dashboard/refresh", {
+            fetch(withDrafts("/api/dashboard/refresh"), {
               method: "POST",
               headers: { Accept: "application/json" },
             })
@@ -1310,7 +1312,7 @@
           // use, so the row's Auto-merge pill (autoMergePill) reflects
           // the new state without waiting out the rest of the background
           // poll's own interval.
-          return fetch("/api/dashboard/refresh", {
+          return fetch(withDrafts("/api/dashboard/refresh"), {
             method: "POST",
             headers: { Accept: "application/json" },
           })
@@ -1655,7 +1657,7 @@
             toast: true,
             announce: "Closed.",
           });
-          return fetch("/api/dashboard/refresh", {
+          return fetch(withDrafts("/api/dashboard/refresh"), {
             method: "POST",
             headers: { Accept: "application/json" },
           })
@@ -1815,7 +1817,7 @@
           // it happens) sees a snapshot that no longer reports this PR
           // as behind. Until then it keeps reading "Queued…" instead
           // of flickering back to a plain re-clickable button.
-          return fetch("/api/dashboard/refresh", {
+          return fetch(withDrafts("/api/dashboard/refresh"), {
             method: "POST",
             headers: { Accept: "application/json" },
           })
@@ -2166,6 +2168,35 @@
 
     function updatesPaused(): boolean {
       return sharedState.view.paused === "1";
+    }
+
+    // ---- show drafts (#791) ----
+    // The API leaves drafts out unless asked and counts them, so this only
+    // passes the choice on and shows the count. Kept in view state beside
+    // "paused": how the list is shown, not something "Clear filters"
+    // resets.
+    function draftsOn(): boolean {
+      return sharedState.view.drafts === "1";
+    }
+
+    function withDrafts(url: string): string {
+      if (!draftsOn()) return url;
+      return `${url}${url.includes("?") ? "&" : "?"}includeDrafts=true`;
+    }
+
+    const showDraftsButton = document.getElementById(
+      "show-drafts-toggle",
+    ) as HTMLButtonElement | null;
+    const draftsHiddenCount = document.getElementById("drafts-hidden-count");
+    let hiddenDrafts = 0;
+    let syncDraftsPreference: () => void = () => {};
+
+    function syncDraftsToggle() {
+      showDraftsButton?.setAttribute("aria-pressed", String(draftsOn()));
+      if (!draftsHiddenCount) return;
+      const shown = !draftsOn() && hiddenDrafts > 0;
+      draftsHiddenCount.hidden = !shown;
+      draftsHiddenCount.textContent = shown ? `${hiddenDrafts} hidden` : "";
     }
 
     // The live region's text only changes when the count does, so a poll
@@ -2879,6 +2910,7 @@
     // waiting for it first.
     Filters.loadStateFromServer().then((got) => {
       if (got) Filters.applyServerState(sharedState, got);
+      syncDraftsPreference();
       if (sharedControlsRestored) {
         updateSharedFilterOptions();
         syncSharedControlsToState();
@@ -3420,6 +3452,12 @@
       reconcilePRs();
     });
     syncPauseControl();
+    showDraftsButton?.addEventListener("click", () => {
+      sharedState.view.drafts = draftsOn() ? "" : "1";
+      Filters.saveState(sharedState);
+      syncDraftsPreference();
+    });
+    syncDraftsToggle();
     // Focus leaving a row (or a dialog closing) lifts the hold. Deferred a
     // tick so document.activeElement has settled on the new target.
     document.getElementById("pr-rows")?.addEventListener("focusout", () => {
@@ -4072,7 +4110,7 @@
     // answering from a cache.
     function refreshDashboardNow(): Promise<void> {
       const seq = ++requestSeq;
-      return fetch("/api/dashboard/refresh", {
+      return fetch(withDrafts("/api/dashboard/refresh"), {
         method: "POST",
         headers: { Accept: "application/json" },
       })
@@ -4177,6 +4215,8 @@
       clearStaleLocks(closeState);
       clearStaleLocks(updateBranchState);
       const prs = data.pullRequests || [];
+      hiddenDrafts = data.hiddenDrafts ?? 0;
+      syncDraftsToggle();
       feedback.dropFailedExcept(new Set(prs.map((p) => prKey(p))));
       // Only a snapshot that shows the rebase landed ends a queued bot
       // action — not just any snapshot (#706). Cleared before
@@ -4239,9 +4279,10 @@
     // Reused by refresh() below and by the WebMCP tool further down --
     // one fetch layer for /api/dashboard, not two.
     function fetchDashboardData(): Promise<DashboardSnapshot> {
-      const url =
+      const url = withDrafts(
         "/api/dashboard" +
-        (currentOwner ? `?owner=${encodeURIComponent(currentOwner)}` : "");
+          (currentOwner ? `?owner=${encodeURIComponent(currentOwner)}` : ""),
+      );
 
       return fetch(url, { headers: { Accept: "application/json" } }).then(
         (res) => {
@@ -4306,8 +4347,15 @@
     // for it. A browser or proxy that can't hold this connection open
     // just never benefits from it: EventSource retries on its own, and
     // if it never connects at all the poll still keeps the data fresh.
-    if (window.EventSource) {
-      const eventSource = new EventSource("/api/dashboard/stream");
+    // The stream reads includeDrafts once, when it opens, so a changed
+    // choice reopens it (#791).
+    let eventSource: EventSource | null = null;
+    let streamDrafts = false;
+    function openStream() {
+      if (!window.EventSource) return;
+      eventSource?.close();
+      streamDrafts = draftsOn();
+      eventSource = new EventSource(withDrafts("/api/dashboard/stream"));
       eventSource.onmessage = (event) => {
         // Only when looking at your own dashboard — a push here is
         // always this session's own aggregator, never the owner
@@ -4320,6 +4368,16 @@
         }
       };
     }
+    openStream();
+
+    // A saved choice that arrives after the first fetch (the server's copy
+    // beating a stale cookie) needs the data and the stream redone.
+    syncDraftsPreference = () => {
+      syncDraftsToggle();
+      if (draftsOn() === streamDrafts) return;
+      openStream();
+      refresh(true);
+    };
 
     return () => document.removeEventListener("keydown", onSlashShortcut);
   }
@@ -4486,6 +4544,14 @@
         aria-pressed="false">Needs Review</button
       >
     </div>
+    <button
+      type="button"
+      class="drafts-toggle"
+      id="show-drafts-toggle"
+      aria-pressed="false"
+      >Show drafts<span class="drafts-hidden" id="drafts-hidden-count" hidden
+      ></span></button
+    >
     <select
       class="group-select"
       id="pr-sort-select"

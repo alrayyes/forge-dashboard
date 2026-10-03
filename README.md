@@ -505,6 +505,11 @@ update until you turn it back on (Refresh now still works). The **Sort**
 control offers Last activity (the default, the server's order), Created and
 Repository. Pause and sort are saved with your other filters.
 
+Draft pull requests are left out by default. The **Show drafts** toggle in the
+filter bar, off to start with, brings them back, marked "Draft", and its muted
+"N hidden" count says how many are left out. The choice is saved like the other
+filters and goes with every dashboard request, refresh and the live stream.
+
 ## Webhooks
 
 Optional. Without one, the dashboard still refreshes on its own schedule
