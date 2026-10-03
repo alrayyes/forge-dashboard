@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.125.0](https://github.com/alrayyes/forge-dashboard/compare/v0.124.1...v0.125.0) (2026-10-03)
+
+
+### Features
+
+* **api:** report which pull requests are stacked, and block Merge on a stacked child ([#870](https://github.com/alrayyes/forge-dashboard/issues/870)) ([4eb7e26](https://github.com/alrayyes/forge-dashboard/commit/4eb7e26c507660a6cbd07146614b515688423d03))
+
 ## [0.124.1](https://github.com/alrayyes/forge-dashboard/compare/v0.124.0...v0.124.1) (2026-10-03)
 
 
