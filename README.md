@@ -352,6 +352,9 @@ a second Escape closes the menu, and closing the menu any other way drops it
 too. If the forge refuses a confirmed Close, the row shows "Close locked" next
 to the closed menu and the reason becomes the menu button's description, so you
 don't have to reopen the menu to find out.
+A permission refusal is re-read too: if the pull request turns out to be
+merged or closed, that is what the row says, not "check your token". Only a
+rate limit skips the re-read, since it would be limited as well.
 
 Every other action (Close, Update branch, Enable auto-merge, Dependabot and
 Renovate `rebase`) answers a refusal the same way as Merge. A pull request found
