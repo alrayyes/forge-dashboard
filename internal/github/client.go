@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -2501,11 +2502,13 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 		checks := make([]dashboard.Check, 0, len(runs.CheckRuns))
 		for _, r := range runs.CheckRuns {
 			checks = append(checks, dashboard.Check{
-				Name:  r.GetName(),
-				State: checkStateFromRun(r),
-				URL:   r.GetHTMLURL(),
+				Name:            r.GetName(),
+				State:           checkStateFromRun(r),
+				URL:             r.GetHTMLURL(),
+				DurationSeconds: runDurationSeconds(r),
 			})
 		}
+		c.addFailureDetail(ctx, owner, name, runs.CheckRuns, checks)
 
 		return checks, nil
 	}
@@ -2683,4 +2686,163 @@ func restRequestedReviewerLogins(users []*ghsdk.User) []string {
 	}
 
 	return logins
+}
+
+// maxFailureDetails caps how many failed jobs get a step and a log excerpt,
+// each costing three requests, so a run with dozens of failures can't turn
+// opening the inspector into a request storm.
+const maxFailureDetails = 5
+
+// logTailBytes is how much of the end of a job log is fetched: the failure is
+// at the end, and a full log can be megabytes.
+const logTailBytes = 16 * 1024
+
+// maxLogBody bounds what is read when the log host ignores the range request
+// and answers with the whole log.
+const maxLogBody = 16 * 1024 * 1024
+
+// excerptLines and excerptBytes cap the excerpt shown in the inspector.
+const (
+	excerptLines = 20
+	excerptBytes = 2000
+)
+
+var (
+	ansiEscape      = regexp.MustCompile("\x1b\\[[0-9;?]*[A-Za-z]")
+	logLineStamp    = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z ?`)
+	logFetchTimeout = 15 * time.Second
+)
+
+// runDurationSeconds is how long a completed check run ran, nil otherwise.
+func runDurationSeconds(r *ghsdk.CheckRun) *int {
+	if r.GetStatus() != "completed" || r.StartedAt == nil || r.CompletedAt == nil {
+		return nil
+	}
+	secs := int(r.CompletedAt.Sub(r.StartedAt.Time).Seconds())
+	if secs < 0 {
+		return nil
+	}
+
+	return &secs
+}
+
+// addFailureDetail fills FailedStep and Excerpt on the failed GitHub Actions
+// jobs among runs (#697). It is best effort: a check run that isn't an
+// Actions job, a job or log the token can't read, or expired logs leave the
+// check as it was, with the link to the run.
+func (c *Client) addFailureDetail(ctx context.Context, owner, name string, runs []*ghsdk.CheckRun, checks []dashboard.Check) {
+	detailed := 0
+	for i, r := range runs {
+		if checks[i].State != dashboard.CheckFailure && checks[i].State != dashboard.CheckTimedOut {
+			continue
+		}
+		if detailed == maxFailureDetails {
+			return
+		}
+		detailed++
+		step, isJob := c.failedStep(ctx, owner, name, r.GetID())
+		if !isJob {
+			// Not an Actions job the token can read, so it has no log to
+			// read either.
+			continue
+		}
+		checks[i].FailedStep = step
+		checks[i].Excerpt = c.logExcerpt(ctx, owner, name, r.GetID())
+	}
+}
+
+// failedStep names the first step of Actions job id that failed, or "". The
+// bool says whether id is an Actions job the token can read at all.
+func (c *Client) failedStep(ctx context.Context, owner, name string, id int64) (string, bool) {
+	path := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d", owner, name, id)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	job, resp, err := c.restClient.Actions.GetWorkflowJobByID(ctx, owner, name, id)
+	if err != nil {
+		slog.Debug("github job unavailable", "path", path, "err", err)
+
+		return "", false
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+	for _, step := range job.Steps {
+		switch step.GetConclusion() {
+		case "failure", "timed_out":
+			return step.GetName(), true
+		}
+	}
+
+	return "", true
+}
+
+// logExcerpt returns the tail of Actions job id's log as plain text, or "".
+// GitHub answers the logs request with a redirect to a short-lived blob URL;
+// that blob is fetched without the token, asking only for its last bytes.
+func (c *Client) logExcerpt(ctx context.Context, owner, name string, id int64) string {
+	path := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/logs", owner, name, id)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	loc, resp, err := c.restClient.Actions.GetWorkflowJobLogs(ctx, owner, name, id, 1)
+	if err != nil {
+		slog.Debug("github job log unavailable", "path", path, "err", err)
+
+		return ""
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+
+	fetchCtx, cancel := context.WithTimeout(ctx, logFetchTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, c.restClient.BaseURL.ResolveReference(loc).String(), nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Range", fmt.Sprintf("bytes=-%d", logTailBytes))
+	blob, err := (&http.Client{Timeout: logFetchTimeout}).Do(req)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = blob.Body.Close() }()
+	if blob.StatusCode != http.StatusOK && blob.StatusCode != http.StatusPartialContent {
+		return ""
+	}
+	body, err := io.ReadAll(io.LimitReader(blob.Body, maxLogBody))
+	if err != nil {
+		return ""
+	}
+	partial := blob.StatusCode == http.StatusPartialContent
+	if len(body) > logTailBytes {
+		body, partial = body[len(body)-logTailBytes:], true
+	}
+
+	return excerptFromLog(string(body), partial)
+}
+
+// excerptFromLog turns the tail of a job log into the excerpt shown to a
+// person: per-line timestamps and colour codes removed, blank lines dropped,
+// the last few lines, capped in length. It stays plain text; nothing here
+// interprets it as markup. partial says the text starts mid-line, so its
+// first line is dropped.
+func excerptFromLog(tail string, partial bool) string {
+	tail = strings.ToValidUTF8(tail, "")
+	lines := strings.Split(tail, "\n")
+	if partial && len(lines) > 1 {
+		lines = lines[1:]
+	}
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = ansiEscape.ReplaceAllString(line, "")
+		line = logLineStamp.ReplaceAllString(line, "")
+		if line = strings.TrimRight(line, " \t\r"); line != "" {
+			kept = append(kept, line)
+		}
+	}
+	if len(kept) > excerptLines {
+		kept = kept[len(kept)-excerptLines:]
+	}
+	for len(kept) > 1 && len(strings.Join(kept, "\n")) > excerptBytes {
+		kept = kept[1:]
+	}
+	out := strings.Join(kept, "\n")
+	if len(out) > excerptBytes {
+		out = strings.ToValidUTF8(out[len(out)-excerptBytes:], "")
+	}
+
+	return out
 }

@@ -87,6 +87,15 @@ type Check struct {
 	// can't read protection, or a check whose protection name can't be
 	// mapped, must not read as advisory.
 	Required *bool `json:"required,omitempty"`
+	// DurationSeconds is how long a completed check ran (#697), nil when
+	// the forge didn't say or it hasn't finished.
+	DurationSeconds *int `json:"durationSeconds,omitempty"`
+	// FailedStep names the step of a failed job that broke, and Excerpt is
+	// the tail of its log as plain text, capped in length (#697). Both are
+	// empty when the forge can't provide them (permission, expired logs, a
+	// check that is not a job); nothing is invented.
+	FailedStep string `json:"failedStep,omitempty"`
+	Excerpt    string `json:"excerpt,omitempty"`
 }
 
 // ReviewDecision is where a pull request stands on code review. Matches

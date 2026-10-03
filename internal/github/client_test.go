@@ -2,10 +2,13 @@ package github_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -3056,4 +3059,156 @@ func TestFetch_MapsTheRequestedReviewerLogins(t *testing.T) {
 	require.Len(t, result.PullRequests, 1)
 	assert.Equal(t, []string{"bob", "amy"}, result.PullRequests[0].RequestedReviewerLogins)
 	assert.Contains(t, seenQuery, "requestedReviewer")
+}
+
+// failedCheckServer plays GitHub for one pull request with one failed
+// Actions job (#697): the check run, the job with its steps, and the job's
+// log behind a redirect to a blob that serves byte ranges, as the real one
+// does. calls counts hits per path.
+type failedCheckServer struct {
+	jobStatus int
+	log       string
+	calls     map[string]int
+	mu        sync.Mutex
+}
+
+func (f *failedCheckServer) handler(t *testing.T) *http.ServeMux {
+	t.Helper()
+
+	count := func(path string) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.calls[path]++
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"id": 76, "name": "lint", "status": "completed", "conclusion": "success", "html_url": "https://github.com/alrayyes/a/runs/76", "started_at": "2026-10-03T10:00:00Z", "completed_at": "2026-10-03T10:00:20Z"},
+			{"id": 77, "name": "test", "status": "completed", "conclusion": "failure", "html_url": "https://github.com/alrayyes/a/runs/77", "started_at": "2026-10-03T10:00:00Z", "completed_at": "2026-10-03T10:01:30Z"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/jobs/77", func(w http.ResponseWriter, _ *http.Request) {
+		count("job")
+		if f.jobStatus != 0 {
+			w.WriteHeader(f.jobStatus)
+			writeJSON(t, w, map[string]any{"message": "Not Found"})
+
+			return
+		}
+		writeJSON(t, w, map[string]any{"id": 77, "steps": []map[string]any{
+			{"number": 1, "name": "Set up job", "conclusion": "success"},
+			{"number": 2, "name": "run tests", "conclusion": "failure"},
+			{"number": 3, "name": "Post checkout", "conclusion": "skipped"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/jobs/77/logs", func(w http.ResponseWriter, r *http.Request) {
+		count("logs")
+		http.Redirect(w, r, "/blob/job-77.log", http.StatusFound)
+	})
+	mux.HandleFunc("/blob/job-77.log", func(w http.ResponseWriter, r *http.Request) {
+		count("blob")
+		body := f.log
+		var n int
+		if _, err := fmt.Sscanf(r.Header.Get("Range"), "bytes=-%d", &n); err == nil && n < len(body) {
+			w.WriteHeader(http.StatusPartialContent)
+			body = body[len(body)-n:]
+		}
+		_, _ = io.WriteString(w, body)
+	})
+
+	return mux
+}
+
+func checkNamed(t *testing.T, checks []dashboard.Check, name string) dashboard.Check {
+	t.Helper()
+	for _, c := range checks {
+		if c.Name == name {
+			return c
+		}
+	}
+	t.Fatalf("no check named %q", name)
+
+	return dashboard.Check{}
+}
+
+func TestListChecks_FailureDetail(t *testing.T) {
+	t.Parallel()
+
+	var log strings.Builder
+	for i := range 400 {
+		fmt.Fprintf(&log, "2026-10-03T10:01:%02d.123456789Z noise line %d\n", i%60, i)
+	}
+	log.WriteString("2026-10-03T10:01:29.000000000Z \x1b[31mFAIL\x1b[0m TestSomething (0.01s)\n")
+	log.WriteString("2026-10-03T10:01:29.100000000Z     expected: 2\n")
+	log.WriteString("2026-10-03T10:01:29.200000000Z     actual  : 3 <b>not html</b>\n")
+	log.WriteString("2026-10-03T10:01:29.300000000Z ##[error]Process completed with exit code 1.\n")
+
+	setup := func(t *testing.T, f *failedCheckServer) []dashboard.Check {
+		t.Helper()
+		f.calls = map[string]int{}
+		srv := httptest.NewServer(f.handler(t))
+		t.Cleanup(srv.Close)
+
+		checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
+		require.NoError(t, err)
+
+		return checks
+	}
+
+	t.Run("a completed check reports how long it ran", func(t *testing.T) {
+		t.Parallel()
+		checks := setup(t, &failedCheckServer{log: log.String()})
+
+		assert.Equal(t, new(20), checkNamed(t, checks, "lint").DurationSeconds)
+		assert.Equal(t, new(90), checkNamed(t, checks, "test").DurationSeconds)
+	})
+
+	t.Run("a failed check names the step that failed", func(t *testing.T) {
+		t.Parallel()
+		checks := setup(t, &failedCheckServer{log: log.String()})
+
+		assert.Equal(t, "run tests", checkNamed(t, checks, "test").FailedStep)
+	})
+
+	t.Run("the excerpt is the tail of the log as plain text", func(t *testing.T) {
+		t.Parallel()
+		checks := setup(t, &failedCheckServer{log: log.String()})
+
+		excerpt := checkNamed(t, checks, "test").Excerpt
+
+		assert.Contains(t, excerpt, "FAIL TestSomething (0.01s)", "ANSI colour codes are stripped")
+		assert.Contains(t, excerpt, "##[error]Process completed with exit code 1.")
+		assert.Contains(t, excerpt, "actual  : 3 <b>not html</b>", "kept as text, never interpreted")
+		assert.NotContains(t, excerpt, "2026-10-03T", "the per-line timestamps are stripped")
+		assert.NotContains(t, excerpt, "\x1b")
+		assert.NotContains(t, excerpt, "noise line 0\n", "only the end of the log")
+		assert.LessOrEqual(t, len(excerpt), 2000)
+	})
+
+	t.Run("a passing check costs no extra calls and has no detail", func(t *testing.T) {
+		t.Parallel()
+		f := &failedCheckServer{log: log.String()}
+		checks := setup(t, f)
+
+		lint := checkNamed(t, checks, "lint")
+
+		assert.Empty(t, lint.FailedStep)
+		assert.Empty(t, lint.Excerpt)
+		assert.Equal(t, 1, f.calls["job"], "only the failed check's job is read")
+	})
+
+	t.Run("a job GitHub won't show leaves the check as it was, nothing invented", func(t *testing.T) {
+		t.Parallel()
+		checks := setup(t, &failedCheckServer{log: log.String(), jobStatus: http.StatusNotFound})
+
+		failed := checkNamed(t, checks, "test")
+
+		assert.Empty(t, failed.FailedStep)
+		assert.Empty(t, failed.Excerpt)
+		assert.Equal(t, "https://github.com/alrayyes/a/runs/77", failed.URL, "the link to the run remains")
+		assert.Equal(t, dashboard.CheckFailure, failed.State)
+	})
 }
