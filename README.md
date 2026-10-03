@@ -6,7 +6,7 @@
 [![coverage](https://codecov.io/gh/alrayyes/forge-dashboard/branch/main/graph/badge.svg)](https://codecov.io/gh/alrayyes/forge-dashboard)
 [![Go Reference](https://pkg.go.dev/badge/github.com/alrayyes/forge-dashboard.svg)](https://pkg.go.dev/github.com/alrayyes/forge-dashboard)
 
-A single-page dashboard of open pull requests, issues, and CI status across
+A dashboard of open pull requests, issues, and CI status across
 every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. See
 [#1](https://github.com/alrayyes/forge-dashboard/issues/1) for the v1
@@ -489,6 +489,22 @@ rather than being guessed advisory. A Forgejo Actions job is only marked
 required when a pattern matches its job name or its workflow-file
 context; it is never marked advisory. If nothing is known for any check,
 the panel stays the flat list.
+
+## Issues
+
+Open issues have their own page, `/issues.html`, reached from the **Issues**
+item in the navigation. The item carries a count badge, the number of open
+issues without Renovate's Dependency Dashboard, which the page hides by
+default. The badge is set from each snapshot on the dashboard and issues
+pages, and loaded once on the other signed-in pages. The pull request page no
+longer lists issues.
+
+The issues page filters like the pull request page: forge, repo, title,
+author, label, created and updated, plus Group by. Those filters are shared
+and saved with your other filters, so a filter set on one page is still set on
+the other. The pull-request-only controls (CI status, the quick filters for
+failing, bot, ready and needs-review pull requests, sort, Show drafts) are not
+on the issues page.
 
 ## Live updates
 

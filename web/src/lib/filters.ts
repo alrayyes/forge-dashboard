@@ -154,6 +154,13 @@ export function repoSyncStatus(
 }
 
 export const DEPENDENCY_DASHBOARD_TITLE = 'Dependency Dashboard';
+
+// Open issues the way the issues page shows them by default: Renovate's
+// Dependency Dashboard housekeeping issue is left out (#827).
+export function countOpenIssues(items: { title: string }[]): number {
+  return items.filter((i) => i.title.trim() !== DEPENDENCY_DASHBOARD_TITLE)
+    .length;
+}
 const FILTERS_COOKIE = 'forge-board-filters';
 
 function getCookie(name: string): string | null {
@@ -217,10 +224,14 @@ const TITLE_SAVE_DEBOUNCE_MS = 500;
 let titleSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function putFilterStateToServer(state: SharedFilterState): void {
+  // keepalive lets the request outlive the page: the dashboard and issues
+  // pages share this state, and a click on the other page's nav item right
+  // after a change would otherwise cancel the save (#827).
   fetch(FILTER_STATE_ENDPOINT, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(state),
+    keepalive: true,
   }).catch(() => {
     // Best-effort, the same restraint RecordWebhookDelivery's own
     // server-side "a failure to persist this doesn't fail the request
