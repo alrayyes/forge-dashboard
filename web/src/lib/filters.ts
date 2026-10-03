@@ -25,6 +25,10 @@ export interface FilterableItem {
   mergeStatus?: string;
   labels?: { name: string }[];
   review?: { decision: string; requestedReviewers: number };
+  // The server's own answers for the Ready and Needs Review quick filters
+  // (#807): the page holds no copy of what they mean.
+  readyToMerge?: boolean;
+  needsReview?: boolean;
 }
 
 // release-please labels every PR it manages with "autorelease: pending"
@@ -70,20 +74,9 @@ export function matchesQuickFilter(
     case 'bots':
       return isBotManagedPr(item);
     case 'ready':
-      return (
-        item.mergeStatus === 'mergeable' && item.ci === 'success' && !item.draft
-      );
+      return item.readyToMerge === true;
     case 'needs-review':
-      // A review is outstanding: the forge requires one, or someone was
-      // asked. "none" with nobody asked is merely unreviewed, approved and
-      // changes_requested aren't waiting on a reviewer, and an unknown
-      // state (no review object) isn't the same as nobody having reviewed.
-      return (
-        !item.draft &&
-        (item.review?.decision === 'review_required' ||
-          (item.review?.decision === 'none' &&
-            item.review.requestedReviewers > 0))
-      );
+      return item.needsReview === true;
     default:
       return true;
   }
