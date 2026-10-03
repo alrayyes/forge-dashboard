@@ -373,13 +373,18 @@ API rate limit reached. Actions resume at 14:32 (in 12 min)."). That line shows
 once under each repo group heading and as each disabled button's accessible
 description. The actions re-enable by themselves at the reset time, with a
 polite "Rate limit reset, actions available again" toast. A missing token
-permission locks the action with no Retry either, and the reason points to
-Settings. Read-only actions such as View pipeline stay enabled, and the header
-shows each forge's remaining budget and reset time as text. Which locks offer
-Retry follows the refusal's `code` (`rate_limited` and `permission` don't), not
-the words in its message. The banner at the top of the page follows each
-budget's `severity` (`ok`, `low` or `exceeded`), which the server grades, so the
-page holds no threshold of its own.
+permission locks that action on that pull request, with no Retry either, and the
+reason points to Settings. Other pull requests and other actions stay usable,
+since a fine-grained token can lack one permission and have the rest. The lock
+lasts as long as the failure line that explains it: dismiss the line and the
+action is free again, with no reload. A failure line stays on its row however
+many refreshes arrive, and goes when you dismiss it, act on the row again, or
+the row leaves the board. Read-only actions such as View pipeline stay enabled,
+and the header shows each forge's remaining budget and reset time as text. Which
+locks offer Retry follows the refusal's `code` (`rate_limited` and `permission`
+don't), not the words in its message. The banner at the top of the page follows
+each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
+so the page holds no threshold of its own.
 
 A GitHub pull request that isn't already auto-merging gets an "Enable
 auto-merge" action in the row's "More actions" menu, arming the forge's
