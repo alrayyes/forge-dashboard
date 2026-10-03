@@ -42,6 +42,9 @@ type dashboardResponse struct {
 	PullRequests []dashboard.PullRequest `json:"pullRequests"`
 	Issues       []dashboard.Issue       `json:"issues"`
 	Repos        []repoStatus            `json:"repos"`
+	// HiddenDrafts is how many draft pull requests PullRequests leaves out
+	// (#791). Always serialized, and zero when the request included drafts.
+	HiddenDrafts int `json:"hiddenDrafts"`
 }
 
 // buildDashboardResponse merges snap's tracked-repo list with userID's
@@ -60,7 +63,12 @@ type dashboardResponse struct {
 // — only from PullRequests/Issues — so it still appears on the Webhooks
 // page with accurate coverage status and can still be un-ignored; see
 // the issue's own "reversible, not destructive" design decision.
-func buildDashboardResponse(ctx context.Context, store *settings.Store, userID []byte, snap dashboard.Snapshot) dashboardResponse {
+//
+// Draft pull requests (#791) are left out unless includeDrafts, since nothing
+// can be merged or updated on one, and are counted in HiddenDrafts instead.
+// Ignored repos filter first, so HiddenDrafts counts only drafts in repos
+// whose other pull requests would show.
+func buildDashboardResponse(ctx context.Context, store *settings.Store, userID []byte, snap dashboard.Snapshot, includeDrafts bool) dashboardResponse {
 	deliveries, err := store.WebhookDeliveries(ctx, userID)
 	if err != nil {
 		slog.Warn("could not load webhook deliveries for dashboard response", "error", err)
@@ -99,10 +107,17 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 	}
 
 	pullRequests := make([]dashboard.PullRequest, 0, len(snap.PullRequests))
+	hiddenDrafts := 0
 	for _, pr := range snap.PullRequests {
-		if !ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)].PRs {
-			pullRequests = append(pullRequests, pr)
+		if ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)].PRs {
+			continue
 		}
+		if pr.Draft && !includeDrafts {
+			hiddenDrafts++
+
+			continue
+		}
+		pullRequests = append(pullRequests, pr)
 	}
 	issues := make([]dashboard.Issue, 0, len(snap.Issues))
 	for _, issue := range snap.Issues {
@@ -117,7 +132,14 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 		PullRequests: pullRequests,
 		Issues:       issues,
 		Repos:        repos,
+		HiddenDrafts: hiddenDrafts,
 	}
+}
+
+// wantsDrafts reads includeDrafts from the query. Only "true" opts in, so a
+// missing or malformed value gets the default: drafts left out (#791).
+func wantsDrafts(r *http.Request) bool {
+	return r.URL.Query().Get("includeDrafts") == "true"
 }
 
 // errDashboardOwnerNotFound and errDashboardNotShared are
@@ -139,11 +161,11 @@ var (
 // forge: Manager.Get reads whatever that user's background refresh last
 // assembled — empty, not an error, for a user who hasn't saved any
 // credentials in Settings yet.
-func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, ownerUsername string) (dashboardResponse, error) {
+func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, ownerUsername string, includeDrafts bool) (dashboardResponse, error) {
 	if ownerUsername == "" || ownerUsername == requester.Username {
 		warmUpAggregator(ctx, deps, requester.ID, requester.Username)
 
-		return buildDashboardResponse(ctx, deps.SettingsStore, requester.ID, deps.Manager.Get(requester.ID)), nil
+		return buildDashboardResponse(ctx, deps.SettingsStore, requester.ID, deps.Manager.Get(requester.ID), includeDrafts), nil
 	}
 
 	owner, err := deps.AuthStore.GetUserByUsername(ctx, ownerUsername)
@@ -165,7 +187,7 @@ func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, o
 
 	warmUpAggregator(ctx, deps, owner.ID, owner.Username)
 
-	return buildDashboardResponse(ctx, deps.SettingsStore, owner.ID, deps.Manager.Get(owner.ID)), nil
+	return buildDashboardResponse(ctx, deps.SettingsStore, owner.ID, deps.Manager.Get(owner.ID), includeDrafts), nil
 }
 
 // handleDashboard answers the requested dashboard: the signed-in user's
@@ -183,7 +205,7 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		resp, err := resolveDashboardFor(r.Context(), deps, u, r.URL.Query().Get("owner"))
+		resp, err := resolveDashboardFor(r.Context(), deps, u, r.URL.Query().Get("owner"), wantsDrafts(r))
 		if err != nil {
 			switch {
 			case errors.Is(err, errDashboardOwnerNotFound):
@@ -283,7 +305,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, deps.Manager.Get(u.ID)))
+		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, deps.Manager.Get(u.ID), wantsDrafts(r)))
 	}
 }
 
@@ -328,6 +350,10 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		}
 		defer unsubscribe()
 
+		// Read once: every event on this connection follows the choice it
+		// opened with, and a client that changes its mind reconnects.
+		includeDrafts := wantsDrafts(r)
+
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
@@ -342,7 +368,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 				if !open {
 					return
 				}
-				data, err := json.Marshal(buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, snap))
+				data, err := json.Marshal(buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, snap, includeDrafts))
 				if err != nil {
 					return
 				}

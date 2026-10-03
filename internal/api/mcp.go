@@ -47,7 +47,7 @@ func newMCPHandler(deps Deps) http.Handler {
 				return nil, dashboardResponse{}, errors.New("no authenticated user in context")
 			}
 
-			resp, err := resolveDashboardFor(ctx, deps, u, input.Owner)
+			resp, err := resolveDashboardFor(ctx, deps, u, input.Owner, false)
 			if err != nil {
 				return nil, dashboardResponse{}, err
 			}
