@@ -1024,8 +1024,11 @@ type graphqlPullRequest struct {
 	// HeadRefOid feeds resolveAmbiguousBehind's own compare(headRef:)
 	// call — see its doc comment and #495 for why mergeStateStatus alone
 	// isn't a reliable behind/not-behind signal.
-	HeadRefOid       string                   `json:"headRefOid"`
-	AutoMergeRequest *graphqlAutoMergeRequest `json:"autoMergeRequest"`
+	HeadRefOid        string                   `json:"headRefOid"`
+	BaseRefName       string                   `json:"baseRefName"`
+	HeadRefName       string                   `json:"headRefName"`
+	IsCrossRepository bool                     `json:"isCrossRepository"`
+	AutoMergeRequest  *graphqlAutoMergeRequest `json:"autoMergeRequest"`
 	// ViewerCanEnableAutoMerge is GitHub's own per-viewer answer to
 	// whether enablePullRequestAutoMerge would be accepted (#738). A
 	// pointer so a response without the field maps to unknown, not false.
@@ -1184,6 +1187,9 @@ query($cursor: String, $since: DateTime) {
             }
             mergeStateStatus
             headRefOid
+            baseRefName
+            headRefName
+            isCrossRepository
             additions
             deletions
             changedFiles
@@ -1278,6 +1284,9 @@ const appRepoFieldsTemplate = `
         }
         mergeStateStatus
         headRefOid
+        baseRefName
+        headRefName
+        isCrossRepository
         additions
         deletions
         changedFiles
@@ -1828,6 +1837,9 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		CI:               ciFromRollup(p.Commits.Nodes),
 		MergeStatus:      mergeStatusFromGraphQL(p.MergeStateStatus),
 		Behind:           p.MergeStateStatus == "BEHIND",
+		BaseBranch:       p.BaseRefName,
+		HeadBranch:       p.HeadRefName,
+		CrossRepository:  p.IsCrossRepository,
 		Empty:            p.Additions == 0 && p.Deletions == 0 && p.ChangedFiles == 0,
 		AutoMergeEnabled: new(p.AutoMergeRequest != nil),
 		AutoMergeAllowed: p.ViewerCanEnableAutoMerge,
@@ -1994,6 +2006,9 @@ query($owner: String!, $name: String!) {
         }
         mergeStateStatus
         headRefOid
+        baseRefName
+        headRefName
+        isCrossRepository
         additions
         deletions
         changedFiles
@@ -2323,6 +2338,9 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				CreatedAt:               p.GetCreatedAt().Time,
 				UpdatedAt:               p.GetUpdatedAt().Time,
 				CI:                      ci,
+				BaseBranch:              p.GetBase().GetRef(),
+				HeadBranch:              p.GetHead().GetRef(),
+				CrossRepository:         p.GetHead().GetRepo().GetFullName() != p.GetBase().GetRepo().GetFullName(),
 				RequestedReviewerLogins: restRequestedReviewerLogins(p.RequestedReviewers),
 				// Mergeable/MergeableState aren't populated by this List
 				// call at all (go-github's own doc comment on

@@ -2970,6 +2970,12 @@ components:
           ci,
           mergeStatus,
           behind,
+          baseBranch,
+          headBranch,
+          crossRepository,
+          stack,
+          stackedOn,
+          stackChildren,
           requestedReviewerLogins,
           reviewRequestedFromMe,
           empty,
@@ -3020,6 +3026,49 @@ components:
             get recomputed just because the base moved), so folding this
             into mergeStatus would force picking one and losing the
             other.
+        baseBranch:
+          type: string
+          description: |
+            The branch the pull request targets. Empty when the forge didn't
+            say.
+        headBranch:
+          type: string
+          description: |
+            The branch the pull request comes from. Empty when the forge
+            didn't say.
+        crossRepository:
+          type: boolean
+          description: |
+            True when the head branch lives in another repository (a fork).
+            A fork pull request is never part of a stack.
+        stack:
+          description: |
+            Where this pull request sits in a stack of pull requests, or
+            null when it is in none. A stack is worked out on the server:
+            pull request B is stacked on A when B's base branch is A's head
+            branch, in the same repository on the same forge, and neither is
+            a fork. A branch with several open pull requests takes the one
+            with the lowest number as parent, and a loop of branches is
+            treated as no stack. The snapshot holds open pull requests
+            only, so a base branch that no open pull request owns (a parent
+            that already merged and was not retargeted) is not flagged.
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/StackPosition"
+        stackedOn:
+          description: |
+            The open pull request this one is stacked on, or null when its
+            base is not another open pull request's head.
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/StackRef"
+        stackChildren:
+          type: array
+          items:
+            type: integer
+          description: |
+            The numbers of the open pull requests stacked directly on this
+            one. Always a list, empty when none.
         requestedReviewerLogins:
           type: array
           items:
@@ -3098,6 +3147,32 @@ components:
             requested and an unknown review state are all false. Always
             present.
 
+    StackPosition:
+      type: object
+      required: [position, size]
+      properties:
+        position:
+          type: integer
+          minimum: 1
+          description: |
+            1 for the pull request at the bottom of the stack (the one
+            targeting a branch no open pull request owns), 2 for one
+            stacked directly on it, and so on.
+        size:
+          type: integer
+          minimum: 2
+          description: How many open pull requests the stack holds.
+
+    StackRef:
+      type: object
+      required: [number, url]
+      properties:
+        number:
+          type: integer
+        url:
+          type: string
+          format: uri
+
     AllowedAction:
       type: object
       required: [action]
@@ -3130,6 +3205,7 @@ components:
                 - checks_failing
                 - behind
                 - blocked_by_protection
+                - stacked
             message:
               type: string
               description: Plain words, safe to show a person.
