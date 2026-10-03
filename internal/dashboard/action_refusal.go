@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // ActionCode is why a pull request action was refused, from a fixed set
@@ -128,7 +130,7 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 	case PullRequestActionUpdateBranch:
 		return classifyUpdateBranchRefusal(actionErr, forgeText, state)
 	case PullRequestActionAutoMerge:
-		return classifyAutoMergeRefusal(forgeText)
+		return classifyAutoMergeRefusal(actionErr, forgeText)
 	case PullRequestActionRenovateRebase:
 		if clientErr, ok := errors.AsType[*ClientError](actionErr); ok && clientErr.Kind == ForgeErrorNotFound && state != nil {
 			// The pull request itself was just re-read, so what's missing is
@@ -138,7 +140,57 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 	case PullRequestActionClose, PullRequestActionDependabot:
 	}
 
-	return ActionRefusal{Code: ActionUnknown, Message: forgeText}
+	return unknownRefusal(actionErr, forgeText)
+}
+
+const (
+	noReasonMessage     = "The forge refused this action and gave no reason."
+	unreachableMessage  = "The forge didn't answer. Try again in a moment."
+	maxPlainMessageSize = 200
+)
+
+// unknownRefusal is the answer when no code fits. Its message is shown to a
+// person (#796), so it is the forge's own sentence when that reads as one,
+// and a fixed plain sentence otherwise: never an internal prefix, an API
+// path, a URL or JSON. The raw text stays in the error, for the server log.
+func unknownRefusal(actionErr error, forgeText string) ActionRefusal {
+	if clientErr, ok := errors.AsType[*ClientError](actionErr); ok {
+		if clientErr.Kind == ForgeErrorUnreachable {
+			return ActionRefusal{Code: ActionUnknown, Message: unreachableMessage}
+		}
+		if isPlainSentence(forgeText) {
+			return ActionRefusal{Code: ActionUnknown, Message: forgeText}
+		}
+	}
+
+	return ActionRefusal{Code: ActionUnknown, Message: noReasonMessage}
+}
+
+// isPlainSentence reports whether text reads as words for a person: not
+// empty, short, opening with a letter, and free of the marks that give away an API path, a URL or
+// a JSON body.
+func isPlainSentence(text string) bool {
+	text = strings.TrimSpace(text)
+	if text == "" || len(text) > maxPlainMessageSize {
+		return false
+	}
+
+	// A status line such as "422 unprocessable" or "[Body]: x" isn't a
+	// sentence either, so it has to open with a letter.
+	if first, _ := utf8.DecodeRuneInString(text); !unicode.IsLetter(first) {
+		return false
+	}
+
+	// What ForgeMessage couldn't strip: an internal prefix with nothing
+	// after it.
+	lower := strings.ToLower(text)
+	for _, prefix := range []string{"dashboard:", "forgejo:", "github:"} {
+		if strings.HasPrefix(lower, prefix) {
+			return false
+		}
+	}
+
+	return !strings.ContainsAny(text, "/{}") && !strings.Contains(text, "://")
 }
 
 // refusalFromKind is the part every action shares that the forge's error
@@ -204,13 +256,13 @@ func classifyUpdateBranchRefusal(actionErr error, forgeText string, state *PullR
 		return ActionRefusal{Code: ActionConflict, Message: "Can't update cleanly. Resolve the conflict on the forge."}
 	}
 
-	return ActionRefusal{Code: ActionUnknown, Message: forgeText}
+	return unknownRefusal(actionErr, forgeText)
 }
 
 // classifyAutoMergeRefusal reads the messages GitHub's
 // enablePullRequestAutoMerge mutation answers with; it has no status or
 // error type of its own to go by.
-func classifyAutoMergeRefusal(forgeText string) ActionRefusal {
+func classifyAutoMergeRefusal(actionErr error, forgeText string) ActionRefusal {
 	lower := strings.ToLower(forgeText)
 	switch {
 	case strings.Contains(lower, "auto merge is not allowed") || strings.Contains(lower, "auto-merge is not allowed"):
@@ -223,7 +275,7 @@ func classifyAutoMergeRefusal(forgeText string) ActionRefusal {
 		return ActionRefusal{Code: ActionBlockedByProtection, Message: "Auto-merge needs a branch protection rule with a required check or review on the base branch."}
 	}
 
-	return ActionRefusal{Code: ActionUnknown, Message: forgeText}
+	return unknownRefusal(actionErr, forgeText)
 }
 
 // refusalFromFlags is the part of the classification the re-read alone
