@@ -4,8 +4,8 @@ import {
   expect,
   type Page,
   type Route,
-  test,
 } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // #828: on a phone the filters take a small part of the screen. Closed, the
