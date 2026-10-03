@@ -3083,3 +3083,21 @@ func TestFetch_MapsTheBranchesAndForkFlag(t *testing.T) {
 	assert.Equal(t, "feat/child", got.HeadBranch)
 	assert.True(t, got.CrossRepository)
 }
+
+// A pull request carries its head commit SHA (#759), so a bot's rebase can be
+// seen as the head moving even when the pull request is still behind.
+func TestFetch_MapsTheHeadCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, reposQueryFixture(pullRequestNode("CLEAN")))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, "deadbeef", result.PullRequests[0].HeadSHA)
+}
