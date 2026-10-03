@@ -632,6 +632,7 @@ the preceding **Credentials** section):
 | `GITHUB_APP_ID`                 | no                                 | —                          | The numeric ID of a GitHub App this deployment lets users connect instead of pasting a personal access token — see **GitHub App support** below. Unset means the option doesn't exist at all; no other GitHub behaviour changes.                                                   |
 | `GITHUB_APP_PRIVATE_KEY_BASE64` | **yes, if `GITHUB_APP_ID` is set** | —                          | Base64-encoded PEM private key for that App, downloaded from its GitHub settings page. Validated at startup — a malformed key fails loudly there, the same way a bad `ENCRYPTION_KEY` does.                                                                                        |
 | `REFRESH_INTERVAL`              | no                                 | `20m`                      | How often the backend re-polls a signed-in user's forges, as a Go duration (`2m30s`, `10m`). A safety net now that every tracked repo gets a webhook — lower it if you're not relying on those.                                                                                    |
+| `SHUTDOWN_DRAIN`                | no                                 | `5s`                       | How long `/readyz` answers 503 after SIGTERM before the server stops accepting connections, so a router polling it takes the container out of rotation first. `0s` skips the wait. Keep the container's stop grace period longer than this plus 5 seconds.                         |
 | `CI_POLL_INTERVAL`              | no                                 | `1m`                       | How often the backend re-checks just the open pull requests whose CI is still pending, as a Go duration. A fallback for real Forgejo instances that silently drop the webhook event CI status rides on (see `docs/webhooks.md`) — set to `0s` to turn it off if you don't need it. |
 | `LOG_LEVEL`                     | no                                 | `info`                     | `debug`, `info`, `warn`, or `error`. `debug` logs every outbound request to GitHub/Forgejo (method, URL) — turn it on to diagnose a request-volume spike from the process's own logs instead of reasoning about the code from the outside.                                         |
 
@@ -765,7 +766,10 @@ which asks `GET /readyz`. It means "can serve": the database answers and its
 tables exist. Once someone has signed in and a first dashboard refresh has
 finished, it also waits on that, and a forge that failed the refresh still
 counts. A freshly started container has no refresh to wait for, since the
-app only fetches from the forges after a sign-in. Read it with:
+app only fetches from the forges after a sign-in. The database ping gets 2
+seconds and its result is reused for about 3, so a stuck database answers
+503 instead of hanging the probe. On SIGTERM it answers 503 at once, then
+the server waits `SHUTDOWN_DRAIN` before it stops. Read it with:
 
 ```sh
 docker inspect --format '{{.State.Health.Status}}' <container>

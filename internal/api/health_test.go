@@ -3,10 +3,13 @@ package api_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	"github.com/stretchr/testify/assert"
@@ -104,6 +107,102 @@ func TestReadyz_WithNoChecksWired_Answers200(t *testing.T) {
 	srv := readyzServer(t, nil, nil)
 
 	code, _ := getBody(t, srv.URL+"/readyz")
+
+	assert.Equal(t, http.StatusOK, code)
+}
+
+type slowDB struct{}
+
+func (slowDB) PingContext(ctx context.Context) error {
+	<-ctx.Done()
+
+	return fmt.Errorf("ping: %w", ctx.Err())
+}
+
+type countingDB struct{ pings atomic.Int32 }
+
+func (c *countingDB) PingContext(context.Context) error {
+	c.pings.Add(1)
+
+	return nil
+}
+
+func TestReadyz_DatabaseDoesNotAnswer_Answers503WithinTheProbeTimeout(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(api.NewMux(api.Deps{
+		Version: testVersion, Database: slowDB{}, ReadyProbeTimeout: 50 * time.Millisecond,
+	}))
+	t.Cleanup(srv.Close)
+
+	start := time.Now()
+	code, body := getBody(t, srv.URL+"/readyz")
+
+	assert.Equal(t, http.StatusServiceUnavailable, code)
+	assert.JSONEq(t, `{"error":"database unavailable"}`, body)
+	assert.Less(t, time.Since(start), 2*time.Second)
+}
+
+func TestReadyz_RepeatedProbes_PingTheDatabaseOncePerCacheWindow(t *testing.T) {
+	t.Parallel()
+
+	db := &countingDB{}
+	srv := httptest.NewServer(api.NewMux(api.Deps{
+		Version: testVersion, Database: db, ReadyCacheTTL: time.Hour,
+	}))
+	t.Cleanup(srv.Close)
+
+	for range 5 {
+		code, _ := getBody(t, srv.URL+"/readyz")
+		require.Equal(t, http.StatusOK, code)
+	}
+
+	assert.EqualValues(t, 1, db.pings.Load())
+}
+
+func TestReadyz_CacheWindowPassed_PingsAgain(t *testing.T) {
+	t.Parallel()
+
+	db := &countingDB{}
+	srv := httptest.NewServer(api.NewMux(api.Deps{
+		Version: testVersion, Database: db, ReadyCacheTTL: time.Nanosecond,
+	}))
+	t.Cleanup(srv.Close)
+
+	_, _ = getBody(t, srv.URL+"/readyz")
+	time.Sleep(time.Millisecond)
+	_, _ = getBody(t, srv.URL+"/readyz")
+
+	assert.EqualValues(t, 2, db.pings.Load())
+}
+
+func TestReadyz_Draining_Answers503AtOnceDespiteACachedPass(t *testing.T) {
+	t.Parallel()
+
+	var drain api.Drain
+	srv := httptest.NewServer(api.NewMux(api.Deps{
+		Version: testVersion, Database: fakeDB{}, Drain: &drain, ReadyCacheTTL: time.Hour,
+	}))
+	t.Cleanup(srv.Close)
+	code, _ := getBody(t, srv.URL+"/readyz")
+	require.Equal(t, http.StatusOK, code)
+
+	drain.Start()
+	code, body := getBody(t, srv.URL+"/readyz")
+
+	assert.Equal(t, http.StatusServiceUnavailable, code)
+	assert.JSONEq(t, `{"error":"shutting down"}`, body)
+}
+
+func TestHealthz_Draining_StaysLive(t *testing.T) {
+	t.Parallel()
+
+	var drain api.Drain
+	drain.Start()
+	srv := httptest.NewServer(api.NewMux(api.Deps{Version: testVersion, Drain: &drain}))
+	t.Cleanup(srv.Close)
+
+	code, _ := getBody(t, srv.URL+"/healthz")
 
 	assert.Equal(t, http.StatusOK, code)
 }
