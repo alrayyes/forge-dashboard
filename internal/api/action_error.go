@@ -46,12 +46,17 @@ func writeActionRefusal(ctx context.Context, w http.ResponseWriter, src any, act
 	if refusal.Code == dashboard.ActionAlreadyMerged || refusal.Code == dashboard.ActionAlreadyClosed {
 		status = http.StatusConflict
 	}
+	writeRefusal(w, status, refusal, actionErr, "action", string(action), "repo", owner+"/"+name, "number", number)
+}
+
+// writeRefusal answers with the shared ActionError. With code unknown the raw
+// text (internal prefixes, API paths, a swagger URL) is for the log only
+// (#796): the response carries the same plain words in `error` and
+// `message`. logAttrs say which call was refused.
+func writeRefusal(w http.ResponseWriter, status int, refusal dashboard.ActionRefusal, actionErr error, logAttrs ...any) {
 	errText := actionErr.Error()
 	if refusal.Code == dashboard.ActionUnknown {
-		// No code fits, so the raw text (internal prefixes, API paths, a
-		// swagger URL) is for the log only (#796). The response carries the
-		// same plain words in `error` and `message`.
-		slog.Warn("pull request action refused with no reason code", "action", string(action), "repo", owner+"/"+name, "number", number, "status", status, "error", errText)
+		slog.Warn("forge call refused with no reason code", append(logAttrs, "status", status, "error", errText)...)
 		errText = refusal.Message
 	}
 	writeJSON(w, status, actionErrorBody{
