@@ -204,6 +204,75 @@ func TestWebhookEnsure_ClientErrorPropagatesAsASpecificMessage(t *testing.T) {
 	assert.Contains(t, body["error"], assert.AnError.Error())
 }
 
+// A refused ensure answers with the shared ActionError (#762), so the page
+// locks from the code instead of classifying the message text itself.
+func TestWebhookEnsure_Refusals_AnswerWithTheSharedActionError(t *testing.T) {
+	t.Parallel()
+
+	reset := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name        string
+		err         error
+		wantStatus  int
+		wantCode    string
+		wantMessage string
+		wantResets  bool
+	}{
+		{
+			name:        "permission",
+			err:         &dashboard.ClientError{Kind: dashboard.ForgeErrorUnauthorized, Err: errors.New("github: POST /repos/o/r/hooks: Resource not accessible")},
+			wantStatus:  http.StatusForbidden,
+			wantCode:    "permission",
+			wantMessage: "Missing permission — check your token in Settings.",
+		},
+		{
+			name:        "rate limited, with when it resets",
+			err:         &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("github: POST x: rate limit exceeded"), RateLimit: &dashboard.RateLimit{ResetsAt: reset}},
+			wantStatus:  http.StatusTooManyRequests,
+			wantCode:    "rate_limited",
+			wantMessage: "The forge's API rate limit is reached. Try again once it resets.",
+			wantResets:  true,
+		},
+		{
+			name:        "repo not found",
+			err:         &dashboard.ClientError{Kind: dashboard.ForgeErrorNotFound, Err: errors.New("github: GET /repos/o/r/hooks: Not Found")},
+			wantStatus:  http.StatusNotFound,
+			wantCode:    "unknown",
+			wantMessage: "The forge couldn't find this repo, or the token can't see it.",
+		},
+		{
+			name:        "uncoded failure keeps internal text out of the message",
+			err:         &dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, Err: errors.New("forgejo: POST /repos/o/r/hooks: 500 {\"message\":\"boom\"}")},
+			wantStatus:  http.StatusBadGateway,
+			wantCode:    "unknown",
+			wantMessage: "The forge refused this action and gave no reason.",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			source := &fakeWebhookManagerSource{forge: dashboard.ForgeGitHub, ensureErr: tc.err}
+			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+			resp := postEnsureWebhook(t, srvURL, sessionCookie, "github", "alrayyes/a")
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, tc.wantStatus, resp.StatusCode)
+			var body actionErrorBody
+			require.NoError(t, readJSON(resp, &body))
+			assert.Equal(t, tc.wantCode, body.Code)
+			assert.Equal(t, tc.wantMessage, body.Message)
+			if tc.wantResets {
+				require.NotNil(t, body.ResetsAt)
+				assert.True(t, reset.Equal(*body.ResetsAt))
+			} else {
+				assert.Nil(t, body.ResetsAt)
+			}
+		})
+	}
+}
+
 // TestWebhookEnsure_EnsureWebhookFails_LogsTheError is a regression test
 // for the same "can't diagnose from the outside" gap
 // TestGitHubWebhook_InvalidSignature_LogsForgeEventAndDeliveryID
