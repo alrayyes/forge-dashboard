@@ -4,30 +4,16 @@
 // (#732). Pure helpers, no DOM, so the dashboard page stays the only place
 // that touches elements.
 
-export type RateLimit = { limit: number; remaining: number; resetsAt: string };
-
-// What kind of wait a lock reason stands for:
-// - rate_limit: clears at a known time, no Retry.
-// - permission: clears only when the token changes, no Retry.
-// - transient: may clear on its own, Retry stays.
-export type LockKind = 'rate_limit' | 'permission' | 'transient';
+// severity is the server's grade of the budget as of the response (#806).
+export type RateLimit = {
+  limit: number;
+  remaining: number;
+  resetsAt: string;
+  severity: 'ok' | 'low' | 'exceeded';
+};
 
 export const PERMISSION_REASON =
   'Missing permission — check your token in Settings.';
-
-const RATE_LIMIT_PATTERN = /rate limit/i;
-const PERMISSION_PATTERN = /missing permission|token in settings/i;
-
-export function classifyLockReason(reason: string): LockKind {
-  if (RATE_LIMIT_PATTERN.test(reason)) return 'rate_limit';
-  if (PERMISSION_PATTERN.test(reason)) return 'permission';
-  return 'transient';
-}
-
-// A locked action offers Retry only when waiting might fix it.
-export function offersRetry(reason: string): boolean {
-  return classifyLockReason(reason) === 'transient';
-}
 
 // True while the budget is spent and the reset is still ahead. Derived
 // from the clock, not stored, so a stale snapshot can't keep an action
