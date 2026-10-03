@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { rateLimit, severityOf } from './severity-stand-in';
 
 // A rate limit is a "wait until" condition, not a transient fault: the
 // forge says when it resets, so the blocked actions are greyed out with
@@ -56,7 +57,15 @@ async function mockDashboard(
     JSON.stringify({
       generatedAt: new Date().toISOString(),
       forges: [
-        { forge: 'github', reachable: true, repoCount: 1, rateLimitREST },
+        {
+          forge: 'github',
+          reachable: true,
+          repoCount: 1,
+          rateLimitREST: rateLimitREST && {
+            ...rateLimitREST,
+            severity: severityOf(rateLimitREST.limit, rateLimitREST.remaining),
+          },
+        },
       ],
       pullRequests: prs,
       issues: [],
@@ -289,8 +298,8 @@ test.describe('rate-limited actions (#732)', () => {
               forge: 'github',
               reachable: true,
               repoCount: 1,
-              rateLimitGraphQL: { limit: 5000, remaining: 0, resetsAt },
-              rateLimitREST: { limit: 5000, remaining: 4000, resetsAt },
+              rateLimitGraphQL: rateLimit(5000, 0, resetsAt),
+              rateLimitREST: rateLimit(5000, 4000, resetsAt),
             },
           ],
           pullRequests: [makePR({ mergeStatus: 'blocked', ci: 'pending' })],
