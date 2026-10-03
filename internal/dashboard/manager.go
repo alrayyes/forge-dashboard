@@ -28,17 +28,31 @@ type Manager struct {
 	// refresh, so a later sign-in (a new Aggregator, mid-refresh) can't
 	// flip a serving process back to unready.
 	firstRefreshSeen bool
+	// firstRefreshGrace is how long an Aggregator's first refresh is waited
+	// for before the process counts as ready anyway (#893).
+	firstRefreshGrace time.Duration
 }
 
+// defaultFirstRefreshGrace is how long readiness waits for a first refresh. A
+// forge that is slow or down must not keep the container unready: a deploy
+// that waits for healthy would give up, and an orchestrator could restart a
+// service that is serving fine.
+const defaultFirstRefreshGrace = 30 * time.Second
+
 type managedAggregator struct {
-	agg    *Aggregator
-	cancel context.CancelFunc
+	agg     *Aggregator
+	cancel  context.CancelFunc
+	started time.Time
 }
 
 // NewManager returns a Manager whose per-user Aggregators refresh every
 // refreshInterval.
 func NewManager(refreshInterval time.Duration) *Manager {
-	return &Manager{users: make(map[string]*managedAggregator), refreshInterval: refreshInterval}
+	return &Manager{
+		users:             make(map[string]*managedAggregator),
+		refreshInterval:   refreshInterval,
+		firstRefreshGrace: defaultFirstRefreshGrace,
+	}
 }
 
 // SetAutoUpdateBranchLister turns on the auto-update-branch hook (#365)
@@ -93,7 +107,7 @@ func (m *Manager) Ensure(ctx context.Context, userID []byte, sources []Source) {
 	if m.autoUpdateBranchLister != nil {
 		agg.EnableAutoUpdateBranch(userID, m.autoUpdateBranchLister)
 	}
-	m.users[key] = &managedAggregator{agg: agg, cancel: cancel}
+	m.users[key] = &managedAggregator{agg: agg, cancel: cancel, started: time.Now()}
 	go agg.Run(runCtx, m.refreshInterval)
 	if m.ciPollInterval > 0 {
 		go agg.RunCIPoll(runCtx, m.ciPollInterval)
@@ -125,7 +139,7 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 	if m.autoUpdateBranchLister != nil {
 		agg.EnableAutoUpdateBranch(userID, m.autoUpdateBranchLister)
 	}
-	m.users[key] = &managedAggregator{agg: agg, cancel: cancel}
+	m.users[key] = &managedAggregator{agg: agg, cancel: cancel, started: time.Now()}
 	go agg.Run(runCtx, m.refreshInterval)
 	if m.ciPollInterval > 0 {
 		go agg.RunCIPoll(runCtx, m.ciPollInterval)
@@ -146,7 +160,7 @@ func (m *Manager) FirstRefreshComplete() bool {
 		return true
 	}
 	for _, entry := range m.users {
-		if entry.agg.FirstRefreshDone() {
+		if entry.agg.FirstRefreshDone() || time.Since(entry.started) > m.firstRefreshGrace {
 			m.firstRefreshSeen = true
 
 			return true
@@ -154,6 +168,15 @@ func (m *Manager) FirstRefreshComplete() bool {
 	}
 
 	return false
+}
+
+// SetFirstRefreshGrace changes how long readiness waits for a first refresh
+// before it counts as ready anyway (#893). A setter rather than a NewManager
+// parameter, for the same reason SetCIPollInterval is one.
+func (m *Manager) SetFirstRefreshGrace(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.firstRefreshGrace = d
 }
 
 // Get returns userID's current snapshot — empty, not nil arrays, if

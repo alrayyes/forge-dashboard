@@ -9,6 +9,7 @@
   import * as Filters from "$lib/filters";
   import { issueCount } from "$lib/issue-count.svelte";
   import { findAction, type AllowedAction } from "$lib/allowed-actions";
+  import * as Stacks from "$lib/stacks";
   import type { FilterableItem, SharedFilterState } from "$lib/filters";
   import {
     type ActionCode,
@@ -68,6 +69,10 @@
     empty: boolean;
     // What the server offers on this pull request (#805).
     allowedActions?: AllowedAction[];
+    // Where it sits in a stack of pull requests (#861).
+    stack?: { position: number; size: number } | null;
+    stackedOn?: { number: number; url: string } | null;
+    stackChildren?: number[];
   };
   type IssueItem = FilterableItem & {
     number: number;
@@ -533,6 +538,93 @@
       return pill;
     }
 
+    // ---- stacked pull requests (#861) ----
+    // The chip says where the pull request sits and what it waits for, in
+    // words and an icon, never colour alone. Tapping it lists the stack. A
+    // child also says it targets its parent's branch, which is why
+    // auto-merge isn't offered; Merge's own reason comes from the server.
+    function stackIcon(): SVGElement {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("width", "12");
+      svg.setAttribute("height", "12");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-width", "2");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      path.setAttribute(
+        "d",
+        "m12 2 10 5-10 5L2 7zM2 12l10 5 10-5M2 17l10 5 10-5",
+      );
+      svg.appendChild(path);
+      return svg;
+    }
+
+    function stackInfo(item: PullRequestItem): HTMLElement {
+      const stack = item.stack;
+      const info = el("div", "stack-info");
+      if (!stack) return info;
+      const listId = `stack-members-${domSafeId(prKey(item))}`;
+
+      const chip = el("button", "stack-chip");
+      chip.setAttribute("type", "button");
+      chip.setAttribute("aria-expanded", "false");
+      chip.setAttribute("aria-controls", listId);
+      chip.appendChild(stackIcon());
+      chip.appendChild(
+        el("span", "stack-pos", `Stack ${stack.position} of ${stack.size}`),
+      );
+      info.appendChild(chip);
+
+      const waits = item.stackedOn
+        ? `waits for #${item.stackedOn.number}`
+        : (item.stackChildren?.length ?? 0) > 0
+          ? "merges first"
+          : "";
+      if (waits) {
+        const sep = el("span", "stack-sep", "·");
+        sep.setAttribute("aria-hidden", "true");
+        info.appendChild(sep);
+        info.appendChild(el("span", "stack-wait", waits));
+      }
+
+      if (item.stackedOn) {
+        const n = item.stackedOn.number;
+        info.appendChild(
+          el(
+            "div",
+            "stack-note",
+            `Depends on #${n}. Targets #${n}'s branch, not main. Auto-merge is unavailable until it is retargeted to main.`,
+          ),
+        );
+      }
+
+      const list = el("ul", "stack-members");
+      list.id = listId;
+      list.hidden = true;
+      for (const member of Stacks.stackMembers(item, allPRs)) {
+        const li = el("li", member.number === item.number ? "this" : "");
+        li.appendChild(el("span", "num", `#${member.number}`));
+        li.appendChild(document.createTextNode(` ${member.title}`));
+        if (member.number === item.number)
+          li.appendChild(el("span", "stack-this", " (this one)"));
+        list.appendChild(li);
+      }
+      info.appendChild(list);
+      chip.addEventListener("click", () => {
+        const open = list.hidden;
+        list.hidden = !open;
+        chip.setAttribute("aria-expanded", String(open));
+      });
+      return info;
+    }
+
     function buildRow(
       item: PullRequestItem | IssueItem,
       isPR: boolean,
@@ -546,6 +638,8 @@
       const titleCellEl = titleCell(item, onLabelClick, activeLabel);
       row.appendChild(titleCellEl);
       if (!isPR) row.dataset.issueKey = prKey(item);
+      if (isPR && (item as PullRequestItem).stack)
+        titleCellEl.appendChild(stackInfo(item as PullRequestItem));
       if (isPR) {
         row.dataset.prKey = prKey(item);
         if (updatedMarkers.has(prKey(item)))
@@ -3221,6 +3315,68 @@
         }
       }
 
+      // What goes on screen for these items: stacked pull requests laid out
+      // together, everything else as it came (#861).
+      function entriesFor(
+        items: (PullRequestItem | IssueItem)[],
+      ): Stacks.Entry<PullRequestItem | IssueItem>[] {
+        if (!isPR)
+          return items.map((item) => ({ kind: "single" as const, item }));
+        return Stacks.arrange(
+          items as PullRequestItem[],
+          state.items as PullRequestItem[],
+        );
+      }
+
+      function appendEntries(
+        container: HTMLElement,
+        entries: Stacks.Entry<PullRequestItem | IssueItem>[],
+      ) {
+        const build = (item: PullRequestItem | IssueItem) =>
+          buildRow(
+            item,
+            isPR,
+            onStatusClick,
+            handleLabelClick,
+            sharedState.shared.label,
+          );
+        for (const entry of entries) {
+          if (entry.kind === "single") {
+            container.appendChild(build(entry.item));
+            continue;
+          }
+          // A stack is a plain nested list: its members in order, each
+          // saying what it depends on in words (#861).
+          const group = el("ul", "stack-group");
+          group.setAttribute(
+            "aria-label",
+            `Stack of ${entry.members.length} pull requests`,
+          );
+          for (const member of entry.members) {
+            const li = el("li", "stack-member");
+            const row = build(member.item);
+            const position =
+              (member.item as PullRequestItem).stack?.position ?? 1;
+            li.style.setProperty(
+              "--stack-depth",
+              String(Math.min(position - 1, 3)),
+            );
+            if (!member.matched) {
+              // Kept so the stack stays whole, but not what was asked for.
+              row.classList.add("stack-dim");
+              row
+                .querySelector(".title-cell")
+                ?.appendChild(
+                  el("span", "sr-only", "Doesn't match the filters."),
+                );
+            }
+            li.appendChild(row);
+            group.appendChild(li);
+          }
+          container.appendChild(group);
+        }
+      }
+
       function renderGrouped(
         container: HTMLElement,
         items: (PullRequestItem | IssueItem)[],
@@ -3265,17 +3421,7 @@
           container.appendChild(heading);
           const note = isPR ? groupRateLimitNote(first.forge) : null;
           if (note) container.appendChild(note);
-          for (const item of groups[key]) {
-            container.appendChild(
-              buildRow(
-                item,
-                isPR,
-                onStatusClick,
-                handleLabelClick,
-                sharedState.shared.label,
-              ),
-            );
-          }
+          appendEntries(container, entriesFor(groups[key]));
         }
       }
 
@@ -3349,24 +3495,11 @@
           );
           if (groupedPagination) groupedPagination.hidden = true;
         } else {
-          const totalPages = Math.max(
-            1,
-            Math.ceil(visible.length / state.pageSize),
-          );
+          // Pages hold whole stacks (#861).
+          const pages = Stacks.pagesOf(entriesFor(visible), state.pageSize);
+          const totalPages = Math.max(1, pages.length);
           if (state.page > totalPages) state.page = totalPages;
-          const start = (state.page - 1) * state.pageSize;
-          const pageItems = visible.slice(start, start + state.pageSize);
-          for (const item of pageItems) {
-            container.appendChild(
-              buildRow(
-                item,
-                isPR,
-                onStatusClick,
-                handleLabelClick,
-                sharedState.shared.label,
-              ),
-            );
-          }
+          appendEntries(container, pages[state.page - 1] ?? []);
           renderPagination(totalPages);
         }
 
