@@ -186,10 +186,8 @@
   let githubTokenSet = $state(false);
   let githubAppInstallationId = $state("");
   let githubAppConfigured = $state(false);
-  let githubAppInstallationIdInput: HTMLInputElement | undefined = $state();
 
   let forgejoUrl = $state("");
-  let forgejoUrlInput: HTMLInputElement | undefined = $state();
   let forgejoToken = $state("");
   let forgejoTokenShown = $state(false);
   let forgejoUsername = $state("");
@@ -278,30 +276,13 @@
   function handleSave(e: SubmitEvent) {
     e.preventDefault();
 
+    // What is valid is the server's call, not the page's: it merges the save
+    // with what is stored, checks it, and names the field it refused
+    // (`field`), which gets focus below (#810). This only sends what was
+    // typed.
     const trimmedForgejoUrl = forgejoUrl.trim();
     const trimmedForgejoUsername = forgejoUsername.trim();
-    // A blank token field still means "keep the one already saved" (see
-    // the PUT handler's doc comment), so a saved token counts here too —
-    // otherwise re-saving without retyping the token would sail past
-    // this check only to be rejected server-side.
-    if (
-      !trimmedForgejoUrl &&
-      (forgejoToken || forgejoTokenSet || trimmedForgejoUsername)
-    ) {
-      status =
-        "Forgejo needs an instance URL to use that token or username against.";
-      statusKind = "error";
-      forgejoUrlInput?.focus();
-      return;
-    }
-
     const trimmedInstallationId = githubAppInstallationId.trim();
-    if (trimmedInstallationId && !/^\d+$/.test(trimmedInstallationId)) {
-      status = "GitHub App installation ID must be a number.";
-      statusKind = "error";
-      githubAppInstallationIdInput?.focus();
-      return;
-    }
 
     saving = true;
     status = "Saving…";
@@ -310,8 +291,13 @@
     const body = {
       githubToken,
       githubUsername: githubUsername.trim(),
+      // A number when it reads as one, otherwise the text itself, so the
+      // server refuses it instead of an unparsable value turning into 0
+      // and silently clearing the setting.
       githubAppInstallationId: trimmedInstallationId
-        ? Number(trimmedInstallationId)
+        ? Number.isFinite(Number(trimmedInstallationId))
+          ? Number(trimmedInstallationId)
+          : trimmedInstallationId
         : 0,
       forgejoUrl: trimmedForgejoUrl,
       forgejoToken,
@@ -331,7 +317,14 @@
           return null;
         }
         return res.json().then((data) => {
-          if (!res.ok) throw new Error(data.error || "save failed");
+          if (!res.ok) {
+            // `field` names the input the server refused.
+            const refused = new Error(data.error || "save failed") as Error & {
+              field?: string;
+            };
+            refused.field = data.field;
+            throw refused;
+          }
           return data as SettingsResponse;
         });
       })
@@ -352,9 +345,14 @@
         status = "Saved.";
         statusKind = "ok";
       })
-      .catch((err) => {
+      .catch((err: Error & { field?: string }) => {
         status = err.message || "Could not save settings.";
         statusKind = "error";
+        // Its inputs are named for the API's own field names.
+        if (err.field)
+          document
+            .querySelector<HTMLElement>(`[name="${CSS.escape(err.field)}"]`)
+            ?.focus();
       })
       .finally(() => {
         saving = false;
@@ -1277,7 +1275,6 @@
           placeholder="e.g. 12345678"
           aria-describedby="github-app-installation-id-hint"
           bind:value={githubAppInstallationId}
-          bind:this={githubAppInstallationIdInput}
           disabled={!githubAppConfigured}
         />
         <p class="field-hint" id="github-app-installation-id-hint">
@@ -1327,7 +1324,6 @@
           placeholder="https://git.example.com"
           aria-describedby="forgejo-url-hint"
           bind:value={forgejoUrl}
-          bind:this={forgejoUrlInput}
         />
         <p class="field-hint" id="forgejo-url-hint">
           Required if you set a token or username below — otherwise Forgejo is
