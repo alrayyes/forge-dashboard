@@ -1529,6 +1529,15 @@ select.col-filter {
    row that would otherwise stack up too many buttons at once (#527) —
    same z-index:1 "stay above .title::after's stretched-link overlay"
    treatment every other real control in .status-cell already needs. */
+/* Says a closed More actions menu holds a locked action (#747). Text, not
+   colour alone; the reason is the trigger's accessible description. */
+.row-actions-lock {
+  margin-inline-start: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
 .row-actions-menu {
   position: relative;
   z-index: 1;
