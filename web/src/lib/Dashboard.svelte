@@ -4924,6 +4924,12 @@
           data-pill="needs-review"
           aria-pressed="false">Needs Review</button
         >
+        <button
+          type="button"
+          class="quick-pill"
+          data-pill="review-requested"
+          aria-pressed="false">Review requested from me</button
+        >
       {/if}
     </div>
     <!-- Phones (#828): this row stays when the rest of the controls fold
