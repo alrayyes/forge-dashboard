@@ -53,6 +53,15 @@ type dashboardResponse struct {
 type pullRequestView struct {
 	dashboard.PullRequest
 	AllowedActions []dashboard.ActionAvailability `json:"allowedActions"`
+	// ReadyToMerge and NeedsReview are the Ready and Needs review quick
+	// filters' answers (#807), so a second client lists the same pull
+	// requests the page does.
+	ReadyToMerge bool `json:"readyToMerge"`
+	NeedsReview  bool `json:"needsReview"`
+	// ReviewRequestedFromMe is true when this open, non-draft pull request
+	// asks the signed-in user to review it (#695), by the username saved in
+	// Settings for its forge. False when no username is saved.
+	ReviewRequestedFromMe bool `json:"reviewRequestedFromMe"`
 }
 
 // buildDashboardResponse merges snap's tracked-repo list with userID's
@@ -114,6 +123,14 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 		})
 	}
 
+	// The signed-in user's own login on each forge, from Settings. A store
+	// failure degrades to "no login", so nothing is marked as requested.
+	logins := map[dashboard.Forge]string{}
+	if creds, err := store.Get(ctx, userID); err == nil {
+		logins[dashboard.ForgeGitHub] = creds.GitHubUsername
+		logins[dashboard.ForgeForgejo] = creds.ForgejoUsername
+	}
+
 	pullRequests := make([]pullRequestView, 0, len(snap.PullRequests))
 	hiddenDrafts := 0
 	for _, pr := range snap.PullRequests {
@@ -125,7 +142,14 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 
 			continue
 		}
-		pullRequests = append(pullRequests, pullRequestView{PullRequest: pr, AllowedActions: dashboard.AllowedActions(pr)})
+		pullRequests = append(pullRequests, pullRequestView{
+			PullRequest:    pr,
+			AllowedActions: dashboard.AllowedActions(pr),
+			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
+			NeedsReview:    dashboard.NeedsReview(pr),
+
+			ReviewRequestedFromMe: dashboard.ReviewRequestedFrom(pr, logins[pr.Forge]),
+		})
 	}
 	issues := make([]dashboard.Issue, 0, len(snap.Issues))
 	for _, issue := range snap.Issues {

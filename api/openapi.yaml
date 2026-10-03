@@ -2198,6 +2198,12 @@ components:
       properties:
         error:
           type: string
+        field:
+          type: string
+          description: |
+            Present when the rejection is about one field of the request
+            body (a settings save, for instance), named as it appears there,
+            so a client can mark that input without parsing `error`.
 
     ActionError:
       type: object
@@ -2572,8 +2578,18 @@ components:
         githubAppInstallationId:
           type: integer
           format: int64
+          minimum: 0
+          description: |
+            0 means none. A negative or non-integer value is a 400 naming
+            this field, as is any value on a server with no GitHub App
+            configured.
         forgejoUrl:
           type: string
+          description: |
+            Required, once the save is merged with what is already stored,
+            whenever a Forgejo token or username is set. That depends on
+            stored state, so a schema alone can't express it: a save that
+            breaks it is a 400 naming `forgejoUrl`.
         forgejoToken:
           type: string
         forgejoUsername:
@@ -2951,8 +2967,12 @@ components:
           ci,
           mergeStatus,
           behind,
+          requestedReviewerLogins,
+          reviewRequestedFromMe,
           empty,
           allowedActions,
+          readyToMerge,
+          needsReview,
         ]
       properties:
         forge:
@@ -2997,6 +3017,23 @@ components:
             get recomputed just because the base moved), so folding this
             into mergeStatus would force picking one and losing the
             other.
+        requestedReviewerLogins:
+          type: array
+          items:
+            type: string
+          description: |
+            The logins of the users asked to review this pull request, on
+            both forges. A team request has no login and is left out.
+            Always present, and empty when nobody was asked. Costs no
+            extra request: GitHub returns it with the reviewRequests count
+            already queried, Forgejo with the pull request itself.
+        reviewRequestedFromMe:
+          type: boolean
+          description: |
+            True when this open, non-draft pull request asks the signed-in
+            user to review it, matched without regard to case against the
+            username saved in Settings for its forge. False when no
+            username is saved for that forge. Always present.
         empty:
           type: boolean
           description: |
@@ -3042,6 +3079,21 @@ components:
             always in it. Live state is the client's: a rate-limited or
             unreachable forge, a missing token and an action already in
             flight can still stop an offered action.
+
+        readyToMerge:
+          type: boolean
+          description: |
+            True when the pull request is mergeable, its CI is green and it
+            isn't a draft: what the Ready quick filter lists. Always
+            present. A pull request with no checks isn't ready.
+        needsReview:
+          type: boolean
+          description: |
+            True when a review is outstanding: the forge requires one, or a
+            reviewer was asked and hasn't answered, and the pull request
+            isn't a draft. Unreviewed with nobody asked, approved, changes
+            requested and an unknown review state are all false. Always
+            present.
 
     AllowedAction:
       type: object

@@ -311,7 +311,10 @@ reason, which the row and a toast show: already merged or closed (the row
 switches to "Merged" or "Closed" and drops off the list on the next snapshot),
 a conflict, behind the base branch, a check pending or failing, branch
 protection, a missing permission, or a rate limit with its reset time. The
-codes are in `api/openapi.yaml` (`ActionError`). Update branch appears when the
+codes are in `api/openapi.yaml` (`ActionError`). A Merge or Close that succeeds
+takes the pull request off the board at once, even if the forge goes on listing
+it as open for a few seconds; the server holds it back for up to two minutes.
+Update branch appears when the
 forge reports it's possible; it doesn't ask, since a merge from the base branch
 is easy to reverse and a merge itself isn't. On a pull request that's behind
 but also conflicts with its base, Update branch is locked with a note that the
@@ -609,18 +612,19 @@ pull requests or issues of its own to poll, and its canonical home is
 whichever forge it's mirrored from.
 
 Each pull request also carries its review state (`review` in `/api/dashboard`:
-decision, approvals, requested reviewers), which the **Needs review** quick
-filter reads. On GitHub that rides on fields of the same GraphQL query, so it
-costs no extra requests. On Forgejo the requested reviewers come with the pull
-request list, but approvals take one `GET
-/repos/{owner}/{repo}/pulls/{index}/reviews` call per open, non-draft pull
-request. Those results are cached until the pull request's `updated_at`
-changes, so after the first refresh a quiet dashboard spends none of them. A
-pull request that closed or merged drops out of that cache on the next refresh
-of its repo. A pull request whose review state couldn't be read has no
-`review` and never matches the filter. Needs review means a review is
-outstanding: the forge requires one, or a reviewer was asked and hasn't
-answered. A pull request nobody was asked to review doesn't count.
+decision, approvals, requested reviewers). The **Ready to Merge** and **Needs
+review** quick filters read the server's own answers, `readyToMerge` and
+`needsReview` on each pull request, so the page holds no definition of either.
+On GitHub that rides on fields of the same GraphQL query, so it costs no extra
+requests. On Forgejo the requested reviewers come with the pull request list,
+but approvals take one `GET /repos/{owner}/{repo}/pulls/{index}/reviews` call
+per open, non-draft pull request. Those results are cached until the pull
+request's `updated_at` changes, so after the first refresh a quiet dashboard
+spends none of them. A pull request that closed or merged drops out of that
+cache on the next refresh of its repo. A pull request whose review state
+couldn't be read has no `review` and never matches the filter. Needs review
+means a review is outstanding: the forge requires one, or a reviewer was asked
+and hasn't answered. A pull request nobody was asked to review doesn't count.
 
 Draft pull requests are left out of `/api/dashboard` by default, since nothing
 can be merged or updated on one. The response says how many it left out in

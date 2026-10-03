@@ -202,6 +202,20 @@ func (m *Manager) RefreshNow(ctx context.Context, userID []byte) bool {
 	return true
 }
 
+// MarkSettled delegates to userID's Aggregator — see
+// Aggregator.MarkSettled. A user with no running Aggregator has no board to
+// update, so it does nothing.
+func (m *Manager) MarkSettled(userID []byte, forge Forge, repo string, number int) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return
+	}
+	entry.agg.MarkSettled(forge, repo, number)
+}
+
 // RefreshRepo delegates to userID's Aggregator — see
 // Aggregator.RefreshRepo. Reports false if userID has no running
 // Aggregator, the same as RefreshNow, and also false wherever

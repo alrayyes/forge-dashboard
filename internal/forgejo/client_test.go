@@ -1649,3 +1649,28 @@ func TestUpdateBranch_Refusals_KeepForgesOwnMessage(t *testing.T) {
 		})
 	}
 }
+
+// A pull request lists who was asked to review it (#695), even a draft, since
+// the list comes free with the pull request itself.
+func TestListOpenPullRequests_MapsTheRequestedReviewerLogins(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	srv := reviewPRServer(t,
+		[]map[string]any{
+			reviewPR(1, false, "2026-09-02T00:00:00Z", "bob", "amy"),
+			reviewPR(2, true, "2026-09-02T00:00:00Z", "cat"),
+			reviewPR(3, false, "2026-09-02T00:00:00Z"),
+		},
+		map[int][]map[string]any{1: {}, 3: {}},
+		&calls)
+	defer srv.Close()
+
+	prs, err := forgejo.NewClient(srv.URL, "test-token", "").ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 3)
+	assert.Equal(t, []string{"bob", "amy"}, prs[0].RequestedReviewerLogins)
+	assert.Equal(t, []string{"cat"}, prs[1].RequestedReviewerLogins)
+	assert.Equal(t, []string{}, prs[2].RequestedReviewerLogins, "never null: an empty list")
+}

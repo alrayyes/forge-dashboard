@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.124.0](https://github.com/alrayyes/forge-dashboard/compare/v0.123.0...v0.124.0) (2026-10-03)
+
+
+### Features
+
+* **api:** list requested reviewers and say whether a review is requested from me ([#864](https://github.com/alrayyes/forge-dashboard/issues/864)) ([85473da](https://github.com/alrayyes/forge-dashboard/commit/85473da85293a9b2a5ec346c65cf792c25ca5976))
+
+## [0.123.0](https://github.com/alrayyes/forge-dashboard/compare/v0.122.0...v0.123.0) (2026-10-03)
+
+
+### Features
+
+* **issues:** give issues their own page, with a nav item and count badge ([#840](https://github.com/alrayyes/forge-dashboard/issues/840)) ([bfc31cf](https://github.com/alrayyes/forge-dashboard/commit/bfc31cf9803912d40be1f99b33df2324a2b16ff5))
+
+## [0.122.0](https://github.com/alrayyes/forge-dashboard/compare/v0.121.0...v0.122.0) (2026-10-03)
+
+
+### Features
+
+* **api:** carry readyToMerge and needsReview on each pull request ([#845](https://github.com/alrayyes/forge-dashboard/issues/845)) ([30b41a7](https://github.com/alrayyes/forge-dashboard/commit/30b41a7c8984fcc7886f3054386ff8138b773877))
+
+## [0.121.0](https://github.com/alrayyes/forge-dashboard/compare/v0.120.0...v0.121.0) (2026-10-03)
+
+
+### Features
+
+* **api:** send a visitor with no session away from the issues page ([#831](https://github.com/alrayyes/forge-dashboard/issues/831)) ([2f6a4e9](https://github.com/alrayyes/forge-dashboard/commit/2f6a4e9e57c22fceee3ff08d53cec519a7052feb)), closes [#827](https://github.com/alrayyes/forge-dashboard/issues/827)
+
+## [0.120.0](https://github.com/alrayyes/forge-dashboard/compare/v0.119.1...v0.120.0) (2026-10-03)
+
+
+### Features
+
+* **api:** name the field in a rejected settings save ([#847](https://github.com/alrayyes/forge-dashboard/issues/847)) ([3391241](https://github.com/alrayyes/forge-dashboard/commit/3391241afaa1caeb3235e4137d02bcd54d924e01))
+
+## [0.119.1](https://github.com/alrayyes/forge-dashboard/compare/v0.119.0...v0.119.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **api:** drop a merged or closed pull request from the board at once ([#838](https://github.com/alrayyes/forge-dashboard/issues/838)) ([51c06c8](https://github.com/alrayyes/forge-dashboard/commit/51c06c8691b6c57249ff01ef5488a64f2f15632e))
+
 ## [0.119.0](https://github.com/alrayyes/forge-dashboard/compare/v0.118.2...v0.119.0) (2026-10-03)
 
 

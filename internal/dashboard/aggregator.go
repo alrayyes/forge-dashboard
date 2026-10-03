@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -30,22 +31,118 @@ type Aggregator struct {
 	// auto_update_branch.go.
 	autoUpdate *autoUpdateBranchConfig
 
+	// settled holds pull requests a merge or close just succeeded on (#835),
+	// keyed by settledKey. The forge can go on listing one as open for a
+	// few seconds, so refreshes keep it off the board until the forge
+	// stops listing it or settleWindow passes.
+	settledMu    sync.Mutex
+	settled      map[string]time.Time
+	settleWindow time.Duration
+
 	// firstRefreshed flips once, when the first refreshOnce finishes —
 	// every source answered or reported itself unreachable. Readiness
 	// (Manager.FirstRefreshComplete) reads it; it never flips back.
 	firstRefreshed atomic.Bool
 }
 
+// defaultSettleWindow is how long a pull request a merge or close succeeded
+// on stays off the board while the forge still lists it as open. Past it, a
+// pull request still listed as open shows again, since something is wrong
+// and the user should see it.
+const defaultSettleWindow = 2 * time.Minute
+
+// AggregatorOption configures NewAggregator.
+type AggregatorOption func(*Aggregator)
+
+// WithSettleWindow sets how long MarkSettled keeps a pull request off the
+// board while the forge still lists it.
+func WithSettleWindow(d time.Duration) AggregatorOption {
+	return func(a *Aggregator) { a.settleWindow = d }
+}
+
 // NewAggregator returns an Aggregator whose Get answers an empty snapshot
 // until the first Refresh (or Run) completes.
-func NewAggregator(sources []Source) *Aggregator {
-	return &Aggregator{
-		sources:     sources,
-		snap:        newEmptySnapshot(),
-		subs:        make(map[chan Snapshot]struct{}),
-		refresh:     newCoalescer(),
-		repoRefresh: newKeyedCoalescer(),
+func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
+	a := &Aggregator{
+		sources:      sources,
+		snap:         newEmptySnapshot(),
+		subs:         make(map[chan Snapshot]struct{}),
+		refresh:      newCoalescer(),
+		repoRefresh:  newKeyedCoalescer(),
+		settled:      make(map[string]time.Time),
+		settleWindow: defaultSettleWindow,
 	}
+	for _, opt := range opts {
+		opt(a)
+	}
+
+	return a
+}
+
+func settledKey(forge Forge, repo string, number int) string {
+	return fmt.Sprintf("%s/%s#%d", forge, repo, number)
+}
+
+// MarkSettled records that a merge or close of forge/repo#number just
+// succeeded (#835). The pull request leaves the snapshot at once, subscribers
+// are told, and later refreshes keep it off the board while the forge still
+// lists it as open. The server knows the action worked, so it decides what is
+// listed instead of leaving every client to wait for the forge to catch up.
+func (a *Aggregator) MarkSettled(forge Forge, repo string, number int) {
+	key := settledKey(forge, repo, number)
+
+	a.settledMu.Lock()
+	a.settled[key] = time.Now()
+	a.settledMu.Unlock()
+
+	a.mu.Lock()
+	next := a.snap
+	next.PullRequests = slices.DeleteFunc(slices.Clone(a.snap.PullRequests), func(pr PullRequest) bool {
+		return settledKey(pr.Forge, pr.Repo, pr.Number) == key
+	})
+	a.snap = next
+	a.mu.Unlock()
+
+	a.notify(next)
+}
+
+// withoutSettled drops from prs every pull request MarkSettled is still
+// holding back, and forgets the ones the forge no longer lists or whose
+// window has passed. prs is what a fetch just returned: the whole board, or
+// with forge and repo set, one repo's own entries, so a scoped refresh never
+// forgets another repo's pull request.
+func (a *Aggregator) withoutSettled(prs []PullRequest, forge Forge, repo string) []PullRequest {
+	a.settledMu.Lock()
+	defer a.settledMu.Unlock()
+
+	if len(a.settled) == 0 {
+		return prs
+	}
+
+	listed := make(map[string]struct{}, len(prs))
+	for _, pr := range prs {
+		listed[settledKey(pr.Forge, pr.Repo, pr.Number)] = struct{}{}
+	}
+	scope := ""
+	if repo != "" {
+		scope = settledKey(forge, repo, 0)
+		scope = scope[:strings.LastIndex(scope, "#")+1]
+	}
+
+	for key, at := range a.settled {
+		if scope != "" && !strings.HasPrefix(key, scope) {
+			continue
+		}
+		if _, still := listed[key]; time.Since(at) > a.settleWindow || !still {
+			delete(a.settled, key)
+		}
+	}
+
+	return slices.DeleteFunc(prs, func(pr PullRequest) bool {
+		_, held := a.settled[settledKey(pr.Forge, pr.Repo, pr.Number)]
+
+		return held
+	})
 }
 
 // FirstRefreshDone reports whether the first Refresh has completed, with
@@ -172,7 +269,7 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 		}
 		merged.PullRequests = append(merged.PullRequests, pr)
 	}
-	merged.PullRequests = append(merged.PullRequests, prs...)
+	merged.PullRequests = append(merged.PullRequests, a.withoutSettled(prs, forge, fullName)...)
 
 	for _, i := range current.Issues {
 		if i.Forge == forge && i.Repo == fullName {
@@ -249,6 +346,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		snap.Issues = append(snap.Issues, r.Issues...)
 		snap.Repos = append(snap.Repos, r.Repos...)
 	}
+	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
 	sortByRecency(snap.PullRequests, snap.Issues)
 
 	a.mu.Lock()
