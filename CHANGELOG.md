@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.129.0](https://github.com/alrayyes/forge-dashboard/compare/v0.128.2...v0.129.0) (2026-10-03)
+
+
+### Features
+
+* **api:** say how long a check ran, which step failed and why ([#871](https://github.com/alrayyes/forge-dashboard/issues/871)) ([8265932](https://github.com/alrayyes/forge-dashboard/commit/826593277ff2ec64b908773385909b6b9cc4f91b))
+
 ## [0.128.2](https://github.com/alrayyes/forge-dashboard/compare/v0.128.1...v0.128.2) (2026-10-03)
 
 
