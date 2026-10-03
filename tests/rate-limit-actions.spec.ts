@@ -4,8 +4,8 @@ import {
   expect,
   type Locator,
   type Page,
-  test,
 } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 import { rateLimit, severityOf } from './severity-stand-in';
 
