@@ -150,6 +150,28 @@ func TestAggregator_Refresh_BehindReleasePleasePR_NeverUpdated(t *testing.T) {
 	assert.Empty(t, src.updatedBranches(), "a release-please pull request must never get the generic UpdateBranch call")
 }
 
+func TestAggregator_Refresh_BehindDraftPR_NeverUpdated(t *testing.T) {
+	t.Parallel()
+
+	// Nothing can be done with a draft (#791), and updating its branch
+	// would push to a branch its author is still working on.
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Draft: true},
+		},
+	}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Empty(t, src.updatedBranches(), "a draft pull request must never get its branch updated")
+}
+
 func TestAggregator_Refresh_NoAutoUpdateEnabled_NeverCallsLister(t *testing.T) {
 	t.Parallel()
 
