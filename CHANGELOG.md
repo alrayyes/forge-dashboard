@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.130.0](https://github.com/alrayyes/forge-dashboard/compare/v0.129.1...v0.130.0) (2026-10-03)
+
+
+### Features
+
+* **api:** give /readyz a probe timeout, a short cache and a drain ([#924](https://github.com/alrayyes/forge-dashboard/issues/924)) ([797519f](https://github.com/alrayyes/forge-dashboard/commit/797519f2c834c5cf665fb0372b321c03d447ceaa))
+
+
+### Bug Fixes
+
+* **dashboard:** keep failure lines until dismissed and lock only the refused action ([#921](https://github.com/alrayyes/forge-dashboard/issues/921)) ([1626b8b](https://github.com/alrayyes/forge-dashboard/commit/1626b8bfe85ccab451f1d4f9adab574bb0ec297e))
+
 ## [0.129.1](https://github.com/alrayyes/forge-dashboard/compare/v0.129.0...v0.129.1) (2026-10-03)
 
 
