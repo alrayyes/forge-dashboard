@@ -2933,6 +2933,7 @@ components:
           mergeStatus,
           behind,
           empty,
+          allowedActions,
         ]
       properties:
         forge:
@@ -3009,6 +3010,58 @@ components:
             that case, so clients keep today's behaviour.
         review:
           $ref: "#/components/schemas/ReviewState"
+        allowedActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllowedAction"
+          description: |
+            The actions this pull request offers, worked out on the server
+            from its own fields, so a client needs no copy of the rules. An
+            action that doesn't apply (Update branch on a pull request that
+            isn't behind, a Dependabot command on a Renovate pull request)
+            is absent, not listed as blocked. Always present; `close` is
+            always in it. Live state is the client's: a rate-limited or
+            unreachable forge, a missing token and an action already in
+            flight can still stop an offered action.
+
+    AllowedAction:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum:
+            - merge
+            - close
+            - update_branch
+            - auto_merge
+            - dependabot_rebase
+            - dependabot_recreate
+            - renovate_rebase
+        blocked:
+          type: object
+          required: [code, message]
+          description: |
+            Present when the action is offered but can't be taken yet. Merge
+            is never hidden for an open pull request, only blocked.
+          properties:
+            code:
+              type: string
+              description: The same codes as `ActionError.code`.
+              enum:
+                - already_up_to_date
+                - conflict
+                - not_mergeable
+                - checks_pending
+                - checks_failing
+                - behind
+                - blocked_by_protection
+            message:
+              type: string
+              description: Plain words, safe to show a person.
+            next:
+              type: string
+              description: What unlocks it, when something does.
 
     ReviewState:
       type: object
