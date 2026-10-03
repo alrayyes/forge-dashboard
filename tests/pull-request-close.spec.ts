@@ -562,6 +562,50 @@ test.describe('pull request close button', () => {
     await expect(button).toBeFocused();
   });
 
+  // #747: confirming closes the menu, so a refused Close used to show its
+  // lock only after reopening More actions. The row now says so itself.
+  test('a refused Close shows a visible lock cue on the row without opening the menu', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/close', (route: Route) =>
+      route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'github: rate limit exceeded',
+          code: 'rate_limited',
+          message:
+            "The forge's API rate limit is reached. Try again once it resets.",
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await (await openClose(row)).click();
+    await row.getByRole('button', { name: 'Confirm close?' }).click();
+
+    const trigger = row.getByRole('button', { name: 'More actions' });
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    const cue = row.locator('.row-actions-lock');
+    await expect(cue).toBeVisible();
+    await expect(cue).toHaveText('Close locked');
+    await expect(trigger).toHaveAccessibleDescription(
+      /Close is locked.*rate limit/i,
+    );
+
+    // A row with nothing locked has no cue.
+    await expect(page.locator('#pr-rows .row .row-actions-lock')).toHaveCount(
+      1,
+    );
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('a locked Close button is reachable by keyboard and has no axe-core violations', async ({
     page,
   }) => {

@@ -43,6 +43,24 @@ bun install
 Every one of these is what a hook or CI runs — see `lefthook.yml` and
 `.github/workflows/*.yml` for exactly which.
 
+CI runs a job only when a file it reads changed. The first job, `changes`,
+maps the pull request's diff to areas with `scripts/changed-areas.sh`, and
+each job runs when its area is set:
+
+| Area       | Changes that set it                                    | Jobs                                                                     |
+| ---------- | ------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `go`       | Go files, `go.mod`, `api/openapi.yaml`, `integration/` | `lint`, `test`, `build`, `container-integration`, `govulncheck`, `gomod` |
+| `web`      | `web/`, `tests/`, `package.json`, `biome.json`         | `js`, `svelte-check`, `tests-types`                                      |
+| `image`    | Go, web or Docker changes                              | `docker`, `e2e`                                                          |
+| `hadolint` | `Dockerfile*`, `.dockerignore`                         | `dockerfile`                                                             |
+| `prose`    | Markdown, `.yml`, `.svelte`, `styles/`                 | `prose`                                                                  |
+| `api`      | `api/`, `redocly.yaml`, `package.json`                 | `api`                                                                    |
+
+A path the script doesn't know runs everything, and so does every push to
+`main` and any change to `ci.yml`. Skipped jobs report as skipped, which
+satisfies a required check. Add a case to `scripts/test-changed-areas.sh`
+when you add a rule.
+
 ```sh
 go build ./...
 go vet ./...
