@@ -24,7 +24,45 @@ env:
   GOLANGCI_LINT_VERSION: v2.13.1
 
 jobs:
+  # Works out which kinds of file the change touches, so each job below runs
+  # only when a file it reads changed (rules/ci.md). A job skipped by `if:`
+  # reports as skipped, which satisfies a required check, so branch
+  # protection needs no change. Every push to main runs everything: the
+  # default branch's own pipeline is never filtered. scripts/changed-areas.sh
+  # holds the mapping and scripts/test-changed-areas.sh its tests.
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      go: ${{ steps.areas.outputs.go }}
+      web: ${{ steps.areas.outputs.web }}
+      image: ${{ steps.areas.outputs.image }}
+      e2e: ${{ steps.areas.outputs.e2e }}
+      hadolint: ${{ steps.areas.outputs.hadolint }}
+      prose: ${{ steps.areas.outputs.prose }}
+      api: ${{ steps.areas.outputs.api }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: test the mapping
+        run: scripts/test-changed-areas.sh
+      - name: changed areas
+        id: areas
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only "$BASE...$HEAD" | scripts/changed-areas.sh | tee -a "$GITHUB_OUTPUT"
+          else
+            printf 'go=true\nweb=true\nimage=true\ne2e=true\nhadolint=true\nprose=true\napi=true\n' | tee -a "$GITHUB_OUTPUT"
+          fi
+
   lint:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -48,6 +86,8 @@ jobs:
         run: go mod tidy -diff
 
   test:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
@@ -91,6 +131,8 @@ jobs:
           fail_ci_if_error: true
 
   build:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -105,6 +147,8 @@ jobs:
   # comment for why this is a separate build tag and job rather than part
   # of the ordinary `go test ./...` above.
   container-integration:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -117,6 +161,8 @@ jobs:
   # dependencies.md: pinning stops a version drifting, not a CVE existing in
   # it — this is the check that actually notices one.
   govulncheck:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -129,6 +175,8 @@ jobs:
   # No check-only flag on `go mod edit -fmt`, so this is the pre-commit
   # fixer's twin from lefthook.yml: run it again and diff.
   gomod:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -140,6 +188,8 @@ jobs:
         run: go mod edit -fmt go.mod && git diff --exit-code go.mod
 
   dockerfile:
+    needs: changes
+    if: needs.changes.outputs.hadolint == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     container:
@@ -156,6 +206,8 @@ jobs:
   # goreleaser already cross-compiled), so there's nothing to `docker build`
   # here for it standalone.
   docker:
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -166,6 +218,8 @@ jobs:
   # run on any axe-core violation. rules/a11y.md: a scan that only reports
   # is a scan nobody acts on.
   e2e:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
@@ -226,6 +280,8 @@ jobs:
   # Layout and structure. Style and mechanics are prose.yml — see its header
   # comment for why they're split out.
   prose:
+    needs: changes
+    if: needs.changes.outputs.prose == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -245,6 +301,8 @@ jobs:
   # The API description is a contract. This proves the document is valid
   # OpenAPI; nothing here proves the handler still matches it.
   api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -297,6 +355,8 @@ jobs:
   # Biome leads for every file type it supports -- linting.md. Same command
   # the pre-push hook runs, so the two can't drift.
   js:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -312,6 +372,8 @@ jobs:
   # is that file type's own check: svelte-check runs the TypeScript compiler
   # and the Svelte compiler's own a11y/unused-CSS diagnostics together.
   svelte-check:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -326,6 +388,8 @@ jobs:
   # Playwright transpiles the tests but never type-checks them, so this
   # runs tsc over tests/, scripts/ and playwright.config.ts on its own.
   tests-types:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
