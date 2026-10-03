@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.123.0](https://github.com/alrayyes/forge-dashboard/compare/v0.122.0...v0.123.0) (2026-10-03)
+
+
+### Features
+
+* **issues:** give issues their own page, with a nav item and count badge ([#840](https://github.com/alrayyes/forge-dashboard/issues/840)) ([bfc31cf](https://github.com/alrayyes/forge-dashboard/commit/bfc31cf9803912d40be1f99b33df2324a2b16ff5))
+
+## [0.122.0](https://github.com/alrayyes/forge-dashboard/compare/v0.121.0...v0.122.0) (2026-10-03)
+
+
+### Features
+
+* **api:** carry readyToMerge and needsReview on each pull request ([#845](https://github.com/alrayyes/forge-dashboard/issues/845)) ([30b41a7](https://github.com/alrayyes/forge-dashboard/commit/30b41a7c8984fcc7886f3054386ff8138b773877))
+
+## [0.121.0](https://github.com/alrayyes/forge-dashboard/compare/v0.120.0...v0.121.0) (2026-10-03)
+
+
+### Features
+
+* **api:** send a visitor with no session away from the issues page ([#831](https://github.com/alrayyes/forge-dashboard/issues/831)) ([2f6a4e9](https://github.com/alrayyes/forge-dashboard/commit/2f6a4e9e57c22fceee3ff08d53cec519a7052feb)), closes [#827](https://github.com/alrayyes/forge-dashboard/issues/827)
+
+## [0.120.0](https://github.com/alrayyes/forge-dashboard/compare/v0.119.1...v0.120.0) (2026-10-03)
+
+
+### Features
+
+* **api:** name the field in a rejected settings save ([#847](https://github.com/alrayyes/forge-dashboard/issues/847)) ([3391241](https://github.com/alrayyes/forge-dashboard/commit/3391241afaa1caeb3235e4137d02bcd54d924e01))
+
+## [0.119.1](https://github.com/alrayyes/forge-dashboard/compare/v0.119.0...v0.119.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **api:** drop a merged or closed pull request from the board at once ([#838](https://github.com/alrayyes/forge-dashboard/issues/838)) ([51c06c8](https://github.com/alrayyes/forge-dashboard/commit/51c06c8691b6c57249ff01ef5488a64f2f15632e))
+
+## [0.119.0](https://github.com/alrayyes/forge-dashboard/compare/v0.118.2...v0.119.0) (2026-10-03)
+
+
+### Features
+
+* **api:** grade each rate-limit budget with a severity ([#844](https://github.com/alrayyes/forge-dashboard/issues/844)) ([92d63c5](https://github.com/alrayyes/forge-dashboard/commit/92d63c511e20c0ed5a40792c77b744873e1b260b))
+
+## [0.118.2](https://github.com/alrayyes/forge-dashboard/compare/v0.118.1...v0.118.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* **dashboard:** hide Rebase the moment Recreate is queued, and stop the tests racing the menu ([#836](https://github.com/alrayyes/forge-dashboard/issues/836)) ([eabe659](https://github.com/alrayyes/forge-dashboard/commit/eabe65918e755db8bb6a1aa73cda9031fbe42089)), closes [#834](https://github.com/alrayyes/forge-dashboard/issues/834)
+
 ## [0.118.1](https://github.com/alrayyes/forge-dashboard/compare/v0.118.0...v0.118.1) (2026-10-03)
 
 

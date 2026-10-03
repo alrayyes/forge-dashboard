@@ -516,3 +516,38 @@ func TestSettingsPut_BlankTokenField_KeepsThePreviouslySavedToken(t *testing.T) 
 	assert.True(t, got.GitHubTokenSet, "the token saved in the first request should survive a second request that didn't resend it")
 	assert.Equal(t, "ryan-renamed", got.GitHubUsername)
 }
+
+// A rejected settings save names the field it is about (#810), so a client
+// can mark that input without parsing the message.
+func TestSettingsPut_Rejections_NameTheField(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		body  string
+		field string
+	}{
+		{"a Forgejo token with no URL", `{"forgejoToken":"fj_secret"}`, "forgejoUrl"},
+		{"a Forgejo username with no URL", `{"forgejoUsername":"ryan"}`, "forgejoUrl"},
+		{"a negative installation ID", `{"githubAppInstallationId":-1}`, "githubAppInstallationId"},
+		{"an installation ID on a server with no GitHub App", `{"githubAppInstallationId":123}`, "githubAppInstallationId"},
+		{"an installation ID that isn't a number", `{"githubAppInstallationId":"abc"}`, "githubAppInstallationId"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newTestServer(t)
+			sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+			resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", tc.body, sessionCookie)
+			defer func() { _ = resp.Body.Close() }()
+
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			var body map[string]string
+			require.NoError(t, readJSON(resp, &body))
+			assert.Equal(t, tc.field, body["field"])
+			assert.NotEmpty(t, body["error"])
+		})
+	}
+}

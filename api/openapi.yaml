@@ -2198,6 +2198,12 @@ components:
       properties:
         error:
           type: string
+        field:
+          type: string
+          description: |
+            Present when the rejection is about one field of the request
+            body (a settings save, for instance), named as it appears there,
+            so a client can mark that input without parsing `error`.
 
     ActionError:
       type: object
@@ -2572,8 +2578,18 @@ components:
         githubAppInstallationId:
           type: integer
           format: int64
+          minimum: 0
+          description: |
+            0 means none. A negative or non-integer value is a 400 naming
+            this field, as is any value on a server with no GitHub App
+            configured.
         forgejoUrl:
           type: string
+          description: |
+            Required, once the save is merged with what is already stored,
+            whenever a Forgejo token or username is set. That depends on
+            stored state, so a schema alone can't express it: a save that
+            breaks it is a 400 naming `forgejoUrl`.
         forgejoToken:
           type: string
         forgejoUsername:
@@ -2896,7 +2912,7 @@ components:
 
     RateLimit:
       type: object
-      required: [limit, remaining, resetsAt]
+      required: [limit, remaining, resetsAt, severity]
       description: >-
         One of a forge API's own request budgets for the credential the
         last refresh used — see ForgeHealth.rateLimitGraphQL/rateLimitREST
@@ -2923,6 +2939,16 @@ components:
             separate cost concept beyond the flat one-request-one-point
             REST's own budget already counts. Omitted for a REST-sourced
             RateLimit.
+        severity:
+          type: string
+          enum: [ok, low, exceeded]
+          description: |
+            How worried a client should be about this budget, graded by
+            the server as of the response, so no client needs its own
+            threshold or clock check. `exceeded`: nothing left and the
+            reset hasn't been seen to pass. `low`: under 5% left (also a
+            spent budget whose reset time has passed, until the next
+            snapshot says otherwise). `ok`: everything else.
 
     PullRequest:
       type: object
@@ -2943,6 +2969,8 @@ components:
           behind,
           empty,
           allowedActions,
+          readyToMerge,
+          needsReview,
         ]
       properties:
         forge:
@@ -3032,6 +3060,21 @@ components:
             always in it. Live state is the client's: a rate-limited or
             unreachable forge, a missing token and an action already in
             flight can still stop an offered action.
+
+        readyToMerge:
+          type: boolean
+          description: |
+            True when the pull request is mergeable, its CI is green and it
+            isn't a draft: what the Ready quick filter lists. Always
+            present. A pull request with no checks isn't ready.
+        needsReview:
+          type: boolean
+          description: |
+            True when a review is outstanding: the forge requires one, or a
+            reviewer was asked and hasn't answered, and the pull request
+            isn't a draft. Unreviewed with nobody asked, approved, changes
+            requested and an unknown review state are all false. Always
+            present.
 
     AllowedAction:
       type: object
