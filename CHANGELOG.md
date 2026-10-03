@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.128.0](https://github.com/alrayyes/forge-dashboard/compare/v0.127.1...v0.128.0) (2026-10-03)
+
+
+### Features
+
+* **dashboard:** a Review requested from me quick filter ([#903](https://github.com/alrayyes/forge-dashboard/issues/903)) ([aede2df](https://github.com/alrayyes/forge-dashboard/commit/aede2dfba0c51439a364055ed688fd33ef0b9ab0))
+
 ## [0.127.1](https://github.com/alrayyes/forge-dashboard/compare/v0.127.0...v0.127.1) (2026-10-03)
 
 
