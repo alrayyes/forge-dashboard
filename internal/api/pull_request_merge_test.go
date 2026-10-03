@@ -282,6 +282,26 @@ func TestPullRequestMerge_ReReadFails_ReturnsTheOriginalErrorWithCodeUnknown(t *
 	assert.Equal(t, "Head branch was modified. Review and try the merge again.", body.Message)
 }
 
+func TestPullRequestMerge_UncodedFailure_KeepsTheRawTextOutOfTheResponse(t *testing.T) {
+	t.Parallel()
+
+	source := &fakePullRequestMergerSource{
+		forge:    dashboard.ForgeGitHub,
+		mergeErr: mergeRefusal(dashboard.ForgeErrorUnknown, "dashboard: merge pull request: forgejo: PUT /repos/alrayyes/a/pulls/1/merge: 422 see https://git.example/api/swagger"),
+		stateErr: mergeRefusal(dashboard.ForgeErrorUnreachable, "github: GET x: timeout"),
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	var body actionErrorBody
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, "unknown", body.Code)
+	assert.Equal(t, "The forge refused this action and gave no reason.", body.Message)
+	assert.Equal(t, body.Message, body.Error, "the raw text belongs in the server log, not the response")
+}
+
 func TestPullRequestMerge_SourceWithoutStateReader_AnswersUnknownWithTheOriginalStatus(t *testing.T) {
 	t.Parallel()
 
