@@ -39,12 +39,20 @@ type repoStatus struct {
 type dashboardResponse struct {
 	GeneratedAt  time.Time               `json:"generatedAt"`
 	Forges       []dashboard.ForgeHealth `json:"forges"`
-	PullRequests []dashboard.PullRequest `json:"pullRequests"`
+	PullRequests []pullRequestView       `json:"pullRequests"`
 	Issues       []dashboard.Issue       `json:"issues"`
 	Repos        []repoStatus            `json:"repos"`
 	// HiddenDrafts is how many draft pull requests PullRequests leaves out
 	// (#791). Always serialized, and zero when the request included drafts.
 	HiddenDrafts int `json:"hiddenDrafts"`
+}
+
+// pullRequestView is a pull request as the API serves it: the snapshot's own
+// fields plus the actions it allows, worked out here so every client gets
+// the same answer (#805). The snapshot type stays free of it.
+type pullRequestView struct {
+	dashboard.PullRequest
+	AllowedActions []dashboard.ActionAvailability `json:"allowedActions"`
 }
 
 // buildDashboardResponse merges snap's tracked-repo list with userID's
@@ -106,7 +114,7 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 		})
 	}
 
-	pullRequests := make([]dashboard.PullRequest, 0, len(snap.PullRequests))
+	pullRequests := make([]pullRequestView, 0, len(snap.PullRequests))
 	hiddenDrafts := 0
 	for _, pr := range snap.PullRequests {
 		if ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)].PRs {
@@ -117,7 +125,7 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 
 			continue
 		}
-		pullRequests = append(pullRequests, pr)
+		pullRequests = append(pullRequests, pullRequestView{PullRequest: pr, AllowedActions: dashboard.AllowedActions(pr)})
 	}
 	issues := make([]dashboard.Issue, 0, len(snap.Issues))
 	for _, issue := range snap.Issues {
