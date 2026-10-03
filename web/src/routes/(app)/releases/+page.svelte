@@ -1,20 +1,19 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  const REPO = "alrayyes/forge-dashboard";
-
-  type GitHubRelease = {
-    html_url: string;
-    tag_name: string;
-    name: string | null;
-    body: string | null;
-    published_at: string | null;
-    created_at: string;
+  // One entry per release in CHANGELOG.md, written to /changelog.json at
+  // build time by scripts/changelog-json.ts (#813). This page makes no
+  // request to GitHub or anyone else.
+  type Release = {
+    version: string;
+    date: string;
+    url: string;
+    notes: string;
   };
 
   let status = $state("Loading…");
   let statusKind = $state<"" | "error">("");
-  let releases = $state<GitHubRelease[]>([]);
+  let releases = $state<Release[]>([]);
   let loaded = $state(false);
 
   function escapeHTML(s: string): string {
@@ -73,6 +72,8 @@
     return html;
   }
 
+  // The changelog's dates are calendar days with no time, read as UTC so a
+  // reader west of Greenwich doesn't see the day before.
   function formatDate(iso: string): string {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
@@ -80,25 +81,23 @@
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: "UTC",
     });
   }
 
   onMount(() => {
-    fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
-      headers: { Accept: "application/vnd.github+json" },
-    })
+    fetch("/changelog.json", { headers: { Accept: "application/json" } })
       .then((res) => {
-        if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+        if (!res.ok) throw new Error(`changelog answered ${res.status}`);
         return res.json();
       })
-      .then((data: GitHubRelease[]) => {
+      .then((data: { releases?: Release[] }) => {
         status = "";
-        releases = data || [];
+        releases = data.releases ?? [];
         loaded = true;
       })
       .catch(() => {
-        status =
-          "Could not load release history from GitHub. See it directly: ";
+        status = "Could not load the changelog.";
         statusKind = "error";
         loaded = true;
       });
@@ -210,30 +209,24 @@
     role="status"
     aria-live="polite"
   >
-    {status}{#if statusKind === "error"}<a
-        href={`https://github.com/${REPO}/releases`}
-        target="_blank"
-        rel="noopener noreferrer">github.com/{REPO}/releases</a
-      >{/if}
+    {status}
   </p>
 
   <ul class="release-list" id="release-list">
-    {#each releases as r (r.html_url)}
+    {#each releases as r (r.version)}
       <li class="release">
         <div class="release-head">
           <h2>
-            <a href={r.html_url} target="_blank" rel="noopener noreferrer"
-              >{r.name || r.tag_name}</a
-            >
+            {#if r.url}<a href={r.url} target="_blank" rel="noopener noreferrer"
+                >v{r.version}</a
+              >{:else}v{r.version}{/if}
           </h2>
-          {#if r.published_at || r.created_at}
-            <time class="release-date" datetime={r.published_at || r.created_at}
-              >{formatDate(r.published_at || r.created_at)}</time
-            >
-          {/if}
+          <time class="release-date" datetime={r.date}
+            >{formatDate(r.date)}</time
+          >
         </div>
         <div class="release-notes">
-          {@html renderReleaseNotes(r.body)}
+          {@html renderReleaseNotes(r.notes)}
         </div>
       </li>
     {/each}
