@@ -221,6 +221,55 @@ for (const s of scenarios) {
       expect(hits()).toBe(1);
     });
 
+    // #690: a native `disabled` button drops focus, so a keyboard or
+    // screen reader user loses their place. The queued button is
+    // aria-disabled instead: still focusable, ignores clicks.
+    test('the queued button is aria-disabled, keeps focus across the re-render, ignores clicks and passes axe', async ({
+      page,
+    }) => {
+      const { row, hits } = await prepare(page);
+      const button = row.getByRole('button', { name: s.button });
+      await button.focus();
+      await button.press('Enter');
+
+      const queuedButton = () =>
+        page
+          .locator('#pr-rows .row')
+          .first()
+          .getByRole('button', { name: s.queuedLabel });
+      await expect(queuedButton()).toHaveAttribute('aria-disabled', 'true');
+      await expect(queuedButton()).not.toHaveAttribute('disabled', /.*/);
+      await expect(queuedButton()).toBeFocused();
+
+      // The mock holds the response 300ms; the handler re-renders after.
+      await expect.poll(hits).toBe(1);
+      await page.waitForTimeout(800);
+      if (s.openMenu) {
+        // The menu closes on the re-render (an open one would hold the
+        // board back), so focus lands on its trigger, in the same row.
+        await expect(
+          page
+            .locator('#pr-rows .row')
+            .first()
+            .getByRole('button', { name: 'More actions' }),
+        ).toBeFocused();
+        await openMoreActions(page.locator('#pr-rows .row').first());
+      } else {
+        await expect(queuedButton()).toBeFocused();
+      }
+      await expect(queuedButton()).toHaveAttribute('aria-disabled', 'true');
+
+      // Playwright refuses to click an aria-disabled button unless forced.
+      await queuedButton().click({ force: true });
+      await page.waitForTimeout(500);
+      expect(hits()).toBe(1);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+
     test('the row says the action is waiting and counts down to the real next poll, with no banner', async ({
       page,
     }) => {

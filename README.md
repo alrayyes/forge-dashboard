@@ -384,15 +384,17 @@ limit or an unreachable forge.
 
 Update branch, `Dependabot: Rebase` and `Renovate: Rebase` only ask the
 forge or a bot to act, and the result shows up on a later refresh. Update
-branch turns into a disabled "Queued…" the moment you click it, and the
-row's status line says the request went out and counts down to the next
+branch turns into a "Queued…" button the moment you click it. It ignores
+clicks but keeps keyboard focus (`aria-disabled`), so you don't lose your place.
+The row's status line says the request went out and counts down to the next
 background poll. If the countdown runs out before the refresh lands, it reads
 "Refreshing…" instead. An unrelated refresh doesn't clear it. Update branch
 clears once a refresh shows the branch caught up. If the request fails, the
 button comes back and the row and an error toast say why.
 
-A bot `rebase` waits on the bot, not on the dashboard. The button becomes a
-disabled `Rebase requested`, and the row says the bot will pick it up shortly
+A bot `rebase` waits on the bot, not on the dashboard. The button becomes an
+`aria-disabled` `Rebase requested` (focus returns to the row's More actions
+button when the menu closes), and the row says the bot will pick it up shortly
 and that it can take a few minutes (a "Requested" age ticks along, kept out
 of what a screen reader announces). Dependabot is asked with the
 `@dependabot rebase` comment and Renovate with the `rebase` label, and the

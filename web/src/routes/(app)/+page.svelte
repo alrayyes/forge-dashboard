@@ -231,6 +231,19 @@
       return el("button", className, text) as HTMLButtonElement;
     }
 
+    // A pending action's button stays focusable: a native `disabled`
+    // drops focus, so a keyboard or screen reader user loses their place
+    // (#690). aria-disabled keeps it, and clicks are ignored in the
+    // handler instead.
+    function markPending(button: HTMLButtonElement, pending: boolean) {
+      if (pending) button.setAttribute("aria-disabled", "true");
+      else button.removeAttribute("aria-disabled");
+    }
+
+    function isPending(button: HTMLButtonElement): boolean {
+      return button.getAttribute("aria-disabled") === "true";
+    }
+
     // Used by each board's own small count next to its heading — the
     // full phrase reads fine at that size. The top stat tile below gets
     // its own, more compact treatment: shownCountText would wrap a 26px
@@ -1741,7 +1754,7 @@
     function doUpdateBranch(item: PullRequestItem, button: HTMLButtonElement) {
       const key = prKey(item);
       updateBranchState[key] = { phase: "queued" };
-      button.disabled = true;
+      markPending(button, true);
       button.textContent = "Queued…";
       const fkey = `update-branch:${key}`;
       feedback.start({
@@ -1862,8 +1875,9 @@
         queued ? "Queued…" : "Update branch",
       );
       button.type = "button";
-      button.disabled = queued;
+      markPending(button, queued);
       button.addEventListener("click", () => {
+        if (isPending(button)) return;
         doUpdateBranch(item, button);
       });
       return button;
@@ -1907,7 +1921,7 @@
         phase: "queued",
         queued: queuedBotInfo(item),
       };
-      button.disabled = true;
+      markPending(button, true);
       button.textContent = queuedBotLabel(action === "rebase");
       const fkey = `dependabot:${key}`;
       feedback.start({
@@ -1966,8 +1980,7 @@
                 ? "Dependabot rebase requested. It will pick this up shortly."
                 : `Dependabot ${action} requested. Awaiting the next refresh.`,
           });
-          closeAllActionMenus();
-          renderPRBoard();
+          closeMenuKeepingFocus(prKey(item));
         })
         .catch((err: ActionRequestError) => {
           renderActionRefusal(
@@ -2020,8 +2033,9 @@
           ? queuedBotLabel(action === "rebase")
           : DEPENDABOT_ACTION_LABELS[action],
       );
-      button.disabled = queued;
+      markPending(button, queued);
       button.addEventListener("click", () => {
+        if (isPending(button)) return;
         doDependabotAction(item, action, button);
       });
       return button;
@@ -2252,7 +2266,7 @@
         phase: "queued",
         queued: queuedBotInfo(item),
       };
-      button.disabled = true;
+      markPending(button, true);
       button.textContent = queuedBotLabel(true);
       const fkey = `renovate:${key}`;
       feedback.start({
@@ -2298,8 +2312,7 @@
             announce:
               "Renovate rebase requested. It will pick this up shortly.",
           });
-          closeAllActionMenus();
-          renderPRBoard();
+          closeMenuKeepingFocus(prKey(item));
         })
         .catch((err: ActionRequestError) => {
           renderActionRefusal(
@@ -2336,8 +2349,9 @@
         "row-action",
         queued ? queuedBotLabel(true) : "Renovate: Rebase",
       );
-      button.disabled = queued;
+      markPending(button, queued);
       button.addEventListener("click", () => {
+        if (isPending(button)) return;
         doRenovateRebase(item, button);
       });
       return button;
@@ -2634,6 +2648,15 @@
         if (closeState[key]?.phase === "confirming") delete closeState[key];
         delete openActionMenus[key];
       }
+    }
+
+    // Closing the menu a just-clicked action lived in removes the button
+    // focus was on, so focus goes back to that row's trigger instead of
+    // falling to the page (#690), as Close already does.
+    function closeMenuKeepingFocus(key: string) {
+      closeAllActionMenus();
+      renderPRBoard();
+      document.getElementById(`row-actions-trigger-${domSafeId(key)}`)?.focus();
     }
 
     // Collapses actions into a single trailing "More actions" trigger —
