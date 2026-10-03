@@ -1,11 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-  test,
-} from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // Close, Update branch, Enable auto-merge, and the Dependabot and Renovate

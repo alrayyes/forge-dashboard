@@ -3061,6 +3061,32 @@ func TestFetch_MapsTheRequestedReviewerLogins(t *testing.T) {
 	assert.Contains(t, seenQuery, "requestedReviewer")
 }
 
+// A pull request carries its base and head branch names and whether it comes
+// from a fork (#860), the raw facts a stack is worked out from.
+func TestFetch_MapsTheBranchesAndForkFlag(t *testing.T) {
+	t.Parallel()
+
+	node := pullRequestNode("CLEAN")
+	pr := node["pullRequests"].(map[string]any)["nodes"].([]map[string]any)[0]
+	pr["baseRefName"] = "feat/parent"
+	pr["headRefName"] = "feat/child"
+	pr["isCrossRepository"] = true
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, reposQueryFixture(node))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	got := result.PullRequests[0]
+	assert.Equal(t, "feat/parent", got.BaseBranch)
+	assert.Equal(t, "feat/child", got.HeadBranch)
+	assert.True(t, got.CrossRepository)
+}
+
 // failedCheckServer plays GitHub for one pull request with one failed
 // Actions job (#697): the check run, the job with its steps, and the job's
 // log behind a redirect to a blob that serves byte ranges, as the real one

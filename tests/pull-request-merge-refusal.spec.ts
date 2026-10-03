@@ -4,8 +4,8 @@ import {
   expect,
   type Page,
   type Route,
-  test,
 } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // The merge endpoint answers a refused merge with a structured result

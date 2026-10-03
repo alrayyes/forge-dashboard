@@ -1,10 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  test,
-} from '@playwright/test';
+import { type APIRequestContext, expect, type Page } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 async function registerAndSignIn(
@@ -233,15 +229,24 @@ test.describe('settings page', () => {
     await expect(page.locator('#renovate-rebase-label')).toHaveValue('retry');
   });
 
-  test('a Forgejo username with no instance URL is refused before it ever reaches the server', async ({
+  // #810: the server decides what a valid save is and names the field it
+  // refused (`field`); the page sends the save and shows the answer.
+  test('a Forgejo username with no instance URL is refused by the server, which names the field', async ({
     page,
   }) => {
     await page.goto('/settings.html');
 
     await page.fill('#forgejo-username', 'octocat-forgejo');
-    await page.click('#save-button');
+    const [saveRequest] = await Promise.all([
+      page.waitForRequest(
+        (r) => r.url().endsWith('/api/settings') && r.method() === 'PUT',
+      ),
+      page.click('#save-button'),
+    ]);
+    expect(saveRequest).toBeTruthy();
 
-    await expect(page.locator('#status')).toContainText(/instance url/i);
+    await expect(page.locator('#status')).toContainText(/forgejoUrl/);
+    await expect(page.locator('#forgejo-url')).toBeFocused();
 
     await page.reload();
     await expect(page.locator('#forgejo-username')).toHaveValue('', {
@@ -281,14 +286,13 @@ test.describe('settings page', () => {
     ).toContainText(/no github app configured/i);
   });
 
-  test('a non-numeric GitHub App installation ID is refused before it ever reaches the server (#620)', async ({
+  test('a non-numeric GitHub App installation ID is sent to the server, which refuses it (#620, #810)', async ({
     page,
   }) => {
     // The input is disabled by default (previous test) since this
-    // environment has no App configured, so exercising the client-side
-    // format check needs the value set directly rather than typed —
-    // typing into a genuinely disabled control is a no-op in a real
-    // browser, and reflects nothing this test is actually about.
+    // environment has no App configured, so the value is set directly
+    // rather than typed: typing into a genuinely disabled control is a
+    // no-op in a real browser.
     await page.goto('/settings.html');
 
     await page.evaluate(() => {
@@ -299,9 +303,22 @@ test.describe('settings page', () => {
       el.value = 'not-a-number';
       el.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await page.click('#save-button');
+    const [saveRequest] = await Promise.all([
+      page.waitForRequest(
+        (r) => r.url().endsWith('/api/settings') && r.method() === 'PUT',
+      ),
+      page.click('#save-button'),
+    ]);
+    expect(saveRequest).toBeTruthy();
 
-    await expect(page.locator('#status')).toContainText(/must be a number/i);
+    // Nothing was saved and the page shows the server's reason, which names
+    // the field. (The input stays disabled here, with no App configured, so
+    // it can't take focus; the Forgejo URL test above covers focus.)
+    await expect(page.locator('#status')).not.toHaveText('Saved.');
+    await expect(page.locator('#status')).toHaveAttribute('class', /error/);
+    await expect(page.locator('#status')).toContainText(
+      /githubAppInstallationId/,
+    );
   });
 
   test('the GitHub fine-grained permissions are a real list, not one run-on line', async ({
