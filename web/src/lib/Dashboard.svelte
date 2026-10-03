@@ -2150,6 +2150,9 @@
     // re-sorted list.
     let rawPRs: PullRequestItem[] = [];
     let latestIsUserAsked = false;
+    // How many rows the filters leave on the current view, for the Filters
+    // sheet's "Show N results" button (#828).
+    let visibleResultCount = 0;
 
     // The issues page's counterpart (#827, #718). Same idea, a simpler rule:
     // a change that would add, remove or move rows is held only while
@@ -3138,12 +3141,15 @@
     // later refresh must never repeat it, or it would stomp the title
     // filter back to its lowercase canonical form over whatever case
     // the user is mid-typing.
+    // The shared controls, wherever they currently are: in the bar, or in
+    // the Filters sheet while it's open (#828).
+    const FILTER_CONTROLS =
+      ".filter-bar .col-filter, #filter-sheet .col-filter";
+
     function syncSharedControlsToState() {
       syncQuickPills();
-      const bar = document.querySelector(".filter-bar");
-      if (!bar) return;
-      bar
-        .querySelectorAll<HTMLInputElement | HTMLSelectElement>(".col-filter")
+      document
+        .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
         .forEach((c) => {
           const value =
             sharedState.shared[(c as HTMLElement).dataset.col ?? ""];
@@ -3445,6 +3451,9 @@
         if (noResults)
           noResults.hidden = visible.length !== 0 || state.items.length === 0;
 
+        if (isPR === (view === "pulls")) {
+          visibleResultCount = visible.length;
+        }
         const count = document.getElementById(`${idPrefix}-count`);
         if (count)
           count.textContent = shownCountText(
@@ -3671,7 +3680,7 @@
     // Toggle buttons with aria-pressed: exactly one is active at a time.
     // The pill logic itself lives in $lib/filters (setPill/activePill).
     const quickPills = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(".quick-pills .quick-pill"),
+      document.querySelectorAll<HTMLButtonElement>(".quick-pill"),
     );
     function syncQuickPills() {
       let active = Filters.activePill(sharedState);
@@ -3768,7 +3777,183 @@
         "clear-filters-button",
       ) as HTMLButtonElement | null;
       if (button) button.disabled = filtersAreDefault();
+      renderFilterChrome();
     }
+
+    // ---- phones: the Filters sheet, active-filter chips (#828) ----
+    // Below 760px the bar is a search row, one scrolling row of quick
+    // filters and chips for what's active. Everything else lives in a
+    // bottom sheet (a <dialog>): the controls move into it while it's open
+    // and back when it closes, so their ids and handlers are the ones they
+    // always had. Filters apply as you change them, and the sheet's "Show
+    // N results" says what you'd see, so a refresh can't disturb an edit.
+    const phoneQuery = window.matchMedia("(max-width: 760px)");
+    const filtersButton = document.getElementById(
+      "filters-button",
+    ) as HTMLButtonElement | null;
+    const filterSheet = document.getElementById(
+      "filter-sheet",
+    ) as HTMLDialogElement | null;
+    const filterControls = document.getElementById("filter-controls");
+    const filterSheetBody = document.getElementById("filter-sheet-body");
+    const filterSheetShow = document.getElementById(
+      "filter-sheet-show",
+    ) as HTMLButtonElement | null;
+    const filterSheetClear = document.getElementById(
+      "filter-sheet-clear",
+    ) as HTMLButtonElement | null;
+    const activeFiltersEl = document.getElementById("active-filters");
+    let filterControlsHome: {
+      parent: HTMLElement;
+      before: Node | null;
+    } | null = null;
+
+    function selectText(col: string, value: string): string {
+      const select = document.querySelector<HTMLSelectElement>(
+        `.col-filter[data-col="${col}"]`,
+      );
+      const option = Array.from(select?.options ?? []).find(
+        (o) => o.value.toLowerCase() === value,
+      );
+      return option?.textContent?.trim() || value;
+    }
+
+    // Set a shared select back to "all" the way a person would, so the
+    // control's own handler applies it and saves it.
+    function clearSelect(col: string) {
+      const select = document.querySelector<HTMLSelectElement>(
+        `.col-filter[data-col="${col}"]`,
+      );
+      if (!select) return;
+      select.value = "";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    type FilterChip = { label: string; clear: () => void };
+
+    function activeFilterChips(): FilterChip[] {
+      const chips: FilterChip[] = [];
+      const shared = sharedState.shared;
+      if (shared.forge)
+        chips.push({
+          label: `Forge ${Filters.FORGE_LABELS[shared.forge] || shared.forge}`,
+          clear: () =>
+            document
+              .querySelector<HTMLButtonElement>('.quick-pill[data-pill="all"]')
+              ?.click(),
+        });
+      if (shared.repo)
+        chips.push({
+          label: `Repo ${shared.repo.slice(shared.repo.indexOf(":") + 1)}`,
+          clear: () => clearSelect("repo"),
+        });
+      if (shared.author)
+        chips.push({
+          label: `Author ${shared.author}`,
+          clear: () => clearSelect("author"),
+        });
+      if (shared.label)
+        chips.push({
+          label: `Label ${shared.label}`,
+          clear: () => clearSelect("label"),
+        });
+      if (shared.created)
+        chips.push({
+          label: `Created ${selectText("created", shared.created)}`,
+          clear: () => clearSelect("created"),
+        });
+      if (shared.updated)
+        chips.push({
+          label: `Updated ${selectText("updated", shared.updated)}`,
+          clear: () => clearSelect("updated"),
+        });
+      if (view === "pulls" && sharedState.pr.status)
+        chips.push({
+          label: `CI ${selectText("status", sharedState.pr.status)}`,
+          clear: () => clearSelect("status"),
+        });
+      if (view === "pulls" && draftsOn())
+        chips.push({
+          label: "Drafts shown",
+          clear: () => showDraftsButton?.click(),
+        });
+      return chips;
+    }
+
+    let renderedChips = "";
+
+    function renderFilterChrome() {
+      const chips = activeFilterChips();
+      if (filtersButton)
+        filtersButton.textContent =
+          chips.length > 0 ? `Filters (${chips.length})` : "Filters";
+      if (filterSheetShow)
+        filterSheetShow.textContent =
+          visibleResultCount === 1
+            ? "Show 1 result"
+            : `Show ${visibleResultCount} results`;
+      if (filterSheetClear) filterSheetClear.disabled = filtersAreDefault();
+
+      // Only rebuilt when what's shown would change, so a chip the reader
+      // is about to tap isn't replaced under their finger by a refresh.
+      const signature = chips.map((c) => c.label).join("|");
+      if (!activeFiltersEl || signature === renderedChips) return;
+      renderedChips = signature;
+      activeFiltersEl.replaceChildren();
+      activeFiltersEl.hidden = chips.length === 0;
+      for (const chip of chips) {
+        const button = el("button", "filter-chip");
+        button.setAttribute("type", "button");
+        button.setAttribute("aria-label", `Remove filter: ${chip.label}`);
+        button.appendChild(el("span", "filter-chip-label", chip.label));
+        const x = el("span", "filter-chip-x", "×");
+        x.setAttribute("aria-hidden", "true");
+        button.appendChild(x);
+        button.addEventListener("click", chip.clear);
+        activeFiltersEl.appendChild(button);
+      }
+    }
+
+    function openFilterSheet() {
+      if (!phoneQuery.matches || !filterSheet || !filterControls) return;
+      filterControlsHome = {
+        parent: filterControls.parentElement as HTMLElement,
+        before: filterControls.nextSibling,
+      };
+      filterSheetBody?.appendChild(filterControls);
+      filterSheet.showModal();
+      filtersButton?.setAttribute("aria-expanded", "true");
+    }
+
+    // Closing, however it happens (Escape, the buttons, a tap on the
+    // backdrop): the controls go home and focus returns to the button.
+    filterSheet?.addEventListener("close", () => {
+      if (filterControls && filterControlsHome)
+        filterControlsHome.parent.insertBefore(
+          filterControls,
+          filterControlsHome.before,
+        );
+      filterControlsHome = null;
+      filtersButton?.setAttribute("aria-expanded", "false");
+      filtersButton?.focus();
+    });
+    filtersButton?.addEventListener("click", openFilterSheet);
+    filterSheetShow?.addEventListener("click", () => filterSheet?.close());
+    document
+      .getElementById("filter-sheet-close")
+      ?.addEventListener("click", () => filterSheet?.close());
+    filterSheetClear?.addEventListener("click", () =>
+      document.getElementById("clear-filters-button")?.click(),
+    );
+    filterSheet?.addEventListener("click", (e) => {
+      // A tap on the backdrop (the dialog element itself, outside its box).
+      if (e.target === filterSheet) filterSheet.close();
+    });
+    // Rotating or resizing past the breakpoint with the sheet open puts
+    // the controls back in the bar.
+    phoneQuery.addEventListener("change", () => {
+      if (!phoneQuery.matches && filterSheet?.open) filterSheet.close();
+    });
 
     const clearFiltersButton = document.getElementById("clear-filters-button");
     clearFiltersButton?.addEventListener("click", () => {
@@ -3785,9 +3970,7 @@
       syncQuickPills();
 
       document
-        .querySelectorAll<HTMLInputElement | HTMLSelectElement>(
-          ".filter-bar .col-filter",
-        )
+        .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
         .forEach((c) => {
           if (c instanceof HTMLInputElement && c.type === "radio") {
             c.checked = c.value === "";
@@ -4672,13 +4855,13 @@
       >
       <button
         type="button"
-        class="quick-pill"
+        class="quick-pill forge-pill"
         data-pill="github"
         aria-pressed="false">GitHub</button
       >
       <button
         type="button"
-        class="quick-pill"
+        class="quick-pill forge-pill"
         data-pill="forgejo"
         aria-pressed="false">Forgejo</button
       >
@@ -4709,103 +4892,175 @@
         >
       {/if}
     </div>
-    {#if view === "pulls"}
+    <!-- Phones (#828): this row stays when the rest of the controls fold
+         into the Filters sheet. Everywhere else it just flows. -->
+    <div class="filter-bar-top">
+      <span class="search-wrap">
+        <input
+          class="col-filter"
+          data-col="title"
+          type="text"
+          placeholder="Title"
+          aria-label="Filter by title"
+          aria-keyshortcuts="/"
+          list="shared-title-options"
+          autocomplete="off"
+        />
+        <kbd class="search-hint" aria-hidden="true">/</kbd>
+      </span>
+      <datalist id="shared-title-options"></datalist>
       <button
         type="button"
-        class="drafts-toggle"
-        id="show-drafts-toggle"
-        aria-pressed="false"
-        >Show drafts<span class="drafts-hidden" id="drafts-hidden-count" hidden
-        ></span></button
+        class="filters-trigger"
+        id="filters-button"
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="filter-sheet">Filters</button
       >
-    {/if}
-    <select
-      class="group-select"
-      id="pr-sort-select"
-      aria-label={view === "issues"
-        ? "Sort issues by"
-        : "Sort pull requests by"}
-    >
-      <option value="">Sort: Last activity</option>
-      <option value="created">Sort: Created</option>
-      <option value="repo">Sort: Repository</option>
-    </select>
-    <select
-      class="group-select"
-      id="shared-group-select"
-      aria-label="Group rows by"
-    >
-      <option value="">Flat list</option>
-      <option value="repo">Group by repository</option>
-      <option value="forge">Group by forge</option>
-    </select>
-    <select
-      class="col-filter"
-      data-col="repo"
-      id="shared-repo-select"
-      aria-label="Filter by repo"
-    >
-      <option value="">All repos</option>
-    </select>
-    <span class="search-wrap">
-      <input
+    </div>
+    <div
+      class="active-filters"
+      id="active-filters"
+      role="group"
+      aria-label="Active filters"
+      hidden
+    ></div>
+    <div class="filter-controls" id="filter-controls">
+      <div class="forge-group sheet-only" role="group" aria-label="Forge">
+        <button
+          type="button"
+          class="quick-pill"
+          data-pill="all"
+          aria-pressed="true">All</button
+        >
+        <button
+          type="button"
+          class="quick-pill"
+          data-pill="github"
+          aria-pressed="false">GitHub</button
+        >
+        <button
+          type="button"
+          class="quick-pill"
+          data-pill="forgejo"
+          aria-pressed="false">Forgejo</button
+        >
+      </div>
+      {#if view === "pulls"}
+        <button
+          type="button"
+          class="drafts-toggle"
+          id="show-drafts-toggle"
+          aria-pressed="false"
+          >Show drafts<span
+            class="drafts-hidden"
+            id="drafts-hidden-count"
+            hidden
+          ></span></button
+        >
+      {/if}
+      <select
+        class="group-select"
+        id="pr-sort-select"
+        aria-label={view === "issues"
+          ? "Sort issues by"
+          : "Sort pull requests by"}
+      >
+        <option value="">Sort: Last activity</option>
+        <option value="created">Sort: Created</option>
+        <option value="repo">Sort: Repository</option>
+      </select>
+      <select
+        class="group-select"
+        id="shared-group-select"
+        aria-label="Group rows by"
+      >
+        <option value="">Flat list</option>
+        <option value="repo">Group by repository</option>
+        <option value="forge">Group by forge</option>
+      </select>
+      <select
         class="col-filter"
-        data-col="title"
-        type="text"
-        placeholder="Title"
-        aria-label="Filter by title"
-        aria-keyshortcuts="/"
-        list="shared-title-options"
-        autocomplete="off"
-      />
-      <kbd class="search-hint" aria-hidden="true">/</kbd>
-    </span>
-    <datalist id="shared-title-options"></datalist>
-    <select
-      class="col-filter"
-      data-col="author"
-      id="shared-author-select"
-      aria-label="Filter by author"
-    >
-      <option value="">All authors</option>
-    </select>
-    <select
-      class="col-filter"
-      data-col="label"
-      id="shared-label-select"
-      aria-label="Filter by label"
-    >
-      <option value="">All labels</option>
-    </select>
-    <select
-      class="col-filter"
-      data-col="created"
-      aria-label="Filter by created"
-    >
-      <option value="">Created</option>
-      <option value="60">&lt; 1 hour</option>
-      <option value="1440">&lt; 24 hours</option>
-      <option value="10080">&lt; 7 days</option>
-      <option value="43200">&lt; 30 days</option>
-    </select>
-    <select
-      class="col-filter"
-      data-col="updated"
-      aria-label="Filter by updated"
-    >
-      <option value="">Updated</option>
-      <option value="60">&lt; 1 hour</option>
-      <option value="1440">&lt; 24 hours</option>
-      <option value="10080">&lt; 7 days</option>
-      <option value="43200">&lt; 30 days</option>
-    </select>
-    <button
-      type="button"
-      class="clear-filters"
-      id="clear-filters-button"
-      disabled>Clear filters</button
-    >
+        data-col="repo"
+        id="shared-repo-select"
+        aria-label="Filter by repo"
+      >
+        <option value="">All repos</option>
+      </select>
+      <select
+        class="col-filter"
+        data-col="author"
+        id="shared-author-select"
+        aria-label="Filter by author"
+      >
+        <option value="">All authors</option>
+      </select>
+      <select
+        class="col-filter"
+        data-col="label"
+        id="shared-label-select"
+        aria-label="Filter by label"
+      >
+        <option value="">All labels</option>
+      </select>
+      <select
+        class="col-filter"
+        data-col="created"
+        aria-label="Filter by created"
+      >
+        <option value="">Created</option>
+        <option value="60">&lt; 1 hour</option>
+        <option value="1440">&lt; 24 hours</option>
+        <option value="10080">&lt; 7 days</option>
+        <option value="43200">&lt; 30 days</option>
+      </select>
+      <select
+        class="col-filter"
+        data-col="updated"
+        aria-label="Filter by updated"
+      >
+        <option value="">Updated</option>
+        <option value="60">&lt; 1 hour</option>
+        <option value="1440">&lt; 24 hours</option>
+        <option value="10080">&lt; 7 days</option>
+        <option value="43200">&lt; 30 days</option>
+      </select>
+      <button
+        type="button"
+        class="clear-filters"
+        id="clear-filters-button"
+        disabled>Clear filters</button
+      >
+    </div>
   </div>
+
+  <!-- The Filters sheet (#828), phones only: the controls move in here
+       while it's open and back when it closes, so every id and handler
+       they already have survives. -->
+  <dialog
+    id="filter-sheet"
+    class="filter-sheet"
+    aria-labelledby="filter-sheet-title"
+  >
+    <div class="filter-sheet-head">
+      <h2 id="filter-sheet-title">Filters</h2>
+      <button
+        type="button"
+        class="filter-sheet-close"
+        id="filter-sheet-close"
+        aria-label="Close filters">&times;</button
+      >
+    </div>
+    <div class="filter-sheet-body" id="filter-sheet-body"></div>
+    <div class="filter-sheet-foot">
+      <button type="button" class="filter-sheet-clear" id="filter-sheet-clear"
+        >Clear all</button
+      >
+      <button type="button" class="filter-sheet-show" id="filter-sheet-show"
+        >Show results</button
+      >
+    </div>
+  </dialog>
 
   <div class="updates-bar" id="updates-bar">
     <span
