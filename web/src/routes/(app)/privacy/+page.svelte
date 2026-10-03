@@ -94,10 +94,8 @@
     <h2>Third-party services</h2>
     <ul>
       <li>
-        Every page here loads a stylesheet from
-        <span class="mono">fonts.googleapis.com</span> (Google Fonts) — that request
-        carries your IP address to Google, the same as it would for any site using
-        their hosted fonts.
+        None. The fonts are served by this app itself, so a page makes no
+        request to any other host and your IP address goes nowhere else.
       </li>
       <li>No analytics, tracking, or telemetry of any kind.</li>
     </ul>
