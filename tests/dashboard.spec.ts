@@ -80,7 +80,8 @@ test.describe('dashboard page', () => {
   }) => {
     await expect(page.locator('h1')).toHaveText('Forge Board');
     await expect(page.locator('#stat-prs')).not.toHaveText('–');
-    await expect(page.locator('.board')).toHaveCount(2);
+    // Issues have their own page (#827).
+    await expect(page.locator('.board')).toHaveCount(1);
   });
 
   test('a user with no background refresh running yet still sees the dashboard, with no error banner', async ({
@@ -695,7 +696,7 @@ test.describe('dashboard page', () => {
     );
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.reload();
+    await page.goto('/issues.html');
 
     const titleCell = page.locator('#issue-rows .title-cell').first();
     await expect(titleCell).toBeVisible();
@@ -745,7 +746,7 @@ test.describe('dashboard page', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/issues.html');
 
     const repoName = page.locator('#issue-rows .repo-name').first();
     await expect(repoName).toHaveAttribute(
@@ -784,7 +785,7 @@ test.describe('dashboard page', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/issues.html');
 
     const repoName = page.locator('#issue-rows .repo-name').first();
     const overflow = await repoName.evaluate(
@@ -1006,7 +1007,7 @@ test.describe('dashboard page', () => {
       await expect(titleFilter).toHaveValue('github');
     });
 
-    test('the shared forge filter persists and applies to both boards, while CI status stays scoped to pull requests only', async ({
+    test('the shared forge filter persists and applies to both pages, while CI status stays scoped to pull requests only', async ({
       page,
     }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
@@ -1072,87 +1073,52 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.route('**/api/dashboard/stream', (route) => route.abort());
+      await page.goto('/');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
 
-      // Forge is shared: picking one narrows both boards at once.
+      // Forge is shared: picking one narrows the pull requests here...
       await selectForge(page, 'github');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+
+      // ...and the issues on their own page.
+      await page.goto('/issues.html');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+      await expect(forgeRadio(page, 'github')).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
 
       // CI status has no equivalent on issues, so it stays scoped to the
-      // pull requests board only.
+      // pull requests page only.
+      await page.goto('/');
       await page.selectOption(
         'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
         'failure',
       );
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      // Navigating before the save lands would race it against the next
+      // page's own load of the saved state.
+      await expect
+        .poll(async () => {
+          const resp = await page.request.get('/api/settings/filter-state');
+          return (await resp.json())?.pr?.status;
+        })
+        .toBe('failure');
+      await page.goto('/issues.html');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
-      await page.reload();
+      await page.goto('/');
       await expect(forgeRadio(page, 'github')).toHaveAttribute(
         'aria-pressed',
         'true',
       );
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
       await expect(
         page.locator(
           'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
         ),
       ).toHaveValue('failure');
-    });
-  });
-
-  test.describe('server-synced filter state (#353)', () => {
-    function mockTwoForges(page: Page) {
-      return page.route('**/api/dashboard*', (route: Route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            generatedAt: new Date().toISOString(),
-            forges: [
-              { forge: 'github', reachable: true, repoCount: 1 },
-              { forge: 'forgejo', reachable: true, repoCount: 1 },
-            ],
-            pullRequests: [
-              {
-                forge: 'github',
-                repo: 'alrayyes/forge-dashboard',
-                number: 1,
-                title: 'A GitHub PR',
-                url: 'https://example.com/1',
-                author: 'claude',
-                ci: 'success',
-                labels: [],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              },
-              {
-                forge: 'forgejo',
-                repo: 'homelab/vps-docker',
-                number: 2,
-                title: 'A Forgejo PR',
-                url: 'https://example.com/2',
-                author: 'ryan',
-                ci: 'success',
-                labels: [],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              },
-            ],
-            issues: [],
-          }),
-        }),
-      );
-    }
-
-    test.beforeEach(async ({ page }) => {
-      await mockTwoForges(page);
-      await page.reload();
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     });
 
     test('a discrete filter change saves to the server immediately, not just the cookie', async ({
@@ -2660,7 +2626,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/issues.html');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
     });
 
@@ -2701,7 +2667,7 @@ test.describe('dashboard page', () => {
       expect(navigated).toBe(false);
     });
 
-    test('label filtering is shared: clicking a chip on the issues board also filters the pull requests board', async ({
+    test('label filtering is shared: clicking a chip on the issues page also filters the pull requests page', async ({
       page,
     }) => {
       // Label is one of the shared fields now — override the fixture with
@@ -2767,14 +2733,20 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.route('**/api/dashboard/stream', (route) => route.abort());
+      await page.goto('/');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      await page.goto('/issues.html');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
 
       await page
         .locator('#issue-rows .label-chip', { hasText: 'kind/bug' })
         .click();
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+
+      // The label is shared state, so the pull request page is filtered
+      // too (#827 split the two boards onto separate pages).
+      await page.goto('/');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText(
         'A PR fixing a bug',
@@ -2861,7 +2833,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/issues.html');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
       await page.selectOption('#shared-label-select', 'kind/buried');
@@ -2917,7 +2889,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/issues.html');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
 
       const darkChip = page.locator('#issue-rows .label-chip', {
@@ -2986,7 +2958,7 @@ test.describe('dashboard page', () => {
       await mockDashboard(page, {
         issues: [DEPENDENCY_DASHBOARD_ISSUE, REAL_ISSUE],
       });
-      await page.reload();
+      await page.goto('/issues.html');
       // The default-on Hide Dependency Dashboard filter is already
       // narrowing the board, so the count reads "shown of total" rather
       // than the raw total — same as any other active filter.
@@ -3037,7 +3009,7 @@ test.describe('dashboard page', () => {
           },
         ],
       });
-      await page.reload();
+      await page.goto('/');
 
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(
@@ -3143,7 +3115,7 @@ test.describe('dashboard page', () => {
       await expect(button).toBeEnabled();
     });
 
-    test('clicking resets every shared filter, group-by, CI status, and Hide Dependency Dashboard in one action, re-renders both boards, resets pagination, and disables itself again', async ({
+    test('clicking resets every shared filter, group-by and CI status in one action, re-renders the board, resets pagination, and disables itself again', async ({
       page,
     }) => {
       await page.fill('.filter-bar .col-filter[data-col="title"]', 'alarm');
@@ -3152,13 +3124,7 @@ test.describe('dashboard page', () => {
         'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
         'failure',
       );
-      await page.locator('#issue-hide-dependency-dashboard').uncheck();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(0); // title+status together match neither PR
-      // The shared title filter also applies to issues, so even with
-      // Hide Dependency Dashboard unchecked, "alarm" still excludes it —
-      // confirms the shared filter and the board-owned extra combine
-      // rather than either alone deciding visibility.
-      await expect(page.locator('#issue-rows > .row')).toHaveCount(0);
 
       var button = page.getByRole('button', { name: 'Clear filters' });
       await expect(button).toBeEnabled();
@@ -3174,12 +3140,23 @@ test.describe('dashboard page', () => {
           'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
         ),
       ).toHaveValue('');
+      // Both PRs are back (no title/status filter).
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    });
+
+    test('on the issues page, clicking it also re-checks Hide Dependency Dashboard', async ({
+      page,
+    }) => {
+      await page.route('**/api/dashboard/stream', (route) => route.abort());
+      await page.goto('/issues.html');
+      await page.locator('#issue-hide-dependency-dashboard').uncheck();
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+
+      await page.getByRole('button', { name: 'Clear filters' }).click();
+
       await expect(
         page.locator('#issue-hide-dependency-dashboard'),
       ).toBeChecked();
-      // Both PRs are back (no title/status filter), the Dependency
-      // Dashboard issue is hidden again (its own default).
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
       await expect(page.locator('#issue-rows > .row')).toHaveCount(0);
     });
 
@@ -3253,8 +3230,11 @@ test.describe('login page', () => {
 // (https://docs.github.com/en/get-started/accessibility/keyboard-shortcuts).
 test.describe('quick filter pills and "/" shortcut (#678)', () => {
   const now = new Date().toISOString();
+  // A stand-in for the two answers the server gives each pull request
+  // (readyToMerge, needsReview; internal/dashboard): the page only reads
+  // them, so the fixture states them from the raw fields (#807).
   function pr(over: Record<string, unknown>) {
-    return {
+    const base = {
       forge: 'github',
       repo: 'alrayyes/app',
       number: 1,
@@ -3268,6 +3248,22 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       createdAt: now,
       updatedAt: now,
       ...over,
+    } as Record<string, unknown> & {
+      draft: boolean;
+      ci: string;
+      mergeStatus: string;
+      review?: { decision: string; requestedReviewers: number };
+    };
+    const outstanding =
+      base.review?.decision === 'review_required' ||
+      (base.review?.decision === 'none' && base.review.requestedReviewers > 0);
+    return {
+      ...base,
+      readyToMerge:
+        base.mergeStatus === 'mergeable' &&
+        base.ci === 'success' &&
+        !base.draft,
+      needsReview: !base.draft && Boolean(outstanding),
     };
   }
   const PRS = [
@@ -3491,10 +3487,16 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  test('quick filters leave the issues board alone, forge pills do not', async ({
+  test('quick filters leave the issues page alone, forge pills do not', async ({
     page,
   }) => {
+    await page.route('**/api/dashboard/stream', (route) => route.abort());
     await pill(page, 'Failing CI').click();
+    await page.goto('/issues.html');
+    // The pull-request-only pill is not on the issues page, and All is what
+    // is in effect there (#827).
+    await expect(pill(page, 'Failing CI')).toHaveCount(0);
+    await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
     await pill(page, 'Forgejo').click();
     await expect(page.locator('#issue-rows > .row')).toHaveCount(0);

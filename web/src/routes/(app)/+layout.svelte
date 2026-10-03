@@ -3,6 +3,8 @@
   import { page } from "$app/state";
   import { syncThemeFromServer } from "$lib/theme";
   import Footer from "$lib/Footer.svelte";
+  import { issueCount } from "$lib/issue-count.svelte";
+  import { countOpenIssues } from "$lib/filters";
 
   let { children } = $props();
 
@@ -52,6 +54,12 @@
     return PUBLIC_ROUTES.some((route) => isCurrentRoute(route));
   }
 
+  // "Issues, 12 open" for assistive tech; the visible badge is aria-hidden so
+  // the number isn't read twice.
+  const issuesLabel = $derived(
+    issueCount.value === null ? "Issues" : `Issues, ${issueCount.value} open`,
+  );
+
   function signOut() {
     fetch("/api/auth/logout", { method: "POST" }).finally(() => {
       window.location.href = "/login.html";
@@ -94,6 +102,23 @@
       .catch(() => {
         /* a transient failure here isn't worth blocking the page over */
       });
+
+    // The dashboard views set the issue count from their own snapshots.
+    // Every other signed-in page asks once, so the badge is there too.
+    if (
+      !isPublicRoute() &&
+      !isCurrentRoute("/") &&
+      !isCurrentRoute("/issues")
+    ) {
+      fetch("/api/dashboard", { headers: { Accept: "application/json" } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { issues?: { title: string }[] } | null) => {
+          if (data) issueCount.value = countOpenIssues(data.issues ?? []);
+        })
+        .catch(() => {
+          /* no badge is better than a wrong one */
+        });
+    }
   });
 </script>
 
@@ -151,6 +176,33 @@
               d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"
             /></svg
           >
+        </a>
+        <a
+          class="theme-toggle nav-with-badge"
+          href="/issues.html"
+          aria-label={issuesLabel}
+          title="Issues"
+          aria-current={isCurrentRoute("/issues") ? "page" : undefined}
+          style="text-decoration:none;"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><circle cx="12" cy="12" r="10" /><circle
+              cx="12"
+              cy="12"
+              r="1"
+            /></svg
+          >{#if issueCount.value !== null}<span
+              class="nav-badge"
+              aria-hidden="true">{issueCount.value}</span
+            >{/if}
         </a>
         <a
           class="theme-toggle"
@@ -306,6 +358,27 @@
       /></svg
     >
     <span class="bottom-nav-label">Home</span>
+  </a>
+  <a
+    class="bottom-nav-link nav-with-badge"
+    href="/issues.html"
+    aria-label={issuesLabel}
+    aria-current={isCurrentRoute("/issues") ? "page" : undefined}
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      ><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" /></svg
+    >{#if issueCount.value !== null}<span class="nav-badge" aria-hidden="true"
+        >{issueCount.value}</span
+      >{/if}
+    <span class="bottom-nav-label">Issues</span>
   </a>
   <a
     class="bottom-nav-link"

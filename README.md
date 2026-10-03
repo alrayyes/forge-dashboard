@@ -6,7 +6,7 @@
 [![coverage](https://codecov.io/gh/alrayyes/forge-dashboard/branch/main/graph/badge.svg)](https://codecov.io/gh/alrayyes/forge-dashboard)
 [![Go Reference](https://pkg.go.dev/badge/github.com/alrayyes/forge-dashboard.svg)](https://pkg.go.dev/github.com/alrayyes/forge-dashboard)
 
-A single-page dashboard of open pull requests, issues, and CI status across
+A dashboard of open pull requests, issues, and CI status across
 every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. See
 [#1](https://github.com/alrayyes/forge-dashboard/issues/1) for the v1
@@ -493,6 +493,31 @@ required when a pattern matches its job name or its workflow-file
 context; it is never marked advisory. If nothing is known for any check,
 the panel stays the flat list.
 
+## Issues
+
+Open issues have their own page, `/issues.html`, reached from the **Issues**
+item in the navigation. The item carries a count badge, the number of open
+issues without Renovate's Dependency Dashboard, which the page hides by
+default. The badge is set from each snapshot on the dashboard and issues
+pages, and loaded once on the other signed-in pages. The pull request page no
+longer lists issues.
+
+The issues page filters like the pull request page: forge, repo, title,
+author, label, created and updated, plus Group by. Those filters are shared
+and saved with your other filters, so a filter set on one page is still set on
+the other. The pull-request-only controls (CI status, the quick filters for
+failing, bot, ready and needs-review pull requests, Show drafts) are not on the
+issues page.
+
+The issue list holds still while you read it. A refresh that would add, remove
+or move rows is held behind an "N updates available" bar while you're scrolled
+below the top, a control in the list has focus, or live updates are paused;
+**Show updates**, or a change to a filter or the sort, applies it. At the top
+with nothing focused, changes just appear. A row whose own content changed
+updates where it stands, and a refresh with no change leaves every row alone.
+Sort works as it does for pull requests. The pause setting is shared with the
+pull request page.
+
 ## Live updates
 
 The board polls every 30 seconds and takes pushes over a live stream, but
@@ -570,18 +595,19 @@ pull requests or issues of its own to poll, and its canonical home is
 whichever forge it's mirrored from.
 
 Each pull request also carries its review state (`review` in `/api/dashboard`:
-decision, approvals, requested reviewers), which the **Needs review** quick
-filter reads. On GitHub that rides on fields of the same GraphQL query, so it
-costs no extra requests. On Forgejo the requested reviewers come with the pull
-request list, but approvals take one `GET
-/repos/{owner}/{repo}/pulls/{index}/reviews` call per open, non-draft pull
-request. Those results are cached until the pull request's `updated_at`
-changes, so after the first refresh a quiet dashboard spends none of them. A
-pull request that closed or merged drops out of that cache on the next refresh
-of its repo. A pull request whose review state couldn't be read has no
-`review` and never matches the filter. Needs review means a review is
-outstanding: the forge requires one, or a reviewer was asked and hasn't
-answered. A pull request nobody was asked to review doesn't count.
+decision, approvals, requested reviewers). The **Ready to Merge** and **Needs
+review** quick filters read the server's own answers, `readyToMerge` and
+`needsReview` on each pull request, so the page holds no definition of either.
+On GitHub that rides on fields of the same GraphQL query, so it costs no extra
+requests. On Forgejo the requested reviewers come with the pull request list,
+but approvals take one `GET /repos/{owner}/{repo}/pulls/{index}/reviews` call
+per open, non-draft pull request. Those results are cached until the pull
+request's `updated_at` changes, so after the first refresh a quiet dashboard
+spends none of them. A pull request that closed or merged drops out of that
+cache on the next refresh of its repo. A pull request whose review state
+couldn't be read has no `review` and never matches the filter. Needs review
+means a review is outstanding: the forge requires one, or a reviewer was asked
+and hasn't answered. A pull request nobody was asked to review doesn't count.
 
 Draft pull requests are left out of `/api/dashboard` by default, since nothing
 can be merged or updated on one. The response says how many it left out in

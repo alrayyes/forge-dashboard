@@ -3024,6 +3024,40 @@ func TestEnableAutoMerge_RefusalKeepsGitHubsOwnMessage(t *testing.T) {
 	}
 }
 
+// A pull request lists who was asked to review it (#695), from the same query
+// that counts them, so there is no extra call. A team request has no login
+// and is left out.
+func TestFetch_MapsTheRequestedReviewerLogins(t *testing.T) {
+	t.Parallel()
+
+	node := pullRequestNode("CLEAN")
+	pr := node["pullRequests"].(map[string]any)["nodes"].([]map[string]any)[0]
+	pr["reviewRequests"] = map[string]any{
+		"totalCount": 3,
+		"nodes": []map[string]any{
+			{"requestedReviewer": map[string]any{"login": "bob"}},
+			{"requestedReviewer": map[string]any{}},
+			{"requestedReviewer": map[string]any{"login": "amy"}},
+		},
+	}
+	pr["latestReviews"] = map[string]any{"nodes": []map[string]any{}}
+
+	var seenQuery string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		seenQuery = readGraphQLRequest(t, r).Query
+		writeJSON(t, w, reposQueryFixture(node))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, []string{"bob", "amy"}, result.PullRequests[0].RequestedReviewerLogins)
+	assert.Contains(t, seenQuery, "requestedReviewer")
+}
+
 // A pull request carries its head commit SHA (#759), so a bot's rebase can be
 // seen as the head moving even when the pull request is still behind.
 func TestFetch_MapsTheHeadCommitSHA(t *testing.T) {

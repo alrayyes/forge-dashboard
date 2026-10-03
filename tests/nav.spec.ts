@@ -28,6 +28,7 @@ async function registerAndSignIn(
 
 const NAV_PAGES = [
   { path: '/', label: 'Home' },
+  { path: '/issues.html', label: 'Issues' },
   { path: '/insights.html', label: 'Insights' },
   { path: '/webhooks.html', label: 'Webhooks' },
   { path: '/settings.html', label: 'Settings' },
@@ -52,17 +53,17 @@ test.describe('persistent top nav', () => {
 
       for (const other of NAV_PAGES) {
         await expect(
-          page.locator(`.app-nav a[aria-label="${other.label}"]`),
+          page.locator(`.app-nav a[aria-label^="${other.label}"]`),
         ).toBeVisible();
       }
 
       await expect(
-        page.locator(`.app-nav a[aria-label="${label}"]`),
+        page.locator(`.app-nav a[aria-label^="${label}"]`),
       ).toHaveAttribute('aria-current', 'page');
       for (const other of NAV_PAGES) {
         if (other.label === label) continue;
         await expect(
-          page.locator(`.app-nav a[aria-label="${other.label}"]`),
+          page.locator(`.app-nav a[aria-label^="${other.label}"]`),
         ).not.toHaveAttribute('aria-current', /.*/);
       }
     });
@@ -94,10 +95,10 @@ test.describe('persistent top nav', () => {
 
       for (const { label } of NAV_PAGES) {
         await expect(
-          page.locator(`.app-nav a[aria-label="${label}"]`),
+          page.locator(`.app-nav a[aria-label^="${label}"]`),
         ).toBeVisible();
         await expect(
-          page.locator(`.app-nav a[aria-label="${label}"]`),
+          page.locator(`.app-nav a[aria-label^="${label}"]`),
         ).not.toHaveAttribute('aria-current', /.*/);
       }
       await expect(page.locator('#admin-link')).toBeHidden();
@@ -118,7 +119,7 @@ test.describe('mobile bottom tab bar', () => {
   });
 
   for (const { path, label } of NAV_PAGES) {
-    test(`on ${path} at mobile width, the bottom tab bar shows all 4 tabs and only ${label} is current`, async ({
+    test(`on ${path} at mobile width, the bottom tab bar shows every tab and only ${label} is current`, async ({
       page,
     }) => {
       await page.setViewportSize(MOBILE_VIEWPORT);
@@ -126,7 +127,7 @@ test.describe('mobile bottom tab bar', () => {
 
       for (const other of NAV_PAGES) {
         await expect(
-          page.locator(`.bottom-nav a[aria-label="${other.label}"]`),
+          page.locator(`.bottom-nav a[aria-label^="${other.label}"]`),
         ).toBeVisible();
       }
       await expect(
@@ -134,12 +135,12 @@ test.describe('mobile bottom tab bar', () => {
       ).toHaveCount(0);
 
       await expect(
-        page.locator(`.bottom-nav a[aria-label="${label}"]`),
+        page.locator(`.bottom-nav a[aria-label^="${label}"]`),
       ).toHaveAttribute('aria-current', 'page');
       for (const other of NAV_PAGES) {
         if (other.label === label) continue;
         await expect(
-          page.locator(`.bottom-nav a[aria-label="${other.label}"]`),
+          page.locator(`.bottom-nav a[aria-label^="${other.label}"]`),
         ).not.toHaveAttribute('aria-current', /.*/);
       }
 

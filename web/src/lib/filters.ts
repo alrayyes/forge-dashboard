@@ -25,6 +25,10 @@ export interface FilterableItem {
   mergeStatus?: string;
   labels?: { name: string }[];
   review?: { decision: string; requestedReviewers: number };
+  // The server's own answers for the Ready and Needs Review quick filters
+  // (#807): the page holds no copy of what they mean.
+  readyToMerge?: boolean;
+  needsReview?: boolean;
 }
 
 // release-please labels every PR it manages with "autorelease: pending"
@@ -70,20 +74,9 @@ export function matchesQuickFilter(
     case 'bots':
       return isBotManagedPr(item);
     case 'ready':
-      return (
-        item.mergeStatus === 'mergeable' && item.ci === 'success' && !item.draft
-      );
+      return item.readyToMerge === true;
     case 'needs-review':
-      // A review is outstanding: the forge requires one, or someone was
-      // asked. "none" with nobody asked is merely unreviewed, approved and
-      // changes_requested aren't waiting on a reviewer, and an unknown
-      // state (no review object) isn't the same as nobody having reviewed.
-      return (
-        !item.draft &&
-        (item.review?.decision === 'review_required' ||
-          (item.review?.decision === 'none' &&
-            item.review.requestedReviewers > 0))
-      );
+      return item.needsReview === true;
     default:
       return true;
   }
@@ -154,6 +147,13 @@ export function repoSyncStatus(
 }
 
 export const DEPENDENCY_DASHBOARD_TITLE = 'Dependency Dashboard';
+
+// Open issues the way the issues page shows them by default: Renovate's
+// Dependency Dashboard housekeeping issue is left out (#827).
+export function countOpenIssues(items: { title: string }[]): number {
+  return items.filter((i) => i.title.trim() !== DEPENDENCY_DASHBOARD_TITLE)
+    .length;
+}
 const FILTERS_COOKIE = 'forge-board-filters';
 
 function getCookie(name: string): string | null {
@@ -217,10 +217,14 @@ const TITLE_SAVE_DEBOUNCE_MS = 500;
 let titleSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function putFilterStateToServer(state: SharedFilterState): void {
+  // keepalive lets the request outlive the page: the dashboard and issues
+  // pages share this state, and a click on the other page's nav item right
+  // after a change would otherwise cancel the save (#827).
   fetch(FILTER_STATE_ENDPOINT, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(state),
+    keepalive: true,
   }).catch(() => {
     // Best-effort, the same restraint RecordWebhookDelivery's own
     // server-side "a failure to persist this doesn't fail the request
