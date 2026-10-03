@@ -1,10 +1,6 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  test,
-} from '@playwright/test';
+import { type APIRequestContext, expect, type Page } from '@playwright/test';
 import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // Coverage for issue #269: one persistent nav, shared markup, present and
