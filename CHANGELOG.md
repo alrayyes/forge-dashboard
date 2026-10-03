@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.118.2](https://github.com/alrayyes/forge-dashboard/compare/v0.118.1...v0.118.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* **dashboard:** hide Rebase the moment Recreate is queued, and stop the tests racing the menu ([#836](https://github.com/alrayyes/forge-dashboard/issues/836)) ([eabe659](https://github.com/alrayyes/forge-dashboard/commit/eabe65918e755db8bb6a1aa73cda9031fbe42089)), closes [#834](https://github.com/alrayyes/forge-dashboard/issues/834)
+
 ## [0.118.1](https://github.com/alrayyes/forge-dashboard/compare/v0.118.0...v0.118.1) (2026-10-03)
 
 
