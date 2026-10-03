@@ -688,6 +688,15 @@ paths:
         One of a small number of endpoints in this API that write to a
         forge rather than just reading from it — see also the
         pull-requests tag.
+
+        A refusal from the forge (403, 404, 429 and 502) answers with the
+        same `ActionError` a refused pull request action does, so a client
+        reads one shape: `code` is `permission` or `rate_limited` where
+        the forge said so (with `resetsAt` for a rate limit), and
+        `unknown` otherwise, with a plain `message` either way. No new
+        code is needed: a repo the forge can't find is `unknown` with its
+        own message. 400 and 401 stay a plain `Error`, since they are
+        about the request, not a refusal by the forge.
       tags: [webhooks]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -719,25 +728,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "404":
           description: The forge reported the repo itself doesn't exist (or isn't visible to this token).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "429":
           description: The forge rate-limited the request.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
         "502":
           description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/ActionError"
 
   /api/repos/ignore:
     post:
