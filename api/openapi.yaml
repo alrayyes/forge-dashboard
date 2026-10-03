@@ -2912,7 +2912,7 @@ components:
 
     RateLimit:
       type: object
-      required: [limit, remaining, resetsAt]
+      required: [limit, remaining, resetsAt, severity]
       description: >-
         One of a forge API's own request budgets for the credential the
         last refresh used — see ForgeHealth.rateLimitGraphQL/rateLimitREST
@@ -2939,6 +2939,16 @@ components:
             separate cost concept beyond the flat one-request-one-point
             REST's own budget already counts. Omitted for a REST-sourced
             RateLimit.
+        severity:
+          type: string
+          enum: [ok, low, exceeded]
+          description: |
+            How worried a client should be about this budget, graded by
+            the server as of the response, so no client needs its own
+            threshold or clock check. `exceeded`: nothing left and the
+            reset hasn't been seen to pass. `low`: under 5% left (also a
+            spent budget whose reset time has passed, until the next
+            snapshot says otherwise). `ok`: everything else.
 
     PullRequest:
       type: object
