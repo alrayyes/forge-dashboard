@@ -184,6 +184,11 @@ type PullRequest struct {
 	// Always a list, empty when nobody was asked, so a client can range
 	// over it without a nil check.
 	RequestedReviewerLogins []string `json:"requestedReviewerLogins"`
+	// HeadSHA is the commit the pull request's head branch points at (#759).
+	// A bot's rebase moves it, which shows the bot acted even when the pull
+	// request is still reported behind, or wasn't behind to begin with.
+	// Empty when the forge didn't say.
+	HeadSHA string `json:"headSha"`
 	// Empty reports whether merging this pull request would produce an
 	// empty commit — its content already landed on the base branch some
 	// other way (confirmed live: a mechanical version-bump PR whose branch
