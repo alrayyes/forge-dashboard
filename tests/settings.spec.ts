@@ -1,10 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  test,
-} from '@playwright/test';
+import { type APIRequestContext, expect, type Page } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 async function registerAndSignIn(

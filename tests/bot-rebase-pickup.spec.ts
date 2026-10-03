@@ -4,8 +4,8 @@ import {
   expect,
   type Page,
   type Route,
-  test,
 } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // #707: after a Dependabot or Renovate rebase request the row says the
