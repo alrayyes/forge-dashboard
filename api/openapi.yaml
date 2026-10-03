@@ -2967,6 +2967,7 @@ components:
           ci,
           mergeStatus,
           behind,
+          headSha,
           empty,
           allowedActions,
           readyToMerge,
@@ -3015,6 +3016,13 @@ components:
             get recomputed just because the base moved), so folding this
             into mergeStatus would force picking one and losing the
             other.
+        headSha:
+          type: string
+          description: |
+            The commit the pull request's head branch points at. A bot's
+            rebase moves it, which shows the bot acted even when the pull
+            request is still reported behind, or wasn't behind to begin
+            with. Empty when the forge didn't say. Always present.
         empty:
           type: boolean
           description: |
