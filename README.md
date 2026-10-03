@@ -518,6 +518,15 @@ dashboard refresh. Falls back to the legacy combined commit-status
 API's own per-check entries when a repo (or an older Forgejo instance)
 reports no Actions/Workflow runs at all for that commit.
 
+On GitHub, each failed Actions job also carries how long it ran, the step that
+failed and an excerpt: the last lines of its log as plain text, with
+timestamps and colour codes removed, capped at 2,000 characters. Those cost up
+to three extra requests per failed job (at most five jobs), made only when the
+panel opens. A check that isn't an Actions job, or a log the token can't read
+or that has expired, shows without them and keeps its link. Forgejo's API
+doesn't serve job steps, logs or timing, so a failed Forgejo check offers only
+its link.
+
 When the forge says which checks the base branch's protection requires,
 the panel groups them: a `Required` group first, with a failing required
 check flagged `Blocking`, then `Advisory`. GitHub's classic required
