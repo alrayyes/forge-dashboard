@@ -305,6 +305,17 @@ own. Only
 live state is the page's: a rate-limited or unreachable forge, a missing token,
 an action already in flight.
 
+A pull request stacked on another open one shows a chip with its place and what
+it waits for: "Stack 2 of 3 · waits for #840", or "Stack 1 of 3 · merges first"
+for the bottom. The members sit together in position order, at the slot of the
+first one in the list, as a plain nested list with a thin rule beside each row.
+A filter that matches any member keeps the whole stack and dims the rest. A
+child says it targets its parent's branch, not main, so auto-merge isn't
+offered, and its Merge shows the server's reason. Tapping the chip lists the
+stack. On a phone the chip is short, what it waits for goes on a second line,
+and the title is what gets cut. The server works out stacks from the branches
+(`stack`, `stackedOn` and `stackChildren` on each pull request).
+
 Every open pull request row has a Merge button. It's clickable when the forge
 reports the merge is actually possible. Otherwise it stays on the row, locked
 (`aria-disabled`, no click), with the reason printed beside it: "Waiting for CI
