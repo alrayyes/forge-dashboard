@@ -31,3 +31,4 @@ The design is dark only. The app keeps its light theme.
   does not draw the banner, queue or paused refresh that were asked for.
 - `dashboard-inline-confirm.png`: an armed Merge with Confirm, Cancel and a
   hint to cancel by pressing the escape key or clicking away.
+  Probe for the CI path filter.
