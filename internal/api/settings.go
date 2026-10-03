@@ -198,6 +198,13 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 
 		var req settingsPutRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			// A value of the wrong type names its field, so a client can mark
+			// that input (#810).
+			if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok && typeErr.Field != "" {
+				writeJSON(w, http.StatusBadRequest, fieldErrorBody(typeErr.Field, typeErr.Field+" must be a "+typeErr.Type.String()))
+
+				return
+			}
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
 
 			return
@@ -239,12 +246,12 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// saved without a URL wouldn't just be incomplete, it'd silently
 		// do nothing.
 		if merged.ForgejoURL == "" && (merged.ForgejoToken != "" || merged.ForgejoUsername != "") {
-			writeJSON(w, http.StatusBadRequest, errorBody("forgejoUrl is required when a Forgejo token or username is set"))
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("forgejoUrl", "forgejoUrl is required when a Forgejo token or username is set"))
 
 			return
 		}
 		if req.GitHubAppInstallationID < 0 {
-			writeJSON(w, http.StatusBadRequest, errorBody("githubAppInstallationId must be positive"))
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("githubAppInstallationId", "githubAppInstallationId must be positive"))
 
 			return
 		}
@@ -253,7 +260,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// configured) is worse than an error at save time — the same
 		// "this can never work" reasoning as the Forgejo-URL check above.
 		if merged.GitHubAppInstallationID != 0 && !deps.GitHubAppConfigured {
-			writeJSON(w, http.StatusBadRequest, errorBody("this server has no GitHub App configured; githubAppInstallationId cannot be set"))
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("githubAppInstallationId", "this server has no GitHub App configured; githubAppInstallationId cannot be set"))
 
 			return
 		}
