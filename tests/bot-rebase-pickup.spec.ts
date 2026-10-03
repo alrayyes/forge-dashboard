@@ -233,6 +233,54 @@ for (const b of bots) {
       ).toHaveCount(1);
     });
 
+    // #691: a refresh that started before the click can't tell the click
+    // happened, so its answer must not end the wait, even when it shows
+    // the pull request no longer behind.
+    test('a refresh already in flight at the click does not clear the queued state, the next one does', async ({
+      page,
+    }) => {
+      let release: () => void = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let held = true;
+      await page.route('**/api/dashboard/refresh', async (route: Route) => {
+        if (held) {
+          held = false;
+          await gate;
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(snapshot({ ...current, behind: false })),
+          });
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(snapshot(current)),
+        });
+      });
+
+      // The refresh starts first and stays in flight across the click.
+      await page.locator('#force-refresh-button').click();
+      await row(page).getByRole('button', { name: b.button }).click();
+      await expect(
+        row(page).getByRole('button', { name: 'Rebase requested' }),
+      ).toBeDisabled();
+
+      release();
+      await page.waitForTimeout(800);
+      await expect(row(page).locator('.merge-pill.rebasing')).toHaveCount(0);
+      await expect(line(page)).toContainText(b.requested);
+
+      // A refresh that starts after the click and shows the bot acted.
+      current = { ...current, behind: false };
+      await page.locator('#force-refresh-button').click();
+      await expect(row(page).locator('.merge-pill.rebasing')).toHaveText(
+        'Rebasing…',
+      );
+    });
+
     test('once the bot has rebased it the row says Rebasing… until CI restarts', async ({
       page,
     }) => {
