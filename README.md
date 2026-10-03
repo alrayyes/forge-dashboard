@@ -373,13 +373,18 @@ API rate limit reached. Actions resume at 14:32 (in 12 min)."). That line shows
 once under each repo group heading and as each disabled button's accessible
 description. The actions re-enable by themselves at the reset time, with a
 polite "Rate limit reset, actions available again" toast. A missing token
-permission locks the action with no Retry either, and the reason points to
-Settings. Read-only actions such as View pipeline stay enabled, and the header
-shows each forge's remaining budget and reset time as text. Which locks offer
-Retry follows the refusal's `code` (`rate_limited` and `permission` don't), not
-the words in its message. The banner at the top of the page follows each
-budget's `severity` (`ok`, `low` or `exceeded`), which the server grades, so the
-page holds no threshold of its own.
+permission locks that action on that pull request, with no Retry either, and the
+reason points to Settings. Other pull requests and other actions stay usable,
+since a fine-grained token can lack one permission and have the rest. The lock
+lasts as long as the failure line that explains it: dismiss the line and the
+action is free again, with no reload. A failure line stays on its row however
+many refreshes arrive, and goes when you dismiss it, act on the row again, or
+the row leaves the board. Read-only actions such as View pipeline stay enabled,
+and the header shows each forge's remaining budget and reset time as text. Which
+locks offer Retry follows the refusal's `code` (`rate_limited` and `permission`
+don't), not the words in its message. The banner at the top of the page follows
+each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
+so the page holds no threshold of its own.
 
 A GitHub pull request that isn't already auto-merging gets an "Enable
 auto-merge" action in the row's "More actions" menu, arming the forge's
@@ -636,6 +641,7 @@ the preceding **Credentials** section):
 | `GITHUB_APP_ID`                 | no                                 | —                          | The numeric ID of a GitHub App this deployment lets users connect instead of pasting a personal access token — see **GitHub App support** below. Unset means the option doesn't exist at all; no other GitHub behaviour changes.                                                   |
 | `GITHUB_APP_PRIVATE_KEY_BASE64` | **yes, if `GITHUB_APP_ID` is set** | —                          | Base64-encoded PEM private key for that App, downloaded from its GitHub settings page. Validated at startup — a malformed key fails loudly there, the same way a bad `ENCRYPTION_KEY` does.                                                                                        |
 | `REFRESH_INTERVAL`              | no                                 | `20m`                      | How often the backend re-polls a signed-in user's forges, as a Go duration (`2m30s`, `10m`). A safety net now that every tracked repo gets a webhook — lower it if you're not relying on those.                                                                                    |
+| `SHUTDOWN_DRAIN`                | no                                 | `5s`                       | How long `/readyz` answers 503 after SIGTERM before the server stops accepting connections, so a router polling it takes the container out of rotation first. `0s` skips the wait. Keep the container's stop grace period longer than this plus 5 seconds.                         |
 | `CI_POLL_INTERVAL`              | no                                 | `1m`                       | How often the backend re-checks just the open pull requests whose CI is still pending, as a Go duration. A fallback for real Forgejo instances that silently drop the webhook event CI status rides on (see `docs/webhooks.md`) — set to `0s` to turn it off if you don't need it. |
 | `LOG_LEVEL`                     | no                                 | `info`                     | `debug`, `info`, `warn`, or `error`. `debug` logs every outbound request to GitHub/Forgejo (method, URL) — turn it on to diagnose a request-volume spike from the process's own logs instead of reasoning about the code from the outside.                                         |
 
@@ -776,7 +782,10 @@ which asks `GET /readyz`. It means "can serve": the database answers and its
 tables exist. Once someone has signed in and a first dashboard refresh has
 finished, it also waits on that, and a forge that failed the refresh still
 counts. A freshly started container has no refresh to wait for, since the
-app only fetches from the forges after a sign-in. Read it with:
+app only fetches from the forges after a sign-in. The database ping gets 2
+seconds and its result is reused for about 3, so a stuck database answers
+503 instead of hanging the probe. On SIGTERM it answers 503 at once, then
+the server waits `SHUTDOWN_DRAIN` before it stops. Read it with:
 
 ```sh
 docker inspect --format '{{.State.Health.Status}}' <container>
