@@ -105,7 +105,9 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 	}
 
 	for _, pr := range snap.PullRequests {
-		if !pr.Behind {
+		// Nothing can be done with a draft (#791), and its branch is still
+		// being worked on.
+		if !pr.Behind || pr.Draft {
 			continue
 		}
 		if _, ok := enabled[string(pr.Forge)+"/"+pr.Repo]; !ok {
