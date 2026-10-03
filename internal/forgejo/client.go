@@ -640,7 +640,7 @@ func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.P
 	if p.Updated != nil {
 		updated = *p.Updated
 	}
-	key := fmt.Sprintf("%s/%s#%d", owner, name, p.Index)
+	key := reviewKey(owner, name, p.Index)
 
 	c.reviewsMu.Lock()
 	hit, ok := c.reviews[key]
@@ -694,6 +694,26 @@ func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.P
 	return state
 }
 
+func reviewKey(owner, name string, index int64) string {
+	return fmt.Sprintf("%s/%s#%d", owner, name, index)
+}
+
+// pruneReviews drops the cached review state of owner/name's PRs that are no
+// longer open, so the cache stays bounded by the open PRs rather than
+// growing with every PR that ever closed. open holds the review keys the
+// latest complete listing returned.
+func (c *Client) pruneReviews(owner, name string, open map[string]struct{}) {
+	prefix := fmt.Sprintf("%s/%s#", owner, name)
+
+	c.reviewsMu.Lock()
+	defer c.reviewsMu.Unlock()
+	for key := range c.reviews {
+		if _, ok := open[key]; !ok && strings.HasPrefix(key, prefix) {
+			delete(c.reviews, key)
+		}
+	}
+}
+
 // listReviews pages through one PR's reviews.
 func (c *Client) listReviews(ctx context.Context, owner, name string, index int64) ([]*gitea.PullReview, error) {
 	c.setContext(ctx)
@@ -722,6 +742,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 	var prs []dashboard.PullRequest
 	path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
 	opt := gitea.ListPullRequestsOptions{State: gitea.StateOpen, PageSize: pageLimit}
+	open := map[string]struct{}{}
 
 	for {
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
@@ -731,6 +752,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 		}
 		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 		for _, p := range batch {
+			open[reviewKey(owner, name, p.Index)] = struct{}{}
 			sha := ""
 			if p.Head != nil {
 				sha = p.Head.Sha
@@ -776,6 +798,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 		}
 		opt.Page = resp.NextPage
 	}
+	c.pruneReviews(owner, name, open)
 
 	return prs, nil
 }

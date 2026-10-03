@@ -110,6 +110,15 @@ type forgejoFixture struct {
 
 func (f *forgejoFixture) request(t *testing.T, method, path string, body any) map[string]any {
 	t.Helper()
+
+	return f.requestAs(t, "", method, path, body)
+}
+
+// requestAs is request acting as another user through the admin token's
+// Sudo header, which is how the fixture gets a second account to review a
+// pull request its author can't review themselves.
+func (f *forgejoFixture) requestAs(t *testing.T, sudo, method, path string, body any) map[string]any {
+	t.Helper()
 	var reqBody bytes.Buffer
 	if body != nil {
 		require.NoError(t, json.NewEncoder(&reqBody).Encode(body))
@@ -118,16 +127,23 @@ func (f *forgejoFixture) request(t *testing.T, method, path string, body any) ma
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "token "+f.token)
 	req.Header.Set("Content-Type", "application/json")
+	if sudo != "" {
+		req.Header.Set("Sudo", sudo)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Less(t, resp.StatusCode, 300, "request to %s failed", path)
 
-	var out map[string]any
+	// Most endpoints answer with an object, but a few (requested_reviewers)
+	// answer with an array, which callers don't read.
+	var decoded any
 	if resp.StatusCode != http.StatusNoContent {
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&decoded))
 	}
+	out, _ := decoded.(map[string]any)
+
 	return out
 }
 
@@ -303,4 +319,61 @@ func TestForgejoClient_PullRequestBehindBase_AgainstARealInstance(t *testing.T) 
 	require.True(t, after[0].Behind, "the base branch moved, so this pull request should now report behind")
 	require.Equal(t, dashboard.MergeMergeable, after[0].MergeStatus,
 		"mergeable shouldn't have flipped just because the base moved — this is the real staleness this test guards against being relied on")
+}
+
+// TestForgejoClient_ReviewState_AgainstARealInstance proves what the stubbed
+// unit tests can only assume: that a real Forgejo reports requested
+// reviewers on the PR, returns submitted reviews from the reviews endpoint,
+// and bumps the PR's updated_at when a review lands, so the client's
+// updated_at-keyed cache refetches instead of serving a stale state.
+func TestForgejoClient_ReviewState_AgainstARealInstance(t *testing.T) {
+	ctx := t.Context()
+
+	baseURL, container := startForgejo(t)
+	token := createAdminToken(t, container)
+	fixture := &forgejoFixture{baseURL: baseURL, token: token}
+
+	fixture.createRepo(t, "gizmos")
+	fixture.createPullRequestWithStatus(t, "testadmin", "gizmos", "Add widget.txt", "success")
+	fixture.request(t, http.MethodPost, "/admin/users", map[string]any{
+		"username": "reviewer", "email": "reviewer@example.com", "password": "TestPassw0rd1!", "must_change_password": false,
+	})
+	fixture.request(t, http.MethodPut, "/repos/testadmin/gizmos/collaborators/reviewer", map[string]any{"permission": "write"})
+
+	// One client throughout, so every assertion also exercises its cache.
+	client := forgejo.NewClient(baseURL, token, "")
+	review := func() (*dashboard.ReviewState, time.Time) {
+		t.Helper()
+		prs, err := client.ListOpenPullRequests(ctx, "testadmin", "gizmos", "testadmin/gizmos")
+		require.NoError(t, err)
+		require.Len(t, prs, 1)
+		require.NotNil(t, prs[0].Review)
+
+		return prs[0].Review, prs[0].UpdatedAt
+	}
+
+	state, _ := review()
+	require.Equal(t, dashboard.ReviewNone, state.Decision)
+
+	// Forgejo's updated_at has one-second resolution, so each change waits
+	// for the clock to tick over; within the same second the cache would
+	// (correctly, by its key) serve the state from before the change.
+	time.Sleep(1100 * time.Millisecond)
+	fixture.request(t, http.MethodPost, "/repos/testadmin/gizmos/pulls/1/requested_reviewers", map[string]any{"reviewers": []string{"reviewer"}})
+	state, updatedAfterRequest := review()
+	require.Equal(t, dashboard.ReviewRequired, state.Decision)
+	require.Equal(t, 1, state.RequestedReviewers)
+
+	time.Sleep(1100 * time.Millisecond)
+	fixture.requestAs(t, "reviewer", http.MethodPost, "/repos/testadmin/gizmos/pulls/1/reviews", map[string]any{"event": "REQUEST_CHANGES", "body": "not yet"})
+	state, updatedAfterChanges := review()
+	require.True(t, updatedAfterChanges.After(updatedAfterRequest), "a submitted review must bump updated_at, or the cache never refetches")
+	require.Equal(t, dashboard.ReviewChangesRequested, state.Decision)
+
+	time.Sleep(1100 * time.Millisecond)
+	fixture.requestAs(t, "reviewer", http.MethodPost, "/repos/testadmin/gizmos/pulls/1/reviews", map[string]any{"event": "APPROVED", "body": "now good"})
+	state, updatedAfterApproval := review()
+	require.True(t, updatedAfterApproval.After(updatedAfterChanges))
+	require.Equal(t, dashboard.ReviewApproved, state.Decision)
+	require.Equal(t, 1, state.Approvals)
 }
