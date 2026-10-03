@@ -100,6 +100,8 @@ func (a *Aggregator) MarkSettled(forge Forge, repo string, number int) {
 	next.PullRequests = slices.DeleteFunc(slices.Clone(a.snap.PullRequests), func(pr PullRequest) bool {
 		return settledKey(pr.Forge, pr.Repo, pr.Number) == key
 	})
+	// A child of the pull request that just left is no longer stacked.
+	AnnotateStacks(next.PullRequests)
 	a.snap = next
 	a.mu.Unlock()
 
@@ -278,6 +280,7 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 		merged.Issues = append(merged.Issues, i)
 	}
 	merged.Issues = append(merged.Issues, issues...)
+	AnnotateStacks(merged.PullRequests)
 	sortByRecency(merged.PullRequests, merged.Issues)
 
 	a.mu.Lock()
@@ -347,6 +350,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		snap.Repos = append(snap.Repos, r.Repos...)
 	}
 	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
+	AnnotateStacks(snap.PullRequests)
 	sortByRecency(snap.PullRequests, snap.Issues)
 
 	a.mu.Lock()

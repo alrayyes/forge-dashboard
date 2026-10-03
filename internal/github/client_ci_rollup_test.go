@@ -159,6 +159,14 @@ func TestFetch_RollupCI_CancelledRunWhileOthersRun(t *testing.T) {
 func ciFromRESTCheckRuns(t *testing.T, runs []map[string]string) dashboard.CIStatus {
 	t.Helper()
 
+	return restPullRequest(t, runs).CI
+}
+
+// restPullRequest fetches the one pull request of the unauthenticated REST
+// fallback's fixture.
+func restPullRequest(t *testing.T, runs []map[string]string) dashboard.PullRequest {
+	t.Helper()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
@@ -181,7 +189,8 @@ func ciFromRESTCheckRuns(t *testing.T, runs []map[string]string) dashboard.CISta
 			"draft": false, "user": map[string]string{"login": "ryankes"},
 			"labels":     []map[string]string{},
 			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
-			"head": map[string]string{"sha": "cafef00d"},
+			"head": map[string]any{"sha": "cafef00d", "ref": "feat/child", "repo": map[string]string{"full_name": "alrayyes/a"}},
+			"base": map[string]any{"ref": "feat/parent", "repo": map[string]string{"full_name": "alrayyes/a"}},
 		}})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, _ *http.Request) {
@@ -196,7 +205,7 @@ func ciFromRESTCheckRuns(t *testing.T, runs []map[string]string) dashboard.CISta
 	result := github.NewClient("", "alrayyes", srv.URL).Fetch(t.Context())
 	require.Len(t, result.PullRequests, 1)
 
-	return result.PullRequests[0].CI
+	return result.PullRequests[0]
 }
 
 func TestFetch_NoToken_CheckRunCI_CancelledRunWhileOthersRun(t *testing.T) {
@@ -251,4 +260,16 @@ func TestFetch_NoToken_CheckRunCI_CancelledRunWhileOthersRun(t *testing.T) {
 			assert.Equal(t, tc.expected, ciFromRESTCheckRuns(t, tc.runs))
 		})
 	}
+}
+
+// The unauthenticated REST fallback carries the branches too (#860), and a
+// head in another repository is a fork.
+func TestFetch_NoToken_MapsTheBranches(t *testing.T) {
+	t.Parallel()
+
+	pr := restPullRequest(t, nil)
+
+	assert.Equal(t, "feat/parent", pr.BaseBranch)
+	assert.Equal(t, "feat/child", pr.HeadBranch)
+	assert.False(t, pr.CrossRepository)
 }
