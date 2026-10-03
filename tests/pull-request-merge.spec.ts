@@ -877,7 +877,7 @@ test.describe('pull request merge button', () => {
       );
     });
 
-    test('a permission failure on one PR also locks Merge for a different, not-yet-tried PR on the same forge', async ({
+    test('a permission failure on one PR does not lock Merge for a different PR on the same forge (#918)', async ({
       page,
     }) => {
       const first = makePR({ number: 1 });
@@ -907,20 +907,15 @@ test.describe('pull request merge button', () => {
         rows.nth(0).getByRole('button', { name: 'Merge', exact: true }),
       ).toHaveAttribute('aria-disabled', 'true');
 
-      // The second PR's own Merge button was never clicked, and never
-      // itself made a request — it's locked purely from the first PR's
-      // failure, because a token's write permission is an account-wide
-      // property, not a per-PR one.
+      // A refusal is about one action on one pull request. The second
+      // pull request's Merge was never tried and stays a real button, even
+      // after a refresh redraws the board.
+      await page.locator('#force-refresh-button').click();
       const secondButton = rows
         .nth(1)
         .getByRole('button', { name: 'Merge', exact: true });
-      await expect(secondButton).toHaveAttribute('aria-disabled', 'true');
-      await expect(
-        rows.nth(1).getByRole('button', { name: 'Retry' }),
-      ).toHaveCount(0);
-      await expect(secondButton).toHaveAccessibleDescription(
-        /token in Settings/,
-      );
+      await expect(secondButton).toBeVisible();
+      await expect(secondButton).not.toHaveAttribute('aria-disabled', 'true');
     });
   });
 

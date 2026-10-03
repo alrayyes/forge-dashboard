@@ -133,6 +133,9 @@
     // The code of the refusal that locked it (#806): what decides whether
     // Retry is offered, not the words in the reason.
     code?: string;
+    // The feedback entry that explains a permission lock (#918): the lock
+    // lasts as long as that failure line does.
+    fkey?: string;
     // Only on a queued bot rebase (#706): what the snapshot has to show
     // before the wait counts as over.
     queued?: { prKey: string; wasBehind: boolean; at: number; seq: number };
@@ -906,9 +909,55 @@
     // actually in progress, not a stale conclusion from a previous one.
     function clearStaleLocks(stateMap: Record<string, ActionState>) {
       for (const key of Object.keys(stateMap)) {
-        if (stateMap[key].phase === "locked") delete stateMap[key];
+        const entry = stateMap[key];
+        if (entry.phase === "locked" && !holdsPermissionLock(entry))
+          delete stateMap[key];
       }
     }
+
+    // A permission refusal doesn't come from the snapshot, so a snapshot
+    // can't re-derive it. It stands while the failure line that explains it
+    // does, and Dismiss (or acting on the row again) frees the action (#918).
+    function holdsPermissionLock(entry: ActionState): boolean {
+      return (
+        entry.phase === "locked" &&
+        entry.code === "permission" &&
+        feedback
+          .entries()
+          .some((e) => e.actionKey === entry.fkey && e.phase === "failed")
+      );
+    }
+
+    // Dismissing the line frees its action at once, without waiting for the
+    // next snapshot to redraw the row. (Subscribed below.)
+    function releaseDismissedPermissionLocks(): boolean {
+      let released = false;
+      for (const stateMap of [
+        mergeState,
+        closeState,
+        updateBranchState,
+        autoMergeState,
+        dependabotActionState,
+        renovateRebaseState,
+      ]) {
+        for (const key of Object.keys(stateMap)) {
+          const entry = stateMap[key];
+          if (
+            entry.phase === "locked" &&
+            entry.code === "permission" &&
+            !holdsPermissionLock(entry)
+          ) {
+            delete stateMap[key];
+            released = true;
+          }
+        }
+      }
+      return released;
+    }
+
+    feedback.subscribe(() => {
+      if (releaseDismissedPermissionLocks()) renderPRBoard();
+    });
 
     // A branch update GitHub answers 202 to is its own background job,
     // not yet finished by the time the very next snapshot lands — so an
@@ -953,15 +1002,6 @@
       });
     }
 
-    // Set once any merge/update-branch call against a forge comes back
-    // 403 — a token's write permission is an account-wide property, not
-    // a per-PR one, so a permission failure on one PR means every other
-    // PR on that same forge is doomed the same way, not just the one
-    // that happened to be tried first. Persists for the session, the
-    // same lifetime mergeState/updateBranchState's own per-PR locks
-    // have — cleared only by a full page reload.
-    const forgePermissionDenied: Record<string, boolean> = {};
-
     // Known-doomed before ever calling the API, the same pre-click check
     // addWebhookButton (webhooks.js) already does from ForgeHealth — a
     // forge that's currently unreachable or already out of rate-limit
@@ -992,9 +1032,6 @@
           reason: rateLimitedReason(forgeName, spent),
           code: "rate_limited",
         };
-      if (forgePermissionDenied[forgeName]) {
-        return { reason: PERMISSION_REASON, code: "permission" };
-      }
       return null;
     }
 
@@ -1055,13 +1092,17 @@
         return;
       }
       if (outcome.kind === "locked") {
+        // A refusal is about this action on this pull request, not every
+        // action on the forge: a fine-grained token can lack one permission
+        // (Workflows, say) and have the rest (#918). A permission lock is
+        // kept, with the line that explains it, until that line is
+        // dismissed; see clearStaleLocks.
         setState({
           phase: "locked",
           reason: outcome.reason,
           code: outcome.code,
+          fkey,
         });
-        if (outcome.code === "permission")
-          forgePermissionDenied[item.forge] = true;
         failAction(fkey, what, outcome.reason, false);
       } else {
         setState({ phase: "idle" });
@@ -2284,8 +2325,19 @@
     // Applies whatever is pending (or just re-sorts what's shown) without
     // rendering; the caller renders once. Called before any user-driven
     // filter, sort or page change.
+    // A failure line is attached to its row, so it goes when the row does:
+    // when the board actually drops the pull request, not when one snapshot
+    // happens to leave it out while the row is still on screen (#918).
+    function retireFailuresOfRemoved(next: PullRequestItem[]) {
+      const keep = new Set(next.map((p) => prKey(p)));
+      for (const p of shownPRs)
+        if (!keep.has(prKey(p))) feedback.dropFailedFor(prKey(p), "");
+    }
+
     function applyPendingNow() {
-      shownPRs = Filters.sortItems(rawPRs, sharedState.view.sort);
+      const sorted = Filters.sortItems(rawPRs, sharedState.view.sort);
+      retireFailuresOfRemoved(sorted);
+      shownPRs = sorted;
       prBoard.replaceItems(shownPRs);
       latestPRs = null;
       latestIsUserAsked = false;
@@ -2429,6 +2481,7 @@
       }
       botResolvedKeys.clear();
       if (userAsked) {
+        retireFailuresOfRemoved(latestPRs);
         shownPRs = latestPRs;
         latestPRs = null;
         latestIsUserAsked = false;
@@ -4587,7 +4640,7 @@
       // from this fresh snapshot instead of latching indefinitely. A
       // lock whose root cause is still real reappears right away on the
       // next render — proactiveActionLockReason already re-checks
-      // lastForges/forgePermissionDenied fresh every time from the
+      // lastForges fresh every time from the
       // values just updated above — while one that's resolved simply
       // doesn't.
       clearStaleLocks(mergeState);
@@ -4596,7 +4649,6 @@
       const prs = data.pullRequests || [];
       hiddenDrafts = data.hiddenDrafts ?? 0;
       syncDraftsToggle();
-      feedback.dropFailedExcept(new Set(prs.map((p) => prKey(p))));
       // Only a snapshot that shows the rebase landed ends a queued bot
       // action — not just any snapshot (#706). Cleared before
       // anyRowActionInFlight is consulted below, so a resolved row

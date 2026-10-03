@@ -459,7 +459,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
   // not by action, since a token's write access isn't specific to one
   // action any more than it's specific to one PR — a 403 from Rebase has
   // to proactively lock Recreate too, for the reason stated there.
-  test('a permission failure on Rebase also proactively locks Recreate on the same forge', async ({
+  test('a permission failure on Rebase locks Rebase only, and Recreate stays usable (#918)', async ({
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
@@ -490,10 +490,12 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await expect(
       row.getByRole('button', { name: 'Dependabot: Rebase' }),
     ).toHaveAttribute('aria-disabled', 'true');
+    // A refusal is about that action on that pull request, not every action
+    // on the forge: the token may lack one permission and have the rest.
     const recreateButton = row.getByRole('button', {
       name: 'Dependabot: Recreate',
     });
-    await expect(recreateButton).toHaveAttribute('aria-disabled', 'true');
+    await expect(recreateButton).not.toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/permission/i);
   });
 
