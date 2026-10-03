@@ -318,7 +318,10 @@ reason, which the row and a toast show: already merged or closed (the row
 switches to "Merged" or "Closed" and drops off the list on the next snapshot),
 a conflict, behind the base branch, a check pending or failing, branch
 protection, a missing permission, or a rate limit with its reset time. The
-codes are in `api/openapi.yaml` (`ActionError`). Update branch appears when the
+codes are in `api/openapi.yaml` (`ActionError`). A Merge or Close that succeeds
+takes the pull request off the board at once, even if the forge goes on listing
+it as open for a few seconds; the server holds it back for up to two minutes.
+Update branch appears when the
 forge reports it's possible; it doesn't ask, since a merge from the base branch
 is easy to reverse and a merge itself isn't. On a pull request that's behind
 but also conflicts with its base, Update branch is locked with a note that the
