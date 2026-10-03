@@ -31,3 +31,17 @@ The design is dark only. The app keeps its light theme.
   does not draw the banner, queue or paused refresh that were asked for.
 - `dashboard-inline-confirm.png`: an armed Merge with Confirm, Cancel and a
   hint to cancel by pressing the escape key or clicking away.
+- `screen-mobile-pr-cards.png`: two pull request cards at phone width, in four
+  tiers: the repo, the title with labels and times, a strip of status pills
+  kept apart from the buttons, and an action row with one 44px primary action
+  and a 44px More actions button. The second card shows a failure panel under
+  the actions. `crop-mobile-pr-card.png` is that card.
+- `screen-mobile-pr-cards-five-states.png`: the same card in five states
+  (failing, passing, blocked, GitHub, a long wrapping title), with the
+  primary action following the state. Stitch drew both screens on a wide
+  canvas, but the content is a phone layout.
+
+The mobile card screens offer a Retry button on an already-merged failure and
+show the raw forge error under a disclosure labelled Details. The app does
+neither: that failure can't pass by retrying, and the raw text stays in the
+server log. The tickets' criteria win over those two details.
