@@ -2211,6 +2211,11 @@
       showUpdatesBar(0);
     }
 
+    // Pull requests whose bot request a snapshot just moved on (#787). The
+    // row already says so, so its data has to agree even while another
+    // row's action holds the board.
+    const botResolvedKeys = new Set<string>();
+
     // Returns true when it rendered the board.
     function reconcilePRs(): boolean {
       if (!latestPRs) {
@@ -2225,10 +2230,32 @@
         interactionHoldsBoard(userAsked) || (updatesPaused() && !userAsked);
 
       if (held) {
-        showUpdatesBar(structural + diff.changed.length);
+        // Rows stay where they are, but a row a bot just acted on takes
+        // its fresh data in place: otherwise it reads "Rebasing…" next to
+        // a stale "Out of date" until the other row's action ends (#787).
+        const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
+        const settled = shownPRs.filter(
+          (p) => botResolvedKeys.has(prKey(p)) && fresh.has(prKey(p)),
+        );
+        botResolvedKeys.clear();
+        if (settled.length > 0) {
+          const settledKeys = new Set(settled.map(prKey));
+          shownPRs = shownPRs.map((p) =>
+            settledKeys.has(prKey(p)) ? (fresh.get(prKey(p)) ?? p) : p,
+          );
+          prBoard.setItems(shownPRs, true);
+        }
+        const heldDiff = Filters.diffItems(shownPRs, latestPRs);
+        showUpdatesBar(
+          heldDiff.added +
+            heldDiff.removed +
+            heldDiff.moved +
+            heldDiff.changed.length,
+        );
 
-        return false;
+        return settled.length > 0;
       }
+      botResolvedKeys.clear();
       if (userAsked) {
         shownPRs = latestPRs;
         latestPRs = null;
@@ -2250,7 +2277,12 @@
       return diff.changed.length > 0;
     }
 
-    function ingestPRs(prs: PullRequestItem[], userAsked: boolean) {
+    function ingestPRs(
+      prs: PullRequestItem[],
+      userAsked: boolean,
+      botChanged: Set<string>,
+    ) {
+      for (const key of botChanged) botResolvedKeys.add(key);
       rawPRs = prs;
       latestPRs = Filters.sortItems(prs, sharedState.view.sort);
       latestIsUserAsked = latestIsUserAsked || userAsked;
@@ -3937,8 +3969,8 @@
     function clearResolvedQueuedBotActions(
       prs: PullRequestItem[],
       startedSeq: number | undefined,
-    ): boolean {
-      let changed = false;
+    ): Set<string> {
+      const changed = new Set<string>();
       const byKey = new Map(prs.map((p) => [prKey(p), p]));
       for (const stateMap of [dependabotActionState, renovateRebaseState]) {
         const bot =
@@ -3958,7 +3990,7 @@
               Date.now() - (entry.rebasingSince ?? 0) > BOT_REBASING_CAP_MS;
             if (ciRestarted || gaveUp) {
               finishBotRebase(stateMap, key, fkey, bot);
-              changed = true;
+              changed.add(entry.queued?.prKey ?? key);
             }
             continue;
           }
@@ -3974,7 +4006,7 @@
             // The bot has rebased it; CI hasn't restarted yet.
             entry.phase = "rebasing";
             entry.rebasingSince = Date.now();
-            changed = true;
+            changed.add(entry.queued.prKey);
             const message = `${bot} picked up the rebase.`;
             feedback.update(fkey, {
               phase: "rebasing",
@@ -3984,9 +4016,9 @@
             });
           } else if (landed) {
             finishBotRebase(stateMap, key, fkey, bot);
-            changed = true;
+            changed.add(entry.queued.prKey);
           } else if (Date.now() - entry.queued.at > QUEUED_BOT_EXPIRY_MS) {
-            changed = true;
+            changed.add(entry.queued.prKey);
             delete stateMap[key];
             const reason = "No change seen after 5 minutes.";
             feedback.update(fkey, {
@@ -4150,7 +4182,7 @@
       // action — not just any snapshot (#706). Cleared before
       // anyRowActionInFlight is consulted below, so a resolved row
       // doesn't also hold the board back.
-      const botStateChanged = clearResolvedQueuedBotActions(prs, startedSeq);
+      const botChanged = clearResolvedQueuedBotActions(prs, startedSeq);
       for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
         feedback.update(`update-branch:${prKey(item)}`, {
           phase: "done",
@@ -4180,11 +4212,11 @@
       // #212, #710: ingestPRs compares this against what the board shows
       // and either updates rows in place or holds the change behind the
       // updates bar — see reconcilePRs.
-      ingestPRs(prs, userAsked);
+      ingestPRs(prs, userAsked, botChanged);
       // A bot request changing state (picked up, finished, expired) changes
       // the row's button, pill and line even when the pull request's own
       // data didn't, so the board redraws for it (#707).
-      if (botStateChanged) renderPRBoard();
+      if (botChanged.size > 0) renderPRBoard();
       issueBoard.setItems(issues);
 
       const failingCount = prs.filter((p) => p.ci === "failure").length;
