@@ -2,10 +2,12 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // AutoUpdateBranchLister reports what an Aggregator needs to decide
@@ -50,7 +52,36 @@ type autoUpdateBranchConfig struct {
 	// access on the repo) and asking again can only loop (#660). Guarded by
 	// dependabotWatchMu.
 	dependabotAttempted map[string]struct{}
+
+	// updateAttempts remembers the last generic UpdateBranch call per pull
+	// request (#895), so a refused one isn't repeated on every refresh. A
+	// refresh runs this hook several times a minute (a webhook, the CI poll,
+	// every open tab asking for one), and production logged the same
+	// conflicted pull request retried about every two seconds. Guarded by
+	// updateMu.
+	updateMu       sync.Mutex
+	updateAttempts map[string]updateAttempt
 }
+
+// updateAttempt is one generic UpdateBranch call. It stands until the pull
+// request changes (its UpdatedAt moves), the wait is up, or the pull request
+// stops being behind.
+type updateAttempt struct {
+	updatedAt time.Time
+	at        time.Time
+	wait      time.Duration
+}
+
+const (
+	// refusedUpdateWait is how long a refusal the forge gave for good reason
+	// (a conflict, nothing new on the base) stands without the pull request
+	// changing.
+	refusedUpdateWait = time.Hour
+	// transientUpdateWait covers an update still in flight and any other
+	// failure: a timeout or a rate limit may clear soon, so try again, but
+	// not on every refresh.
+	transientUpdateWait = 5 * time.Minute
+)
 
 // EnableAutoUpdateBranch turns on the hook that runs after every
 // completed refresh: any pull request the snapshot reports Behind, on a
@@ -71,7 +102,7 @@ type autoUpdateBranchConfig struct {
 // enable/disable endpoints don't trigger a rebuild the way most other
 // settings changes do.
 func (a *Aggregator) EnableAutoUpdateBranch(userID []byte, lister AutoUpdateBranchLister) {
-	a.autoUpdate = &autoUpdateBranchConfig{userID: userID, lister: lister, dependabotWatch: make(map[string]struct{}), dependabotAttempted: make(map[string]struct{})}
+	a.autoUpdate = &autoUpdateBranchConfig{userID: userID, lister: lister, dependabotWatch: make(map[string]struct{}), dependabotAttempted: make(map[string]struct{}), updateAttempts: make(map[string]updateAttempt)}
 }
 
 // runAutoUpdateBranch is the post-refresh hook itself — a no-op if
@@ -86,6 +117,7 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 
 	a.reconcileDependabotRebaseWatch(ctx, snap)
 	a.pruneDependabotAttempts(snap)
+	a.pruneUpdateAttempts(snap)
 
 	enabled, err := a.autoUpdate.lister.AutoUpdateBranchRepos(ctx, a.autoUpdate.userID)
 	if err != nil {
@@ -147,8 +179,75 @@ func (a *Aggregator) updateBehindPR(ctx context.Context, pr PullRequest, renovat
 	if !ok {
 		return
 	}
+	if !a.beginUpdate(pr) {
+		return
+	}
 	if _, err := updater.UpdateBranch(ctx, owner, name, pr.Number); err != nil {
+		a.failedUpdate(pr, err)
 		slog.Warn("auto-update-branch failed", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
+
+		return
+	}
+	a.clearUpdate(pr)
+}
+
+// beginUpdate reports whether pr may be sent an UpdateBranch now, and
+// records the attempt before the call so a concurrent run of this hook sees
+// it. False while an earlier attempt stands: same pull request, wait not up.
+func (a *Aggregator) beginUpdate(pr PullRequest) bool {
+	key := dependabotPRKey(pr)
+
+	a.autoUpdate.updateMu.Lock()
+	defer a.autoUpdate.updateMu.Unlock()
+
+	if prev, ok := a.autoUpdate.updateAttempts[key]; ok && prev.updatedAt.Equal(pr.UpdatedAt) && time.Since(prev.at) < prev.wait {
+		return false
+	}
+	a.autoUpdate.updateAttempts[key] = updateAttempt{updatedAt: pr.UpdatedAt, at: time.Now(), wait: transientUpdateWait}
+
+	return true
+}
+
+// failedUpdate stretches the wait for a refusal the forge gave for good
+// reason: retrying a conflict can't help until the pull request changes.
+func (a *Aggregator) failedUpdate(pr PullRequest, err error) {
+	if clientErr, ok := errors.AsType[*ClientError](err); !ok || clientErr.Kind != ForgeErrorConflict {
+		return
+	}
+
+	key := dependabotPRKey(pr)
+	a.autoUpdate.updateMu.Lock()
+	defer a.autoUpdate.updateMu.Unlock()
+	if attempt, ok := a.autoUpdate.updateAttempts[key]; ok {
+		attempt.wait = refusedUpdateWait
+		a.autoUpdate.updateAttempts[key] = attempt
+	}
+}
+
+// clearUpdate forgets a successful attempt, so the pull request is treated
+// as new the next time it falls behind.
+func (a *Aggregator) clearUpdate(pr PullRequest) {
+	a.autoUpdate.updateMu.Lock()
+	defer a.autoUpdate.updateMu.Unlock()
+	delete(a.autoUpdate.updateAttempts, dependabotPRKey(pr))
+}
+
+// pruneUpdateAttempts drops the record of every pull request that is no
+// longer behind, or no longer in the snapshot.
+func (a *Aggregator) pruneUpdateAttempts(snap Snapshot) {
+	behind := make(map[string]struct{}, len(snap.PullRequests))
+	for _, pr := range snap.PullRequests {
+		if pr.Behind {
+			behind[dependabotPRKey(pr)] = struct{}{}
+		}
+	}
+
+	a.autoUpdate.updateMu.Lock()
+	defer a.autoUpdate.updateMu.Unlock()
+	for key := range a.autoUpdate.updateAttempts {
+		if _, ok := behind[key]; !ok {
+			delete(a.autoUpdate.updateAttempts, key)
+		}
 	}
 }
 
