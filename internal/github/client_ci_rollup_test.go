@@ -159,6 +159,14 @@ func TestFetch_RollupCI_CancelledRunWhileOthersRun(t *testing.T) {
 func ciFromRESTCheckRuns(t *testing.T, runs []map[string]string) dashboard.CIStatus {
 	t.Helper()
 
+	return restPullRequest(t, runs).CI
+}
+
+// restPullRequest fetches the one pull request of the unauthenticated REST
+// fallback's fixture, whose head is cafef00d.
+func restPullRequest(t *testing.T, runs []map[string]string) dashboard.PullRequest {
+	t.Helper()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
@@ -196,7 +204,14 @@ func ciFromRESTCheckRuns(t *testing.T, runs []map[string]string) dashboard.CISta
 	result := github.NewClient("", "alrayyes", srv.URL).Fetch(t.Context())
 	require.Len(t, result.PullRequests, 1)
 
-	return result.PullRequests[0].CI
+	return result.PullRequests[0]
+}
+
+// The unauthenticated REST fallback carries the head SHA too (#759).
+func TestFetch_NoToken_MapsTheHeadCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "cafef00d", restPullRequest(t, nil).HeadSHA)
 }
 
 func TestFetch_NoToken_CheckRunCI_CancelledRunWhileOthersRun(t *testing.T) {

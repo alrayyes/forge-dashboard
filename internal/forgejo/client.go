@@ -782,6 +782,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 				CI:          ci,
 				MergeStatus: mergeStatusFromMergeable(p.Mergeable),
 				Behind:      isBehind(p),
+				HeadSHA:     sha,
 				Empty:       isEmpty(p),
 				// No read capability for this in the SDK at all — only
 				// write-side schedule/cancel verbs

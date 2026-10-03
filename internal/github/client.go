@@ -1807,6 +1807,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		CI:               ciFromRollup(p.Commits.Nodes),
 		MergeStatus:      mergeStatusFromGraphQL(p.MergeStateStatus),
 		Behind:           p.MergeStateStatus == "BEHIND",
+		HeadSHA:          p.HeadRefOid,
 		Empty:            p.Additions == 0 && p.Deletions == 0 && p.ChangedFiles == 0,
 		AutoMergeEnabled: new(p.AutoMergeRequest != nil),
 		AutoMergeAllowed: p.ViewerCanEnableAutoMerge,
@@ -2277,6 +2278,7 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				CreatedAt: p.GetCreatedAt().Time,
 				UpdatedAt: p.GetUpdatedAt().Time,
 				CI:        ci,
+				HeadSHA:   p.GetHead().GetSHA(),
 				// Mergeable/MergeableState aren't populated by this List
 				// call at all (go-github's own doc comment on
 				// PullRequest) — resolving them would mean a per-PR Get,

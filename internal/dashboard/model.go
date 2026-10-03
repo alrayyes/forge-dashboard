@@ -155,6 +155,11 @@ type PullRequest struct {
 	// field stays orthogonal there too, for the same reason CI sits
 	// beside MergeStatus rather than inside it: one fact per field.
 	Behind bool `json:"behind"`
+	// HeadSHA is the commit the pull request's head branch points at (#759).
+	// A bot's rebase moves it, which shows the bot acted even when the pull
+	// request is still reported behind, or wasn't behind to begin with.
+	// Empty when the forge didn't say.
+	HeadSHA string `json:"headSha"`
 	// Empty reports whether merging this pull request would produce an
 	// empty commit — its content already landed on the base branch some
 	// other way (confirmed live: a mechanical version-bump PR whose branch
