@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.127.1](https://github.com/alrayyes/forge-dashboard/compare/v0.127.0...v0.127.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **api:** say a pull request was merged when the forge answers 403 ([#906](https://github.com/alrayyes/forge-dashboard/issues/906)) ([6609dba](https://github.com/alrayyes/forge-dashboard/commit/6609dba7b3d23b189154e7a2d87d3ad5d7f862f5)), closes [#904](https://github.com/alrayyes/forge-dashboard/issues/904)
+
 ## [0.127.0](https://github.com/alrayyes/forge-dashboard/compare/v0.126.0...v0.127.0) (2026-10-03)
 
 
