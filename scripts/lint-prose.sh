@@ -12,6 +12,9 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
+# One place decides how Vale runs, binary or pinned image: scripts/vale.sh.
+vale() { scripts/vale.sh "$@"; }
+
 # Vale ships no opinions of its own; the styles it checks against are
 # downloaded rather than committed. Without them it reports nothing at all and
 # exits 0, which reads exactly like a pass.

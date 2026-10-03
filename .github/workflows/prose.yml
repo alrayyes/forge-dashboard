@@ -36,9 +36,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Pinned like everything else. Vale's style packages are versioned
-  # separately and fetched by `vale sync`.
-  VALE_VERSION: v3.17.1
+  # Vale runs from its official image, pinned in the `style` job below and in
+  # scripts/vale.sh. Its style packages are versioned separately and fetched
+  # by `vale sync`.
   # ltex-ls-plus is pinned inside scripts/lint-mechanics.sh instead, so the
   # hook and this workflow cannot install different versions of it.
 
@@ -78,16 +78,23 @@ jobs:
   style:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # The official image: Alpine, /bin/vale as its entrypoint, root, no bash
+    # or git. The entrypoint is cleared so the job's own steps run, and the
+    # script's two needs are installed before checkout.
+    container:
+      # renovate: datasource=docker depName=jdkato/vale
+      image: jdkato/vale:v3.17.1@sha256:7dba3c9104ba366f172d119022c4ec53a005f7d14dc1b80e285421a3f0b71657
+      options: --entrypoint ""
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
+      - name: Install what the script and checkout need
+        run: apk add --no-cache bash git
 
-      - name: Install Vale
-        env:
-          GOTOOLCHAIN: auto
-        run: go install github.com/errata-ai/vale/v3/cmd/vale@${{ env.VALE_VERSION }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Let git read the workspace
+        # See the mechanics job: a container-as-root job otherwise fails
+        # `git ls-files` with "dubious ownership" and lints nothing.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Vale
         # The same script the pre-push hook runs, so the two cannot check
