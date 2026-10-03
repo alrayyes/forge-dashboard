@@ -46,8 +46,16 @@ func writeActionRefusal(ctx context.Context, w http.ResponseWriter, src any, act
 	if refusal.Code == dashboard.ActionAlreadyMerged || refusal.Code == dashboard.ActionAlreadyClosed {
 		status = http.StatusConflict
 	}
+	errText := actionErr.Error()
+	if refusal.Code == dashboard.ActionUnknown {
+		// No code fits, so the raw text (internal prefixes, API paths, a
+		// swagger URL) is for the log only (#796). The response carries the
+		// same plain words in `error` and `message`.
+		slog.Warn("pull request action refused with no reason code", "action", string(action), "repo", owner+"/"+name, "number", number, "status", status, "error", errText)
+		errText = refusal.Message
+	}
 	writeJSON(w, status, actionErrorBody{
-		Error:    actionErr.Error(),
+		Error:    errText,
 		Code:     string(refusal.Code),
 		Message:  refusal.Message,
 		ResetsAt: refusal.ResetsAt,

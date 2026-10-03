@@ -431,6 +431,7 @@ test.describe('pull request close button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           error: 'github: PATCH .../pulls/42: pull request already merged',
+          message: 'pull request already merged',
         }),
       }),
     );
