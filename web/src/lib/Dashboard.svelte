@@ -8,6 +8,7 @@
   import { onMount } from "svelte";
   import * as Filters from "$lib/filters";
   import { issueCount } from "$lib/issue-count.svelte";
+  import { findAction, type AllowedAction } from "$lib/allowed-actions";
   import type { FilterableItem, SharedFilterState } from "$lib/filters";
   import {
     type ActionCode,
@@ -65,9 +66,10 @@
     ci: string;
     mergeStatus: string;
     autoMergeEnabled: boolean | null;
-    autoMergeAllowed?: boolean;
     behind: boolean;
     empty: boolean;
+    // What the server offers on this pull request (#805).
+    allowedActions?: AllowedAction[];
   };
   type IssueItem = FilterableItem & {
     number: number;
@@ -484,11 +486,15 @@
     // signal (#359), and a second pill saying the same thing would be
     // exactly the duplication #359 fixed.
     function behindPill(item: PullRequestItem): HTMLElement | null {
+      // Behind, with something to merge, on a pull request a bot rebases:
+      // the server lists that rebase for exactly those (#805).
       if (
         !item.behind ||
         item.empty ||
-        !isBotManagedPr(item) ||
-        isReleasePleasePr(item)
+        !(
+          findAction(item, "dependabot_rebase") ||
+          findAction(item, "renovate_rebase")
+        )
       )
         return null;
       const pill = el("span", "merge-pill behind");
@@ -593,10 +599,12 @@
           !settledRow &&
           pr.behind &&
           !pr.empty &&
-          pr.forge === "github" &&
-          isDependabotPr(pr);
+          Boolean(findAction(pr, "dependabot_rebase"));
         const renovateRebasePromoted =
-          !settledRow && pr.behind && !pr.empty && isRenovatePr(pr);
+          !settledRow &&
+          pr.behind &&
+          !pr.empty &&
+          Boolean(findAction(pr, "renovate_rebase"));
         if (dependabotRebasePromoted) {
           if (!dependabotRebaseHidden(pr))
             statusCell.appendChild(dependabotActionButton(pr, "rebase"));
@@ -680,17 +688,6 @@
         rateLimitedReason(forgeName, health?.rateLimitREST),
       );
     }
-
-    // ---- bot-managed PR detection ----
-    // Dependabot and Renovate keep their own pull requests current through
-    // their own Rebase actions, so Update branch is hidden on them.
-    // release-please is bot-managed too but is exempt from that (#728): it
-    // has no rebase command and doesn't regenerate on every push to base.
-
-    // Bot-author predicates live in $lib/filters, shared with the Bot PRs
-    // quick filter pill.
-    const { isReleasePleasePr, isDependabotPr, isRenovatePr, isBotManagedPr } =
-      Filters;
 
     let actionLockReasonCounter = 0;
 
@@ -1085,56 +1082,6 @@
         });
     }
 
-    // Why Merge can't be clicked yet, in words that are true for what the
-    // dashboard actually knows. mergeStatus is coarse (see
-    // dashboard.MergeStatus): GitHub's BEHIND and DRAFT both arrive as
-    // "unknown", and Forgejo reports any non-mergeable PR as "blocked", so
-    // a failing check is only named when CI itself says failing.
-    function mergeNotReady(
-      item: PullRequestItem,
-    ): { reason: string; next?: string } | null {
-      if (item.mergeStatus === "conflicting")
-        return {
-          reason: "Merge conflict",
-          next: "Resolve it on the forge to unlock Merge",
-        };
-      // Draft and behind only explain a non-mergeable status: a forge that
-      // still calls the PR mergeable (Forgejo does for a behind one)
-      // keeps a clickable Merge, as before.
-      const mergeable = item.mergeStatus === "mergeable";
-      if (item.draft && !mergeable)
-        return {
-          reason: "Draft pull request",
-          next: "Mark it ready for review to unlock Merge",
-        };
-      if (item.ci === "pending")
-        return {
-          reason: "Waiting for CI to finish",
-          next: "Merge unlocks automatically",
-        };
-      if (item.behind && !mergeable)
-        return {
-          reason: "Behind the base branch",
-          next: "Bring it up to date to unlock Merge",
-        };
-      if (item.mergeStatus === "blocked")
-        return item.ci === "failure"
-          ? {
-              reason: "Blocked, CI is failing",
-              next: "Fix the failing check to unlock Merge",
-            }
-          : {
-              reason: "Blocked by the forge",
-              next: "A required check or review is missing",
-            };
-      if (item.mergeStatus !== "mergeable")
-        return {
-          reason: "Merge status not known yet",
-          next: "Merge unlocks once the forge reports it",
-        };
-      return null;
-    }
-
     // Always rendered for an open pull request (#705): clickable when
     // mergeNotReady has nothing to say, locked with a visible reason
     // otherwise. First click only arms a confirm step
@@ -1147,41 +1094,19 @@
       if (settled === "merged" || settled === "closed")
         return settledBadge(settled);
 
-      // Real incident: a pull request whose content already landed on
-      // the base branch some other way is still reported "mergeable" —
-      // merging it just produces an empty commit, and clicking Merge
-      // silently did nothing, with no explanation shown. This has to
-      // win over the early-return below
-      // rather than fall behind it, or the button just vanishes the
-      // same way it did in that incident instead of saying why; Close
-      // (closeActionCell, unconditionally available) is the action that
-      // actually applies here.
-      if (item.empty)
+      // The server decides whether Merge applies and, when it can't be
+      // taken yet, why (#805): empty, conflicting, draft, waiting on CI,
+      // behind, blocked by the forge. Merge stays on the row, locked with
+      // the reason in plain sight; the next snapshot builds it again, so it
+      // unlocks by itself (#705).
+      const merge = findAction(item, "merge");
+      if (!merge) return null;
+      if (merge.blocked)
         return lockedActionButton(
           "Merge",
-          "Already up to date with the target branch — merging would be empty.",
-        );
-
-      // #385: GitHub's own mergeStateStatus reports CLEAN (mapped to
-      // "mergeable" here) whenever branch protection doesn't mark a
-      // given check as required, even while that check is still
-      // running — so a PR whose CI hasn't finished could otherwise show
-      // a fully clickable Merge button. CI failure is deliberately left
-      // unchanged: a required check already blocks mergeStatus itself,
-      // and GitHub lets a one-click merge over a non-required failure
-      // anyway, so there's nothing extra to enforce here for that case.
-      //
-      // #705: that used to drop the button entirely, which left Close as
-      // the only action on a row waiting for CI. Merge stays on the row,
-      // locked, with the reason in plain sight; the next snapshot builds
-      // it again, so it unlocks by itself.
-      const notReady = mergeNotReady(item);
-      if (notReady)
-        return lockedActionButton(
-          "Merge",
-          notReady.reason,
+          merge.blocked.message,
           undefined,
-          notReady.next ?? "",
+          merge.blocked.next,
         );
 
       const key = prKey(item);
@@ -1352,20 +1277,7 @@
     // same way mergeActionCell excludes it: nothing to merge, so nothing
     // to arm either.
     function autoMergeActionCell(item: PullRequestItem): HTMLElement | null {
-      if (item.forge !== "github") return null;
-      if (item.autoMergeEnabled === true) return null;
-      // #738: GitHub says per viewer whether it would accept the request;
-      // only an explicit false hides it, so unknown keeps today's behaviour.
-      if (item.autoMergeAllowed === false) return null;
-      if (item.empty || item.mergeStatus === "conflicting") return null;
-      // #662: GitHub rejects arming auto-merge on a pull request that is
-      // already clean — nothing left to wait for, and Merge covers it.
-      if (
-        item.mergeStatus === "mergeable" &&
-        item.ci === "success" &&
-        !item.behind
-      )
-        return null;
+      if (!findAction(item, "auto_merge")) return null;
 
       const key = prKey(item);
       const entry = autoMergeState[key] || { phase: "idle" };
@@ -1693,6 +1605,7 @@
     // the menu: openActionMenus persists across the re-render, and the
     // confirm button is focused by id the same as before.
     function closeActionCell(item: PullRequestItem): HTMLElement | null {
+      if (!findAction(item, "close")) return null;
       const key = prKey(item);
       const entry = closeState[key] || { phase: "idle" };
 
@@ -1846,31 +1759,17 @@
     // instead of it. A conflicting pull request gets it locked, with the
     // reason, rather than clickable.
     function updateBranchActionCell(item: PullRequestItem): HTMLElement | null {
-      if (!item.behind) return null;
-      // Already reported empty (its content landed on the base branch
-      // some other way) — updating the branch further wouldn't change
-      // that, so the action is pointless rather than temporarily
-      // blocked. Merge (mergeActionCell) is where the visible reason
-      // lives; this one just stays hidden, the same as the other
-      // conditions below that make the button not apply at all.
-      if (item.empty) return null;
-      // Dependabot and Renovate have their own Rebase actions (below), so a
-      // generic Update branch would be redundant there. release-please has
-      // no such command, and it only regenerates its PR when the release
-      // notes change (its always-update option defaults to false), so a
-      // behind release PR can sit stale with nothing else to fix it. It
-      // force-pushes its branch when it does regenerate, so a base-into-head
-      // update is overwritten harmlessly (#728).
-      if (isBotManagedPr(item) && !isReleasePleasePr(item)) return null;
-
-      // Both forges refuse to update a branch that doesn't merge cleanly,
-      // so a click could only fail (#701). Derived from the snapshot on
-      // every render, not latched in updateBranchState, so the real
-      // button comes back as soon as a refresh stops reporting conflicts.
-      if (item.mergeStatus === "conflicting")
+      // Offered only when the server lists it (#805): behind with
+      // something to merge, and not a Dependabot or Renovate pull request,
+      // which have their own rebase. A conflicting one is listed blocked, so
+      // it shows locked with the reason rather than clickable; derived from
+      // each snapshot, so the real button comes back by itself (#701).
+      const updateBranch = findAction(item, "update_branch");
+      if (!updateBranch) return null;
+      if (updateBranch.blocked)
         return lockedActionButton(
           "Update branch",
-          "Conflicts need fixing by hand — resolve them on the forge.",
+          updateBranch.blocked.message,
         );
 
       const key = prKey(item);
@@ -2073,12 +1972,14 @@
     // GitHub only — Dependabot doesn't run on Forgejo, so there's no
     // equivalent comment command to send there.
     function dependabotActionCell(item: PullRequestItem): HTMLElement | null {
-      if (item.forge !== "github" || !isDependabotPr(item)) return null;
+      const rebase = findAction(item, "dependabot_rebase");
+      const recreate = findAction(item, "dependabot_recreate");
+      if (!rebase && !recreate) return null;
 
       const wrap = el("span", "row-action-group");
-      if (!dependabotRebaseHidden(item))
+      if (rebase && !dependabotRebaseHidden(item))
         wrap.appendChild(dependabotActionButton(item, "rebase"));
-      wrap.appendChild(dependabotActionButton(item, "recreate"));
+      if (recreate) wrap.appendChild(dependabotActionButton(item, "recreate"));
       return wrap;
     }
 
@@ -2089,7 +1990,7 @@
     function dependabotRecreateOnlyCell(
       item: PullRequestItem,
     ): HTMLElement | null {
-      if (item.forge !== "github" || !isDependabotPr(item)) return null;
+      if (!findAction(item, "dependabot_recreate")) return null;
       return dependabotActionButton(item, "recreate");
     }
 
@@ -2526,7 +2427,7 @@
     function renovateRebaseActionCell(
       item: PullRequestItem,
     ): HTMLElement | null {
-      if (!isRenovatePr(item)) return null;
+      if (!findAction(item, "renovate_rebase")) return null;
 
       const key = prKey(item);
       const entry = renovateRebaseState[key] || { phase: "idle" };

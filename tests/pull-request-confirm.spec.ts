@@ -5,8 +5,8 @@ import {
   type Locator,
   type Page,
   type Route,
-  test,
 } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // The two-step confirm on Merge and Close: an explicit way out, dismissal on
