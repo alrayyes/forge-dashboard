@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.117.0](https://github.com/alrayyes/forge-dashboard/compare/v0.116.0...v0.117.0) (2026-10-03)
+
+
+### Features
+
+* **releases:** build the changelog page from CHANGELOG.md, with no request to GitHub ([#814](https://github.com/alrayyes/forge-dashboard/issues/814)) ([4c05843](https://github.com/alrayyes/forge-dashboard/commit/4c058430d7666360092c75d701223306dcccc825)), closes [#813](https://github.com/alrayyes/forge-dashboard/issues/813)
+
 ## [0.116.0](https://github.com/alrayyes/forge-dashboard/compare/v0.115.2...v0.116.0) (2026-10-03)
 
 
