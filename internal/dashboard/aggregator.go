@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -52,6 +53,11 @@ type Aggregator struct {
 	// every source answered or reported itself unreachable. Readiness
 	// (Manager.FirstRefreshComplete) reads it; it never flips back.
 	firstRefreshed atomic.Bool
+
+	// lastGood is when each forge last fetched successfully, so a failed
+	// refresh can carry its data over and say how old it is (#922). Guarded
+	// by mu, like snap.
+	lastGood map[Forge]time.Time
 }
 
 // defaultSettleWindow is how long a pull request a merge or close succeeded
@@ -87,6 +93,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		settleWindow: defaultSettleWindow,
 		botRequests:  make(map[string]*botEntry),
 		now:          time.Now,
+		lastGood:     make(map[Forge]time.Time),
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -359,9 +366,24 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	}
 	wg.Wait()
 
+	a.mu.RLock()
+	earlier := a.snap
+	goodAt := maps.Clone(a.lastGood)
+	a.mu.RUnlock()
+
 	snap := newEmptySnapshot()
 	snap.GeneratedAt = time.Now().UTC()
 	for i, r := range results {
+		forge := a.sources[i].Forge()
+		if r.Health.Reachable {
+			goodAt[forge] = snap.GeneratedAt
+		} else if at, ok := goodAt[forge]; ok {
+			// A failed fetch carries no data. Showing none would drop every
+			// row of this forge until the next good refresh (#922), so show
+			// what it last had, and say how old that is.
+			r = carryOver(r, earlier, forge)
+			r.Health.StaleSince = &at
+		}
 		r.Health.DependabotCommandsBlocked = DependabotCommandsBlockedReason(a.sources[i])
 		snap.Forges = append(snap.Forges, r.Health)
 		snap.PullRequests = append(snap.PullRequests, r.PullRequests...)
@@ -380,6 +402,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.mu.Lock()
 	previous := a.snap
 	a.snap = snap
+	a.lastGood = goodAt
 	a.mu.Unlock()
 	a.firstRefreshed.Store(true)
 
@@ -560,4 +583,14 @@ func NextRefreshDelay(snap Snapshot, interval time.Duration) time.Duration {
 	}
 
 	return delay
+}
+
+// carryOver returns res with the pull requests, issues and repos forge had in
+// earlier, for a refresh where its fetch failed and returned none.
+func carryOver(res Result, earlier Snapshot, forge Forge) Result {
+	res.PullRequests = slices.DeleteFunc(slices.Clone(earlier.PullRequests), func(pr PullRequest) bool { return pr.Forge != forge })
+	res.Issues = slices.DeleteFunc(slices.Clone(earlier.Issues), func(i Issue) bool { return i.Forge != forge })
+	res.Repos = slices.DeleteFunc(slices.Clone(earlier.Repos), func(r Repo) bool { return r.Forge != forge })
+
+	return res
 }

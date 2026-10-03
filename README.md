@@ -715,6 +715,13 @@ offered either (GitHub refuses it there, because the parent's branch has no
 protection rule). The snapshot holds open pull requests only, so a parent that
 already merged without the child having its base changed isn't flagged.
 
+When a refresh against a forge fails (a rate limit, a timeout, an error from
+its API), the dashboard keeps showing that forge's last good pull requests,
+issues and repos instead of none, and the forge's health carries `staleSince`,
+the time that data was fetched, next to `reachable: false`. The next good
+refresh replaces it. A forge that has never fetched successfully has nothing
+to show.
+
 ### GitHub App support
 
 GitHub's primary rate limit (5,000 requests/hour, both REST and GraphQL)
