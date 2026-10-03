@@ -367,22 +367,26 @@ would merge right now rather than arming a standing intent — different
 enough framing that it's left for a follow-up rather than folded into
 this one.
 
-Merge, close, auto-merge, Update branch, and the Dependabot and Renovate
-actions all report on the row you acted on, not in a banner at the top of
-the page. The row gets a
-status line under its actions ("Merging…", "Queued", "Rebasing…", or "Failed"
-with the reason and a Retry button), and each pull request in flight has its
-own. A toast appears bottom-right when something completes or
-fails: up to three at a time, the newest on top, with the `owner/repo#N`, a
-one-line message, "Show row" (scrolls to the row and focuses it) and a
-dismiss button. Success toasts go after about six seconds and wait while you
-hover or focus them. Error toasts stay until you dismiss them. The sticky
-"Activity" control keeps a count and opens a panel of in-flight and recent
-actions per pull request, with "Show row" and "Clear finished", so a dismissed
-toast isn't lost. One polite live region announces each event once and never
-reads out the countdown, and with reduced motion on, toasts appear without
-animation. The banner at the top is left for global conditions such as a rate
-limit or an unreachable forge.
+Merge, close, auto-merge, Update branch, and the Dependabot and Renovate actions
+all report on the row you acted on, not in a banner at the top of the page. The
+row gets a status line under its actions ("Merging…", "Queued", "Rebasing…", or
+"Failed" with the reason, a Retry button and a Dismiss button), and each pull
+request in flight has its own. A failure says one plain sentence: the server's
+own reason when it gave one, or "The forge refused this action and gave no
+reason." The raw error text stays in the server log. Retry shows only for a
+failure that can pass by itself, such as the forge not answering. The line
+clears when you dismiss it, when you start another action on the row, with
+"Clear finished", or when a refresh shows the pull request gone. A toast appears
+bottom-right when something completes or fails: up to three at a time, the
+newest on top, with the `owner/repo#N`, a one-line message, "Show row" (scrolls
+to the row and focuses it) and a dismiss button. Success toasts go after about
+six seconds and wait while you hover or focus them. Error toasts stay until you
+dismiss them. The sticky "Activity" control keeps a count and opens a panel of
+in-flight and recent actions per pull request, with "Show row" and "Clear
+finished", so a dismissed toast isn't lost. One polite live region announces
+each event once and never reads out the countdown, and with reduced motion on,
+toasts appear without animation. The banner at the top is left for global
+conditions such as a rate limit or an unreachable forge.
 
 Update branch, `Dependabot: Rebase` and `Renovate: Rebase` only ask the
 forge or a bot to act, and the result shows up on a later refresh. Update

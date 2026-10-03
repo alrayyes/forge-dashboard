@@ -160,7 +160,14 @@ export function createFeedbackStore(now: () => number = Date.now) {
     // A new action on the same pull request replaces the earlier entry for
     // that action: a Retry reads as one story, not two.
     start(input: StartInput) {
-      entries = entries.filter((e) => e.actionKey !== input.actionKey);
+      // Acting on the row again also retires its earlier failures: they
+      // described an attempt that is no longer the latest (#752).
+      entries = entries.filter(
+        (e) =>
+          e.actionKey !== input.actionKey &&
+          (e.ref.key !== input.ref.key ||
+            (e.phase !== 'failed' && e.phase !== 'expired')),
+      );
       entries.push({
         id: nextId++,
         actionKey: input.actionKey,
@@ -248,6 +255,18 @@ export function createFeedbackStore(now: () => number = Date.now) {
           e.ref.key !== prKey ||
           e.actionKey === exceptActionKey ||
           (e.phase !== 'failed' && e.phase !== 'expired'),
+      );
+      if (entries.length !== before) emit();
+    },
+
+    // A failure on a pull request no longer in the snapshot (merged,
+    // closed, gone) describes nothing the user can act on (#752).
+    dropFailedExcept(openKeys: ReadonlySet<string>) {
+      const before = entries.length;
+      entries = entries.filter(
+        (e) =>
+          (e.phase !== 'failed' && e.phase !== 'expired') ||
+          openKeys.has(e.ref.key),
       );
       if (entries.length !== before) emit();
     },

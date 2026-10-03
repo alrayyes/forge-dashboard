@@ -324,7 +324,12 @@ test.describe('a refused merge explains itself from the server code', () => {
 
     const row = await confirmMerge(page);
 
+    // The raw error string stays in the server log (#752): the row says
+    // one plain sentence instead.
     await expect(row.locator('.row-feedback')).toContainText(
+      'The forge refused this action and gave no reason.',
+    );
+    await expect(row.locator('.row-feedback')).not.toContainText(
       'Pull Request is not mergeable',
     );
     await expect(

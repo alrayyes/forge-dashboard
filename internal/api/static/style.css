@@ -1845,6 +1845,20 @@ select.col-filter {
   border-radius: 4px;
 }
 
+.row-feedback-text {
+  flex: 1 1 12ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A failure line's buttons keep a 44px hit area so a thumb can find them
+   (#752). */
+.row-feedback-retry,
+.row-feedback-dismiss {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .feedback-requested {
   color: var(--ink-3);
 }
