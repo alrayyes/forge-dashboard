@@ -1,5 +1,10 @@
 package dashboard
 
+import (
+	"slices"
+	"strings"
+)
+
 // IsReadyToMerge is the Ready quick filter (#807): mergeable, CI green and not
 // a draft. Not readyToMerge in aggregator.go, which only orders the list and
 // lets a pull request with no checks float up too.
@@ -20,4 +25,18 @@ func NeedsReview(pr PullRequest) bool {
 
 	return pr.Review.Decision == ReviewRequired ||
 		(pr.Review.Decision == ReviewNone && pr.Review.RequestedReviewers > 0)
+}
+
+// ReviewRequestedFrom is "review requested from me" (#695): an open,
+// non-draft pull request that asks login to review. Logins match without
+// regard to case, since a forge treats them that way. An empty login matches
+// nothing.
+func ReviewRequestedFrom(pr PullRequest, login string) bool {
+	if pr.Draft || login == "" {
+		return false
+	}
+
+	return slices.ContainsFunc(pr.RequestedReviewerLogins, func(l string) bool {
+		return strings.EqualFold(l, login)
+	})
 }
