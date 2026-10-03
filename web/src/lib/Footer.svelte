@@ -6,10 +6,10 @@
   // state (alrayyes/forge-dashboard#646) — same three outcomes: the
   // version fetch hasn't resolved yet (show nothing), the server is a
   // "dev" build (a plain label, no link), or a real released version (a
-  // linked v-prefixed tag). Release-history link gating and the mirror/
-  // Disclaimer/Privacy markup below follow footer.js's own behavior
-  // exactly (see that file for the byte-for-byte reference this was
-  // ported from).
+  // v-prefixed link to the changelog page, plain text on that page itself,
+  // #786). The mirror/Disclaimer/Privacy markup below follows footer.js's
+  // own behavior exactly (see that file for the byte-for-byte reference
+  // this was ported from).
   type VersionState =
     | { kind: "unresolved" }
     | { kind: "dev" }
@@ -57,13 +57,10 @@
   >
   <span id="footer-version"
     >{#if versionState.kind === "dev"}&#183; dev build{:else if versionState.kind === "released"}&#183;
-      <a
-        class="mono"
-        href={`https://github.com/alrayyes/forge-dashboard/releases/tag/v${versionState.version}`}
-        target="_blank"
-        rel="noopener noreferrer">v{versionState.version}</a
-      >{/if}{#if versionState.kind !== "unresolved" && !isCurrentRoute("/releases")}
-      &#183; <a href="/releases.html">Release history</a>{/if}</span
+      {#if isCurrentRoute("/releases")}<span class="mono"
+          >v{versionState.version}</span
+        >{:else}<a class="mono" href="/releases.html">v{versionState.version}</a
+        >{/if}{/if}</span
   >{#if !isCurrentRoute("/disclaimer")}
     &#183; <a href="/disclaimer.html">Disclaimer</a
     >{/if}{#if !isCurrentRoute("/privacy")}
