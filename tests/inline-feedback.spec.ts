@@ -116,7 +116,10 @@ async function setup(
         return route.fulfill({
           status: 502,
           contentType: 'application/json',
-          body: JSON.stringify({ error: 'upstream broke' }),
+          body: JSON.stringify({
+            error: 'github: PUT /x: upstream broke',
+            message: 'upstream broke',
+          }),
         });
       return route.fulfill({ status: 202 });
     },

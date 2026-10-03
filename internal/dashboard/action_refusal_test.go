@@ -83,11 +83,41 @@ func TestClassifyActionRefusal_RateLimitedCarriesResetsAt(t *testing.T) {
 	assert.True(t, reset.Equal(*got.ResetsAt))
 }
 
-func TestClassifyActionRefusal_NotAClientError_IsUnknown(t *testing.T) {
+func TestClassifyActionRefusal_NotAClientError_IsUnknownWithAPlainMessage(t *testing.T) {
 	t.Parallel()
 
 	got := dashboard.ClassifyActionRefusal(errors.New("boom"), nil)
 
 	assert.Equal(t, dashboard.ActionUnknown, got.Code)
-	assert.Equal(t, "boom", got.Message)
+	assert.Equal(t, "The forge refused this action and gave no reason.", got.Message)
+}
+
+// An unknown refusal's message is shown to a person (#796), so it is the
+// forge's own sentence or a fixed plain one, never internal text.
+func TestClassifyActionRefusal_UnknownMessageIsPlainWords(t *testing.T) {
+	t.Parallel()
+
+	const noReason = "The forge refused this action and gave no reason."
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"a forge sentence is kept", refusal(dashboard.ForgeErrorUnknown, "github: PUT /repos/o/r/pulls/5/merge: Something odd"), "Something odd"},
+		{"an API path is not shown", refusal(dashboard.ForgeErrorUnknown, "forgejo: PATCH /repos/o/r/pulls/5: 422 unprocessable"), noReason},
+		{"a URL is not shown", refusal(dashboard.ForgeErrorUnknown, "forgejo: PATCH x: [Body]: see https://git.example/api/swagger"), noReason},
+		{"JSON is not shown", refusal(dashboard.ForgeErrorUnknown, `forgejo: PATCH x: {"message":"nope","url":"y"}`), noReason},
+		{"an empty answer says no reason", refusal(dashboard.ForgeErrorUnknown, "forgejo: PATCH x: "), noReason},
+		{"an unreachable forge says it didn't answer", refusal(dashboard.ForgeErrorUnreachable, "github: PUT x: dial tcp: refused"), "The forge didn't answer. Try again in a moment."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := dashboard.ClassifyActionRefusal(tc.err, nil)
+
+			assert.Equal(t, dashboard.ActionUnknown, got.Code)
+			assert.Equal(t, tc.want, got.Message)
+		})
+	}
 }

@@ -189,7 +189,10 @@ for (const s of scenarios) {
         return route.fulfill({
           status: endpointStatus,
           contentType: 'application/json',
-          body: JSON.stringify({ error: 'upstream broke' }),
+          body: JSON.stringify({
+            error: 'github: PUT /x: upstream broke',
+            message: 'upstream broke',
+          }),
         });
       });
       // The Update branch handler force-refreshes; keep the PR behind so
