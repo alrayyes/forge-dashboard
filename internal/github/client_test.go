@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/github"
@@ -3103,6 +3104,122 @@ func TestFetch_MapsTheHeadCommitSHA(t *testing.T) {
 
 	require.Len(t, result.PullRequests, 1)
 	assert.Equal(t, "deadbeef", result.PullRequests[0].HeadSHA)
+}
+
+// hooksServer plays GitHub for three repos (a, b, c) whose hook lists answer
+// with the status and message given per repo, counting each call. Used by the
+// webhook-check denial tests (#894).
+type hooksServer struct {
+	mu    sync.Mutex
+	calls map[string]int
+}
+
+func (h *hooksServer) start(t *testing.T, answers map[string][2]string) *httptest.Server {
+	t.Helper()
+
+	h.calls = map[string]int{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		nodes := []map[string]any{}
+		for _, name := range []string{"a", "b", "c"} {
+			node := repoNodeWithOwnerName()
+			node["name"] = name
+			nodes = append(nodes, node)
+		}
+		writeJSON(t, w, map[string]any{"data": map[string]any{
+			"rateLimit": map[string]any{"limit": 5000, "remaining": 4999, "resetAt": "2026-09-14T16:00:00Z"},
+			"viewer": map[string]any{"repositories": map[string]any{
+				"pageInfo": map[string]any{"hasNextPage": false}, "nodes": nodes,
+			}},
+		}})
+	})
+	for _, name := range []string{"a", "b", "c"} {
+		answer := answers[name]
+		mux.HandleFunc("/repos/alrayyes/"+name+"/hooks", func(w http.ResponseWriter, _ *http.Request) {
+			h.mu.Lock()
+			h.calls[name]++
+			h.mu.Unlock()
+			if answer[0] != "" {
+				w.WriteHeader(http.StatusForbidden)
+				writeJSON(t, w, map[string]any{"message": answer[1]})
+
+				return
+			}
+			writeJSON(t, w, []map[string]any{})
+		})
+	}
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func (h *hooksServer) total() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	n := 0
+	for _, c := range h.calls {
+		n += c
+	}
+
+	return n
+}
+
+// A GitHub App without permission to read hooks is refused on every repo with
+// the same answer, so it is learned once and not asked again for a while
+// (#894). Production made about 50 of these calls per refresh, each also
+// writing a request-log row, and the refresh took 25 to 37 seconds.
+func TestFetch_WebhookChecks_DenialIsRemembered(t *testing.T) {
+	t.Parallel()
+
+	denied := [2]string{"403", "Resource not accessible by integration"}
+	newClient := func(srv *httptest.Server) *github.Client {
+		c := github.NewClient("test-token", "", srv.URL)
+		c.SetWebhookPath("/api/webhooks/github/tok123")
+
+		return c
+	}
+
+	t.Run("an app that can't read hooks costs no further calls", func(t *testing.T) {
+		t.Parallel()
+		h := &hooksServer{}
+		client := newClient(h.start(t, map[string][2]string{"a": denied, "b": denied, "c": denied}))
+
+		client.Fetch(t.Context())
+		afterFirst := h.total()
+		client.Fetch(t.Context())
+		client.Fetch(t.Context())
+
+		assert.Equal(t, afterFirst, h.total(), "the second and third refresh make none of those calls")
+		assert.LessOrEqual(t, afterFirst, 3)
+	})
+
+	t.Run("a repo the token can't administer is remembered by itself", func(t *testing.T) {
+		t.Parallel()
+		h := &hooksServer{}
+		client := newClient(h.start(t, map[string][2]string{"b": {"403", "Must have admin rights to Repository."}}))
+
+		client.Fetch(t.Context())
+		client.Fetch(t.Context())
+
+		assert.Equal(t, 1, h.calls["b"], "asked once")
+		assert.Equal(t, 2, h.calls["a"], "the others are still checked every refresh")
+		assert.Equal(t, 2, h.calls["c"])
+	})
+
+	t.Run("the denial expires, so a granted permission is noticed", func(t *testing.T) {
+		t.Parallel()
+		h := &hooksServer{}
+		client := newClient(h.start(t, map[string][2]string{"a": denied, "b": denied, "c": denied}))
+		client.SetWebhookDenialTTL(20 * time.Millisecond)
+
+		client.Fetch(t.Context())
+		afterFirst := h.total()
+		time.Sleep(60 * time.Millisecond)
+		client.Fetch(t.Context())
+
+		assert.Greater(t, h.total(), afterFirst)
+	})
 }
 
 // failedCheckServer plays GitHub for one pull request with one failed

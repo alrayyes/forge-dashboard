@@ -69,6 +69,17 @@ type Client struct {
 	restClient  *ghsdk.Client
 	webhookPath string
 
+	// hooks* remember a webhook check GitHub refused for lack of permission
+	// (#894), so refreshes don't ask 50 repos the same question every time.
+	// hooksDeniedAll is when an app-wide denial was learned (the whole
+	// credential can't read hooks); hooksDeniedRepo is per repo (the token
+	// can't administer that one). Both expire after hooksDenialTTL, so a
+	// permission granted later is noticed. Guarded by hooksMu.
+	hooksMu         sync.Mutex
+	hooksDeniedAll  time.Time
+	hooksDeniedRepo map[string]time.Time
+	hooksDenialTTL  time.Duration
+
 	// appAuthenticated is true for a Client built via NewAppClient — an
 	// installation token minted and silently refreshed by the Transport
 	// httpClient itself was built with (#620), not a string this Client
@@ -333,6 +344,75 @@ func (c *Client) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
 // already uses elsewhere in this codebase.
 func (c *Client) SetWebhookPath(path string) {
 	c.webhookPath = path
+}
+
+// defaultHooksDenialTTL is how long a refused webhook check is remembered.
+const defaultHooksDenialTTL = time.Hour
+
+// SetWebhookDenialTTL changes how long a webhook check GitHub refused for
+// lack of permission is remembered before it is asked again (#894). The
+// default is an hour.
+func (c *Client) SetWebhookDenialTTL(d time.Duration) {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+	c.hooksDenialTTL = d
+}
+
+func (c *Client) hooksTTL() time.Duration {
+	if c.hooksDenialTTL > 0 {
+		return c.hooksDenialTTL
+	}
+
+	return defaultHooksDenialTTL
+}
+
+// hooksDenied reports whether the check for repo (or every repo) was refused
+// recently enough to skip.
+func (c *Client) hooksDenied(repo string) bool {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+
+	ttl := c.hooksTTL()
+	if !c.hooksDeniedAll.IsZero() && time.Since(c.hooksDeniedAll) < ttl {
+		return true
+	}
+	if at, ok := c.hooksDeniedRepo[repo]; ok {
+		if time.Since(at) < ttl {
+			return true
+		}
+		delete(c.hooksDeniedRepo, repo)
+	}
+
+	return false
+}
+
+// noteHooksDenial remembers a webhook check GitHub refused for lack of
+// permission. "Resource not accessible by integration" is the answer to a
+// GitHub App without the hooks permission, the same for every repo, so it
+// stands for the whole credential. Any other refusal of this kind (a token
+// that isn't an admin on the repo) stands for that repo alone. It reports
+// whether err was a denial, and whether it was the first of its kind.
+func (c *Client) noteHooksDenial(repo string, err error) (denied, firstOfAll bool) {
+	clientErr, ok := errors.AsType[*dashboard.ClientError](asClientError(err))
+	if !ok || clientErr.Kind != dashboard.ForgeErrorUnauthorized {
+		return false, false
+	}
+
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+
+	if strings.Contains(err.Error(), "Resource not accessible by integration") {
+		firstOfAll = c.hooksDeniedAll.IsZero() || time.Since(c.hooksDeniedAll) >= c.hooksTTL()
+		c.hooksDeniedAll = time.Now()
+
+		return true, firstOfAll
+	}
+	if c.hooksDeniedRepo == nil {
+		c.hooksDeniedRepo = map[string]time.Time{}
+	}
+	c.hooksDeniedRepo[repo] = time.Now()
+
+	return true, false
 }
 
 // HasWebhook implements dashboard.WebhookChecker: does repo owner/name
@@ -1758,6 +1838,10 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 		return result
 	}
 
+	if c.hooksDenied("") {
+		return result
+	}
+
 	var mu sync.Mutex
 	sem := make(chan struct{}, dashboard.DefaultMaxConcurrency)
 	var wg sync.WaitGroup
@@ -1770,9 +1854,20 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 			defer func() { <-sem }()
 
 			fullName := r.Owner.Login + "/" + r.Name
+			if c.hooksDenied(fullName) {
+				return
+			}
 			has, err := c.HasWebhook(ctx, r.Owner.Login, r.Name)
 			if err != nil {
-				slog.Warn("webhook check failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
+				denied, first := c.noteHooksDenial(fullName, err)
+				switch {
+				case first:
+					slog.Warn("webhook checks paused: this credential can't read repo hooks, asking again in an hour", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
+				case denied:
+					slog.Debug("webhook check refused", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
+				default:
+					slog.Warn("webhook check failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
+				}
 
 				return
 			}

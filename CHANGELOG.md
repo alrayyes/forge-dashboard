@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.128.1](https://github.com/alrayyes/forge-dashboard/compare/v0.128.0...v0.128.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **github:** stop asking every repo for hooks the app can't read ([#901](https://github.com/alrayyes/forge-dashboard/issues/901)) ([d86bdbb](https://github.com/alrayyes/forge-dashboard/commit/d86bdbb59f7b35cf142d35b0884a0ea9fbd79ec1)), closes [#894](https://github.com/alrayyes/forge-dashboard/issues/894)
+
 ## [0.128.0](https://github.com/alrayyes/forge-dashboard/compare/v0.127.1...v0.128.0) (2026-10-03)
 
 
