@@ -391,7 +391,11 @@ for (const d of drivers) {
 
       await d.act(row);
 
+      // The raw string stays in the server log (#752): one plain sentence.
       await expect(row.locator('.row-feedback')).toContainText(
+        'The forge refused this action and gave no reason.',
+      );
+      await expect(row.locator('.row-feedback')).not.toContainText(
         'something the forge said',
       );
       await expect(await d.find(row)).toBeEnabled();

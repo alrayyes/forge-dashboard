@@ -65,6 +65,31 @@ const CODES: ReadonlySet<string> = new Set<ActionCode>([
   'unknown',
 ]);
 
+export const NO_REASON = 'The forge refused this action and gave no reason.';
+export const FORGE_UNAVAILABLE =
+  "The forge didn't answer. Try again in a moment.";
+
+// What the row and the toast may say for a failure. Only the server's own
+// `message` qualifies, and only if it reads as a sentence: the raw `error`
+// string (internal prefixes, API paths, a swagger URL, JSON) stays in the
+// server log. Anything else becomes one fallback sentence (#752).
+function plainReason(
+  body: Record<string, unknown> | null,
+  status: number,
+): string {
+  const message = typeof body?.message === 'string' ? body.message.trim() : '';
+  if (message && !looksRaw(message)) return message;
+  return status === 502 || status === 503 || status === 504
+    ? FORGE_UNAVAILABLE
+    : NO_REASON;
+}
+
+function looksRaw(text: string): boolean {
+  return /^dashboard:|\b(forgejo|github): |\/(api|repos)\/|https?:\/\/|^\s*[{[]/i.test(
+    text,
+  );
+}
+
 // Reads a non-2xx response into an error carrying the server's code. A body
 // with no code (an old backend, a proxy's error page) reads as 'unknown'
 // with whatever text it had, so a row never says only "failed".
@@ -82,10 +107,7 @@ export async function readActionFailure(
       ? body.code
       : 'unknown'
   ) as ActionCode;
-  const text =
-    (typeof body?.message === 'string' && body.message) ||
-    (typeof body?.error === 'string' && body.error) ||
-    `backend answered ${res.status}`;
+  const text = plainReason(body, res.status);
   const err: ActionRequestError = new Error(text);
   err.status = res.status;
   err.code = code;
