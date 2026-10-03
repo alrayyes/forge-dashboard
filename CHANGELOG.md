@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.122.0](https://github.com/alrayyes/forge-dashboard/compare/v0.121.0...v0.122.0) (2026-10-03)
+
+
+### Features
+
+* **api:** carry readyToMerge and needsReview on each pull request ([#845](https://github.com/alrayyes/forge-dashboard/issues/845)) ([30b41a7](https://github.com/alrayyes/forge-dashboard/commit/30b41a7c8984fcc7886f3054386ff8138b773877))
+
 ## [0.121.0](https://github.com/alrayyes/forge-dashboard/compare/v0.120.0...v0.121.0) (2026-10-03)
 
 
