@@ -129,6 +129,35 @@ func TestAccessLog_Healthz_StillLoggedAtDebug(t *testing.T) {
 	assert.Contains(t, logged, "path=/healthz")
 }
 
+// The container's HEALTHCHECK probes /readyz every 30 seconds, so it gets the
+// same treatment as /healthz (#873): about 2,900 Info lines a day per
+// container otherwise.
+func TestAccessLog_Readyz_SuppressedAtDefaultInfoLevel(t *testing.T) {
+	logs := withCapturedLogs(t, slog.LevelInfo)
+	srv := newTestServer(t)
+
+	resp, err := http.Get(srv.URL + "/readyz")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	assert.Empty(t, logs.String(), "a healthy /readyz poll shouldn't drown out real activity at the default level")
+}
+
+func TestAccessLog_Readyz_StillLoggedAtDebug(t *testing.T) {
+	logs := withCapturedLogs(t, slog.LevelDebug)
+	srv := newTestServer(t)
+
+	resp, err := http.Get(srv.URL + "/readyz")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	logged := logs.String()
+	assert.Contains(t, logged, "level=DEBUG")
+	assert.Contains(t, logged, "path=/readyz")
+}
+
 // TestAccessLog_5xxStatus_LogsAtError forces a real 500 the same way
 // RequireAuth itself produces one: a session lookup that fails for a
 // reason other than "not found" (ErrNotFound is the expected/401 case).
