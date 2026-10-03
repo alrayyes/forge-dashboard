@@ -240,7 +240,7 @@ test.describe('webhook-triggered live updates', () => {
         .inputValue();
       const secret = await page.locator('#webhook-secret').inputValue();
 
-      await page.goto('/');
+      await page.goto('/issues.html');
       await expect(page.locator('#issue-rows')).toContainText('existing issue');
 
       // The moment being reproduced: someone opens a new ticket on the
@@ -331,7 +331,7 @@ test.describe('webhook-triggered live updates', () => {
         .inputValue();
       const secret = await page.locator('#webhook-secret').inputValue();
 
-      await page.goto('/');
+      await page.goto('/issues.html');
       await expect(page.locator('#issue-rows')).toContainText('old issue 1');
 
       issues.push({
