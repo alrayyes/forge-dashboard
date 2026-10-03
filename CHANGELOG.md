@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.114.0](https://github.com/alrayyes/forge-dashboard/compare/v0.113.1...v0.114.0) (2026-10-03)
+
+
+### Features
+
+* **footer:** link the version to the changelog and drop the Release history link ([#789](https://github.com/alrayyes/forge-dashboard/issues/789)) ([6059552](https://github.com/alrayyes/forge-dashboard/commit/60595521020fb6258b2cfddcb04a0d2ccb6576a8)), closes [#786](https://github.com/alrayyes/forge-dashboard/issues/786)
+
+
+### Bug Fixes
+
+* **dashboard:** a refresh already in flight can't clear a just-queued bot rebase ([#784](https://github.com/alrayyes/forge-dashboard/issues/784)) ([423a905](https://github.com/alrayyes/forge-dashboard/commit/423a905bd1f8fdf5929b74f4f34a970196b1af71)), closes [#691](https://github.com/alrayyes/forge-dashboard/issues/691)
+
 ## [0.113.1](https://github.com/alrayyes/forge-dashboard/compare/v0.113.0...v0.113.1) (2026-10-03)
 
 
