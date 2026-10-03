@@ -126,16 +126,19 @@ func ClassifyActionRefusal(actionErr error, state *PullRequestState) ActionRefus
 // so does an Update branch conflict or an auto-merge refusal whose forge
 // text names the reason.
 func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *PullRequestState) ActionRefusal {
-	if r, ok := refusalFromKind(actionErr); ok {
+	// A rate limit comes first: it needs no re-read, and a re-read under it
+	// would be limited too.
+	if r, ok := refusalFromKind(actionErr); ok && r.Code == ActionRateLimited {
 		return r
 	}
-	if state != nil {
-		switch {
-		case state.Merged:
-			return ActionRefusal{Code: ActionAlreadyMerged, Message: "This pull request was already merged."}
-		case state.Closed:
-			return ActionRefusal{Code: ActionAlreadyClosed, Message: "This pull request was closed without merging."}
-		}
+	// A pull request already merged or closed comes before a permission
+	// refusal (#904): the forge refuses that call with a 403 as well, and
+	// "check your token" would send the user the wrong way.
+	if r, ok := refusalFromFinishedState(state); ok {
+		return r
+	}
+	if r, ok := refusalFromKind(actionErr); ok {
+		return r
 	}
 
 	forgeText := ForgeMessage(actionErr)
@@ -307,6 +310,22 @@ func refusalFromFlags(state *PullRequestState) (ActionRefusal, bool) {
 		return ActionRefusal{Code: ActionNotMergeable, Message: "Draft pull request. Mark it ready for review to merge."}, true
 	case state.ChecksFailing:
 		return ActionRefusal{Code: ActionChecksFailing, Message: "A check is failing. Fix it, then merge."}, true
+	}
+
+	return ActionRefusal{}, false
+}
+
+// refusalFromFinishedState is the answer for a pull request found already
+// merged or closed, whatever the forge's own refusal said. False when state
+// is nil (no re-read) or the pull request is still open.
+func refusalFromFinishedState(state *PullRequestState) (ActionRefusal, bool) {
+	switch {
+	case state == nil:
+		return ActionRefusal{}, false
+	case state.Merged:
+		return ActionRefusal{Code: ActionAlreadyMerged, Message: "This pull request was already merged."}, true
+	case state.Closed:
+		return ActionRefusal{Code: ActionAlreadyClosed, Message: "This pull request was closed without merging."}, true
 	}
 
 	return ActionRefusal{}, false
