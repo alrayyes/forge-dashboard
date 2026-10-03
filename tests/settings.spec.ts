@@ -315,9 +315,14 @@ test.describe('settings page', () => {
     ]);
     expect(saveRequest).toBeTruthy();
 
-    // Nothing was saved, and the page says the server refused it.
+    // Nothing was saved and the page shows the server's reason, which names
+    // the field. (The input stays disabled here, with no App configured, so
+    // it can't take focus; the Forgejo URL test above covers focus.)
     await expect(page.locator('#status')).not.toHaveText('Saved.');
     await expect(page.locator('#status')).toHaveAttribute('class', /error/);
+    await expect(page.locator('#status')).toContainText(
+      /githubAppInstallationId/,
+    );
   });
 
   test('the GitHub fine-grained permissions are a real list, not one run-on line', async ({
