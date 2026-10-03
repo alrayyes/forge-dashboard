@@ -118,7 +118,7 @@
     reason?: string;
     // Only on a queued bot rebase (#706): what the snapshot has to show
     // before the wait counts as over.
-    queued?: { prKey: string; wasBehind: boolean; at: number };
+    queued?: { prKey: string; wasBehind: boolean; at: number; seq: number };
     // Only while "rebasing": when the pickup was seen.
     rebasingSince?: number;
   };
@@ -137,6 +137,9 @@
   // browser tab.
   function initDashboard() {
     const REFRESH_INTERVAL_MS = 30000;
+    // Counts the snapshot fetches started so far, so a queued bot rebase
+    // can tell a fetch begun before its click from one begun after (#691).
+    let requestSeq = 0;
     // When the background poll next fires — what the queued-action
     // banner's countdown reads, so it tracks the real cadence instead of
     // a number hard-coded next to REFRESH_INTERVAL_MS. Re-armed by the
@@ -3885,6 +3888,9 @@
         prKey: prKey(item),
         wasBehind: Boolean(item.behind),
         at: Date.now(),
+        // The last fetch started before this click (#691): an answer to
+        // it or to anything earlier can't show what the click did.
+        seq: requestSeq,
       };
     }
 
@@ -3895,7 +3901,10 @@
     // so it must not end the wait. Expires after a while so a bot that
     // never acts doesn't pin the button disabled; the row, an error toast
     // and Activity then say so.
-    function clearResolvedQueuedBotActions(prs: PullRequestItem[]): boolean {
+    function clearResolvedQueuedBotActions(
+      prs: PullRequestItem[],
+      startedSeq: number | undefined,
+    ): boolean {
       let changed = false;
       const byKey = new Map(prs.map((p) => [prKey(p), p]));
       for (const stateMap of [dependabotActionState, renovateRebaseState]) {
@@ -3921,6 +3930,10 @@
             continue;
           }
           if (entry.phase !== "queued" || !entry.queued) continue;
+          // Only a fetch that started after the click can tell. A push
+          // from the live stream has no start to compare, so it counts.
+          if (startedSeq !== undefined && startedSeq <= entry.queued.seq)
+            continue;
           const current = byKey.get(entry.queued.prKey);
           const landed =
             !current || (entry.queued.wasBehind && !current.behind);
@@ -3993,6 +4006,7 @@
     // forces a real re-fetch from the forge instead of possibly
     // answering from a cache.
     function refreshDashboardNow(): Promise<void> {
+      const seq = ++requestSeq;
       return fetch("/api/dashboard/refresh", {
         method: "POST",
         headers: { Accept: "application/json" },
@@ -4005,7 +4019,7 @@
           if (!res.ok) throw new Error(`backend answered ${res.status}`);
           return res.json();
         })
-        .then((data) => applySnapshot(data, true));
+        .then((data) => applySnapshot(data, true, seq));
     }
 
     forceRefreshButton?.addEventListener("click", () => {
@@ -4071,7 +4085,11 @@
     });
 
     // ---- main fetch/render loop ----
-    function applySnapshot(data: DashboardSnapshot, userAsked = false) {
+    function applySnapshot(
+      data: DashboardSnapshot,
+      userAsked = false,
+      startedSeq?: number,
+    ) {
       clearError();
       lastGeneratedAt = data.generatedAt;
       tickRefreshedAt();
@@ -4098,7 +4116,7 @@
       // action — not just any snapshot (#706). Cleared before
       // anyRowActionInFlight is consulted below, so a resolved row
       // doesn't also hold the board back.
-      const botStateChanged = clearResolvedQueuedBotActions(prs);
+      const botStateChanged = clearResolvedQueuedBotActions(prs, startedSeq);
       for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
         feedback.update(`update-branch:${prKey(item)}`, {
           phase: "done",
@@ -4173,8 +4191,9 @@
     }
 
     function refresh(userAsked = false) {
+      const seq = ++requestSeq;
       fetchDashboardData()
-        .then((data) => applySnapshot(data, userAsked))
+        .then((data) => applySnapshot(data, userAsked, seq))
         .catch((err: Error) => {
           showError(`Could not reach the backend: ${err.message}`);
         });
@@ -4206,8 +4225,9 @@
         description:
           "Fetch the aggregated open pull requests, issues, and CI/forge health this dashboard already tracks across GitHub and Forgejo -- the same read-only data currently rendered on this page. Read-only: this never writes to either forge.",
         async execute() {
+          const seq = ++requestSeq;
           const data = await fetchDashboardData();
-          applySnapshot(data);
+          applySnapshot(data, false, seq);
 
           return data;
         },

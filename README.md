@@ -395,16 +395,16 @@ button comes back and the row and an error toast say why.
 
 A bot `rebase` waits on the bot, not on the dashboard. The button becomes a
 disabled `Rebase requested`, and the row says the bot will pick it up shortly
-and that it can take a few minutes (a "Requested" age ticks along, kept out
-of what a screen reader announces). Dependabot is asked with the
-`@dependabot rebase` comment and Renovate with the `rebase` label, and the
-copy says which. After two minutes with the pull request still behind, the
-line changes to "Still waiting on Dependabot (3m). It queues requests, this is
-normal." with a link to the pull request on its forge. Once a refresh shows the
-pull request is no longer behind, the row shows a "Rebasing…" pill until CI
-shows as restarted (or two minutes pass, for a repo whose CI never restarts),
-then finishes with a toast. If the bot never acts, the request times out after
-five minutes with an error toast and a Retry. Pickup is read from the
+and that it can take a few minutes (a "Requested" age ticks along, kept out of
+what a screen reader announces). Dependabot is asked with the `@dependabot
+rebase` comment and Renovate with the `rebase` label, and the copy says which.
+After two minutes with the pull request still behind, the line changes to "Still
+waiting on Dependabot (3m). It queues requests, this is normal." with a link to
+the pull request on its forge. Once a refresh that started after your click
+shows the pull request is no longer behind, the row shows a "Rebasing…" pill
+until CI shows as restarted (or two minutes pass, for a repo whose CI never
+restarts), then finishes with a toast. If the bot never acts, the request times
+out after five minutes with an error toast and a Retry. Pickup is read from the
 refreshes the page already gets, so a `rebase` requested on a pull request that
 wasn't behind has nothing to show it landed and runs to that timeout.
 
