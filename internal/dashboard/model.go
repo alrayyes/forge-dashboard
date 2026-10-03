@@ -212,6 +212,40 @@ type RateLimit struct {
 	// RateLimitREST's own RateLimit never sets this, and it stays at its
 	// zero value there rather than a fabricated 1.
 	Cost int `json:"cost,omitempty"`
+	// Severity is how worried a client should be about this budget (#806).
+	// The API fills it in when it answers, from the clock, so it never goes
+	// stale in a snapshot; it is empty inside the aggregator's own snapshot.
+	Severity RateLimitSeverity `json:"severity,omitempty"`
+}
+
+// RateLimitSeverity grades a RateLimit. Matches
+// components.schemas.RateLimit.severity.
+type RateLimitSeverity string
+
+// The grades: Exceeded means the budget is spent and not seen to have
+// reset, Low means under lowBudgetFraction of it is left.
+const (
+	RateLimitOK       RateLimitSeverity = "ok"
+	RateLimitLow      RateLimitSeverity = "low"
+	RateLimitExceeded RateLimitSeverity = "exceeded"
+)
+
+// lowBudgetFraction is the share of a budget below which it counts as low.
+// The same 5% cutoff Insights' gauge uses for its critical colour.
+const lowBudgetFraction = 0.05
+
+// SeverityAt grades r as of now. A spent budget whose reset time has passed
+// is not exceeded any more, since the forge has refilled it; the reading is
+// just stale, so it grades low until the next snapshot says otherwise.
+func (r RateLimit) SeverityAt(now time.Time) RateLimitSeverity {
+	if r.Remaining == 0 && (r.ResetsAt.IsZero() || r.ResetsAt.After(now)) {
+		return RateLimitExceeded
+	}
+	if r.Limit > 0 && float64(r.Remaining)/float64(r.Limit) < lowBudgetFraction {
+		return RateLimitLow
+	}
+
+	return RateLimitOK
 }
 
 // ForgeErrorKind classifies why a forge is unreachable, or why a write to
