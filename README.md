@@ -569,6 +569,12 @@ of its repo. A pull request whose review state couldn't be read has no
 outstanding: the forge requires one, or a reviewer was asked and hasn't
 answered. A pull request nobody was asked to review doesn't count.
 
+Draft pull requests are left out of `/api/dashboard` by default, since nothing
+can be merged or updated on one. The response says how many it left out in
+`hiddenDrafts`. Pass `includeDrafts=true` to get them back, on the dashboard,
+its stream and the refresh endpoint alike. The auto-update-branch feature
+never touches a draft either.
+
 ### GitHub App support
 
 GitHub's primary rate limit (5,000 requests/hour, both REST and GraphQL)
