@@ -220,7 +220,10 @@ test.describe('pull request Renovate rebase button', () => {
       route.fulfill({
         status: 502,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: POST .../labels: EOF' }),
+        body: JSON.stringify({
+          error: 'github: POST .../labels: EOF',
+          message: 'EOF',
+        }),
       }),
     );
     await page.reload();

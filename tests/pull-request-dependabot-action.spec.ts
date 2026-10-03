@@ -250,7 +250,10 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       route.fulfill({
         status: 502,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: POST .../comments: EOF' }),
+        body: JSON.stringify({
+          error: 'github: POST .../comments: EOF',
+          message: 'EOF',
+        }),
       }),
     );
     await page.reload();
