@@ -178,6 +178,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /app.js", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /settings.html", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /settings.js", requireAuthPage(deps.AuthStore, fileServer))
+	mux.Handle("GET /issues.html", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /insights.html", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /insights.js", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /webhooks.html", requireAuthPage(deps.AuthStore, fileServer))
