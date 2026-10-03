@@ -390,27 +390,36 @@ conditions such as a rate limit or an unreachable forge.
 
 Update branch, `Dependabot: Rebase` and `Renovate: Rebase` only ask the
 forge or a bot to act, and the result shows up on a later refresh. Update
-branch turns into a disabled "Queued…" the moment you click it, and the
-row's status line says the request went out and counts down to the next
+branch turns into a "Queued…" button the moment you click it. It ignores
+clicks but keeps keyboard focus (`aria-disabled`), so you don't lose your place.
+The row's status line says the request went out and counts down to the next
 background poll. If the countdown runs out before the refresh lands, it reads
 "Refreshing…" instead. An unrelated refresh doesn't clear it. Update branch
 clears once a refresh shows the branch caught up. If the request fails, the
 button comes back and the row and an error toast say why.
 
-A bot `rebase` waits on the bot, not on the dashboard. The button becomes a
-disabled `Rebase requested`, and the row says the bot will pick it up shortly
-and that it can take a few minutes (a "Requested" age ticks along, kept out of
-what a screen reader announces). Dependabot is asked with the `@dependabot
-rebase` comment and Renovate with the `rebase` label, and the copy says which.
-After two minutes with the pull request still behind, the line changes to "Still
-waiting on Dependabot (3m). It queues requests, this is normal." with a link to
-the pull request on its forge. Once a refresh that started after your click
-shows the pull request is no longer behind, the row shows a "Rebasing…" pill
-until CI shows as restarted (or two minutes pass, for a repo whose CI never
-restarts), then finishes with a toast. If the bot never acts, the request times
-out after five minutes with an error toast and a Retry. Pickup is read from the
+A bot `rebase` waits on the bot, not on the dashboard. The button becomes
+`Rebase requested` and is `aria-disabled` (focus returns to the row's More
+actions button when the menu closes), and the row says the bot will pick it up
+shortly and that it can take a few minutes (a "Requested" age ticks along, kept
+out of what a screen reader announces). Dependabot is asked with the
+`@dependabot rebase` comment and Renovate with the `rebase` label, and the copy
+says which. After two minutes with the pull request still behind, the line
+changes to "Still waiting on Dependabot (3m). It queues requests, this is
+normal." with a link to the pull request on its forge. Once a refresh that
+started after your click shows the pull request is no longer behind, the row
+shows a "Rebasing…" pill until CI shows as restarted (or two minutes pass, for a
+repo whose CI never restarts), then finishes with a toast. If the bot never
+acts, the request times out after five minutes with an error toast and a Retry.
+Pickup is read from the
 refreshes the page already gets, so a `rebase` requested on a pull request that
 wasn't behind has nothing to show it landed and runs to that timeout.
+
+A queued Dependabot request names itself: `Rebase requested` or
+`Recreate requested`. While `Recreate requested` shows, the row hides
+`Dependabot: Rebase`, since recreating rebuilds the whole pull request.
+`Rebase requested` keeps `Dependabot: Recreate`, which is still a different
+outcome. Both buttons come back once the bot has acted.
 
 A Dependabot or Renovate pull request gets no Update branch button: each
 has its own `Rebase` action instead (below). A release-please pull request

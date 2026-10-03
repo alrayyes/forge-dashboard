@@ -234,6 +234,19 @@
       return el("button", className, text) as HTMLButtonElement;
     }
 
+    // A pending action's button stays focusable: a native `disabled`
+    // drops focus, so a keyboard or screen reader user loses their place
+    // (#690). aria-disabled keeps it, and clicks are ignored in the
+    // handler instead.
+    function markPending(button: HTMLButtonElement, pending: boolean) {
+      if (pending) button.setAttribute("aria-disabled", "true");
+      else button.removeAttribute("aria-disabled");
+    }
+
+    function isPending(button: HTMLButtonElement): boolean {
+      return button.getAttribute("aria-disabled") === "true";
+    }
+
     // Used by each board's own small count next to its heading — the
     // full phrase reads fine at that size. The top stat tile below gets
     // its own, more compact treatment: shownCountText would wrap a 26px
@@ -575,7 +588,8 @@
         const renovateRebasePromoted =
           !settledRow && pr.behind && !pr.empty && isRenovatePr(pr);
         if (dependabotRebasePromoted) {
-          statusCell.appendChild(dependabotActionButton(pr, "rebase"));
+          if (!dependabotRebaseHidden(pr))
+            statusCell.appendChild(dependabotActionButton(pr, "rebase"));
         } else if (renovateRebasePromoted) {
           const promoted = renovateRebaseActionCell(pr);
           if (promoted) statusCell.appendChild(promoted);
@@ -1750,7 +1764,7 @@
     function doUpdateBranch(item: PullRequestItem, button: HTMLButtonElement) {
       const key = prKey(item);
       updateBranchState[key] = { phase: "queued" };
-      button.disabled = true;
+      markPending(button, true);
       button.textContent = "Queued…";
       const fkey = `update-branch:${key}`;
       feedback.start({
@@ -1871,8 +1885,9 @@
         queued ? "Queued…" : "Update branch",
       );
       button.type = "button";
-      button.disabled = queued;
+      markPending(button, queued);
       button.addEventListener("click", () => {
+        if (isPending(button)) return;
         doUpdateBranch(item, button);
       });
       return button;
@@ -1916,7 +1931,7 @@
         phase: "queued",
         queued: queuedBotInfo(item),
       };
-      button.disabled = true;
+      markPending(button, true);
       button.textContent = queuedBotLabel(action === "rebase");
       const fkey = `dependabot:${key}`;
       feedback.start({
@@ -1975,8 +1990,7 @@
                 ? "Dependabot rebase requested. It will pick this up shortly."
                 : `Dependabot ${action} requested. Awaiting the next refresh.`,
           });
-          closeAllActionMenus();
-          renderPRBoard();
+          closeMenuKeepingFocus(prKey(item));
         })
         .catch((err: ActionRequestError) => {
           renderActionRefusal(
@@ -2029,8 +2043,9 @@
           ? queuedBotLabel(action === "rebase")
           : DEPENDABOT_ACTION_LABELS[action],
       );
-      button.disabled = queued;
+      markPending(button, queued);
       button.addEventListener("click", () => {
+        if (isPending(button)) return;
         doDependabotAction(item, action, button);
       });
       return button;
@@ -2042,7 +2057,8 @@
       if (item.forge !== "github" || !isDependabotPr(item)) return null;
 
       const wrap = el("span", "row-action-group");
-      wrap.appendChild(dependabotActionButton(item, "rebase"));
+      if (!dependabotRebaseHidden(item))
+        wrap.appendChild(dependabotActionButton(item, "rebase"));
       wrap.appendChild(dependabotActionButton(item, "recreate"));
       return wrap;
     }
@@ -2195,6 +2211,11 @@
       showUpdatesBar(0);
     }
 
+    // Pull requests whose bot request a snapshot just moved on (#787). The
+    // row already says so, so its data has to agree even while another
+    // row's action holds the board.
+    const botResolvedKeys = new Set<string>();
+
     // Returns true when it rendered the board.
     function reconcilePRs(): boolean {
       if (!latestPRs) {
@@ -2209,10 +2230,32 @@
         interactionHoldsBoard(userAsked) || (updatesPaused() && !userAsked);
 
       if (held) {
-        showUpdatesBar(structural + diff.changed.length);
+        // Rows stay where they are, but a row a bot just acted on takes
+        // its fresh data in place: otherwise it reads "Rebasing…" next to
+        // a stale "Out of date" until the other row's action ends (#787).
+        const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
+        const settled = shownPRs.filter(
+          (p) => botResolvedKeys.has(prKey(p)) && fresh.has(prKey(p)),
+        );
+        botResolvedKeys.clear();
+        if (settled.length > 0) {
+          const settledKeys = new Set(settled.map(prKey));
+          shownPRs = shownPRs.map((p) =>
+            settledKeys.has(prKey(p)) ? (fresh.get(prKey(p)) ?? p) : p,
+          );
+          prBoard.setItems(shownPRs, true);
+        }
+        const heldDiff = Filters.diffItems(shownPRs, latestPRs);
+        showUpdatesBar(
+          heldDiff.added +
+            heldDiff.removed +
+            heldDiff.moved +
+            heldDiff.changed.length,
+        );
 
-        return false;
+        return settled.length > 0;
       }
+      botResolvedKeys.clear();
       if (userAsked) {
         shownPRs = latestPRs;
         latestPRs = null;
@@ -2234,7 +2277,12 @@
       return diff.changed.length > 0;
     }
 
-    function ingestPRs(prs: PullRequestItem[], userAsked: boolean) {
+    function ingestPRs(
+      prs: PullRequestItem[],
+      userAsked: boolean,
+      botChanged: Set<string>,
+    ) {
+      for (const key of botChanged) botResolvedKeys.add(key);
       rawPRs = prs;
       latestPRs = Filters.sortItems(prs, sharedState.view.sort);
       latestIsUserAsked = latestIsUserAsked || userAsked;
@@ -2261,7 +2309,7 @@
         phase: "queued",
         queued: queuedBotInfo(item),
       };
-      button.disabled = true;
+      markPending(button, true);
       button.textContent = queuedBotLabel(true);
       const fkey = `renovate:${key}`;
       feedback.start({
@@ -2307,8 +2355,7 @@
             announce:
               "Renovate rebase requested. It will pick this up shortly.",
           });
-          closeAllActionMenus();
-          renderPRBoard();
+          closeMenuKeepingFocus(prKey(item));
         })
         .catch((err: ActionRequestError) => {
           renderActionRefusal(
@@ -2345,8 +2392,9 @@
         "row-action",
         queued ? queuedBotLabel(true) : "Renovate: Rebase",
       );
-      button.disabled = queued;
+      markPending(button, queued);
       button.addEventListener("click", () => {
+        if (isPending(button)) return;
         doRenovateRebase(item, button);
       });
       return button;
@@ -2643,6 +2691,15 @@
         if (closeState[key]?.phase === "confirming") delete closeState[key];
         delete openActionMenus[key];
       }
+    }
+
+    // Closing the menu a just-clicked action lived in removes the button
+    // focus was on, so focus goes back to that row's trigger instead of
+    // falling to the page (#690), as Close already does.
+    function closeMenuKeepingFocus(key: string) {
+      closeAllActionMenus();
+      renderPRBoard();
+      document.getElementById(`row-actions-trigger-${domSafeId(key)}`)?.focus();
     }
 
     // Collapses actions into a single trailing "More actions" trigger —
@@ -3877,10 +3934,18 @@
     // How long "Rebasing…" waits for CI to show as restarted (#707).
     const BOT_REBASING_CAP_MS = 2 * 60 * 1000;
 
-    // The disabled button's label while a bot has the request. A rebase
-    // says what was asked for; Recreate stays a plain queue.
+    // The pending button's label while a bot has the request: it names
+    // what was asked for (#792).
     function queuedBotLabel(rebase: boolean): string {
-      return rebase ? "Rebase requested" : "Queued…";
+      return rebase ? "Rebase requested" : "Recreate requested";
+    }
+
+    // Recreate rebuilds the whole pull request, so a Rebase on top of it
+    // has no point while it's pending (#792). A pending Rebase keeps
+    // Recreate: that's still a different outcome.
+    function dependabotRebaseHidden(item: PullRequestItem): boolean {
+      const phase = dependabotActionState[`${prKey(item)}:recreate`]?.phase;
+      return phase === "queued" || phase === "rebasing";
     }
 
     function queuedBotInfo(item: PullRequestItem) {
@@ -3904,8 +3969,8 @@
     function clearResolvedQueuedBotActions(
       prs: PullRequestItem[],
       startedSeq: number | undefined,
-    ): boolean {
-      let changed = false;
+    ): Set<string> {
+      const changed = new Set<string>();
       const byKey = new Map(prs.map((p) => [prKey(p), p]));
       for (const stateMap of [dependabotActionState, renovateRebaseState]) {
         const bot =
@@ -3925,7 +3990,7 @@
               Date.now() - (entry.rebasingSince ?? 0) > BOT_REBASING_CAP_MS;
             if (ciRestarted || gaveUp) {
               finishBotRebase(stateMap, key, fkey, bot);
-              changed = true;
+              changed.add(entry.queued?.prKey ?? key);
             }
             continue;
           }
@@ -3941,7 +4006,7 @@
             // The bot has rebased it; CI hasn't restarted yet.
             entry.phase = "rebasing";
             entry.rebasingSince = Date.now();
-            changed = true;
+            changed.add(entry.queued.prKey);
             const message = `${bot} picked up the rebase.`;
             feedback.update(fkey, {
               phase: "rebasing",
@@ -3951,9 +4016,9 @@
             });
           } else if (landed) {
             finishBotRebase(stateMap, key, fkey, bot);
-            changed = true;
+            changed.add(entry.queued.prKey);
           } else if (Date.now() - entry.queued.at > QUEUED_BOT_EXPIRY_MS) {
-            changed = true;
+            changed.add(entry.queued.prKey);
             delete stateMap[key];
             const reason = "No change seen after 5 minutes.";
             feedback.update(fkey, {
@@ -4117,7 +4182,7 @@
       // action — not just any snapshot (#706). Cleared before
       // anyRowActionInFlight is consulted below, so a resolved row
       // doesn't also hold the board back.
-      const botStateChanged = clearResolvedQueuedBotActions(prs, startedSeq);
+      const botChanged = clearResolvedQueuedBotActions(prs, startedSeq);
       for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
         feedback.update(`update-branch:${prKey(item)}`, {
           phase: "done",
@@ -4147,11 +4212,11 @@
       // #212, #710: ingestPRs compares this against what the board shows
       // and either updates rows in place or holds the change behind the
       // updates bar — see reconcilePRs.
-      ingestPRs(prs, userAsked);
+      ingestPRs(prs, userAsked, botChanged);
       // A bot request changing state (picked up, finished, expired) changes
       // the row's button, pill and line even when the pull request's own
       // data didn't, so the board redraws for it (#707).
-      if (botStateChanged) renderPRBoard();
+      if (botChanged.size > 0) renderPRBoard();
       issueBoard.setItems(issues);
 
       const failingCount = prs.filter((p) => p.ci === "failure").length;
