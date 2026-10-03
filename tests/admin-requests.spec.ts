@@ -1,8 +1,9 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 function uniqueUsername(prefix: string) {
