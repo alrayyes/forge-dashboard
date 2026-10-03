@@ -201,9 +201,16 @@ test.describe('row failure lines (#752)', () => {
     page,
   }) => {
     await prepare(page, { status: 500, body: { error: RAW } });
-    await page.route('**/api/pull-requests/close', (route: Route) =>
-      route.fulfill({ status: 204 }),
-    );
+    // Held open, so the Closing… line stays put while it's asserted on: an
+    // instant answer clears the line between the assertions (#803).
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/pull-requests/close', async (route: Route) => {
+      await held;
+      return route.fulfill({ status: 204 });
+    });
     await fail(page);
 
     // A different action on the same row: its own start replaces the old
@@ -212,8 +219,10 @@ test.describe('row failure lines (#752)', () => {
     await row(page).getByRole('button', { name: 'Close', exact: true }).click();
     await row(page).getByRole('button', { name: 'Confirm close?' }).click();
     await expect(line(page)).toHaveCount(1);
+    await expect(line(page)).toContainText('Closing');
     await expect(line(page)).not.toContainText('Update branch');
     await expect(line(page)).not.toContainText('Failed');
+    release();
   });
 
   test('Retry shows for a transient failure, not for one that cannot pass', async ({
