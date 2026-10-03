@@ -362,3 +362,83 @@ for (const b of bots) {
     });
   });
 }
+
+// #787: a queued action on one row holds the whole board (#212), so a row
+// whose rebase just landed kept its old "Out of date" data while the same
+// snapshot had already moved it to "Rebasing…".
+test.describe('bot rebase pickup with another row still queued', () => {
+  test('the row that was picked up drops Out of date while the other stays put', async ({
+    page,
+    request,
+    baseURL,
+  }) => {
+    await registerAndSignIn(page, request, baseURL);
+    await page.addInitScript(() => {
+      const w = window as unknown as {
+        __streams: EventSource[];
+        EventSource: typeof EventSource;
+      };
+      w.__streams = [];
+      const Real = w.EventSource;
+      w.EventSource = class extends Real {
+        constructor(url: string | URL, init?: EventSourceInit) {
+          super(url, init);
+          w.__streams.push(this);
+        }
+      };
+    });
+    await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ allowBotPrUpdates: false }),
+      }),
+    );
+    const first = makePR({ number: 42 });
+    const second = makePR({ number: 43 });
+    const both = (prs: MockPR[]) => ({
+      ...snapshot(prs[0]),
+      pullRequests: prs,
+    });
+    await page.route('**/api/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(both([first, second])),
+      }),
+    );
+    await page.route('**/api/pull-requests/dependabot-action', (route: Route) =>
+      route.fulfill({ status: 204 }),
+    );
+    await page.reload();
+
+    const rows = page.locator('#pr-rows .row');
+    const rowFor = (n: number) => rows.filter({ hasText: `#${n}` }).first();
+    for (const n of [42, 43]) {
+      await rowFor(n)
+        .getByRole('button', { name: 'Dependabot: Rebase' })
+        .click();
+      await expect(
+        rowFor(n).getByRole('button', { name: 'Rebase requested' }),
+      ).toBeVisible();
+    }
+
+    // Only the first one was picked up.
+    const data = JSON.stringify(both([{ ...first, behind: false }, second]));
+    await page.evaluate((payload) => {
+      const w = window as unknown as { __streams: EventSource[] };
+      for (const stream of w.__streams)
+        stream.onmessage?.(new MessageEvent('message', { data: payload }));
+    }, data);
+
+    await expect(rowFor(42).locator('.merge-pill.rebasing')).toHaveText(
+      'Rebasing…',
+    );
+    await expect(rowFor(42).getByText('Out of date')).toHaveCount(0);
+    // The other row is untouched, still where it was.
+    await expect(rowFor(43).getByText('Out of date')).toBeVisible();
+    await expect(rows.nth(0)).toContainText('#42');
+    await expect(rows.nth(1)).toContainText('#43');
+    await expect(page.locator('#updates-count')).toHaveText('');
+  });
+});
