@@ -1935,6 +1935,14 @@
       };
       markPending(button, true);
       button.textContent = queuedBotLabel(action === "rebase");
+      // Recreate rebuilds the whole pull request, so a Rebase beside it has
+      // no point from the moment it's queued, not once the response lands
+      // and the board re-renders (#792, #834).
+      if (action === "recreate")
+        button
+          .closest(".row")
+          ?.querySelectorAll('[data-bot-action="rebase"]')
+          .forEach((el) => el.remove());
       const fkey = `dependabot:${key}`;
       feedback.start({
         actionKey: fkey,
@@ -2046,6 +2054,7 @@
           : DEPENDABOT_ACTION_LABELS[action],
       );
       markPending(button, queued);
+      button.dataset.botAction = action;
       button.addEventListener("click", () => {
         if (isPending(button)) return;
         doDependabotAction(item, action, button);

@@ -240,10 +240,16 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await line.getByRole('button', { name: 'Retry' }).click();
     await expect.poll(() => mocks.hits[3]).toBe(2);
 
-    await toasts(page)
-      .first()
-      .getByRole('button', { name: /Dismiss/ })
-      .click();
+    // The mock fails every attempt, so the retry raises its own error
+    // toast beside the first. Wait for it: dismissing before it lands
+    // leaves it behind and the count never reaches 0 (#826).
+    await expect(toasts(page)).toHaveCount(2);
+    for (const _ of [0, 1]) {
+      await toasts(page)
+        .first()
+        .getByRole('button', { name: /Dismiss/ })
+        .click();
+    }
     await expect(toasts(page)).toHaveCount(0);
   });
 
