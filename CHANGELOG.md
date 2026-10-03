@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.130.1](https://github.com/alrayyes/forge-dashboard/compare/v0.130.0...v0.130.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **dashboard:** keep a forge's last good data when its fetch fails ([#923](https://github.com/alrayyes/forge-dashboard/issues/923)) ([9129f23](https://github.com/alrayyes/forge-dashboard/commit/9129f2310df187638cffb41a7e7694f450ce847d))
+
 ## [0.130.0](https://github.com/alrayyes/forge-dashboard/compare/v0.129.1...v0.130.0) (2026-10-03)
 
 
