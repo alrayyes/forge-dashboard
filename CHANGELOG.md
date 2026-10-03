@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.126.0](https://github.com/alrayyes/forge-dashboard/compare/v0.125.0...v0.126.0) (2026-10-03)
+
+
+### Features
+
+* **dashboard:** fold the filter bar into a bottom sheet on phones ([#853](https://github.com/alrayyes/forge-dashboard/issues/853)) ([9e9dec7](https://github.com/alrayyes/forge-dashboard/commit/9e9dec76be0cf6977b1ee00e4186b535bc3353d7))
+
 ## [0.125.0](https://github.com/alrayyes/forge-dashboard/compare/v0.124.1...v0.125.0) (2026-10-03)
 
 
