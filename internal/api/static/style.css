@@ -2360,6 +2360,33 @@ footer a.mono:focus-visible {
   outline-offset: 2px;
 }
 
+/* The Show drafts toggle (#791): quieter than the quick pills, since it is a
+   separate on/off choice rather than one of their exclusive set. Dashed
+   when off, solid accent outline when on, and the label says which. */
+.drafts-toggle {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.drafts-toggle[aria-pressed="true"] {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.drafts-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.drafts-hidden {
+  margin-inline-start: 6px;
+  color: var(--ink-3);
+}
+
 /* "/" hint inside the title search (#678). */
 .filter-bar .search-wrap {
   position: relative;
