@@ -121,3 +121,41 @@ func TestClassifyActionRefusal_UnknownMessageIsPlainWords(t *testing.T) {
 		})
 	}
 }
+
+// A permission refusal on a pull request that is already merged or closed
+// says so (#904), not "check your token": the forge refuses that call with a
+// 403 too, and the token is fine.
+func TestClassifyActionRefusal_PermissionRefusalOnAFinishedPullRequestSaysSo(t *testing.T) {
+	t.Parallel()
+
+	denied := refusal(dashboard.ForgeErrorUnauthorized, "github: PUT x: Resource not accessible by integration")
+	cases := []struct {
+		name  string
+		state *dashboard.PullRequestState
+		want  dashboard.ActionCode
+	}{
+		{"merged", &dashboard.PullRequestState{Merged: true, Closed: true}, dashboard.ActionAlreadyMerged},
+		{"closed without merging", &dashboard.PullRequestState{Closed: true}, dashboard.ActionAlreadyClosed},
+		{"still open: the token really lacks permission", &dashboard.PullRequestState{}, dashboard.ActionPermission},
+		{"no re-read: still permission", nil, dashboard.ActionPermission},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionMerge, denied, tc.state)
+
+			assert.Equal(t, tc.want, got.Code)
+		})
+	}
+}
+
+func TestClassifyActionRefusal_RateLimitedStaysRateLimitedWhateverTheState(t *testing.T) {
+	t.Parallel()
+
+	limited := refusal(dashboard.ForgeErrorRateLimited, "github: PUT x: rate limit exceeded")
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionMerge, limited, &dashboard.PullRequestState{Merged: true})
+
+	assert.Equal(t, dashboard.ActionRateLimited, got.Code)
+}
