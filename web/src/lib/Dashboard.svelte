@@ -538,6 +538,7 @@
       row.appendChild(repoCell(item));
       const titleCellEl = titleCell(item, onLabelClick, activeLabel);
       row.appendChild(titleCellEl);
+      if (!isPR) row.dataset.issueKey = prKey(item);
       if (isPR) {
         row.dataset.prKey = prKey(item);
         if (updatedMarkers.has(prKey(item)))
@@ -2141,6 +2142,17 @@
     let rawPRs: PullRequestItem[] = [];
     let latestIsUserAsked = false;
 
+    // The issues page's counterpart (#827, #718). Same idea, a simpler rule:
+    // a change that would add, remove or move rows is held only while
+    // you're scrolled below the top, a control in the list has focus, or
+    // updates are paused. Otherwise it applies at once. A row whose own
+    // content changed is replaced where it stands, and a snapshot that
+    // changes nothing renders nothing.
+    let shownIssues: IssueItem[] = [];
+    let latestIssues: IssueItem[] | null = null;
+    let rawIssues: IssueItem[] = [];
+    let latestIssuesAsked = false;
+
     // How long "Updated just now" stays on a row changed in place.
     const UPDATED_MARKER_MS = 2500;
     const updatedMarkers = new Set<string>();
@@ -2247,6 +2259,97 @@
       latestPRs = null;
       latestIsUserAsked = false;
       showUpdatesBar(0);
+    }
+
+    function applyPendingIssuesNow() {
+      shownIssues = Filters.sortItems(rawIssues, sharedState.view.sort);
+      issueBoard.replaceItems(shownIssues);
+      latestIssues = null;
+      latestIssuesAsked = false;
+      showUpdatesBar(0);
+    }
+
+    // Below the top (a little slack for a resting scroll position) or a
+    // control in the list has focus: rows must not move under the reader.
+    function issuesHoldBoard(userAsked: boolean): boolean {
+      if (userAsked) return false;
+      const scrolled = window.scrollY > 8;
+      const focusInList = Boolean(
+        document.activeElement?.closest("#issue-rows"),
+      );
+      return scrolled || focusInList || updatesPaused();
+    }
+
+    // Replaces just these rows, keeping every other row's DOM node.
+    function replaceIssueRows(items: IssueItem[]) {
+      for (const item of items) {
+        const key = prKey(item);
+        const old = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            "#issue-rows [data-issue-key]",
+          ),
+        ).find((row) => row.dataset.issueKey === key);
+        if (!old) continue;
+        old.replaceWith(
+          buildRow(
+            item,
+            false,
+            undefined,
+            handleLabelClick,
+            sharedState.shared.label,
+          ),
+        );
+      }
+    }
+
+    // Returns true when it rendered the board.
+    function reconcileIssues(): boolean {
+      if (!latestIssues) {
+        showUpdatesBar(0);
+
+        return false;
+      }
+      const userAsked = latestIssuesAsked || shownIssues.length === 0;
+      const diff = Filters.diffItems(shownIssues, latestIssues);
+      const structural = diff.added + diff.removed + diff.moved;
+
+      if (structural === 0 && diff.changed.length === 0) {
+        latestIssues = null;
+        showUpdatesBar(0);
+
+        return false;
+      }
+      const held = issuesHoldBoard(userAsked);
+      if (!held && (structural > 0 || userAsked)) {
+        shownIssues = latestIssues;
+        latestIssues = null;
+        latestIssuesAsked = false;
+        showUpdatesBar(0);
+        issueBoard.setItems(shownIssues, true);
+
+        return true;
+      }
+      // Anything else lands only as content changes, each row where it
+      // stands; structural changes (held here) wait behind the bar.
+      if (diff.changed.length > 0) {
+        const fresh = new Map(latestIssues.map((i) => [prKey(i), i]));
+        const changed = shownIssues
+          .filter((i) => diff.changed.includes(prKey(i)))
+          .map((i) => fresh.get(prKey(i)) ?? i);
+        shownIssues = shownIssues.map((i) => fresh.get(prKey(i)) ?? i);
+        replaceIssueRows(changed);
+      }
+      if (structural === 0) latestIssues = null;
+      showUpdatesBar(structural);
+
+      return diff.changed.length > 0;
+    }
+
+    function ingestIssues(issues: IssueItem[], userAsked: boolean) {
+      rawIssues = issues;
+      latestIssues = Filters.sortItems(issues, sharedState.view.sort);
+      latestIssuesAsked = latestIssuesAsked || userAsked;
+      reconcileIssues();
     }
 
     // Pull requests whose bot request a snapshot just moved on (#787). The
@@ -2916,9 +3019,13 @@
     // real server value always wins, but this page never sits idle
     // waiting for it first.
     Filters.loadStateFromServer().then((got) => {
+      const before = JSON.stringify(sharedState);
       if (got) Filters.applyServerState(sharedState, got);
       syncDraftsPreference();
-      if (sharedControlsRestored) {
+      // Only when the server's copy actually differs from what the cookie
+      // already gave the page: a re-render for nothing replaces every row
+      // under the reader (#827).
+      if (sharedControlsRestored && JSON.stringify(sharedState) !== before) {
         updateSharedFilterOptions();
         syncSharedControlsToState();
         applyPendingNow();
@@ -3443,9 +3550,16 @@
       undefined,
       "issue",
       sharedState.issue,
+      applyPendingIssuesNow,
     );
 
     showUpdatesButton?.addEventListener("click", () => {
+      if (view === "issues") {
+        applyPendingIssuesNow();
+        issueBoard.render();
+        pauseUpdatesButton?.focus();
+        return;
+      }
       applyPendingNow();
       prBoard.render();
       // The button hides itself once nothing's pending; keep focus on the
@@ -3456,7 +3570,8 @@
       sharedState.view.paused = updatesPaused() ? "" : "1";
       Filters.saveState(sharedState);
       syncPauseControl();
-      reconcilePRs();
+      if (view === "issues") reconcileIssues();
+      else reconcilePRs();
     });
     syncPauseControl();
     showDraftsButton?.addEventListener("click", () => {
@@ -3470,6 +3585,25 @@
     document.getElementById("pr-rows")?.addEventListener("focusout", () => {
       setTimeout(reconcilePRs, 0);
     });
+    document.getElementById("issue-rows")?.addEventListener("focusout", () => {
+      setTimeout(reconcileIssues, 0);
+    });
+    // Scrolling back to the top lifts the hold, so what was waiting lands
+    // where the reader can see it arrive.
+    if (view === "issues") {
+      let scrollFrame = 0;
+      window.addEventListener(
+        "scroll",
+        () => {
+          if (scrollFrame) return;
+          scrollFrame = requestAnimationFrame(() => {
+            scrollFrame = 0;
+            if (latestIssues) reconcileIssues();
+          });
+        },
+        { passive: true },
+      );
+    }
     document
       .getElementById("pipeline-dialog")
       ?.addEventListener("close", () => {
@@ -3599,6 +3733,7 @@
     sortSelect?.addEventListener("change", () => {
       sharedState.view.sort = sortSelect.value;
       prBoard.resetPage();
+      issueBoard.resetPage();
       Filters.saveState(sharedState);
       renderBoth();
     });
@@ -4272,7 +4407,8 @@
       // the row's button, pill and line even when the pull request's own
       // data didn't, so the board redraws for it (#707).
       if (botChanged.size > 0) renderPRBoard();
-      issueBoard.setItems(issues);
+      if (view === "issues") ingestIssues(issues, userAsked);
+      else issueBoard.setItems(issues);
 
       const failingCount = prs.filter((p) => p.ci === "failure").length;
       const statFailing = document.getElementById("stat-failing");
@@ -4574,17 +4710,17 @@
         ></span></button
       >
     {/if}
-    {#if view === "pulls"}
-      <select
-        class="group-select"
-        id="pr-sort-select"
-        aria-label="Sort pull requests by"
-      >
-        <option value="">Sort: Last activity</option>
-        <option value="created">Sort: Created</option>
-        <option value="repo">Sort: Repository</option>
-      </select>
-    {/if}
+    <select
+      class="group-select"
+      id="pr-sort-select"
+      aria-label={view === "issues"
+        ? "Sort issues by"
+        : "Sort pull requests by"}
+    >
+      <option value="">Sort: Last activity</option>
+      <option value="created">Sort: Created</option>
+      <option value="repo">Sort: Repository</option>
+    </select>
     <select
       class="group-select"
       id="shared-group-select"
@@ -4662,28 +4798,26 @@
     >
   </div>
 
-  {#if view === "pulls"}
-    <div class="updates-bar" id="updates-bar">
-      <span
-        class="updates-count"
-        id="updates-count"
-        role="status"
-        aria-live="polite"
-      ></span>
-      <button type="button" class="updates-show" id="show-updates-button" hidden
-        >Show updates</button
-      >
-      <span class="updates-paused" id="updates-paused-hint" hidden
-        >Live updates paused</span
-      >
-      <button
-        type="button"
-        class="updates-pause"
-        id="pause-updates-button"
-        aria-pressed="false">Pause live updates</button
-      >
-    </div>
-  {/if}
+  <div class="updates-bar" id="updates-bar">
+    <span
+      class="updates-count"
+      id="updates-count"
+      role="status"
+      aria-live="polite"
+    ></span>
+    <button type="button" class="updates-show" id="show-updates-button" hidden
+      >Show updates</button
+    >
+    <span class="updates-paused" id="updates-paused-hint" hidden
+      >Live updates paused</span
+    >
+    <button
+      type="button"
+      class="updates-pause"
+      id="pause-updates-button"
+      aria-pressed="false">Pause live updates</button
+    >
+  </div>
 
   {#if view === "pulls"}
     <section class="board" aria-label="Open pull requests">
