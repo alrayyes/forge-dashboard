@@ -4113,6 +4113,7 @@
       clearStaleLocks(closeState);
       clearStaleLocks(updateBranchState);
       const prs = data.pullRequests || [];
+      feedback.dropFailedExcept(new Set(prs.map((p) => prKey(p))));
       // Only a snapshot that shows the rebase landed ends a queued bot
       // action — not just any snapshot (#706). Cleared before
       // anyRowActionInFlight is consulted below, so a resolved row
