@@ -804,7 +804,7 @@ test.describe('pull request update-branch button', () => {
     // it's specific to one PR, so a 403 from either action has to lock
     // both, for every PR on that forge, not just the row and the action
     // that happened to be tried first.
-    test('a permission failure on Merge for one PR also locks Update branch for a different PR on the same forge', async ({
+    test('a permission failure on Merge for one PR does not lock Update branch for a different PR on the same forge (#918)', async ({
       page,
     }) => {
       const first = makePR({
@@ -842,15 +842,15 @@ test.describe('pull request update-branch button', () => {
         rows.nth(0).getByRole('button', { name: 'Merge', exact: true }),
       ).toHaveAttribute('aria-disabled', 'true');
 
+      // A different action on a different pull request is untouched.
+      await page.locator('#force-refresh-button').click();
       const updateBranchButton = rows
         .nth(1)
         .getByRole('button', { name: 'Update branch', exact: true });
-      await expect(updateBranchButton).toHaveAttribute('aria-disabled', 'true');
-      await expect(
-        rows.nth(1).getByRole('button', { name: 'Retry' }),
-      ).toHaveCount(0);
-      await expect(updateBranchButton).toHaveAccessibleDescription(
-        /token in Settings/,
+      await expect(updateBranchButton).toBeVisible();
+      await expect(updateBranchButton).not.toHaveAttribute(
+        'aria-disabled',
+        'true',
       );
     });
   });
