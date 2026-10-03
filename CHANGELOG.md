@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.113.1](https://github.com/alrayyes/forge-dashboard/compare/v0.113.0...v0.113.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **forgejo:** prune cached review state and test it against a real Forgejo ([#777](https://github.com/alrayyes/forge-dashboard/issues/777)) ([8712a91](https://github.com/alrayyes/forge-dashboard/commit/8712a91833433422fea68359211c58da0a9fc243)), closes [#694](https://github.com/alrayyes/forge-dashboard/issues/694)
+
 ## [0.113.0](https://github.com/alrayyes/forge-dashboard/compare/v0.112.1...v0.113.0) (2026-10-02)
 
 
