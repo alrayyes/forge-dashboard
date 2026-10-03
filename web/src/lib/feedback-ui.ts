@@ -254,6 +254,16 @@ export function mountFeedbackUI(
         retry.addEventListener('click', () => run());
         line.appendChild(retry);
       }
+      if (entry.phase === 'failed' || entry.phase === 'expired') {
+        const dismiss = button(
+          'row-action row-feedback-dismiss',
+          'Dismiss',
+          `Dismiss failure for ${refText(entry.ref)}`,
+        );
+        const actionKey = entry.actionKey;
+        dismiss.addEventListener('click', () => store.drop(actionKey));
+        line.appendChild(dismiss);
+      }
       wrap.appendChild(line);
     }
     return wrap;
