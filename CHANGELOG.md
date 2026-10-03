@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.115.1](https://github.com/alrayyes/forge-dashboard/compare/v0.115.0...v0.115.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **dashboard:** a refused Close shows its lock on the row ([#785](https://github.com/alrayyes/forge-dashboard/issues/785)) ([c88ff29](https://github.com/alrayyes/forge-dashboard/commit/c88ff29279bbc509ac54f757c759021186cb27f2)), closes [#747](https://github.com/alrayyes/forge-dashboard/issues/747)
+* **dashboard:** queued row actions use aria-disabled so focus isn't lost ([#778](https://github.com/alrayyes/forge-dashboard/issues/778)) ([5f30abe](https://github.com/alrayyes/forge-dashboard/commit/5f30abe212027d11310cb1636140f5fc9bd10c4f))
+
 ## [0.115.0](https://github.com/alrayyes/forge-dashboard/compare/v0.114.0...v0.115.0) (2026-10-03)
 
 
