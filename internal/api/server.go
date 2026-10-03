@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -36,6 +37,14 @@ type Deps struct {
 	// case that check is skipped.
 	Database  DatabasePinger
 	Dashboard FirstRefreshGate
+
+	// ReadyProbeTimeout bounds the database ping and ReadyCacheTTL is how
+	// long its result is reused; zero means the defaults (2s and 3s).
+	ReadyProbeTimeout time.Duration
+	ReadyCacheTTL     time.Duration
+	// Drain, once started, makes /readyz answer 503 so a router stops
+	// sending traffic before shutdown. Nil never drains.
+	Drain *Drain
 
 	// Manager holds each signed-in user's own Aggregator, built from
 	// their saved Credentials via BuildSources.

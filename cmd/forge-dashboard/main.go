@@ -64,6 +64,40 @@ func resolveRefreshInterval(v string) time.Duration {
 	return d
 }
 
+// defaultShutdownDrain is how long the server answers /readyz 503 before it
+// stops accepting connections, so a router polling that path has taken it
+// out of rotation first. Docker's default stop grace is 10s and Shutdown
+// gets 5 of them, so a longer drain needs a longer stop_grace_period too.
+const defaultShutdownDrain = 5 * time.Second
+
+// resolveShutdownDrain reads SHUTDOWN_DRAIN as a Go duration. Zero turns the
+// wait off; empty, invalid or negative falls back to the default.
+func resolveShutdownDrain(v string) time.Duration {
+	if v == "" {
+		return defaultShutdownDrain
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d < 0 {
+		slog.Error("invalid SHUTDOWN_DRAIN, using default", "value", v, "default", defaultShutdownDrain, "error", err)
+
+		return defaultShutdownDrain
+	}
+
+	return d
+}
+
+// drainThenShutdown flips readiness to 503, waits the drain delay so a
+// router can notice, and only then shuts the server down.
+func drainThenShutdown(delay time.Duration, startDrain func(), shutdown func(context.Context) error) error {
+	startDrain()
+	time.Sleep(delay)
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return shutdown(shutdownCtx)
+}
+
 // defaultCIPollInterval is dashboard.PollCI's own ticker cadence
 // (#177): real Forgejo instances (confirmed live, twice independently)
 // silently drop the "status" webhook event from a hook's persisted
@@ -203,7 +237,9 @@ func run() error {
 	manager.SetAutoUpdateBranchLister(settingsStore)
 	manager.SetCIPollInterval(ciPollInterval)
 
+	var drain api.Drain
 	deps := api.Deps{
+		Drain:         &drain,
 		Version:       version,
 		AuthService:   authService,
 		AuthStore:     authStore,
@@ -230,9 +266,7 @@ func run() error {
 
 	go func() {
 		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
+		if err := drainThenShutdown(resolveShutdownDrain(os.Getenv("SHUTDOWN_DRAIN")), drain.Start, srv.Shutdown); err != nil {
 			slog.Error("shutdown", "error", err)
 		}
 	}()
