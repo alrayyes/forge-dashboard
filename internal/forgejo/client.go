@@ -782,6 +782,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 				CI:                      ci,
 				MergeStatus:             mergeStatusFromMergeable(p.Mergeable),
 				Behind:                  isBehind(p),
+				HeadSHA:                 sha,
 				BaseBranch:              branchRef(p.Base),
 				HeadBranch:              branchRef(p.Head),
 				CrossRepository:         p.Head != nil && p.Base != nil && p.Head.RepoID != p.Base.RepoID,
