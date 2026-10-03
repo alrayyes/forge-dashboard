@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.115.0](https://github.com/alrayyes/forge-dashboard/compare/v0.114.0...v0.115.0) (2026-10-03)
+
+
+### Features
+
+* **api:** leave draft pull requests out of the dashboard unless asked ([#793](https://github.com/alrayyes/forge-dashboard/issues/793)) ([ff53512](https://github.com/alrayyes/forge-dashboard/commit/ff535125586b757d9819723b7ae1b9588c32eb41))
+
+
+### Bug Fixes
+
+* **api:** give an uncoded action failure a plain message and keep the raw text in the log ([#799](https://github.com/alrayyes/forge-dashboard/issues/799)) ([97eb76a](https://github.com/alrayyes/forge-dashboard/commit/97eb76a4e9a3899150d6ac014a9dbe46a7a0a95e))
+* **dashboard:** row failure lines say a plain reason, can be dismissed and clear themselves ([#795](https://github.com/alrayyes/forge-dashboard/issues/795)) ([5c9da64](https://github.com/alrayyes/forge-dashboard/commit/5c9da64243332e2a276b4cc466d8459411faf02e)), closes [#752](https://github.com/alrayyes/forge-dashboard/issues/752)
+
 ## [0.114.0](https://github.com/alrayyes/forge-dashboard/compare/v0.113.1...v0.114.0) (2026-10-03)
 
 
