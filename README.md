@@ -631,6 +631,16 @@ can be merged or updated on one. The response says how many it left out in
 its stream and the refresh endpoint alike. The auto-update-branch feature
 never touches a draft either.
 
+Stacked pull requests are marked in `/api/dashboard`. A pull request is
+stacked on another when its base branch is that one's head branch, in the same
+repository and neither comes from a fork. Each pull request carries `stack`
+(its position and the stack's size, or null), `stackedOn` (the parent) and
+`stackChildren`. Merge on a stacked child is blocked with the code `stacked`,
+since merging it would land it in the parent's branch, and auto-merge isn't
+offered either (GitHub refuses it there, because the parent's branch has no
+protection rule). The snapshot holds open pull requests only, so a parent that
+already merged without the child having its base changed isn't flagged.
+
 ### GitHub App support
 
 GitHub's primary rate limit (5,000 requests/hour, both REST and GraphQL)
