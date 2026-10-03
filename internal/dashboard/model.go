@@ -342,6 +342,11 @@ type ForgeHealth struct {
 	Error     string         `json:"error,omitempty"`
 	ErrorKind ForgeErrorKind `json:"errorKind,omitempty"`
 	RepoCount int            `json:"repoCount"`
+	// StaleSince is set when this refresh failed and the pull requests,
+	// issues and repos shown for the forge are the last good ones, fetched
+	// at this time (#922). Absent when the data is current, and for a forge
+	// that has never fetched successfully, which has nothing to show.
+	StaleSince *time.Time `json:"staleSince,omitempty"`
 	// RateLimitGraphQL and RateLimitREST are two independent budgets
 	// (#361) — GitHub tracks REST and GraphQL as separate 5000/hour
 	// allowances, so a client spending both (this codebase's GitHub

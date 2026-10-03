@@ -2901,6 +2901,16 @@ components:
         reachable:
           type: boolean
           description: Whether the last refresh attempt against this forge succeeded.
+        staleSince:
+          type: string
+          format: date-time
+          description: |
+            Present when the last refresh against this forge failed and the
+            pull requests, issues and repos in the response are the last good
+            ones, fetched at this time, instead of none. Absent when the data
+            is current, and for a forge that has never fetched successfully,
+            which has nothing to show. A client can say "unreachable, showing
+            data from 3 minutes ago".
         error:
           type: string
           description: >-
