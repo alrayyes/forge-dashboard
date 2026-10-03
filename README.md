@@ -741,3 +741,13 @@ how a change gets reviewed and released.
 [AGPL-3.0](LICENSE). Chosen over the plain GPL-3.0 this project started
 under because AGPL's network-use clause also covers running a modified
 copy as a hosted service, which GPL alone doesn't.
+
+### Fonts
+
+The app serves its own fonts, so a page never contacts another host to render
+text. IBM Plex Sans (400, 500, 600, 700) and IBM Plex Mono (400, 500, 600) come
+from the pinned `@fontsource/ibm-plex-sans` and `@fontsource/ibm-plex-mono`
+packages, bundled by the web build in the Latin and Latin Extended subsets, with
+`font-display: swap`. IBM Plex is released under
+[OFL-1.1](https://openfontlicense.org/), the SIL open font licence, which allows
+bundling and redistribution with this app.
