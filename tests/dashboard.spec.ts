@@ -103,12 +103,11 @@ test.describe('dashboard page', () => {
   }) => {
     // CI builds the e2e binary with no goreleaser ldflags, so this is
     // always "dev" here — a real release build shows "· vX.Y.Z" linked to
-    // its GitHub release instead (see web/src/lib/Footer.svelte). Also
-    // carries a "Release history" link now (see releases.spec.ts).
+    // the changelog page instead (see web/src/lib/Footer.svelte).
     await expect(page.locator('#footer-version')).toContainText('· dev build');
   });
 
-  test('the footer links a real released version to its GitHub release, with a release history link alongside', async ({
+  test('the footer links a real released version to the changelog, with no separate release history link', async ({
     page,
   }) => {
     // Mocked because CI always builds "dev" (see the test above) — this
@@ -126,22 +125,18 @@ test.describe('dashboard page', () => {
     const versionLink = page.locator('#footer-version a', {
       hasText: 'v1.2.3',
     });
-    await expect(versionLink).toHaveAttribute(
-      'href',
-      'https://github.com/alrayyes/forge-dashboard/releases/tag/v1.2.3',
-    );
+    await expect(versionLink).toHaveAttribute('href', '/releases.html');
+    await expect(versionLink).not.toHaveAttribute('target', '_blank');
     await expect(
       page.locator('#footer-version a', { hasText: 'Release history' }),
-    ).toBeVisible();
+    ).toHaveCount(0);
   });
 
   test('the footer shows nothing version-related while /api/version is unresolved or fails', async ({
     page,
   }) => {
     // web/src/lib/Footer.svelte's resting/failure state — no version
-    // text, no release history link, rather than an error or a stale
-    // value (the release history link is gated on the same fetch that
-    // drives the version text, not shown independently).
+    // text and no link, rather than an error or a stale value.
     await page.route('**/api/version', (route) =>
       route.fulfill({ status: 500 }),
     );
