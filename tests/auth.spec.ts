@@ -6,8 +6,9 @@
 // distinction caused live.
 
 import AxeBuilder from '@axe-core/playwright';
-import { request as apiRequest, expect, test } from '@playwright/test';
+import { request as apiRequest, expect } from '@playwright/test';
 import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 import { addVirtualAuthenticator } from './webauthn-helper';
 

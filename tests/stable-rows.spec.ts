@@ -4,8 +4,9 @@ import {
   expect,
   type Page,
   type Route,
-  test,
 } from '@playwright/test';
+import { allowedActionsFor } from './allowed-actions-stand-in';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // #710: rows stay where they are while the user reads and clicks. A live
@@ -68,7 +69,12 @@ function snapshot(prs: MockPR[]) {
   return {
     generatedAt: new Date().toISOString(),
     forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
-    pullRequests: prs,
+    // This spec stubs the whole stream, so the stand-in can't enrich what it
+    // pushes: state the server's answer here.
+    pullRequests: prs.map((pr) => ({
+      ...pr,
+      allowedActions: allowedActionsFor(pr),
+    })),
     issues: [],
   };
 }
