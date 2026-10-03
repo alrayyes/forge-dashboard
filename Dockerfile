@@ -12,7 +12,9 @@ COPY web/package.json web/
 RUN bun install --frozen-lockfile --ignore-scripts
 
 COPY web/ web/
-COPY scripts/sync-web-build.sh scripts/
+COPY scripts/sync-web-build.sh scripts/changelog-json.ts scripts/
+# The changelog page is built from this at build time (#813).
+COPY CHANGELOG.md ./
 COPY internal/api/static/ internal/api/static/
 RUN bun run --filter web build && ./scripts/sync-web-build.sh
 
