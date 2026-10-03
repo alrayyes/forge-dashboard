@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.124.0](https://github.com/alrayyes/forge-dashboard/compare/v0.123.0...v0.124.0) (2026-10-03)
+
+
+### Features
+
+* **api:** list requested reviewers and say whether a review is requested from me ([#864](https://github.com/alrayyes/forge-dashboard/issues/864)) ([85473da](https://github.com/alrayyes/forge-dashboard/commit/85473da85293a9b2a5ec346c65cf792c25ca5976))
+
 ## [0.123.0](https://github.com/alrayyes/forge-dashboard/compare/v0.122.0...v0.123.0) (2026-10-03)
 
 
