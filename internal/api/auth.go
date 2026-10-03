@@ -205,3 +205,9 @@ func handleGetSession() http.HandlerFunc {
 func errorBody(msg string) map[string]string {
 	return map[string]string{"error": msg}
 }
+
+// fieldErrorBody is errorBody for a rejected input that belongs to one field
+// of the request, named in `field` (#810).
+func fieldErrorBody(field, msg string) map[string]string {
+	return map[string]string{"error": msg, "field": field}
+}

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.120.0](https://github.com/alrayyes/forge-dashboard/compare/v0.119.1...v0.120.0) (2026-10-03)
+
+
+### Features
+
+* **api:** name the field in a rejected settings save ([#847](https://github.com/alrayyes/forge-dashboard/issues/847)) ([3391241](https://github.com/alrayyes/forge-dashboard/commit/3391241afaa1caeb3235e4137d02bcd54d924e01))
+
 ## [0.119.1](https://github.com/alrayyes/forge-dashboard/compare/v0.119.0...v0.119.1) (2026-10-03)
 
 

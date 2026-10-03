@@ -93,6 +93,10 @@ async function setup(page: Page) {
       }
     };
   });
+  // The stream's URL is recorded when the connection is constructed, so it
+  // needn't answer. Left alone, the real one pushes the server's own empty
+  // snapshot over the mocked one after a reload (#837).
+  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) => {
     seen.push(route.request().url());
     return answer(route);
