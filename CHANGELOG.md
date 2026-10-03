@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.124.1](https://github.com/alrayyes/forge-dashboard/compare/v0.124.0...v0.124.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **api:** say a wrong-typed settings value in plain words ([#867](https://github.com/alrayyes/forge-dashboard/issues/867)) ([0c5153e](https://github.com/alrayyes/forge-dashboard/commit/0c5153ef7c87417ddb3516626b8eac83ee018acd)), closes [#810](https://github.com/alrayyes/forge-dashboard/issues/810)
+
+## [0.124.0](https://github.com/alrayyes/forge-dashboard/compare/v0.123.0...v0.124.0) (2026-10-03)
+
+
+### Features
+
+* **api:** list requested reviewers and say whether a review is requested from me ([#864](https://github.com/alrayyes/forge-dashboard/issues/864)) ([85473da](https://github.com/alrayyes/forge-dashboard/commit/85473da85293a9b2a5ec346c65cf792c25ca5976))
+
 ## [0.123.0](https://github.com/alrayyes/forge-dashboard/compare/v0.122.0...v0.123.0) (2026-10-03)
 
 
