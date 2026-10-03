@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.123.0](https://github.com/alrayyes/forge-dashboard/compare/v0.122.0...v0.123.0) (2026-10-03)
+
+
+### Features
+
+* **issues:** give issues their own page, with a nav item and count badge ([#840](https://github.com/alrayyes/forge-dashboard/issues/840)) ([bfc31cf](https://github.com/alrayyes/forge-dashboard/commit/bfc31cf9803912d40be1f99b33df2324a2b16ff5))
+
 ## [0.122.0](https://github.com/alrayyes/forge-dashboard/compare/v0.121.0...v0.122.0) (2026-10-03)
 
 
