@@ -546,19 +546,19 @@ On Forgejo, a mirrored repository is excluded too — a pull mirror has no
 pull requests or issues of its own to poll, and its canonical home is
 whichever forge it's mirrored from.
 
-Each pull request also carries its review state (`review` in
-`/api/dashboard`: decision, approvals, requested reviewers), which the
-**Needs review** quick filter reads. On GitHub that rides on fields of the
-same GraphQL query, so it costs no extra requests. On Forgejo the
-requested reviewers come with the pull request list, but approvals take
-one `GET /repos/{owner}/{repo}/pulls/{index}/reviews` call per open,
-non-draft pull request. Those results are cached until the pull
-request's `updated_at` changes, so after the first refresh a quiet
-dashboard spends none of them. A pull request whose review state couldn't
-be read has no `review` and never matches the filter. Needs review means a
-review is outstanding: the forge requires one, or a reviewer was asked and
-hasn't answered. A pull request nobody was asked to review doesn't
-count.
+Each pull request also carries its review state (`review` in `/api/dashboard`:
+decision, approvals, requested reviewers), which the **Needs review** quick
+filter reads. On GitHub that rides on fields of the same GraphQL query, so it
+costs no extra requests. On Forgejo the requested reviewers come with the pull
+request list, but approvals take one `GET
+/repos/{owner}/{repo}/pulls/{index}/reviews` call per open, non-draft pull
+request. Those results are cached until the pull request's `updated_at`
+changes, so after the first refresh a quiet dashboard spends none of them. A
+pull request that closed or merged drops out of that cache on the next refresh
+of its repo. A pull request whose review state couldn't be read has no
+`review` and never matches the filter. Needs review means a review is
+outstanding: the forge requires one, or a reviewer was asked and hasn't
+answered. A pull request nobody was asked to review doesn't count.
 
 ### GitHub App support
 
