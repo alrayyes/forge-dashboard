@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.129.1](https://github.com/alrayyes/forge-dashboard/compare/v0.129.0...v0.129.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **api:** log /readyz probes at Debug, like /healthz ([#917](https://github.com/alrayyes/forge-dashboard/issues/917)) ([53c1ed6](https://github.com/alrayyes/forge-dashboard/commit/53c1ed620d4c40ba0863a69c8740fe3ae46790ea)), closes [#873](https://github.com/alrayyes/forge-dashboard/issues/873)
+
 ## [0.129.0](https://github.com/alrayyes/forge-dashboard/compare/v0.128.2...v0.129.0) (2026-10-03)
 
 
