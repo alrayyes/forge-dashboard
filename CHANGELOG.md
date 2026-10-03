@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.116.0](https://github.com/alrayyes/forge-dashboard/compare/v0.115.2...v0.116.0) (2026-10-03)
+
+
+### Features
+
+* **dashboard:** a Show drafts toggle, off by default, with a hidden count ([#802](https://github.com/alrayyes/forge-dashboard/issues/802)) ([a339401](https://github.com/alrayyes/forge-dashboard/commit/a339401f613258e33d5aa07238c64b57fa4c06fd)), closes [#791](https://github.com/alrayyes/forge-dashboard/issues/791)
+
 ## [0.115.2](https://github.com/alrayyes/forge-dashboard/compare/v0.115.1...v0.115.2) (2026-10-03)
 
 
