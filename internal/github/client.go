@@ -1037,6 +1037,13 @@ type graphqlPullRequest struct {
 	ReviewDecision *string `json:"reviewDecision"`
 	ReviewRequests *struct {
 		TotalCount int `json:"totalCount"`
+		Nodes      []struct {
+			// RequestedReviewer is a union: a User has a login, a Team or a
+			// Mannequin comes back without one.
+			RequestedReviewer struct {
+				Login string `json:"login"`
+			} `json:"requestedReviewer"`
+		} `json:"nodes"`
 	} `json:"reviewRequests"`
 	LatestReviews *struct {
 		Nodes []struct {
@@ -1185,8 +1192,15 @@ query($cursor: String, $since: DateTime) {
             }
             viewerCanEnableAutoMerge
             reviewDecision
-            reviewRequests(first: 1) {
+            reviewRequests(first: 20) {
               totalCount
+              nodes {
+                requestedReviewer {
+                  ... on User {
+                    login
+                  }
+                }
+              }
             }
             latestReviews(first: 10) {
               nodes {
@@ -1272,8 +1286,15 @@ const appRepoFieldsTemplate = `
         }
         viewerCanEnableAutoMerge
         reviewDecision
-        reviewRequests(first: 1) {
+        reviewRequests(first: 20) {
           totalCount
+          nodes {
+            requestedReviewer {
+              ... on User {
+                login
+              }
+            }
+          }
         }
         latestReviews(first: 10) {
           nodes {
@@ -1811,7 +1832,25 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		AutoMergeEnabled: new(p.AutoMergeRequest != nil),
 		AutoMergeAllowed: p.ViewerCanEnableAutoMerge,
 		Review:           reviewFromGraphQL(p),
+
+		RequestedReviewerLogins: requestedReviewerLoginsFromGraphQL(p),
 	}
+}
+
+// requestedReviewerLoginsFromGraphQL lists the logins of the users asked to
+// review p. A team request has no login and is skipped. Never nil.
+func requestedReviewerLoginsFromGraphQL(p graphqlPullRequest) []string {
+	logins := []string{}
+	if p.ReviewRequests == nil {
+		return logins
+	}
+	for _, n := range p.ReviewRequests.Nodes {
+		if n.RequestedReviewer.Login != "" {
+			logins = append(logins, n.RequestedReviewer.Login)
+		}
+	}
+
+	return logins
 }
 
 // ambiguousMergeState reports whether status alone can't say if a PR is
@@ -1963,8 +2002,15 @@ query($owner: String!, $name: String!) {
         }
         viewerCanEnableAutoMerge
         reviewDecision
-        reviewRequests(first: 1) {
+        reviewRequests(first: 20) {
           totalCount
+          nodes {
+            requestedReviewer {
+              ... on User {
+                login
+              }
+            }
+          }
         }
         latestReviews(first: 10) {
           nodes {
@@ -2266,17 +2312,18 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				ci = dashboard.CINone
 			}
 			prs = append(prs, dashboard.PullRequest{
-				Forge:     dashboard.ForgeGitHub,
-				Repo:      repo,
-				Number:    p.GetNumber(),
-				Title:     p.GetTitle(),
-				URL:       p.GetHTMLURL(),
-				Author:    p.GetUser().GetLogin(),
-				Draft:     p.GetDraft(),
-				Labels:    restLabelsToDashboard(p.Labels),
-				CreatedAt: p.GetCreatedAt().Time,
-				UpdatedAt: p.GetUpdatedAt().Time,
-				CI:        ci,
+				Forge:                   dashboard.ForgeGitHub,
+				Repo:                    repo,
+				Number:                  p.GetNumber(),
+				Title:                   p.GetTitle(),
+				URL:                     p.GetHTMLURL(),
+				Author:                  p.GetUser().GetLogin(),
+				Draft:                   p.GetDraft(),
+				Labels:                  restLabelsToDashboard(p.Labels),
+				CreatedAt:               p.GetCreatedAt().Time,
+				UpdatedAt:               p.GetUpdatedAt().Time,
+				CI:                      ci,
+				RequestedReviewerLogins: restRequestedReviewerLogins(p.RequestedReviewers),
 				// Mergeable/MergeableState aren't populated by this List
 				// call at all (go-github's own doc comment on
 				// PullRequest) — resolving them would mean a per-PR Get,
@@ -2623,4 +2670,17 @@ func statusFromCombinedState(state string) dashboard.CIStatus {
 	default:
 		return dashboard.CINone
 	}
+}
+
+// restRequestedReviewerLogins lists the logins of the users asked to review a
+// pull request, from the REST list response, which carries them for free.
+func restRequestedReviewerLogins(users []*ghsdk.User) []string {
+	logins := make([]string, 0, len(users))
+	for _, u := range users {
+		if login := u.GetLogin(); login != "" {
+			logins = append(logins, login)
+		}
+	}
+
+	return logins
 }
