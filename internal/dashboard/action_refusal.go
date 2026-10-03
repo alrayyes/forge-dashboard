@@ -80,6 +80,22 @@ func ForgeMessage(err error) string {
 	return msg
 }
 
+// ClassifyForgeRefusal classifies a refused forge call that has no pull
+// request to re-read, such as creating a webhook on a repo (#762). It shares
+// the permission and rate-limit codes with pull request actions, so a client
+// handles one set. A repo the forge can't find gets code unknown with its own
+// plain message, since a webhook ensure is the only caller that needs it.
+func ClassifyForgeRefusal(err error) ActionRefusal {
+	if r, ok := refusalFromKind(err); ok {
+		return r
+	}
+	if clientErr, ok := errors.AsType[*ClientError](err); ok && clientErr.Kind == ForgeErrorNotFound {
+		return ActionRefusal{Code: ActionUnknown, Message: "The forge couldn't find this repo, or the token can't see it."}
+	}
+
+	return unknownRefusal(err, ForgeMessage(err))
+}
+
 // PullRequestAction names the action that was refused, since the same
 // state says different things about different actions: a conflicting PR
 // explains a refused Merge or Update branch, but not a refused Close.
