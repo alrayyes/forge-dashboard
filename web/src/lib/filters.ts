@@ -29,6 +29,10 @@ export interface FilterableItem {
   // (#807): the page holds no copy of what they mean.
   readyToMerge?: boolean;
   needsReview?: boolean;
+  // Whether this open, non-draft pull request asks the signed-in user to
+  // review it (#695), worked out by the server against the username saved
+  // in Settings for its forge.
+  reviewRequestedFromMe?: boolean;
 }
 
 // release-please labels every PR it manages with "autorelease: pending"
@@ -61,6 +65,7 @@ export const QUICK_FILTERS = [
   'bots',
   'ready',
   'needs-review',
+  'review-requested',
 ] as const;
 export type QuickFilter = (typeof QUICK_FILTERS)[number];
 
@@ -77,6 +82,8 @@ export function matchesQuickFilter(
       return item.readyToMerge === true;
     case 'needs-review':
       return item.needsReview === true;
+    case 'review-requested':
+      return item.reviewRequestedFromMe === true;
     default:
       return true;
   }
