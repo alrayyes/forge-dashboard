@@ -207,6 +207,12 @@ export function createFeedbackStore(now: () => number = Date.now) {
       emit();
     },
 
+    // One polite sentence for the live region and nothing else: no toast,
+    // no Activity entry (an armed confirm step, say).
+    announce(message: string) {
+      for (const fn of Array.from(announcers)) fn(message);
+    },
+
     // A success toast that isn't tied to a pull request or an Activity
     // entry (a rate limit that has reset, say).
     notify(input: NoticeInput) {

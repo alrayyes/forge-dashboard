@@ -300,7 +300,12 @@ to finish" (it unlocks on its own at the next refresh), a merge conflict, a
 draft, a branch that's behind, or "Blocked by the forge" when the forge says no
 without saying why. A failing check is named only when CI itself reports
 failing. A token missing the right permission, or the forge being unreachable,
-locks it too. Merge asks for confirmation first. If the forge still refuses,
+locks it too. Merge asks for confirmation first: the button turns into Confirm
+and Cancel, and the step ends on Cancel, a click anywhere else (which still does
+what it would have done), Escape, or after 8 seconds, shown by a thin line that
+runs down and waits while the pointer or keyboard focus is in the pair. Only one
+Merge or Close is armed at a time, and a double-click on Merge arms it without
+confirming. If the forge still refuses,
 the server re-reads the pull request and answers with a code and a short
 reason, which the row and a toast show: already merged or closed (the row
 switches to "Merged" or "Closed" and drops off the list on the next snapshot),
@@ -316,7 +321,9 @@ tone, on every open pull request regardless of mergeability. For one that turns
 out not to need merging at all (a duplicate, or one whose content already
 landed another way) it's the action that applies. It asks for confirmation the
 same way Merge does, inside the menu. Confirming closes the menu and shows
-progress on the row; Escape closes the menu and drops an unconfirmed Close.
+progress on the row. Escape drops an unconfirmed Close and leaves the menu open,
+a second Escape closes the menu, and closing the menu any other way drops it
+too.
 
 Every other action (Close, Update branch, Enable auto-merge, Dependabot and
 Renovate `rebase`) answers a refusal the same way as Merge. A pull request found
@@ -386,16 +393,16 @@ button comes back and the row and an error toast say why.
 
 A bot `rebase` waits on the bot, not on the dashboard. The button becomes a
 disabled `Rebase requested`, and the row says the bot will pick it up shortly
-and that it can take a few minutes (a "Requested" age ticks along, kept out
-of what a screen reader announces). Dependabot is asked with the
-`@dependabot rebase` comment and Renovate with the `rebase` label, and the
-copy says which. After two minutes with the pull request still behind, the
-line changes to "Still waiting on Dependabot (3m). It queues requests, this is
-normal." with a link to the pull request on its forge. Once a refresh shows the
-pull request is no longer behind, the row shows a "Rebasing…" pill until CI
-shows as restarted (or two minutes pass, for a repo whose CI never restarts),
-then finishes with a toast. If the bot never acts, the request times out after
-five minutes with an error toast and a Retry. Pickup is read from the
+and that it can take a few minutes (a "Requested" age ticks along, kept out of
+what a screen reader announces). Dependabot is asked with the `@dependabot
+rebase` comment and Renovate with the `rebase` label, and the copy says which.
+After two minutes with the pull request still behind, the line changes to "Still
+waiting on Dependabot (3m). It queues requests, this is normal." with a link to
+the pull request on its forge. Once a refresh that started after your click
+shows the pull request is no longer behind, the row shows a "Rebasing…" pill
+until CI shows as restarted (or two minutes pass, for a repo whose CI never
+restarts), then finishes with a toast. If the bot never acts, the request times
+out after five minutes with an error toast and a Retry. Pickup is read from the
 refreshes the page already gets, so a `rebase` requested on a pull request that
 wasn't behind has nothing to show it landed and runs to that timeout.
 
@@ -539,19 +546,19 @@ On Forgejo, a mirrored repository is excluded too — a pull mirror has no
 pull requests or issues of its own to poll, and its canonical home is
 whichever forge it's mirrored from.
 
-Each pull request also carries its review state (`review` in
-`/api/dashboard`: decision, approvals, requested reviewers), which the
-**Needs review** quick filter reads. On GitHub that rides on fields of the
-same GraphQL query, so it costs no extra requests. On Forgejo the
-requested reviewers come with the pull request list, but approvals take
-one `GET /repos/{owner}/{repo}/pulls/{index}/reviews` call per open,
-non-draft pull request. Those results are cached until the pull
-request's `updated_at` changes, so after the first refresh a quiet
-dashboard spends none of them. A pull request whose review state couldn't
-be read has no `review` and never matches the filter. Needs review means a
-review is outstanding: the forge requires one, or a reviewer was asked and
-hasn't answered. A pull request nobody was asked to review doesn't
-count.
+Each pull request also carries its review state (`review` in `/api/dashboard`:
+decision, approvals, requested reviewers), which the **Needs review** quick
+filter reads. On GitHub that rides on fields of the same GraphQL query, so it
+costs no extra requests. On Forgejo the requested reviewers come with the pull
+request list, but approvals take one `GET
+/repos/{owner}/{repo}/pulls/{index}/reviews` call per open, non-draft pull
+request. Those results are cached until the pull request's `updated_at`
+changes, so after the first refresh a quiet dashboard spends none of them. A
+pull request that closed or merged drops out of that cache on the next refresh
+of its repo. A pull request whose review state couldn't be read has no
+`review` and never matches the filter. Needs review means a review is
+outstanding: the forge requires one, or a reviewer was asked and hasn't
+answered. A pull request nobody was asked to review doesn't count.
 
 ### GitHub App support
 

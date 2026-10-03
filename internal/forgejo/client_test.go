@@ -1352,6 +1352,52 @@ func TestListOpenPullRequests_CachesReviewsUntilUpdatedAtChanges(t *testing.T) {
 	assert.Equal(t, int32(2), calls.Load(), "a newer updated_at must refetch")
 }
 
+func TestListOpenPullRequests_DropsCachedReviewsOfPRsThatClosed(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	var mu sync.Mutex
+	open := []map[string]any{reviewPR(1, false, "2026-09-02T00:00:00Z")}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		writeJSON(t, w, open)
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/1/reviews", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		writeJSON(t, w, []map[string]any{})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	list := func() {
+		_, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+		require.NoError(t, err)
+	}
+	setOpen := func(prs ...map[string]any) {
+		mu.Lock()
+		defer mu.Unlock()
+		open = prs
+	}
+
+	list()
+	setOpen()
+	list()
+	// The PR comes back with an unchanged updated_at, so only a pruned
+	// entry forces another reviews call.
+	setOpen(reviewPR(1, false, "2026-09-02T00:00:00Z"))
+	list()
+
+	assert.Equal(t, int32(2), calls.Load(), "a PR missing from a listing must lose its cache entry")
+}
+
 func forgejoChecksServer(t *testing.T, protections any, protStatus int) *forgejo.Client {
 	t.Helper()
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.113.1](https://github.com/alrayyes/forge-dashboard/compare/v0.113.0...v0.113.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **forgejo:** prune cached review state and test it against a real Forgejo ([#777](https://github.com/alrayyes/forge-dashboard/issues/777)) ([8712a91](https://github.com/alrayyes/forge-dashboard/commit/8712a91833433422fea68359211c58da0a9fc243)), closes [#694](https://github.com/alrayyes/forge-dashboard/issues/694)
+
+## [0.113.0](https://github.com/alrayyes/forge-dashboard/compare/v0.112.1...v0.113.0) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** confirm step gets a Cancel and disarms on outside click, Escape and a timeout ([#768](https://github.com/alrayyes/forge-dashboard/issues/768)) ([4d0c390](https://github.com/alrayyes/forge-dashboard/commit/4d0c3909359db376aff477df7ac720a833615c71))
+
 ## [0.112.1](https://github.com/alrayyes/forge-dashboard/compare/v0.112.0...v0.112.1) (2026-10-02)
 
 

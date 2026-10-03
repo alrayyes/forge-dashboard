@@ -12,6 +12,11 @@
     showSettled,
   } from "$lib/action-error";
   import {
+    CONFIRM_TIMEOUT_MS,
+    createConfirmArm,
+    type DisarmReason,
+  } from "$lib/confirm-arm";
+  import {
     type ActionRef,
     type BotRequest,
     createFeedbackStore,
@@ -113,7 +118,7 @@
     reason?: string;
     // Only on a queued bot rebase (#706): what the snapshot has to show
     // before the wait counts as over.
-    queued?: { prKey: string; wasBehind: boolean; at: number };
+    queued?: { prKey: string; wasBehind: boolean; at: number; seq: number };
     // Only while "rebasing": when the pickup was seen.
     rebasingSince?: number;
   };
@@ -132,6 +137,9 @@
   // browser tab.
   function initDashboard() {
     const REFRESH_INTERVAL_MS = 30000;
+    // Counts the snapshot fetches started so far, so a queued bot rebase
+    // can tell a fetch begun before its click from one begun after (#691).
+    let requestSeq = 0;
     // When the background poll next fires — what the queued-action
     // banner's countdown reads, so it tracks the real cadence instead of
     // a number hard-coded next to REFRESH_INTERVAL_MS. Re-armed by the
@@ -944,7 +952,7 @@
         // A merge is never re-sent without the confirm step.
         retry: () => {
           feedback.drop(fkey);
-          mergeState[key] = { phase: "confirming" };
+          armConfirm("merge", item);
           renderPRBoard();
           document.getElementById(`merge-confirm-${domSafeId(key)}`)?.focus();
         },
@@ -1182,27 +1190,21 @@
         );
         confirmButton.id = `merge-confirm-${domSafeId(key)}`;
         confirmButton.disabled = !confirming;
-        confirmButton.addEventListener("click", () => {
-          doMerge(item, confirmButton);
-        });
-        wrap.appendChild(confirmButton);
-
         if (confirming) {
-          const cancelButton = buttonEl("row-action cancel", "Cancel");
-          cancelButton.type = "button";
-          cancelButton.addEventListener("click", () => {
-            delete mergeState[key];
-            renderPRBoard();
-          });
-          wrap.appendChild(cancelButton);
+          confirmGroup("merge", item, wrap, confirmButton, () =>
+            doMerge(item, confirmButton),
+          );
+        } else {
+          wrap.appendChild(confirmButton);
         }
         return wrap;
       }
 
       const mergeButton = buttonEl("row-action", "Merge");
       mergeButton.type = "button";
+      mergeButton.id = `merge-arm-${domSafeId(key)}`;
       mergeButton.addEventListener("click", () => {
-        mergeState[key] = { phase: "confirming" };
+        armConfirm("merge", item);
         renderPRBoard();
         // Moves focus to the confirm button that render() just built —
         // the browser's own scroll-into-view + focus ring is what
@@ -1378,6 +1380,198 @@
     // independent action.
     const closeState: Record<string, ActionState> = {};
 
+    // ---- the armed confirm step (#764) ----
+    // Merge's and Close's second click. One is armed at a time; it ends on
+    // Cancel, a click anywhere else, Escape, or 8 seconds alone. The state
+    // lives in confirmArm and mergeState/closeState, not in the row's DOM,
+    // so a rebuilt row comes back still armed.
+    type ConfirmKind = "merge" | "close";
+    const confirmStates: Record<ConfirmKind, Record<string, ActionState>> = {
+      merge: mergeState,
+      close: closeState,
+    };
+    const splitArmKey = (armKey: string): [ConfirmKind, string] => {
+      const at = armKey.indexOf(":");
+
+      return [armKey.slice(0, at) as ConfirmKind, armKey.slice(at + 1)];
+    };
+
+    function onConfirmDisarmed(armKey: string, reason: DisarmReason) {
+      const [kind, key] = splitArmKey(armKey);
+      if (
+        reason !== "confirmed" &&
+        confirmStates[kind][key]?.phase === "confirming"
+      )
+        delete confirmStates[kind][key];
+      // The caller renders for these: it is mid-click, mid-menu-close or
+      // mid-render itself.
+      if (
+        reason === "replaced" ||
+        reason === "dropped" ||
+        reason === "confirmed"
+      )
+        return;
+      // Rendering also lets a snapshot the armed row was holding back land.
+      renderPRBoard();
+      if (reason === "cancel" || reason === "escape")
+        document.getElementById(`${kind}-arm-${domSafeId(key)}`)?.focus();
+    }
+
+    const confirmArm = createConfirmArm({ onDisarm: onConfirmDisarmed });
+
+    function armConfirm(kind: ConfirmKind, item: PullRequestItem) {
+      const key = prKey(item);
+      confirmStates[kind][key] = { phase: "confirming" };
+      confirmArm.arm(`${kind}:${key}`);
+      feedback.announce(
+        `Confirm ${kind} of #${item.number}? Press Confirm or Cancel.`,
+      );
+    }
+
+    // Cancel, Confirm and the countdown line, for either action.
+    function confirmGroup(
+      kind: ConfirmKind,
+      item: PullRequestItem,
+      wrap: HTMLElement,
+      confirmButton: HTMLButtonElement,
+      onConfirm: () => void,
+    ) {
+      const key = prKey(item);
+      const armKey = `${kind}:${key}`;
+      wrap.classList.add("confirm-group");
+      wrap.dataset.armKey = armKey;
+      wrap.setAttribute("role", "group");
+      wrap.setAttribute("aria-label", `Confirm ${kind} of #${item.number}`);
+
+      // The second click of a double-click on the original button lands on
+      // whichever of the two now sits there, and a held or repeated Enter
+      // lands on Confirm: neither is a decision, for either button.
+      const tooSoon = (e: MouseEvent) =>
+        confirmArm.guardActive(armKey) && e.detail !== 1;
+
+      confirmButton.addEventListener("click", (e) => {
+        if (tooSoon(e)) return;
+        confirmArm.disarm("confirmed", armKey);
+        onConfirm();
+      });
+      wrap.appendChild(confirmButton);
+
+      const cancelButton = buttonEl("row-action cancel", "Cancel");
+      cancelButton.type = "button";
+      cancelButton.addEventListener("click", (e) => {
+        if (tooSoon(e)) return;
+        if (!confirmArm.disarm("cancel", armKey)) {
+          delete confirmStates[kind][key];
+          renderPRBoard();
+        }
+      });
+      wrap.appendChild(cancelButton);
+
+      // Decoration for sighted users; the announcement carries the rest.
+      // Started part-way through when the row was rebuilt mid-countdown.
+      const line = el("span", "confirm-countdown");
+      line.setAttribute("aria-hidden", "true");
+      line.style.animationDuration = `${CONFIRM_TIMEOUT_MS}ms`;
+      line.style.animationDelay = `-${confirmArm.elapsedMs()}ms`;
+      wrap.appendChild(line);
+    }
+
+    function armedGroup(): Element | null {
+      const armKey = confirmArm.armedKey();
+      if (!armKey) return null;
+      for (const group of Array.from(
+        document.querySelectorAll(".confirm-group"),
+      ))
+        if ((group as HTMLElement).dataset.armKey === armKey) return group;
+
+      return null;
+    }
+    const inArmedGroup = (target: EventTarget | null) => {
+      const group = armedGroup();
+
+      return Boolean(group && target instanceof Node && group.contains(target));
+    };
+
+    // The countdown waits while the pointer is over the group or keyboard
+    // focus is in it. Focus from the arming mouse click doesn't count
+    // (:focus-visible), or walking away from a clicked Merge would never
+    // time out. The CSS line pauses on the same two conditions.
+    let confirmHover = false;
+    let confirmFocus = false;
+    function applyConfirmPause() {
+      if (confirmHover || confirmFocus) confirmArm.pause();
+      else confirmArm.resume();
+    }
+    function readConfirmPause() {
+      const group = armedGroup();
+      confirmHover = Boolean(group?.matches(":hover"));
+      confirmFocus = Boolean(group?.querySelector(":focus-visible"));
+      applyConfirmPause();
+    }
+    document.addEventListener("pointerover", (e) => {
+      if (!inArmedGroup(e.target)) return;
+      confirmHover = true;
+      applyConfirmPause();
+    });
+    document.addEventListener("pointerout", (e) => {
+      if (inArmedGroup(e.relatedTarget)) return;
+      confirmHover = false;
+      applyConfirmPause();
+    });
+    document.addEventListener("focusin", (e) => {
+      const target = e.target as Element;
+      if (!inArmedGroup(target) || !target.matches(":focus-visible")) return;
+      confirmFocus = true;
+      applyConfirmPause();
+    });
+    document.addEventListener("focusout", (e) => {
+      if (inArmedGroup(e.relatedTarget)) return;
+      confirmFocus = false;
+      applyConfirmPause();
+    });
+
+    // A click anywhere but the armed group disarms it. Watched in the
+    // capture phase, so a handler that stops propagation can't hide it, and
+    // acted on after the click has been dispatched: rebuilding the row
+    // before the target's own handler ran would swallow that click.
+    document.addEventListener(
+      "click",
+      (e) => {
+        const armKey = confirmArm.armedKey();
+        if (!armKey || inArmedGroup(e.target)) return;
+        setTimeout(() => confirmArm.disarm("outside", armKey), 0);
+      },
+      true,
+    );
+
+    // Registered before the More actions menu's own Escape handler below,
+    // so Escape on an armed Close ends the confirm and leaves the menu open;
+    // a second Escape closes the menu.
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || modalDialogOpen()) return;
+      if (confirmArm.disarm("escape")) e.stopImmediatePropagation();
+    });
+
+    // Rows are rebuilt from scratch on every render, so the group is
+    // checked against the DOM afterwards: a pull request that left the board
+    // (a filter, a page change) takes its armed state with it.
+    const prRowsEl = document.getElementById("pr-rows");
+    if (prRowsEl)
+      new MutationObserver(() => {
+        const armKey = confirmArm.armedKey();
+        if (!armKey) return;
+        const [, key] = splitArmKey(armKey);
+        const present = Array.from(
+          prRowsEl.querySelectorAll<HTMLElement>(".row[data-pr-key]"),
+        ).some((row) => row.dataset.prKey === key);
+        if (!present) {
+          confirmArm.disarm("dropped", armKey);
+          renderPRBoard();
+          return;
+        }
+        readConfirmPause();
+      }).observe(prRowsEl, { childList: true, subtree: true });
+
     function doClose(item: PullRequestItem, confirmButton: HTMLButtonElement) {
       const key = prKey(item);
       closeState[key] = { phase: "closing" };
@@ -1395,7 +1589,9 @@
         // Like merge, a close is never re-sent without its confirm step.
         retry: () => {
           feedback.drop(fkey);
-          closeState[key] = { phase: "confirming" };
+          // The confirm lives in the menu, so the menu has to be open.
+          openActionMenus[key] = true;
+          armConfirm("close", item);
           renderPRBoard();
           document.getElementById(`close-confirm-${domSafeId(key)}`)?.focus();
         },
@@ -1503,19 +1699,12 @@
         );
         confirmButton.id = `close-confirm-${domSafeId(key)}`;
         confirmButton.disabled = !confirming;
-        confirmButton.addEventListener("click", () => {
-          doClose(item, confirmButton);
-        });
-        wrap.appendChild(confirmButton);
-
         if (confirming) {
-          const cancelButton = buttonEl("row-action cancel", "Cancel");
-          cancelButton.type = "button";
-          cancelButton.addEventListener("click", () => {
-            delete closeState[key];
-            renderPRBoard();
-          });
-          wrap.appendChild(cancelButton);
+          confirmGroup("close", item, wrap, confirmButton, () =>
+            doClose(item, confirmButton),
+          );
+        } else {
+          wrap.appendChild(confirmButton);
         }
         return wrap;
       }
@@ -1530,8 +1719,9 @@
         "Close",
       );
       closeButton.type = "button";
+      closeButton.id = `close-arm-${domSafeId(key)}`;
       closeButton.addEventListener("click", () => {
-        closeState[key] = { phase: "confirming" };
+        armConfirm("close", item);
         renderPRBoard();
         const justConfirmed = document.getElementById(
           `close-confirm-${domSafeId(key)}`,
@@ -2443,6 +2633,7 @@
         // A "Confirm close?" armed inside the menu doesn't outlive it:
         // reopening the menu later shouldn't find a destructive confirm
         // already waiting (#705).
+        confirmArm.disarm("dropped", `close:${key}`);
         if (closeState[key]?.phase === "confirming") delete closeState[key];
         delete openActionMenus[key];
       }
@@ -3666,6 +3857,9 @@
         prKey: prKey(item),
         wasBehind: Boolean(item.behind),
         at: Date.now(),
+        // The last fetch started before this click (#691): an answer to
+        // it or to anything earlier can't show what the click did.
+        seq: requestSeq,
       };
     }
 
@@ -3676,7 +3870,10 @@
     // so it must not end the wait. Expires after a while so a bot that
     // never acts doesn't pin the button disabled; the row, an error toast
     // and Activity then say so.
-    function clearResolvedQueuedBotActions(prs: PullRequestItem[]): boolean {
+    function clearResolvedQueuedBotActions(
+      prs: PullRequestItem[],
+      startedSeq: number | undefined,
+    ): boolean {
       let changed = false;
       const byKey = new Map(prs.map((p) => [prKey(p), p]));
       for (const stateMap of [dependabotActionState, renovateRebaseState]) {
@@ -3702,6 +3899,10 @@
             continue;
           }
           if (entry.phase !== "queued" || !entry.queued) continue;
+          // Only a fetch that started after the click can tell. A push
+          // from the live stream has no start to compare, so it counts.
+          if (startedSeq !== undefined && startedSeq <= entry.queued.seq)
+            continue;
           const current = byKey.get(entry.queued.prKey);
           const landed =
             !current || (entry.queued.wasBehind && !current.behind);
@@ -3774,6 +3975,7 @@
     // forces a real re-fetch from the forge instead of possibly
     // answering from a cache.
     function refreshDashboardNow(): Promise<void> {
+      const seq = ++requestSeq;
       return fetch("/api/dashboard/refresh", {
         method: "POST",
         headers: { Accept: "application/json" },
@@ -3786,7 +3988,7 @@
           if (!res.ok) throw new Error(`backend answered ${res.status}`);
           return res.json();
         })
-        .then((data) => applySnapshot(data, true));
+        .then((data) => applySnapshot(data, true, seq));
     }
 
     forceRefreshButton?.addEventListener("click", () => {
@@ -3852,7 +4054,11 @@
     });
 
     // ---- main fetch/render loop ----
-    function applySnapshot(data: DashboardSnapshot, userAsked = false) {
+    function applySnapshot(
+      data: DashboardSnapshot,
+      userAsked = false,
+      startedSeq?: number,
+    ) {
       clearError();
       lastGeneratedAt = data.generatedAt;
       tickRefreshedAt();
@@ -3879,7 +4085,7 @@
       // action — not just any snapshot (#706). Cleared before
       // anyRowActionInFlight is consulted below, so a resolved row
       // doesn't also hold the board back.
-      const botStateChanged = clearResolvedQueuedBotActions(prs);
+      const botStateChanged = clearResolvedQueuedBotActions(prs, startedSeq);
       for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
         feedback.update(`update-branch:${prKey(item)}`, {
           phase: "done",
@@ -3954,8 +4160,9 @@
     }
 
     function refresh(userAsked = false) {
+      const seq = ++requestSeq;
       fetchDashboardData()
-        .then((data) => applySnapshot(data, userAsked))
+        .then((data) => applySnapshot(data, userAsked, seq))
         .catch((err: Error) => {
           showError(`Could not reach the backend: ${err.message}`);
         });
@@ -3987,8 +4194,9 @@
         description:
           "Fetch the aggregated open pull requests, issues, and CI/forge health this dashboard already tracks across GitHub and Forgejo -- the same read-only data currently rendered on this page. Read-only: this never writes to either forge.",
         async execute() {
+          const seq = ++requestSeq;
           const data = await fetchDashboardData();
-          applySnapshot(data);
+          applySnapshot(data, false, seq);
 
           return data;
         },

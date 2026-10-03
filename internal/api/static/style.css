@@ -1316,6 +1316,46 @@ select.col-filter {
   background: var(--neutral-bg);
   color: var(--ink-3);
 }
+/* The armed confirm step (#764): Confirm, Cancel and a thin line that runs
+   down over 8 seconds, then the step disarms itself. The line is
+   decoration (aria-hidden); the polite announcement and the Cancel button
+   carry the meaning. It pauses with the countdown in confirmArm: pointer
+   over the group, or keyboard focus in it. */
+.confirm-group {
+  align-items: center;
+}
+/* A 44px target (WCAG 2.5.5). A pseudo-element would be tidier, but the
+   row clips what spills out of its cells, so the buttons are simply as tall
+   as the target. */
+.confirm-group .row-action {
+  min-height: 44px;
+}
+.confirm-countdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--warning);
+  transform-origin: left center;
+  pointer-events: none;
+  animation-name: confirm-countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.confirm-group:hover .confirm-countdown,
+.confirm-group:has(:focus-visible) .confirm-countdown {
+  animation-play-state: paused;
+}
+@keyframes confirm-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
 /* closeActionCell's own "nothing to merge, Close is the right move here"
    nudge -- --good rather than --warning/--critical, since there's nothing
    wrong with the pull request, just nothing left for Merge to do. Border/
