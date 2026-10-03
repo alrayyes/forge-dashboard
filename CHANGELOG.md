@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.121.0](https://github.com/alrayyes/forge-dashboard/compare/v0.120.0...v0.121.0) (2026-10-03)
+
+
+### Features
+
+* **api:** send a visitor with no session away from the issues page ([#831](https://github.com/alrayyes/forge-dashboard/issues/831)) ([2f6a4e9](https://github.com/alrayyes/forge-dashboard/commit/2f6a4e9e57c22fceee3ff08d53cec519a7052feb)), closes [#827](https://github.com/alrayyes/forge-dashboard/issues/827)
+
 ## [0.120.0](https://github.com/alrayyes/forge-dashboard/compare/v0.119.1...v0.120.0) (2026-10-03)
 
 
