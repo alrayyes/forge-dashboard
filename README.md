@@ -409,6 +409,12 @@ Pickup is read from the
 refreshes the page already gets, so a `rebase` requested on a pull request that
 wasn't behind has nothing to show it landed and runs to that timeout.
 
+A queued Dependabot request names itself: `Rebase requested` or
+`Recreate requested`. While `Recreate requested` shows, the row hides
+`Dependabot: Rebase`, since recreating rebuilds the whole pull request.
+`Rebase requested` keeps `Dependabot: Recreate`, which is still a different
+outcome. Both buttons come back once the bot has acted.
+
 A Dependabot or Renovate pull request gets no Update branch button: each
 has its own `Rebase` action instead (below). A release-please pull request
 does get one, because release-please has no `rebase` command. It only

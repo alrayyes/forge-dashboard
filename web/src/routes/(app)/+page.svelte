@@ -588,7 +588,8 @@
         const renovateRebasePromoted =
           !settledRow && pr.behind && !pr.empty && isRenovatePr(pr);
         if (dependabotRebasePromoted) {
-          statusCell.appendChild(dependabotActionButton(pr, "rebase"));
+          if (!dependabotRebaseHidden(pr))
+            statusCell.appendChild(dependabotActionButton(pr, "rebase"));
         } else if (renovateRebasePromoted) {
           const promoted = renovateRebaseActionCell(pr);
           if (promoted) statusCell.appendChild(promoted);
@@ -2050,7 +2051,8 @@
       if (item.forge !== "github" || !isDependabotPr(item)) return null;
 
       const wrap = el("span", "row-action-group");
-      wrap.appendChild(dependabotActionButton(item, "rebase"));
+      if (!dependabotRebaseHidden(item))
+        wrap.appendChild(dependabotActionButton(item, "rebase"));
       wrap.appendChild(dependabotActionButton(item, "recreate"));
       return wrap;
     }
@@ -3869,10 +3871,18 @@
     // How long "Rebasing…" waits for CI to show as restarted (#707).
     const BOT_REBASING_CAP_MS = 2 * 60 * 1000;
 
-    // The disabled button's label while a bot has the request. A rebase
-    // says what was asked for; Recreate stays a plain queue.
+    // The pending button's label while a bot has the request: it names
+    // what was asked for (#792).
     function queuedBotLabel(rebase: boolean): string {
-      return rebase ? "Rebase requested" : "Queued…";
+      return rebase ? "Rebase requested" : "Recreate requested";
+    }
+
+    // Recreate rebuilds the whole pull request, so a Rebase on top of it
+    // has no point while it's pending (#792). A pending Rebase keeps
+    // Recreate: that's still a different outcome.
+    function dependabotRebaseHidden(item: PullRequestItem): boolean {
+      const phase = dependabotActionState[`${prKey(item)}:recreate`]?.phase;
+      return phase === "queued" || phase === "rebasing";
     }
 
     function queuedBotInfo(item: PullRequestItem) {
