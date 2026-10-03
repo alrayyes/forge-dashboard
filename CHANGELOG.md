@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.124.1](https://github.com/alrayyes/forge-dashboard/compare/v0.124.0...v0.124.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **api:** say a wrong-typed settings value in plain words ([#867](https://github.com/alrayyes/forge-dashboard/issues/867)) ([0c5153e](https://github.com/alrayyes/forge-dashboard/commit/0c5153ef7c87417ddb3516626b8eac83ee018acd)), closes [#810](https://github.com/alrayyes/forge-dashboard/issues/810)
+
 ## [0.124.0](https://github.com/alrayyes/forge-dashboard/compare/v0.123.0...v0.124.0) (2026-10-03)
 
 
