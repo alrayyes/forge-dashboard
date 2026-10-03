@@ -47,6 +47,8 @@ jobs:
           fetch-depth: 0
       - name: test the mapping
         run: scripts/test-changed-areas.sh
+      - name: test the release type check
+        run: scripts/test-check-release-type.sh
       - name: changed areas
         id: areas
         env:
@@ -421,3 +423,15 @@ jobs:
             --from "${{ github.event.pull_request.base.sha }}" \
             --to "${{ github.event.pull_request.head.sha }}" \
             --verbose
+      - name: release type
+        # A feat, fix or perf change has to touch something that ships. The
+        # commits are checked one by one, and the pull request title against
+        # the whole diff, since a squash merge turns the title into the
+        # commit release-please reads.
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          scripts/check-release-type.sh range "$BASE" "$HEAD"
+          scripts/check-release-type.sh title "$TITLE" "$BASE" "$HEAD"

@@ -172,6 +172,14 @@ lowercase, no trailing full stop. commitlint enforces the shape at
 commit-msg and again in CI; the length and case rules are tighter than
 what it checks, so hold to them anyway.
 
+A `feat`, `fix` or `perf` commit has to change something that ships:
+`cmd/`, `internal/`, `web/`, `api/`, `go.mod`, `go.sum`, a `Dockerfile` or
+`.goreleaser.yml`, and not a test, a Markdown file or CI config.
+Otherwise release-please cuts a version and a changelog entry for a change
+nobody gets. Type a docs, test, CI or tooling change `docs`, `test`, `ci`,
+`build` or `chore`. `scripts/check-release-type.sh` fails the commit at
+commit-msg, and in CI for each commit and for the pull request title.
+
 ## Branching, review, and release
 
 Every change goes through a pull request — nothing is pushed straight to
