@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.127.0](https://github.com/alrayyes/forge-dashboard/compare/v0.126.0...v0.127.0) (2026-10-03)
+
+
+### Features
+
+* **dashboard:** show stacked pull requests together, with a chip and what each waits for ([#907](https://github.com/alrayyes/forge-dashboard/issues/907)) ([9825252](https://github.com/alrayyes/forge-dashboard/commit/982525267bb262fbe9a449bfcb7037eabfa1011d)), closes [#861](https://github.com/alrayyes/forge-dashboard/issues/861)
+
+
+### Bug Fixes
+
+* **dashboard:** stop a slow first refresh keeping the service unready ([#896](https://github.com/alrayyes/forge-dashboard/issues/896)) ([13cfc4d](https://github.com/alrayyes/forge-dashboard/commit/13cfc4d38b27c8228a2d35c5c421536e93197530))
+
 ## [0.126.0](https://github.com/alrayyes/forge-dashboard/compare/v0.125.0...v0.126.0) (2026-10-03)
 
 
