@@ -323,7 +323,9 @@ landed another way) it's the action that applies. It asks for confirmation the
 same way Merge does, inside the menu. Confirming closes the menu and shows
 progress on the row. Escape drops an unconfirmed Close and leaves the menu open,
 a second Escape closes the menu, and closing the menu any other way drops it
-too.
+too. If the forge refuses a confirmed Close, the row shows "Close locked" next
+to the closed menu and the reason becomes the menu button's description, so you
+don't have to reopen the menu to find out.
 
 Every other action (Close, Update branch, Enable auto-merge, Dependabot and
 Renovate `rebase`) answers a refusal the same way as Merge. A pull request found
