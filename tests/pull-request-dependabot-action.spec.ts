@@ -245,15 +245,36 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
   // #792: a queued action names itself, and Recreate (which rebuilds the
   // whole pull request) makes a Rebase on top of it pointless.
   test.describe('a queued action names itself and hides what it makes pointless', () => {
+    // A successful request closes the More actions menu once it resolves, so
+    // the request is held while the open-menu assertions run, then released;
+    // the menu is reopened only after it has closed (#834).
+    async function holdRequest(page: Page) {
+      let release: () => void = () => {};
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route(
+        '**/api/pull-requests/dependabot-action',
+        async (route: Route) => {
+          await held;
+          await route.fulfill({ status: 204 });
+        },
+      );
+      return release;
+    }
+
+    async function reopenMenu(row: Locator) {
+      const trigger = row.getByRole('button', { name: 'More actions' });
+      await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+      await trigger.click();
+    }
+
     for (const behind of [false, true]) {
       test(`Recreate queued hides Rebase (${behind ? 'promoted inline' : 'in More actions'}) and reads Recreate requested`, async ({
         page,
       }) => {
         await mockDashboard(page, 'github', makePR({ behind }));
-        await page.route(
-          '**/api/pull-requests/dependabot-action',
-          (route: Route) => route.fulfill({ status: 204 }),
-        );
+        const release = await holdRequest(page);
         await page.reload();
 
         const row = page.locator('#pr-rows .row').first();
@@ -269,15 +290,23 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         await expect(
           row.getByRole('button', { name: 'Rebase requested' }),
         ).toHaveCount(0);
+
+        // Once the request resolves the menu closes. Reopened, the pending
+        // button is still there and Rebase is still hidden.
+        release();
+        await reopenMenu(row);
+        await expect(
+          row.getByRole('button', { name: 'Recreate requested' }),
+        ).toHaveAttribute('aria-disabled', 'true');
+        await expect(
+          row.getByRole('button', { name: 'Dependabot: Rebase' }),
+        ).toHaveCount(0);
       });
     }
 
     test('Rebase queued keeps Recreate available', async ({ page }) => {
       await mockDashboard(page, 'github', makePR());
-      await page.route(
-        '**/api/pull-requests/dependabot-action',
-        (route: Route) => route.fulfill({ status: 204 }),
-      );
+      const release = await holdRequest(page);
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
@@ -287,7 +316,15 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       await expect(
         row.getByRole('button', { name: 'Rebase requested' }),
       ).toHaveAttribute('aria-disabled', 'true');
-      await openMoreActions(row);
+      await expect(
+        row.getByRole('button', { name: 'Dependabot: Recreate' }),
+      ).not.toHaveAttribute('aria-disabled', 'true');
+
+      release();
+      await reopenMenu(row);
+      await expect(
+        row.getByRole('button', { name: 'Rebase requested' }),
+      ).toHaveAttribute('aria-disabled', 'true');
       const recreate = row.getByRole('button', {
         name: 'Dependabot: Recreate',
       });
