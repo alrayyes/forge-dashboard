@@ -472,7 +472,10 @@ configured `rebase` label added instead of a generic branch update,
 since that's Renovate's own rebase/retry trigger, not a comment command.
 The background pass always skips release-please pull requests, so nothing
 writes to a release branch unattended. The manual Update branch button is
-the way to catch one up.
+the way to catch one up. A generic update the forge refuses, such as a merge
+conflict, isn't tried again until the pull request changes or an hour passes,
+and any other failure waits five minutes, so a stuck pull request costs one
+request, not one per refresh.
 
 A Renovate-authored pull request, on either forge, gets a `Renovate:
 Rebase` button that adds the configured `rebase` label (Settings' own
