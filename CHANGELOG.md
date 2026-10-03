@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.119.1](https://github.com/alrayyes/forge-dashboard/compare/v0.119.0...v0.119.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **api:** drop a merged or closed pull request from the board at once ([#838](https://github.com/alrayyes/forge-dashboard/issues/838)) ([51c06c8](https://github.com/alrayyes/forge-dashboard/commit/51c06c8691b6c57249ff01ef5488a64f2f15632e))
+
 ## [0.119.0](https://github.com/alrayyes/forge-dashboard/compare/v0.118.2...v0.119.0) (2026-10-03)
 
 
