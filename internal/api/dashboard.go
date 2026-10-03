@@ -136,7 +136,7 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 
 	return dashboardResponse{
 		GeneratedAt:  snap.GeneratedAt,
-		Forges:       snap.Forges,
+		Forges:       withRateLimitSeverity(snap.Forges, time.Now()),
 		PullRequests: pullRequests,
 		Issues:       issues,
 		Repos:        repos,
@@ -148,6 +148,30 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 // missing or malformed value gets the default: drafts left out (#791).
 func wantsDrafts(r *http.Request) bool {
 	return r.URL.Query().Get("includeDrafts") == "true"
+}
+
+// withRateLimitSeverity returns forges with each rate-limit budget graded as
+// of now (#806). The snapshot's own ForgeHealth is left as it is: severity is
+// worked out per response, from the clock, so it never goes stale in one.
+func withRateLimitSeverity(forges []dashboard.ForgeHealth, now time.Time) []dashboard.ForgeHealth {
+	graded := func(rl *dashboard.RateLimit) *dashboard.RateLimit {
+		if rl == nil {
+			return nil
+		}
+		copied := *rl
+		copied.Severity = copied.SeverityAt(now)
+
+		return &copied
+	}
+
+	out := make([]dashboard.ForgeHealth, len(forges))
+	for i, f := range forges {
+		f.RateLimitGraphQL = graded(f.RateLimitGraphQL)
+		f.RateLimitREST = graded(f.RateLimitREST)
+		out[i] = f
+	}
+
+	return out
 }
 
 // errDashboardOwnerNotFound and errDashboardNotShared are
