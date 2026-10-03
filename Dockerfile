@@ -65,12 +65,13 @@ EXPOSE 8080
 # binary's own "healthcheck" argument (checked first thing in main, before
 # any of the real startup) exists for exactly this: nothing else in this
 # image (no curl, no wget) could otherwise probe the server. It asks
-# /readyz (database answers, first dashboard refresh done), not /healthz:
-# Docker keeps one health state, and Compose's service_healthy and the
-# deploy pipeline read it as "can serve". --start-period is failure-free
-# time for a cold volume and the schema setup; the first refresh only
-# starts once someone signs in, so a restarted container is ready on the
-# database alone.
+# /readyz (database answers, first dashboard refresh done or 30 seconds
+# gone), not /healthz: Docker keeps one health state, and Compose's
+# service_healthy and the deploy pipeline read it as "can serve". The
+# refresh wait is bounded so a slow forge can't keep a serving container
+# unready. --start-period is failure-free time for a cold volume and the
+# schema setup; the first refresh only starts once someone signs in, so a
+# restarted container is ready on the database alone.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD ["/forge-dashboard", "healthcheck"]
 
