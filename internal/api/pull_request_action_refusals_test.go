@@ -146,7 +146,10 @@ func TestPullRequestActions_RefusedOnAMergedOrClosedPR_AnswerTheStaleCode(t *tes
 	}
 }
 
-func TestPullRequestActions_PermissionAndRateLimit_SkipTheReReadAndKeepTheirStatus(t *testing.T) {
+// A 403 re-reads the pull request, in case it is merged or closed (#904), and
+// stays a permission refusal when it is still open; a rate limit skips the
+// re-read, since it would be limited too.
+func TestPullRequestActions_PermissionAndRateLimit_KeepTheirStatus(t *testing.T) {
 	t.Parallel()
 
 	reset := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
@@ -161,7 +164,7 @@ func TestPullRequestActions_PermissionAndRateLimit_SkipTheReReadAndKeepTheirStat
 
 			assert.Equal(t, http.StatusForbidden, status)
 			assert.Equal(t, "permission", body.Code)
-			assert.Equal(t, 0, source.stateReads)
+			assert.Equal(t, 1, source.stateReads, "re-read once, found open")
 		})
 		t.Run(ep.name+"/429", func(t *testing.T) {
 			t.Parallel()

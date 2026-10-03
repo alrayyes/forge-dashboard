@@ -73,5 +73,7 @@ func refusalNeedsNoReRead(err error) bool {
 		return false
 	}
 
-	return clientErr.Kind == dashboard.ForgeErrorRateLimited || clientErr.Kind == dashboard.ForgeErrorUnauthorized
+	// A permission refusal is re-read too (#904): the pull request may just be
+	// merged or closed. A rate limit isn't, since the re-read would be limited.
+	return clientErr.Kind == dashboard.ForgeErrorRateLimited
 }
