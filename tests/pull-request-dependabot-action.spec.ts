@@ -242,6 +242,126 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
+  // #792: a queued action names itself, and Recreate (which rebuilds the
+  // whole pull request) makes a Rebase on top of it pointless.
+  test.describe('a queued action names itself and hides what it makes pointless', () => {
+    for (const behind of [false, true]) {
+      test(`Recreate queued hides Rebase (${behind ? 'promoted inline' : 'in More actions'}) and reads Recreate requested`, async ({
+        page,
+      }) => {
+        await mockDashboard(page, 'github', makePR({ behind }));
+        await page.route(
+          '**/api/pull-requests/dependabot-action',
+          (route: Route) => route.fulfill({ status: 204 }),
+        );
+        await page.reload();
+
+        const row = page.locator('#pr-rows .row').first();
+        await openMoreActions(row);
+        await row.getByRole('button', { name: 'Dependabot: Recreate' }).click();
+
+        const queued = row.getByRole('button', { name: 'Recreate requested' });
+        await expect(queued).toHaveAttribute('aria-disabled', 'true');
+        await expect(row.getByText('Queued…')).toHaveCount(0);
+        await expect(
+          row.getByRole('button', { name: 'Dependabot: Rebase' }),
+        ).toHaveCount(0);
+        await expect(
+          row.getByRole('button', { name: 'Rebase requested' }),
+        ).toHaveCount(0);
+      });
+    }
+
+    test('Rebase queued keeps Recreate available', async ({ page }) => {
+      await mockDashboard(page, 'github', makePR());
+      await page.route(
+        '**/api/pull-requests/dependabot-action',
+        (route: Route) => route.fulfill({ status: 204 }),
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await openMoreActions(row);
+      await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
+
+      await expect(
+        row.getByRole('button', { name: 'Rebase requested' }),
+      ).toHaveAttribute('aria-disabled', 'true');
+      await openMoreActions(row);
+      const recreate = row.getByRole('button', {
+        name: 'Dependabot: Recreate',
+      });
+      await expect(recreate).toBeVisible();
+      await expect(recreate).not.toHaveAttribute('aria-disabled', 'true');
+    });
+
+    test('once the bot has acted, Rebase comes back', async ({ page }) => {
+      await page.addInitScript(() => {
+        const w = window as unknown as {
+          __streams: EventSource[];
+          EventSource: typeof EventSource;
+        };
+        w.__streams = [];
+        const Real = w.EventSource;
+        w.EventSource = class extends Real {
+          constructor(url: string | URL, init?: EventSourceInit) {
+            super(url, init);
+            w.__streams.push(this);
+          }
+        };
+      });
+      let current = makePR({ behind: true });
+      await page.route('**/api/dashboard*', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            pullRequests: [current],
+            issues: [],
+          }),
+        }),
+      );
+      await page.route(
+        '**/api/pull-requests/dependabot-action',
+        (route: Route) => route.fulfill({ status: 204 }),
+      );
+      await page.reload();
+
+      const row = page.locator('#pr-rows .row').first();
+      await openMoreActions(row);
+      await row.getByRole('button', { name: 'Dependabot: Recreate' }).click();
+      await expect(
+        row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      ).toHaveCount(0);
+
+      // The bot rebuilt it: no longer behind, CI already running.
+      current = { ...current, behind: false, ci: 'pending' };
+      await page.evaluate(
+        (data) => {
+          const w = window as unknown as { __streams: EventSource[] };
+          for (const stream of w.__streams)
+            stream.onmessage?.(new MessageEvent('message', { data }));
+        },
+        JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [current],
+          issues: [],
+        }),
+      );
+
+      await openMoreActions(row);
+      await expect(
+        row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      ).toBeVisible();
+      await expect(
+        row.getByRole('button', { name: 'Dependabot: Recreate' }),
+      ).toBeVisible();
+    });
+  });
+
   test('a transient failure shows an error and re-enables the button for another try', async ({
     page,
   }) => {
