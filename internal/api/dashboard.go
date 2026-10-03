@@ -53,6 +53,11 @@ type dashboardResponse struct {
 type pullRequestView struct {
 	dashboard.PullRequest
 	AllowedActions []dashboard.ActionAvailability `json:"allowedActions"`
+	// ReadyToMerge and NeedsReview are the Ready and Needs review quick
+	// filters' answers (#807), so a second client lists the same pull
+	// requests the page does.
+	ReadyToMerge bool `json:"readyToMerge"`
+	NeedsReview  bool `json:"needsReview"`
 }
 
 // buildDashboardResponse merges snap's tracked-repo list with userID's
@@ -125,7 +130,12 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 
 			continue
 		}
-		pullRequests = append(pullRequests, pullRequestView{PullRequest: pr, AllowedActions: dashboard.AllowedActions(pr)})
+		pullRequests = append(pullRequests, pullRequestView{
+			PullRequest:    pr,
+			AllowedActions: dashboard.AllowedActions(pr),
+			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
+			NeedsReview:    dashboard.NeedsReview(pr),
+		})
 	}
 	issues := make([]dashboard.Issue, 0, len(snap.Issues))
 	for _, issue := range snap.Issues {
