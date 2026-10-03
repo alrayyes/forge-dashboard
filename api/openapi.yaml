@@ -2943,6 +2943,8 @@ components:
           behind,
           empty,
           allowedActions,
+          readyToMerge,
+          needsReview,
         ]
       properties:
         forge:
@@ -3032,6 +3034,21 @@ components:
             always in it. Live state is the client's: a rate-limited or
             unreachable forge, a missing token and an action already in
             flight can still stop an offered action.
+
+        readyToMerge:
+          type: boolean
+          description: |
+            True when the pull request is mergeable, its CI is green and it
+            isn't a draft: what the Ready quick filter lists. Always
+            present. A pull request with no checks isn't ready.
+        needsReview:
+          type: boolean
+          description: |
+            True when a review is outstanding: the forge requires one, or a
+            reviewer was asked and hasn't answered, and the pull request
+            isn't a draft. Unreviewed with nobody asked, approved, changes
+            requested and an unknown review state are all false. Always
+            present.
 
     AllowedAction:
       type: object
