@@ -293,6 +293,13 @@ scope(s): [read:user]`, before it was added to the token.
 
 ## Pull request actions
 
+Which actions a row offers, and why a blocked one is blocked, come from the
+server: each pull request in `GET /api/dashboard` carries a list named
+`allowedActions`, and the page renders what is listed without any rules of its
+own. Only
+live state is the page's: a rate-limited or unreachable forge, a missing token,
+an action already in flight.
+
 Every open pull request row has a Merge button. It's clickable when the forge
 reports the merge is actually possible. Otherwise it stays on the row, locked
 (`aria-disabled`, no click), with the reason printed beside it: "Waiting for CI
