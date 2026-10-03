@@ -175,11 +175,9 @@ test.describe('webhooks page', () => {
     }) => {
       await seedRepos(page);
       // Default: ascending by full name already.
-      await expect(rowRepoNames(page)).resolves.toEqual([
-        'alrayyes/a',
-        'alrayyes/b',
-        'alrayyes/c',
-      ]);
+      await expect
+        .poll(() => rowRepoNames(page))
+        .toEqual(['alrayyes/a', 'alrayyes/b', 'alrayyes/c']);
       const repoHeader = page.locator('th', {
         has: page.locator('[data-sort-key="fullName"]'),
       });
@@ -187,11 +185,9 @@ test.describe('webhooks page', () => {
 
       await page.click('[data-sort-key="fullName"]');
 
-      await expect(rowRepoNames(page)).resolves.toEqual([
-        'alrayyes/c',
-        'alrayyes/b',
-        'alrayyes/a',
-      ]);
+      await expect
+        .poll(() => rowRepoNames(page))
+        .toEqual(['alrayyes/c', 'alrayyes/b', 'alrayyes/a']);
       await expect(repoHeader).toHaveAttribute('aria-sort', 'descending');
     });
 
@@ -202,11 +198,9 @@ test.describe('webhooks page', () => {
       await page.click('[data-sort-key="hasWebhook"]');
 
       // Not yet (false) sorts before Confirmed (true) ascending.
-      await expect(rowRepoNames(page)).resolves.toEqual([
-        'alrayyes/a',
-        'alrayyes/c',
-        'alrayyes/b',
-      ]);
+      await expect
+        .poll(() => rowRepoNames(page))
+        .toEqual(['alrayyes/a', 'alrayyes/c', 'alrayyes/b']);
       const webhookHeader = page.locator('th', {
         has: page.locator('[data-sort-key="hasWebhook"]'),
       });
