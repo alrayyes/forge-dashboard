@@ -35,12 +35,11 @@ concurrency:
   group: prose-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # Vale runs from its official image, pinned in the `style` job below and in
-  # scripts/vale.sh. Its style packages are versioned separately and fetched
-  # by `vale sync`.
-  # ltex-ls-plus is pinned inside scripts/lint-mechanics.sh instead, so the
-  # hook and this workflow cannot install different versions of it.
+# Vale runs from its official image, pinned in the `style` job below and in
+# scripts/vale.sh. Its style packages are versioned separately and fetched by
+# `vale sync`. ltex-ls-plus is pinned inside scripts/lint-mechanics.sh
+# instead, so the hook and this workflow cannot install different versions of
+# it.
 
 jobs:
   # Mechanics: grammar, spelling, the phonetic article. These have a right
