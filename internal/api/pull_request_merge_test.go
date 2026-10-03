@@ -317,18 +317,21 @@ func TestPullRequestMerge_SourceWithoutStateReader_AnswersUnknownWithTheOriginal
 	assert.Equal(t, "unknown", body.Code)
 }
 
-func TestPullRequestMerge_PermissionAndRateLimit_SkipTheReReadAndKeepTheirStatus(t *testing.T) {
+func TestPullRequestMerge_PermissionAndRateLimit_KeepTheirStatus(t *testing.T) {
 	t.Parallel()
 
 	reset := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+	// A 403 re-reads the pull request, in case it was merged or closed (#904);
+	// a rate limit can't, since the re-read would be limited too.
 	cases := []struct {
-		name   string
-		err    error
-		status int
-		code   string
+		name      string
+		err       error
+		status    int
+		code      string
+		stateRead int
 	}{
-		{"403", mergeRefusal(dashboard.ForgeErrorUnauthorized, "github: PUT x: Resource not accessible"), http.StatusForbidden, "permission"},
-		{"429", &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("github: PUT x: rate limit exceeded"), RateLimit: &dashboard.RateLimit{ResetsAt: reset}}, http.StatusTooManyRequests, "rate_limited"},
+		{"403", mergeRefusal(dashboard.ForgeErrorUnauthorized, "github: PUT x: Resource not accessible"), http.StatusForbidden, "permission", 1},
+		{"429", &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("github: PUT x: rate limit exceeded"), RateLimit: &dashboard.RateLimit{ResetsAt: reset}}, http.StatusTooManyRequests, "rate_limited", 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -344,7 +347,7 @@ func TestPullRequestMerge_PermissionAndRateLimit_SkipTheReReadAndKeepTheirStatus
 			var body actionErrorBody
 			require.NoError(t, readJSON(resp, &body))
 			assert.Equal(t, tc.code, body.Code)
-			assert.Equal(t, 0, source.stateReads)
+			assert.Equal(t, tc.stateRead, source.stateReads)
 			if tc.code == "rate_limited" {
 				require.NotNil(t, body.ResetsAt)
 				assert.True(t, reset.Equal(*body.ResetsAt))
@@ -389,4 +392,27 @@ func TestPullRequestMerge_ForgejoEmptyRefusalOnMergedPR_AnswersAlreadyMergedFrom
 	require.NoError(t, readJSON(resp, &body))
 	assert.Equal(t, "already_merged", body.Code)
 	assert.NotContains(t, body.Message, "{")
+}
+
+// The same, through the endpoint (#904): a 403 on a pull request that turns out
+// to be merged answers 409 already_merged, and the permission answer stays for
+// a pull request that is still open.
+func TestPullRequestMerge_PermissionRefusalOnAMergedPullRequest_AnswersAlreadyMerged(t *testing.T) {
+	t.Parallel()
+
+	source := &fakePullRequestMergerSource{
+		forge:    dashboard.ForgeGitHub,
+		mergeErr: mergeRefusal(dashboard.ForgeErrorUnauthorized, "github: PUT x: Resource not accessible by integration"),
+		state:    dashboard.PullRequestState{Merged: true, Closed: true},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	var body actionErrorBody
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, "already_merged", body.Code)
+	assert.Equal(t, 1, source.stateReads, "the pull request was re-read")
 }
