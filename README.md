@@ -392,9 +392,9 @@ background poll. If the countdown runs out before the refresh lands, it reads
 clears once a refresh shows the branch caught up. If the request fails, the
 button comes back and the row and an error toast say why.
 
-A bot `rebase` waits on the bot, not on the dashboard. The button becomes an
-`aria-disabled` `Rebase requested` (focus returns to the row's More actions
-button when the menu closes), and the row says the bot will pick it up shortly
+A bot `rebase` waits on the bot, not on the dashboard. The button becomes
+`Rebase requested` and is `aria-disabled` (focus returns to the row's More
+actions button when the menu closes), and the row says the bot will pick it up shortly
 and that it can take a few minutes (a "Requested" age ticks along, kept out
 of what a screen reader announces). Dependabot is asked with the
 `@dependabot rebase` comment and Renovate with the `rebase` label, and the
