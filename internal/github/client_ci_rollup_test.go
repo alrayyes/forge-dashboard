@@ -273,3 +273,10 @@ func TestFetch_NoToken_MapsTheBranches(t *testing.T) {
 	assert.Equal(t, "feat/child", pr.HeadBranch)
 	assert.False(t, pr.CrossRepository)
 }
+
+// The unauthenticated REST fallback carries the head SHA too (#759).
+func TestFetch_NoToken_MapsTheHeadCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "cafef00d", restPullRequest(t, nil).HeadSHA)
+}
