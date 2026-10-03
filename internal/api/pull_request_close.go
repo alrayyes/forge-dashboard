@@ -71,6 +71,7 @@ func handlePullRequestClose(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		deps.Manager.MarkSettled(u.ID, dashboard.Forge(req.Forge), req.FullName, req.Number)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
