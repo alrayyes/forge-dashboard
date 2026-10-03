@@ -73,20 +73,32 @@ test.describe('release history page', () => {
     }
   });
 
-  test('the footer links to release history from other pages, but not from itself', async ({
+  // #786: the footer's version is the way in to this page. CI builds a dev
+  // binary (plain text, no link), so a released version is mocked.
+  test('the footer version links here from other pages, and is plain text on this one', async ({
     page,
     request,
     baseURL,
   }) => {
     await registerAndSignIn(page, request, baseURL);
+    await page.route('**/api/version', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ version: '1.2.3' }),
+      }),
+    );
+    await page.reload();
 
-    const historyLink = page.locator('#footer-version a', {
-      hasText: 'Release history',
+    const versionLink = page.locator('#footer-version a', {
+      hasText: 'v1.2.3',
     });
-    await expect(historyLink).toBeVisible();
-    await historyLink.click();
+    await expect(versionLink).toHaveAttribute('href', '/releases.html');
+    await versionLink.click();
     await expect(page).toHaveURL(/\/releases\.html$/);
 
+    await expect(page.locator('#footer-version')).toContainText('v1.2.3');
+    await expect(page.locator('#footer-version a')).toHaveCount(0);
     await expect(page.locator('#footer-version')).not.toContainText(
       'Release history',
     );
