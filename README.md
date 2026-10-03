@@ -691,6 +691,17 @@ needs, and `RP_ID`/`RP_ORIGIN` set to the real deployed domain rather
 than the `localhost` defaults — lives in that private deployment repo,
 not here.
 
+### The changelog page
+
+The version in the footer links to `/releases.html`, which works without
+signing in. It lists the releases in `CHANGELOG.md`, newest first, and makes no
+request to GitHub. The web build turns `CHANGELOG.md` into
+`/changelog.json` (`scripts/changelog-json.ts`, a build output that isn't
+committed) and the page reads that one same-origin file. It therefore lists
+exactly the releases the running version was built from, so the footer
+version and the newest entry agree. The footer reads the running binary,
+so it lags the published release until the deployment updates.
+
 ## API
 
 `api/openapi.yaml` is the contract: `GET /healthz` for liveness, `GET /readyz`
