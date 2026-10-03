@@ -3507,6 +3507,15 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   test('the active pill survives a reload', async ({ page }) => {
     await pill(page, 'Bot PRs').click();
     await expect(rowTitles(page)).toHaveCount(3);
+    // The click sets the cookie at once and saves to the server in the
+    // background. A reload before the save lands loads an older server copy
+    // (#900), so wait for it like the other persistence tests do.
+    await expect
+      .poll(async () => {
+        const resp = await page.request.get('/api/settings/filter-state');
+        return (await resp.json())?.pr?.quick;
+      })
+      .toBe('bots');
     await page.reload();
     await expect(pill(page, 'Bot PRs')).toHaveAttribute('aria-pressed', 'true');
     await expect(rowTitles(page)).toHaveCount(3);
