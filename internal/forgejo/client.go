@@ -769,20 +769,21 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 				updated = *p.Updated
 			}
 			prs = append(prs, dashboard.PullRequest{
-				Forge:       dashboard.ForgeForgejo,
-				Repo:        repo,
-				Number:      int(p.Index),
-				Title:       p.Title,
-				URL:         p.HTMLURL,
-				Author:      posterLogin(p.Poster),
-				Draft:       p.Draft,
-				Labels:      toLabels(p.Labels),
-				CreatedAt:   created,
-				UpdatedAt:   updated,
-				CI:          ci,
-				MergeStatus: mergeStatusFromMergeable(p.Mergeable),
-				Behind:      isBehind(p),
-				Empty:       isEmpty(p),
+				Forge:                   dashboard.ForgeForgejo,
+				Repo:                    repo,
+				Number:                  int(p.Index),
+				Title:                   p.Title,
+				URL:                     p.HTMLURL,
+				Author:                  posterLogin(p.Poster),
+				Draft:                   p.Draft,
+				Labels:                  toLabels(p.Labels),
+				CreatedAt:               created,
+				UpdatedAt:               updated,
+				CI:                      ci,
+				MergeStatus:             mergeStatusFromMergeable(p.Mergeable),
+				Behind:                  isBehind(p),
+				RequestedReviewerLogins: requestedLogins(p),
+				Empty:                   isEmpty(p),
 				// No read capability for this in the SDK at all — only
 				// write-side schedule/cancel verbs
 				// (MergePullRequestOption.MergeWhenChecksSucceed,
@@ -1262,4 +1263,18 @@ func globRegexp(pattern string, segments bool) *regexp.Regexp {
 	b.WriteString("$")
 
 	return regexp.MustCompile(b.String())
+}
+
+// requestedLogins lists the logins of the users asked to review p (#695).
+// The list comes with the pull request itself, so even a draft has it. Teams
+// have no login and are left out. Never nil.
+func requestedLogins(p *gitea.PullRequest) []string {
+	logins := make([]string, 0, len(p.RequestedReviewers))
+	for _, u := range p.RequestedReviewers {
+		if u != nil && u.UserName != "" {
+			logins = append(logins, u.UserName)
+		}
+	}
+
+	return logins
 }

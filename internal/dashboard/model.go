@@ -155,6 +155,11 @@ type PullRequest struct {
 	// field stays orthogonal there too, for the same reason CI sits
 	// beside MergeStatus rather than inside it: one fact per field.
 	Behind bool `json:"behind"`
+	// RequestedReviewerLogins lists who was asked to review this pull
+	// request, by login (#695). Teams have no login and are left out.
+	// Always a list, empty when nobody was asked, so a client can range
+	// over it without a nil check.
+	RequestedReviewerLogins []string `json:"requestedReviewerLogins"`
 	// Empty reports whether merging this pull request would produce an
 	// empty commit — its content already landed on the base branch some
 	// other way (confirmed live: a mechanical version-bump PR whose branch
