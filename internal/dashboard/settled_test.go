@@ -141,3 +141,82 @@ func TestAggregator_MarkSettled(t *testing.T) {
 		assert.ElementsMatch(t, []int{1}, numbers(agg.Get()))
 	})
 }
+
+func (s *listingSource) listPRs(prs ...dashboard.PullRequest) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.prs = prs
+}
+
+func stackedFixture() (parent, child dashboard.PullRequest) {
+	parent = dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "o/r", Number: 1, BaseBranch: "main", HeadBranch: "feat/a"}
+	child = dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "o/r", Number: 2, BaseBranch: "feat/a", HeadBranch: "feat/b"}
+
+	return parent, child
+}
+
+// Stacks are in every snapshot (#860), and one clears the moment its parent
+// leaves the board.
+func TestAggregator_Stacks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a refresh marks the stacked pull requests", func(t *testing.T) {
+		t.Parallel()
+		src := &listingSource{}
+		parent, child := stackedFixture()
+		src.listPRs(parent, child)
+		agg := dashboard.NewAggregator([]dashboard.Source{src})
+
+		agg.Refresh(t.Context())
+
+		got := map[int]dashboard.PullRequest{}
+		for _, pr := range agg.Get().PullRequests {
+			got[pr.Number] = pr
+		}
+		assert.Equal(t, &dashboard.StackPosition{Position: 2, Size: 2}, got[2].Stack)
+	})
+
+	t.Run("a scoped refresh marks them too", func(t *testing.T) {
+		t.Parallel()
+		src := &repoRefreshingSource{}
+		parent, child := stackedFixture()
+		src.prs = []dashboard.PullRequest{parent, child}
+		agg := dashboard.NewAggregator([]dashboard.Source{src})
+
+		require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "r", "o/r"))
+
+		require.Len(t, agg.Get().PullRequests, 2)
+		for _, pr := range agg.Get().PullRequests {
+			assert.NotNil(t, pr.Stack, "pull request %d", pr.Number)
+		}
+	})
+
+	t.Run("a merged parent takes the stack off the child at once", func(t *testing.T) {
+		t.Parallel()
+		src := &listingSource{}
+		parent, child := stackedFixture()
+		src.listPRs(parent, child)
+		agg := dashboard.NewAggregator([]dashboard.Source{src})
+		agg.Refresh(t.Context())
+
+		agg.MarkSettled(dashboard.ForgeGitHub, "o/r", 1)
+
+		got := agg.Get().PullRequests
+		require.Len(t, got, 1)
+		assert.Nil(t, got[0].Stack)
+		assert.Nil(t, got[0].StackedOn)
+	})
+}
+
+// repoRefreshingSource is a Source that can also refresh one repo, for the
+// scoped-refresh path.
+type repoRefreshingSource struct {
+	listingSource
+}
+
+func (s *repoRefreshingSource) FetchRepo(context.Context, string, string, string) ([]dashboard.PullRequest, []dashboard.Issue, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return append([]dashboard.PullRequest(nil), s.prs...), nil, nil
+}

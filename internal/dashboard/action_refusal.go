@@ -31,6 +31,7 @@ const (
 	ActionLabelMissing        ActionCode = "label_missing"
 	ActionPermission          ActionCode = "permission"
 	ActionRateLimited         ActionCode = "rate_limited"
+	ActionStacked             ActionCode = "stacked"
 	ActionUnknown             ActionCode = "unknown"
 )
 
