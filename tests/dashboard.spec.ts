@@ -3253,8 +3253,11 @@ test.describe('login page', () => {
 // (https://docs.github.com/en/get-started/accessibility/keyboard-shortcuts).
 test.describe('quick filter pills and "/" shortcut (#678)', () => {
   const now = new Date().toISOString();
+  // A stand-in for the two answers the server gives each pull request
+  // (readyToMerge, needsReview; internal/dashboard): the page only reads
+  // them, so the fixture states them from the raw fields (#807).
   function pr(over: Record<string, unknown>) {
-    return {
+    const base = {
       forge: 'github',
       repo: 'alrayyes/app',
       number: 1,
@@ -3268,6 +3271,22 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       createdAt: now,
       updatedAt: now,
       ...over,
+    } as Record<string, unknown> & {
+      draft: boolean;
+      ci: string;
+      mergeStatus: string;
+      review?: { decision: string; requestedReviewers: number };
+    };
+    const outstanding =
+      base.review?.decision === 'review_required' ||
+      (base.review?.decision === 'none' && base.review.requestedReviewers > 0);
+    return {
+      ...base,
+      readyToMerge:
+        base.mergeStatus === 'mergeable' &&
+        base.ci === 'success' &&
+        !base.draft,
+      needsReview: !base.draft && Boolean(outstanding),
     };
   }
   const PRS = [
