@@ -439,3 +439,38 @@ func TestManager_FirstRefreshComplete_StaysTrueWhenAnotherAggregatorStarts(t *te
 
 	assert.True(t, m.FirstRefreshComplete(), "a later sign-in must not flip a serving container back to unready")
 }
+
+// A first refresh that is slow, or never finishes because a forge doesn't
+// answer, must not keep the service unready (#893): readiness says it can
+// serve, and how fast a forge answers is only how fresh the data is.
+func TestManager_FirstRefreshComplete_ReadyAfterTheGraceEvenIfTheRefreshIsStillRunning(t *testing.T) {
+	t.Parallel()
+
+	src := &gatedSource{release: make(chan struct{})}
+	t.Cleanup(func() { close(src.release) })
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+	m.SetFirstRefreshGrace(30 * time.Millisecond)
+
+	m.Ensure(t.Context(), []byte("user-a"), []dashboard.Source{src})
+	require.False(t, m.FirstRefreshComplete(), "not ready the moment the refresh starts")
+
+	require.Eventually(t, m.FirstRefreshComplete, time.Second, 5*time.Millisecond,
+		"the refresh is still blocked, but the grace has passed")
+}
+
+func TestManager_FirstRefreshComplete_AnAggregatorAddedLaterGetsItsOwnGraceButCannotUnreadyAServingProcess(t *testing.T) {
+	t.Parallel()
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+	m.SetFirstRefreshGrace(time.Hour)
+	m.Ensure(t.Context(), []byte("user-a"), []dashboard.Source{&countingSource{}})
+	require.Eventually(t, m.FirstRefreshComplete, time.Second, 5*time.Millisecond)
+
+	blocked := &gatedSource{release: make(chan struct{})}
+	t.Cleanup(func() { close(blocked.release) })
+	m.Ensure(t.Context(), []byte("user-b"), []dashboard.Source{blocked})
+
+	assert.True(t, m.FirstRefreshComplete())
+}
