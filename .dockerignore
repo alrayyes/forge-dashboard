@@ -23,5 +23,7 @@ styles/proselint/
 dist/
 coverage.out
 *.md
+# The web build turns this into the changelog page's JSON (#813).
+!CHANGELOG.md
 web/.svelte-kit/
 web/build/
