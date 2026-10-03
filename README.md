@@ -503,8 +503,17 @@ The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
 and saved with your other filters, so a filter set on one page is still set on
 the other. The pull-request-only controls (CI status, the quick filters for
-failing, bot, ready and needs-review pull requests, sort, Show drafts) are not
-on the issues page.
+failing, bot, ready and needs-review pull requests, Show drafts) are not on the
+issues page.
+
+The issue list holds still while you read it. A refresh that would add, remove
+or move rows is held behind an "N updates available" bar while you're scrolled
+below the top, a control in the list has focus, or live updates are paused;
+**Show updates**, or a change to a filter or the sort, applies it. At the top
+with nothing focused, changes just appear. A row whose own content changed
+updates where it stands, and a refresh with no change leaves every row alone.
+Sort works as it does for pull requests. The pause setting is shared with the
+pull request page.
 
 ## Live updates
 
