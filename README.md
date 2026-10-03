@@ -375,7 +375,11 @@ description. The actions re-enable by themselves at the reset time, with a
 polite "Rate limit reset, actions available again" toast. A missing token
 permission locks the action with no Retry either, and the reason points to
 Settings. Read-only actions such as View pipeline stay enabled, and the header
-shows each forge's remaining budget and reset time as text.
+shows each forge's remaining budget and reset time as text. Which locks offer
+Retry follows the refusal's `code` (`rate_limited` and `permission` don't), not
+the words in its message. The banner at the top of the page follows each
+budget's `severity` (`ok`, `low` or `exceeded`), which the server grades, so the
+page holds no threshold of its own.
 
 A GitHub pull request that isn't already auto-merging gets an "Enable
 auto-merge" action in the row's "More actions" menu, arming the forge's

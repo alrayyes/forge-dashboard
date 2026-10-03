@@ -35,9 +35,7 @@
     budgetText,
     isRateLimited,
     msUntilReset,
-    classifyLockReason,
     formatResetTime,
-    offersRetry,
     PERMISSION_REASON,
     type RateLimit,
     rateLimitReasonText,
@@ -132,6 +130,9 @@
   type ActionState = {
     phase: ActionPhase;
     reason?: string;
+    // The code of the refusal that locked it (#806): what decides whether
+    // Retry is offered, not the words in the reason.
+    code?: string;
     // Only on a queued bot rebase (#706): what the snapshot has to show
     // before the wait counts as over.
     queued?: { prKey: string; wasBehind: boolean; at: number; seq: number };
@@ -794,16 +795,31 @@
     // of a dead end. Left undefined for the actions that don't pass it
     // (Dependabot/Renovate), which keep today's plain disabled-button
     // behavior.
+    // Why an action is locked, and the code that says what kind of wait it is
+    // when one is known: "rate_limited" and "permission" don't clear by
+    // clicking; anything else may.
+    type LockInfo = { reason: string; code?: string };
+
+    function lockOf(entry: ActionState): LockInfo {
+      return { reason: entry.reason ?? "", code: entry.code };
+    }
+
     function lockedActionButton(
       label: string,
-      reasonText: string,
+      lock: string | LockInfo,
       requestedRetry: (() => void) | undefined = undefined,
       visibleNote: string | undefined = undefined,
     ): HTMLElement {
+      const reasonText = typeof lock === "string" ? lock : lock.reason;
+      const code = typeof lock === "string" ? undefined : lock.code;
       // Retry only for a reason waiting can fix (a 502, an unreachable
       // forge). A rate limit or a missing permission can't clear by
-      // clicking, so it stays a greyed-out action with its own label (#732).
-      const onRetry = offersRetry(reasonText) ? requestedRetry : undefined;
+      // clicking, so it stays a greyed-out action with its own label
+      // (#732). The refusal's code says which, not its wording (#806).
+      const onRetry =
+        code === "rate_limited" || code === "permission"
+          ? undefined
+          : requestedRetry;
       const wrap = el("span", "row-action-locked");
       const button = buttonEl("row-action", onRetry ? "Retry" : label);
       button.type = "button";
@@ -954,7 +970,7 @@
     function proactiveActionLockReason(
       forgeName: string,
       budget: "rest" | "graphql" = "rest",
-    ): string | null {
+    ): LockInfo | null {
       const health = lastForges.find((f) => f.forge === forgeName);
       if (health && health.reachable === false) {
         // The specific reason (unreachable, rate-limited, ...) is
@@ -962,7 +978,7 @@
         // forgeErrorHeadline — repeating the same system-wide fact
         // under every affected row read as noise, not information
         // (#360).
-        return "See the forge status above.";
+        return { reason: "See the forge status above." };
       }
       // #361: Merge, Update branch, Close and the bot commands are REST
       // calls, so REST's budget decides them; auto-merge is a GraphQL
@@ -971,9 +987,13 @@
       // row looking clickable until the click itself failed.
       const spent =
         health?.[budget === "rest" ? "rateLimitREST" : "rateLimitGraphQL"];
-      if (isRateLimited(spent)) return rateLimitedReason(forgeName, spent);
+      if (isRateLimited(spent))
+        return {
+          reason: rateLimitedReason(forgeName, spent),
+          code: "rate_limited",
+        };
       if (forgePermissionDenied[forgeName]) {
-        return PERMISSION_REASON;
+        return { reason: PERMISSION_REASON, code: "permission" };
       }
       return null;
     }
@@ -1035,7 +1055,11 @@
         return;
       }
       if (outcome.kind === "locked") {
-        setState({ phase: "locked", reason: outcome.reason });
+        setState({
+          phase: "locked",
+          reason: outcome.reason,
+          code: outcome.code,
+        });
         if (outcome.code === "permission")
           forgePermissionDenied[item.forge] = true;
         failAction(fkey, what, outcome.reason, false);
@@ -1207,7 +1231,7 @@
       const entry = mergeState[key] || { phase: "idle" };
 
       if (entry.phase === "locked")
-        return lockedActionButton("Merge", entry.reason ?? "", () =>
+        return lockedActionButton("Merge", lockOf(entry), () =>
           retryLockedAction(item),
         );
 
@@ -1377,7 +1401,7 @@
       const entry = autoMergeState[key] || { phase: "idle" };
 
       if (entry.phase === "locked")
-        return lockedActionButton("Enable auto-merge", entry.reason ?? "");
+        return lockedActionButton("Enable auto-merge", lockOf(entry));
 
       if (entry.phase === "idle") {
         const proactiveReason = proactiveActionLockReason(
@@ -1707,7 +1731,7 @@
         // Confirming closes the menu, so the lock would only show after
         // reopening it. The trigger reads these to say so itself (#747).
         const locked = markClose(
-          lockedActionButton("Close", entry.reason ?? "", () =>
+          lockedActionButton("Close", lockOf(entry), () =>
             retryLockedAction(item),
           ),
         );
@@ -1870,7 +1894,7 @@
       const entry = updateBranchState[key] || { phase: "idle" };
 
       if (entry.phase === "locked")
-        return lockedActionButton("Update branch", entry.reason ?? "", () =>
+        return lockedActionButton("Update branch", lockOf(entry), () =>
           retryLockedAction(item),
         );
 
@@ -2035,7 +2059,7 @@
       if (entry.phase === "locked")
         return lockedActionButton(
           DEPENDABOT_ACTION_LABELS[action],
-          entry.reason ?? "",
+          lockOf(entry),
         );
 
       if (entry.phase === "idle") {
@@ -2527,7 +2551,7 @@
       const entry = renovateRebaseState[key] || { phase: "idle" };
 
       if (entry.phase === "locked")
-        return lockedActionButton("Renovate: Rebase", entry.reason ?? "");
+        return lockedActionButton("Renovate: Rebase", lockOf(entry));
 
       if (entry.phase === "idle") {
         const proactiveReason = proactiveActionLockReason(item.forge);
@@ -4128,12 +4152,6 @@
     // miss buried in a board below the fold. This mirrors it at the top
     // of the page, with the same critical prominence as the "CI failing"
     // stat tile, so it's visible at a glance.
-    // Same 5% "critical" cutoff Insights' own rate-limit gauge already
-    // uses for its color tier (rateLimitStatusClass) — kept as a literal
-    // copy rather than a shared import, same reasoning as
-    // countdownLabel's own comment below.
-    const LOW_BUDGET_THRESHOLD = 0.05;
-
     type RateLimitAlert = {
       label: string;
       severity: "exceeded" | "low";
@@ -4151,27 +4169,16 @@
           ["GraphQL", f.rateLimitGraphQL],
           ["REST", f.rateLimitREST],
         ] as const) {
-          if (!rl) continue;
-          if (rl.remaining === 0) {
-            out.push({
-              label: `${name} ${kind}`,
-              severity: "exceeded",
-              resetsAt: rl.resetsAt,
-              remaining: rl.remaining,
-              limit: rl.limit,
-            });
-          } else if (
-            rl.limit > 0 &&
-            rl.remaining / rl.limit < LOW_BUDGET_THRESHOLD
-          ) {
-            out.push({
-              label: `${name} ${kind}`,
-              severity: "low",
-              resetsAt: rl.resetsAt,
-              remaining: rl.remaining,
-              limit: rl.limit,
-            });
-          }
+          // The server grades each budget (ok, low, exceeded) from its own
+          // threshold, so the page holds none (#806).
+          if (!rl || rl.severity === "ok") continue;
+          out.push({
+            label: `${name} ${kind}`,
+            severity: rl.severity,
+            resetsAt: rl.resetsAt,
+            remaining: rl.remaining,
+            limit: rl.limit,
+          });
         }
       }
       return out;
@@ -4287,10 +4294,7 @@
       ]) {
         for (const key of Object.keys(state)) {
           const entry = state[key];
-          if (
-            entry.phase === "locked" &&
-            classifyLockReason(entry.reason ?? "") === "rate_limit"
-          )
+          if (entry.phase === "locked" && entry.code === "rate_limited")
             delete state[key];
         }
       }
