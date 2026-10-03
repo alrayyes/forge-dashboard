@@ -3,8 +3,8 @@ import {
   expect,
   type Page,
   type Route,
-  test,
 } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // #806: the banner reads each rate limit's `severity` from the server, and a
