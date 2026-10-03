@@ -253,6 +253,11 @@ set both, and leaving a token field blank on save keeps whatever was
 saved before, so updating your username doesn't mean re-pasting the
 token too.
 
+The server decides whether a save is valid, such as a Forgejo token or username
+with no instance URL, or a bad installation ID. A refused save answers 400 with
+the reason and the name of the field (`field`), and the page shows that reason
+and puts focus on that input. The page holds no copy of those rules.
+
 ### GitHub
 
 - **Token**: a personal access token with read access to the
