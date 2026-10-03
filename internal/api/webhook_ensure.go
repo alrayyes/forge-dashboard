@@ -119,7 +119,7 @@ func handleWebhookEnsure(deps Deps) http.HandlerFunc {
 		targetURL := deps.PublicOrigin + "/api/webhooks/" + req.Forge + "/" + token
 		if err := manager.EnsureWebhook(r.Context(), owner, name, targetURL, secret); err != nil {
 			slog.Warn("webhook ensure failed", "forge", req.Forge, "repo", req.FullName, "error", err)
-			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
+			writeRefusal(w, clientErrorStatus(err), dashboard.ClassifyForgeRefusal(err), err, "forge", req.Forge, "repo", req.FullName)
 
 			return
 		}
