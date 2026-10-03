@@ -656,6 +656,13 @@ couldn't be read has no `review` and never matches the filter. Needs review
 means a review is outstanding: the forge requires one, or a reviewer was asked
 and hasn't answered. A pull request nobody was asked to review doesn't count.
 
+The **Review requested from me** quick filter keeps the pull requests that ask
+you in particular: `reviewRequestedFromMe` on each pull request, which the
+server matches, ignoring case, against the username saved for that forge in
+Settings. It needs that username: with none saved for a forge, none of that
+forge's pull requests match. It adds no requests, since the requested
+reviewers' names come with the data already fetched.
+
 Draft pull requests are left out of `/api/dashboard` by default, since nothing
 can be merged or updated on one. The response says how many it left out in
 `hiddenDrafts`. Pass `includeDrafts=true` to get them back, on the dashboard,
