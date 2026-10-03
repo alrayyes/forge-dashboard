@@ -148,25 +148,34 @@ test.describe('admin area — outbound request log', () => {
     try {
       const adminPage = await adminContext.newPage();
       await adminPage.goto('/admin.html');
-      await adminPage.evaluate(() => {
-        // No such username was ever registered, so this <option> has to
-        // be added by hand — the dropdown only ever lists usernames
-        // this instance's own request log has actually seen (see
-        // requestAccountOptions in the page's own script).
-        const select = document.querySelector('#request-filter-account');
-        const opt = document.createElement('option');
-        opt.value = 'no-such-user-at-all';
-        opt.textContent = 'no-such-user-at-all';
-        select?.appendChild(opt);
-      });
-      await adminPage.selectOption(
-        '#request-filter-account',
-        'no-such-user-at-all',
-      );
 
-      await expect(adminPage.locator('#requests-empty-state')).toBeVisible({
-        timeout: 10000,
-      });
+      // The page rebuilds this <select>'s options itself once its data
+      // loads, which wipes an <option> added before then (#815). So add it,
+      // pick it and check the empty state as one step that retries until the
+      // page has stopped re-rendering the select.
+      await expect(async () => {
+        await adminPage.evaluate(() => {
+          // No such username was ever registered, so this <option> has to
+          // be added by hand — the dropdown only ever lists usernames
+          // this instance's own request log has actually seen (see
+          // requestAccountOptions in the page's own script).
+          const select = document.querySelector('#request-filter-account');
+          if (select?.querySelector('option[value="no-such-user-at-all"]'))
+            return;
+          const opt = document.createElement('option');
+          opt.value = 'no-such-user-at-all';
+          opt.textContent = 'no-such-user-at-all';
+          select?.appendChild(opt);
+        });
+        await adminPage.selectOption(
+          '#request-filter-account',
+          'no-such-user-at-all',
+          { timeout: 2000 },
+        );
+        await expect(adminPage.locator('#requests-empty-state')).toBeVisible({
+          timeout: 2000,
+        });
+      }).toPass({ timeout: 20000 });
       await expect(adminPage.locator('#request-rows tr')).toHaveCount(0);
 
       const results = await new AxeBuilder({ page: adminPage })
