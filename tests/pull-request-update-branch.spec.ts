@@ -429,7 +429,10 @@ test.describe('pull request update-branch button', () => {
       route.fulfill({
         status: 502,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: PUT .../update-branch: EOF' }),
+        body: JSON.stringify({
+          error: 'github: PUT .../update-branch: EOF',
+          message: 'EOF',
+        }),
       }),
     );
     await page.reload();
