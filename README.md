@@ -6,7 +6,7 @@
 [![coverage](https://codecov.io/gh/alrayyes/forge-dashboard/branch/main/graph/badge.svg)](https://codecov.io/gh/alrayyes/forge-dashboard)
 [![Go Reference](https://pkg.go.dev/badge/github.com/alrayyes/forge-dashboard.svg)](https://pkg.go.dev/github.com/alrayyes/forge-dashboard)
 
-A single-page dashboard of open pull requests, issues, and CI status across
+A dashboard of open pull requests, issues, and CI status across
 every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. See
 [#1](https://github.com/alrayyes/forge-dashboard/issues/1) for the v1
@@ -492,6 +492,31 @@ rather than being guessed advisory. A Forgejo Actions job is only marked
 required when a pattern matches its job name or its workflow-file
 context; it is never marked advisory. If nothing is known for any check,
 the panel stays the flat list.
+
+## Issues
+
+Open issues have their own page, `/issues.html`, reached from the **Issues**
+item in the navigation. The item carries a count badge, the number of open
+issues without Renovate's Dependency Dashboard, which the page hides by
+default. The badge is set from each snapshot on the dashboard and issues
+pages, and loaded once on the other signed-in pages. The pull request page no
+longer lists issues.
+
+The issues page filters like the pull request page: forge, repo, title,
+author, label, created and updated, plus Group by. Those filters are shared
+and saved with your other filters, so a filter set on one page is still set on
+the other. The pull-request-only controls (CI status, the quick filters for
+failing, bot, ready and needs-review pull requests, Show drafts) are not on the
+issues page.
+
+The issue list holds still while you read it. A refresh that would add, remove
+or move rows is held behind an "N updates available" bar while you're scrolled
+below the top, a control in the list has focus, or live updates are paused;
+**Show updates**, or a change to a filter or the sort, applies it. At the top
+with nothing focused, changes just appear. A row whose own content changed
+updates where it stands, and a refresh with no change leaves every row alone.
+Sort works as it does for pull requests. The pause setting is shared with the
+pull request page.
 
 ## Live updates
 
