@@ -600,6 +600,13 @@ whole tracked-repo set — a much smaller GraphQL query on GitHub than a
 full refresh runs. A payload with no repository (the initial "ping"
 delivery a new webhook sends, say) falls back to a full refresh instead.
 
+Each refresh also asks GitHub whether every repo's webhook is pointed at the
+dashboard. A GitHub App without the repository webhooks permission gets
+"Resource not accessible by integration" for all of them, so that answer is
+remembered for an hour and the checks are skipped, with one warning in the log.
+A token that can't administer one repo is skipped for that repo alone. Grant
+the permission and the next check after the hour sees it.
+
 ## Configuration
 
 Everything the process itself needs is environment variables — no
