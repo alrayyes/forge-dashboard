@@ -69,11 +69,10 @@
 
     <h2>Third-party services</h2>
     <p>
-      Every page here loads a stylesheet from
-      <span class="mono">fonts.googleapis.com</span>. That's the only
-      third-party request this app's own pages make — see the
-      <a href="/privacy.html">Privacy</a> page for what that means and what else does
-      or doesn't leave this app's own backend.
+      This app's own pages make no third-party request: the fonts, scripts and
+      styles all come from the app itself. See the
+      <a href="/privacy.html">Privacy</a> page for what does or doesn't leave this
+      app's own backend.
     </p>
   </div>
 </div>
