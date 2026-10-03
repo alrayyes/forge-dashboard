@@ -253,6 +253,11 @@ set both, and leaving a token field blank on save keeps whatever was
 saved before, so updating your username doesn't mean re-pasting the
 token too.
 
+The server decides whether a save is valid, such as a Forgejo token or username
+with no instance URL, or a bad installation ID. A refused save answers 400 with
+the reason and the name of the field (`field`), and the page shows that reason
+and puts focus on that input. The page holds no copy of those rules.
+
 ### GitHub
 
 - **Token**: a personal access token with read access to the
@@ -292,6 +297,13 @@ scope(s): [read:user]`, before it was added to the token.
   against a real Forgejo instance's `GET /users/<username>/repos`.
 
 ## Pull request actions
+
+Which actions a row offers, and why a blocked one is blocked, come from the
+server: each pull request in `GET /api/dashboard` carries a list named
+`allowedActions`, and the page renders what is listed without any rules of its
+own. Only
+live state is the page's: a rate-limited or unreachable forge, a missing token,
+an action already in flight.
 
 Every open pull request row has a Merge button. It's clickable when the forge
 reports the merge is actually possible. Otherwise it stays on the row, locked

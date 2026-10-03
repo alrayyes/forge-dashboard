@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 import {
   CONFIRM_GUARD_MS,
   CONFIRM_TIMEOUT_MS,
@@ -6,6 +6,7 @@ import {
   createConfirmArm,
   type DisarmReason,
 } from '../web/src/lib/confirm-arm';
+import { test } from './fixtures';
 
 // The helper is pure state plus injected timers, so these run without a
 // browser. The page wiring is covered by the pull-request-confirm journey.

@@ -5,8 +5,8 @@ import {
   type Locator,
   type Page,
   type Route,
-  test,
 } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 async function registerAndSignIn(

@@ -91,6 +91,14 @@ means a test raced the page, so fix the wait rather than adding a retry. A
 test that stays flaky gets `test.fixme`/an annotation naming the reason and a
 linked issue.
 
+Specs import `test` from `tests/fixtures.ts`, not from `@playwright/test`. It
+is Playwright's own `test` with one addition: mocked snapshots whose pull
+requests don't state `allowedActions` get them filled in by a stand-in for the
+server's rules (`tests/allowed-actions-stand-in.ts`). A spec that wants to say
+exactly what the server answered sets `allowedActions` itself, as
+`tests/allowed-actions.spec.ts` does. The stand-in is a port of
+`internal/dashboard/allowed_actions.go`, so change both together.
+
 ## How it fits together
 
 - `api/openapi.yaml` is the contract — handwritten and reviewed as the
