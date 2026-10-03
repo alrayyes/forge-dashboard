@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import {
   type APIRequestContext,
@@ -22,18 +24,17 @@ async function registerAndSignIn(
   );
 }
 
-// The page's actual content comes from a real call to GitHub's public
-// releases API (see releases.js) — not mocked, but also not something a
-// test should hard-assert the exact shape of: a real, independent
-// third-party API can rate-limit or have a bad moment, and releases.js
-// is written to degrade to a visible fallback link rather than an error
-// banner or a broken page when that happens. This waits for either
-// outcome rather than assuming the happy path.
+// #813: the page is built from CHANGELOG.md, turned into one same-origin
+// JSON file at build time. It makes no request to GitHub or anyone else.
+const CHANGELOG = readFileSync(join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
+const CHANGELOG_VERSIONS = [
+  ...CHANGELOG.matchAll(/^## \[?(\d+\.\d+\.\d+[^\]\s)]*)/gm),
+].map((m) => m[1]);
+
 async function waitForReleasesToSettle(page: Page) {
   await Promise.race([
     page.waitForSelector('.release', { timeout: 15000 }),
     page.waitForSelector('#status.error', { timeout: 15000 }),
-    page.waitForSelector('#release-empty:not([hidden])', { timeout: 15000 }),
   ]);
 }
 
@@ -48,29 +49,65 @@ test.describe('release history page', () => {
     );
   });
 
-  test('loads real release data from GitHub, or falls back to a visible link rather than breaking', async ({
+  test('makes no request to GitHub and reads one same-origin JSON file', async ({
+    page,
+    baseURL,
+  }) => {
+    const hosts = new Set<string>();
+    const urls: string[] = [];
+    page.on('request', (r) => {
+      const url = new URL(r.url());
+      if (url.protocol.startsWith('http')) {
+        hosts.add(url.host);
+        urls.push(r.url());
+      }
+    });
+    await page.goto('/releases.html');
+    await waitForReleasesToSettle(page);
+    await expect(page.locator('.release').first()).toBeVisible();
+
+    // The site-wide font stylesheet is the layout's own, not this page's.
+    expect([...hosts].filter((h) => /github/i.test(h))).toEqual([]);
+    const changelog = urls.find((u) => u.endsWith('/changelog.json'));
+    expect(changelog).toBeDefined();
+    expect(new URL(changelog ?? '').host).toBe(new URL(baseURL ?? '').host);
+  });
+
+  test('lists every release in CHANGELOG.md, newest first, with its notes', async ({
     page,
   }) => {
+    expect(CHANGELOG_VERSIONS.length).toBeGreaterThan(0);
     await page.goto('/releases.html');
     await waitForReleasesToSettle(page);
 
-    const releaseCount = await page.locator('.release').count();
-    if (releaseCount > 0) {
-      // The real, expected case for this repo, which has published
-      // releases — each one names a version and links to it.
-      const first = page.locator('.release').first();
-      await expect(first.locator('h2 a')).toHaveAttribute(
-        'href',
-        /github\.com/,
-      );
-      await expect(first.locator('.release-date')).not.toHaveText('');
-    } else {
-      await expect(page.locator('#status')).toContainText(/could not load/i);
-      await expect(page.locator('#status a')).toHaveAttribute(
-        'href',
-        /github\.com\/alrayyes\/forge-dashboard\/releases/,
-      );
-    }
+    await expect(page.locator('.release')).toHaveCount(
+      CHANGELOG_VERSIONS.length,
+    );
+    const titles = await page.locator('.release h2').allInnerTexts();
+    expect(titles.map((t) => t.trim())).toEqual(
+      CHANGELOG_VERSIONS.map((v) => `v${v}`),
+    );
+    const first = page.locator('.release').first();
+    await expect(first.locator('.release-date')).not.toHaveText('');
+    await expect(first.locator('.release-notes li').first()).toBeVisible();
+  });
+
+  test('a missing changelog file says so plainly and falls back to nothing', async ({
+    page,
+  }) => {
+    const hosts = new Set<string>();
+    page.on('request', (r) => hosts.add(new URL(r.url()).host));
+    await page.route('**/changelog.json', (route) =>
+      route.fulfill({ status: 404 }),
+    );
+    await page.goto('/releases.html');
+    await waitForReleasesToSettle(page);
+
+    await expect(page.locator('#status.error')).toContainText(
+      'Could not load the changelog',
+    );
+    await expect(page.locator('.release')).toHaveCount(0);
+    expect(hosts.has('api.github.com')).toBe(false);
   });
 
   // #786: the footer's version is the way in to this page. CI builds a dev
