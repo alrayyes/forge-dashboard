@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.118.1](https://github.com/alrayyes/forge-dashboard/compare/v0.118.0...v0.118.1) (2026-10-03)
+
+
+### Performance Improvements
+
+* **web:** serve the fonts from the app instead of Google Fonts ([#825](https://github.com/alrayyes/forge-dashboard/issues/825)) ([3121fe8](https://github.com/alrayyes/forge-dashboard/commit/3121fe83a4f724c8c95215154f9cf727916601eb)), closes [#797](https://github.com/alrayyes/forge-dashboard/issues/797)
+
 ## [0.118.0](https://github.com/alrayyes/forge-dashboard/compare/v0.117.0...v0.118.0) (2026-10-03)
 
 
