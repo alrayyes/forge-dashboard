@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.119.0](https://github.com/alrayyes/forge-dashboard/compare/v0.118.2...v0.119.0) (2026-10-03)
+
+
+### Features
+
+* **api:** grade each rate-limit budget with a severity ([#844](https://github.com/alrayyes/forge-dashboard/issues/844)) ([92d63c5](https://github.com/alrayyes/forge-dashboard/commit/92d63c511e20c0ed5a40792c77b744873e1b260b))
+
 ## [0.118.2](https://github.com/alrayyes/forge-dashboard/compare/v0.118.1...v0.118.2) (2026-10-03)
 
 
