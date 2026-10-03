@@ -539,6 +539,23 @@ updates where it stands, and a refresh with no change leaves every row alone.
 Sort works as it does for pull requests. The pause setting is shared with the
 pull request page.
 
+## Filters on a phone
+
+Below 760px wide the filter bar folds down so the first screen shows pull
+requests. Closed, it is one search row (the title filter and a **Filters**
+button) and one row of quick filters that scrolls sideways. The button's count,
+as in "Filters (2)", is how many filters are on: forge, repo, author, label,
+created, updated, CI status, and Show drafts. Each active filter also shows as a
+chip you can tap to remove without opening anything.
+
+**Filters** opens a bottom sheet with the rest of the controls: forge, Show
+drafts, sort, group, repo, author, label, created and updated. Filters apply as
+you change them, and the sheet's **Show N results** button, which closes it,
+says what you would see, so a refresh can't change something you are editing.
+**Clear all** resets everything. Escape, the close button, or a tap outside
+closes the sheet and returns focus to the Filters button. On wider screens
+nothing changes except that the title filter now sits first in the bar.
+
 ## Live updates
 
 The board polls every 30 seconds and takes pushes over a live stream, but
