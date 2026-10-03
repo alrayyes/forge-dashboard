@@ -5,8 +5,8 @@ import {
   type Locator,
   type Page,
   type Route,
-  test,
 } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // #714: per-pull-request action feedback lives on the row (an inline

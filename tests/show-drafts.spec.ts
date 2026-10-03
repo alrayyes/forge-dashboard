@@ -4,8 +4,8 @@ import {
   expect,
   type Page,
   type Route,
-  test,
 } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // #791: draft pull requests are left out by the API unless asked for. The

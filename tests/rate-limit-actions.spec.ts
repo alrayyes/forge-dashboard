@@ -4,8 +4,8 @@ import {
   expect,
   type Locator,
   type Page,
-  test,
 } from '@playwright/test';
+import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // A rate limit is a "wait until" condition, not a transient fault: the
