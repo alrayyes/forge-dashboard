@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -201,7 +202,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			// A value of the wrong type names its field, so a client can mark
 			// that input (#810).
 			if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok && typeErr.Field != "" {
-				writeJSON(w, http.StatusBadRequest, fieldErrorBody(typeErr.Field, typeErr.Field+" must be a "+typeErr.Type.String()))
+				writeJSON(w, http.StatusBadRequest, fieldErrorBody(typeErr.Field, typeErr.Field+" must be "+typeInWords(typeErr.Type)))
 
 				return
 			}
@@ -286,4 +287,22 @@ func coalesce(newValue, existingValue string) string {
 	}
 
 	return existingValue
+}
+
+// typeInWords names a Go type the way a person would say what a field must
+// be, so an error reads "must be a whole number", not "must be a int64".
+func typeInWords(t reflect.Type) string {
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return "a whole number"
+	case reflect.Float32, reflect.Float64:
+		return "a number"
+	case reflect.Bool:
+		return "true or false"
+	case reflect.String:
+		return "text"
+	default:
+		return "a " + t.String()
+	}
 }
