@@ -49,17 +49,18 @@ func accessLogMiddleware(next http.Handler) http.Handler {
 
 // accessLogLevel picks the level a request's own outcome earns: 5xx is a
 // real failure, 4xx is a client-caused rejection worth noticing but not
-// alarming over, everything else is routine. /healthz gets downgraded to
-// Debug on a normal (non-error) response — liveness-probe traffic hits it
-// constantly, and logging that at Info would drown out everything real; a
-// genuine failure there still surfaces at its own level, unchanged.
+// alarming over, everything else is routine. /healthz and /readyz get
+// downgraded to Debug on a normal (non-error) response: the container's
+// probes hit them constantly, and logging that at Info would drown out
+// everything real. A genuine failure there still surfaces at its own level,
+// unchanged.
 func accessLogLevel(path string, status int) slog.Level {
 	switch {
 	case status >= http.StatusInternalServerError:
 		return slog.LevelError
 	case status >= http.StatusBadRequest:
 		return slog.LevelWarn
-	case path == "/healthz":
+	case path == "/healthz" || path == "/readyz":
 		return slog.LevelDebug
 	default:
 		return slog.LevelInfo
