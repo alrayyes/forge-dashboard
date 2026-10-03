@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.115.2](https://github.com/alrayyes/forge-dashboard/compare/v0.115.1...v0.115.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* **dashboard:** a rebased bot PR drops its Out of date pill while another row is queued ([#788](https://github.com/alrayyes/forge-dashboard/issues/788)) ([e3ece6c](https://github.com/alrayyes/forge-dashboard/commit/e3ece6cc51ef6216df49b472be9cef61d2725efe)), closes [#787](https://github.com/alrayyes/forge-dashboard/issues/787)
+
 ## [0.115.1](https://github.com/alrayyes/forge-dashboard/compare/v0.115.0...v0.115.1) (2026-10-03)
 
 
