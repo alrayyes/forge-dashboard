@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.128.2](https://github.com/alrayyes/forge-dashboard/compare/v0.128.1...v0.128.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* **dashboard:** stop retrying an update-branch the forge refused ([#899](https://github.com/alrayyes/forge-dashboard/issues/899)) ([e842888](https://github.com/alrayyes/forge-dashboard/commit/e84288878b6294e8a3811b4ec39426c31cfbf8ba)), closes [#895](https://github.com/alrayyes/forge-dashboard/issues/895)
+
 ## [0.128.1](https://github.com/alrayyes/forge-dashboard/compare/v0.128.0...v0.128.1) (2026-10-03)
 
 
