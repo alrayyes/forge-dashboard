@@ -386,6 +386,11 @@ don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
 so the page holds no threshold of its own.
 
+A forge that fails a refresh keeps showing its last good pull requests and
+issues, and the header says so next to it: "Showing data from 3m ago". The
+time comes from the server's `staleSince`, which is gone again after the next
+good refresh.
+
 A GitHub pull request that isn't already auto-merging gets an "Enable
 auto-merge" action in the row's "More actions" menu, arming the forge's
 own native auto-merge (GitHub's `enablePullRequestAutoMerge` mutation)
