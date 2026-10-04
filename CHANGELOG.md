@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.132.0](https://github.com/alrayyes/forge-dashboard/compare/v0.131.0...v0.132.0) (2026-10-04)
+
+
+### Features
+
+* **dashboard:** keep a requested bot rebase on the server ([#929](https://github.com/alrayyes/forge-dashboard/issues/929)) ([9cb2eae](https://github.com/alrayyes/forge-dashboard/commit/9cb2eaed5ef2fa38a924c4ba72c11d96f0f7cff5))
+
 ## [0.131.0](https://github.com/alrayyes/forge-dashboard/compare/v0.130.1...v0.131.0) (2026-10-04)
 
 
