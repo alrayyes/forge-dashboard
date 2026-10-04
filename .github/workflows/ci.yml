@@ -47,6 +47,8 @@ jobs:
           fetch-depth: 0
       - name: test the mapping
         run: scripts/test-changed-areas.sh
+      - name: check the Vale pins agree
+        run: scripts/test-vale-pin.sh
       - name: changed areas
         id: areas
         env:
