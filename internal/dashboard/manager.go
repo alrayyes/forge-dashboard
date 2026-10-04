@@ -239,6 +239,20 @@ func (m *Manager) MarkSettled(userID []byte, forge Forge, repo string, number in
 	entry.agg.MarkSettled(forge, repo, number)
 }
 
+// RecordBotRequest delegates to userID's Aggregator — see
+// Aggregator.RecordBotRequest. A user with no running Aggregator has no board
+// to show it on, so it does nothing.
+func (m *Manager) RecordBotRequest(userID []byte, forge Forge, repo string, number int, bot BotName, action BotAction) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return
+	}
+	entry.agg.RecordBotRequest(forge, repo, number, bot, action)
+}
+
 // RefreshRepo delegates to userID's Aggregator — see
 // Aggregator.RefreshRepo. Reports false if userID has no running
 // Aggregator, the same as RefreshNow, and also false wherever

@@ -74,6 +74,8 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		deps.Manager.RecordBotRequest(u.ID, dashboard.Forge(req.Forge), req.FullName, req.Number, dashboard.BotRenovate, dashboard.BotRebase)
+
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

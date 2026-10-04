@@ -1215,7 +1215,9 @@ paths:
               $ref: "#/components/schemas/PullRequestDependabotActionRequest"
       responses:
         "204":
-          description: Comment posted.
+          description: |
+            Comment posted. The request is recorded as `botRequest` on the
+            pull request in the next snapshot.
         "400":
           description: |
             The request body wasn't valid JSON, `action` wasn't "rebase"
@@ -1296,7 +1298,9 @@ paths:
               $ref: "#/components/schemas/PullRequestActionRequest"
       responses:
         "204":
-          description: Label added.
+          description: |
+            Label added. The request is recorded as `botRequest` on the pull
+            request in the next snapshot.
         "400":
           description: |
             The request body wasn't valid JSON, `fullName` wasn't
@@ -3120,6 +3124,16 @@ components:
           description: |
             The numbers of the open pull requests stacked directly on this
             one. Always a list, empty when none.
+        botRequest:
+          description: |
+            A Dependabot or Renovate rebase asked for through this app and not
+            settled yet, or null. The server keeps it, so a reload during the
+            wait still shows it, and moves it along on every snapshot that
+            came from a fetch started after the request. Held in memory per
+            account: a server restart forgets it.
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/BotRequest"
         requestedReviewerLogins:
           type: array
           items:
@@ -3197,6 +3211,41 @@ components:
             isn't a draft. Unreviewed with nobody asked, approved, changes
             requested and an unknown review state are all false. Always
             present.
+
+    BotRequest:
+      type: object
+      required: [bot, action, phase, requestedAt, expiresAt]
+      properties:
+        bot:
+          type: string
+          enum: [dependabot, renovate]
+        action:
+          type: string
+          enum: [rebase, recreate]
+          description: |
+            `recreate` is Dependabot's only. Renovate's rebase label is
+            reported as `rebase`.
+        phase:
+          type: string
+          enum: [queued, rebasing, expired]
+          description: |
+            `queued`: asked, and nothing seen yet. `rebasing`: the bot
+            pushed (the head changed, or the pull request was behind and
+            isn't), and CI hasn't restarted yet. `expired`: the bot didn't
+            act within 5 minutes. An expired request stays until the pull
+            request is gone, a new request replaces it, or an hour passes.
+            A request is dropped once CI shows pending after the push, 2
+            minutes into `rebasing`, or when the pull request is gone.
+        requestedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: |
+            When the server stops waiting in the current phase: 5 minutes
+            after the request while `queued`, 2 minutes after the pickup
+            while `rebasing`.
 
     StackPosition:
       type: object
