@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.131.0](https://github.com/alrayyes/forge-dashboard/compare/v0.130.1...v0.131.0) (2026-10-04)
+
+
+### Features
+
+* **dashboard:** say when an unreachable forge's data is from ([#934](https://github.com/alrayyes/forge-dashboard/issues/934)) ([c8326bc](https://github.com/alrayyes/forge-dashboard/commit/c8326bcc3d8e87c9bd038fb6d3db72b580e5bac0))
+
 ## [0.130.1](https://github.com/alrayyes/forge-dashboard/compare/v0.130.0...v0.130.1) (2026-10-03)
 
 
