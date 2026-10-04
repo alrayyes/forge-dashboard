@@ -95,6 +95,9 @@
     repoCount: number;
     errorKind?: string;
     error?: string;
+    // Set with reachable: false when the rows shown are the last good ones
+    // (#933): when that data was fetched.
+    staleSince?: string;
     // Two independent GitHub budgets (#361) — see api/openapi.yaml's own
     // ForgeHealth.rateLimitGraphQL/rateLimitREST doc comment for which
     // is which and when each is reported.
@@ -4143,6 +4146,18 @@
           (f.reachable ? " reachable" : " unreachable");
         chip.appendChild(document.createTextNode(label));
         item.appendChild(chip);
+        // The rows of an unreachable forge are its last good ones, not
+        // current ones (#933). Plain text, for every error kind: the
+        // rate-limit banner doesn't say the data is old.
+        if (!f.reachable && f.staleSince) {
+          item.appendChild(
+            el(
+              "span",
+              "forge-health-stale",
+              `Showing data from ${relativeTime(f.staleSince)}`,
+            ),
+          );
+        }
         // The remaining budget and when it comes back, as text (#732). Kept
         // out of the live region: the numbers change on every poll.
         const budget = f.rateLimitREST;
