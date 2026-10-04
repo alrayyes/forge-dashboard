@@ -288,6 +288,8 @@ test.describe('webhooks page', () => {
         status: 502,
         contentType: 'application/json',
         body: JSON.stringify({
+          code: 'unknown',
+          message: "The forge didn't answer. Try again in a moment.",
           error: 'github: GET /repos/alrayyes/a/hooks: EOF',
         }),
       }),
@@ -300,7 +302,10 @@ test.describe('webhooks page', () => {
       .getByRole('button', { name: 'Add a webhook' });
     await button.click();
 
-    await expect(page.locator('#webhooks-status')).toContainText('EOF');
+    await expect(page.locator('#webhooks-status')).toContainText(
+      "The forge didn't answer",
+    );
+    await expect(page.locator('#webhooks-status')).not.toContainText('EOF');
     await expect(button).toBeEnabled();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
     await expect(button).toHaveText('Add a webhook');
@@ -363,6 +368,8 @@ test.describe('webhooks page', () => {
         status: 403,
         contentType: 'application/json',
         body: JSON.stringify({
+          code: 'permission',
+          message: 'Missing permission.',
           error:
             'github: GET /repos/alrayyes/a/hooks: Resource not accessible by personal access token',
         }),
@@ -400,7 +407,12 @@ test.describe('webhooks page', () => {
       route.fulfill({
         status: 429,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'github: rate limit exceeded' }),
+        body: JSON.stringify({
+          code: 'rate_limited',
+          message: 'Rate limit exceeded.',
+          resetsAt: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+          error: 'github: rate limit exceeded',
+        }),
       }),
     );
     await page.goto('/webhooks.html');
@@ -411,6 +423,68 @@ test.describe('webhooks page', () => {
 
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/rate limit/i);
+  });
+
+  test('the lock follows the response code, not the HTTP status (#762)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
+    ]);
+    await page.route('**/api/webhooks/ensure', (route) =>
+      route.fulfill({
+        status: 502,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'permission', message: 'No.' }),
+      }),
+    );
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    const button = row.getByRole('button', { name: 'Add a webhook' });
+    await button.click();
+
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row).toContainText(/permission/i);
+  });
+
+  test('an unknown code leaves the button usable, even on a 403 (#762)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
+    ]);
+    await page.route('**/api/webhooks/ensure', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'unknown', message: 'Repo not found.' }),
+      }),
+    );
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    const button = row.getByRole('button', { name: 'Add a webhook' });
+    await button.click();
+
+    await expect(page.locator('#webhooks-status')).toContainText(
+      "Couldn't add a webhook for alrayyes/a",
+    );
+    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test('a locked button is reachable by keyboard and has no axe-core violations', async ({
@@ -757,7 +831,10 @@ test.describe('webhooks page', () => {
           return route.fulfill({
             status: 403,
             contentType: 'application/json',
-            body: JSON.stringify({ error: 'missing permission' }),
+            body: JSON.stringify({
+              code: 'permission',
+              message: 'Missing permission.',
+            }),
           });
         }
         return route.fulfill({ status: 204 });
