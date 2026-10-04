@@ -2680,6 +2680,12 @@ footer a.mono:focus-visible {
   color: var(--ink-2);
 }
 
+/* A forge showing its last good data after a failed refresh (#933). */
+.forge-health-stale {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
 /* ---- Stacked pull requests (#861) ----
    A stack is a plain nested list: its rows in position order, each marked
    by a thin rule and indented by its depth. The chip carries the meaning in
