@@ -124,6 +124,8 @@
     forges: Forge[];
     pullRequests: PullRequestItem[];
     issues: IssueItem[];
+    // How many issues are real work, from the server (#980).
+    openIssueCount?: number;
     repos?: Filters.RepoRef[];
     // Drafts the API left out (#791). 0 when the request asked for them.
     hiddenDrafts?: number;
@@ -4764,7 +4766,7 @@
         });
       }
       const issues = data.issues || [];
-      issueCount.value = Filters.countOpenIssues(issues);
+      issueCount.value = data.openIssueCount ?? 0;
       allPRs = prs;
       allIssues = issues;
       reposByKey = new Map(
