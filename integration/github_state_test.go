@@ -35,12 +35,7 @@ const (
 // by scenario title and the ticket (or reason) that tracks each. The
 // test fails on a listed scenario that now agrees, so the entry gets removed
 // with the fix instead of rotting.
-var knownDisagreements = map[string]string{
-	"optional-failing":         "#952",
-	"optional-pending":         "#952",
-	"empty-after-base-took-it": "by design: the dashboard blocks a merge that would be empty",
-	"draft-clean":              "#954",
-}
+var knownDisagreements = map[string]string{}
 
 // githubTruth is what GitHub says about one pull request.
 type githubTruth struct {
