@@ -234,7 +234,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    # The suite takes 10 to 11.5 minutes depending on the runner, so 12 left
+    # no headroom and a slow runner timed out a green run. 20 still stops a
+    # hung job well before the 6-hour default.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
