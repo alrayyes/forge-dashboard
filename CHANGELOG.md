@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.132.7](https://github.com/alrayyes/forge-dashboard/compare/v0.132.6...v0.132.7) (2026-10-05)
+
+
+### Bug Fixes
+
+* **dashboard:** keep a bot request recorded during a refresh on the board ([#984](https://github.com/alrayyes/forge-dashboard/issues/984)) ([bb3d4f9](https://github.com/alrayyes/forge-dashboard/commit/bb3d4f98fffa9725581ce01fe388f70cf4a41ab2)), closes [#976](https://github.com/alrayyes/forge-dashboard/issues/976)
+
 ## [0.132.6](https://github.com/alrayyes/forge-dashboard/compare/v0.132.5...v0.132.6) (2026-10-05)
 
 
