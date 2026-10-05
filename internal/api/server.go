@@ -126,6 +126,8 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("PUT /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 	mux.Handle("GET /api/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemeGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemePut(deps.SettingsStore)))
+	mux.Handle("GET /api/settings/timezone", auth.RequireAuth(deps.AuthStore)(handleTimezoneGet(deps.SettingsStore)))
+	mux.Handle("PUT /api/settings/timezone", auth.RequireAuth(deps.AuthStore)(handleTimezonePut(deps.SettingsStore)))
 	mux.Handle("GET /api/settings/filter-state", auth.RequireSession(deps.AuthStore)(handleFilterStateGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings/filter-state", auth.RequireSession(deps.AuthStore)(handleFilterStatePut(deps.SettingsStore)))
 	mux.Handle("GET /api/auth/credentials", auth.RequireAuth(deps.AuthStore)(handleCredentialsGet(deps.AuthStore)))

@@ -714,3 +714,24 @@ func TestStore_RenovateRebaseLabel_ReflectsSavedCredentials(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "needs-rebase", got)
 }
+
+func TestStore_SetThenGet_RoundTripsTimezone(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{Timezone: "Europe/Amsterdam"}))
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Equal(t, "Europe/Amsterdam", got.Timezone)
+}
+
+func TestStore_Get_NeverSaved_TimezoneDefaultsToEmptyMeaningBrowser(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	got, err := store.Get(t.Context(), []byte("user-1"))
+	require.ErrorIs(t, err, settings.ErrNotFound)
+	assert.Empty(t, got.Timezone)
+}
