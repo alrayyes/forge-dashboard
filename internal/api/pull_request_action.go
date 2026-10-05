@@ -60,14 +60,24 @@ func forgeSource(w http.ResponseWriter, r *http.Request, deps Deps, userID []byt
 		return nil, settings.Credentials{}, false
 	}
 
+	src, ok := findForgeSource(w, deps, userID, creds, forge)
+
+	return src, creds, ok
+}
+
+// findForgeSource picks the source for forge out of the ones creds builds, and
+// answers 400 itself when the user has none. It is forgeSource's second half,
+// for a handler that has to do something between loading the settings and
+// looking for the source.
+func findForgeSource(w http.ResponseWriter, deps Deps, userID []byte, creds settings.Credentials, forge string) (dashboard.Source, bool) {
 	for _, src := range deps.BuildSources(userID, creds) {
 		if string(src.Forge()) == forge {
-			return src, creds, true
+			return src, true
 		}
 	}
 	writeJSON(w, http.StatusBadRequest, errorBody("no "+forge+" credentials saved"))
 
-	return nil, settings.Credentials{}, false
+	return nil, false
 }
 
 // capabilityOf asks src for the one optional capability a handler needs, and

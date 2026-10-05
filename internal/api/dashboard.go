@@ -97,6 +97,34 @@ type pullRequestView struct {
 // Ignored repos filter first, so HiddenDrafts counts only drafts in repos
 // whose other pull requests would show.
 func buildDashboardResponse(ctx context.Context, store *settings.Store, userID []byte, snap dashboard.Snapshot, includeDrafts bool) dashboardResponse {
+	board := loadBoardSettings(ctx, store, userID)
+	pullRequests, hiddenDrafts := board.pullRequestViews(snap.PullRequests, includeDrafts)
+	issues, openIssues := board.issueViews(snap.Issues)
+
+	return dashboardResponse{
+		GeneratedAt:    snap.GeneratedAt,
+		Forges:         withRateLimitSeverity(snap.Forges, time.Now()),
+		PullRequests:   pullRequests,
+		Issues:         issues,
+		OpenIssueCount: openIssues,
+		Repos:          board.repoStatuses(snap.Repos),
+		HiddenDrafts:   hiddenDrafts,
+	}
+}
+
+// boardSettings is what the response is built with besides the snapshot: the
+// user's own state for each repo, and their login on each forge.
+type boardSettings struct {
+	deliveries       map[string]struct{}
+	ignored          map[string]settings.IgnoreScope
+	autoUpdateBranch map[string]struct{}
+	logins           map[dashboard.Forge]string
+}
+
+// loadBoardSettings reads boardSettings. Each store failure degrades that one
+// piece, to no delivery signal, nothing ignored, auto-update off or no login,
+// and never fails the response.
+func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte) boardSettings {
 	deliveries, err := store.WebhookDeliveries(ctx, userID)
 	if err != nil {
 		slog.Warn("could not load webhook deliveries for dashboard response", "error", err)
@@ -113,15 +141,30 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 		autoUpdateBranch = nil
 	}
 
-	repos := make([]repoStatus, 0, len(snap.Repos))
-	for _, r := range snap.Repos {
+	// The signed-in user's own login on each forge, from Settings. A store
+	// failure degrades to "no login", so nothing is marked as requested.
+	logins := map[dashboard.Forge]string{}
+	if creds, err := store.Get(ctx, userID); err == nil {
+		logins[dashboard.ForgeGitHub] = creds.GitHubUsername
+		logins[dashboard.ForgeForgejo] = creds.ForgejoUsername
+	}
+
+	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, logins: logins}
+}
+
+// repoStatuses is the tracked-repo list with each repo's webhook coverage and
+// the user's ignore and auto-update choices.
+func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
+	out := make([]repoStatus, 0, len(repos))
+	for _, r := range repos {
+		key := settings.WebhookDeliveryKey(string(r.Forge), r.FullName)
 		hasWebhook := r.HasWebhook
 		if !hasWebhook {
-			_, hasWebhook = deliveries[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
+			_, hasWebhook = b.deliveries[key]
 		}
-		scope := ignored[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
-		_, autoUpdate := autoUpdateBranch[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)]
-		repos = append(repos, repoStatus{
+		scope := b.ignored[key]
+		_, autoUpdate := b.autoUpdateBranch[key]
+		out = append(out, repoStatus{
 			Forge:             r.Forge,
 			FullName:          r.FullName,
 			URL:               r.URL,
@@ -134,18 +177,16 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 		})
 	}
 
-	// The signed-in user's own login on each forge, from Settings. A store
-	// failure degrades to "no login", so nothing is marked as requested.
-	logins := map[dashboard.Forge]string{}
-	if creds, err := store.Get(ctx, userID); err == nil {
-		logins[dashboard.ForgeGitHub] = creds.GitHubUsername
-		logins[dashboard.ForgeForgejo] = creds.ForgejoUsername
-	}
+	return out
+}
 
-	pullRequests := make([]pullRequestView, 0, len(snap.PullRequests))
+// pullRequestViews leaves out the pull requests of ignored repos, then the
+// drafts unless includeDrafts, and says how many drafts that hid.
+func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDrafts bool) ([]pullRequestView, int) {
+	out := make([]pullRequestView, 0, len(prs))
 	hiddenDrafts := 0
-	for _, pr := range snap.PullRequests {
-		if ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)].PRs {
+	for _, pr := range prs {
+		if b.ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)].PRs {
 			continue
 		}
 		if pr.Draft && !includeDrafts {
@@ -153,37 +194,36 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 
 			continue
 		}
-		pullRequests = append(pullRequests, pullRequestView{
+		out = append(out, pullRequestView{
 			PullRequest:    pr,
 			AllowedActions: dashboard.AllowedActions(pr),
 			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
 			NeedsReview:    dashboard.NeedsReview(pr),
 
-			ReviewRequestedFromMe: dashboard.ReviewRequestedFrom(pr, logins[pr.Forge]),
+			ReviewRequestedFromMe: dashboard.ReviewRequestedFrom(pr, b.logins[pr.Forge]),
 		})
 	}
-	issues := make([]issueView, 0, len(snap.Issues))
-	openIssues := 0
-	for _, issue := range snap.Issues {
-		if ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
+
+	return out, hiddenDrafts
+}
+
+// issueViews leaves out the issues of ignored repos and counts the ones that
+// are real work.
+func (b boardSettings) issueViews(issues []dashboard.Issue) ([]issueView, int) {
+	out := make([]issueView, 0, len(issues))
+	open := 0
+	for _, issue := range issues {
+		if b.ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
 			continue
 		}
 		housekeeping := dashboard.IsHousekeepingIssue(issue)
-		issues = append(issues, issueView{Issue: issue, Housekeeping: housekeeping})
+		out = append(out, issueView{Issue: issue, Housekeeping: housekeeping})
 		if !housekeeping {
-			openIssues++
+			open++
 		}
 	}
 
-	return dashboardResponse{
-		GeneratedAt:    snap.GeneratedAt,
-		Forges:         withRateLimitSeverity(snap.Forges, time.Now()),
-		PullRequests:   pullRequests,
-		Issues:         issues,
-		OpenIssueCount: openIssues,
-		Repos:          repos,
-		HiddenDrafts:   hiddenDrafts,
-	}
+	return out, open
 }
 
 // wantsDrafts reads includeDrafts from the query. Only "true" opts in, so a
@@ -434,23 +474,31 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
 
-		for {
-			select {
-			case <-r.Context().Done():
+		streamSnapshots(r.Context(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
+			return buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, snap, includeDrafts)
+		})
+	}
+}
+
+// streamSnapshots writes one server-sent event for each snapshot that arrives
+// on ch, until the client goes away, ch closes, or a write fails.
+func streamSnapshots(ctx context.Context, w http.ResponseWriter, flusher http.Flusher, ch <-chan dashboard.Snapshot, render func(dashboard.Snapshot) dashboardResponse) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case snap, open := <-ch:
+			if !open {
 				return
-			case snap, open := <-ch:
-				if !open {
-					return
-				}
-				data, err := json.Marshal(buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, snap, includeDrafts))
-				if err != nil {
-					return
-				}
-				if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-					return
-				}
-				flusher.Flush()
 			}
+			data, err := json.Marshal(render(snap))
+			if err != nil {
+				return
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+				return
+			}
+			flusher.Flush()
 		}
 	}
 }
