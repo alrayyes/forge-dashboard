@@ -23,10 +23,13 @@ info:
 
 servers:
   - url: "{scheme}://{host}"
+    # For whoever runs their own copy: the audience is the API's consumers,
+    # not this project's own staff.
+    x-internal: false
     description: |
-      No canonical host — this runs on a homelab reachable only over
-      Tailscale, so the variables below are the shape of the answer rather
-      than the answer.
+      No canonical host. The production instance runs on a homelab reachable
+      only over Tailscale, so the variables below are the shape of the
+      answer rather than the answer.
     variables:
       scheme:
         default: https

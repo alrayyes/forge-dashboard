@@ -52,6 +52,7 @@ check "web image e2e prose" "scripts/lint-prose.sh"
 check "web image e2e prose" "scripts/lint-mechanics.sh"
 check "web image e2e prose" "scripts/vale.sh"
 check "web api image e2e prose" "package.json"
+check "api prose" ".spectral.yaml"
 check "web api image e2e prose" "bun.lock"
 
 # Docker only.

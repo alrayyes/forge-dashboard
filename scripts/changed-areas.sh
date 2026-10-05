@@ -35,7 +35,7 @@ while IFS= read -r path; do
     api/*)
       api=true go=true
       ;;
-    redocly.yaml)
+    redocly.yaml | .spectral.yaml)
       api=true
       ;;
     docs/api/*)
