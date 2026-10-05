@@ -1093,7 +1093,7 @@ func TestFetch_MapsMergeStatusFromMergeStateStatus(t *testing.T) {
 		// signal — a generic "Blocked" pill next to it would say the
 		// same thing twice, less usefully the second time.
 		{"BEHIND", dashboard.MergeUnknown},
-		{"UNSTABLE", dashboard.MergeBlocked},
+		{"UNSTABLE", dashboard.MergeUnstable},
 		{"HAS_HOOKS", dashboard.MergeBlocked},
 		{"DRAFT", dashboard.MergeUnknown},
 		{"UNKNOWN", dashboard.MergeUnknown},
