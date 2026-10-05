@@ -73,6 +73,10 @@ func handlePullRequestUpdateBranch(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		// Accepted or done inline, the pull request carries the request until
+		// a snapshot shows it no longer behind (#982).
+		deps.Manager.RecordUpdateRequest(u.ID, dashboard.Forge(req.Forge), req.FullName, req.Number)
+
 		if accepted {
 			w.WriteHeader(http.StatusAccepted)
 
