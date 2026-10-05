@@ -9,6 +9,7 @@
     setThemeCookie,
     type ThemePreference,
   } from "#lib/theme.js";
+  import { formatDate } from "#lib/time.svelte.js";
 
   type SharedUser = { username: string; displayName: string };
   type SharingResponse = {
@@ -639,10 +640,6 @@
       tokenStatus = message;
       tokenStatusKind = kind;
     });
-  }
-
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString();
   }
 
   onMount(() => {
@@ -1598,7 +1595,9 @@
           <span>
             {escapeHTML(key.label)}<br />
             <span class="api-token-meta"
-              >Created {formatDate(key.createdAt)}</span
+              >Created <time datetime={key.createdAt}
+                >{formatDate(key.createdAt)}</time
+              ></span
             >
           </span>
           <button
@@ -1691,11 +1690,14 @@
           <span>
             {escapeHTML(tok.label)}<br />
             <span class="api-token-meta"
-              >Created {formatDate(tok.createdAt)} &middot; Expires {formatDate(
-                tok.expiresAt,
-              )} &middot; Last used {tok.lastUsedAt
-                ? formatDate(tok.lastUsedAt)
-                : "never used"}</span
+              >Created <time datetime={tok.createdAt}
+                >{formatDate(tok.createdAt)}</time
+              >
+              &middot; Expires
+              <time datetime={tok.expiresAt}>{formatDate(tok.expiresAt)}</time>
+              &middot; Last used {#if tok.lastUsedAt}<time
+                  datetime={tok.lastUsedAt}>{formatDate(tok.lastUsedAt)}</time
+                >{:else}never used{/if}</span
             >
           </span>
           <button
