@@ -20,8 +20,11 @@ type stubbornForge struct {
 
 func (f *stubbornForge) Fetch(context.Context) dashboard.Result {
 	return dashboard.Result{
-		Health:       dashboard.ForgeHealth{Forge: f.forge, Reachable: true},
-		PullRequests: []dashboard.PullRequest{{Forge: f.forge, Repo: "alrayyes/a", Number: 1}, {Forge: f.forge, Repo: "alrayyes/a", Number: 2}},
+		Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: f.forge, Repo: "alrayyes/a", Number: 1, MergeStatus: dashboard.MergeMergeable, CI: dashboard.CISuccess},
+			{Forge: f.forge, Repo: "alrayyes/a", Number: 2, MergeStatus: dashboard.MergeMergeable, CI: dashboard.CISuccess},
+		},
 	}
 }
 

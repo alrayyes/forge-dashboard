@@ -947,10 +947,15 @@ paths:
                 $ref: "#/components/schemas/ActionError"
         "409":
           description: |
-            The forge refused the merge and the pull request's current
-            state says why. `code` is one of `already_merged`,
-            `already_closed`, `not_mergeable`, `conflict`, `behind`,
-            `checks_pending`, `checks_failing` or `blocked_by_protection`.
+            The merge was refused, by this server or by the forge, and the
+            pull request's state says why. When the pull request is on the
+            signed-in user's board and its `allowedActions` entry for
+            `merge` is blocked, this server answers with that entry's `code`
+            and `message` and never asks the forge. Otherwise the forge
+            refused and the re-read says why. `code` is one of
+            `already_merged`, `already_closed`, `not_mergeable`, `conflict`,
+            `behind`, `checks_pending`, `checks_failing`,
+            `blocked_by_protection` or `stacked`.
           content:
             application/json:
               schema:
