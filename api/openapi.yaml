@@ -2860,13 +2860,16 @@ components:
 
     MergeStatus:
       type: string
-      enum: [mergeable, conflicting, blocked, unknown]
+      enum: [mergeable, conflicting, blocked, unstable, unknown]
       description: |
         A pull request's mergeable/blocked state, as coarse as every forge
         this service talks to can agree on. "blocked" covers anything
         stopping a merge that isn't confirmed to be a real conflict —
         including Forgejo's own mergeable flag reporting false, since its
         server computes that asynchronously and can report it stale.
+        "unstable" is GitHub's UNSTABLE: the pull request can be merged, but
+        a check that branch protection doesn't require is failing or still
+        running. Merge stays available.
         "unknown" covers both a forge that hasn't determined this yet and
         this service being unable to determine it.
 

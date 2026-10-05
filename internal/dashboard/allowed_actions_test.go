@@ -54,6 +54,8 @@ func TestAllowedActions(t *testing.T) {
 		{"conflicting and behind: update branch is locked too", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting; p.Behind = true }), []string{"close", "merge:conflict", "update_branch:conflict"}},
 		{"draft that is not mergeable", ghPR(func(p *dashboard.PullRequest) { p.Draft = true; p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:not_mergeable"}},
 		{"draft that GitHub calls clean is still blocked (#957)", ghPR(func(p *dashboard.PullRequest) { p.Draft = true }), []string{"close", "merge:not_mergeable"}},
+		{"unstable with a failing optional check still merges (#955)", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnstable; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge"}},
+		{"unstable with an optional check pending still merges (#956)", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnstable; p.CI = dashboard.CIPending }), []string{"auto_merge", "close", "merge"}},
 		{"CI pending locks merge even when mergeable", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{"auto_merge", "close", "merge:checks_pending"}},
 		{"behind and not mergeable", ghPR(func(p *dashboard.PullRequest) { p.Behind = true; p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:behind", "update_branch"}},
 		{"behind but mergeable keeps merge (Forgejo)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.Behind = true }), []string{"close", "merge", "update_branch"}},
