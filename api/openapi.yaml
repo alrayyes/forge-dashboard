@@ -1298,7 +1298,11 @@ paths:
             the connected GitHub credential is an App with no personal
             access token saved, and Dependabot ignores App accounts. The
             error text is ForgeHealth.dependabotCommandsBlocked in the
-            second case. Nothing was posted.
+            second case. A third case: the pull request is on the
+            signed-in user's board and its `allowedActions` has no
+            `dependabot_rebase` or `dependabot_recreate` entry (it isn't a
+            Dependabot pull request on GitHub), so this server refuses with
+            `not_mergeable` and never asks the forge. Nothing was posted.
           content:
             application/json:
               schema:
@@ -1370,6 +1374,17 @@ paths:
                 $ref: "#/components/schemas/ActionError"
         "404":
           description: The forge reported the repo or pull request doesn't exist, or (Forgejo only) the configured label doesn't exist on that repo — Forgejo's labels API takes an existing label's ID, not an arbitrary name, so it has to already be there.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "409":
+          description: |
+            The pull request is on the signed-in user's board and its
+            `allowedActions` has no `renovate_rebase` entry (it isn't a
+            Renovate pull request), so this server refuses with
+            `not_mergeable` and never asks the forge. The label was not
+            added.
           content:
             application/json:
               schema:
