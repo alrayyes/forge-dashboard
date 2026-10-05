@@ -9,6 +9,15 @@
     setThemeCookie,
     type ThemePreference,
   } from "#lib/theme.js";
+  import {
+    browserZone,
+    formatDate,
+    formatDateTime,
+    loadTimezone,
+    setTimezoneSetting,
+    timezone,
+    zoneNames,
+  } from "#lib/time.svelte.js";
 
   type SharedUser = { username: string; displayName: string };
   type SharingResponse = {
@@ -258,6 +267,50 @@
         // reconciliation (syncThemeFromServer) treats the cookie as
         // still-unconfirmed instead of blindly trusting a GET that may
         // be racing this exact request.
+      },
+    );
+  }
+
+  // ---- time zone (#996) ----
+  // "" is the browser's own zone. The shared formatter (#lib/time) reads the
+  // saved value, so setting it here redraws every time on the page at once.
+  const detectedZone = browserZone();
+  let timezoneStatus = $state("");
+  let timezoneStatusKind = $state<"" | "error">("");
+  const zones = $derived(zoneNames(timezone.setting));
+  // The zone being previewed is the one picked, "now" is refreshed so the
+  // preview reads as a clock, not a snapshot of when the page loaded.
+  let previewNow = $state(new Date().toISOString());
+
+  function selectTimezone(next: string) {
+    const previous = timezone.setting;
+    setTimezoneSetting(next);
+    timezoneStatus = "";
+    timezoneStatusKind = "";
+
+    fetch("/api/settings/timezone", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ timezone: next }),
+    }).then(
+      (res) => {
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          return;
+        }
+        if (!res.ok) {
+          // A refusal (an unknown name is a 400): the control shouldn't keep
+          // showing a choice that didn't stick.
+          setTimezoneSetting(previous);
+          timezoneStatus = "Could not save time zone.";
+          timezoneStatusKind = "error";
+        }
+      },
+      () => {
+        setTimezoneSetting(previous);
+        timezoneStatus = "Could not save time zone.";
+        timezoneStatusKind = "error";
       },
     );
   }
@@ -641,11 +694,11 @@
     });
   }
 
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString();
-  }
-
   onMount(() => {
+    loadTimezone();
+    const clock = setInterval(() => {
+      previewNow = new Date().toISOString();
+    }, 15000);
     loadSharing().catch((err) => {
       shareStatus = err.message || "Could not load sharing.";
       shareStatusKind = "error";
@@ -732,6 +785,8 @@
       passkeyStatus = err.message || "Could not load passkeys.";
       passkeyStatusKind = "error";
     });
+
+    return () => clearInterval(clock);
   });
 </script>
 
@@ -989,7 +1044,8 @@
        input's flex:1 group above, or it'd grow to match their width on
        a wide viewport for no reason; a fixed intrinsic width instead,
        same as any other <select> elsewhere in this file. */
-    #token-form select {
+    #token-form select,
+    #timezone-select {
       font-family: inherit;
       font-size: 13.5px;
       padding: 9px 11px;
@@ -997,6 +1053,24 @@
       border: 1px solid var(--border-strong);
       background: var(--surface-sunken);
       color: var(--ink);
+    }
+    .timezone-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      margin-top: 16px;
+    }
+    .timezone-row label {
+      font-size: 13.5px;
+      color: var(--ink-2);
+    }
+    #timezone-select {
+      max-width: 100%;
+    }
+    .timezone-preview {
+      font-size: 13px;
+      color: var(--ink-3);
     }
     .share-list {
       list-style: none;
@@ -1111,6 +1185,34 @@
       aria-live="polite"
     >
       {themeStatus}
+    </p>
+    <div class="timezone-row">
+      <label for="timezone-select">Time zone</label>
+      <select
+        id="timezone-select"
+        value={timezone.setting}
+        onchange={(e) => selectTimezone(e.currentTarget.value)}
+        aria-describedby="timezone-preview timezone-status"
+      >
+        <option value="">Browser default ({detectedZone})</option>
+        {#each zones as zone (zone)}
+          <option value={zone}>{zone}</option>
+        {/each}
+      </select>
+      <span class="timezone-preview" id="timezone-preview">
+        Now:
+        <time datetime={previewNow}
+          >{formatDateTime(previewNow, timezone.setting || detectedZone)}</time
+        >
+      </span>
+    </div>
+    <p
+      class={`status${timezoneStatusKind ? ` ${timezoneStatusKind}` : ""}`}
+      id="timezone-status"
+      role="status"
+      aria-live="polite"
+    >
+      {timezoneStatus}
     </p>
   </div>
 
@@ -1598,7 +1700,9 @@
           <span>
             {escapeHTML(key.label)}<br />
             <span class="api-token-meta"
-              >Created {formatDate(key.createdAt)}</span
+              >Created <time datetime={key.createdAt}
+                >{formatDate(key.createdAt)}</time
+              ></span
             >
           </span>
           <button
@@ -1691,11 +1795,14 @@
           <span>
             {escapeHTML(tok.label)}<br />
             <span class="api-token-meta"
-              >Created {formatDate(tok.createdAt)} &middot; Expires {formatDate(
-                tok.expiresAt,
-              )} &middot; Last used {tok.lastUsedAt
-                ? formatDate(tok.lastUsedAt)
-                : "never used"}</span
+              >Created <time datetime={tok.createdAt}
+                >{formatDate(tok.createdAt)}</time
+              >
+              &middot; Expires
+              <time datetime={tok.expiresAt}>{formatDate(tok.expiresAt)}</time>
+              &middot; Last used {#if tok.lastUsedAt}<time
+                  datetime={tok.lastUsedAt}>{formatDate(tok.lastUsedAt)}</time
+                >{:else}never used{/if}</span
             >
           </span>
           <button
