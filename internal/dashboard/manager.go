@@ -253,6 +253,20 @@ func (m *Manager) RecordBotRequest(userID []byte, forge Forge, repo string, numb
 	entry.agg.RecordBotRequest(forge, repo, number, bot, action)
 }
 
+// RecordUpdateRequest delegates to userID's Aggregator — see
+// Aggregator.RecordUpdateRequest. A user with no running Aggregator has no
+// board to show it on, so it does nothing.
+func (m *Manager) RecordUpdateRequest(userID []byte, forge Forge, repo string, number int) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return
+	}
+	entry.agg.RecordUpdateRequest(forge, repo, number)
+}
+
 // RefreshRepo delegates to userID's Aggregator — see
 // Aggregator.RefreshRepo. Reports false if userID has no running
 // Aggregator, the same as RefreshNow, and also false wherever
