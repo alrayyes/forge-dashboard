@@ -372,8 +372,14 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       await expect(
         row.getByRole('button', { name: 'Dependabot: Rebase' }),
       ).toHaveCount(0);
+      // The server has the request once it answers (the toast says so). A
+      // snapshot without a botRequest then means the bot is done with it.
+      await expect(page.locator('#feedback-toasts')).toContainText(
+        'requested.',
+      );
 
-      // The bot rebuilt it: no longer behind, CI already running.
+      // The bot rebuilt it: no longer behind, CI already running, and the
+      // server dropped the request.
       current = { ...current, behind: false, ci: 'pending' };
       await page.evaluate(
         (data) => {

@@ -73,6 +73,17 @@
     stack?: { position: number; size: number } | null;
     stackedOn?: { number: number; url: string } | null;
     stackChildren?: number[];
+    // A Dependabot or Renovate rebase asked for through this app and not
+    // settled yet (#808). The server owns it.
+    botRequest?: ServerBotRequest;
+  };
+  // Matches components.schemas.BotRequest in api/openapi.yaml.
+  type ServerBotRequest = {
+    bot: "dependabot" | "renovate";
+    action: "rebase" | "recreate";
+    phase: "queued" | "rebasing" | "expired";
+    requestedAt: string;
+    expiresAt: string;
   };
   type IssueItem = FilterableItem & {
     number: number;
@@ -139,11 +150,18 @@
     // The feedback entry that explains a permission lock (#918): the lock
     // lasts as long as that failure line does.
     fkey?: string;
-    // Only on a queued bot rebase (#706): what the snapshot has to show
-    // before the wait counts as over.
-    queued?: { prKey: string; wasBehind: boolean; at: number; seq: number };
-    // Only while "rebasing": when the pickup was seen.
-    rebasingSince?: number;
+    // Only on a queued or rebasing bot request (#706, #808): which pull
+    // request it is on, and what lets a snapshot without a botRequest end
+    // the wait. A snapshot only counts once the server has the request
+    // (`posted`) and the fetch started after that (`seq`, #691).
+    // `restored` marks one this page only learned of from a snapshot: no
+    // click of this page's own is mid-way, so it doesn't hold the board.
+    queued?: {
+      prKey: string;
+      posted: boolean;
+      seq: number;
+      restored?: boolean;
+    };
   };
 
   onMount(initDashboard);
@@ -1977,15 +1995,10 @@
     };
 
     // What the row line needs to talk about the bot (#707).
-    function botRequest(
-      item: PullRequestItem,
-      bot: "Dependabot" | "Renovate",
-    ): BotRequest {
+    function botLineInfo(bot: "Dependabot" | "Renovate"): BotRequest {
       return {
         bot,
         trigger: bot === "Renovate" ? "label" : "comment",
-        url: item.url,
-        forgeLabel: FORGE_LABELS[item.forge] || item.forge,
       };
     }
 
@@ -2020,7 +2033,7 @@
         phase: "queued",
         inline: "Waiting for Dependabot",
         message: `Dependabot ${action} requested.`,
-        bot: action === "rebase" ? botRequest(item, "Dependabot") : undefined,
+        bot: action === "rebase" ? botLineInfo("Dependabot") : undefined,
         retry: () => doDependabotAction(item, action, buttonEl("row-action")),
       });
 
@@ -2062,6 +2075,7 @@
           // on the page (confirmed live). Left open on failure/lock
           // below, since that's exactly when the popover is still
           // showing something the user needs to see.
+          confirmBotRequest(dependabotActionState, key);
           feedback.update(fkey, {
             toast: true,
             announce:
@@ -2177,7 +2191,10 @@
     function anyRowActionInFlight(): boolean {
       // "rebasing" is a bot already acting on its own: nothing the user
       // is mid-way through, so snapshots keep landing in place (#707).
+      // A request restored from a snapshot (a reload) isn't a click of
+      // this page's own either.
       const inFlight = (entry: ActionState) =>
+        !entry.queued?.restored &&
         entry.phase !== "idle" &&
         entry.phase !== "locked" &&
         entry.phase !== "merged" &&
@@ -2547,7 +2564,7 @@
         phase: "queued",
         inline: "Waiting for Renovate",
         message: "Renovate rebase requested.",
-        bot: botRequest(item, "Renovate"),
+        bot: botLineInfo("Renovate"),
         retry: () => doRenovateRebase(item, buttonEl("row-action")),
       });
 
@@ -2578,6 +2595,7 @@
           // Same "close the popover this button lives in, once it has
           // nothing left to say" reasoning doDependabotAction's own
           // success handler uses.
+          confirmBotRequest(renovateRebaseState, key);
           feedback.update(fkey, {
             toast: true,
             announce:
@@ -4412,13 +4430,6 @@
     // next poll that sits in an aria-hidden span (feedback-ui.ts) so a
     // screen reader isn't read a new number every second.
 
-    // How long a bot rebase may stay queued without a snapshot showing it
-    // landed. A bot that ignores the request would otherwise leave a
-    // disabled button and a "waiting" line up for good.
-    const QUEUED_BOT_EXPIRY_MS = 5 * 60 * 1000;
-    // How long "Rebasing…" waits for CI to show as restarted (#707).
-    const BOT_REBASING_CAP_MS = 2 * 60 * 1000;
-
     // The pending button's label while a bot has the request: it names
     // what was asked for (#792).
     function queuedBotLabel(rebase: boolean): string {
@@ -4436,86 +4447,161 @@
     function queuedBotInfo(item: PullRequestItem) {
       return {
         prKey: prKey(item),
-        wasBehind: Boolean(item.behind),
-        at: Date.now(),
+        // Until the server has answered 204 it has no record to show.
+        posted: false,
         // The last fetch started before this click (#691): an answer to
         // it or to anything earlier can't show what the click did.
         seq: requestSeq,
       };
     }
 
-    // Bot-triggered requests (not update-branch) hold "queued" until a
-    // snapshot shows the rebase landed: the pull request is gone, or it
-    // was behind when asked and no longer is. Any other snapshot (the
-    // live stream pushes one all the time) says nothing about the bot,
-    // so it must not end the wait. Expires after a while so a bot that
-    // never acts doesn't pin the button disabled; the row, an error toast
-    // and Activity then say so.
-    function clearResolvedQueuedBotActions(
+    // The server has the request now (204): from here a snapshot without
+    // a botRequest means it was settled. A fetch that started before this
+    // moment can't have seen it, so the bar moves up to now (#691).
+    function confirmBotRequest(
+      stateMap: Record<string, ActionState>,
+      key: string,
+    ) {
+      const queued = stateMap[key]?.queued;
+      if (!queued) return;
+      queued.posted = true;
+      queued.seq = requestSeq;
+    }
+
+    // The two kinds of bot request the page draws, and how each one's
+    // state is keyed.
+    const botKinds = [
+      {
+        id: "dependabot",
+        name: "Dependabot",
+        stateMap: dependabotActionState,
+        keyOf: (pk: string, request: ServerBotRequest) =>
+          `${pk}:${request.action}`,
+      },
+      {
+        id: "renovate",
+        name: "Renovate",
+        stateMap: renovateRebaseState,
+        keyOf: (pk: string) => pk,
+      },
+    ] as const;
+
+    // The server owns a bot request (#808): it is on the pull request as
+    // botRequest, queued, rebasing or expired, and it is gone once the
+    // server has settled it. This only draws that. A click shows queued
+    // at once; each snapshot then takes over:
+    //   - a botRequest in phase rebasing moves the row to Rebasing…
+    //   - phase expired ends it with an error toast and Retry
+    //   - no botRequest ends it as finished, unless the fetch can't have
+    //     seen the request yet (it started before the server had it)
+    //   - a botRequest this page never clicked (a reload, another tab)
+    //     starts the same row state, so a wait survives a reload.
+    // Returns the pull requests whose bot state changed.
+    function syncBotRequests(
       prs: PullRequestItem[],
       startedSeq: number | undefined,
     ): Set<string> {
       const changed = new Set<string>();
       const byKey = new Map(prs.map((p) => [prKey(p), p]));
-      for (const stateMap of [dependabotActionState, renovateRebaseState]) {
-        const bot =
-          stateMap === dependabotActionState ? "Dependabot" : "Renovate";
+      for (const kind of botKinds) {
+        const stateMap: Record<string, ActionState> = kind.stateMap;
         for (const key of Object.keys(stateMap)) {
           const entry = stateMap[key];
-          const fkey =
-            stateMap === dependabotActionState
-              ? `dependabot:${key}`
-              : `renovate:${key}`;
-          if (entry.phase === "rebasing") {
-            // Picked up (#707): done once CI shows as restarted, or after
-            // a while for a repo whose CI never will.
-            const current = byKey.get(entry.queued?.prKey ?? "");
-            const ciRestarted = !current || current.ci === "pending";
-            const gaveUp =
-              Date.now() - (entry.rebasingSince ?? 0) > BOT_REBASING_CAP_MS;
-            if (ciRestarted || gaveUp) {
-              finishBotRebase(stateMap, key, fkey, bot);
-              changed.add(entry.queued?.prKey ?? key);
-            }
+          const queued = entry.queued;
+          if (
+            !queued ||
+            (entry.phase !== "queued" && entry.phase !== "rebasing")
+          )
+            continue;
+          const fkey = `${kind.id}:${key}`;
+          const request = byKey.get(queued.prKey)?.botRequest;
+          const current =
+            request &&
+            request.bot === kind.id &&
+            kind.keyOf(queued.prKey, request) === key
+              ? request
+              : undefined;
+          if (!current) {
+            // Not there yet, or already settled? Only a fetch that started
+            // after the server had it can tell. A push from the live
+            // stream has no start to compare, so it counts.
+            if (!queued.posted) continue;
+            if (startedSeq !== undefined && startedSeq <= queued.seq) continue;
+            finishBotRebase(stateMap, key, fkey, kind.name);
+            changed.add(queued.prKey);
             continue;
           }
-          if (entry.phase !== "queued" || !entry.queued) continue;
-          // Only a fetch that started after the click can tell. A push
-          // from the live stream has no start to compare, so it counts.
-          if (startedSeq !== undefined && startedSeq <= entry.queued.seq)
-            continue;
-          const current = byKey.get(entry.queued.prKey);
-          const landed =
-            !current || (entry.queued.wasBehind && !current.behind);
-          if (landed && current && current.ci !== "pending") {
-            // The bot has rebased it; CI hasn't restarted yet.
-            entry.phase = "rebasing";
-            entry.rebasingSince = Date.now();
-            changed.add(entry.queued.prKey);
-            const message = `${bot} picked up the rebase.`;
-            feedback.update(fkey, {
-              phase: "rebasing",
-              inline: "Rebasing…",
-              message,
-              announce: `${bot} picked up the rebase. Waiting for CI to restart.`,
-            });
-          } else if (landed) {
-            finishBotRebase(stateMap, key, fkey, bot);
-            changed.add(entry.queued.prKey);
-          } else if (Date.now() - entry.queued.at > QUEUED_BOT_EXPIRY_MS) {
-            changed.add(entry.queued.prKey);
+          // The row the server's record is on takes it in place, even
+          // while this click holds the board: the record is no news to
+          // the user, so it must not read as "1 update available".
+          const shown = shownPRs.find((p) => prKey(p) === queued.prKey);
+          if (JSON.stringify(shown?.botRequest) !== JSON.stringify(current))
+            changed.add(queued.prKey);
+          if (current.phase === "expired") {
             delete stateMap[key];
-            const reason = "No change seen after 5 minutes.";
+            const reason = "No change seen in the time allowed.";
             feedback.update(fkey, {
               phase: "expired",
               inline: reason,
-              message: `${bot} hasn't acted: ${reason}`,
+              message: `${kind.name} hasn't acted: ${reason}`,
               toast: true,
-              announce: `${bot} hasn't acted: ${reason}`,
+              announce: `${kind.name} hasn't acted: ${reason}`,
               canRetry: true,
+            });
+          } else if (current.phase === "rebasing" && entry.phase === "queued") {
+            entry.phase = "rebasing";
+            feedback.update(fkey, {
+              phase: "rebasing",
+              inline: "Rebasing…",
+              message: `${kind.name} picked up the rebase.`,
+              announce: `${kind.name} picked up the rebase. Waiting for CI to restart.`,
             });
           }
         }
+      }
+      // A request this page didn't click.
+      for (const pr of prs) {
+        const request = pr.botRequest;
+        if (!request || request.phase === "expired") continue;
+        const kind = botKinds.find((k) => k.id === request.bot);
+        if (!kind) continue;
+        const pk = prKey(pr);
+        const key = kind.keyOf(pk, request);
+        const stateMap: Record<string, ActionState> = kind.stateMap;
+        if (stateMap[key]) continue;
+        stateMap[key] = {
+          phase: request.phase,
+          queued: { prKey: pk, posted: true, seq: 0, restored: true },
+        };
+        changed.add(pk);
+        const rebase = request.action === "rebase";
+        const fkey = `${kind.id}:${key}`;
+        feedback.start({
+          actionKey: fkey,
+          ref: actionRef(pr),
+          label:
+            kind.id === "renovate"
+              ? "Renovate: Rebase"
+              : DEPENDABOT_ACTION_LABELS[request.action],
+          phase: "queued",
+          inline: `Waiting for ${kind.name}`,
+          message: `${kind.name} ${request.action} requested.`,
+          startedAt: Date.parse(request.requestedAt) || undefined,
+          bot: rebase ? botLineInfo(kind.name) : undefined,
+          retry: () => {
+            const row = pr;
+            if (kind.id === "renovate")
+              doRenovateRebase(row, buttonEl("row-action"));
+            else
+              doDependabotAction(row, request.action, buttonEl("row-action"));
+          },
+        });
+        if (request.phase === "rebasing")
+          feedback.update(fkey, {
+            phase: "rebasing",
+            inline: "Rebasing…",
+            message: `${kind.name} picked up the rebase.`,
+          });
       }
       return changed;
     }
@@ -4668,7 +4754,7 @@
       // action — not just any snapshot (#706). Cleared before
       // anyRowActionInFlight is consulted below, so a resolved row
       // doesn't also hold the board back.
-      const botChanged = clearResolvedQueuedBotActions(prs, startedSeq);
+      const botChanged = syncBotRequests(prs, startedSeq);
       for (const item of clearResolvedUpdateBranches(updateBranchState, prs)) {
         feedback.update(`update-branch:${prKey(item)}`, {
           phase: "done",
