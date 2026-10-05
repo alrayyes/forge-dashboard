@@ -56,6 +56,10 @@ type PullRequestState struct {
 	Behind        bool
 	Blocked       bool
 	ChecksFailing bool
+	// ChangesWorkflows is set when the pull request changes a file under
+	// .github/workflows/. GitHub won't update such a branch for an app
+	// without the Workflows permission (#919).
+	ChangesWorkflows bool
 }
 
 // PullRequestStateReader is implemented by a ForgeClient (or, for
@@ -137,6 +141,9 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 	if r, ok := refusalFromFinishedState(state); ok {
 		return r
 	}
+	if r, ok := refusalFromWorkflowChange(action, actionErr, state); ok {
+		return r
+	}
 	if r, ok := refusalFromKind(actionErr); ok {
 		return r
 	}
@@ -211,6 +218,20 @@ func isPlainSentence(text string) bool {
 	}
 
 	return !strings.ContainsAny(text, "/{}") && !strings.Contains(text, "://")
+}
+
+// refusalFromWorkflowChange explains a permission refusal of Update branch on
+// a pull request that changes workflow files: the cause is the app's missing
+// Workflows permission, which a token in Settings can't fix (#919).
+func refusalFromWorkflowChange(action PullRequestAction, actionErr error, state *PullRequestState) (ActionRefusal, bool) {
+	if action != PullRequestActionUpdateBranch || state == nil || !state.ChangesWorkflows {
+		return ActionRefusal{}, false
+	}
+	if clientErr, ok := errors.AsType[*ClientError](actionErr); !ok || clientErr.Kind != ForgeErrorUnauthorized {
+		return ActionRefusal{}, false
+	}
+
+	return ActionRefusal{Code: ActionPermission, Message: "GitHub won't let this app update a branch that changes workflow files. The app needs the Workflows permission, or update the branch by hand."}, true
 }
 
 // refusalFromKind is the part every action shares that the forge's error
