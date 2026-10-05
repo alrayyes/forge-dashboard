@@ -31,6 +31,17 @@ const (
 	fixtureRepo  = "forge-dashboard-e2e-fixture"
 )
 
+// knownDisagreements lists scenarios where the dashboard and GitHub differ,
+// by scenario title and the ticket (or reason) that tracks each. The
+// test fails on a listed scenario that now agrees, so the entry gets removed
+// with the fix instead of rotting.
+var knownDisagreements = map[string]string{
+	"optional-failing":         "#952",
+	"optional-pending":         "#952",
+	"empty-after-base-took-it": "by design: the dashboard blocks a merge that would be empty",
+	"draft-clean":              "#954",
+}
+
 // githubTruth is what GitHub says about one pull request.
 type githubTruth struct {
 	Number              int       `json:"number"`
@@ -136,7 +147,13 @@ func TestGitHubState_DashboardAgreesWithGitHub(t *testing.T) {
 		allowed, why := dashboardMergeAllowed(pr)
 		want := g.githubMergeable()
 		verdict := "agree"
+		ticket, known := knownDisagreements[g.Title]
 		switch {
+		case allowed != want && known:
+			verdict = fmt.Sprintf("known, %s (GitHub can merge=%t, dashboard allows=%t)", ticket, want, allowed)
+		case allowed == want && known:
+			verdict = "agree"
+			disagreements = append(disagreements, fmt.Sprintf("#%d %s: now agrees, remove it from knownDisagreements (%s)", n, g.Title, ticket))
 		case allowed != want:
 			verdict = fmt.Sprintf("DISAGREE (GitHub can merge=%t, dashboard allows=%t: %s)", want, allowed, why)
 			disagreements = append(disagreements, fmt.Sprintf("#%d %s: %s", n, g.Title, verdict))
