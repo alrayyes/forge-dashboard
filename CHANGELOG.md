@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.134.1](https://github.com/alrayyes/forge-dashboard/compare/v0.134.0...v0.134.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **deps:** bump the docker-images group across 1 directory with 2 updates ([#1011](https://github.com/alrayyes/forge-dashboard/issues/1011)) ([a9bdc3c](https://github.com/alrayyes/forge-dashboard/commit/a9bdc3ced825dc729e09baa51fba8b7d5ae65785))
+
 ## [0.134.0](https://github.com/alrayyes/forge-dashboard/compare/v0.133.3...v0.134.0) (2026-10-05)
 
 
