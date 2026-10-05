@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { formatDate, formatDateTime } from "#lib/time.svelte.js";
 
   type AdminUser = {
     username: string;
@@ -68,16 +69,6 @@
 
   function escapeHTML(s: string): string {
     return s;
-  }
-
-  function formatDate(iso: string): string {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
-  }
-
-  function formatDateTime(iso: string): string {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
   }
 
   // outcomeBadgeClass buckets every ForgeErrorKind besides "rate_limited"
@@ -652,7 +643,9 @@
                 <span class="admin-badge">Admin</span>{/if}</td
             >
             <td data-label="Display name">{escapeHTML(u.displayName)}</td>
-            <td data-label="Registered">{formatDate(u.createdAt)}</td>
+            <td data-label="Registered">
+              <time datetime={u.createdAt}>{formatDate(u.createdAt)}</time>
+            </td>
             <td class="row-actions" data-label="Actions">
               <button
                 class="btn"
@@ -759,7 +752,9 @@
         {#each invites as inv (inv.id)}
           <tr data-username={inv.username}>
             <td data-label="Username">{escapeHTML(inv.username)}</td>
-            <td data-label="Expires">{formatDate(inv.expiresAt)}</td>
+            <td data-label="Expires">
+              <time datetime={inv.expiresAt}>{formatDate(inv.expiresAt)}</time>
+            </td>
             <td class="row-actions" data-label="Actions">
               <button
                 class="btn btn-danger"
@@ -844,7 +839,9 @@
       <tbody id="request-rows">
         {#each requests as r, i (`${r.loggedAt}-${r.forge}-${r.endpoint}-${i}`)}
           <tr>
-            <td data-label="Logged at">{formatDateTime(r.loggedAt)}</td>
+            <td data-label="Logged at">
+              <time datetime={r.loggedAt}>{formatDateTime(r.loggedAt)}</time>
+            </td>
             <td data-label="Forge">{r.forge}</td>
             <td data-label="Account"
               >{r.account ? escapeHTML(r.account) : "—"}</td

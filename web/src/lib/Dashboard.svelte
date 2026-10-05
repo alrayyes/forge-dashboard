@@ -35,11 +35,15 @@
     budgetText,
     isRateLimited,
     msUntilReset,
-    formatResetTime,
     PERMISSION_REASON,
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
+  import {
+    formatTime,
+    onTimezoneChange,
+    effectiveZone,
+  } from "#lib/time.svelte.js";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, admin-link, logout-button, whoami) —
@@ -4333,9 +4337,13 @@
         existing?.remove();
         return;
       }
-      const signature = rateLimitAlerts
-        .map((a) => `${a.label}|${a.severity}|${a.resetsAt}|${a.remaining}`)
-        .join(";");
+      // The zone is part of it: a changed zone redraws the reset times.
+      const signature = [
+        effectiveZone(),
+        ...rateLimitAlerts.map(
+          (a) => `${a.label}|${a.severity}|${a.resetsAt}|${a.remaining}`,
+        ),
+      ].join(";");
       if (existing && existing.dataset.signature === signature) {
         existing
           .querySelectorAll<HTMLElement>(".rate-limit-banner-timer")
@@ -4352,7 +4360,7 @@
       for (const alert of rateLimitAlerts) {
         const exceeded = alert.severity === "exceeded";
         const row = el("div", `rate-limit-banner-row${exceeded ? "" : " low"}`);
-        const resetAt = `resets at ${formatResetTime(alert.resetsAt)}`;
+        const resetAt = `resets at ${formatTime(alert.resetsAt)}`;
         row.appendChild(
           el(
             "span",
@@ -4992,7 +5000,19 @@
       refresh(true);
     };
 
-    return () => document.removeEventListener("keydown", onSlashShortcut);
+    // The saved time zone arrives after the first render, and Settings can
+    // change it: redraw everything that shows a reset time (#996).
+    const stopTimezone = onTimezoneChange(() => {
+      if (!lastGeneratedAt) return; // nothing drawn yet; the first snapshot reads the zone
+      renderForgeHealth(lastForges);
+      renderRateLimitBanner();
+      renderPRBoard();
+    });
+
+    return () => {
+      stopTimezone();
+      document.removeEventListener("keydown", onSlashShortcut);
+    };
   }
 </script>
 

@@ -6,6 +6,7 @@
     readActionFailure,
   } from "#lib/action-error.js";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
+  import { formatTime } from "#lib/time.svelte.js";
 
   type RateLimit = {
     limit: number;
@@ -68,13 +69,6 @@
     );
   }
 
-  function resetTimeLabel(iso: string): string {
-    return new Date(iso).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
   function rowKey(repo: Repo): string {
     return `${repo.forge}:${repo.fullName}`;
   }
@@ -101,7 +95,7 @@
   function rateLimitLock(forge: string): string | null {
     const f = forges.find((f) => f.forge === forge);
     if (f?.rateLimitREST && isRateLimited(f.rateLimitREST)) {
-      return `Rate limit exhausted · resets ${resetTimeLabel(f.rateLimitREST.resetsAt)}`;
+      return `Rate limit exhausted · resets ${formatTime(f.rateLimitREST.resetsAt)}`;
     }
     return null;
   }

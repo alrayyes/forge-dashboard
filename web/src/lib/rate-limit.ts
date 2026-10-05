@@ -4,6 +4,8 @@
 // (#732). Pure helpers, no DOM, so the dashboard page stays the only place
 // that touches elements.
 
+import { formatTime } from './time.svelte';
+
 // severity is the server's grade of the budget as of the response (#806).
 export type RateLimit = {
   limit: number;
@@ -28,14 +30,6 @@ export function isRateLimited(
   return Number.isFinite(resetsAt) && resetsAt > now;
 }
 
-// The clock time the budget comes back, in the viewer's locale.
-export function formatResetTime(resetsAt: string): string {
-  return new Date(resetsAt).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 // "in 12 min", rounded up so it never reads "in 0 min" before the reset.
 export function minutesUntil(
   resetsAt: string,
@@ -56,12 +50,12 @@ export function rateLimitReasonText(
   if (!resetsAt || !Number.isFinite(Date.parse(resetsAt))) {
     return `${head} Actions resume once it resets.`;
   }
-  return `${head} Actions resume at ${formatResetTime(resetsAt)} (in ${minutesUntil(resetsAt, now)} min).`;
+  return `${head} Actions resume at ${formatTime(resetsAt)} (in ${minutesUntil(resetsAt, now)} min).`;
 }
 
 // The header's budget text, e.g. "GH: 0/5,000 reqs, resets 14:32".
 export function budgetText(shortLabel: string, limit: RateLimit): string {
-  return `${shortLabel}: ${limit.remaining.toLocaleString('en-US')}/${limit.limit.toLocaleString('en-US')} reqs, resets ${formatResetTime(limit.resetsAt)}`;
+  return `${shortLabel}: ${limit.remaining.toLocaleString('en-US')}/${limit.limit.toLocaleString('en-US')} reqs, resets ${formatTime(limit.resetsAt)}`;
 }
 
 // Milliseconds until a timer should fire to re-enable actions: just past
