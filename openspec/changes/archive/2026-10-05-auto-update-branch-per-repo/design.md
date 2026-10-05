@@ -2,7 +2,7 @@
 
 ## Context
 
-See proposal.md - Why. Today's background refresh loop (`internal/dashboard/manager.go`'s `Manager`/`Aggregator`) is strictly read-only: it fetches and re-fetches snapshots on a timer and via webhook-triggered refreshes, and nothing in this codebase writes back to a forge automatically. The only existing write path for updating a branch is the manual `POST /api/pull-requests/update-branch` handler, driven by a row click in `app.js`. The only existing per-repo persistence is `webhook_deliveries`, a passive record, not a user-set preference.
+See proposal.md - Why. Today's background refresh loop (`internal/dashboard/manager.go`'s `Manager`/`Aggregator`) is strictly read-only: it fetches and re-fetches snapshots on a timer and via webhook-triggered refreshes, and nothing in this codebase writes back to a forge automatically. The only existing write path for updating a branch is the manual `POST /api/pull-requests/update-branch` handler, driven by a row click in the page. The only existing per-repo persistence is `webhook_deliveries`, a passive record, not a user-set preference.
 
 ## Goals / Non-Goals
 
@@ -20,7 +20,7 @@ See proposal.md - Why. Today's background refresh loop (`internal/dashboard/mana
 
 **Where the auto-update runs: inside the existing per-user refresh, not a separate job.** `Aggregator.Refresh` already has, per call, the freshly fetched `PullRequests` (including `Behind`) and the settings needed to build sources. Adding an auto-update pass right after a refresh completes (before publishing the snapshot, or as an immediately-following step) avoids standing up a second scheduler or duplicating the fetch. Alternative considered: a wholly separate ticker scanning all users' latest snapshots — rejected as needless duplication of state the aggregator already holds fresh.
 
-**Gating logic is reused, not reimplemented.** `isBotManagedPr`/`allowBotPrUpdates` currently live in `app.js` (frontend-only). Since auto-update now needs the same decision server-side, this logic moves to (or is duplicated identically in) `internal/dashboard` or `internal/api`, and the frontend's manual-click path calls the same function rather than each maintaining its own copy of "is this PR bot-managed."
+**Gating logic is reused, not reimplemented.** The bot-managed check lived in the page. Auto-update needs the same decision server-side, so it moved into `internal/dashboard`, and the page reads the server's `allowedActions` instead of keeping its own copy of "is this PR bot-managed" (#805).
 
 **Per-repo setting storage**: a new table, `(user_id, forge, repo_full_name, auto_update_branch BOOLEAN)`, following the exact shape `webhook_deliveries` already established for per-user-per-repo state — not a JSON blob on the existing `user_credentials` row, since that row's `Store.Set` is a full-row replace (see its own doc comment: "a Settings save is always a full form submit"), a poor fit for a value that can also be bulk-written across many repos in one action.
 
