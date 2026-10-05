@@ -79,7 +79,7 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 			"Merge unlocks once "+parent+" merges and this pull request is retargeted.")
 	case pr.MergeStatus == MergeConflicting:
 		return blocked(ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge")
-	case pr.Draft && pr.MergeStatus != MergeMergeable:
+	case pr.Draft:
 		return blocked(ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge")
 	case pr.CI == CIPending:
 		// Overrides a forge that says mergeable while checks still run (#385).
