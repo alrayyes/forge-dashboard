@@ -9,7 +9,7 @@ Every PR that's behind its base branch has to be brought up to date with a manua
 - A per-user, per-repo `auto_update_branch` setting, persisted server-side.
 - A bulk action that sets or clears the setting for every currently tracked repo at once, composing with (not overriding) later per-repo changes.
 - The existing background refresh loop calls `UpdateBranch` automatically for any PR that's behind on a repo with the setting enabled — the same write the manual button already performs, just triggered by the poll instead of a click.
-- Auto-sync respects the existing bot-managed-PR suppression (`isBotManagedPr`/`allowBotPrUpdates`) exactly as the manual button already does — it is not a second, independent gate.
+- Auto-sync leaves bot-managed pull requests to their own actions, as the manual buttons do: Dependabot's rebase and recreate commands, Renovate's rebase label, and nothing for release-please. It is not a second, independent gate.
 - Settings UI: a per-repo toggle plus a bulk "all repos" control.
 
 ## Capabilities
