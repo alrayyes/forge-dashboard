@@ -208,7 +208,18 @@
     // Per-pull-request action feedback (#714): inline row lines, toasts
     // and the Activity panel. State lives here, outside the DOM, so it
     // outlasts every row rebuild and snapshot.
-    const feedback = createFeedbackStore();
+    // Finished entries survive a reload in this tab (#724); a blocked
+    // sessionStorage just means an empty list.
+    const feedback = createFeedbackStore(
+      Date.now,
+      (() => {
+        try {
+          return window.sessionStorage;
+        } catch {
+          return undefined;
+        }
+      })(),
+    );
     const feedbackUI = mountFeedbackUI(feedback, {
       countdownText: () => queuedCountdownText(),
     });
