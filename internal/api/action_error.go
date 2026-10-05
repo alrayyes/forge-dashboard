@@ -103,6 +103,8 @@ func notOfferedRefusal(action dashboard.ActionName, pr dashboard.PullRequest) da
 		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This isn't a Dependabot pull request on GitHub."}
 	case dashboard.ActionRenovateRebase:
 		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This isn't a Renovate pull request."}
+	case dashboard.ActionRerunChecks:
+		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "There are no failed checks to rerun on GitHub for this pull request."}
 	}
 
 	return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This action doesn't apply to this pull request."}
