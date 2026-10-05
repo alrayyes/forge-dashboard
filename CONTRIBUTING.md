@@ -53,6 +53,7 @@ each job runs when its area is set:
 | `hadolint` | `Dockerfile*`, `.dockerignore`                                                 | `dockerfile`                                                             |
 | `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh` | `prose`                                                                  |
 | `api`      | `api/`, `redocly.yaml`, `package.json`                                         | `api`                                                                    |
+| `release`  | `.goreleaser.yml`                                                              | `goreleaser`                                                             |
 
 A path the script doesn't know runs everything, and so does every push to
 `main` and any change to `ci.yml`. Skipped jobs report as skipped, which

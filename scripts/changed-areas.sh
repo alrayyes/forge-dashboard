@@ -13,9 +13,9 @@
 # a full run instead of a skipped job that could have failed.
 set -euo pipefail
 
-go=false web=false image=false hadolint=false prose=false api=false
+go=false web=false image=false hadolint=false prose=false api=false release=false
 
-all() { go=true web=true image=true hadolint=true prose=true api=true; }
+all() { go=true web=true image=true hadolint=true prose=true api=true release=true; }
 
 while IFS= read -r path; do
   [ -n "$path" ] || continue
@@ -50,6 +50,9 @@ while IFS= read -r path; do
     web/* | tests/* | scripts/* | playwright.config.ts | biome.json | tsconfig.json | lighthouserc.json)
       web=true
       ;;
+    .goreleaser.yml)
+      release=true
+      ;;
     Dockerfile | Dockerfile.release | .dockerignore | .hadolint.yaml)
       image=true hadolint=true
       ;;
@@ -80,5 +83,5 @@ fi
 # image: Go, web or Docker changes all can break it.
 e2e=$image
 
-printf 'go=%s\nweb=%s\nimage=%s\ne2e=%s\nhadolint=%s\nprose=%s\napi=%s\n' \
-  "$go" "$web" "$image" "$e2e" "$hadolint" "$prose" "$api"
+printf 'go=%s\nweb=%s\nimage=%s\ne2e=%s\nhadolint=%s\nprose=%s\napi=%s\nrelease=%s\n' \
+  "$go" "$web" "$image" "$e2e" "$hadolint" "$prose" "$api" "$release"

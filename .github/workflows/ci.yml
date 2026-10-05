@@ -44,6 +44,7 @@ jobs:
       hadolint: ${{ steps.areas.outputs.hadolint }}
       prose: ${{ steps.areas.outputs.prose }}
       api: ${{ steps.areas.outputs.api }}
+      release: ${{ steps.areas.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,7 +65,7 @@ jobs:
           if [ "$EVENT" = pull_request ]; then
             git diff --name-only "$BASE...$HEAD" | scripts/changed-areas.sh | tee -a "$GITHUB_OUTPUT"
           else
-            printf 'go=true\nweb=true\nimage=true\ne2e=true\nhadolint=true\nprose=true\napi=true\n' | tee -a "$GITHUB_OUTPUT"
+            printf 'go=true\nweb=true\nimage=true\ne2e=true\nhadolint=true\nprose=true\napi=true\nrelease=true\n' | tee -a "$GITHUB_OUTPUT"
           fi
 
   lint:
@@ -202,6 +203,23 @@ jobs:
           go-version-file: go.mod
       - name: go mod edit -fmt
         run: go mod edit -fmt go.mod && git diff --exit-code go.mod
+
+  # rules/go-releases.md: a broken .goreleaser.yml should fail here, not on
+  # release day. The same goreleaser version the release job runs (v2.17.1),
+  # from its official image pinned by digest, as the hadolint job does.
+  goreleaser:
+    needs: changes
+    if: needs.changes.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    container:
+      image: goreleaser/goreleaser:v2.17.1@sha256:1098a0be4da1780f9616a85f4c5050447b53e3e74804d8017ec1e2bbb1fb697a
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # goreleaser reads git state, and the checkout isn't owned by the
+      # container's user.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: goreleaser check
 
   dockerfile:
     needs: changes
