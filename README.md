@@ -446,14 +446,17 @@ background poll. If the countdown runs out before the refresh lands, it reads
 clears once a refresh shows the branch caught up. If the request fails, the
 button comes back and the row and an error toast say why.
 
-The server also keeps the request (#982): a branch update the forge accepted
-shows up on the pull request as `updateRequest`, with a phase (`queued` or
+The server keeps the request (#982): a branch update the forge accepted shows
+up on the pull request as `updateRequest`, with a phase (`queued` or
 `expired`), when it was asked and `expiresAt`. It clears on the first snapshot
 from a fetch that started after the request and shows the pull request no
 longer behind, or when the pull request is gone, and goes `expired` after five
 minutes still behind. Like `botRequest` it is in memory per account, so a server
-restart forgets it. The page doesn't read it yet, which is the follow-up half
-of ticket #982.
+restart forgets it. The page only draws it: the click shows `Queued…` at once,
+and after that each snapshot decides. A snapshot without the record finishes the
+row with "Branch updated.", the `expired` phase ends it with a timed-out line, an
+error toast and Retry, and a record the page never clicked (a reload mid-wait)
+starts the row as `Queued…`.
 
 A bot `rebase` waits on the bot, not on the dashboard. The button becomes
 `Rebase requested` and is `aria-disabled` (focus returns to the row's More
@@ -865,7 +868,11 @@ for readiness,
 with `?owner=<username>`, one shared with them), `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the
 `PUT` response never echoes a token back, only whether one is now set
-— `GET/PUT/DELETE /api/sharing(/{username})` for managing who can see
+— `GET/PUT /api/settings/timezone` for the zone the user wants times shown
+in (an IANA name such as `Europe/Amsterdam`; empty means the browser's own, and
+it exists for browsers that report UTC to every page, such as Firefox with
+fingerprint resistance) — `GET/PUT/DELETE /api/sharing(/{username})` for
+managing who can see
 your dashboard, and `GET /api/admin/users` plus the revoke/delete
 endpoints, alongside `GET/POST /api/admin/invites` and
 `POST /api/admin/invites/{token}/revoke` for generating, listing, and

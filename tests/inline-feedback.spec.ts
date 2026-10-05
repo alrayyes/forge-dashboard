@@ -22,7 +22,14 @@ async function registerAndSignIn(
   await registerViaInvite(page, request, baseURL, username, 'Feedback User');
 }
 
+interface MockUpdateRequest {
+  phase: 'queued';
+  requestedAt: string;
+  expiresAt: string;
+}
+
 interface MockPR {
+  updateRequest?: MockUpdateRequest;
   forge: string;
   repo: string;
   number: number;
@@ -74,6 +81,9 @@ interface Mocks {
   hits: Record<number, number>;
   // PR numbers whose update-branch call should fail.
   failing: Set<number>;
+  // What the dashboard serves now: the server records an accepted update
+  // on the pull request until a fetch shows it landed (#982).
+  served: () => MockPR[];
 }
 
 // Serves the given pull requests (which stay behind, so a queued branch
@@ -84,7 +94,25 @@ async function setup(
   prs: MockPR[],
   opts: { delayMs?: number; failing?: number[] } = {},
 ): Promise<Mocks> {
-  const mocks: Mocks = { hits: {}, failing: new Set(opts.failing ?? []) };
+  const recorded = new Set<number>();
+  const served = () =>
+    prs.map((pr) =>
+      recorded.has(pr.number)
+        ? {
+            ...pr,
+            updateRequest: {
+              phase: 'queued' as const,
+              requestedAt: new Date().toISOString(),
+              expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            },
+          }
+        : pr,
+    );
+  const mocks: Mocks = {
+    hits: {},
+    failing: new Set(opts.failing ?? []),
+    served,
+  };
   await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -96,14 +124,14 @@ async function setup(
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(snapshot(prs)),
+      body: JSON.stringify(snapshot(served())),
     }),
   );
   await page.route('**/api/dashboard/refresh', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(snapshot(prs)),
+      body: JSON.stringify(snapshot(served())),
     }),
   );
   await page.route(
@@ -121,6 +149,7 @@ async function setup(
             message: 'upstream broke',
           }),
         });
+      recorded.add(body.number);
       return route.fulfill({ status: 202 });
     },
   );
@@ -411,7 +440,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
       };
     });
     const prs = [makePR(1), makePR(2)];
-    await setup(page, prs, { failing: [2] });
+    const mocks = await setup(page, prs, { failing: [2] });
     await updateBranch(rowFor(page, 1));
     await updateBranch(rowFor(page, 2));
     await expect(rowFor(page, 2).locator('.row-feedback')).toContainText(
@@ -424,7 +453,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
         for (const stream of w.__streams)
           stream.onmessage?.(new MessageEvent('message', { data }));
       },
-      JSON.stringify(snapshot(prs)),
+      JSON.stringify(snapshot(mocks.served())),
     );
     await page.click('#force-refresh-button');
     await page.waitForTimeout(500);
