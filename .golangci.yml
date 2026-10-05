@@ -4,7 +4,11 @@ linters:
   default: standard
   enable:
     - bodyclose
+    - dupl
+    - err113
     - errorlint
+    - funlen
+    - gocognit
     - gocritic
     - gocyclo
     - gosec
@@ -23,10 +27,21 @@ linters:
     - usestdlibvars
     - whitespace
     - wrapcheck
+  exclusions:
+    rules:
+      # Tests repeat, run long and build throwaway errors on purpose; these
+      # linters are for production code.
+      - path: _test\.go
+        linters:
+          - dupl
+          - err113
+          - funlen
   settings:
     gocritic:
       enabled-checks:
         - emptyStringTest
+    gocognit:
+      min-complexity: 15
     gocyclo:
       min-complexity: 15
     nolintlint:
