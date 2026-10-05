@@ -95,6 +95,12 @@ commit-msg:
     - name: commitlint
       run: bunx commitlint --edit {1}
 
+    # A feat, fix or perf commit has to change something that ships, or
+    # release-please cuts a release for a docs or CI change. Judged against
+    # the staged files, so an amend that only rewords is left to CI.
+    - name: release type
+      run: scripts/check-release-type.sh message {1}
+
 # pre-push never writes. A hook rewriting files under a push leaves the pushed
 # commit and the working tree disagreeing about what was reviewed.
 #
