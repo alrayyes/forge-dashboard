@@ -88,6 +88,48 @@ test.describe('release history page', () => {
     await expect(first.locator('.release-notes li').first()).toBeVisible();
   });
 
+  // The notes come from commit messages, so a link in them is untrusted text
+  // turned into an anchor. Only http(s) links may become one, and nothing in a
+  // URL may break out of the href attribute (#891).
+  test('a link in the release notes cannot run script or add an attribute', async ({
+    page,
+  }) => {
+    const notes = [
+      '### Features',
+      '* a [scheme](javascript:alert(1)) link',
+      '* a [quote](https://example.com/a"onmouseover="alert(2)) link',
+      '* a [fine](https://example.com/ok) link',
+    ].join('\n');
+    await page.route('**/changelog.json', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          releases: [
+            {
+              version: '9.9.9',
+              date: '2026-10-05',
+              url: 'https://example.com',
+              notes,
+            },
+          ],
+        }),
+      }),
+    );
+    await page.goto('/releases.html');
+    await waitForReleasesToSettle(page);
+
+    const links = page.locator('.release-notes a');
+    await expect(
+      page.locator('.release-notes a[href="https://example.com/ok"]'),
+    ).toHaveCount(1);
+    for (const href of await links.evaluateAll((as) =>
+      as.map((a) => a.getAttribute('href') ?? ''),
+    )) {
+      expect(href).toMatch(/^https?:\/\//);
+    }
+    expect(await page.locator('.release-notes [onmouseover]').count()).toBe(0);
+  });
+
   test('a missing changelog file says so plainly and falls back to nothing', async ({
     page,
   }) => {

@@ -47,7 +47,7 @@ while IFS= read -r path; do
     package.json | bun.lock | bunfig.toml)
       web=true api=true prose=true
       ;;
-    web/* | tests/* | scripts/* | playwright.config.ts | biome.json | tsconfig.json | lighthouserc.json)
+    web/* | tests/* | scripts/* | .semgrep/* | playwright.config.ts | biome.json | tsconfig.json | lighthouserc.json)
       web=true
       ;;
     .goreleaser.yml)
