@@ -3156,6 +3156,17 @@ components:
           oneOf:
             - type: "null"
             - $ref: "#/components/schemas/BotRequest"
+        updateRequest:
+          description: |
+            An Update branch the forge accepted and that no snapshot has shown
+            landing yet, or null. The server keeps it, so a reload during the
+            wait still shows it. It is dropped once a snapshot from a fetch
+            started after the request shows the pull request no longer
+            behind, or when the pull request is gone. Held in memory per
+            account: a server restart forgets it.
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/UpdateRequest"
         requestedReviewerLogins:
           type: array
           items:
@@ -3268,6 +3279,28 @@ components:
             When the server stops waiting in the current phase: 5 minutes
             after the request while `queued`, 2 minutes after the pickup
             while `rebasing`.
+
+    UpdateRequest:
+      type: object
+      required: [phase, requestedAt, expiresAt]
+      properties:
+        phase:
+          type: string
+          enum: [queued, expired]
+          description: |
+            `queued`: accepted, and the pull request is still behind.
+            `expired`: still behind after 5 minutes. An expired request stays
+            until the pull request is gone, a new request replaces it, or an
+            hour passes.
+        requestedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: |
+            When the server stops waiting in the current phase: 5 minutes
+            after the request while `queued`.
 
     StackPosition:
       type: object

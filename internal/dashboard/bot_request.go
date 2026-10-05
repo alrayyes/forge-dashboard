@@ -118,6 +118,7 @@ func (a *Aggregator) RecordBotRequest(forge Forge, repo string, number int, bot 
 // nothing about its request.
 func (a *Aggregator) applyBotRequests(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
 	a.botMu.Lock()
+	a.advanceUpdateRequests(prs, seq, covers)
 	if len(a.botRequests) > 0 {
 		now := a.now()
 		listed := make(map[string]PullRequest, len(prs))
@@ -191,6 +192,7 @@ func (a *Aggregator) annotateBotRequests(prs []PullRequest) {
 		} else {
 			prs[i].BotRequest = nil
 		}
+		prs[i].UpdateRequest = a.updateRequestOf(prs[i])
 	}
 }
 
