@@ -1,0 +1,34 @@
+# OWASP's API security rules (rules/api.md, "Spectral"). Errors fail the
+# lint; warnings are printed and don't. Every rule turned off says why.
+extends: ["@stoplight/spectral-owasp-ruleset"]
+
+rules:
+  # No inbound rate limiting exists yet, so there are no RateLimit headers to
+  # describe. The force-refresh cooldown (429 and Retry-After) is #809.
+  owasp:api4:2023-rate-limit: off
+
+  # These five bound what a client may send. Most of what they flag is
+  # response-only shapes this server writes itself, where a bound protects
+  # nothing, and the spec can't scope them to request bodies. Bounding the
+  # request bodies is #1008.
+  owasp:api4:2023-string-limit: off
+  owasp:api4:2023-string-restricted: off
+  owasp:api4:2023-integer-limit: off
+  owasp:api4:2023-integer-format: off
+  owasp:api4:2023-array-limit: off
+
+  # One bearer scheme for everyone, with the admin check on the server
+  # (auth.RequireAdmin). A second scheme would add nothing the server doesn't
+  # already enforce.
+  owasp:api5:2023-admin-security-unique: off
+
+  # Public on purpose: the passkey ceremony, logout, health and version, and
+  # the webhooks. Those declare `security: []` and the rule still flags
+  # them, so it can't be satisfied from the spec.
+  owasp:api2:2023-read-restricted: off
+  owasp:api2:2023-write-restricted: off
+
+  # The webhook path token only says whose webhook it is. What proves the
+  # request came from the forge is its HMAC signature, and the invite token in
+  # the revoke path is an identifier, not the one an invitee registers with.
+  owasp:api2:2023-no-credentials-in-url: off
