@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.132.5](https://github.com/alrayyes/forge-dashboard/compare/v0.132.4...v0.132.5) (2026-10-05)
+
+
+### Bug Fixes
+
+* **requestlog:** write rows from one bounded queue so a locked database can't pile up threads ([#963](https://github.com/alrayyes/forge-dashboard/issues/963)) ([585096b](https://github.com/alrayyes/forge-dashboard/commit/585096b103601b6a373162af299f2c132377f9ae)), closes [#902](https://github.com/alrayyes/forge-dashboard/issues/902)
+
 ## [0.132.4](https://github.com/alrayyes/forge-dashboard/compare/v0.132.3...v0.132.4) (2026-10-05)
 
 
