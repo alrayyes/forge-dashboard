@@ -182,3 +182,81 @@ test.describe('a browser that reports UTC (#996)', () => {
     await expect(header(page)).toContainText('resets 14:00 CEST');
   });
 });
+
+test.describe('the time zone control on Settings (#996)', () => {
+  test.use({ locale: 'en-GB', timezoneId: 'Europe/Amsterdam' });
+
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+  });
+
+  test('defaults to the browser zone, named in the option', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html');
+    const select = page.getByLabel('Time zone');
+    await expect(select).toHaveValue('');
+    await expect(select.locator('option[value=""]')).toHaveText(
+      'Browser default (Europe/Amsterdam)',
+    );
+    await expect(select.locator('option[value="UTC"]')).toHaveCount(1);
+  });
+
+  test('saves at once, previews the zone, and the dashboard picks it up', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html');
+    const preview = page.locator('#timezone-preview');
+    await expect(preview).toContainText('CEST');
+
+    const saved = page.waitForRequest(
+      (req) =>
+        req.url().includes('/api/settings/timezone') && req.method() === 'PUT',
+    );
+    await page.getByLabel('Time zone').selectOption('UTC');
+    expect((await saved).postDataJSON()).toEqual({ timezone: 'UTC' });
+    await expect(preview).toContainText(/\d{2}:\d{2} UTC/);
+    await expect(page.locator('#timezone-status')).toHaveText('');
+
+    await page.reload();
+    await expect(page.getByLabel('Time zone')).toHaveValue('UTC');
+
+    await showResetOnDashboard(page, TODAY_RESET);
+    await expect(header(page)).toContainText('resets 12:00 UTC');
+  });
+
+  test('choosing the browser default saves an empty name', async ({ page }) => {
+    await page.goto('/settings.html');
+    await page.getByLabel('Time zone').selectOption('UTC');
+    await expect(page.locator('#timezone-preview')).toContainText('UTC');
+
+    const saved = page.waitForRequest(
+      (req) =>
+        req.url().includes('/api/settings/timezone') && req.method() === 'PUT',
+    );
+    await page.getByLabel('Time zone').selectOption('');
+    expect((await saved).postDataJSON()).toEqual({ timezone: '' });
+    await expect(page.locator('#timezone-preview')).toContainText('CEST');
+  });
+
+  test('a refused name shows a failure line and keeps the old zone', async ({
+    page,
+  }) => {
+    await page.route('**/api/settings/timezone', (route: Route) =>
+      route.request().method() === 'PUT'
+        ? route.fulfill({
+            status: 400,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'unknown time zone' }),
+          })
+        : route.continue(),
+    );
+    await page.goto('/settings.html');
+    await page.getByLabel('Time zone').selectOption('UTC');
+    await expect(page.locator('#timezone-status')).toHaveText(
+      'Could not save time zone.',
+    );
+    await expect(page.getByLabel('Time zone')).toHaveValue('');
+    await expect(page.locator('#timezone-preview')).toContainText('CEST');
+  });
+});
