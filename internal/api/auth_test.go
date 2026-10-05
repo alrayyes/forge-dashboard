@@ -46,25 +46,25 @@ const (
 // in its own package).
 func noSources([]byte, settingspkg.Credentials) []dashboard.Source { return nil }
 
-func newTestServer(t *testing.T) *httptest.Server {
-	t.Helper()
+func newTestServer(tb testing.TB) *httptest.Server {
+	tb.Helper()
 
-	return newTestServerWithSources(t, noSources)
+	return newTestServerWithSources(tb, noSources)
 }
 
 // newTestServerWithStore is newTestServer plus the *auth.Store — for a
 // test that needs to seed state (like a request-log row) with no HTTP
 // endpoint of its own to create one through.
-func newTestServerWithStore(t *testing.T) (*httptest.Server, *authpkg.Store) {
-	t.Helper()
-	srv, _, store := newTestServerWithSourcesAndManager(t, noSources)
+func newTestServerWithStore(tb testing.TB) (*httptest.Server, *authpkg.Store) {
+	tb.Helper()
+	srv, _, store := newTestServerWithSourcesAndManager(tb, noSources)
 
 	return srv, store
 }
 
-func newTestServerWithSources(t *testing.T, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) *httptest.Server {
-	t.Helper()
-	srv, _, _ := newTestServerWithSourcesAndManager(t, buildSources)
+func newTestServerWithSources(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) *httptest.Server {
+	tb.Helper()
+	srv, _, _ := newTestServerWithSourcesAndManager(tb, buildSources)
 
 	return srv
 }
@@ -76,37 +76,37 @@ func newTestServerWithSources(t *testing.T, buildSources func([]byte, settingspk
 // without tearing down the rest of the server — and the *auth.Store,
 // for a test that needs to seed state (like a request-log row) with no
 // HTTP endpoint of its own to create one through.
-func newTestServerWithSourcesAndManager(t *testing.T, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
-	t.Helper()
+func newTestServerWithSourcesAndManager(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
+	tb.Helper()
 
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
+	db, err := sql.Open("sqlite", filepath.Join(tb.TempDir(), "app.db"))
+	require.NoError(tb, err)
+	tb.Cleanup(func() { _ = db.Close() })
 
 	authStore := authpkg.NewStore(db)
-	require.NoError(t, authStore.Init(t.Context()))
+	require.NoError(tb, authStore.Init(tb.Context()))
 
 	wa, err := webauthn.New(&webauthn.Config{
 		RPID:          testRPID,
 		RPDisplayName: "Forge Board Test",
 		RPOrigins:     []string{testOrigin},
 	})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	authService := authpkg.NewService(wa, authStore)
 
-	cipher, err := settingspkg.NewCipher(testEncryptionKey(t))
-	require.NoError(t, err)
+	cipher, err := settingspkg.NewCipher(testEncryptionKey(tb))
+	require.NoError(tb, err)
 	settingsStore := settingspkg.NewStore(db, cipher)
-	require.NoError(t, settingsStore.Init(t.Context()))
+	require.NoError(tb, settingsStore.Init(tb.Context()))
 
 	sharingStore := sharingpkg.NewStore(db)
-	require.NoError(t, sharingStore.Init(t.Context()))
+	require.NoError(tb, sharingStore.Init(tb.Context()))
 
 	manager := dashboard.NewManager(testRefreshInterval)
-	t.Cleanup(manager.Stop)
+	tb.Cleanup(manager.Stop)
 
 	appCtx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	tb.Cleanup(cancel)
 
 	mux := api.NewMux(api.Deps{
 		Version:       testVersion,
@@ -120,16 +120,16 @@ func newTestServerWithSourcesAndManager(t *testing.T, buildSources func([]byte, 
 		AppContext:    appCtx,
 	})
 	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
+	tb.Cleanup(srv.Close)
 
 	return srv, manager, authStore
 }
 
-func testEncryptionKey(t *testing.T) string {
-	t.Helper()
+func testEncryptionKey(tb testing.TB) string {
+	tb.Helper()
 	key := make([]byte, 32)
 	_, err := rand.Read(key)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return base64.StdEncoding.EncodeToString(key)
 }
@@ -145,8 +145,8 @@ func testEncryptionKey(t *testing.T) string {
 // the unchanged bootstrap path; a call registering a second-or-later user
 // passes the token an admin's own POST /api/admin/invites issued (see
 // createInviteViaAdmin).
-func registerViaRealCeremony(t *testing.T, srv *httptest.Server, username, displayName string, inviteToken ...string) (*http.Cookie, virtualwebauthn.Credential, virtualwebauthn.Authenticator) {
-	t.Helper()
+func registerViaRealCeremony(tb testing.TB, srv *httptest.Server, username, displayName string, inviteToken ...string) (*http.Cookie, virtualwebauthn.Credential, virtualwebauthn.Authenticator) {
+	tb.Helper()
 
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
 	authenticator := virtualwebauthn.NewAuthenticator()
@@ -158,16 +158,16 @@ func registerViaRealCeremony(t *testing.T, srv *httptest.Server, username, displ
 	}
 	beginBody := strings.NewReader(`{"username":"` + username + `","displayName":"` + displayName + `","inviteToken":"` + token + `"}`)
 	beginResp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", beginBody)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	defer func() { _ = beginResp.Body.Close() }()
-	require.Equal(t, http.StatusOK, beginResp.StatusCode)
+	require.Equal(tb, http.StatusOK, beginResp.StatusCode)
 
 	optionsJSON, err := io.ReadAll(beginResp.Body)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	attestationOptions, err := virtualwebauthn.ParseAttestationOptions(string(optionsJSON))
-	require.NoError(t, err)
-	require.NotNil(t, attestationOptions)
+	require.NoError(tb, err)
+	require.NotNil(tb, attestationOptions)
 
 	attestationResponse := virtualwebauthn.CreateAttestationResponse(rp, authenticator, cred, *attestationOptions)
 
@@ -176,16 +176,16 @@ func registerViaRealCeremony(t *testing.T, srv *httptest.Server, username, displ
 		"application/json",
 		strings.NewReader(attestationResponse),
 	)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	defer func() { _ = finishResp.Body.Close() }()
-	require.Equal(t, http.StatusOK, finishResp.StatusCode, "register/finish body: %s", readAll(t, finishResp))
+	require.Equal(tb, http.StatusOK, finishResp.StatusCode, "register/finish body: %s", readAll(tb, finishResp))
 
 	// No UserHandle set on the authenticator: this account's real WebAuthn
 	// user ID is a random 32 bytes assigned at registration, not something
 	// this test fixture can predict, so the virtual authenticator leaves
 	// the assertion's userHandle empty rather than sending one that
-	// wouldn't match — a non-discoverable login (this server never calls
-	// BeginDiscoverableLogin) doesn't need it, since the server already
+	// wouldn'tb match — a non-discoverable login (this server never calls
+	// BeginDiscoverableLogin) doesn'tb need it, since the server already
 	// knows which user it's validating against from the ceremony it
 	// started.
 	authenticator.AddCredential(cred)
@@ -195,7 +195,7 @@ func registerViaRealCeremony(t *testing.T, srv *httptest.Server, username, displ
 			return c, cred, authenticator
 		}
 	}
-	t.Fatal("no session cookie set by register/finish")
+	tb.Fatal("no session cookie set by register/finish")
 
 	return nil, cred, authenticator
 }
@@ -227,10 +227,10 @@ func createInviteViaAdmin(t *testing.T, srv *httptest.Server, adminCookie *http.
 	return body.Token
 }
 
-func readAll(t *testing.T, resp *http.Response) string {
-	t.Helper()
+func readAll(tb testing.TB, resp *http.Response) string {
+	tb.Helper()
 	b, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return string(b)
 }
