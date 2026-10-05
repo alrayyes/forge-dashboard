@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.134.0](https://github.com/alrayyes/forge-dashboard/compare/v0.133.3...v0.134.0) (2026-10-05)
+
+
+### Features
+
+* **api:** save the time zone a user wants times shown in ([#997](https://github.com/alrayyes/forge-dashboard/issues/997)) ([6a46589](https://github.com/alrayyes/forge-dashboard/commit/6a46589fe2d7661ca72f05472713469669a8626f)), closes [#996](https://github.com/alrayyes/forge-dashboard/issues/996)
+
 ## [0.133.3](https://github.com/alrayyes/forge-dashboard/compare/v0.133.2...v0.133.3) (2026-10-05)
 
 
