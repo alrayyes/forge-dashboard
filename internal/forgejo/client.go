@@ -28,6 +28,15 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
 
+var (
+	// errForgeRefused introduces the reason Forgejo gave for refusing a call.
+	errForgeRefused = errors.New("refused")
+	// errLabelMissing is a rebase label the repo doesn't have.
+	errLabelMissing = errors.New("label missing")
+	// errNoForgejoAuth is a client with neither a token nor a username to list with.
+	errNoForgejoAuth = errors.New("forgejo: neither a token nor a username is configured")
+)
+
 // pageLimit is the page size used for every paginated list call. Forgejo's
 // default per-page maximum is 50 unless an instance admin raises it, so
 // this stays conservative rather than assuming a larger limit was set.
@@ -302,7 +311,7 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 		statusCode = resp.StatusCode
 	}
 	c.recordRequest(ctx, method, path, statusCode, string(kind))
-	wrapped := fmt.Errorf("forgejo: %s %s: %s", method, path, msg)
+	wrapped := fmt.Errorf("forgejo: %s %s: %w: %s", method, path, errForgeRefused, msg)
 
 	return &dashboard.ClientError{Kind: kind, Err: wrapped}
 }
@@ -460,7 +469,7 @@ func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, l
 		}
 	}
 	if !found {
-		wrapped := fmt.Errorf("forgejo: no label %q on %s/%s — create it on the repo first", label, owner, name)
+		wrapped := fmt.Errorf("forgejo: no label %q on %s/%s — create it on the repo first: %w", label, owner, name, errLabelMissing)
 
 		return &dashboard.ClientError{Kind: dashboard.ForgeErrorNotFound, Err: wrapped}
 	}
@@ -485,7 +494,7 @@ func (c *Client) ListRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
 	case c.username != "":
 		return c.listPublicRepos(ctx)
 	default:
-		return nil, errors.New("forgejo: neither a token nor a username is configured")
+		return nil, errNoForgejoAuth
 	}
 }
 
@@ -1116,7 +1125,7 @@ func (c *Client) rawRequest(ctx context.Context, method, path string, body io.Re
 			msg = httpResp.Status
 		}
 
-		return nil, resp, fmt.Errorf("%s", msg)
+		return nil, resp, fmt.Errorf("%w: %s", errForgeRefused, msg)
 	}
 	// The success path's own recording — a failure here returns to the
 	// caller, which persists its own entry via forgejoError(ctx, method,

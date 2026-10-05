@@ -157,6 +157,11 @@ func main() {
 // errReadyzStatus is runHealthcheck's own sentinel - err113 wants a wrapped
 // static error rather than a bare fmt.Errorf built from the status code
 // alone.
+var (
+	errEncryptionKeyRequired = errors.New("ENCRYPTION_KEY is required (generate one with `openssl rand -base64 32`)")
+	errAppPrivateKeyRequired = errors.New("GITHUB_APP_PRIVATE_KEY_BASE64 is required when GITHUB_APP_ID is set")
+)
+
 var errReadyzStatus = errors.New("readyz check failed")
 
 // runHealthcheck exists for the container's own HEALTHCHECK: the image is
@@ -452,7 +457,7 @@ func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, err
 func buildSettingsStore(ctx context.Context, db *sql.DB) (*settings.Store, error) {
 	key := os.Getenv("ENCRYPTION_KEY")
 	if key == "" {
-		return nil, errors.New("ENCRYPTION_KEY is required (generate one with `openssl rand -base64 32`)")
+		return nil, errEncryptionKeyRequired
 	}
 
 	cipher, err := settings.NewCipher(key)
@@ -487,7 +492,7 @@ func buildGitHubApp() (appID int64, privateKeyPEM []byte, err error) {
 
 	keyB64 := os.Getenv("GITHUB_APP_PRIVATE_KEY_BASE64")
 	if keyB64 == "" {
-		return 0, nil, errors.New("GITHUB_APP_PRIVATE_KEY_BASE64 is required when GITHUB_APP_ID is set")
+		return 0, nil, errAppPrivateKeyRequired
 	}
 	privateKeyPEM, err = base64.StdEncoding.DecodeString(keyB64)
 	if err != nil {

@@ -8,6 +8,10 @@ import (
 	"sync"
 )
 
+// errUnsupportedByClient is what a GenericSource answers when its forge's
+// client lacks an optional capability the caller asked for.
+var errUnsupportedByClient = errors.New("not supported by this client")
+
 // DefaultMaxConcurrency bounds how many repositories a GenericSource fetches
 // at once. Generous enough to make quick work of a ~100-repo account
 // without opening that many sockets at once for no benefit.
@@ -163,7 +167,7 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 func (s *GenericSource) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
 	manager, ok := s.client.(WebhookManager)
 	if !ok {
-		return fmt.Errorf("dashboard: %s's client can't manage webhooks", s.forge)
+		return fmt.Errorf("dashboard: %s's client can't manage webhooks: %w", s.forge, errUnsupportedByClient)
 	}
 	if err := manager.EnsureWebhook(ctx, owner, name, targetURL, secret); err != nil {
 		return fmt.Errorf("dashboard: ensure webhook: %w", err)
@@ -178,7 +182,7 @@ func (s *GenericSource) EnsureWebhook(ctx context.Context, owner, name, targetUR
 func (s *GenericSource) MergePullRequest(ctx context.Context, owner, name string, number int) error {
 	merger, ok := s.client.(PullRequestMerger)
 	if !ok {
-		return fmt.Errorf("dashboard: %s's client can't merge pull requests", s.forge)
+		return fmt.Errorf("dashboard: %s's client can't merge pull requests: %w", s.forge, errUnsupportedByClient)
 	}
 	if err := merger.MergePullRequest(ctx, owner, name, number); err != nil {
 		return fmt.Errorf("dashboard: merge pull request: %w", err)
@@ -194,7 +198,7 @@ func (s *GenericSource) MergePullRequest(ctx context.Context, owner, name string
 func (s *GenericSource) ReadPullRequestState(ctx context.Context, owner, name string, number int) (PullRequestState, error) {
 	reader, ok := s.client.(PullRequestStateReader)
 	if !ok {
-		return PullRequestState{}, fmt.Errorf("dashboard: %s's client can't read pull request state", s.forge)
+		return PullRequestState{}, fmt.Errorf("dashboard: %s's client can't read pull request state: %w", s.forge, errUnsupportedByClient)
 	}
 
 	state, err := reader.ReadPullRequestState(ctx, owner, name, number)
@@ -211,7 +215,7 @@ func (s *GenericSource) ReadPullRequestState(ctx context.Context, owner, name st
 func (s *GenericSource) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
 	updater, ok := s.client.(BranchUpdater)
 	if !ok {
-		return false, fmt.Errorf("dashboard: %s's client can't update pull request branches", s.forge)
+		return false, fmt.Errorf("dashboard: %s's client can't update pull request branches: %w", s.forge, errUnsupportedByClient)
 	}
 	accepted, err := updater.UpdateBranch(ctx, owner, name, number)
 	if err != nil {
@@ -234,7 +238,7 @@ func (s *GenericSource) UpdateBranch(ctx context.Context, owner, name string, nu
 func (s *GenericSource) ClosePullRequest(ctx context.Context, owner, name string, number int) error {
 	closer, ok := s.client.(PullRequestCloser)
 	if !ok {
-		return fmt.Errorf("dashboard: %s's client can't close pull requests", s.forge)
+		return fmt.Errorf("dashboard: %s's client can't close pull requests: %w", s.forge, errUnsupportedByClient)
 	}
 	if err := closer.ClosePullRequest(ctx, owner, name, number); err != nil {
 		return fmt.Errorf("dashboard: close pull request: %w", err)
@@ -254,7 +258,7 @@ func (s *GenericSource) ClosePullRequest(ctx context.Context, owner, name string
 func (s *GenericSource) ListChecks(ctx context.Context, owner, name string, number int) ([]Check, error) {
 	checker, ok := s.client.(PullRequestChecker)
 	if !ok {
-		return nil, fmt.Errorf("dashboard: %s's client can't list pull request checks", s.forge)
+		return nil, fmt.Errorf("dashboard: %s's client can't list pull request checks: %w", s.forge, errUnsupportedByClient)
 	}
 	checks, err := checker.ListChecks(ctx, owner, name, number)
 	if err != nil {

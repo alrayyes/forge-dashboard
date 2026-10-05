@@ -33,6 +33,9 @@ import (
 	ghsdk "github.com/google/go-github/v75/github"
 )
 
+// errRepositoryNotFound is what a GraphQL answer with no repository gives.
+var errRepositoryNotFound = errors.New("repository missing from the answer")
+
 const defaultBaseURL = "https://api.github.com"
 
 // perPage is the page size used for the REST fallback's paginated list
@@ -2266,7 +2269,7 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 		return nil, nil, err
 	}
 	if resp.Repository == nil {
-		return nil, nil, fmt.Errorf("github: graphql: repository %s not found", fullName)
+		return nil, nil, fmt.Errorf("github: graphql: repository %s not found: %w", fullName, errRepositoryNotFound)
 	}
 
 	prs := make([]dashboard.PullRequest, 0, len(resp.Repository.PullRequests.Nodes))

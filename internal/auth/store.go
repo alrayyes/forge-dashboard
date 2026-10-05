@@ -18,6 +18,9 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
+// errCredentialNotFound is what removing a passkey the user doesn't have answers.
+var errCredentialNotFound = errors.New("no such credential")
+
 // ErrNotFound is returned by a lookup that found nothing — a sentinel
 // rather than a typed error, since every caller only ever needs to know
 // which kind, not reach anything out of it.
@@ -314,7 +317,7 @@ func (s *Store) UpdateCredential(ctx context.Context, userID []byte, cred webaut
 		}
 	}
 
-	return fmt.Errorf("auth: credential %x not found for user", cred.ID)
+	return fmt.Errorf("auth: credential %x not found for user: %w", cred.ID, errCredentialNotFound)
 }
 
 func (s *Store) saveCredentials(ctx context.Context, u *User) error {
