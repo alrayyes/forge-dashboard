@@ -448,27 +448,24 @@ actions button when the menu closes), and the row says the bot will pick it up
 shortly and that it can take a few minutes (a "Requested" age ticks along, kept
 out of what a screen reader announces). Dependabot is asked with the
 `@dependabot rebase` comment and Renovate with the `rebase` label, and the copy
-says which. After two minutes with the pull request still behind, the line
-changes to "Still waiting on Dependabot (3m). It queues requests, this is
-normal." with a link to the pull request on its forge. Once a refresh that
-started after your click shows the pull request is no longer behind, the row
-shows a "Rebasing…" pill until CI shows as restarted (or two minutes pass, for a
-repo whose CI never restarts), then finishes with a toast. If the bot never
-acts, the request times out after five minutes with an error toast and a Retry.
-Pickup is read from the
-refreshes the page already gets, so a `rebase` requested on a pull request that
-wasn't behind has nothing to show it landed and runs to that timeout.
+says which. The request lives on the server (#808): a successful Dependabot or
+Renovate request shows up on the pull request as `botRequest`, so a reload
+mid-wait still shows the row waiting, with the "Requested ago" clock counted
+from when it was asked. The page only draws it. When the server moves the
+request to `rebasing` (the bot pushed, and CI hasn't restarted), the row shows a
+"Rebasing…" pill. When the server drops it (CI showing pending, two minutes
+after the push, or the pull request leaving), the row finishes with a toast.
+When the server marks it `expired` (five minutes with no sign of the bot), the
+row says it timed out, with an error toast and a Retry.
 
-The server keeps these requests too (#808). A successful Dependabot or Renovate
-request shows up on the pull request as `botRequest`, with the bot, the action,
-a phase (`queued`, `rebasing` or `expired`), when it was asked and `expiresAt`,
-when the server stops waiting in that phase. It moves along on each snapshot
-from a fetch that started after the request: a changed head, or a pull request
-that was behind and isn't, means the bot pushed; CI showing pending, two minutes
-after the push or the pull request leaving ends it; five minutes queued makes it
-`expired`, and an expired one goes after an hour. The record is in memory per
-account, so a server restart forgets it and a browser reload doesn't. The page
-still tracks its own copy until it reads this field.
+The server's `botRequest` has these fields: the bot, the action, a phase
+(`queued`, `rebasing` or `expired`), when it was asked and `expiresAt`, when the
+server stops waiting in that phase. It moves along on each snapshot from a fetch
+that started after the request: a changed head, or a pull request that was
+behind and isn't, means the bot pushed. An expired request goes after an hour.
+The record is in memory per account, so a server restart forgets it and a
+browser reload doesn't. The page shows the request as queued the moment you
+click, until the next snapshot says otherwise.
 
 A queued Dependabot request names itself: `Rebase requested` or
 `Recreate requested`. While `Recreate requested` shows, the row hides

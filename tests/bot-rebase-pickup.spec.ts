@@ -14,9 +14,10 @@ import { registerViaInvite } from './register-helper';
 // copy says so; the "Requested Ns ago" ticker stays out of the announced
 // text the same way the refresh countdown does (#714).
 //
-// Pickup is read from snapshots alone: the pull request is no longer
-// behind its base (the bot rebased it), and the "Rebasing…" pill stays
-// until CI shows as restarted.
+// The server owns the request (#808): each pull request in a snapshot
+// carries `botRequest`, and the page only draws it. These tests play the
+// server by putting that field on the mocked snapshots. The page clears a
+// request when a later snapshot no longer has it.
 
 async function registerAndSignIn(
   page: Page,
@@ -41,6 +42,30 @@ interface MockPR {
   updatedAt: string;
   mergeStatus: string;
   behind: boolean;
+  botRequest?: MockBotRequest;
+}
+
+interface MockBotRequest {
+  bot: string;
+  action: string;
+  phase: 'queued' | 'rebasing' | 'expired';
+  requestedAt: string;
+  expiresAt: string;
+}
+
+function botRequest(
+  bot: string,
+  phase: MockBotRequest['phase'],
+  requestedAgoMs = 0,
+): MockBotRequest {
+  const requestedAt = Date.now() - requestedAgoMs;
+  return {
+    bot,
+    action: 'rebase',
+    phase,
+    requestedAt: new Date(requestedAt).toISOString(),
+    expiresAt: new Date(requestedAt + 5 * 60_000).toISOString(),
+  };
 }
 
 function makePR(overrides: Partial<MockPR> = {}): MockPR {
@@ -74,6 +99,7 @@ function snapshot(pr: MockPR) {
 const bots = [
   {
     bot: 'Dependabot',
+    id: 'dependabot',
     pr: makePR(),
     endpoint: '**/api/pull-requests/dependabot-action',
     button: 'Dependabot: Rebase',
@@ -82,6 +108,7 @@ const bots = [
   },
   {
     bot: 'Renovate',
+    id: 'renovate',
     pr: makePR({ author: 'renovate[bot]' }),
     endpoint: '**/api/pull-requests/renovate-rebase',
     button: 'Renovate: Rebase',
@@ -136,9 +163,12 @@ for (const b of bots) {
         });
       await page.route('**/api/dashboard*', answer);
       await page.route('**/api/dashboard/refresh', answer);
-      await page.route(b.endpoint, (route: Route) =>
-        route.fulfill({ status: 204 }),
-      );
+      // The server records the request before it answers 204, so every
+      // snapshot after that carries it.
+      await page.route(b.endpoint, (route: Route) => {
+        current = { ...current, botRequest: botRequest(b.id, 'queued') };
+        return route.fulfill({ status: 204 });
+      });
       await page.reload();
     });
 
@@ -198,33 +228,81 @@ for (const b of bots) {
       await expect(live.locator('.feedback-requested')).toHaveCount(0);
     });
 
-    test('after two minutes the line says it is normal and links to the pull request', async ({
-      page,
-    }) => {
+    // #808: the request lives on the server, so a reload mid-wait still
+    // shows it, and the "Requested Ns ago" clock counts from when it was
+    // asked, not from when the page loaded.
+    test('a reload mid-wait still shows the request', async ({ page }) => {
       await request(page);
-      await skew(page, 119_000);
-      await expect(line(page)).toContainText(b.requested);
-      await expect(line(page)).not.toContainText('Still waiting');
+      await page.reload();
 
-      await skew(page, 3 * 60_000 + 1_000);
-      await expect(line(page)).toContainText(
-        `Still waiting on ${b.bot} (3m). It queues requests, this is normal.`,
-      );
-      await expect(line(page)).not.toContainText(b.requested);
-      const link = line(page).getByRole('link', { name: /pull request/i });
-      await expect(link).toHaveAttribute('href', b.pr.url);
-      await expect(link).toContainText('GitHub');
+      await expect(
+        row(page).getByRole('button', { name: 'Rebase requested' }),
+      ).toBeDisabled();
+      await expect(line(page)).toContainText(b.requested);
+      await expect(line(page)).toContainText(b.detail);
     });
 
-    test('the requested and slow lines survive a stream push that shows no pickup', async ({
+    test('a request seen only in the snapshot counts its age from requestedAt', async ({
+      page,
+    }) => {
+      current = {
+        ...current,
+        botRequest: botRequest(b.id, 'queued', 90_000),
+      };
+      await page.reload();
+      await expect(line(page)).toContainText(/Requested 1m ago/);
+    });
+
+    test('a request that is rebasing in the snapshot shows Rebasing… after a reload', async ({
+      page,
+    }) => {
+      current = {
+        ...current,
+        behind: false,
+        botRequest: botRequest(b.id, 'rebasing'),
+      };
+      await page.reload();
+      await expect(row(page).locator('.merge-pill.rebasing')).toHaveText(
+        'Rebasing…',
+      );
+      await expect(line(page)).toContainText(`${b.bot} picked this up`);
+    });
+
+    test('expired in the snapshot shows the timed-out line and a toast, once', async ({
       page,
     }) => {
       await request(page);
-      await skew(page, 3 * 60_000);
-      await expect(line(page)).toContainText('Still waiting');
+      current = {
+        ...current,
+        botRequest: botRequest(b.id, 'expired', 5 * 60_000),
+      };
+      await push(page, current);
+
+      await expect(line(page)).toContainText('Timed out');
+      await expect(
+        line(page).getByRole('button', { name: 'Retry' }),
+      ).toBeVisible();
+      const toasts = page.locator(
+        '#feedback-toasts .feedback-toast[data-kind="error"]',
+      );
+      await expect(toasts).toContainText(`${b.bot} hasn't acted`);
+      await expect(
+        row(page).getByRole('button', { name: b.button }),
+      ).toBeEnabled();
+
+      // The same expired record on the next snapshot says nothing new.
       await push(page, current);
       await page.waitForTimeout(500);
-      await expect(line(page)).toContainText(`Still waiting on ${b.bot}`);
+      await expect(toasts).toHaveCount(1);
+    });
+
+    test('the requested line survives a stream push that still shows it queued', async ({
+      page,
+    }) => {
+      await request(page);
+      await push(page, current);
+      await page.waitForTimeout(500);
+      await expect(line(page)).toContainText(b.requested);
       await expect(
         row(page).getByRole('button', { name: 'Rebase requested' }),
       ).toBeDisabled();
@@ -244,6 +322,10 @@ for (const b of bots) {
         release = resolve;
       });
       let held = true;
+      // What the refresh that is already in flight answers: it started
+      // before the click, so it has no record, and it shows the pull
+      // request no longer behind.
+      const stale = JSON.stringify(snapshot({ ...current, behind: false }));
       await page.route('**/api/dashboard/refresh', async (route: Route) => {
         if (held) {
           held = false;
@@ -251,7 +333,7 @@ for (const b of bots) {
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify(snapshot({ ...current, behind: false })),
+            body: stale,
           });
         }
         return route.fulfill({
@@ -274,7 +356,11 @@ for (const b of bots) {
       await expect(line(page)).toContainText(b.requested);
 
       // A refresh that starts after the click and shows the bot acted.
-      current = { ...current, behind: false };
+      current = {
+        ...current,
+        behind: false,
+        botRequest: botRequest(b.id, 'rebasing'),
+      };
       await page.locator('#force-refresh-button').click();
       await expect(row(page).locator('.merge-pill.rebasing')).toHaveText(
         'Rebasing…',
@@ -286,7 +372,11 @@ for (const b of bots) {
     }) => {
       await request(page);
       // The bot force-pushed: no longer behind, CI not restarted yet.
-      current = { ...current, behind: false };
+      current = {
+        ...current,
+        behind: false,
+        botRequest: botRequest(b.id, 'rebasing'),
+      };
       await push(page, current);
 
       const pill = row(page).locator('.merge-pill.rebasing');
@@ -298,8 +388,8 @@ for (const b of bots) {
         `${b.bot} picked up the rebase`,
       );
 
-      // CI restarts: the pill and the line are done.
-      current = { ...current, ci: 'pending' };
+      // CI restarts: the server drops the request, and so does the row.
+      current = { ...current, ci: 'pending', botRequest: undefined };
       await push(page, current);
       await expect(row(page).locator('.merge-pill.rebasing')).toHaveCount(0);
       await expect(line(page)).toHaveCount(0);
@@ -308,15 +398,19 @@ for (const b of bots) {
       ).toContainText(`${b.bot} rebase finished.`);
     });
 
-    test('a repo whose CI never restarts does not keep Rebasing… forever', async ({
+    test('a request the server drops (a repo whose CI never restarts) clears Rebasing…', async ({
       page,
     }) => {
       await request(page);
-      current = { ...current, behind: false };
+      current = {
+        ...current,
+        behind: false,
+        botRequest: botRequest(b.id, 'rebasing'),
+      };
       await push(page, current);
       await expect(row(page).locator('.merge-pill.rebasing')).toBeVisible();
 
-      await skew(page, 2 * 60_000 + 5_000);
+      current = { ...current, botRequest: undefined };
       await push(page, current);
       await expect(row(page).locator('.merge-pill.rebasing')).toHaveCount(0);
       await expect(line(page)).toHaveCount(0);
@@ -326,7 +420,12 @@ for (const b of bots) {
       page,
     }) => {
       await request(page);
-      current = { ...current, behind: false, ci: 'pending' };
+      current = {
+        ...current,
+        behind: false,
+        ci: 'pending',
+        botRequest: undefined,
+      };
       await push(page, current);
       await expect(row(page).locator('.merge-pill.rebasing')).toHaveCount(0);
       await expect(
@@ -334,7 +433,7 @@ for (const b of bots) {
       ).toContainText(`${b.bot} rebase finished.`);
     });
 
-    test('has no axe violations when requested, slow or rebasing, and none relies on colour alone', async ({
+    test('has no axe violations when requested or rebasing, and none relies on colour alone', async ({
       page,
     }) => {
       const scan = async () => {
@@ -347,11 +446,11 @@ for (const b of bots) {
       await expect(line(page)).toContainText(b.requested);
       await scan();
 
-      await skew(page, 3 * 60_000);
-      await expect(line(page)).toContainText('Still waiting');
-      await scan();
-
-      current = { ...current, behind: false };
+      current = {
+        ...current,
+        behind: false,
+        botRequest: botRequest(b.id, 'rebasing'),
+      };
       await push(page, current);
       // Words, not just a tint: the state is in the text of both.
       await expect(row(page).locator('.merge-pill.rebasing')).toHaveText(
@@ -396,6 +495,10 @@ test.describe('bot rebase pickup with another row still queued', () => {
     );
     const first = makePR({ number: 42 });
     const second = makePR({ number: 43 });
+    const asked = (pr: MockPR, phase: 'queued' | 'rebasing') => ({
+      ...pr,
+      botRequest: botRequest('dependabot', phase),
+    });
     const both = (prs: MockPR[]) => ({
       ...snapshot(prs[0]),
       pullRequests: prs,
@@ -424,7 +527,12 @@ test.describe('bot rebase pickup with another row still queued', () => {
     }
 
     // Only the first one was picked up.
-    const data = JSON.stringify(both([{ ...first, behind: false }, second]));
+    const data = JSON.stringify(
+      both([
+        { ...asked(first, 'rebasing'), behind: false },
+        asked(second, 'queued'),
+      ]),
+    );
     await page.evaluate((payload) => {
       const w = window as unknown as { __streams: EventSource[] };
       for (const stream of w.__streams)
