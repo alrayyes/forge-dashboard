@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.132.2](https://github.com/alrayyes/forge-dashboard/compare/v0.132.1...v0.132.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* **github:** skip a merge commit when the branch requires linear history ([#946](https://github.com/alrayyes/forge-dashboard/issues/946)) ([3d97b91](https://github.com/alrayyes/forge-dashboard/commit/3d97b910e45612e597ee18616e32be95decadf35))
+
 ## [0.132.1](https://github.com/alrayyes/forge-dashboard/compare/v0.132.0...v0.132.1) (2026-10-05)
 
 

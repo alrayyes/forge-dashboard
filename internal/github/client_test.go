@@ -2131,6 +2131,116 @@ func TestMergePullRequest_RepoAllowsOnlyRebase_UsesRebase(t *testing.T) {
 	assert.Equal(t, "rebase", mergeBody["merge_method"])
 }
 
+func mergeRepoJSON() map[string]any {
+	return map[string]any{
+		"default_branch":     "main",
+		"allow_merge_commit": true,
+		"allow_squash_merge": true,
+		"allow_rebase_merge": true,
+	}
+}
+
+func TestMergePullRequest_ProtectionRequiresLinearHistory_SkipsMerge(t *testing.T) {
+	t.Parallel()
+
+	var mergeBody map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, mergeRepoJSON()) })
+	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"required_linear_history": map[string]any{"enabled": true}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
+		writeJSON(t, w, map[string]any{"merged": true})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	err := github.NewClient("test-token", "", srv.URL).MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "squash", mergeBody["merge_method"])
+}
+
+func TestMergePullRequest_RulesetRequiresLinearHistory_SkipsMerge(t *testing.T) {
+	t.Parallel()
+
+	var mergeBody map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, mergeRepoJSON()) })
+	mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{{"type": "required_linear_history"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
+		writeJSON(t, w, map[string]any{"merged": true})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	err := github.NewClient("test-token", "", srv.URL).MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "squash", mergeBody["merge_method"])
+}
+
+func TestMergePullRequest_LinearHistoryAndOnlyMergeAllowed_KeepsMerge(t *testing.T) {
+	t.Parallel()
+
+	var mergeBody map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"default_branch": "main", "allow_merge_commit": true})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"required_linear_history": map[string]any{"enabled": true}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/merge", func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&mergeBody))
+		writeJSON(t, w, map[string]any{"merged": true})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	err := github.NewClient("test-token", "", srv.URL).MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "merge", mergeBody["merge_method"])
+}
+
+func TestEnableAutoMerge_ProtectionRequiresLinearHistory_SkipsMerge(t *testing.T) {
+	t.Parallel()
+
+	var mutationVars map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "enablePullRequestAutoMerge") {
+			mutationVars = body.Variables
+			writeJSON(t, w, map[string]any{"data": map[string]any{"enablePullRequestAutoMerge": map[string]any{"clientMutationId": nil}}})
+
+			return
+		}
+		writeJSON(t, w, map[string]any{"data": map[string]any{"repository": map[string]any{
+			"mergeCommitAllowed": true,
+			"squashMergeAllowed": true,
+			"rebaseMergeAllowed": true,
+			"defaultBranchRef":   map[string]any{"name": "main"},
+			"pullRequest":        map[string]any{"id": "PR_kwABC"},
+		}}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"required_linear_history": map[string]any{"enabled": true}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	err := github.NewClient("test-token", "", srv.URL).EnableAutoMerge(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "SQUASH", mutationVars["method"])
+}
+
 func TestMergePullRequest_RepoLookupFails_ReturnsError(t *testing.T) {
 	t.Parallel()
 
