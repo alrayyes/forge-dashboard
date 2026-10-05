@@ -63,6 +63,9 @@ type issueView struct {
 // the same answer (#805). The snapshot type stays free of it.
 type pullRequestView struct {
 	dashboard.PullRequest
+	// Kind is what sort of pull request this is, so a client needs no rule of
+	// its own for release and dependency pull requests (#716).
+	Kind           dashboard.PullRequestKind      `json:"kind"`
 	AllowedActions []dashboard.ActionAvailability `json:"allowedActions"`
 	// ReadyToMerge and NeedsReview are the Ready and Needs review quick
 	// filters' answers (#807), so a second client lists the same pull
@@ -196,6 +199,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDraf
 		}
 		out = append(out, pullRequestView{
 			PullRequest:    pr,
+			Kind:           dashboard.KindOf(pr),
 			AllowedActions: dashboard.AllowedActions(pr),
 			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
 			NeedsReview:    dashboard.NeedsReview(pr),

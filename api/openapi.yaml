@@ -3191,6 +3191,7 @@ components:
           mergeStatus,
           behind,
           headSha,
+          kind,
           baseBranch,
           headBranch,
           crossRepository,
@@ -3254,6 +3255,17 @@ components:
             rebase moves it, which shows the bot acted even when the pull
             request is still reported behind, or wasn't behind to begin
             with. Empty when the forge didn't say. Always present.
+        kind:
+          type: string
+          enum: [release, dependency, regular]
+          description: |
+            What sort of pull request this is, decided by the server so no
+            client keeps its own copy of the rule. `release`: release-please's,
+            by its `autorelease:` label (a person opens these, so the label is
+            the only signal, and it wins over any bot author). `dependency`:
+            opened by Dependabot or Renovate, in either spelling of the login
+            (the bare slug GraphQL gives, or REST's `[bot]` form), on either
+            forge. `regular`: everything else. Always present.
         baseBranch:
           type: string
           description: |
