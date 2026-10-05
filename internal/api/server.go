@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
@@ -201,7 +202,34 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /admin.js", requireAuthPage(deps.AuthStore, fileServer))
 	mux.Handle("GET /", fileServer)
 
-	return accessLogMiddleware(mux)
+	return accessLogMiddleware(limitRequestBody(mux))
+}
+
+// maxRequestBodyBytes caps what any JSON endpoint reads (#1008). Every body
+// here is a handful of short fields; 1 MiB is far past the biggest honest one
+// and far below anything that strains the process.
+const maxRequestBodyBytes = 1 << 20
+
+// limitRequestBody refuses a body past the cap. A declared length over it is
+// answered 413 before the handler reads a byte. A body with no declared
+// length (chunked) is cut off at the cap instead, so the handler's own decode
+// fails and it answers 400. The forges' webhook routes keep their own, larger
+// cap in the handler (maxWebhookBodyBytes), since a forge's payload can be big.
+func limitRequestBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/webhooks/github/") || strings.HasPrefix(r.URL.Path, "/api/webhooks/forgejo/") {
+			next.ServeHTTP(w, r)
+
+			return
+		}
+		if r.ContentLength > maxRequestBodyBytes {
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorBody("request body too large"))
+
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+		next.ServeHTTP(w, r)
+	})
 }
 
 // requireAuthPage is RequireAuth's page-navigation counterpart: a redirect
