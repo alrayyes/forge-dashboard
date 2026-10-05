@@ -21,7 +21,14 @@ import (
 // test can tell a refusal made by the server from one made by the forge.
 type mergeCountingSource struct {
 	fakeConfiguredSource
-	merges atomic.Int32
+	merges  atomic.Int32
+	updates atomic.Int32
+}
+
+func (s *mergeCountingSource) UpdateBranch(context.Context, string, string, int) (bool, error) {
+	s.updates.Add(1)
+
+	return true, nil
 }
 
 func (s *mergeCountingSource) MergePullRequest(context.Context, string, string, int) error {
@@ -99,4 +106,53 @@ func TestPullRequestMerge_StillMergesWhatAllowedActionsOffers(t *testing.T) {
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	assert.Equal(t, int32(1), src.merges.Load())
+}
+
+func TestPullRequestUpdateBranch_RefusesWhatAllowedActionsDoesNotOffer_WithoutAskingTheForge(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		pr       dashboard.PullRequest
+		wantCode string
+	}{
+		"not behind": {
+			pr:       dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 5, MergeStatus: dashboard.MergeMergeable, CI: dashboard.CISuccess},
+			wantCode: "already_up_to_date",
+		},
+		"behind with a conflict": {
+			pr:       dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 5, Behind: true, MergeStatus: dashboard.MergeConflicting},
+			wantCode: "conflict",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, cookie, src := eligibilityBoard(t, tc.pr)
+
+			resp := postUpdatePullRequestBranch(t, srv.URL, cookie, "github", "alrayyes/a", 5)
+			defer func() { _ = resp.Body.Close() }()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusConflict, resp.StatusCode, string(body))
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(body, &got))
+			assert.Equal(t, tc.wantCode, got["code"])
+			assert.Zero(t, src.updates.Load(), "the forge must not be asked")
+		})
+	}
+}
+
+func TestPullRequestUpdateBranch_StillUpdatesABehindPullRequest(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie, src := eligibilityBoard(t, dashboard.PullRequest{
+		Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 5, Behind: true, MergeStatus: dashboard.MergeUnknown,
+	})
+
+	resp := postUpdatePullRequestBranch(t, srv.URL, cookie, "github", "alrayyes/a", 5)
+	_ = resp.Body.Close()
+
+	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+	assert.Equal(t, int32(1), src.updates.Load())
 }
