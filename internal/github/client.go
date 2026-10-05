@@ -1108,11 +1108,13 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 }
 
 // mergeStatusFromGraphQL maps GitHub's own mergeStateStatus — CLEAN is the
-// only genuinely mergeable state; DIRTY is a real conflict; BLOCKED,
-// UNSTABLE and HAS_HOOKS all mean something else is stopping the merge
-// without asserting a conflict, and none of the three has any other
-// dedicated UI signal, so they stay MergeBlocked (#359's acceptance
-// criteria: narrow what triggers the pill, don't remove it). BEHIND is
+// only genuinely mergeable state; DIRTY is a real conflict; BLOCKED
+// and HAS_HOOKS both mean something else is stopping the merge without
+// asserting a conflict, and neither has any other dedicated UI signal, so
+// they stay MergeBlocked (#359's acceptance
+// criteria: narrow what triggers the pill, don't remove it). UNSTABLE
+// is its own status (#955, #956): GitHub still lets the merge through, a
+// non-required check is only failing or running. BEHIND is
 // deliberately its own case, not folded in with them: Behind (set
 // alongside this from the same mergeStateStatus, see FetchRepo) already
 // carries that exact fact and drives the Update-branch button, a more
@@ -1127,7 +1129,9 @@ func mergeStatusFromGraphQL(state string) dashboard.MergeStatus {
 		return dashboard.MergeMergeable
 	case "DIRTY":
 		return dashboard.MergeConflicting
-	case "BLOCKED", "UNSTABLE", "HAS_HOOKS":
+	case "UNSTABLE":
+		return dashboard.MergeUnstable
+	case "BLOCKED", "HAS_HOOKS":
 		return dashboard.MergeBlocked
 	default:
 		return dashboard.MergeUnknown
