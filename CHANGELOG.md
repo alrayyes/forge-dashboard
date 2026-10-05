@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.132.1](https://github.com/alrayyes/forge-dashboard/compare/v0.132.0...v0.132.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **deps:** bump modernc.org/sqlite ([#937](https://github.com/alrayyes/forge-dashboard/issues/937)) ([c760a2b](https://github.com/alrayyes/forge-dashboard/commit/c760a2bf28c13018630eacd9882feda210fa09b7))
+
 ## [0.132.0](https://github.com/alrayyes/forge-dashboard/compare/v0.131.0...v0.132.0) (2026-10-04)
 
 
