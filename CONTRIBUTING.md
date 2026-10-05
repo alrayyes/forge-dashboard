@@ -52,7 +52,7 @@ each job runs when its area is set:
 | `image`    | Go, web or Docker changes                                                      | `docker`, `e2e`                                                          |
 | `hadolint` | `Dockerfile*`, `.dockerignore`                                                 | `dockerfile`                                                             |
 | `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh` | `prose`                                                                  |
-| `api`      | `api/`, `redocly.yaml`, `package.json`                                         | `api`                                                                    |
+| `api`      | `api/`, `redocly.yaml`, `.spectral.yaml`, `package.json`                       | `api`, `api-security`                                                    |
 | `release`  | `.goreleaser.yml`                                                              | `goreleaser`                                                             |
 
 A path the script doesn't know runs everything, and so does every push to
