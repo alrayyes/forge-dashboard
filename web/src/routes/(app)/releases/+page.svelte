@@ -233,6 +233,7 @@
           >
         </div>
         <div class="release-notes">
+          <!-- nosemgrep: svelte-at-html -- renderReleaseNotes escapes every piece of text (quotes included) and only turns an http(s) URL into a link -->
           {@html renderReleaseNotes(r.notes)}
         </div>
       </li>

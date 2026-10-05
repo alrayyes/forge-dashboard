@@ -355,6 +355,26 @@ jobs:
       - name: redocly lint
         run: bun run lint:api -- --format=github-actions
 
+  # rules/javascript.md: a static security pass over the web code. Not
+  # `semgrep ci`, which needs a Semgrep account login this repo has no token
+  # for; `semgrep scan` with named rule packs needs none. Semgrep can't parse
+  # .svelte, so .semgrep/svelte.yml reads templates as text and flags every
+  # {@html}. The image is pinned by tag and digest.
+  semgrep:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    container:
+      image: semgrep/semgrep:1.179.0@sha256:93963d9295a366f59e4850127b1550400ee7b388f04fe144e4a1f6325d96e01b
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: semgrep scan
+        run: >-
+          semgrep scan --config p/javascript --config p/typescript
+          --config .semgrep --metrics=off --error web/src tests scripts
+
   # OWASP's API security rules over the same spec (rules/api.md). Errors fail
   # it; warnings print. Its own job, so a security finding names itself
   # instead of hiding behind "the spec is invalid".

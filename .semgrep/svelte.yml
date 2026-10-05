@@ -1,0 +1,16 @@
+# Semgrep can't parse .svelte files, so the JavaScript and TypeScript rule
+# packs never see a template. This rule reads them as plain text and flags
+# every {@html ...}, which writes a string into the page unescaped. A use
+# that is safe says why in a nosemgrep comment on the line before it, so each
+# one is reviewed on purpose (#891).
+rules:
+  - id: svelte-at-html
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      {@html} renders a string as raw HTML. Confirm every piece of text in it is
+      escaped, then say so with a nosemgrep comment on the line before.
+    paths:
+      include:
+        - "*.svelte"
+    pattern: "{@html ...}"
