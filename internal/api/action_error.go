@@ -78,13 +78,24 @@ func refuseIfNotAllowed(w http.ResponseWriter, deps Deps, userID []byte, action 
 	}
 
 	// Not offered at all: nothing a person could do about it from here.
-	writeJSON(w, http.StatusConflict, actionErrorBody{
-		Error:   "This action doesn't apply to this pull request.",
-		Code:    string(dashboard.ActionNotMergeable),
-		Message: "This action doesn't apply to this pull request.",
-	})
+	refusal := notOfferedRefusal(action, pr)
+	writeJSON(w, http.StatusConflict, actionErrorBody{Error: refusal.Message, Code: string(refusal.Code), Message: refusal.Message})
 
 	return true
+}
+
+// notOfferedRefusal says why an action isn't on a pull request's list at all,
+// as plainly as the codes allow.
+func notOfferedRefusal(action dashboard.ActionName, pr dashboard.PullRequest) dashboard.ActionRefusal {
+	if action == dashboard.ActionUpdateBranch {
+		if !pr.Behind || pr.Empty {
+			return dashboard.ActionRefusal{Code: dashboard.ActionAlreadyUpToDate, Message: "Already up to date with the base branch."}
+		}
+
+		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Dependabot and Renovate pull requests update through their own rebase."}
+	}
+
+	return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This action doesn't apply to this pull request."}
 }
 
 // writeRefusal answers with the shared ActionError. With code unknown the raw
