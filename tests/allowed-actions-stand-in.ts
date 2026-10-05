@@ -137,6 +137,9 @@ export function allowedActionsFor(pr: StandInPR): StandInEntry[] {
       { action: 'dependabot_recreate' },
     );
   if (isRenovate) out.push({ action: 'renovate_rebase' });
+  // Failed checks can be rerun on GitHub only (#698).
+  if (pr.forge === 'github' && pr.ci === 'failure')
+    out.push({ action: 'rerun_checks' });
   return out;
 }
 

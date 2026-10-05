@@ -557,6 +557,17 @@ or that has expired, shows without them and keeps its link. Forgejo's API
 doesn't serve job steps, logs or timing, so a failed Forgejo check offers only
 its link.
 
+On GitHub, a pull request whose CI is failing also offers `Rerun failed checks`
+at the top of that panel. It reruns only the failed jobs of each workflow run on
+the head commit, once per run, and answers when GitHub has queued them: the
+panel says "Rerun queued" and the new results show after the next refresh. It
+needs a token that can write to Actions. When GitHub refuses (no permission, a
+run too old or already running), the panel shows its reason and the button
+stays for another try. A failed check that isn't an Actions job can't be rerun,
+and Forgejo has no rerun yet, so there the button is absent
+(`POST /api/pull-requests/rerun-checks`, listed as `rerun_checks` in
+`allowedActions`).
+
 When the forge says which checks the base branch's protection requires,
 the panel groups them: a `Required` group first, with a failing required
 check flagged `Blocking`, then `Advisory`. GitHub's classic required
