@@ -73,60 +73,10 @@ func (s *GenericSource) Forge() Forge { return s.forge }
 func (s *GenericSource) Fetch(ctx context.Context) Result {
 	repos, err := s.client.ListRepos(ctx)
 	if err != nil {
-		slog.Warn("forge unreachable", "forge", s.forge, "error", err)
-		kind := ForgeErrorUnknown
-		if clientErr, ok := errors.AsType[*ClientError](err); ok {
-			kind = clientErr.Kind
-		}
-		// err's own text never reaches the client (#360) — logged above
-		// for whoever operates this instance, but ForgeHealth.Error
-		// carries HumanizeForgeError's mapped sentence instead, the same
-		// "small, explicit mapping over a raw passthrough" app.js's own
-		// ERROR_HEADLINES already uses for the headline shown alongside
-		// this.
-		health := ForgeHealth{Forge: s.forge, Reachable: false, Error: HumanizeForgeError(kind), ErrorKind: kind}
-
-		return Result{Health: health}
+		return s.unreachable(err)
 	}
 
-	type repoResult struct {
-		prs        []PullRequest
-		issues     []Issue
-		hasWebhook bool
-	}
-
-	checker, checksWebhooks := s.client.(WebhookChecker)
-
-	results := make([]repoResult, len(repos))
-	sem := make(chan struct{}, s.maxConcurrency)
-	var wg sync.WaitGroup
-
-	for i, repo := range repos {
-		wg.Add(1)
-		go func(i int, repo RepoRef) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			prs, err := s.client.ListOpenPullRequests(ctx, repo.Owner, repo.Name, repo.FullName)
-			if err != nil {
-				slog.Warn("list pull requests failed", "forge", s.forge, "repo", repo.FullName, "error", err)
-			}
-			issues, err := s.client.ListOpenIssues(ctx, repo.Owner, repo.Name, repo.FullName)
-			if err != nil {
-				slog.Warn("list issues failed", "forge", s.forge, "repo", repo.FullName, "error", err)
-			}
-			var hasWebhook bool
-			if checksWebhooks {
-				hasWebhook, err = checker.HasWebhook(ctx, repo.Owner, repo.Name)
-				if err != nil {
-					slog.Warn("webhook check failed", "forge", s.forge, "repo", repo.FullName, "error", err)
-				}
-			}
-			results[i] = repoResult{prs: prs, issues: issues, hasWebhook: hasWebhook}
-		}(i, repo)
-	}
-	wg.Wait()
+	results := s.fetchRepos(ctx, repos)
 
 	result := Result{Health: ForgeHealth{Forge: s.forge, Reachable: true, RepoCount: len(repos)}}
 	for i, repo := range repos {
@@ -156,6 +106,76 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 	}
 
 	return result
+}
+
+// unreachable is the Result for a forge whose repo list couldn't be fetched.
+func (s *GenericSource) unreachable(err error) Result {
+	slog.Warn("forge unreachable", "forge", s.forge, "error", err)
+	kind := ForgeErrorUnknown
+	if clientErr, ok := errors.AsType[*ClientError](err); ok {
+		kind = clientErr.Kind
+	}
+	// err's own text never reaches the client (#360) — logged above
+	// for whoever operates this instance, but ForgeHealth.Error
+	// carries HumanizeForgeError's mapped sentence instead, the same
+	// "small, explicit mapping over a raw passthrough" app.js's own
+	// ERROR_HEADLINES already uses for the headline shown alongside
+	// this.
+	health := ForgeHealth{Forge: s.forge, Reachable: false, Error: HumanizeForgeError(kind), ErrorKind: kind}
+
+	return Result{Health: health}
+}
+
+// repoResult is what one repo's fetch brought back.
+type repoResult struct {
+	prs        []PullRequest
+	issues     []Issue
+	hasWebhook bool
+}
+
+// fetchRepos fetches every repo, at most maxConcurrency at a time, and answers
+// in the order of repos.
+func (s *GenericSource) fetchRepos(ctx context.Context, repos []RepoRef) []repoResult {
+	results := make([]repoResult, len(repos))
+	sem := make(chan struct{}, s.maxConcurrency)
+	var wg sync.WaitGroup
+
+	for i, repo := range repos {
+		wg.Add(1)
+		go func(i int, repo RepoRef) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			results[i] = s.fetchRepo(ctx, repo)
+		}(i, repo)
+	}
+	wg.Wait()
+
+	return results
+}
+
+// fetchRepo fetches one repo's open pull requests and issues and, if the
+// client can say, whether it has a webhook. Each failure is logged and leaves
+// that part empty.
+func (s *GenericSource) fetchRepo(ctx context.Context, repo RepoRef) repoResult {
+	prs, err := s.client.ListOpenPullRequests(ctx, repo.Owner, repo.Name, repo.FullName)
+	if err != nil {
+		slog.Warn("list pull requests failed", "forge", s.forge, "repo", repo.FullName, "error", err)
+	}
+	issues, err := s.client.ListOpenIssues(ctx, repo.Owner, repo.Name, repo.FullName)
+	if err != nil {
+		slog.Warn("list issues failed", "forge", s.forge, "repo", repo.FullName, "error", err)
+	}
+	var hasWebhook bool
+	if checker, ok := s.client.(WebhookChecker); ok {
+		hasWebhook, err = checker.HasWebhook(ctx, repo.Owner, repo.Name)
+		if err != nil {
+			slog.Warn("webhook check failed", "forge", s.forge, "repo", repo.FullName, "error", err)
+		}
+	}
+
+	return repoResult{prs: prs, issues: issues, hasWebhook: hasWebhook}
 }
 
 // EnsureWebhook implements WebhookManager at the Source level by

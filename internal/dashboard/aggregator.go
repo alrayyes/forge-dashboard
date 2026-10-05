@@ -371,8 +371,9 @@ func readyToMerge(pr PullRequest) bool {
 	return pr.MergeStatus == MergeMergeable && pr.CI != CIPending
 }
 
-func (a *Aggregator) refreshOnce(ctx context.Context) {
-	seq := a.fetchSeq.Add(1)
+// fetchSources asks every source for its data at once and answers in the
+// order of a.sources.
+func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 	results := make([]Result, len(a.sources))
 
 	var wg sync.WaitGroup
@@ -384,6 +385,13 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		}(i, src)
 	}
 	wg.Wait()
+
+	return results
+}
+
+func (a *Aggregator) refreshOnce(ctx context.Context) {
+	seq := a.fetchSeq.Add(1)
+	results := a.fetchSources(ctx)
 
 	a.mu.RLock()
 	earlier := a.snap
