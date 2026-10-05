@@ -22,10 +22,6 @@ export type BotRequest = {
   // How the request reached the bot, in the words of the row line:
   // "comment" is a command comment, "label" the rebase label.
   trigger: 'comment' | 'label';
-  // The pull request on its forge, for the "still waiting" link.
-  url: string;
-  // "GitHub" or "Forgejo".
-  forgeLabel: string;
 };
 
 export type ActivityEntry = {
@@ -72,6 +68,9 @@ export type StartInput = {
   // Spoken once, if given. Never includes a countdown.
   announce?: string;
   bot?: BotRequest;
+  // When the request was made, if that was before this page knew of it
+  // (the server's requestedAt after a reload). Defaults to now.
+  startedAt?: number;
   retry?: () => void;
 };
 
@@ -176,7 +175,7 @@ export function createFeedbackStore(now: () => number = Date.now) {
         phase: input.phase,
         inline: input.inline,
         message: input.message,
-        startedAt: now(),
+        startedAt: input.startedAt ?? now(),
         updatedAt: now(),
         bot: input.bot,
         retry: input.retry,

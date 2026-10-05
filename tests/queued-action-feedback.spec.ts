@@ -44,6 +44,24 @@ interface MockPR {
   updatedAt: string;
   mergeStatus: string;
   behind: boolean;
+  botRequest?: {
+    bot: string;
+    action: string;
+    phase: string;
+    requestedAt: string;
+    expiresAt: string;
+  };
+}
+
+// What the server puts on a pull request once a bot was asked (#808).
+function botRequestFor(bot: string, phase: string) {
+  return {
+    bot,
+    action: 'rebase',
+    phase,
+    requestedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+  };
 }
 
 function makePR(overrides: Partial<MockPR> = {}): MockPR {
@@ -380,14 +398,19 @@ for (const s of scenarios) {
       await expect(line).toContainText(s.waiting);
       await expect(line).toContainText(COUNTDOWN);
 
-      // A snapshot that doesn't change this pull request's state.
+      // A snapshot that doesn't change this pull request's state. A bot
+      // request is still on the pull request, as the server keeps it.
+      const bot = s.name.split(' ')[0].toLowerCase();
+      const same = s.awaitsRefresh
+        ? s.pr
+        : { ...s.pr, botRequest: botRequestFor(bot, 'queued') };
       await page.evaluate(
         (data) => {
           const w = window as unknown as { __streams: EventSource[] };
           for (const stream of w.__streams)
             stream.onmessage?.(new MessageEvent('message', { data }));
         },
-        JSON.stringify(snapshot(s.pr)),
+        JSON.stringify(snapshot(same)),
       );
       await page.waitForTimeout(1500);
       await expect(line).toContainText(s.waiting);
@@ -486,8 +509,14 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        // The refresh that follows shows the rebase landed.
-        body: JSON.stringify(snapshot({ ...pr, behind: false })),
+        // The refresh that follows shows the server saw the rebase land.
+        body: JSON.stringify(
+          snapshot({
+            ...pr,
+            behind: false,
+            botRequest: botRequestFor('renovate', 'rebasing'),
+          }),
+        ),
       }),
     );
     await page.reload();
@@ -514,16 +543,11 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     await expect(row.locator('.merge-pill.rebasing')).toHaveText('Rebasing…');
   });
 
-  // #711: a bot that never acts must not pin the button disabled for good.
-  test('a bot rebase nobody picked up expires after five minutes with an error toast', async ({
+  // #711, #808: a bot that never acts must not pin the button disabled for
+  // good. The server decides when to give up; the page shows it.
+  test('a bot rebase the server expired shows an error toast and frees the button', async ({
     page,
   }) => {
-    await page.addInitScript(() => {
-      const w = window as unknown as { __skew: number };
-      w.__skew = 0;
-      const real = Date.now.bind(Date);
-      Date.now = () => real() + w.__skew;
-    });
     const pr = makePR({ author: 'renovate[bot]', behind: true });
     await mockDashboard(page, pr);
     await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
@@ -533,8 +557,10 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        // Still behind: the bot did nothing.
-        body: JSON.stringify(snapshot(pr)),
+        // Still behind: the bot did nothing, and the server gave up.
+        body: JSON.stringify(
+          snapshot({ ...pr, botRequest: botRequestFor('renovate', 'expired') }),
+        ),
       }),
     );
     await page.reload();
@@ -544,20 +570,6 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
     await expect(row.locator('.row-feedback')).toContainText(COUNTDOWN);
 
-    // Four minutes in, still waiting.
-    await page.evaluate(() => {
-      (window as unknown as { __skew: number }).__skew = 4 * 60_000;
-    });
-    await page.click('#force-refresh-button');
-    // Past two minutes the line says the bot is slow, not broken (#707).
-    await expect(row.locator('.row-feedback')).toContainText(
-      'Still waiting on Renovate (4m)',
-    );
-
-    await page.evaluate(() => {
-      (window as unknown as { __skew: number }).__skew = 5 * 60_000 + 5_000;
-    });
-    await page.waitForTimeout(5200);
     await page.click('#force-refresh-button');
 
     const line = page.locator('#pr-rows .row').first().locator('.row-feedback');

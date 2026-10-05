@@ -21,10 +21,6 @@ import {
 // How long a success toast stays before it dismisses itself.
 export const TOAST_LIFETIME_MS = 6000;
 
-// After this long without a pickup the row stops saying "shortly" and says
-// the bot queues requests (#707).
-export const BOT_SLOW_AFTER_MS = 2 * 60 * 1000;
-
 export type FeedbackUIOptions = {
   // The "(next refresh in 12s)" / " Refreshing…" text. Only ever shown
   // aria-hidden: a number that changes each second must not be spoken.
@@ -130,22 +126,11 @@ export function mountFeedbackUI(
       c.textContent = options.countdownText();
     }
     tickRequested();
-    // The slow line replaces the requested one once the wait passes two
-    // minutes, with no store event to say so.
-    syncRows();
   }
 
   // ---- bot rebase requests (#707) ----
   function waitedMs(entry: ActivityEntry): number {
     return Math.max(0, Date.now() - entry.startedAt);
-  }
-
-  function isSlow(entry: ActivityEntry): boolean {
-    return (
-      Boolean(entry.bot) &&
-      entry.phase === 'queued' &&
-      waitedMs(entry) >= BOT_SLOW_AFTER_MS
-    );
   }
 
   function agoText(entry: ActivityEntry): string {
@@ -156,8 +141,6 @@ export function mountFeedbackUI(
   function botLine(entry: ActivityEntry, bot: BotRequest): string {
     if (entry.phase === 'rebasing')
       return `${bot.bot} picked this up and is rebasing. Waiting for CI to restart.`;
-    if (isSlow(entry))
-      return `Still waiting on ${bot.bot} (${Math.floor(waitedMs(entry) / 60000)}m). It queues requests, this is normal.`;
     const how = bot.trigger === 'label' ? ' The rebase label is set.' : '';
     return `${bot.bot} will pick this up shortly.${how} This can take a few minutes, no need to click again.`;
   }
@@ -197,10 +180,7 @@ export function mountFeedbackUI(
 
   function signature(key: string): string {
     return inlineEntries(key)
-      .map(
-        (e) =>
-          `${e.id}|${e.phase}|${e.inline}|${isSlow(e) ? Math.floor(waitedMs(e) / 60000) : ''}`,
-      )
+      .map((e) => `${e.id}|${e.phase}|${e.inline}`)
       .join(';');
   }
 
@@ -213,23 +193,7 @@ export function mountFeedbackUI(
       line.dataset.phase = entry.phase;
       line.appendChild(node('span', 'row-feedback-text', lineText(entry)));
       const bot = entry.bot;
-      if (bot && isSlow(entry)) {
-        line.appendChild(document.createTextNode(' '));
-        const link = node(
-          'a',
-          'feedback-link',
-          `View pull request on ${bot.forgeLabel}`,
-        ) as HTMLAnchorElement;
-        link.href = bot.url;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.setAttribute(
-          'aria-label',
-          `View pull request on ${bot.forgeLabel} (opens in a new tab)`,
-        );
-        line.appendChild(link);
-      }
-      if (bot && entry.phase === 'queued' && !isSlow(entry)) {
+      if (bot && entry.phase === 'queued') {
         line.appendChild(document.createTextNode(' '));
         const ago = node('span', 'feedback-requested', agoText(entry));
         ago.setAttribute('aria-hidden', 'true');
