@@ -4,7 +4,6 @@
   import { syncThemeFromServer } from "#lib/theme.js";
   import Footer from "#lib/Footer.svelte";
   import { issueCount } from "#lib/issue-count.svelte.js";
-  import { countOpenIssues } from "#lib/filters.js";
 
   let { children } = $props();
 
@@ -112,8 +111,9 @@
     ) {
       fetch("/api/dashboard", { headers: { Accept: "application/json" } })
         .then((res) => (res.ok ? res.json() : null))
-        .then((data: { issues?: { title: string }[] } | null) => {
-          if (data) issueCount.value = countOpenIssues(data.issues ?? []);
+        .then((data: { openIssueCount?: number } | null) => {
+          if (data && typeof data.openIssueCount === "number")
+            issueCount.value = data.openIssueCount;
         })
         .catch(() => {
           /* no badge is better than a wrong one */
