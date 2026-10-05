@@ -35,7 +35,16 @@ const (
 // by scenario title and the ticket (or reason) that tracks each. The
 // test fails on a listed scenario that now agrees, so the entry gets removed
 // with the fix instead of rotting.
-var knownDisagreements = map[string]string{}
+var knownDisagreements = map[string]string{
+	// GitHub will merge an empty pull request (an empty merge commit); the
+	// dashboard refuses on purpose, since there is nothing to merge
+	// (dashboard.mergeAvailability's empty case, with its own tests).
+	"empty-no-diff": "by design: the dashboard blocks a merge that would be empty",
+}
+
+// emptyScenario is the fixture pull request built to have no diff at all
+// (scripts/e2e-fixture/build.sh).
+const emptyScenario = "empty-no-diff"
 
 // githubTruth is what GitHub says about one pull request.
 type githubTruth struct {
@@ -151,6 +160,12 @@ func TestGitHubState_DashboardAgreesWithGitHub(t *testing.T) {
 			disagreements = append(disagreements, fmt.Sprintf("#%d %s: now agrees, remove it from knownDisagreements (%s)", n, g.Title, ticket))
 		case allowed != want:
 			verdict = fmt.Sprintf("DISAGREE (GitHub can merge=%t, dashboard allows=%t: %s)", want, allowed, why)
+			disagreements = append(disagreements, fmt.Sprintf("#%d %s: %s", n, g.Title, verdict))
+		case g.Title == emptyScenario && !pr.Empty:
+			// The fixture's empty pull request has to be empty to exercise the
+			// rule at all (#967); a GitHub-side change that makes it non-empty
+			// would otherwise pass here unnoticed.
+			verdict = "DISAGREE (the fixture's empty pull request isn't empty)"
 			disagreements = append(disagreements, fmt.Sprintf("#%d %s: %s", n, g.Title, verdict))
 		case pr.Draft != g.IsDraft:
 			verdict = fmt.Sprintf("DISAGREE (draft: GitHub %t, dashboard %t)", g.IsDraft, pr.Draft)
