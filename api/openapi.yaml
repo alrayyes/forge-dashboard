@@ -3374,7 +3374,18 @@ components:
     Issue:
       type: object
       required:
-        [forge, repo, number, title, url, author, labels, createdAt, updatedAt]
+        [
+          forge,
+          repo,
+          number,
+          title,
+          url,
+          author,
+          labels,
+          housekeeping,
+          createdAt,
+          updatedAt,
+        ]
       properties:
         forge:
           $ref: "#/components/schemas/Forge"
@@ -3389,6 +3400,13 @@ components:
           type: string
           format: uri
           description: The real issue URL on its own forge.
+        housekeeping:
+          type: boolean
+          description: |
+            True for an issue a bot keeps open and rewrites, Renovate's
+            "Dependency Dashboard", which is not work for a person. The
+            server decides, so every client lists and counts the same
+            issues. It stays in `issues`; `openIssueCount` leaves it out.
         author:
           type: string
         labels:
@@ -3404,8 +3422,22 @@ components:
 
     Dashboard:
       type: object
-      required: [generatedAt, forges, pullRequests, issues, repos, hiddenDrafts]
+      required:
+        [
+          generatedAt,
+          forges,
+          pullRequests,
+          issues,
+          openIssueCount,
+          repos,
+          hiddenDrafts,
+        ]
       properties:
+        openIssueCount:
+          type: integer
+          description: |
+            How many of `issues` are real work: all of them except the
+            `housekeeping` ones. What the Issues badge shows.
         generatedAt:
           type: string
           format: date-time

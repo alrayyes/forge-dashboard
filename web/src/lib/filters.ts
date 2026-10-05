@@ -25,6 +25,8 @@ export interface FilterableItem {
   mergeStatus?: string;
   labels?: { name: string }[];
   review?: { decision: string; requestedReviewers: number };
+  // True for a bot's housekeeping issue; the server decides (#980).
+  housekeeping?: boolean;
   // The server's own answers for the Ready and Needs Review quick filters
   // (#807): the page holds no copy of what they mean.
   readyToMerge?: boolean;
@@ -153,14 +155,6 @@ export function repoSyncStatus(
   return repo.hasWebhook ? 'Webhook' : 'Polling';
 }
 
-export const DEPENDENCY_DASHBOARD_TITLE = 'Dependency Dashboard';
-
-// Open issues the way the issues page shows them by default: Renovate's
-// Dependency Dashboard housekeeping issue is left out (#827).
-export function countOpenIssues(items: { title: string }[]): number {
-  return items.filter((i) => i.title.trim() !== DEPENDENCY_DASHBOARD_TITLE)
-    .length;
-}
 const FILTERS_COOKIE = 'forge-board-filters';
 
 function getCookie(name: string): string | null {
@@ -363,15 +357,9 @@ export function matchesFilters(
     return false;
   if (isPR && extra?.status && item.ci !== extra.status) return false;
   if (isPR && !matchesQuickFilter(item, extra?.quick)) return false;
-  // Renovate's one permanently-open, constantly-rewritten housekeeping
-  // issue per repo — never a pull request, so this only ever matches
-  // on the issues board. Exact title match: that's the fixed title
-  // Renovate itself always uses.
-  if (
-    !isPR &&
-    extra?.hideDependencyDashboard &&
-    item.title.trim() === DEPENDENCY_DASHBOARD_TITLE
-  )
+  // A bot's housekeeping issue (Renovate's Dependency Dashboard): the
+  // server says which ones those are (#980), so this only reads the flag.
+  if (!isPR && extra?.hideDependencyDashboard && item.housekeeping)
     return false;
   return true;
 }
