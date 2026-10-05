@@ -71,10 +71,10 @@ func rerunBoard(t *testing.T, rerunErr error, prs ...dashboard.PullRequest) (*ht
 	return srv, cookie, src
 }
 
-func postRerunChecks(t *testing.T, srvURL string, cookie *http.Cookie, fullName string, number int) (int, map[string]any) {
+func postRerunChecks(t *testing.T, srvURL string, cookie *http.Cookie) (int, map[string]any) {
 	t.Helper()
 
-	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": fullName, "number": number})
+	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 5})
 	require.NoError(t, err)
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/rerun-checks", strings.NewReader(string(body)))
 	require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestPullRequestRerunChecks_Reruns_AndAnswers204(t *testing.T) {
 
 	srv, cookie, src := rerunBoard(t, nil, failingPR())
 
-	status, _ := postRerunChecks(t, srv.URL, cookie, "alrayyes/a", 5)
+	status, _ := postRerunChecks(t, srv.URL, cookie)
 
 	assert.Equal(t, http.StatusNoContent, status)
 	assert.Equal(t, []string{"alrayyes/a#5"}, src.calls())
@@ -116,7 +116,7 @@ func TestPullRequestRerunChecks_RefusesWhatAllowedActionsDoesNotOffer_WithoutAsk
 	passing.CI = dashboard.CISuccess
 	srv, cookie, src := rerunBoard(t, nil, passing)
 
-	status, body := postRerunChecks(t, srv.URL, cookie, "alrayyes/a", 5)
+	status, body := postRerunChecks(t, srv.URL, cookie)
 
 	assert.Equal(t, http.StatusConflict, status)
 	assert.Equal(t, "not_mergeable", body["code"])
@@ -147,7 +147,7 @@ func TestPullRequestRerunChecks_ForgeRefusals_AreShownInTheirOwnWords(t *testing
 
 			srv, cookie, _ := rerunBoard(t, tc.err, failingPR())
 
-			status, body := postRerunChecks(t, srv.URL, cookie, "alrayyes/a", 5)
+			status, body := postRerunChecks(t, srv.URL, cookie)
 
 			assert.Equal(t, tc.wantStatus, status)
 			assert.Equal(t, tc.wantCode, body["code"])
@@ -163,7 +163,7 @@ func TestPullRequestRerunChecks_ForgeWithNoRerunSupport_Returns400(t *testing.T)
 	source := &fakeSourceWithoutCloseSupport{forge: dashboard.ForgeGitHub}
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
-	status, _ := postRerunChecks(t, srvURL, sessionCookie, "alrayyes/a", 5)
+	status, _ := postRerunChecks(t, srvURL, sessionCookie)
 
 	assert.Equal(t, http.StatusBadRequest, status)
 }
