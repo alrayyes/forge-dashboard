@@ -8,7 +8,7 @@
     markThemeSavePending,
     setThemeCookie,
     type ThemePreference,
-  } from "$lib/theme";
+  } from "#lib/theme.js";
 
   type SharedUser = { username: string; displayName: string };
   type SharingResponse = {
