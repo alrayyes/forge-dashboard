@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.133.1](https://github.com/alrayyes/forge-dashboard/compare/v0.133.0...v0.133.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **api:** refuse Update branch on the server when the allowed actions don't offer it ([#988](https://github.com/alrayyes/forge-dashboard/issues/988)) ([f0e33cd](https://github.com/alrayyes/forge-dashboard/commit/f0e33cd2c9d9f63bf4fd79cbeab527c5eb66a1a6)), closes [#978](https://github.com/alrayyes/forge-dashboard/issues/978)
+
 ## [0.133.0](https://github.com/alrayyes/forge-dashboard/compare/v0.132.8...v0.133.0) (2026-10-05)
 
 
