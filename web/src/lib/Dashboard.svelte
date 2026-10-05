@@ -6,11 +6,11 @@
   let { view }: { view: "pulls" | "issues" } = $props();
 
   import { onMount } from "svelte";
-  import * as Filters from "$lib/filters";
-  import { issueCount } from "$lib/issue-count.svelte";
-  import { findAction, type AllowedAction } from "$lib/allowed-actions";
-  import * as Stacks from "$lib/stacks";
-  import type { FilterableItem, SharedFilterState } from "$lib/filters";
+  import * as Filters from "#lib/filters.js";
+  import { issueCount } from "#lib/issue-count.svelte.js";
+  import { findAction, type AllowedAction } from "#lib/allowed-actions.js";
+  import * as Stacks from "#lib/stacks.js";
+  import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import {
     type ActionCode,
     type ActionRequestError,
@@ -19,18 +19,18 @@
     type SettledState,
     settledBadge,
     showSettled,
-  } from "$lib/action-error";
+  } from "#lib/action-error.js";
   import {
     CONFIRM_TIMEOUT_MS,
     createConfirmArm,
     type DisarmReason,
-  } from "$lib/confirm-arm";
+  } from "#lib/confirm-arm.js";
   import {
     type ActionRef,
     type BotRequest,
     createFeedbackStore,
-  } from "$lib/feedback";
-  import { mountFeedbackUI } from "$lib/feedback-ui";
+  } from "#lib/feedback.js";
+  import { mountFeedbackUI } from "#lib/feedback-ui.js";
   import {
     budgetText,
     isRateLimited,
@@ -39,7 +39,7 @@
     PERMISSION_REASON,
     type RateLimit,
     rateLimitReasonText,
-  } from "$lib/rate-limit";
+  } from "#lib/rate-limit.js";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, admin-link, logout-button, whoami) —
@@ -3792,7 +3792,7 @@
 
     // ---- quick filter pills (#678) ----
     // Toggle buttons with aria-pressed: exactly one is active at a time.
-    // The pill logic itself lives in $lib/filters (setPill/activePill).
+    // The pill logic itself lives in #lib/filters (setPill/activePill).
     const quickPills = Array.from(
       document.querySelectorAll<HTMLButtonElement>(".quick-pill"),
     );

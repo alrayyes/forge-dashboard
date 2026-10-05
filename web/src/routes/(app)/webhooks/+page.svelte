@@ -4,15 +4,15 @@
     type ActionRequestError,
     interpretActionFailure,
     readActionFailure,
-  } from "$lib/action-error";
-  import { rateLimitReasonText } from "$lib/rate-limit";
+  } from "#lib/action-error.js";
+  import { rateLimitReasonText } from "#lib/rate-limit.js";
 
   type RateLimit = { limit: number; remaining: number; resetsAt: string };
   // Webhook management (list/create/edit a hook) is REST-only (#361) —
   // rateLimitGraphQL exists on the real ForgeHealth this page reads but
   // is deliberately not modeled here at all, the same restraint that
   // kept this page's own FORGE_LABELS local instead of reaching for the
-  // shared $lib/filters one.
+  // shared #lib/filters one.
   type ForgeHealthEntry = { forge: string; rateLimitREST?: RateLimit };
   type Repo = {
     forge: string;
@@ -37,7 +37,7 @@
     both: "Ignore both",
   };
 
-  // Kept local rather than importing $lib/filters (which the dashboard
+  // Kept local rather than importing #lib/filters (which the dashboard
   // and Insights pages use) — it's a two-entry map, and duplicating that
   // is cheaper than pulling in the whole filter module just for this.
   const FORGE_LABELS: Record<string, string> = {
