@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.133.3](https://github.com/alrayyes/forge-dashboard/compare/v0.133.2...v0.133.3) (2026-10-05)
+
+
+### Bug Fixes
+
+* **api:** refuse a bot's command on the server unless the pull request is that bot's ([#1003](https://github.com/alrayyes/forge-dashboard/issues/1003)) ([a416815](https://github.com/alrayyes/forge-dashboard/commit/a4168151ab0baf906c0cc3e1fda336c7ee10f2b0)), closes [#978](https://github.com/alrayyes/forge-dashboard/issues/978)
+
 ## [0.133.2](https://github.com/alrayyes/forge-dashboard/compare/v0.133.1...v0.133.2) (2026-10-05)
 
 
