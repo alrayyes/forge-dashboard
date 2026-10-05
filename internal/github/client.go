@@ -33,6 +33,9 @@ import (
 	ghsdk "github.com/google/go-github/v75/github"
 )
 
+// errRepositoryNotFound is what a GraphQL answer with no repository gives.
+var errRepositoryNotFound = errors.New("repository missing from the answer")
+
 const defaultBaseURL = "https://api.github.com"
 
 // perPage is the page size used for the REST fallback's paginated list
@@ -1588,6 +1591,32 @@ func decodeAppRepoBatch(data json.RawMessage, repos []*ghsdk.Repository) ([]grap
 	return result, rateLimit, nil
 }
 
+// listAppRepos lists the repositories the App's installation can see, without
+// the archived ones and forks, which the dashboard doesn't track.
+func (c *Client) listAppRepos(ctx context.Context) ([]*ghsdk.Repository, error) {
+	const installPath = "/installation/repositories"
+
+	var candidates []*ghsdk.Repository
+	opts := &ghsdk.ListOptions{PerPage: perPage}
+	for {
+		page, resp, err := c.restClient.Apps.ListRepos(ctx, opts)
+		if err != nil {
+			return nil, c.restError(ctx, http.MethodGet, installPath, err)
+		}
+		c.recordRESTSuccess(ctx, http.MethodGet, installPath, resp)
+		for _, r := range page.Repositories {
+			if r.GetArchived() || r.GetFork() {
+				continue
+			}
+			candidates = append(candidates, r)
+		}
+		if resp.NextPage == 0 {
+			return candidates, nil
+		}
+		opts.Page = resp.NextPage
+	}
+}
+
 // fetchAppRepos discovers repositories for an App-installation client
 // (c.appAuthenticated) the way fetchViaGraphQL's viewer-based discovery
 // can't (#625): a GitHub App installation access token has no
@@ -1602,26 +1631,9 @@ func decodeAppRepoBatch(data json.RawMessage, repos []*ghsdk.Repository) ([]grap
 // repository(owner:,name:) has no such viewer restriction (FetchRepo,
 // the webhook-delivery path, already relies on exactly that).
 func (c *Client) fetchAppRepos(ctx context.Context, since *time.Time) ([]graphqlRepo, *dashboard.RateLimit, error) {
-	const installPath = "/installation/repositories"
-
-	var candidates []*ghsdk.Repository
-	opts := &ghsdk.ListOptions{PerPage: perPage}
-	for {
-		page, resp, err := c.restClient.Apps.ListRepos(ctx, opts)
-		if err != nil {
-			return nil, nil, c.restError(ctx, http.MethodGet, installPath, err)
-		}
-		c.recordRESTSuccess(ctx, http.MethodGet, installPath, resp)
-		for _, r := range page.Repositories {
-			if r.GetArchived() || r.GetFork() {
-				continue
-			}
-			candidates = append(candidates, r)
-		}
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
+	candidates, err := c.listAppRepos(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var repos []graphqlRepo
@@ -1661,6 +1673,41 @@ type graphqlErrorEntry struct {
 	} `json:"extensions"`
 }
 
+// graphqlStatusError records and returns the failure for a GraphQL call the
+// server answered with a non-2xx status.
+func (c *Client) graphqlStatusError(ctx context.Context, resp *http.Response) error {
+	msg, rl := apiErrorDetail(resp)
+	kind := dashboard.ForgeErrorRateLimited
+	if _, ok := rateLimitShortMessage(resp.Header, msg); !ok {
+		kind = forgeErrorKindFromStatus(resp.StatusCode)
+	}
+	c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(kind), rl)
+
+	return &apiError{msg: "github: POST /graphql: " + msg, rateLimit: rl, kind: kind}
+}
+
+// graphqlQueryError records and returns the failure for a GraphQL call whose
+// 200 response carried a query-level error.
+func (c *Client) graphqlQueryError(ctx context.Context, resp *http.Response, entry graphqlErrorEntry) error {
+	rl := rateLimitFromHeaders(resp.Header)
+	msg := entry.Message
+	kind := graphqlErrorKind(entry.Extensions.Type)
+	// GitHub sometimes reports rate limiting as a query-level error in
+	// a 200 response rather than rejecting the request outright — the
+	// same headers are usually still there, so this gets the same
+	// short message and the same RateLimit reporting as the
+	// HTTP-status failure path; when they're not (a secondary/abuse
+	// limit — #360), rateLimitShortMessage's own content check still
+	// catches it from msg itself.
+	if short, ok := rateLimitShortMessage(resp.Header, msg); ok {
+		msg = short
+		kind = dashboard.ForgeErrorRateLimited
+	}
+	c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(kind), rl)
+
+	return &apiError{msg: "github: graphql: " + msg, rateLimit: rl, kind: kind}
+}
+
 // graphqlDo posts one GraphQL request and decodes its data into out.
 // GitHub reports a request rejected before execution (bad auth, rate
 // limiting) as a non-2xx status with the same error body REST uses; a
@@ -1697,14 +1744,7 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		msg, rl := apiErrorDetail(resp)
-		kind := dashboard.ForgeErrorRateLimited
-		if _, ok := rateLimitShortMessage(resp.Header, msg); !ok {
-			kind = forgeErrorKindFromStatus(resp.StatusCode)
-		}
-		c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(kind), rl)
-
-		return &apiError{msg: "github: POST /graphql: " + msg, rateLimit: rl, kind: kind}
+		return c.graphqlStatusError(ctx, resp)
 	}
 
 	var envelope struct {
@@ -1717,23 +1757,7 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 		return fmt.Errorf("github: decode graphql response: %w", err)
 	}
 	if len(envelope.Errors) > 0 {
-		rl := rateLimitFromHeaders(resp.Header)
-		msg := envelope.Errors[0].Message
-		kind := graphqlErrorKind(envelope.Errors[0].Extensions.Type)
-		// GitHub sometimes reports rate limiting as a query-level error in
-		// a 200 response rather than rejecting the request outright — the
-		// same headers are usually still there, so this gets the same
-		// short message and the same RateLimit reporting as the
-		// HTTP-status failure path; when they're not (a secondary/abuse
-		// limit — #360), rateLimitShortMessage's own content check still
-		// catches it from msg itself.
-		if short, ok := rateLimitShortMessage(resp.Header, msg); ok {
-			msg = short
-			kind = dashboard.ForgeErrorRateLimited
-		}
-		c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(kind), rl)
-
-		return &apiError{msg: "github: graphql: " + msg, rateLimit: rl, kind: kind}
+		return c.graphqlQueryError(ctx, resp, envelope.Errors[0])
 	}
 	c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, requestlog.OutcomeSuccess, rateLimitFromHeaders(resp.Header))
 	if out == nil {
@@ -1819,6 +1843,20 @@ func (c *Client) fetchTokenRepos(ctx context.Context, since *time.Time) ([]graph
 	return repos, rateLimit, nil
 }
 
+// trackedRepos keeps the repos the dashboard follows: not archived, not a
+// fork, and ones the credential can write to.
+func trackedRepos(repos []graphqlRepo) []graphqlRepo {
+	tracked := make([]graphqlRepo, 0, len(repos))
+	for _, r := range repos {
+		if r.IsArchived || r.IsFork || !hasWriteAccess(r.ViewerPermission) {
+			continue
+		}
+		tracked = append(tracked, r)
+	}
+
+	return tracked
+}
+
 func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	// Captured before the query runs, not after: an issue that changes
 	// mid-poll needs an updatedAt at or after the *next* poll's own
@@ -1848,13 +1886,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		slog.Warn("github fetch returned no repositories", "forge", dashboard.ForgeGitHub, "appAuthenticated", c.appAuthenticated)
 	}
 
-	tracked := make([]graphqlRepo, 0, len(repos))
-	for _, r := range repos {
-		if r.IsArchived || r.IsFork || !hasWriteAccess(r.ViewerPermission) {
-			continue
-		}
-		tracked = append(tracked, r)
-	}
+	tracked := trackedRepos(repos)
 	hasWebhook := c.checkWebhooks(ctx, tracked)
 	issuesByRepo := c.reconcileIssues(ctx, tracked, since != nil)
 	c.issueState.commit(pollStartedAt, issuesByRepo)
@@ -2266,7 +2298,7 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 		return nil, nil, err
 	}
 	if resp.Repository == nil {
-		return nil, nil, fmt.Errorf("github: graphql: repository %s not found", fullName)
+		return nil, nil, fmt.Errorf("github: graphql: repository %s not found: %w", fullName, errRepositoryNotFound)
 	}
 
 	prs := make([]dashboard.PullRequest, 0, len(resp.Repository.PullRequests.Nodes))

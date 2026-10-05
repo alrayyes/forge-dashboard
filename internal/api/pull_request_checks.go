@@ -46,31 +46,12 @@ func handlePullRequestChecks(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
-
+		src, _, ok := forgeSource(w, r, deps, u.ID, forge)
+		if !ok {
 			return
 		}
-
-		var checker dashboard.PullRequestChecker
-		for _, src := range deps.BuildSources(u.ID, creds) {
-			if string(src.Forge()) != forge {
-				continue
-			}
-			c, supported := src.(dashboard.PullRequestChecker)
-			if !supported {
-				writeJSON(w, http.StatusBadRequest, errorBody(forge+" doesn't support listing pull request checks"))
-
-				return
-			}
-			checker = c
-
-			break
-		}
-		if checker == nil {
-			writeJSON(w, http.StatusBadRequest, errorBody("no "+forge+" credentials saved"))
-
+		checker, ok := capabilityOf[dashboard.PullRequestChecker](w, src, forge, "doesn't support listing pull request checks")
+		if !ok {
 			return
 		}
 

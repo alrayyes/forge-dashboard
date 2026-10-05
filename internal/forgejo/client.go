@@ -28,6 +28,15 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
 
+var (
+	// errForgeRefused introduces the reason Forgejo gave for refusing a call.
+	errForgeRefused = errors.New("refused")
+	// errLabelMissing is a rebase label the repo doesn't have.
+	errLabelMissing = errors.New("label missing")
+	// errNoForgejoAuth is a client with neither a token nor a username to list with.
+	errNoForgejoAuth = errors.New("forgejo: neither a token nor a username is configured")
+)
+
 // pageLimit is the page size used for every paginated list call. Forgejo's
 // default per-page maximum is 50 unless an instance admin raises it, so
 // this stays conservative rather than assuming a larger limit was set.
@@ -302,7 +311,7 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 		statusCode = resp.StatusCode
 	}
 	c.recordRequest(ctx, method, path, statusCode, string(kind))
-	wrapped := fmt.Errorf("forgejo: %s %s: %s", method, path, msg)
+	wrapped := fmt.Errorf("forgejo: %s %s: %w: %s", method, path, errForgeRefused, msg)
 
 	return &dashboard.ClientError{Kind: kind, Err: wrapped}
 }
@@ -460,7 +469,7 @@ func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, l
 		}
 	}
 	if !found {
-		wrapped := fmt.Errorf("forgejo: no label %q on %s/%s — create it on the repo first", label, owner, name)
+		wrapped := fmt.Errorf("forgejo: no label %q on %s/%s — create it on the repo first: %w", label, owner, name, errLabelMissing)
 
 		return &dashboard.ClientError{Kind: dashboard.ForgeErrorNotFound, Err: wrapped}
 	}
@@ -485,7 +494,7 @@ func (c *Client) ListRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
 	case c.username != "":
 		return c.listPublicRepos(ctx)
 	default:
-		return nil, errors.New("forgejo: neither a token nor a username is configured")
+		return nil, errNoForgejoAuth
 	}
 }
 
@@ -656,7 +665,24 @@ func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.P
 		return nil
 	}
 
-	// Latest opinionated, non-dismissed review per reviewer wins.
+	approvals, changes := countLatestReviews(reviews)
+	requested := len(p.RequestedReviewers) + len(p.RequestedReviewersTeams)
+	state := &dashboard.ReviewState{
+		Decision:           dashboard.DeriveReviewDecision(approvals, changes, requested),
+		Approvals:          approvals,
+		RequestedReviewers: requested,
+	}
+
+	c.reviewsMu.Lock()
+	c.reviews[key] = cachedReview{updatedAt: updated, state: state}
+	c.reviewsMu.Unlock()
+
+	return state
+}
+
+// countLatestReviews counts approvals and change requests, taking each
+// reviewer's latest opinionated, non-dismissed review and nothing earlier.
+func countLatestReviews(reviews []*gitea.PullReview) (approvals, changes int) {
 	sort.SliceStable(reviews, func(i, j int) bool { return reviews[i].Submitted.Before(reviews[j].Submitted) })
 	latest := map[string]gitea.ReviewStateType{}
 	for _, r := range reviews {
@@ -672,7 +698,6 @@ func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.P
 		}
 		latest[who] = r.State
 	}
-	var approvals, changes int
 	for _, st := range latest {
 		if st == gitea.ReviewStateApproved {
 			approvals++
@@ -680,18 +705,8 @@ func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.P
 			changes++
 		}
 	}
-	requested := len(p.RequestedReviewers) + len(p.RequestedReviewersTeams)
-	state := &dashboard.ReviewState{
-		Decision:           dashboard.DeriveReviewDecision(approvals, changes, requested),
-		Approvals:          approvals,
-		RequestedReviewers: requested,
-	}
 
-	c.reviewsMu.Lock()
-	c.reviews[key] = cachedReview{updatedAt: updated, state: state}
-	c.reviewsMu.Unlock()
-
-	return state
+	return approvals, changes
 }
 
 func reviewKey(owner, name string, index int64) string {
@@ -735,6 +750,56 @@ func (c *Client) listReviews(ctx context.Context, owner, name string, index int6
 	}
 }
 
+// toPullRequest maps one Forgejo pull request, resolving its CI and its
+// review state.
+func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p *gitea.PullRequest) dashboard.PullRequest {
+	sha := ""
+	if p.Head != nil {
+		sha = p.Head.Sha
+	}
+	ci, err := c.ciStatus(ctx, owner, name, sha)
+	if err != nil {
+		ci = dashboard.CINone
+	}
+	var created, updated time.Time
+	if p.Created != nil {
+		created = *p.Created
+	}
+	if p.Updated != nil {
+		updated = *p.Updated
+	}
+
+	return dashboard.PullRequest{
+		Forge:                   dashboard.ForgeForgejo,
+		Repo:                    repo,
+		Number:                  int(p.Index),
+		Title:                   p.Title,
+		URL:                     p.HTMLURL,
+		Author:                  posterLogin(p.Poster),
+		Draft:                   p.Draft,
+		Labels:                  toLabels(p.Labels),
+		CreatedAt:               created,
+		UpdatedAt:               updated,
+		CI:                      ci,
+		MergeStatus:             mergeStatusFromMergeable(p.Mergeable),
+		Behind:                  isBehind(p),
+		HeadSHA:                 sha,
+		BaseBranch:              branchRef(p.Base),
+		HeadBranch:              branchRef(p.Head),
+		CrossRepository:         p.Head != nil && p.Base != nil && p.Head.RepoID != p.Base.RepoID,
+		RequestedReviewerLogins: requestedLogins(p),
+		Empty:                   isEmpty(p),
+		// No read capability for this in the SDK at all — only
+		// write-side schedule/cancel verbs
+		// (MergePullRequestOption.MergeWhenChecksSucceed,
+		// CancelScheduledAutoMerge), nothing that reports current
+		// state. nil here means "this forge can't say," not "not
+		// enabled."
+		AutoMergeEnabled: nil,
+		Review:           c.reviewState(ctx, owner, name, p),
+	}
+}
+
 // ListOpenPullRequests returns every open pull request against repo, with
 // CI already resolved. repo is owner-qualified ("alrayyes/tempus-fugit").
 func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
@@ -753,50 +818,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 		for _, p := range batch {
 			open[reviewKey(owner, name, p.Index)] = struct{}{}
-			sha := ""
-			if p.Head != nil {
-				sha = p.Head.Sha
-			}
-			ci, err := c.ciStatus(ctx, owner, name, sha)
-			if err != nil {
-				ci = dashboard.CINone
-			}
-			var created, updated time.Time
-			if p.Created != nil {
-				created = *p.Created
-			}
-			if p.Updated != nil {
-				updated = *p.Updated
-			}
-			prs = append(prs, dashboard.PullRequest{
-				Forge:                   dashboard.ForgeForgejo,
-				Repo:                    repo,
-				Number:                  int(p.Index),
-				Title:                   p.Title,
-				URL:                     p.HTMLURL,
-				Author:                  posterLogin(p.Poster),
-				Draft:                   p.Draft,
-				Labels:                  toLabels(p.Labels),
-				CreatedAt:               created,
-				UpdatedAt:               updated,
-				CI:                      ci,
-				MergeStatus:             mergeStatusFromMergeable(p.Mergeable),
-				Behind:                  isBehind(p),
-				HeadSHA:                 sha,
-				BaseBranch:              branchRef(p.Base),
-				HeadBranch:              branchRef(p.Head),
-				CrossRepository:         p.Head != nil && p.Base != nil && p.Head.RepoID != p.Base.RepoID,
-				RequestedReviewerLogins: requestedLogins(p),
-				Empty:                   isEmpty(p),
-				// No read capability for this in the SDK at all — only
-				// write-side schedule/cancel verbs
-				// (MergePullRequestOption.MergeWhenChecksSucceed,
-				// CancelScheduledAutoMerge), nothing that reports current
-				// state. nil here means "this forge can't say," not "not
-				// enabled."
-				AutoMergeEnabled: nil,
-				Review:           c.reviewState(ctx, owner, name, p),
-			})
+			prs = append(prs, c.toPullRequest(ctx, owner, name, repo, p))
 		}
 		if resp.NextPage == 0 {
 			break
@@ -1116,7 +1138,7 @@ func (c *Client) rawRequest(ctx context.Context, method, path string, body io.Re
 			msg = httpResp.Status
 		}
 
-		return nil, resp, fmt.Errorf("%s", msg)
+		return nil, resp, fmt.Errorf("%w: %s", errForgeRefused, msg)
 	}
 	// The success path's own recording — a failure here returns to the
 	// caller, which persists its own entry via forgejoError(ctx, method,
@@ -1157,6 +1179,30 @@ func workflowContext(run *gitea.ActionWorkflowRun, job string) string {
 	return fmt.Sprintf("%s / %s (%s)", stem, job, run.Event)
 }
 
+// requiredPatterns is the status-check name patterns the branch's protection
+// rule requires, or none when it has no rule or doesn't require checks.
+func requiredPatterns(rules []*gitea.BranchProtection, base string) []*regexp.Regexp {
+	var patterns []*regexp.Regexp
+	if rule := protectionForBranch(rules, base); rule != nil && rule.EnableStatusCheck {
+		for _, p := range rule.StatusCheckContexts {
+			patterns = append(patterns, globRegexp(p, false))
+		}
+	}
+
+	return patterns
+}
+
+// matchesAny reports whether s matches any of patterns.
+func matchesAny(patterns []*regexp.Regexp, s string) bool {
+	for _, re := range patterns {
+		if re.MatchString(s) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // markRequired sets Check.Required from the base branch's protection rule
 // (enable_status_check + status_check_contexts, which are glob patterns).
 // Listing protections needs admin on the repo, so a failure leaves every
@@ -1184,21 +1230,8 @@ func (c *Client) markRequired(ctx context.Context, owner, name, base string, che
 	}
 	c.recordRequest(ctx, http.MethodGet, protPath, resp.StatusCode, requestlog.OutcomeSuccess)
 
-	var patterns []*regexp.Regexp
-	if rule := protectionForBranch(rules, base); rule != nil && rule.EnableStatusCheck {
-		for _, p := range rule.StatusCheckContexts {
-			patterns = append(patterns, globRegexp(p, false))
-		}
-	}
-	matches := func(s string) bool {
-		for _, re := range patterns {
-			if re.MatchString(s) {
-				return true
-			}
-		}
-
-		return false
-	}
+	patterns := requiredPatterns(rules, base)
+	matches := func(s string) bool { return matchesAny(patterns, s) }
 	for i := range checks {
 		isJob := i < len(probes) && probes[i] != ""
 		switch {

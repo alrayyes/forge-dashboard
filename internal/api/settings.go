@@ -194,6 +194,78 @@ type settingsPutRequest struct {
 	RenovateRebaseLabel     string `json:"renovateRebaseLabel"`
 }
 
+// decodeSettingsPut reads the body, and answers 400 itself when it can't. A
+// value of the wrong type names its field, so a client can mark that input
+// (#810).
+func decodeSettingsPut(w http.ResponseWriter, r *http.Request) (settingsPutRequest, bool) {
+	var req settingsPutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok && typeErr.Field != "" {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody(typeErr.Field, typeErr.Field+" must be "+typeInWords(typeErr.Type)))
+
+			return settingsPutRequest{}, false
+		}
+		writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
+		return settingsPutRequest{}, false
+	}
+
+	return req, true
+}
+
+// mergeSettings is what Set is given: the request's fields, with a blank token
+// left as it was.
+func mergeSettings(req settingsPutRequest, existing settings.Credentials) settings.Credentials {
+	return settings.Credentials{
+		GitHubToken:             coalesce(req.GitHubToken, existing.GitHubToken),
+		GitHubUsername:          req.GitHubUsername,
+		GitHubAppInstallationID: req.GitHubAppInstallationID,
+		ForgejoURL:              req.ForgejoURL,
+		ForgejoToken:            coalesce(req.ForgejoToken, existing.ForgejoToken),
+		ForgejoUsername:         req.ForgejoUsername,
+		RenovateRebaseLabel:     req.RenovateRebaseLabel,
+		// Theme isn't part of this request at all — it has its own
+		// dedicated PUT /api/settings/theme (handleThemePut) so
+		// picking it applies and saves instantly rather than
+		// waiting on this form's Save button. Carried over
+		// untouched here for the same reason WebhookToken/
+		// WebhookSecret are below: Store.Set writes every column
+		// on every call, so leaving Theme out of this struct
+		// would silently reset it to "" on every ordinary save.
+		Theme: existing.Theme,
+		// Same for the timezone and PUT /api/settings/timezone (#996).
+		Timezone: existing.Timezone,
+		// Set doesn't touch these columns (see settings.Store.Set) —
+		// carried over here only so this response reflects them
+		// too, rather than reporting them blank until the next GET.
+		WebhookToken:  existing.WebhookToken,
+		WebhookSecret: existing.WebhookSecret,
+	}
+}
+
+// settingsFieldError says which field of merged can never work, and why, or
+// returns an empty field when all of it can.
+func settingsFieldError(merged settings.Credentials, req settingsPutRequest, githubAppConfigured bool) (field, message string) {
+	switch {
+	case merged.ForgejoURL == "" && (merged.ForgejoToken != "" || merged.ForgejoUsername != ""):
+		// buildSourcesForUser skips Forgejo entirely once ForgejoURL is
+		// empty, token or username notwithstanding — so a token/username
+		// saved without a URL wouldn't just be incomplete, it'd silently
+		// do nothing.
+		return "forgejoUrl", "forgejoUrl is required when a Forgejo token or username is set"
+	case req.GitHubAppInstallationID < 0:
+		return "githubAppInstallationId", "githubAppInstallationId must be positive"
+	case merged.GitHubAppInstallationID != 0 && !githubAppConfigured:
+		// #620: a saved installation ID this server can never actually
+		// exercise (no GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY_BASE64
+		// configured) is worse than an error at save time — the same
+		// "this can never work" reasoning as the Forgejo-URL check above.
+		return "githubAppInstallationId", "this server has no GitHub App configured; githubAppInstallationId cannot be set"
+	}
+
+	return "", ""
+}
+
 func handleSettingsPut(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := auth.UserFromContext(r.Context())
@@ -203,17 +275,8 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		var req settingsPutRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			// A value of the wrong type names its field, so a client can mark
-			// that input (#810).
-			if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok && typeErr.Field != "" {
-				writeJSON(w, http.StatusBadRequest, fieldErrorBody(typeErr.Field, typeErr.Field+" must be "+typeInWords(typeErr.Type)))
-
-				return
-			}
-			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
-
+		req, ok := decodeSettingsPut(w, r)
+		if !ok {
 			return
 		}
 
@@ -224,52 +287,9 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		merged := settings.Credentials{
-			GitHubToken:             coalesce(req.GitHubToken, existing.GitHubToken),
-			GitHubUsername:          req.GitHubUsername,
-			GitHubAppInstallationID: req.GitHubAppInstallationID,
-			ForgejoURL:              req.ForgejoURL,
-			ForgejoToken:            coalesce(req.ForgejoToken, existing.ForgejoToken),
-			ForgejoUsername:         req.ForgejoUsername,
-			RenovateRebaseLabel:     req.RenovateRebaseLabel,
-			// Theme isn't part of this request at all — it has its own
-			// dedicated PUT /api/settings/theme (handleThemePut) so
-			// picking it applies and saves instantly rather than
-			// waiting on this form's Save button. Carried over
-			// untouched here for the same reason WebhookToken/
-			// WebhookSecret are below: Store.Set writes every column
-			// on every call, so leaving Theme out of this struct
-			// would silently reset it to "" on every ordinary save.
-			Theme: existing.Theme,
-			// Same for the timezone and PUT /api/settings/timezone (#996).
-			Timezone: existing.Timezone,
-			// Set doesn't touch these columns (see settings.Store.Set) —
-			// carried over here only so this response reflects them
-			// too, rather than reporting them blank until the next GET.
-			WebhookToken:  existing.WebhookToken,
-			WebhookSecret: existing.WebhookSecret,
-		}
-
-		// buildSourcesForUser skips Forgejo entirely once ForgejoURL is
-		// empty, token or username notwithstanding — so a token/username
-		// saved without a URL wouldn't just be incomplete, it'd silently
-		// do nothing.
-		if merged.ForgejoURL == "" && (merged.ForgejoToken != "" || merged.ForgejoUsername != "") {
-			writeJSON(w, http.StatusBadRequest, fieldErrorBody("forgejoUrl", "forgejoUrl is required when a Forgejo token or username is set"))
-
-			return
-		}
-		if req.GitHubAppInstallationID < 0 {
-			writeJSON(w, http.StatusBadRequest, fieldErrorBody("githubAppInstallationId", "githubAppInstallationId must be positive"))
-
-			return
-		}
-		// #620: a saved installation ID this server can never actually
-		// exercise (no GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY_BASE64
-		// configured) is worse than an error at save time — the same
-		// "this can never work" reasoning as the Forgejo-URL check above.
-		if merged.GitHubAppInstallationID != 0 && !deps.GitHubAppConfigured {
-			writeJSON(w, http.StatusBadRequest, fieldErrorBody("githubAppInstallationId", "this server has no GitHub App configured; githubAppInstallationId cannot be set"))
+		merged := mergeSettings(req, existing)
+		if field, message := settingsFieldError(merged, req, deps.GitHubAppConfigured); field != "" {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody(field, message))
 
 			return
 		}
