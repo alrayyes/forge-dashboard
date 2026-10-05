@@ -68,8 +68,16 @@ git push -q -f origin head/conflict-seed:refs/heads/base/open
 pr conflicting                base/open           pass pass "" "conflict.txt=head side"
 # The head edits the line one way, the base edits it another way further down.
 
-# Empty: head's change lands on base as a different commit, so the PR has no diff.
-pr empty-after-base-took-it   base/open           pass pass
+# Empty: a head with one empty commit. GitHub reports 0 additions, 0 deletions
+# and 0 changed files for it and keeps it open, which is what the dashboard
+# calls empty. (Having base take the same change doesn't do it: GitHub diffs
+# from the merge-base, so the file still shows up, #967.)
+git checkout -q -B head/empty-no-diff origin/base/open
+"${GIT[@]}" commit -q --allow-empty -m "test: empty-no-diff"
+git push -q -f origin head/empty-no-diff
+gh pr create -R "$REPO" --base base/open --head head/empty-no-diff --title empty-no-diff \
+  --body "Fixture scenario \`empty-no-diff\`. One empty commit, so no diff." >/dev/null
+echo "created empty-no-diff -> base/open"
 
 # Stacked: B's base is A's head branch.
 git push -q -f origin head/clean-no-protection:refs/heads/base/stack-parent
@@ -88,12 +96,6 @@ echo "advance" >advance.txt
 echo "base side" >conflict.txt
 git add -A; "${GIT[@]}" commit -qm "test: advance base/open"
 git push -q origin advance-open:refs/heads/base/open
-# Empty PR: put the same content on base under a new commit.
-git checkout -q -B take origin/base/open
-mkdir -p changes ci; echo "empty-after-base-took-it" >changes/empty-after-base-took-it.txt
-echo "pass" >ci/required.txt; echo "pass" >ci/optional.txt
-git add -A; "${GIT[@]}" commit -qm "test: base takes the empty PR's change" || true
-git push -q origin take:refs/heads/base/open
 
 # Protection, last.
 prot() { gh api -X PUT "repos/$REPO/branches/$1/protection" --input - >/dev/null; }
