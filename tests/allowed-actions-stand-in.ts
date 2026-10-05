@@ -146,10 +146,25 @@ export function installAllowedActionsStandIn(
   allowedFor: (pr: StandInPR) => StandInEntry[],
 ) {
   function enrich<T>(data: T): T {
-    const snapshot = data as unknown as { pullRequests?: StandInPR[] };
+    const snapshot = data as unknown as {
+      pullRequests?: StandInPR[];
+      issues?: { title: string; housekeeping?: boolean }[];
+      openIssueCount?: number;
+    };
     if (snapshot && Array.isArray(snapshot.pullRequests))
       for (const pr of snapshot.pullRequests)
         if (pr.allowedActions === undefined) pr.allowedActions = allowedFor(pr);
+    // The server flags a bot's housekeeping issue and counts the rest
+    // (#980). A mocked issue that states its own flag is left alone.
+    if (snapshot && Array.isArray(snapshot.issues)) {
+      for (const issue of snapshot.issues)
+        if (issue.housekeeping === undefined)
+          issue.housekeeping = issue.title.trim() === 'Dependency Dashboard';
+      if (snapshot.openIssueCount === undefined)
+        snapshot.openIssueCount = snapshot.issues.filter(
+          (i) => !i.housekeeping,
+        ).length;
+    }
     return data;
   }
 

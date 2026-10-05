@@ -40,11 +40,22 @@ type dashboardResponse struct {
 	GeneratedAt  time.Time               `json:"generatedAt"`
 	Forges       []dashboard.ForgeHealth `json:"forges"`
 	PullRequests []pullRequestView       `json:"pullRequests"`
-	Issues       []dashboard.Issue       `json:"issues"`
-	Repos        []repoStatus            `json:"repos"`
+	Issues       []issueView             `json:"issues"`
+	// OpenIssueCount is how many of Issues are real work, without the
+	// housekeeping ones (#980).
+	OpenIssueCount int          `json:"openIssueCount"`
+	Repos          []repoStatus `json:"repos"`
 	// HiddenDrafts is how many draft pull requests PullRequests leaves out
 	// (#791). Always serialized, and zero when the request included drafts.
 	HiddenDrafts int `json:"hiddenDrafts"`
+}
+
+// issueView is an issue as the API serves it: the snapshot's own fields plus
+// whether it is a bot's housekeeping issue, decided here so every client
+// agrees (#980).
+type issueView struct {
+	dashboard.Issue
+	Housekeeping bool `json:"housekeeping"`
 }
 
 // pullRequestView is a pull request as the API serves it: the snapshot's own
@@ -151,20 +162,27 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 			ReviewRequestedFromMe: dashboard.ReviewRequestedFrom(pr, logins[pr.Forge]),
 		})
 	}
-	issues := make([]dashboard.Issue, 0, len(snap.Issues))
+	issues := make([]issueView, 0, len(snap.Issues))
+	openIssues := 0
 	for _, issue := range snap.Issues {
-		if !ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
-			issues = append(issues, issue)
+		if ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
+			continue
+		}
+		housekeeping := dashboard.IsHousekeepingIssue(issue)
+		issues = append(issues, issueView{Issue: issue, Housekeeping: housekeeping})
+		if !housekeeping {
+			openIssues++
 		}
 	}
 
 	return dashboardResponse{
-		GeneratedAt:  snap.GeneratedAt,
-		Forges:       withRateLimitSeverity(snap.Forges, time.Now()),
-		PullRequests: pullRequests,
-		Issues:       issues,
-		Repos:        repos,
-		HiddenDrafts: hiddenDrafts,
+		GeneratedAt:    snap.GeneratedAt,
+		Forges:         withRateLimitSeverity(snap.Forges, time.Now()),
+		PullRequests:   pullRequests,
+		Issues:         issues,
+		OpenIssueCount: openIssues,
+		Repos:          repos,
+		HiddenDrafts:   hiddenDrafts,
 	}
 }
 

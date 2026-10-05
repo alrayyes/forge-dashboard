@@ -49,6 +49,44 @@ func writeActionRefusal(ctx context.Context, w http.ResponseWriter, src any, act
 	writeRefusal(w, status, refusal, actionErr, "action", string(action), "repo", owner+"/"+name, "number", number)
 }
 
+// refuseIfNotAllowed enforces dashboard.AllowedActions on the server (#978):
+// when the pull request is on the user's board and its allowed actions say
+// action is blocked, or doesn't apply, it answers 409 with the same code and
+// message the board shows and reports true, so the caller never asks the
+// forge. A pull request the board doesn't hold is left to the forge, which
+// has the final say either way.
+func refuseIfNotAllowed(w http.ResponseWriter, deps Deps, userID []byte, action dashboard.ActionName, forge, fullName string, number int) bool {
+	pr, found := deps.Manager.FindPullRequest(userID, dashboard.Forge(forge), fullName, number)
+	if !found {
+		return false
+	}
+
+	for _, a := range dashboard.AllowedActions(pr) {
+		if a.Action != action {
+			continue
+		}
+		if a.Blocked == nil {
+			return false
+		}
+		writeJSON(w, http.StatusConflict, actionErrorBody{
+			Error:   a.Blocked.Message,
+			Code:    string(a.Blocked.Code),
+			Message: a.Blocked.Message,
+		})
+
+		return true
+	}
+
+	// Not offered at all: nothing a person could do about it from here.
+	writeJSON(w, http.StatusConflict, actionErrorBody{
+		Error:   "This action doesn't apply to this pull request.",
+		Code:    string(dashboard.ActionNotMergeable),
+		Message: "This action doesn't apply to this pull request.",
+	})
+
+	return true
+}
+
 // writeRefusal answers with the shared ActionError. With code unknown the raw
 // text (internal prefixes, API paths, a swagger URL) is for the log only
 // (#796): the response carries the same plain words in `error` and

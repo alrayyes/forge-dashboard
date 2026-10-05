@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.133.0](https://github.com/alrayyes/forge-dashboard/compare/v0.132.8...v0.133.0) (2026-10-05)
+
+
+### Features
+
+* **api:** record an accepted Update branch on the pull request ([#991](https://github.com/alrayyes/forge-dashboard/issues/991)) ([e29e7db](https://github.com/alrayyes/forge-dashboard/commit/e29e7dbe41fc663cfd58686f61bca38981eaad60)), closes [#982](https://github.com/alrayyes/forge-dashboard/issues/982)
+
+
+### Bug Fixes
+
+* **api:** refuse Merge on the server when the allowed actions block it ([#985](https://github.com/alrayyes/forge-dashboard/issues/985)) ([84abf44](https://github.com/alrayyes/forge-dashboard/commit/84abf44935f8430078a1c662c3494e73bea621c2)), closes [#978](https://github.com/alrayyes/forge-dashboard/issues/978)
+
 ## [0.132.8](https://github.com/alrayyes/forge-dashboard/compare/v0.132.7...v0.132.8) (2026-10-05)
 
 

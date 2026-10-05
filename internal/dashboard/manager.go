@@ -193,6 +193,19 @@ func (m *Manager) Get(userID []byte) Snapshot {
 	return entry.agg.Get()
 }
 
+// FindPullRequest returns the pull request userID's board holds for
+// forge/repo/number. False when it isn't there, which says nothing against
+// the pull request: the board may just not have caught up with it yet.
+func (m *Manager) FindPullRequest(userID []byte, forge Forge, repo string, number int) (PullRequest, bool) {
+	for _, pr := range m.Get(userID).PullRequests {
+		if pr.Forge == forge && pr.Repo == repo && pr.Number == number {
+			return pr, true
+		}
+	}
+
+	return PullRequest{}, false
+}
+
 // Running reports whether userID currently has an Aggregator refreshing
 // in the background. False right after a process restart for every user
 // — the Manager holds no state across one — until something re-Ensures
