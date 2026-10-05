@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.132.6](https://github.com/alrayyes/forge-dashboard/compare/v0.132.5...v0.132.6) (2026-10-05)
+
+
+### Bug Fixes
+
+* **api:** say why update-branch is refused on a PR that changes workflows ([#965](https://github.com/alrayyes/forge-dashboard/issues/965)) ([b69880d](https://github.com/alrayyes/forge-dashboard/commit/b69880d60c756d8b94360ad128ee8d408783b8e8)), closes [#919](https://github.com/alrayyes/forge-dashboard/issues/919)
+
 ## [0.132.5](https://github.com/alrayyes/forge-dashboard/compare/v0.132.4...v0.132.5) (2026-10-05)
 
 
