@@ -16,17 +16,24 @@
   let releases = $state<Release[]>([]);
   let loaded = $state(false);
 
+  // textContent -> innerHTML escapes & < > but not quotes, and a link's URL
+  // ends up inside a quoted attribute below, so quotes are escaped here too.
   function escapeHTML(s: string): string {
     const div = document.createElement("div");
     div.textContent = s;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
+  // The notes are commit messages, so a link in them is untrusted: only an
+  // http(s) URL becomes an anchor, and anything else (javascript:, data:)
+  // stays as the plain text it was written as (#891).
   function inline(text: string): string {
     return escapeHTML(text).replace(
       /\[([^\]]+)\]\(([^)]+)\)/g,
-      (_m, label, url) =>
-        `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`,
+      (match, label, url) =>
+        /^https?:\/\//.test(url)
+          ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
+          : match,
     );
   }
 
