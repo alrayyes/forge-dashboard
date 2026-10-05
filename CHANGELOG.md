@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.132.8](https://github.com/alrayyes/forge-dashboard/compare/v0.132.7...v0.132.8) (2026-10-05)
+
+
+### Bug Fixes
+
+* **api:** trim and refuse blank usernames on the server ([#987](https://github.com/alrayyes/forge-dashboard/issues/987)) ([4bf5e7f](https://github.com/alrayyes/forge-dashboard/commit/4bf5e7f36c48edbb794d56ed155be81719bbda36)), closes [#981](https://github.com/alrayyes/forge-dashboard/issues/981)
+
 ## [0.132.7](https://github.com/alrayyes/forge-dashboard/compare/v0.132.6...v0.132.7) (2026-10-05)
 
 
