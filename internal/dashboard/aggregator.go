@@ -28,6 +28,11 @@ type Aggregator struct {
 	refresh     *coalescer
 	repoRefresh *keyedCoalescer
 
+	// scopedSeq is, per repo, the fetchSeq of the newest scoped refresh merged
+	// into the snapshot. A full refresh that started before it holds older data
+	// for that repo and must not replace the newer (#966). Guarded by mu.
+	scopedSeq map[repoKey]uint64
+
 	// autoUpdate is nil unless EnableAutoUpdateBranch was called — see
 	// auto_update_branch.go.
 	autoUpdate *autoUpdateBranchConfig
@@ -92,6 +97,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		subs:           make(map[chan Snapshot]struct{}),
 		refresh:        newCoalescer(),
 		repoRefresh:    newKeyedCoalescer(),
+		scopedSeq:      make(map[repoKey]uint64),
 		settled:        make(map[string]time.Time),
 		settleWindow:   defaultSettleWindow,
 		botRequests:    make(map[string]*botEntry),
@@ -287,10 +293,14 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 
 // mergeRepo replaces forge/fullName's own entries in the current snapshot
 // with prs and issues, leaving every other repo's data untouched.
+//
+// It reads the snapshot, merges and writes it back under one hold of mu. Two
+// scoped refreshes of different repos run side by side, and a read taken
+// before the lock was released let the later write drop the earlier one's
+// repo (#966).
 func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue) {
 	a.mu.Lock()
 	current := a.snap
-	a.mu.Unlock()
 
 	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
@@ -312,12 +322,12 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 	AnnotateStacks(merged.PullRequests)
 	sortByRecency(merged.PullRequests, merged.Issues)
 
-	a.mu.Lock()
 	// A request recorded since applyBotRequests ran lives only in the registry
 	// and on the snapshot RecordBotRequest saw, which this one is about to
 	// replace. Annotating again under the lock that RecordBotRequest also
 	// holds leaves no gap between the two (#976).
 	a.annotateBotRequests(merged.PullRequests)
+	a.scopedSeq[repoKey{forge, fullName}] = seq
 	a.snap = merged
 	a.mu.Unlock()
 
@@ -410,6 +420,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	a.mu.Lock()
 	previous := a.snap
+	snap = a.keepNewerScopedRepos(snap, previous, seq)
 	// See mergeRepo: a request recorded since applyBotRequests ran (#976).
 	a.annotateBotRequests(snap.PullRequests)
 	a.snap = snap
@@ -604,4 +615,52 @@ func carryOver(res Result, earlier Snapshot, forge Forge) Result {
 	res.Repos = slices.DeleteFunc(slices.Clone(earlier.Repos), func(r Repo) bool { return r.Forge != forge })
 
 	return res
+}
+
+// repoKey names one repository on one forge.
+type repoKey struct {
+	forge Forge
+	repo  string
+}
+
+// keepNewerScopedRepos stops a full refresh from undoing a webhook's scoped
+// refresh that landed while it was fetching (#966). A full refresh can take
+// longer than a webhook delivery takes to arrive, so a pull request merged
+// meanwhile is already gone from the snapshot, while the full refresh, which
+// read the forge before the merge, still lists it. For every repo a scoped
+// refresh merged after this full one started (a larger seq), the snapshot's
+// current entries win. Every other repo takes the full refresh's data.
+func (a *Aggregator) keepNewerScopedRepos(snap, current Snapshot, seq uint64) Snapshot {
+	newer := make(map[repoKey]bool)
+	for key, scopedSeq := range a.scopedSeq {
+		if scopedSeq > seq {
+			newer[key] = true
+		}
+	}
+	if len(newer) == 0 {
+		return snap
+	}
+
+	prs := slices.DeleteFunc(slices.Clone(snap.PullRequests), func(pr PullRequest) bool {
+		return newer[repoKey{pr.Forge, pr.Repo}]
+	})
+	for _, pr := range current.PullRequests {
+		if newer[repoKey{pr.Forge, pr.Repo}] {
+			prs = append(prs, pr)
+		}
+	}
+	issues := slices.DeleteFunc(slices.Clone(snap.Issues), func(i Issue) bool {
+		return newer[repoKey{i.Forge, i.Repo}]
+	})
+	for _, i := range current.Issues {
+		if newer[repoKey{i.Forge, i.Repo}] {
+			issues = append(issues, i)
+		}
+	}
+
+	snap.PullRequests, snap.Issues = prs, issues
+	AnnotateStacks(snap.PullRequests)
+	sortByRecency(snap.PullRequests, snap.Issues)
+
+	return snap
 }
