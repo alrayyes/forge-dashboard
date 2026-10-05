@@ -2294,6 +2294,11 @@ components:
       properties:
         username:
           type: string
+          description: |
+            Surrounding whitespace is trimmed by the server, and what is
+            left must not be empty. Clients may check the same pattern for
+            quick feedback; the server decides.
+          pattern: "\\S"
           examples: [ryan]
         displayName:
           type: string
@@ -2325,6 +2330,11 @@ components:
       properties:
         username:
           type: string
+          description: |
+            Surrounding whitespace is trimmed by the server, and what is
+            left must not be empty. Clients may check the same pattern for
+            quick feedback; the server decides.
+          pattern: "\\S"
           examples: [ryan]
 
     WebAuthnCeremonyOptions:
@@ -2405,6 +2415,11 @@ components:
       properties:
         username:
           type: string
+          description: |
+            Surrounding whitespace is trimmed by the server, and what is
+            left must not be empty. Clients may check the same pattern for
+            quick feedback; the server decides.
+          pattern: "\\S"
           examples: [alex]
         displayName:
           type: string
