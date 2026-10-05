@@ -3483,3 +3483,38 @@ func TestListChecks_FailureDetail(t *testing.T) {
 		assert.Equal(t, dashboard.CheckFailure, failed.State)
 	})
 }
+
+func TestReadPullRequestState_ChangesWorkflowFiles(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		files  []map[string]any
+		status int
+		want   bool
+	}{
+		"touches a workflow":  {files: []map[string]any{{"filename": "README.md"}, {"filename": ".github/workflows/ci.yml"}}, status: http.StatusOK, want: true},
+		"touches no workflow": {files: []map[string]any{{"filename": "README.md"}}, status: http.StatusOK, want: false},
+		"file list failed":    {status: http.StatusInternalServerError, want: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]any{"number": 5, "state": "open", "mergeable_state": "behind"})
+			})
+			mux.HandleFunc("/repos/alrayyes/a/pulls/5/files", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				writeJSON(t, w, tc.files)
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			got, err := github.NewClient("test-token", "", srv.URL).ReadPullRequestState(t.Context(), "alrayyes", "a", 5)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.ChangesWorkflows)
+			assert.True(t, got.Behind)
+		})
+	}
+}
