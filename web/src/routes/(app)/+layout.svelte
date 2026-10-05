@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
-  import { syncThemeFromServer } from "$lib/theme";
-  import Footer from "$lib/Footer.svelte";
-  import { issueCount } from "$lib/issue-count.svelte";
-  import { countOpenIssues } from "$lib/filters";
+  import { syncThemeFromServer } from "#lib/theme.js";
+  import Footer from "#lib/Footer.svelte";
+  import { issueCount } from "#lib/issue-count.svelte.js";
+  import { countOpenIssues } from "#lib/filters.js";
 
   let { children } = $props();
 

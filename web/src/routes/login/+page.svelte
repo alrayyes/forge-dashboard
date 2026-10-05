@@ -5,8 +5,8 @@
     creationCredentialToJSON,
     prepareCreationOptions,
     prepareRequestOptions,
-  } from "$lib/webauthn";
-  import Footer from "$lib/Footer.svelte";
+  } from "#lib/webauthn.js";
+  import Footer from "#lib/Footer.svelte";
 
   let mode = $state<"login" | "register">("login");
 

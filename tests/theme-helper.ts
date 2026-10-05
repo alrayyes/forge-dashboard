@@ -8,7 +8,7 @@ import type { Page } from '@playwright/test';
 // settings.spec.ts exercises directly.
 //
 // Sets both the cookie and the server value, matching exactly what
-// Settings' own selectTheme() does (see $lib/theme.ts): a page that's
+// Settings' own selectTheme() does (see #lib/theme.ts): a page that's
 // migrated to SvelteKit reconciles the two on load and would otherwise
 // silently revert a cookie-only change back to the server's stale value,
 // while a page that hasn't migrated yet (the dashboard, until it does)

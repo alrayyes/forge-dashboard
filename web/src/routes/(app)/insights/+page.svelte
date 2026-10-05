@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import * as Filters from "$lib/filters";
-  import type { FilterableItem, SharedFilterState } from "$lib/filters";
+  import * as Filters from "#lib/filters.js";
+  import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
 
   type RateLimit = {
     limit: number;
@@ -22,7 +22,7 @@
   };
 
   // ---- shared filter state — the same cookie/object app.js reads and
-  // writes (via the shared $lib/filters module), not a separate
+  // writes (via the shared #lib/filters module), not a separate
   // preference store: filtering to a repo here or on the main dashboard
   // is one choice, not two independent ones. Only sharedState.shared
   // (forge/repo/label/author/title) and
