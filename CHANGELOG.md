@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.133.2](https://github.com/alrayyes/forge-dashboard/compare/v0.133.1...v0.133.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* **api:** keep the UI's saved filter state out of reach of API tokens ([#1001](https://github.com/alrayyes/forge-dashboard/issues/1001)) ([a5aa170](https://github.com/alrayyes/forge-dashboard/commit/a5aa170f3ffb16b10b70838ab82ba905e5bf98d8)), closes [#1000](https://github.com/alrayyes/forge-dashboard/issues/1000)
+* **api:** refuse Enable auto-merge on the server when the allowed actions don't offer it ([#995](https://github.com/alrayyes/forge-dashboard/issues/995)) ([5d27d8a](https://github.com/alrayyes/forge-dashboard/commit/5d27d8a40da225a5758db2bda1913c5e86e487c4)), closes [#978](https://github.com/alrayyes/forge-dashboard/issues/978)
+
 ## [0.133.1](https://github.com/alrayyes/forge-dashboard/compare/v0.133.0...v0.133.1) (2026-10-05)
 
 
