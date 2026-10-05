@@ -154,6 +154,12 @@ func main() {
 	}
 }
 
+// Startup errors, named so err113 sees static ones and a caller can match them.
+var (
+	errEncryptionKeyRequired = errors.New("ENCRYPTION_KEY is required (generate one with `openssl rand -base64 32`)")
+	errAppPrivateKeyRequired = errors.New("GITHUB_APP_PRIVATE_KEY_BASE64 is required when GITHUB_APP_ID is set")
+)
+
 // errReadyzStatus is runHealthcheck's own sentinel - err113 wants a wrapped
 // static error rather than a bare fmt.Errorf built from the status code
 // alone.
@@ -203,8 +209,7 @@ func runHealthcheck() error {
 // defer here run before main decides whether to exit non-zero.
 func run() error {
 	addr := envOr("ADDR", ":8080")
-	refreshInterval := resolveRefreshInterval(os.Getenv("REFRESH_INTERVAL"))
-	ciPollInterval := resolveCIPollInterval(os.Getenv("CI_POLL_INTERVAL"))
+	refreshInterval, ciPollInterval := resolveIntervals()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -234,12 +239,8 @@ func run() error {
 		return fmt.Errorf("sharing setup failed: %w", err)
 	}
 
-	manager := dashboard.NewManager(refreshInterval)
+	manager := newManager(settingsStore, refreshInterval, ciPollInterval)
 	defer manager.Stop()
-	// settingsStore satisfies dashboard.AutoUpdateBranchLister (#365)
-	// with its own AutoUpdateBranchRepos/RenovateRebaseLabel methods.
-	manager.SetAutoUpdateBranchLister(settingsStore)
-	manager.SetCIPollInterval(ciPollInterval)
 
 	// One writer for every request-log row (#902). Close drains what's
 	// queued on the way out; a row logged after that is dropped, not a panic.
@@ -267,12 +268,42 @@ func run() error {
 		GitHubAppConfigured: githubAppID != 0,
 	}
 
-	srv := &http.Server{
+	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
+
+	return serve(ctx, newServer(addr, deps), &drain)
+}
+
+// resolveIntervals reads how often to refresh everything and how often to poll
+// CI, each with its own default.
+func resolveIntervals() (refreshInterval, ciPollInterval time.Duration) {
+	return resolveRefreshInterval(os.Getenv("REFRESH_INTERVAL")), resolveCIPollInterval(os.Getenv("CI_POLL_INTERVAL"))
+}
+
+// newServer is the HTTP server for deps, with the header timeout that keeps a
+// slow client from holding a connection open.
+func newServer(addr string, deps api.Deps) *http.Server {
+	return &http.Server{
 		Addr:              addr,
 		Handler:           api.NewMux(deps),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
+}
 
+// newManager is the per-user refresh manager, with the settings store as its
+// list of repos to keep up to date.
+func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval time.Duration) *dashboard.Manager {
+	manager := dashboard.NewManager(refreshInterval)
+	// settingsStore satisfies dashboard.AutoUpdateBranchLister (#365)
+	// with its own AutoUpdateBranchRepos/RenovateRebaseLabel methods.
+	manager.SetAutoUpdateBranchLister(settingsStore)
+	manager.SetCIPollInterval(ciPollInterval)
+
+	return manager
+}
+
+// serve runs srv until ctx is cancelled, then drains readiness before it stops
+// the server, and answers whatever stopped it that wasn't that shutdown.
+func serve(ctx context.Context, srv *http.Server, drain *api.Drain) error {
 	go func() {
 		<-ctx.Done()
 		if err := drainThenShutdown(resolveShutdownDrain(os.Getenv("SHUTDOWN_DRAIN")), drain.Start, srv.Shutdown); err != nil {
@@ -280,7 +311,6 @@ func run() error {
 		}
 	}()
 
-	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("server stopped: %w", err)
 	}
@@ -452,7 +482,7 @@ func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, err
 func buildSettingsStore(ctx context.Context, db *sql.DB) (*settings.Store, error) {
 	key := os.Getenv("ENCRYPTION_KEY")
 	if key == "" {
-		return nil, errors.New("ENCRYPTION_KEY is required (generate one with `openssl rand -base64 32`)")
+		return nil, errEncryptionKeyRequired
 	}
 
 	cipher, err := settings.NewCipher(key)
@@ -487,7 +517,7 @@ func buildGitHubApp() (appID int64, privateKeyPEM []byte, err error) {
 
 	keyB64 := os.Getenv("GITHUB_APP_PRIVATE_KEY_BASE64")
 	if keyB64 == "" {
-		return 0, nil, errors.New("GITHUB_APP_PRIVATE_KEY_BASE64 is required when GITHUB_APP_ID is set")
+		return 0, nil, errAppPrivateKeyRequired
 	}
 	privateKeyPEM, err = base64.StdEncoding.DecodeString(keyB64)
 	if err != nil {

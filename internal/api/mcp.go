@@ -9,6 +9,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// errNoAuthenticatedUser is what a tool answers when the session middleware
+// put no user on the request, which RequireAuth makes impossible in practice.
+var errNoAuthenticatedUser = errors.New("no authenticated user in context")
+
 // getDashboardInput is get_dashboard's own argument shape — the same
 // ?owner= query parameter handleDashboard already accepts, since a shared
 // dashboard is reachable the same way from either transport.
@@ -44,7 +48,7 @@ func newMCPHandler(deps Deps) http.Handler {
 				"this app never writes to either forge through this tool.",
 		}, func(ctx context.Context, _ *mcp.CallToolRequest, input getDashboardInput) (*mcp.CallToolResult, dashboardResponse, error) {
 			if !ok {
-				return nil, dashboardResponse{}, errors.New("no authenticated user in context")
+				return nil, dashboardResponse{}, errNoAuthenticatedUser
 			}
 
 			resp, err := resolveDashboardFor(ctx, deps, u, input.Owner, false)

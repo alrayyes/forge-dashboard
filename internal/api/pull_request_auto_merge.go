@@ -1,11 +1,9 @@
 package api
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -15,62 +13,25 @@ import (
 // already established.
 func handlePullRequestAutoMerge(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		t, ok := readActionTarget(w, r)
 		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
 			return
 		}
-
-		var req pullRequestActionRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
-
+		if refuseIfNotAllowed(w, deps, t.user.ID, dashboard.ActionAutoMerge, t.req.Forge, t.req.FullName, t.req.Number) {
 			return
 		}
-
-		owner, name, ok := splitFullName(req.FullName)
+		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
 		if !ok {
-			writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
-
+			return
+		}
+		merger, ok := capabilityOf[dashboard.PullRequestAutoMerger](w, src, t.req.Forge, "doesn't support enabling auto-merge on pull requests")
+		if !ok {
 			return
 		}
 
-		if refuseIfNotAllowed(w, deps, u.ID, dashboard.ActionAutoMerge, req.Forge, req.FullName, req.Number) {
-			return
-		}
-
-		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
-
-			return
-		}
-
-		var merger dashboard.PullRequestAutoMerger
-		for _, src := range deps.BuildSources(u.ID, creds) {
-			if string(src.Forge()) != req.Forge {
-				continue
-			}
-			m, supported := src.(dashboard.PullRequestAutoMerger)
-			if !supported {
-				writeJSON(w, http.StatusBadRequest, errorBody(req.Forge+" doesn't support enabling auto-merge on pull requests"))
-
-				return
-			}
-			merger = m
-
-			break
-		}
-		if merger == nil {
-			writeJSON(w, http.StatusBadRequest, errorBody("no "+req.Forge+" credentials saved"))
-
-			return
-		}
-
-		if err := merger.EnableAutoMerge(r.Context(), owner, name, req.Number); err != nil {
-			slog.Warn("pull request auto-merge failed", "forge", req.Forge, "repo", req.FullName, "number", req.Number, "error", err)
-			writeActionRefusal(r.Context(), w, merger, dashboard.PullRequestActionAutoMerge, owner, name, req.Number, err)
+		if err := merger.EnableAutoMerge(r.Context(), t.owner, t.name, t.req.Number); err != nil {
+			slog.Warn("pull request auto-merge failed", "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "error", err)
+			writeActionRefusal(r.Context(), w, merger, dashboard.PullRequestActionAutoMerge, t.owner, t.name, t.req.Number, err)
 
 			return
 		}

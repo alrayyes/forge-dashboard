@@ -14,6 +14,9 @@ import (
 	"fmt"
 )
 
+// errCiphertextTooShort is what decrypting something shorter than a nonce answers.
+var errCiphertextTooShort = errors.New("settings: ciphertext too short")
+
 // ErrNoEncryptionKey is returned by NewCipher when key isn't valid
 // AES-256 key material — a service holding real credentials has to fail
 // loudly at startup rather than silently store them in the clear.
@@ -76,7 +79,7 @@ func (c *Cipher) Decrypt(encoded string) (string, error) {
 
 	nonceSize := c.gcm.NonceSize()
 	if len(sealed) < nonceSize {
-		return "", errors.New("settings: ciphertext too short")
+		return "", errCiphertextTooShort
 	}
 	nonce, ciphertext := sealed[:nonceSize], sealed[nonceSize:]
 
