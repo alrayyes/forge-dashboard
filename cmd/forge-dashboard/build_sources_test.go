@@ -1,5 +1,10 @@
 package main
 
+// This file is package main, not main_test, on purpose: it tests unexported
+// functions of the program itself, and another package can't import package
+// main. Anything that can live in a library package is tested there instead
+// (rules/go-test.md prefers the external test package).
+
 import (
 	"crypto/rand"
 	"crypto/rsa"

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"repository\":{\"name\":\"\xe2\x82\xac\",\"full_name\":\"o/\xe2\x82\xac\",\"owner\":{\"login\":\"o\"}}}")
