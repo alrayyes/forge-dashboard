@@ -81,6 +81,11 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 		return blocked(ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge")
 	case pr.Draft:
 		return blocked(ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge")
+	case pr.MergeStatus == MergeUnstable:
+		// GitHub says it can merge: only checks branch protection doesn't
+		// require are failing or running (#955, #956). Required ones would
+		// make it BLOCKED. Skips the CI rules below.
+		return ActionAvailability{Action: ActionMerge}
 	case pr.CI == CIPending:
 		// Overrides a forge that says mergeable while checks still run (#385).
 		return blocked(ActionChecksPending, "Waiting for CI to finish", "Merge unlocks automatically")

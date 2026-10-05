@@ -41,6 +41,7 @@ const (
 	MergeMergeable   MergeStatus = "mergeable"
 	MergeConflicting MergeStatus = "conflicting"
 	MergeBlocked     MergeStatus = "blocked"
+	MergeUnstable    MergeStatus = "unstable"
 	MergeUnknown     MergeStatus = "unknown"
 )
 
