@@ -536,6 +536,65 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/settings/timezone:
+    get:
+      operationId: getTimezone
+      summary: The signed-in user's own saved time zone
+      description: |
+        A lightweight, side-effect-free read of one field, for every page to
+        check on load so it can show times in the user's zone. Deliberately
+        not GET /api/settings, for the reason GET /api/settings/theme isn't.
+        Empty means "use the browser's own zone".
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The current value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimezoneResponse"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: setTimezone
+      summary: Save the signed-in user's own time zone
+      description: |
+        A dedicated, instant save, not routed through PUT /api/settings,
+        which replaces every other field. Exists for browsers that report
+        UTC to every page, such as Firefox with fingerprint resistance.
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimezoneRequest"
+      responses:
+        "200":
+          description: The saved value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimezoneResponse"
+        "400":
+          description: timezone wasn't empty or an IANA zone name.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/settings/filter-state:
     get:
       operationId: getFilterState
@@ -2653,6 +2712,13 @@ components:
             rather than a saved choice. Set only from Settings; every
             other page reads it via the lightweight
             GET /api/settings/theme instead of this endpoint.
+        timezone:
+          type: string
+          description: |
+            The signed-in user's own time zone as an IANA name such as
+            `Europe/Amsterdam`. Empty means the browser's own zone. Set only
+            from Settings (PUT /api/settings/timezone); every other page reads
+            it via GET /api/settings/timezone.
 
     SettingsRequest:
       type: object
@@ -2711,6 +2777,25 @@ components:
         theme:
           type: string
           enum: ["", light, dark]
+
+    TimezoneResponse:
+      type: object
+      description: See GET /api/settings/timezone's own description.
+      required: [timezone]
+      properties:
+        timezone:
+          type: string
+          description: An IANA zone name such as `Europe/Amsterdam`, or empty for the browser's own.
+          examples: [Europe/Amsterdam]
+
+    TimezoneRequest:
+      type: object
+      description: See PUT /api/settings/timezone's own description.
+      required: [timezone]
+      properties:
+        timezone:
+          type: string
+          description: An IANA zone name, or empty for the browser's own. `Local` is refused.
 
     Credential:
       type: object

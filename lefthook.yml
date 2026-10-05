@@ -154,6 +154,13 @@ pre-push:
     - name: gomod-tidy
       run: scripts/go-docker.sh go mod tidy -diff
 
+    # go-releases.md: a broken release config should fail here, not on release
+    # day. The goreleaser version the release job runs, from its image pinned
+    # by digest, and only when the config is in the push.
+    - name: goreleaser
+      glob: ".goreleaser.yml"
+      run: scripts/goreleaser-docker.sh check
+
     # These are `package.json` scripts rather than the commands spelled out,
     # because CI runs the same ones and a literal copied into two files drifts
     # the first time somebody edits one of them.
