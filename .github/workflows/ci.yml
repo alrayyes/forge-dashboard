@@ -336,7 +336,9 @@ jobs:
         run: bun run lint:md
 
   # The API description is a contract. This proves the document is valid
-  # OpenAPI; nothing here proves the handler still matches it.
+  # OpenAPI. That the handlers still match it is the Go contract tests in
+  # internal/api (openapi_contract_test.go, run by the test job), which
+  # validate recorded responses against this document with kin-openapi.
   api:
     needs: changes
     if: needs.changes.outputs.api == 'true'
