@@ -26,7 +26,7 @@ while IFS= read -r path; do
     # Workflows with their own filter or no gate at all, and files no job
     # in ci.yml reads.
     .github/workflows/* | .github/dependabot.yml | renovate.json | .gitleaks.toml | codecov.yml | \
-      release.config.mjs | release-please-config.json | .release-please-manifest.json | LICENSE | \
+      release-please-config.json | .release-please-manifest.json | LICENSE | \
       .gitignore | .prettierignore | openspec/*)
       ;;
     *.go | go.mod | go.sum | .golangci.yml | integration/* | internal/* | cmd/*)
