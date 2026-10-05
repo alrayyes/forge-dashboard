@@ -159,3 +159,28 @@ func TestClassifyActionRefusal_RateLimitedStaysRateLimitedWhateverTheState(t *te
 
 	assert.Equal(t, dashboard.ActionRateLimited, got.Code)
 }
+
+// GitHub refuses update-branch on a pull request that changes workflow files
+// unless the app has the Workflows permission (#919). "Check your token" is
+// the wrong advice for that.
+func TestClassifyActionRefusalFor_UpdateBranchOnWorkflowChange_SaysWhy(t *testing.T) {
+	t.Parallel()
+
+	denied := refusal(dashboard.ForgeErrorUnauthorized, "github: PUT x: Resource not accessible by integration")
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionUpdateBranch, denied, &dashboard.PullRequestState{Behind: true, ChangesWorkflows: true})
+
+	assert.Equal(t, dashboard.ActionPermission, got.Code)
+	assert.Contains(t, got.Message, "workflow")
+	assert.NotContains(t, got.Message, "token")
+}
+
+func TestClassifyActionRefusalFor_UpdateBranchWithoutWorkflowChange_KeepsGenericPermission(t *testing.T) {
+	t.Parallel()
+
+	denied := refusal(dashboard.ForgeErrorUnauthorized, "github: PUT x: Resource not accessible by integration")
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionUpdateBranch, denied, &dashboard.PullRequestState{Behind: true})
+
+	assert.Equal(t, "Missing permission — check your token in Settings.", got.Message)
+}
