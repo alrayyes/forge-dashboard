@@ -8,6 +8,8 @@
     remaining: number;
     resetsAt: string;
     cost?: number;
+    // The server's grade of the budget (#806, #979).
+    severity: "ok" | "warning" | "low" | "exceeded";
   };
   type Forge = {
     forge: string;
@@ -96,18 +98,16 @@
     return { top, maxCount, remaining };
   }
 
-  // Status thresholds on remaining%, not forge identity — --gh/--fj
-  // don't pass as chart-mark fills (see the CSS comment on this card's
-  // rules), and "how healthy is the budget" is the actually useful
-  // signal here. Matches the 80%/95%-used amber/red split standard
-  // rate-limit-UI guidance recommends (Speakeasy's rate-limiting
-  // write-up, among others).
-  function rateLimitStatusClass(remaining: number, limit: number): string {
-    const pct = limit > 0 ? remaining / limit : 1;
-    if (pct < 0.05) return "rl-critical";
-    if (pct < 0.2) return "rl-warning";
-    return "rl-good";
-  }
+  // The gauge colour follows the budget's health, not forge identity —
+  // --gh/--fj don't pass as chart-mark fills (see the CSS comment on this
+  // card's rules). The server grades each budget (#979), so the page holds
+  // no cutoff: it only picks the colour for the grade.
+  const RATE_LIMIT_STATUS_CLASS = {
+    ok: "rl-good",
+    warning: "rl-warning",
+    low: "rl-critical",
+    exceeded: "rl-critical",
+  } as const;
 
   // Ticks once a second so "resets in Xm Ys" counts down live rather
   // than showing a fixed clock time a reader has to do their own
@@ -966,8 +966,8 @@
         </div>
       {:else}
         {@const pct = rl.limit > 0 ? (rl.remaining / rl.limit) * 100 : 0}
-        {@const statusClass = rateLimitStatusClass(rl.remaining, rl.limit)}
-        {@const exhausted = rl.remaining === 0}
+        {@const statusClass = RATE_LIMIT_STATUS_CLASS[rl.severity]}
+        {@const exhausted = rl.severity === "exceeded"}
         <div
           class={`rate-limit-budget${exhausted ? " rl-exhausted" : ""}`}
           data-rate-limit-kind={kind}

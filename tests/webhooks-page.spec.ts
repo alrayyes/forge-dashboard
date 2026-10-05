@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { rateLimit } from './severity-stand-in';
 
 async function registerAndSignIn(
   page: Page,
@@ -330,7 +331,7 @@ test.describe('webhooks page', () => {
           forge: 'github',
           reachable: true,
           repoCount: 1,
-          rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
+          rateLimitREST: rateLimit(5000, 0, resetsAt),
         },
       ],
     );
@@ -506,7 +507,7 @@ test.describe('webhooks page', () => {
           forge: 'github',
           reachable: true,
           repoCount: 1,
-          rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
+          rateLimitREST: rateLimit(5000, 0, resetsAt),
         },
       ],
     );
