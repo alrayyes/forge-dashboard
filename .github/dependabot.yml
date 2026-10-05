@@ -1,19 +1,21 @@
-# Runs even though nothing deploys from this repo: a dependency bump that
-# needs a config change on our side - a new default, a breaking flag, a
-# moved setting - surfaces here, on the template, instead of on day one of
-# the first real project cloned from it. Costs nothing to leave on either:
-# public repos get unlimited GitHub Actions minutes, so there's no metering
-# concern the way a private repo would have.
-#
 # Dependabot raises the pull request; CI decides whether it lands. Everything
-# here is pinned to an exact version, which is the whole reason this works —
+# here is pinned to an exact version, which is the whole reason this works:
 # a floating range drifts silently and there's nothing to raise a pull
 # request about.
 #
-# Two pins Dependabot can't see, and which are updated by hand: the base
-# images in the Dockerfile (golang, distroless) and the hadolint image
-# digest in lefthook.yml/ci.yml. All three are digest-pinned and none of them
-# live anywhere Dependabot's ecosystems look.
+# What it watches: Go modules, GitHub Actions, the JavaScript packages in
+# package.json and web/package.json, and the base-image digests in
+# Dockerfile and Dockerfile.release (the docker entry below).
+#
+# What it can't see, and is bumped by hand, because the pin sits inside a
+# script or a command line rather than a file an ecosystem reads: the golang
+# image in scripts/go-docker.sh, the golangci-lint image in
+# scripts/golangci-lint-docker.sh, the goreleaser image in
+# scripts/goreleaser-docker.sh, lefthook.yml and ci.yml (the release job's
+# goreleaser version is its own pin in release.yml), the hadolint image in
+# lefthook.yml and ci.yml, and the `go run ...@vX` pins (gotestsum,
+# govulncheck). Moving them into Dockerfiles or go.mod just so a bot sees
+# them is a bigger change than the bumps cost.
 version: 2
 
 updates:
@@ -64,8 +66,33 @@ updates:
         patterns: ["*"]
         update-types: [major]
 
-  # Nothing here is JavaScript. package.json exists so commitlint can
-  # resolve the shared config it extends, which bunx alone cannot do.
+  # The base images in Dockerfile and Dockerfile.release (bun, golang,
+  # busybox, distroless). They go into the shipped image, so a bump is a
+  # change to what ships and gets fix:, like gomod.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Amsterdam
+    commit-message:
+      prefix: fix
+      include: scope
+    groups:
+      docker-images:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      docker-images-major:
+        patterns: ["*"]
+        update-types: [major]
+
+  # chore, on purpose for now. The packages the web build compiles into the
+  # shipped UI (svelte, @sveltejs/kit and friends) would deserve fix:, but
+  # they sit in devDependencies next to the tooling, and Dependabot sets one
+  # prefix per entry, not per package. Splitting them needs the shipped ones
+  # in `dependencies` and a separate entry for web/, which shares this root
+  # lockfile; that is tracked in #1006 rather than guessed at here.
   - package-ecosystem: bun
     directory: /
     schedule:
