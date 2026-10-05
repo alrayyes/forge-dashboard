@@ -47,6 +47,10 @@ check "web image e2e" "web/src/lib/filters.ts"
 check "web image e2e prose" "web/src/routes/(app)/+page.svelte"
 check "web image e2e" "tests/dashboard.spec.ts"
 check "web image e2e" "biome.json"
+# The prose jobs run these scripts, so editing one runs them (#884).
+check "web image e2e prose" "scripts/lint-prose.sh"
+check "web image e2e prose" "scripts/lint-mechanics.sh"
+check "web image e2e prose" "scripts/vale.sh"
 check "web api image e2e prose" "package.json"
 check "web api image e2e prose" "bun.lock"
 

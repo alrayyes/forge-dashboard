@@ -64,6 +64,9 @@ while IFS= read -r path; do
   # as prose on top of whatever area the path belongs to above.
   case "$path" in
     *.md | *.yml | *.yaml | *.svelte) prose=true ;;
+    # The prose jobs run these scripts, so they are inputs to those jobs on
+    # top of whatever area the path belongs to above (#884).
+    scripts/lint-*.sh | scripts/vale.sh) prose=true ;;
   esac
 done
 
