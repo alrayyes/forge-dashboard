@@ -28,6 +28,7 @@ export type StandInPR = {
   autoMergeEnabled?: boolean | null;
   autoMergeAllowed?: boolean | null;
   allowedActions?: unknown;
+  kind?: string;
 };
 
 export type StandInEntry = {
@@ -155,8 +156,25 @@ export function installAllowedActionsStandIn(
       openIssueCount?: number;
     };
     if (snapshot && Array.isArray(snapshot.pullRequests))
-      for (const pr of snapshot.pullRequests)
+      for (const pr of snapshot.pullRequests) {
         if (pr.allowedActions === undefined) pr.allowedActions = allowedFor(pr);
+        // The server's kind for a pull request (internal/dashboard KindOf,
+        // #716): a release label wins, then a bot author, else regular. A
+        // mock that states its own kind is left alone.
+        if (pr.kind === undefined)
+          pr.kind = (pr.labels ?? []).some((l) =>
+            l.name.startsWith('autorelease:'),
+          )
+            ? 'release'
+            : [
+                  'dependabot',
+                  'dependabot[bot]',
+                  'renovate',
+                  'renovate[bot]',
+                ].includes(pr.author ?? '')
+              ? 'dependency'
+              : 'regular';
+      }
     // The server flags a bot's housekeeping issue and counts the rest
     // (#980). A mocked issue that states its own flag is left alone.
     if (snapshot && Array.isArray(snapshot.issues)) {

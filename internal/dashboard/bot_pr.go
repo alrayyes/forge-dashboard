@@ -46,3 +46,30 @@ func isDependabotPR(pr PullRequest) bool {
 func isRenovatePR(pr PullRequest) bool {
 	return pr.Author == "renovate" || pr.Author == "renovate[bot]"
 }
+
+// PullRequestKind is what sort of pull request this is. Matches
+// components.schemas.PullRequest.kind.
+type PullRequestKind string
+
+// The kinds a pull request can be.
+const (
+	KindRelease    PullRequestKind = "release"
+	KindDependency PullRequestKind = "dependency"
+	KindRegular    PullRequestKind = "regular"
+)
+
+// KindOf is the one place that decides a pull request's kind (#716), from the
+// same release-please and bot-author rules the allowed actions and the
+// auto-update pass use. A release label wins: it is the only signal for
+// release-please's pull requests, and it is a stronger statement than an
+// author.
+func KindOf(pr PullRequest) PullRequestKind {
+	switch {
+	case isReleasePleasePR(pr):
+		return KindRelease
+	case isDependabotPR(pr), isRenovatePR(pr):
+		return KindDependency
+	default:
+		return KindRegular
+	}
+}

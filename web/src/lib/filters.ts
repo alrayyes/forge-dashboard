@@ -27,6 +27,8 @@ export interface FilterableItem {
   review?: { decision: string; requestedReviewers: number };
   // True for a bot's housekeeping issue; the server decides (#980).
   housekeeping?: boolean;
+  // What sort of pull request this is, from the server (#716).
+  kind?: 'release' | 'dependency' | 'regular';
   // The server's own answers for the Ready and Needs Review quick filters
   // (#807): the page holds no copy of what they mean.
   readyToMerge?: boolean;
@@ -35,30 +37,6 @@ export interface FilterableItem {
   // review it (#695), worked out by the server against the username saved
   // in Settings for its forge.
   reviewRequestedFromMe?: boolean;
-}
-
-// release-please labels every PR it manages with "autorelease: pending"
-// or "autorelease: tagged" — the author is a human in this account's
-// setup, not release-please itself, so the label is the only signal.
-export function isReleasePleasePr(item: FilterableItem): boolean {
-  return (item.labels || []).some((l) => l.name.startsWith('autorelease:'));
-}
-
-// A GitHub App actor's login comes back in two shapes depending on which
-// API served it: GraphQL's Actor.login is the bare app slug
-// ("dependabot"), while the REST endpoints append "[bot]"
-// ("dependabot[bot]"). Both fetch paths need matching (#522).
-export function isDependabotPr(item: FilterableItem): boolean {
-  return item.author === 'dependabot' || item.author === 'dependabot[bot]';
-}
-
-// Same bare-slug-vs-"[bot]" split as isDependabotPr, for Renovate.
-export function isRenovatePr(item: FilterableItem): boolean {
-  return item.author === 'renovate' || item.author === 'renovate[bot]';
-}
-
-export function isBotManagedPr(item: FilterableItem): boolean {
-  return isReleasePleasePr(item) || isDependabotPr(item) || isRenovatePr(item);
 }
 
 // The pull-request-only quick filter pills (#678). Stored as pr.quick.
@@ -79,7 +57,9 @@ export function matchesQuickFilter(
     case 'failing':
       return item.ci === 'failure';
     case 'bots':
-      return isBotManagedPr(item);
+      // The server says what kind of pull request this is (#716); the page
+      // holds no rule for who counts as a bot.
+      return item.kind !== undefined && item.kind !== 'regular';
     case 'ready':
       return item.readyToMerge === true;
     case 'needs-review':

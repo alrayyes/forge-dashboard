@@ -74,6 +74,8 @@ function snapshot(prs: MockPR[]) {
     pullRequests: prs.map((pr) => ({
       ...pr,
       allowedActions: allowedActionsFor(pr),
+      // Same for the kind (#716): these are ordinary pull requests.
+      kind: 'regular',
     })),
     issues: [],
   };
