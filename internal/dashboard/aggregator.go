@@ -309,6 +309,11 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 	sortByRecency(merged.PullRequests, merged.Issues)
 
 	a.mu.Lock()
+	// A request recorded since applyBotRequests ran lives only in the registry
+	// and on the snapshot RecordBotRequest saw, which this one is about to
+	// replace. Annotating again under the lock that RecordBotRequest also
+	// holds leaves no gap between the two (#976).
+	a.annotateBotRequests(merged.PullRequests)
 	a.snap = merged
 	a.mu.Unlock()
 
@@ -401,6 +406,8 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	a.mu.Lock()
 	previous := a.snap
+	// See mergeRepo: a request recorded since applyBotRequests ran (#976).
+	a.annotateBotRequests(snap.PullRequests)
 	a.snap = snap
 	a.lastGood = goodAt
 	a.mu.Unlock()
