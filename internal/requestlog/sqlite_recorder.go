@@ -24,12 +24,28 @@ import (
 type SQLiteRecorder struct {
 	store     *auth.Store
 	accountID string
+	writer    *Writer
+}
+
+// Option configures a SQLiteRecorder.
+type Option func(*SQLiteRecorder)
+
+// WithWriter sends Record's rows through w's bounded queue and single
+// writer instead of writing inline (#902). Record then never waits on the
+// database and never fails; a full queue drops the row and counts it.
+func WithWriter(w *Writer) Option {
+	return func(r *SQLiteRecorder) { r.writer = w }
 }
 
 // NewSQLiteRecorder returns a SQLiteRecorder that persists into store,
 // stamping every recorded Entry with accountID.
-func NewSQLiteRecorder(store *auth.Store, accountID string) *SQLiteRecorder {
-	return &SQLiteRecorder{store: store, accountID: accountID}
+func NewSQLiteRecorder(store *auth.Store, accountID string, opts ...Option) *SQLiteRecorder {
+	r := &SQLiteRecorder{store: store, accountID: accountID}
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
 }
 
 var _ Recorder = (*SQLiteRecorder)(nil)
@@ -48,6 +64,11 @@ func (r *SQLiteRecorder) Record(ctx context.Context, e Entry) error {
 		RateLimitRemaining: e.RateLimitRemaining,
 		RateLimitResetsAt:  e.RateLimitResetsAt,
 		RateLimitCost:      e.RateLimitCost,
+	}
+	if r.writer != nil {
+		r.writer.submit(row)
+
+		return nil
 	}
 	if err := r.store.RecordRequest(ctx, row, MaxEntries); err != nil {
 		return fmt.Errorf("requestlog: record: %w", err)
