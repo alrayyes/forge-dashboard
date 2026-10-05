@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 )
@@ -39,7 +40,9 @@ func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 		// page's invite flow shows no field for it): the invite's own
 		// displayName is what Service.BeginRegistration actually uses,
 		// so an empty one here isn't a client error.
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" || (req.InviteToken == "" && req.DisplayName == "") {
+		err := json.NewDecoder(r.Body).Decode(&req)
+		req.Username = strings.TrimSpace(req.Username)
+		if err != nil || req.Username == "" || (req.InviteToken == "" && req.DisplayName == "") {
 			writeJSON(w, http.StatusBadRequest, errorBody("username and displayName are required"))
 
 			return
@@ -92,7 +95,7 @@ func handleRegistrationStatus(svc *auth.Service) http.HandlerFunc {
 
 func handleRegisterFinish(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		username := r.URL.Query().Get("username")
+		username := strings.TrimSpace(r.URL.Query().Get("username"))
 		if username == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("username is required"))
 
@@ -117,7 +120,9 @@ type loginBeginRequest struct {
 func handleLoginBegin(svc *auth.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req loginBeginRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" {
+		err := json.NewDecoder(r.Body).Decode(&req)
+		req.Username = strings.TrimSpace(req.Username)
+		if err != nil || req.Username == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("username is required"))
 
 			return
@@ -140,7 +145,7 @@ func handleLoginBegin(svc *auth.Service) http.HandlerFunc {
 
 func handleLoginFinish(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		username := r.URL.Query().Get("username")
+		username := strings.TrimSpace(r.URL.Query().Get("username"))
 		if username == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("username is required"))
 
