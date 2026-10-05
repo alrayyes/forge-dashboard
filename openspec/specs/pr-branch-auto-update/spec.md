@@ -1,10 +1,10 @@
-# Spec Delta
+# pr-branch-auto-update Specification
 
 ## Purpose
 
 Lets a user opt a repo, or every tracked repo at once, into automatically bringing a behind pull request's branch up to date, without a manual click per PR.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: A repo can be individually opted into automatic branch updates
 
@@ -48,16 +48,21 @@ The system SHALL automatically update a pull request's branch only when its repo
 - **WHEN** a scheduled refresh finds a pull request that is behind its base branch, on a repo without automatic branch updates enabled
 - **THEN** the system takes no automatic action; the pull request still shows a manual Update branch control
 
-### Requirement: Automatic updates respect bot-managed pull request suppression
+### Requirement: Automatic updates treat bot-managed pull requests through their own actions
 
-The system SHALL apply the same bot-managed pull request suppression to an automatic branch update that it already applies to a manual Update branch click, unless the user has separately allowed bot-managed pull request updates.
+The system SHALL NOT automatically update a release-please, Dependabot or Renovate pull request's branch with the generic branch update. A Dependabot pull request gets Dependabot's own rebase command, and a recreate command when that rebase leaves its CI failing (#540). A Renovate pull request gets its own rebase label (#541). A release-please pull request is left alone, since release-please regenerates it.
 
-#### Scenario: A bot-managed PR is skipped by auto-update
+#### Scenario: A release-please PR is skipped by auto-update
 
-- **WHEN** a scheduled refresh finds a behind pull request opened by release-please, Dependabot, or Renovate, on a repo with automatic branch updates enabled, and bot-managed pull request updates are not separately allowed
-- **THEN** the system does not automatically update that pull request's branch
+- **WHEN** a scheduled refresh finds a behind release-please pull request on a repo with automatic branch updates enabled
+- **THEN** the system takes no automatic action on it
 
-#### Scenario: A bot-managed PR is included when bot updates are allowed
+#### Scenario: A Dependabot PR is rebased through Dependabot
 
-- **WHEN** the same situation occurs but the user has allowed bot-managed pull request updates
-- **THEN** the system automatically updates that pull request's branch like any other
+- **WHEN** a scheduled refresh finds a behind Dependabot pull request on a repo with automatic branch updates enabled
+- **THEN** the system comments Dependabot's rebase command instead of updating the branch itself, and comments its recreate command if the rebase leaves CI failing
+
+#### Scenario: A Renovate PR is rebased through Renovate
+
+- **WHEN** a scheduled refresh finds a behind Renovate pull request on a repo with automatic branch updates enabled
+- **THEN** the system adds Renovate's rebase label instead of updating the branch itself
