@@ -577,8 +577,31 @@ func (c *Client) ReadPullRequestState(ctx context.Context, owner, name string, n
 	case "unstable":
 		st.ChecksFailing = true
 	}
+	st.ChangesWorkflows = c.changesWorkflowFiles(ctx, owner, name, number)
 
 	return st, nil
+}
+
+// changesWorkflowFiles reports whether the pull request touches a file under
+// .github/workflows/. It runs only when re-reading after a refusal, and a
+// failed lookup answers false, so the refusal keeps its generic message.
+func (c *Client) changesWorkflowFiles(ctx context.Context, owner, name string, number int) bool {
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/files", owner, name, number)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	files, resp, err := c.restClient.PullRequests.ListFiles(ctx, owner, name, number, &ghsdk.ListOptions{PerPage: 100})
+	if err != nil {
+		slog.Warn("listing changed files after a refusal failed", "repo", owner+"/"+name, "number", number, "error", err)
+
+		return false
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+	for _, f := range files {
+		if strings.HasPrefix(f.GetFilename(), ".github/workflows/") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ClosePullRequest implements dashboard.PullRequestCloser: closes
