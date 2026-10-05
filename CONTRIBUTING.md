@@ -11,12 +11,10 @@
   that version rather than whichever is current: when the two disagree,
   the hook passes and the pipeline fails, and the reason isn't obvious
   from the failure.
-- **[Vale](https://vale.sh)** on your `PATH`, for the style tier of the
-  prose lint:
-
-  ```sh
-  go install github.com/errata-ai/vale/v3/cmd/vale@latest
-  ```
+- **[Vale](https://vale.sh)**, for the style tier of the prose lint. Nothing to
+  install: `scripts/vale.sh` runs the `vale` on your `PATH` if there is one,
+  and otherwise the pinned `jdkato/vale` image through Docker, the same one
+  CI uses.
 
   `ltex-cli-plus` needs nothing installed: the hook fetches and caches it
   on first use.

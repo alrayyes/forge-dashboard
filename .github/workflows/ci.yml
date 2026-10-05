@@ -49,6 +49,8 @@ jobs:
         run: scripts/test-changed-areas.sh
       - name: test the release type check
         run: scripts/test-check-release-type.sh
+      - name: check the Vale pins agree
+        run: scripts/test-vale-pin.sh
       - name: changed areas
         id: areas
         env:

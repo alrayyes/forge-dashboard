@@ -58,7 +58,7 @@ pre-commit:
         # comment for why.
         - "openspec/changes/**"
         - "openspec/specs/**"
-      run: vale {staged_files}
+      run: scripts/vale.sh {staged_files}
 
     # Reads only, so it changes nothing to restage. Invoked bare rather than
     # on {staged_files}: what gets linted is the `apis` list in redocly.yaml,

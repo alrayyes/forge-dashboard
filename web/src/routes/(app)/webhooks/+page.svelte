@@ -1,5 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import {
+    type ActionRequestError,
+    interpretActionFailure,
+    readActionFailure,
+  } from "$lib/action-error";
+  import { rateLimitReasonText } from "$lib/rate-limit";
 
   type RateLimit = { limit: number; remaining: number; resetsAt: string };
   // Webhook management (list/create/edit a hook) is REST-only (#361) —
@@ -55,19 +61,6 @@
       (status && ERROR_HEADLINES[status]) ||
       "Something went wrong creating the webhook."
     );
-  }
-
-  // reactiveLockReason maps a failed /api/webhooks/ensure response to a
-  // reason worth locking the button over, or null for anything retrying
-  // might fix (a genuine outage, say) — the two status codes
-  // clientErrorStatus (internal/api/webhook_ensure.go) hands back for a
-  // cause a click can't do anything about.
-  function reactiveLockReason(status: number | undefined): string | null {
-    if (status === 403)
-      return "Missing permission — check your token in Settings.";
-    if (status === 429)
-      return "Rate limit exceeded — try again once it resets.";
-    return null;
   }
 
   function resetTimeLabel(iso: string): string {
@@ -247,21 +240,20 @@
         return;
       }
       if (res.status !== 204) {
-        const body = await res.json().catch(() => ({}));
-        const err: Error & { status?: number } = new Error(
-          body?.error || `backend answered ${res.status}`,
-        );
-        err.status = res.status;
-        throw err;
+        throw await readActionFailure(res);
       }
       repo.hasWebhook = true;
       rowState[key] = {};
       setStatus(`Webhook added for ${repo.fullName}.`);
     } catch (err) {
       const status = (err as { status?: number }).status;
-      const lockReason = reactiveLockReason(status);
-      if (lockReason) {
-        rowState[key] = { lockReason };
+      const outcome = interpretActionFailure(
+        err as ActionRequestError,
+        (resetsAt) =>
+          rateLimitReasonText(FORGE_LABELS[repo.forge] ?? repo.forge, resetsAt),
+      );
+      if (outcome.kind === "locked") {
+        rowState[key] = { lockReason: outcome.reason };
         setStatus(`Couldn't add a webhook for ${repo.fullName}.`, "error");
         return;
       }

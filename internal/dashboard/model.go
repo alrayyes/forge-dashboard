@@ -179,6 +179,10 @@ type PullRequest struct {
 	Stack         *StackPosition `json:"stack"`
 	StackedOn     *StackRef      `json:"stackedOn"`
 	StackChildren []int          `json:"stackChildren"`
+
+	// BotRequest is a Dependabot or Renovate rebase asked for through this
+	// app and not settled yet (#808), or nil.
+	BotRequest *BotRequest `json:"botRequest"`
 	// RequestedReviewerLogins lists who was asked to review this pull
 	// request, by login (#695). Teams have no login and are left out.
 	// Always a list, empty when nobody was asked, so a client can range
