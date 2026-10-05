@@ -48,7 +48,7 @@ each job runs when its area is set:
 | Area       | Changes that set it                                    | Jobs                                                                     |
 | ---------- | ------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `go`       | Go files, `go.mod`, `api/openapi.yaml`, `integration/` | `lint`, `test`, `build`, `container-integration`, `govulncheck`, `gomod` |
-| `web`      | `web/`, `tests/`, `package.json`, `biome.json`         | `js`, `svelte-check`, `tests-types`                                      |
+| `web`      | `web/`, `tests/`, `package.json`, `biome.json`         | `js`, `svelte-check`, `tests-types`, `audit`                             |
 | `image`    | Go, web or Docker changes                              | `docker`, `e2e`                                                          |
 | `hadolint` | `Dockerfile*`, `.dockerignore`                         | `dockerfile`                                                             |
 | `prose`    | Markdown, `.yml`, `.svelte`, `styles/`                 | `prose`                                                                  |
