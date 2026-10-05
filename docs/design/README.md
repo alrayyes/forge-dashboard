@@ -45,3 +45,11 @@ The mobile card screens offer a Retry button on an already-merged failure and
 show the raw forge error under a disclosure labelled Details. The app does
 neither: that failure can't pass by retrying, and the raw text stays in the
 server log. The tickets' criteria win over those two details.
+
+- `screen-pr-detail-dialog.png`: a pull request opened in a pop-up sized to
+  its content, over the dimmed list: the title, status pills, branch and
+  checks, labels, a failure line, and every action in the footer. Merge is
+  greyed out with an info icon that opens the blocked reason.
+  `crop-pr-detail-dialog.png` is the pop-up alone. Stitch project "Forge
+  Dashboard UI Audit" (`564147752128938905`), screen
+  `4ef3db25112f48d8ab758be286a7c8bd`. It's the design for #943 and #944.
