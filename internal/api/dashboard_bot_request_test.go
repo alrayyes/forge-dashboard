@@ -31,10 +31,18 @@ func (s *botSource) AddLabel(context.Context, string, string, int, string) error
 func botBoard(t *testing.T, fail error) (*httptest.Server, *http.Cookie) {
 	t.Helper()
 
+	return botBoardAs(t, "", fail)
+}
+
+// botBoardAs is botBoard with the pull request authored by author, since the
+// server only runs a bot's command on that bot's own pull request (#978).
+func botBoardAs(t *testing.T, author string, fail error) (*httptest.Server, *http.Cookie) {
+	t.Helper()
+
 	const token = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
 	src := &botSource{
 		health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1},
-		prs:    []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 5, Behind: true}},
+		prs:    []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 5, Author: author, Behind: true}},
 		fail:   fail,
 	}
 	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
@@ -76,7 +84,7 @@ func botRequestOnBoard(t *testing.T, srv *httptest.Server, cookie *http.Cookie) 
 func TestDashboard_BotRequest_DependabotRebase_ShowsOnThePullRequest(t *testing.T) {
 	t.Parallel()
 
-	srv, cookie := botBoard(t, nil)
+	srv, cookie := botBoardAs(t, "dependabot[bot]", nil)
 	require.Nil(t, botRequestOnBoard(t, srv, cookie), "no request yet")
 
 	resp := postDependabotAction(t, srv.URL, cookie, "github", "alrayyes/a", 5, "recreate")
@@ -95,7 +103,7 @@ func TestDashboard_BotRequest_DependabotRebase_ShowsOnThePullRequest(t *testing.
 func TestDashboard_BotRequest_RenovateRebase_ShowsOnThePullRequest(t *testing.T) {
 	t.Parallel()
 
-	srv, cookie := botBoard(t, nil)
+	srv, cookie := botBoardAs(t, "renovate[bot]", nil)
 
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/pull-requests/renovate-rebase",
 		strings.NewReader(`{"forge":"github","fullName":"alrayyes/a","number":5}`))
@@ -116,7 +124,7 @@ func TestDashboard_BotRequest_RenovateRebase_ShowsOnThePullRequest(t *testing.T)
 func TestDashboard_BotRequest_TriggerRefused_RecordsNothing(t *testing.T) {
 	t.Parallel()
 
-	srv, cookie := botBoard(t, errors.New("boom"))
+	srv, cookie := botBoardAs(t, "dependabot[bot]", errors.New("boom"))
 
 	resp := postDependabotAction(t, srv.URL, cookie, "github", "alrayyes/a", 5, "rebase")
 	_ = resp.Body.Close()

@@ -64,6 +64,14 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		action := dashboard.ActionDependabotRebase
+		if req.Action == "recreate" {
+			action = dashboard.ActionDependabotRecreate
+		}
+		if refuseIfNotAllowed(w, deps, u.ID, action, req.Forge, req.FullName, req.Number) {
+			return
+		}
+
 		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
