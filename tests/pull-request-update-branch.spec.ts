@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { rateLimit } from './severity-stand-in';
 
 async function registerAndSignIn(
   page: Page,
@@ -83,7 +84,12 @@ interface MockForge {
   forge: string;
   reachable: boolean;
   repoCount: number;
-  rateLimitREST?: { limit: number; remaining: number; resetsAt: string };
+  rateLimitREST?: {
+    limit: number;
+    remaining: number;
+    resetsAt: string;
+    severity: string;
+  };
 }
 
 // mockDashboardCustom, unlike mockDashboard above, takes its own forges
@@ -804,7 +810,7 @@ test.describe('pull request update-branch button', () => {
             forge: 'github',
             reachable: true,
             repoCount: 1,
-            rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
+            rateLimitREST: rateLimit(5000, 0, resetsAt),
           },
         ],
         [makePR()],

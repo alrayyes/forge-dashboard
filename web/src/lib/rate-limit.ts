@@ -9,20 +9,21 @@ export type RateLimit = {
   limit: number;
   remaining: number;
   resetsAt: string;
-  severity: 'ok' | 'low' | 'exceeded';
+  severity: 'ok' | 'warning' | 'low' | 'exceeded';
 };
 
 export const PERMISSION_REASON =
   'Missing permission — check your token in Settings.';
 
-// True while the budget is spent and the reset is still ahead. Derived
-// from the clock, not stored, so a stale snapshot can't keep an action
-// locked past the reset time.
+// True while the server grades the budget exceeded and the reset is still
+// ahead. The reset is checked against the clock, not stored, so a stale
+// snapshot can't keep an action locked past the reset time; whether the
+// budget is spent is the server's call (#979).
 export function isRateLimited(
   limit: RateLimit | undefined,
   now: number = Date.now(),
 ): limit is RateLimit {
-  if (limit?.remaining !== 0) return false;
+  if (limit?.severity !== 'exceeded') return false;
   const resetsAt = Date.parse(limit.resetsAt);
   return Number.isFinite(resetsAt) && resetsAt > now;
 }

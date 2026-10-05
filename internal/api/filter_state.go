@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
@@ -73,6 +74,10 @@ func handleFilterStatePut(store *settings.Store) http.HandlerFunc {
 
 			return
 		}
+
+		// Says which client wrote the filters, so a surprise change can be
+		// traced (#1000). RequireSession means it is always a browser session.
+		slog.Info("filter state saved", "via", "session", "user_agent", r.UserAgent(), "bytes", len(body))
 
 		w.WriteHeader(http.StatusNoContent)
 	}
