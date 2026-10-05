@@ -1176,7 +1176,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
         "409":
-          description: The forge rejected the update because the branches can't be merged cleanly — a real conflict updating would need to resolve by hand.
+          description: |
+            The update was refused. When the pull request is on the
+            signed-in user's board and its `allowedActions` has no
+            `update_branch` entry, or a blocked one, this server answers
+            without asking the forge: the blocked entry's `code` and
+            `message`, or `already_up_to_date` for a pull request that is not
+            behind, or `not_mergeable` for one that updates through its
+            bot's own rebase. Otherwise the forge rejected the update
+            because the branches can't be merged cleanly: a real conflict
+            updating would need to resolve by hand.
           content:
             application/json:
               schema:
