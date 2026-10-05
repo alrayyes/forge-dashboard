@@ -4257,9 +4257,11 @@
           ["GraphQL", f.rateLimitGraphQL],
           ["REST", f.rateLimitREST],
         ] as const) {
-          // The server grades each budget (ok, low, exceeded) from its own
-          // threshold, so the page holds none (#806).
-          if (!rl || rl.severity === "ok") continue;
+          // The server grades each budget from its own threshold, so the
+          // page holds none (#806). A warning is the gauge's amber stage;
+          // nothing here needs to act on it.
+          if (!rl || rl.severity === "ok" || rl.severity === "warning")
+            continue;
           out.push({
             label: `${name} ${kind}`,
             severity: rl.severity,

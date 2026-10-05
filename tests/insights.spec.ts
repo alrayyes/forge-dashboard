@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { rateLimit } from './severity-stand-in';
 
 interface RateLimit {
   limit: number;
@@ -538,7 +539,7 @@ test.describe('insights page', () => {
             forge: 'github',
             reachable: true,
             repoCount: 3,
-            rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
+            rateLimitREST: rateLimit(5000, 0, resetsAt),
           },
         ],
       });
