@@ -87,6 +87,9 @@ func refuseIfNotAllowed(w http.ResponseWriter, deps Deps, userID []byte, action 
 // notOfferedRefusal says why an action isn't on a pull request's list at all,
 // as plainly as the codes allow.
 func notOfferedRefusal(action dashboard.ActionName, pr dashboard.PullRequest) dashboard.ActionRefusal {
+	if action == dashboard.ActionAutoMerge {
+		return autoMergeNotOffered(pr)
+	}
 	if action == dashboard.ActionUpdateBranch {
 		if !pr.Behind || pr.Empty {
 			return dashboard.ActionRefusal{Code: dashboard.ActionAlreadyUpToDate, Message: "Already up to date with the base branch."}
@@ -125,4 +128,25 @@ func refusalNeedsNoReRead(err error) bool {
 	// A permission refusal is re-read too (#904): the pull request may just be
 	// merged or closed. A rate limit isn't, since the re-read would be limited.
 	return clientErr.Kind == dashboard.ForgeErrorRateLimited
+}
+
+// autoMergeNotOffered says why auto-merge isn't on a pull request's list, in
+// the order dashboard.autoMergeOffered rules it out.
+func autoMergeNotOffered(pr dashboard.PullRequest) dashboard.ActionRefusal {
+	switch {
+	case pr.Forge != dashboard.ForgeGitHub:
+		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Auto-merge is only available on GitHub."}
+	case pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled:
+		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Auto-merge is already on for this pull request."}
+	case pr.AutoMergeAllowed != nil && !*pr.AutoMergeAllowed:
+		return dashboard.ActionRefusal{Code: dashboard.ActionAutoMergeNotAllowed, Message: "Auto-merge isn't allowed for this pull request. Turn it on in the repo's settings."}
+	case pr.Empty:
+		return dashboard.ActionRefusal{Code: dashboard.ActionAlreadyUpToDate, Message: "Already up to date with the target branch, so there is nothing to merge."}
+	case pr.MergeStatus == dashboard.MergeConflicting:
+		return dashboard.ActionRefusal{Code: dashboard.ActionConflict, Message: "Merge conflict. Resolve it on the forge first."}
+	case pr.StackedOn != nil:
+		return dashboard.ActionRefusal{Code: dashboard.ActionStacked, Message: "Stacked on another pull request. Merge that one first."}
+	default:
+		return dashboard.ActionRefusal{Code: dashboard.ActionReadyToMerge, Message: "This pull request is already ready to merge, so there's nothing for auto-merge to wait for. Use Merge instead."}
+	}
 }
