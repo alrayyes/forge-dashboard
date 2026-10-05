@@ -89,6 +89,30 @@ func RequireAuth(store *Store) func(http.Handler) http.Handler {
 	}
 }
 
+// RequireSession is RequireAuth for state that belongs to the browser alone:
+// only a session cookie gets in, and a personal API token is answered with a
+// 403 rather than being treated as the user at a keyboard (#1000). A request
+// with no credentials at all still gets the same 401 as everywhere else.
+func RequireSession(store *Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		authed := RequireAuth(store)(next)
+
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := SessionToken(r); !ok {
+				if _, bearer := BearerToken(r); bearer {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusForbidden)
+					_ = json.NewEncoder(w).Encode(map[string]string{"error": "this endpoint is for a signed-in browser session, not an API token"})
+
+					return
+				}
+			}
+
+			authed.ServeHTTP(w, r)
+		})
+	}
+}
+
 func unauthorized(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)

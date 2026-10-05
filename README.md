@@ -166,7 +166,11 @@ curl -H "Authorization: Bearer fdb_<the-generated-token>" \
 ```
 
 against any endpoint the frontend itself calls, `RequireAuth` accepts
-either credential (session cookie or a live token) the same way. The raw
+either credential (session cookie or a live token) the same way. The one
+exception is the web UI's saved filters (`/api/settings/filter-state`): that
+is the browser's own state, so it takes a session cookie only and answers a
+token with 403 (#1000). Each save is logged with the user agent, so a filter
+that changed by itself can be traced to the client that wrote it. The raw
 value is shown exactly once, right after generating it — only its hash
 is stored, so losing it means generating a new one, same as any other
 bearer credential. Settings lists every live token (label, created date,

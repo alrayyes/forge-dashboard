@@ -541,8 +541,10 @@ paths:
         isn't either: this loads on every dashboard/Insights visit and
         shouldn't provision webhook credentials as a side effect.
         `{}` for a user who's never saved any filters yet, not a 404.
+        These are the web UI's own state: a signed-in browser session only,
+        and a personal API token is refused with 403 (#1000).
       tags: [settings]
-      security: [{ bearerAuth: [] }]
+      security: [{ cookieAuth: [] }]
       responses:
         "200":
           description: The saved state, or `{}` if none has ever been saved.
@@ -550,6 +552,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FilterState"
+        "403":
+          description: A personal API token was presented. This endpoint is for a browser session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
           description: No valid session cookie was presented.
           content:
@@ -569,8 +577,11 @@ paths:
         partial patch. Filters.js's own client-side code decides when
         to call this: immediately for a discrete control, debounced
         while the user is still typing in the free-text Title filter.
+        A signed-in browser session only: a personal API token is refused
+        with 403, so a script or agent can't change the filters the user
+        sees (#1000). Each save is logged with the user agent.
       tags: [settings]
-      security: [{ bearerAuth: [] }]
+      security: [{ cookieAuth: [] }]
       requestBody:
         required: true
         content:
@@ -582,6 +593,12 @@ paths:
           description: Saved.
         "400":
           description: The request body wasn't valid JSON, or exceeded the size this endpoint accepts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: A personal API token was presented. This endpoint is for a browser session.
           content:
             application/json:
               schema:
@@ -2147,6 +2164,11 @@ components:
       type: http
       scheme: bearer
       description: A personal API token from POST /api/tokens, as an alternative to the session cookie.
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: forge_dashboard_session
+      description: The session cookie of a signed-in browser. Operations that list only this refuse a personal API token with 403.
 
   parameters:
     PathUsername:

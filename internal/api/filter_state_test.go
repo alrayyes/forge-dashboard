@@ -1,6 +1,8 @@
 package api_test
 
 import (
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -123,4 +125,87 @@ func TestFilterStateGet_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
 	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/filter-state", "", bCookie)
 	defer func() { _ = getResp.Body.Close() }()
 	assert.JSONEq(t, "{}", readAll(t, getResp))
+}
+
+// createTestAPIToken makes a personal API token the way Settings does, over
+// the signed-in session, and returns the secret.
+func createTestAPIToken(t *testing.T, srvURL string, sessionCookie *http.Cookie) string {
+	t.Helper()
+
+	resp := doJSON(t, http.MethodPost, srvURL+"/api/tokens", tokenCreateBody("an agent"), sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+	var created struct {
+		Token string `json:"token"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&created))
+	require.NotEmpty(t, created.Token)
+
+	return created.Token
+}
+
+func doWithBearer(t *testing.T, method, url, body, token string) *http.Response {
+	t.Helper()
+
+	req, err := http.NewRequest(method, url, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	return resp
+}
+
+// The saved filters are the web UI's own state (#1000): an agent holding a
+// personal API token must not be able to read or change them.
+func TestFilterStateGet_WithAnAPIToken_Returns403(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	token := createTestAPIToken(t, srv.URL, sessionCookie)
+
+	resp := doWithBearer(t, http.MethodGet, srv.URL+"/api/settings/filter-state", "", token)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+func TestFilterStatePut_WithAnAPIToken_Returns403AndStoresNothing(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	token := createTestAPIToken(t, srv.URL, sessionCookie)
+	mine := `{"shared":{"forge":"forgejo"}}`
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", mine, sessionCookie).Body.Close()
+
+	resp := doWithBearer(t, http.MethodPut, srv.URL+"/api/settings/filter-state", `{"shared":{"forge":"github"}}`, token)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/filter-state", "", sessionCookie)
+	defer func() { _ = getResp.Body.Close() }()
+	assert.JSONEq(t, mine, readAll(t, getResp), "the token's write must not land")
+}
+
+// Not parallel: it swaps the global slog default.
+func TestFilterStatePut_LogsHowTheCallerAuthenticatedAndTheUserAgent(t *testing.T) {
+	logs := withCapturedLogs(t, slog.LevelInfo)
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings/filter-state", strings.NewReader(`{}`))
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (test browser)")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	assert.Contains(t, logs.String(), "filter state saved")
+	assert.Contains(t, logs.String(), "via=session")
+	assert.Contains(t, logs.String(), "Mozilla/5.0 (test browser)")
 }
