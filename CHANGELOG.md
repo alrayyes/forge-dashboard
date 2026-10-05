@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.132.4](https://github.com/alrayyes/forge-dashboard/compare/v0.132.3...v0.132.4) (2026-10-05)
+
+
+### Bug Fixes
+
+* **github:** keep Merge available when only a non-required check fails or runs ([#961](https://github.com/alrayyes/forge-dashboard/issues/961)) ([d03ff33](https://github.com/alrayyes/forge-dashboard/commit/d03ff3315c5ccda43ef27375fff98e0c421a2077)), closes [#955](https://github.com/alrayyes/forge-dashboard/issues/955) [#956](https://github.com/alrayyes/forge-dashboard/issues/956)
+
 ## [0.132.3](https://github.com/alrayyes/forge-dashboard/compare/v0.132.2...v0.132.3) (2026-10-05)
 
 
