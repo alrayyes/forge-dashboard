@@ -55,11 +55,12 @@ check "web api image e2e prose" "package.json"
 check "web api image e2e prose" "bun.lock"
 
 # Docker only.
+check "prose release" ".goreleaser.yml"
 check "image e2e hadolint" "Dockerfile"
 check "image e2e hadolint" ".dockerignore"
 
 # The pipeline's own files.
-check "go web image e2e hadolint prose api" ".github/workflows/ci.yml"
+check "go web image e2e hadolint prose api release" ".github/workflows/ci.yml"
 # Other workflows filter themselves; prettier still checks their yml.
 check "prose" ".github/workflows/prose.yml"
 check "prose" ".github/workflows/release.yml"
@@ -70,7 +71,7 @@ check "" "LICENSE"
 check "" "release-please-config.json"
 
 # A path nobody listed runs everything rather than skipping a job.
-check "go web image e2e hadolint prose api" "some-new-top-level-file.txt"
+check "go web image e2e hadolint prose api release" "some-new-top-level-file.txt"
 
 # Several files: the union of their areas.
 check "go prose image e2e" $'internal/api/server.go\nREADME.md'
