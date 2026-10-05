@@ -29,6 +29,65 @@ type pullRequestDependabotActionRequest struct {
 	Action   string `json:"action"`
 }
 
+// dependabotActions maps the request's action to the entry of the board's
+// allowed actions that has to be there for it.
+var dependabotActions = map[string]dashboard.ActionName{
+	"rebase":   dashboard.ActionDependabotRebase,
+	"recreate": dashboard.ActionDependabotRecreate,
+}
+
+// dependabotTarget is an actionTarget plus which command to send and the exact
+// comment text for it.
+type dependabotTarget struct {
+	actionTarget
+	action  string
+	comment string
+}
+
+// readDependabotTarget reads who is asking, the action and which pull request,
+// and answers 500 or 400 itself when it can't. The action is checked before
+// the repo name, which is the order this endpoint always had.
+func readDependabotTarget(w http.ResponseWriter, r *http.Request) (dependabotTarget, bool) {
+	u, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
+		return dependabotTarget{}, false
+	}
+
+	var req pullRequestDependabotActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
+		return dependabotTarget{}, false
+	}
+
+	comment, ok := dependabotCommentBodies[req.Action]
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, errorBody(`action must be "rebase" or "recreate"`))
+
+		return dependabotTarget{}, false
+	}
+
+	owner, name, ok := splitFullName(req.FullName)
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
+
+		return dependabotTarget{}, false
+	}
+
+	return dependabotTarget{
+		actionTarget: actionTarget{
+			user:  u,
+			req:   pullRequestActionRequest{Forge: req.Forge, FullName: req.FullName, Number: req.Number},
+			owner: owner,
+			name:  name,
+		},
+		action:  req.Action,
+		comment: comment,
+	}, true
+}
+
 // handlePullRequestDependabotAction posts one of Dependabot's own
 // documented PR-comment commands on the named pull request —
 // dashboard.PullRequestCommenter posts the comment; this handler owns
@@ -36,83 +95,36 @@ type pullRequestDependabotActionRequest struct {
 // handlePullRequestUpdateBranch already established.
 func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		t, ok := readDependabotTarget(w, r)
 		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
+			return
+		}
+		if refuseIfNotAllowed(w, deps, t.user.ID, dependabotActions[t.action], t.req.Forge, t.req.FullName, t.req.Number) {
 			return
 		}
 
-		var req pullRequestDependabotActionRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
-
-			return
-		}
-
-		body, ok := dependabotCommentBodies[req.Action]
+		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
 		if !ok {
-			writeJSON(w, http.StatusBadRequest, errorBody(`action must be "rebase" or "recreate"`))
+			return
+		}
+		if reason := dashboard.DependabotCommandsBlockedReason(src); reason != "" {
+			writeJSON(w, http.StatusConflict, actionErrorBody{Error: reason, Code: string(dashboard.ActionPermission), Message: reason})
 
 			return
 		}
-
-		owner, name, ok := splitFullName(req.FullName)
+		commenter, ok := capabilityOf[dashboard.PullRequestCommenter](w, src, t.req.Forge, "doesn't support commenting on pull requests")
 		if !ok {
-			writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
+			return
+		}
+
+		if err := commenter.CommentPullRequest(r.Context(), t.owner, t.name, t.req.Number, t.comment); err != nil {
+			slog.Warn("dependabot pull request action failed", "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "action", t.action, "error", err)
+			writeActionRefusal(r.Context(), w, commenter, dashboard.PullRequestActionDependabot, t.owner, t.name, t.req.Number, err)
 
 			return
 		}
 
-		action := dashboard.ActionDependabotRebase
-		if req.Action == "recreate" {
-			action = dashboard.ActionDependabotRecreate
-		}
-		if refuseIfNotAllowed(w, deps, u.ID, action, req.Forge, req.FullName, req.Number) {
-			return
-		}
-
-		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
-
-			return
-		}
-
-		var commenter dashboard.PullRequestCommenter
-		for _, src := range deps.BuildSources(u.ID, creds) {
-			if string(src.Forge()) != req.Forge {
-				continue
-			}
-			if reason := dashboard.DependabotCommandsBlockedReason(src); reason != "" {
-				writeJSON(w, http.StatusConflict, actionErrorBody{Error: reason, Code: string(dashboard.ActionPermission), Message: reason})
-
-				return
-			}
-			c, supported := src.(dashboard.PullRequestCommenter)
-			if !supported {
-				writeJSON(w, http.StatusBadRequest, errorBody(req.Forge+" doesn't support commenting on pull requests"))
-
-				return
-			}
-			commenter = c
-
-			break
-		}
-		if commenter == nil {
-			writeJSON(w, http.StatusBadRequest, errorBody("no "+req.Forge+" credentials saved"))
-
-			return
-		}
-
-		if err := commenter.CommentPullRequest(r.Context(), owner, name, req.Number, body); err != nil {
-			slog.Warn("dependabot pull request action failed", "forge", req.Forge, "repo", req.FullName, "number", req.Number, "action", req.Action, "error", err)
-			writeActionRefusal(r.Context(), w, commenter, dashboard.PullRequestActionDependabot, owner, name, req.Number, err)
-
-			return
-		}
-
-		deps.Manager.RecordBotRequest(u.ID, dashboard.Forge(req.Forge), req.FullName, req.Number, dashboard.BotDependabot, dashboard.BotAction(req.Action))
+		deps.Manager.RecordBotRequest(t.user.ID, dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, dashboard.BotDependabot, dashboard.BotAction(t.action))
 
 		w.WriteHeader(http.StatusNoContent)
 	}

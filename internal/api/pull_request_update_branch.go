@@ -1,11 +1,9 @@
 package api
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -16,70 +14,33 @@ import (
 // handlePullRequestMerge already established.
 func handlePullRequestUpdateBranch(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		t, ok := readActionTarget(w, r)
 		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
 			return
 		}
-
-		var req pullRequestActionRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
-
+		if refuseIfNotAllowed(w, deps, t.user.ID, dashboard.ActionUpdateBranch, t.req.Forge, t.req.FullName, t.req.Number) {
 			return
 		}
-
-		owner, name, ok := splitFullName(req.FullName)
+		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
 		if !ok {
-			writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
-
+			return
+		}
+		updater, ok := capabilityOf[dashboard.BranchUpdater](w, src, t.req.Forge, "doesn't support updating pull request branches")
+		if !ok {
 			return
 		}
 
-		if refuseIfNotAllowed(w, deps, u.ID, dashboard.ActionUpdateBranch, req.Forge, req.FullName, req.Number) {
-			return
-		}
-
-		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
+		accepted, err := updater.UpdateBranch(r.Context(), t.owner, t.name, t.req.Number)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
-
-			return
-		}
-
-		var updater dashboard.BranchUpdater
-		for _, src := range deps.BuildSources(u.ID, creds) {
-			if string(src.Forge()) != req.Forge {
-				continue
-			}
-			b, supported := src.(dashboard.BranchUpdater)
-			if !supported {
-				writeJSON(w, http.StatusBadRequest, errorBody(req.Forge+" doesn't support updating pull request branches"))
-
-				return
-			}
-			updater = b
-
-			break
-		}
-		if updater == nil {
-			writeJSON(w, http.StatusBadRequest, errorBody("no "+req.Forge+" credentials saved"))
-
-			return
-		}
-
-		accepted, err := updater.UpdateBranch(r.Context(), owner, name, req.Number)
-		if err != nil {
-			slog.Warn("pull request branch update failed", "forge", req.Forge, "repo", req.FullName, "number", req.Number, "error", err)
-			writeActionRefusal(r.Context(), w, updater, dashboard.PullRequestActionUpdateBranch, owner, name, req.Number, err)
+			slog.Warn("pull request branch update failed", "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "error", err)
+			writeActionRefusal(r.Context(), w, updater, dashboard.PullRequestActionUpdateBranch, t.owner, t.name, t.req.Number, err)
 
 			return
 		}
 
 		// Accepted or done inline, the pull request carries the request until
 		// a snapshot shows it no longer behind (#982).
-		deps.Manager.RecordUpdateRequest(u.ID, dashboard.Forge(req.Forge), req.FullName, req.Number)
+		deps.Manager.RecordUpdateRequest(t.user.ID, dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
 
 		if accepted {
 			w.WriteHeader(http.StatusAccepted)
