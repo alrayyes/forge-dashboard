@@ -23,7 +23,9 @@ func TestRateLimit_SeverityAt(t *testing.T) {
 		want dashboard.RateLimitSeverity
 	}{
 		{"plenty left", dashboard.RateLimit{Limit: 5000, Remaining: 4000, ResetsAt: future}, dashboard.RateLimitOK},
-		{"exactly 5% left is not low yet", dashboard.RateLimit{Limit: 5000, Remaining: 250, ResetsAt: future}, dashboard.RateLimitOK},
+		{"exactly 20% left is still ok", dashboard.RateLimit{Limit: 5000, Remaining: 1000, ResetsAt: future}, dashboard.RateLimitOK},
+		{"just under 20% is a warning", dashboard.RateLimit{Limit: 5000, Remaining: 999, ResetsAt: future}, dashboard.RateLimitWarning},
+		{"exactly 5% left is a warning, not low yet", dashboard.RateLimit{Limit: 5000, Remaining: 250, ResetsAt: future}, dashboard.RateLimitWarning},
 		{"just under 5% is low", dashboard.RateLimit{Limit: 5000, Remaining: 249, ResetsAt: future}, dashboard.RateLimitLow},
 		{"one request left is low", dashboard.RateLimit{Limit: 5000, Remaining: 1, ResetsAt: future}, dashboard.RateLimitLow},
 		{"spent with the reset ahead is exceeded", dashboard.RateLimit{Limit: 5000, Remaining: 0, ResetsAt: future}, dashboard.RateLimitExceeded},

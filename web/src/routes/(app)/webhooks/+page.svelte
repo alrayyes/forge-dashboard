@@ -5,9 +5,14 @@
     interpretActionFailure,
     readActionFailure,
   } from "#lib/action-error.js";
-  import { rateLimitReasonText } from "#lib/rate-limit.js";
+  import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
 
-  type RateLimit = { limit: number; remaining: number; resetsAt: string };
+  type RateLimit = {
+    limit: number;
+    remaining: number;
+    resetsAt: string;
+    severity: "ok" | "warning" | "low" | "exceeded";
+  };
   // Webhook management (list/create/edit a hook) is REST-only (#361) —
   // rateLimitGraphQL exists on the real ForgeHealth this page reads but
   // is deliberately not modeled here at all, the same restraint that
@@ -95,7 +100,7 @@
 
   function rateLimitLock(forge: string): string | null {
     const f = forges.find((f) => f.forge === forge);
-    if (f?.rateLimitREST && f.rateLimitREST.remaining === 0) {
+    if (f?.rateLimitREST && isRateLimited(f.rateLimitREST)) {
       return `Rate limit exhausted · resets ${resetTimeLabel(f.rateLimitREST.resetsAt)}`;
     }
     return null;

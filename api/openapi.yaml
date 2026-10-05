@@ -3011,14 +3011,16 @@ components:
             RateLimit.
         severity:
           type: string
-          enum: [ok, low, exceeded]
+          enum: [ok, warning, low, exceeded]
           description: |
             How worried a client should be about this budget, graded by
             the server as of the response, so no client needs its own
             threshold or clock check. `exceeded`: nothing left and the
             reset hasn't been seen to pass. `low`: under 5% left (also a
             spent budget whose reset time has passed, until the next
-            snapshot says otherwise). `ok`: everything else.
+            snapshot says otherwise). `warning`: under 20% left but not
+            yet low, for a gauge's amber stage; a banner or a lock has no
+            reason to act on it. `ok`: everything else.
 
     PullRequest:
       type: object
