@@ -18,6 +18,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # No hooks in a pipeline (tooling.md): a `bun install` here would otherwise
+  # install lefthook's own git hooks into a checkout nothing commits from.
+  LEFTHOOK: 0
   # The same version the pre-commit hook runs. When these two disagree the
   # hook passes and the pipeline fails, and the reason isn't obvious from the
   # failure.
