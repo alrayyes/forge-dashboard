@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { syncThemeFromServer } from "#lib/theme.js";
+  import { loadTimezone } from "#lib/time.svelte.js";
   import Footer from "#lib/Footer.svelte";
   import { issueCount } from "#lib/issue-count.svelte.js";
 
@@ -76,6 +77,8 @@
     // change it" half, reconciling the fast local cookie theme the inline script
     // already applied against whatever's actually saved.
     syncThemeFromServer();
+    // Times on every page below read this; a failure leaves the browser's zone.
+    loadTimezone();
 
     // ---- who's signed in ----
     // Ported from nav.js verbatim in behavior: same endpoint, same 401

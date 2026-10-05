@@ -377,6 +377,50 @@ test.describe('pull request pipeline checks panel', () => {
     ).toContainText('mystery');
   });
 
+  test('a failed check shows its failed step, how long it ran and the log excerpt as plain text', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR());
+    await mockChecks(page, {
+      checks: [
+        {
+          name: 'test',
+          state: 'failure',
+          url: 'https://example.com/1',
+          durationSeconds: 125,
+          failedStep: 'Run tests',
+          excerpt: 'FAIL internal/api\n<img src=x onerror=alert(1)>',
+        },
+        { name: 'build', state: 'success', url: '', durationSeconds: 42 },
+      ],
+    });
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const failed = dialog.locator('.pipeline-check', { hasText: 'test' });
+    await expect(failed.getByText('Failed step: Run tests')).toBeVisible();
+    await expect(failed.getByText('2m 5s')).toBeVisible();
+    const excerpt = failed.locator('pre.pipeline-check-excerpt');
+    await expect(excerpt).toContainText('FAIL internal/api');
+    await expect(excerpt).toContainText('<img src=x onerror=alert(1)>');
+    await expect(excerpt.locator('img')).toHaveCount(0);
+
+    const passed = dialog.locator('.pipeline-check', { hasText: 'build' });
+    await expect(passed.getByText('42s')).toBeVisible();
+    await expect(passed.locator('pre')).toHaveCount(0);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('a failing GitHub pull request offers "Rerun failed checks", which posts for that pull request and shows a queued state', async ({
     page,
   }) => {

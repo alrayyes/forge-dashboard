@@ -35,11 +35,15 @@
     budgetText,
     isRateLimited,
     msUntilReset,
-    formatResetTime,
     PERMISSION_REASON,
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
+  import {
+    formatTime,
+    onTimezoneChange,
+    effectiveZone,
+  } from "#lib/time.svelte.js";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, admin-link, logout-button, whoami) —
@@ -108,6 +112,9 @@
     state: string;
     url: string;
     required?: boolean;
+    durationSeconds?: number;
+    failedStep?: string;
+    excerpt?: string;
   };
   type Forge = {
     forge: string;
@@ -2707,6 +2714,17 @@
       );
     }
 
+    // 125 -> "2m 5s", 42 -> "42s", 3700 -> "1h 1m": a duration the way a
+    // person reads it, not a bare second count.
+    function formatDuration(seconds: number): string {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const sec = seconds % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${sec}s`;
+      return `${sec}s`;
+    }
+
     function pipelineCheckRow(check: Check): HTMLElement {
       const row = el("li", "pipeline-check");
       const status = el("span", `pipeline-check-status ${check.state}`);
@@ -2716,6 +2734,15 @@
       );
       row.appendChild(status);
       row.appendChild(el("span", "pipeline-check-name", check.name));
+      if (check.durationSeconds !== undefined) {
+        row.appendChild(
+          el(
+            "span",
+            "pipeline-check-duration",
+            formatDuration(check.durationSeconds),
+          ),
+        );
+      }
       if (isBlocking(check)) {
         row.appendChild(el("span", "pipeline-check-flag", "Blocking"));
       }
@@ -2735,6 +2762,18 @@
         link.textContent = "View run";
         link.setAttribute("aria-label", `View run: ${check.name}`);
         row.appendChild(link);
+      }
+      if (check.failedStep) {
+        row.appendChild(
+          el("p", "pipeline-check-step", `Failed step: ${check.failedStep}`),
+        );
+      }
+      // textContent only (el sets it): the log is never parsed as markup.
+      if (check.excerpt) {
+        const excerpt = el("pre", "pipeline-check-excerpt", check.excerpt);
+        excerpt.tabIndex = 0;
+        excerpt.setAttribute("aria-label", `Log excerpt: ${check.name}`);
+        row.appendChild(excerpt);
       }
       return row;
     }
@@ -4356,9 +4395,13 @@
         existing?.remove();
         return;
       }
-      const signature = rateLimitAlerts
-        .map((a) => `${a.label}|${a.severity}|${a.resetsAt}|${a.remaining}`)
-        .join(";");
+      // The zone is part of it: a changed zone redraws the reset times.
+      const signature = [
+        effectiveZone(),
+        ...rateLimitAlerts.map(
+          (a) => `${a.label}|${a.severity}|${a.resetsAt}|${a.remaining}`,
+        ),
+      ].join(";");
       if (existing && existing.dataset.signature === signature) {
         existing
           .querySelectorAll<HTMLElement>(".rate-limit-banner-timer")
@@ -4375,7 +4418,7 @@
       for (const alert of rateLimitAlerts) {
         const exceeded = alert.severity === "exceeded";
         const row = el("div", `rate-limit-banner-row${exceeded ? "" : " low"}`);
-        const resetAt = `resets at ${formatResetTime(alert.resetsAt)}`;
+        const resetAt = `resets at ${formatTime(alert.resetsAt)}`;
         row.appendChild(
           el(
             "span",
@@ -5015,7 +5058,19 @@
       refresh(true);
     };
 
-    return () => document.removeEventListener("keydown", onSlashShortcut);
+    // The saved time zone arrives after the first render, and Settings can
+    // change it: redraw everything that shows a reset time (#996).
+    const stopTimezone = onTimezoneChange(() => {
+      if (!lastGeneratedAt) return; // nothing drawn yet; the first snapshot reads the zone
+      renderForgeHealth(lastForges);
+      renderRateLimitBanner();
+      renderPRBoard();
+    });
+
+    return () => {
+      stopTimezone();
+      document.removeEventListener("keydown", onSlashShortcut);
+    };
   }
 </script>
 
