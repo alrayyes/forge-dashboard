@@ -564,7 +564,7 @@ panel says "Rerun queued" and the new results show after the next refresh. It
 needs a token that can write to Actions. When GitHub refuses (no permission, a
 run too old or already running), the panel shows its reason and the button
 stays for another try. A failed check that isn't an Actions job can't be rerun,
-and Forgejo has no rerun yet, so there the button is not shown
+and Forgejo can't rerun yet, so the button never shows there
 (`POST /api/pull-requests/rerun-checks`, listed as `rerun_checks` in
 `allowedActions`).
 
