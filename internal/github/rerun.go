@@ -14,7 +14,7 @@ import (
 
 // errNothingToRerun is why a rerun found no failed Actions job on the pull
 // request's head commit. Shown to a person, so it reads as a sentence.
-var errNothingToRerun = errors.New("github: no failed GitHub Actions job to rerun on this pull request")
+var errNothingToRerun = errors.New("no failed GitHub Actions job to rerun on this pull request")
 
 // RerunFailedChecks implements dashboard.ChecksRerunner (#698): it finds the
 // failed or timed-out check runs on the pull request's head commit, maps each
