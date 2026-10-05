@@ -2223,6 +2223,7 @@ footer a.mono:focus-visible {
 }
 .pipeline-check {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -2299,6 +2300,31 @@ footer a.mono:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.pipeline-check-duration {
+  flex: none;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.pipeline-check-step {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.pipeline-check-excerpt {
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 /* Text badge, so a blocking failure doesn't rely on colour alone. */
 .pipeline-check-flag {

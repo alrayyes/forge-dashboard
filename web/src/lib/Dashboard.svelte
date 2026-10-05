@@ -108,6 +108,9 @@
     state: string;
     url: string;
     required?: boolean;
+    durationSeconds?: number;
+    failedStep?: string;
+    excerpt?: string;
   };
   type Forge = {
     forge: string;
@@ -2707,6 +2710,17 @@
       );
     }
 
+    // 125 -> "2m 5s", 42 -> "42s", 3700 -> "1h 1m": a duration the way a
+    // person reads it, not a bare second count.
+    function formatDuration(seconds: number): string {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const sec = seconds % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${sec}s`;
+      return `${sec}s`;
+    }
+
     function pipelineCheckRow(check: Check): HTMLElement {
       const row = el("li", "pipeline-check");
       const status = el("span", `pipeline-check-status ${check.state}`);
@@ -2716,6 +2730,15 @@
       );
       row.appendChild(status);
       row.appendChild(el("span", "pipeline-check-name", check.name));
+      if (check.durationSeconds !== undefined) {
+        row.appendChild(
+          el(
+            "span",
+            "pipeline-check-duration",
+            formatDuration(check.durationSeconds),
+          ),
+        );
+      }
       if (isBlocking(check)) {
         row.appendChild(el("span", "pipeline-check-flag", "Blocking"));
       }
@@ -2735,6 +2758,18 @@
         link.textContent = "View run";
         link.setAttribute("aria-label", `View run: ${check.name}`);
         row.appendChild(link);
+      }
+      if (check.failedStep) {
+        row.appendChild(
+          el("p", "pipeline-check-step", `Failed step: ${check.failedStep}`),
+        );
+      }
+      // textContent only (el sets it): the log is never parsed as markup.
+      if (check.excerpt) {
+        const excerpt = el("pre", "pipeline-check-excerpt", check.excerpt);
+        excerpt.tabIndex = 0;
+        excerpt.setAttribute("aria-label", `Log excerpt: ${check.name}`);
+        row.appendChild(excerpt);
       }
       return row;
     }
