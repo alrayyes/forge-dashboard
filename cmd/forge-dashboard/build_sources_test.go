@@ -53,7 +53,7 @@ func TestBuildSourcesForUser_TwoUsers_RecordUnderTwoDistinctAccountIDs(t *testin
 	defer srv.Close()
 
 	store := newTestAuthStore(t)
-	build := buildSourcesForUser(store, 0, nil)
+	build := buildSourcesForUser(store, nil, 0, nil)
 
 	userA, err := store.CreateUser(t.Context(), "user-a", "User A", false)
 	require.NoError(t, err)

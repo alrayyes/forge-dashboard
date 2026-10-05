@@ -68,6 +68,10 @@ func resolveRefreshInterval(v string) time.Duration {
 // stops accepting connections, so a router polling that path has taken it
 // out of rotation first. Docker's default stop grace is 10s and Shutdown
 // gets 5 of them, so a longer drain needs a longer stop_grace_period too.
+// requestLogQueueSize is how many request-log rows wait for the single
+// writer before a full queue starts dropping them.
+const requestLogQueueSize = 256
+
 const defaultShutdownDrain = 5 * time.Second
 
 // resolveShutdownDrain reads SHUTDOWN_DRAIN as a Go duration. Zero turns the
@@ -237,6 +241,11 @@ func run() error {
 	manager.SetAutoUpdateBranchLister(settingsStore)
 	manager.SetCIPollInterval(ciPollInterval)
 
+	// One writer for every request-log row (#902). Close drains what's
+	// queued on the way out; a row logged after that is dropped, not a panic.
+	requestLogWriter := requestlog.NewWriter(authStore, requestLogQueueSize)
+	defer requestLogWriter.Close()
+
 	var drain api.Drain
 	deps := api.Deps{
 		Drain:         &drain,
@@ -248,8 +257,8 @@ func run() error {
 		Manager:       manager,
 		Database:      schemaPinger{db: db},
 		Dashboard:     manager,
-		BuildSources:  buildSourcesForUser(authStore, githubAppID, githubAppPrivateKey),
-		RequestLog:    requestlog.NewSQLiteRecorder(authStore, ""),
+		BuildSources:  buildSourcesForUser(authStore, requestLogWriter, githubAppID, githubAppPrivateKey),
+		RequestLog:    requestlog.NewSQLiteRecorder(authStore, "", requestlog.WithWriter(requestLogWriter)),
 		AppContext:    ctx,
 		// Same env var buildAuth already required for WebAuthn's own
 		// RPOrigins — reused rather than adding a second "what's my own
@@ -341,10 +350,10 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 // known here, at construction, and nowhere else past this point, so this
 // is where it has to be threaded in.
 
-func buildSourcesForUser(authStore *auth.Store, githubAppID int64, githubAppPrivateKey []byte) func(userID []byte, c settings.Credentials) []dashboard.Source {
+func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte) func(userID []byte, c settings.Credentials) []dashboard.Source {
 	return func(userID []byte, c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
-		recorder := requestlog.NewSQLiteRecorder(authStore, base64.RawURLEncoding.EncodeToString(userID))
+		recorder := requestlog.NewSQLiteRecorder(authStore, base64.RawURLEncoding.EncodeToString(userID), requestlog.WithWriter(requestLogWriter))
 
 		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, "", recorder); src != nil {
 			sources = append(sources, src)
