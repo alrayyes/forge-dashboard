@@ -55,6 +55,8 @@ jobs:
         run: scripts/test-check-release-type.sh
       - name: check the Vale pins agree
         run: scripts/test-vale-pin.sh
+      - name: check the hadolint pins agree
+        run: scripts/test-hadolint-pin.sh
       - name: changed areas
         id: areas
         env:
