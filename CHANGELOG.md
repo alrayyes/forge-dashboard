@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.132.3](https://github.com/alrayyes/forge-dashboard/compare/v0.132.2...v0.132.3) (2026-10-05)
+
+
+### Bug Fixes
+
+* **dashboard:** block Merge on a draft pull request ([#959](https://github.com/alrayyes/forge-dashboard/issues/959)) ([fc3dce6](https://github.com/alrayyes/forge-dashboard/commit/fc3dce657422ff64f2c00be4923d34e5c6238533)), closes [#957](https://github.com/alrayyes/forge-dashboard/issues/957)
+
 ## [0.132.2](https://github.com/alrayyes/forge-dashboard/compare/v0.132.1...v0.132.2) (2026-10-05)
 
 
