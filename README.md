@@ -865,7 +865,11 @@ for readiness,
 with `?owner=<username>`, one shared with them), `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the
 `PUT` response never echoes a token back, only whether one is now set
-— `GET/PUT/DELETE /api/sharing(/{username})` for managing who can see
+— `GET/PUT /api/settings/timezone` for the zone the user wants times shown
+in (an IANA name such as `Europe/Amsterdam`; empty means the browser's own, and
+it exists for browsers that report UTC to every page, such as Firefox with
+fingerprint resistance) — `GET/PUT/DELETE /api/sharing(/{username})` for
+managing who can see
 your dashboard, and `GET /api/admin/users` plus the revoke/delete
 endpoints, alongside `GET/POST /api/admin/invites` and
 `POST /api/admin/invites/{token}/revoke` for generating, listing, and

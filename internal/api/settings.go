@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -38,6 +39,10 @@ type SettingsResponse struct {
 	// even though the lightweight GET /api/settings/theme below is what
 	// every other page actually polls on load.
 	Theme string `json:"theme"`
+	// Timezone — see settings.Credentials' own doc comment. Round-tripped
+	// here so the Settings page shows what is saved; every other page reads
+	// the lightweight GET /api/settings/timezone.
+	Timezone string `json:"timezone"`
 }
 
 func settingsResponseOf(c settings.Credentials, githubAppConfigured bool) SettingsResponse {
@@ -53,6 +58,7 @@ func settingsResponseOf(c settings.Credentials, githubAppConfigured bool) Settin
 		WebhookSecret:           c.WebhookSecret,
 		RenovateRebaseLabel:     c.RenovateRebaseLabel,
 		Theme:                   c.Theme,
+		Timezone:                c.Timezone,
 	}
 }
 
@@ -235,6 +241,8 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			// on every call, so leaving Theme out of this struct
 			// would silently reset it to "" on every ordinary save.
 			Theme: existing.Theme,
+			// Same for the timezone and PUT /api/settings/timezone (#996).
+			Timezone: existing.Timezone,
 			// Set doesn't touch these columns (see settings.Store.Set) —
 			// carried over here only so this response reflects them
 			// too, rather than reporting them blank until the next GET.
@@ -304,5 +312,94 @@ func typeInWords(t reflect.Type) string {
 		return "text"
 	default:
 		return "a " + t.String()
+	}
+}
+
+// TimezoneResponse matches components.schemas.TimezoneResponse. Every page
+// needs it on load to show times in the user's zone, so it has its own cheap
+// GET like Theme does.
+type TimezoneResponse struct {
+	Timezone string `json:"timezone"`
+}
+
+func handleTimezoneGet(store *settings.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
+			return
+		}
+
+		// ErrNotFound leaves creds at its zero value: Timezone "" (the browser's own).
+		creds, err := store.Get(r.Context(), u.ID)
+		if err != nil && !errors.Is(err, settings.ErrNotFound) {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, TimezoneResponse{Timezone: creds.Timezone})
+	}
+}
+
+// timezonePutRequest matches components.schemas.TimezoneRequest.
+type timezonePutRequest struct {
+	Timezone string `json:"timezone"`
+}
+
+// validTimezone reports whether name is empty (the browser's zone) or an IANA
+// zone name. "Local" is refused: it means this server's zone, not the user's.
+func validTimezone(name string) bool {
+	if name == "" {
+		return true
+	}
+	if name == "Local" {
+		return false
+	}
+	_, err := time.LoadLocation(name)
+
+	return err == nil
+}
+
+// handleTimezonePut is Settings' own instant save for the timezone, like
+// handleThemePut: carrying one field through PUT /api/settings would blank
+// every other saved setting.
+func handleTimezonePut(store *settings.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
+			return
+		}
+
+		var req timezonePutRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
+			return
+		}
+		if !validTimezone(req.Timezone) {
+			writeJSON(w, http.StatusBadRequest, errorBody(`timezone must be "" or an IANA zone name such as "Europe/Amsterdam"`))
+
+			return
+		}
+
+		existing, err := store.Get(r.Context(), u.ID)
+		if err != nil && !errors.Is(err, settings.ErrNotFound) {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
+
+			return
+		}
+		existing.Timezone = req.Timezone
+
+		if err := store.Set(r.Context(), u.ID, existing); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not save timezone"))
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, TimezoneResponse{Timezone: existing.Timezone})
 	}
 }
