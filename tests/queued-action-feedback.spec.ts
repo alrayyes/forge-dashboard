@@ -44,6 +44,11 @@ interface MockPR {
   updatedAt: string;
   mergeStatus: string;
   behind: boolean;
+  updateRequest?: {
+    phase: string;
+    requestedAt: string;
+    expiresAt: string;
+  };
   botRequest?: {
     bot: string;
     action: string;
@@ -61,6 +66,19 @@ function botRequestFor(bot: string, phase: string) {
     phase,
     requestedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+  };
+}
+
+// What the server puts on a pull request once an Update branch was
+// accepted and the branch is still behind (#982).
+function withUpdateRequest(pr: MockPR): MockPR {
+  return {
+    ...pr,
+    updateRequest: {
+      phase: 'queued',
+      requestedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+    },
   };
 }
 
@@ -198,8 +216,21 @@ for (const s of scenarios) {
     async function prepare(page: Page, endpointStatus = 204) {
       await mockDashboard(page, s.pr);
       let hits = 0;
+      // Every snapshot after an accepted Update branch carries the server's
+      // record of it, until the branch is no longer behind (#982).
+      let accepted = false;
+      const served = () =>
+        accepted && s.awaitsRefresh ? withUpdateRequest(s.pr) : s.pr;
+      await page.route('**/api/dashboard*', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(snapshot(served())),
+        }),
+      );
       await page.route(s.endpoint, async (route: Route) => {
         hits += 1;
+        if (endpointStatus === 204 || endpointStatus === 202) accepted = true;
         // Slow enough that the assertions below run while still in flight.
         await new Promise((resolve) => setTimeout(resolve, 300));
         if (endpointStatus === 204 || endpointStatus === 202)
@@ -219,7 +250,7 @@ for (const s of scenarios) {
         route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify(snapshot(s.pr)),
+          body: JSON.stringify(snapshot(served())),
         }),
       );
       await page.reload();
@@ -402,7 +433,7 @@ for (const s of scenarios) {
       // request is still on the pull request, as the server keeps it.
       const bot = s.name.split(' ')[0].toLowerCase();
       const same = s.awaitsRefresh
-        ? s.pr
+        ? withUpdateRequest(s.pr)
         : { ...s.pr, botRequest: botRequestFor(bot, 'queued') };
       await page.evaluate(
         (data) => {

@@ -442,14 +442,17 @@ background poll. If the countdown runs out before the refresh lands, it reads
 clears once a refresh shows the branch caught up. If the request fails, the
 button comes back and the row and an error toast say why.
 
-The server also keeps the request (#982): a branch update the forge accepted
-shows up on the pull request as `updateRequest`, with a phase (`queued` or
+The server keeps the request (#982): a branch update the forge accepted shows
+up on the pull request as `updateRequest`, with a phase (`queued` or
 `expired`), when it was asked and `expiresAt`. It clears on the first snapshot
 from a fetch that started after the request and shows the pull request no
 longer behind, or when the pull request is gone, and goes `expired` after five
 minutes still behind. Like `botRequest` it is in memory per account, so a server
-restart forgets it. The page doesn't read it yet, which is the follow-up half
-of ticket #982.
+restart forgets it. The page only draws it: the click shows `Queued…` at once,
+and after that each snapshot decides. A snapshot without the record finishes the
+row with "Branch updated.", the `expired` phase ends it with a timed-out line, an
+error toast and Retry, and a record the page never clicked (a reload mid-wait)
+starts the row as `Queued…`.
 
 A bot `rebase` waits on the bot, not on the dashboard. The button becomes
 `Rebase requested` and is `aria-disabled` (focus returns to the row's More

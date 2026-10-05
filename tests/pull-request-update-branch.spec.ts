@@ -363,7 +363,19 @@ test.describe('pull request update-branch button', () => {
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-          pullRequests: [{ ...pr, behind: true }],
+          pullRequests: [
+            {
+              ...pr,
+              behind: true,
+              // The server has recorded the request (#982) and keeps it
+              // until a later fetch shows the branch caught up.
+              updateRequest: {
+                phase: 'queued',
+                requestedAt: new Date().toISOString(),
+                expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+              },
+            },
+          ],
           issues: [],
         }),
       }),
@@ -398,7 +410,19 @@ test.describe('pull request update-branch button', () => {
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-          pullRequests: [{ ...pr, behind: refreshCount === 1 }],
+          pullRequests: [
+            refreshCount === 1
+              ? {
+                  ...pr,
+                  behind: true,
+                  updateRequest: {
+                    phase: 'queued',
+                    requestedAt: new Date().toISOString(),
+                    expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+                  },
+                }
+              : { ...pr, behind: false },
+          ],
           issues: [],
         }),
       });
