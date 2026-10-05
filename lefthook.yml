@@ -207,6 +207,14 @@ pre-push:
     - name: redocly
       run: bun run lint:api
 
+    # OWASP's API security rules over the same spec. Whole-spec, like redocly
+    # above; the glob only decides whether it's worth running.
+    - name: spectral
+      glob:
+        - "api/**"
+        - ".spectral.yaml"
+      run: bun run lint:api:security
+
     - name: biome
       run: bun run lint:js
 
