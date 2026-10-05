@@ -38,6 +38,10 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		if refuseIfNotAllowed(w, deps, u.ID, dashboard.ActionRenovateRebase, req.Forge, req.FullName, req.Number) {
+			return
+		}
+
 		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
