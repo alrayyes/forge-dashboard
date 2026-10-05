@@ -115,16 +115,25 @@ jobs:
         run: |
           go tool cover -func=coverage.out | tail -1 |
             awk '{ print "**Coverage: " $3 "**" }' >> "$GITHUB_STEP_SUMMARY"
+      # What fails the job and what only warns (#948). Our own reports must
+      # exist and parse, checked here where the failure is ours. The uploads
+      # then set fail_ci_if_error: false, so an outage on Codecov's side (TLS
+      # handshake, ingest retries) warns instead of failing a green change.
+      - name: Check the coverage and test reports
+        if: ${{ !cancelled() }}
+        run: |
+          test -s coverage.out
+          go tool cover -func=coverage.out > /dev/null
+          python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('junit.xml')"
       # Skipped until CODECOV_TOKEN is set on the repo (repo-creation.md:
       # signing in to codecov.io is a browser step only the account owner
-      # can do) — fail_ci_if_error would otherwise turn every run red for a
-      # missing secret rather than a real coverage problem.
+      # can do) — a missing secret isn't a coverage problem.
       - name: Upload coverage to Codecov
         if: ${{ !cancelled() && github.actor != 'dependabot[bot]' && env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: true
+          fail_ci_if_error: false
       - name: Upload test results to Codecov
         if: ${{ !cancelled() && github.actor != 'dependabot[bot]' && env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
@@ -132,7 +141,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           report_type: test_results
           files: junit.xml
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
   build:
     needs: changes
