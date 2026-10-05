@@ -39,10 +39,8 @@ func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
-// Init creates the schema if it doesn't already exist. Safe to call every
-// startup.
-func (s *Store) Init(ctx context.Context) error {
-	const schema = `
+// schema is the auth tables, each created only if missing.
+const schema = `
 	CREATE TABLE IF NOT EXISTS users (
 		id TEXT PRIMARY KEY,
 		username TEXT NOT NULL UNIQUE,
@@ -109,6 +107,10 @@ func (s *Store) Init(ctx context.Context) error {
 		rate_limit_cost INTEGER
 	);
 	`
+
+// Init creates the schema if it doesn't already exist. Safe to call every
+// startup.
+func (s *Store) Init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("auth: create schema: %w", err)
 	}
