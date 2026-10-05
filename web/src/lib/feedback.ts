@@ -109,16 +109,86 @@ export const PHASE_LABELS: Record<FeedbackPhase, string> = {
 
 export type FeedbackStore = ReturnType<typeof createFeedbackStore>;
 
-export function createFeedbackStore(now: () => number = Date.now) {
+// Where finished entries are kept across a reload (#724). Only what
+// sessionStorage offers, so a test can hand in a stand-in.
+export type EntryStorage = Pick<Storage, 'getItem' | 'setItem'>;
+
+export const ACTIVITY_STORAGE_KEY = 'forge-dashboard.activity';
+
+// An entry as stored: what the panel and the row line show. The retry
+// callback can't be stored, so a restored failure has no Retry.
+type StoredEntry = Omit<ActivityEntry, 'id' | 'retry' | 'canRetry'>;
+
+function isStoredEntry(value: unknown): value is StoredEntry {
+  if (typeof value !== 'object' || value === null) return false;
+  const e = value as Record<string, unknown>;
+  const ref = e.ref as Record<string, unknown> | undefined;
+  return (
+    typeof e.actionKey === 'string' &&
+    typeof e.label === 'string' &&
+    typeof e.inline === 'string' &&
+    typeof e.message === 'string' &&
+    typeof e.startedAt === 'number' &&
+    typeof e.updatedAt === 'number' &&
+    typeof e.phase === 'string' &&
+    e.phase in PHASE_LABELS &&
+    isFinished(e.phase as FeedbackPhase) &&
+    typeof ref?.key === 'string' &&
+    typeof ref?.repo === 'string' &&
+    typeof ref?.number === 'number'
+  );
+}
+
+// Every storage call may throw (blocked, full, private window): the page
+// then works as before, with an empty list.
+function loadEntries(storage: EntryStorage | undefined): StoredEntry[] {
+  if (!storage) return [];
+  try {
+    const parsed: unknown = JSON.parse(
+      storage.getItem(ACTIVITY_STORAGE_KEY) ?? '[]',
+    );
+    return Array.isArray(parsed) ? parsed.filter(isStoredEntry) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveEntries(
+  storage: EntryStorage | undefined,
+  entries: ActivityEntry[],
+) {
+  if (!storage) return;
+  const finished: StoredEntry[] = entries
+    .filter((e) => isFinished(e.phase))
+    .map(({ id: _id, retry: _retry, canRetry: _canRetry, ...rest }) => rest);
+  try {
+    storage.setItem(ACTIVITY_STORAGE_KEY, JSON.stringify(finished));
+  } catch {
+    // Nothing to do: the list just doesn't survive this reload.
+  }
+}
+
+// Finished entries are kept for the life of the tab, at most MAX_ENTRIES,
+// until Clear finished. A request still queued isn't stored: the server
+// carries it on the pull request (updateRequest) and the page rebuilds it.
+export function createFeedbackStore(
+  now: () => number = Date.now,
+  storage?: EntryStorage,
+) {
   let nextId = 1;
   // Insertion order, newest last.
-  let entries: ActivityEntry[] = [];
+  let entries: ActivityEntry[] = loadEntries(storage).map((e) => ({
+    ...e,
+    id: nextId++,
+    canRetry: false,
+  }));
   // Newest first.
   let toasts: Toast[] = [];
   const listeners = new Set<() => void>();
   const announcers = new Set<(message: string) => void>();
 
   function emit() {
+    saveEntries(storage, entries);
     for (const fn of Array.from(listeners)) fn();
   }
 
