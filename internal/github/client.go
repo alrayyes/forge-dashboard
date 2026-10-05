@@ -540,7 +540,7 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPut, "url", path)
-	opts := &ghsdk.PullRequestOptions{MergeMethod: mergeMethodFor(repo)}
+	opts := &ghsdk.PullRequestOptions{MergeMethod: mergeMethodFor(repo, c.linearHistoryRequired(ctx, owner, name, repo.GetDefaultBranch()))}
 	_, mergeResp, err := c.restClient.PullRequests.Merge(ctx, owner, name, number, "", opts)
 	if err != nil {
 		return asClientError(c.restError(ctx, http.MethodPut, path, err))
@@ -598,20 +598,64 @@ func (c *Client) ClosePullRequest(ctx context.Context, owner, name string, numbe
 }
 
 // mergeMethodFor picks a merge method repo actually allows — "merge"
-// first (the previous, implicit default) when it's still enabled, then
-// "squash", then "rebase". GitHub requires at least one of the three
-// enabled on any repo, so this always resolves to something real.
-func mergeMethodFor(repo *ghsdk.Repository) string {
+// first (the previous, implicit default) when it's still enabled and the
+// base branch doesn't require linear history, then "squash", then
+// "rebase". GitHub requires at least one of the three enabled on any
+// repo, so this always resolves to something real. With linear history
+// required but merge the only method on, merge stays: nothing else is
+// on offer, and GitHub's own refusal then says why.
+func mergeMethodFor(repo *ghsdk.Repository, linearHistory bool) string {
+	return pickMergeMethod(repo.GetAllowMergeCommit(), repo.GetAllowSquashMerge(), repo.GetAllowRebaseMerge(), linearHistory)
+}
+
+// pickMergeMethod holds the precedence both lookups share, in REST's
+// lowercase spelling.
+func pickMergeMethod(merge, squash, rebase, linearHistory bool) string {
+	otherAllowed := squash || rebase
 	switch {
-	case repo.GetAllowMergeCommit():
+	case merge && (!linearHistory || !otherAllowed):
 		return "merge"
-	case repo.GetAllowSquashMerge():
+	case squash:
 		return "squash"
-	case repo.GetAllowRebaseMerge():
+	case rebase:
 		return "rebase"
 	default:
 		return "merge"
 	}
+}
+
+// linearHistoryRequired reports whether branch's classic protection rule
+// or an active ruleset requires linear history, which refuses a merge
+// commit whatever allow_merge_commit says. Either lookup failing (no
+// admin scope, no rule) reads as not required, so the merge goes ahead
+// with today's precedence rather than being refused here.
+func (c *Client) linearHistoryRequired(ctx context.Context, owner, name, branch string) bool {
+	if branch == "" {
+		return false
+	}
+	path := fmt.Sprintf("/repos/%s/%s/branches/%s/protection", owner, name, branch)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	prot, resp, err := c.restClient.Repositories.GetBranchProtection(ctx, owner, name, branch)
+	if err == nil {
+		c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+		if prot.RequireLinearHistory != nil && prot.RequireLinearHistory.Enabled {
+			return true
+		}
+	} else {
+		slog.Debug("github branch protection unreadable, linear history assumed off", "repo", owner+"/"+name, "branch", branch, "error", err)
+	}
+
+	rulesPath := fmt.Sprintf("/repos/%s/%s/rules/branches/%s", owner, name, branch)
+	slog.Debug("github request", "method", http.MethodGet, "url", rulesPath)
+	rules, rulesResp, err := c.restClient.Repositories.GetRulesForBranch(ctx, owner, name, branch, nil)
+	if err != nil {
+		slog.Debug("github rulesets unreadable, linear history assumed off", "repo", owner+"/"+name, "branch", branch, "error", err)
+
+		return false
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, rulesPath, rulesResp)
+
+	return len(rules.RequiredLinearHistory) > 0
 }
 
 // autoMergeLookupQuery fetches what EnableAutoMerge needs in one
@@ -625,6 +669,9 @@ query($owner: String!, $name: String!, $number: Int!) {
     mergeCommitAllowed
     squashMergeAllowed
     rebaseMergeAllowed
+    defaultBranchRef {
+      name
+    }
     pullRequest(number: $number) {
       id
     }
@@ -648,7 +695,10 @@ type autoMergeLookupResponse struct {
 		MergeCommitAllowed bool `json:"mergeCommitAllowed"`
 		SquashMergeAllowed bool `json:"squashMergeAllowed"`
 		RebaseMergeAllowed bool `json:"rebaseMergeAllowed"`
-		PullRequest        struct {
+		DefaultBranchRef   struct {
+			Name string `json:"name"`
+		} `json:"defaultBranchRef"`
+		PullRequest struct {
 			ID string `json:"id"`
 		} `json:"pullRequest"`
 	} `json:"repository"`
@@ -659,17 +709,10 @@ type autoMergeLookupResponse struct {
 // precedence as mergeMethodFor, just GitHub's GraphQL
 // PullRequestMergeMethod enum spelling ("MERGE"/"SQUASH"/"REBASE") rather
 // than the REST API's lowercase strings.
-func autoMergeMethodFor(lookup autoMergeLookupResponse) string {
-	switch {
-	case lookup.Repository.MergeCommitAllowed:
-		return "MERGE"
-	case lookup.Repository.SquashMergeAllowed:
-		return "SQUASH"
-	case lookup.Repository.RebaseMergeAllowed:
-		return "REBASE"
-	default:
-		return "MERGE"
-	}
+func autoMergeMethodFor(lookup autoMergeLookupResponse, linearHistory bool) string {
+	r := lookup.Repository
+
+	return strings.ToUpper(pickMergeMethod(r.MergeCommitAllowed, r.SquashMergeAllowed, r.RebaseMergeAllowed, linearHistory))
 }
 
 // EnableAutoMerge implements dashboard.PullRequestAutoMerger: arms
@@ -688,7 +731,7 @@ func (c *Client) EnableAutoMerge(ctx context.Context, owner, name string, number
 
 	vars := map[string]any{
 		"id":     lookup.Repository.PullRequest.ID,
-		"method": autoMergeMethodFor(lookup),
+		"method": autoMergeMethodFor(lookup, c.linearHistoryRequired(ctx, owner, name, lookup.Repository.DefaultBranchRef.Name)),
 	}
 	if err := c.graphqlDo(ctx, enablePullRequestAutoMergeMutation, vars, nil); err != nil {
 		return asClientError(err)
