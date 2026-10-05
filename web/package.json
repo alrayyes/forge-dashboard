@@ -1,16 +1,20 @@
 {
   "name": "web",
-  "private": true,
   "version": "0.0.1",
+  "private": true,
   "type": "module",
+  "imports": {
+    "#lib": "./src/lib/index.js",
+    "#lib/*": "./src/lib/*"
+  },
   "scripts": {
-    "changelog": "bun ../scripts/changelog-json.ts",
-    "dev": "bun run changelog && vite dev",
     "build": "bun run changelog && vite build",
-    "preview": "vite preview",
-    "prepare": "svelte-kit sync || echo ''",
+    "changelog": "bun ../scripts/changelog-json.ts",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "dev": "bun run changelog && vite dev",
+    "prepare": "svelte-kit sync || echo ''",
+    "preview": "vite preview"
   },
   "devDependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",
@@ -24,9 +28,5 @@
     "typescript": "6.0.3",
     "vite": "8.3.2",
     "webmcp-types": "0.1.10"
-  },
-  "imports": {
-    "#lib": "./src/lib/index.js",
-    "#lib/*": "./src/lib/*"
   }
 }

@@ -380,6 +380,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: biome check
         run: bun run lint:js
+      - name: package.json order
+        run: bun run lint:pkg
 
   # Biome has no Svelte parser (biome.json excludes .svelte entirely) — this
   # is that file type's own check: svelte-check runs the TypeScript compiler

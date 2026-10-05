@@ -41,6 +41,13 @@ pre-commit:
     # .html/.svg via biome.json's own files.includes, not the glob here:
     # this repo's HTML pages carry inline <style>/embedded content Biome
     # would otherwise also lint, out of scope for now.
+    # Sorts the manifests before Biome reads them, so dependency diffs don't
+    # churn. Rewrites in place, hence stage_fixed.
+    - name: sort-package-json
+      glob: "package.json"
+      run: bunx sort-package-json {staged_files}
+      stage_fixed: true
+
     - name: biome
       glob: "*.{js,jsx,ts,tsx,json,css}"
       run: bunx biome check --write {staged_files}
@@ -144,6 +151,11 @@ pre-push:
 
     - name: markdownlint
       run: bun run lint:md
+
+    # Reads only: pre-commit already sorted what was staged, so this fails
+    # only if that got bypassed.
+    - name: sort-package-json
+      run: bun run lint:pkg
 
     # Every other linter here runs at commit, at push and in CI. Vale ran at
     # commit and then nothing until CI, because its invocation lived in the
