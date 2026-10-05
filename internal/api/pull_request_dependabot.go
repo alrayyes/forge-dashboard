@@ -77,12 +77,10 @@ func readDependabotTarget(w http.ResponseWriter, r *http.Request) (dependabotTar
 	}
 
 	return dependabotTarget{
-		actionTarget: actionTarget{
-			user:  u,
-			req:   pullRequestActionRequest{Forge: req.Forge, FullName: req.FullName, Number: req.Number},
-			owner: owner,
-			name:  name,
-		},
+		user:    u,
+		req:     pullRequestActionRequest{Forge: req.Forge, FullName: req.FullName, Number: req.Number},
+		owner:   owner,
+		name:    name,
 		action:  req.Action,
 		comment: comment,
 	}, true
