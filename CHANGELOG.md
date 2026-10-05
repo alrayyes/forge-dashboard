@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.134.3](https://github.com/alrayyes/forge-dashboard/compare/v0.134.2...v0.134.3) (2026-10-05)
+
+
+### Bug Fixes
+
+* **dashboard:** a refresh that read the forge earlier can't undo a newer one ([#1025](https://github.com/alrayyes/forge-dashboard/issues/1025)) ([05345c1](https://github.com/alrayyes/forge-dashboard/commit/05345c1dac7ff2b224b96044bc5b1742070d033c)), closes [#966](https://github.com/alrayyes/forge-dashboard/issues/966)
+* **deps:** bump busybox from `dc2d74b` to `fd7dc98` ([#1012](https://github.com/alrayyes/forge-dashboard/issues/1012)) ([3670313](https://github.com/alrayyes/forge-dashboard/commit/367031373f65b6e3d4e70cba7bcb3a332c794785))
+
 ## [0.134.2](https://github.com/alrayyes/forge-dashboard/compare/v0.134.1...v0.134.2) (2026-10-05)
 
 
