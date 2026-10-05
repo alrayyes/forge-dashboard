@@ -6,6 +6,6 @@
 
 ## 2. The other actions (separate pull requests)
 
-- [ ] 2.1 Update branch
+- [x] 2.1 Update branch
 - [ ] 2.2 Enable auto-merge
 - [ ] 2.3 Dependabot and Renovate actions, including that the pull request belongs to that bot
