@@ -22,14 +22,14 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func doJSON(t *testing.T, method, url, body string, cookie *http.Cookie) *http.Response {
-	t.Helper()
+func doJSON(tb testing.TB, method, url, body string, cookie *http.Cookie) *http.Response {
+	tb.Helper()
 	req, err := http.NewRequest(method, url, strings.NewReader(body))
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	req.AddCookie(cookie)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return resp
 }
