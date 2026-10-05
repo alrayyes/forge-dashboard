@@ -12,7 +12,8 @@ export type ActionName =
   | 'auto_merge'
   | 'dependabot_rebase'
   | 'dependabot_recreate'
-  | 'renovate_rebase';
+  | 'renovate_rebase'
+  | 'rerun_checks';
 
 export type Blocked = {
   code: string;

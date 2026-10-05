@@ -2810,7 +2810,63 @@
       return group;
     }
 
-    function renderPipelineChecks(checks: Check[]) {
+    // "Rerun failed checks" (#698), shown only where the server lists
+    // rerun_checks for this pull request and something actually failed. The
+    // forge queues the jobs; the next refresh carries their result.
+    function pipelineRerunControl(
+      item: PullRequestItem,
+      checks: Check[],
+    ): HTMLElement | null {
+      if (!findAction(item, "rerun_checks")) return null;
+      if (!checks.some((c) => c.state === "failure" || c.state === "timed_out"))
+        return null;
+      const wrap = el("div", "pipeline-rerun");
+      const button = buttonEl("row-action", "Rerun failed checks");
+      const status = el("p", "pipeline-rerun-status");
+      status.setAttribute("role", "status");
+      const failure = el("p", "pipeline-error");
+      failure.setAttribute("role", "alert");
+      button.addEventListener("click", () => {
+        button.disabled = true;
+        failure.textContent = "";
+        status.textContent = "Queuing the rerun…";
+        fetch("/api/pull-requests/rerun-checks", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            forge: item.forge,
+            fullName: item.repo,
+            number: item.number,
+          }),
+        })
+          .then((res) => {
+            if (res.status === 401) {
+              window.location.href = "/login.html";
+              throw new Error("session expired");
+            }
+            if (res.status === 204) return;
+            return readActionFailure(res).then((err) => {
+              throw err;
+            });
+          })
+          .then(() => {
+            status.textContent =
+              "Rerun queued. The new results show here after the next refresh.";
+          })
+          .catch((err: ActionRequestError) => {
+            status.textContent = "";
+            failure.textContent = err.message;
+            button.disabled = false;
+          });
+      });
+      wrap.append(button, status, failure);
+      return wrap;
+    }
+
+    function renderPipelineChecks(checks: Check[], item: PullRequestItem) {
       if (!pipelineDialogBody) return;
       pipelineDialogBody.innerHTML = "";
       if (checks.length === 0) {
@@ -2819,6 +2875,8 @@
         );
         return;
       }
+      const rerun = pipelineRerunControl(item, checks);
+      if (rerun) pipelineDialogBody.appendChild(rerun);
       // Without a single known `required` value the forge told us nothing
       // about branch protection: the flat list, as before.
       if (!checks.some((check) => check.required !== undefined)) {
@@ -2889,7 +2947,7 @@
         })
         .then((data) => {
           if (token !== pipelineRequestToken) return;
-          renderPipelineChecks(data.checks || []);
+          renderPipelineChecks(data.checks || [], item);
         })
         .catch((err: Error & { status?: number }) => {
           if (token !== pipelineRequestToken) return;

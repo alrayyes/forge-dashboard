@@ -15,6 +15,7 @@ const (
 	ActionDependabotRebase   ActionName = "dependabot_rebase"
 	ActionDependabotRecreate ActionName = "dependabot_recreate"
 	ActionRenovateRebase     ActionName = "renovate_rebase"
+	ActionRerunChecks        ActionName = "rerun_checks"
 )
 
 // ActionAvailability says one action applies to a pull request and, when it
@@ -54,6 +55,11 @@ func AllowedActions(pr PullRequest) []ActionAvailability {
 	}
 	if isRenovatePR(pr) {
 		out = append(out, ActionAvailability{Action: ActionRenovateRebase})
+	}
+	// Failed checks can be rerun on GitHub only (#698): Forgejo's commit
+	// statuses don't say which workflow run they came from.
+	if pr.Forge == ForgeGitHub && pr.CI == CIFailure {
+		out = append(out, ActionAvailability{Action: ActionRerunChecks})
 	}
 
 	return out

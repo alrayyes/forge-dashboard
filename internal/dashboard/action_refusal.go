@@ -114,6 +114,7 @@ const (
 	PullRequestActionAutoMerge      PullRequestAction = "auto_merge"
 	PullRequestActionDependabot     PullRequestAction = "dependabot"
 	PullRequestActionRenovateRebase PullRequestAction = "renovate_rebase"
+	PullRequestActionRerunChecks    PullRequestAction = "rerun_checks"
 )
 
 // ClassifyActionRefusal classifies a refused Merge; see
@@ -164,7 +165,7 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 			// the label: Forgejo takes an existing label's ID.
 			return ActionRefusal{Code: ActionLabelMissing, Message: "The rebase label doesn't exist on this repo. Create it there first."}
 		}
-	case PullRequestActionClose, PullRequestActionDependabot:
+	case PullRequestActionClose, PullRequestActionDependabot, PullRequestActionRerunChecks:
 	}
 
 	return unknownRefusal(actionErr, forgeText)

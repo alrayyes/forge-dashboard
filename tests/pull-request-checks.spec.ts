@@ -421,6 +421,106 @@ test.describe('pull request pipeline checks panel', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('a failing GitHub pull request offers "Rerun failed checks", which posts for that pull request and shows a queued state', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    let posted: unknown = null;
+    await page.route('**/api/pull-requests/rerun-checks', async (route) => {
+      posted = route.request().postDataJSON();
+      await route.fulfill({ status: 204 });
+    });
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+
+    await expect(dialog.getByText('Rerun queued')).toBeVisible();
+    expect(posted).toEqual({
+      forge: 'github',
+      fullName: 'alrayyes/forge-dashboard',
+      number: 42,
+    });
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeDisabled();
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a refused rerun shows the reason in the panel and leaves the button to try again', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '' }],
+    });
+    await page.route('**/api/pull-requests/rerun-checks', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'raw',
+          code: 'permission',
+          message: "The token can't write to Actions on this repo.",
+        }),
+      }),
+    );
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+
+    await expect(dialog.getByRole('alert')).toContainText(
+      "The token can't write to Actions on this repo.",
+    );
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeEnabled();
+  });
+
+  test('no "Rerun failed checks" where the server does not offer it', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      'forgejo',
+      makePR({ forge: 'forgejo', ci: 'failure' }),
+    );
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '' }],
+    });
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await expect(dialog.getByText('Failed').first()).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toHaveCount(0);
+  });
+
   test('the grouped panel has no axe-core violations and Escape still closes it', async ({
     page,
   }) => {

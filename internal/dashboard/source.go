@@ -103,6 +103,16 @@ type PullRequestCloser interface {
 	ClosePullRequest(ctx context.Context, owner, name string, number int) error
 }
 
+// ChecksRerunner is implemented by a ForgeClient (or, for github.Client, a
+// Source directly) that can rerun the failed jobs of the CI on one of its
+// pull requests (#698) — checked via a type assertion, the same optional-
+// capability pattern PullRequestMerger uses. It reruns only what failed. An
+// error of kind ForgeErrorConflict means there was no failed job it could
+// rerun.
+type ChecksRerunner interface {
+	RerunFailedChecks(ctx context.Context, owner, name string, number int) error
+}
+
 // BranchUpdater is implemented by a ForgeClient (or, for github.Client, a
 // Source directly) that can bring one of its own pull requests' head
 // branch up to date with its base — checked via a type assertion, the

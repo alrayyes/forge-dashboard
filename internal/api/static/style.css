@@ -2358,6 +2358,21 @@ footer a.mono:focus-visible {
 .pipeline-check-link:focus-visible {
   text-decoration: underline;
 }
+.pipeline-rerun {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.pipeline-rerun-status,
+.pipeline-rerun .pipeline-error {
+  margin: 0;
+  font-size: 12.5px;
+}
+.pipeline-rerun-status {
+  color: var(--ink-2);
+}
 .pipeline-error {
   display: flex;
   flex-direction: column;

@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
@@ -93,4 +95,49 @@ func capabilityOf[T any](w http.ResponseWriter, src dashboard.Source, forge, uns
 	}
 
 	return capability, true
+}
+
+// guardedAction describes a pull request write whose whole job is one call on
+// one optional forge capability: the server's own allowed-actions guard, then
+// the forge, then 204. Auto-merge and rerunning checks are two of them.
+type guardedAction[T any] struct {
+	// allowed is the entry in the pull request's allowedActions that offers it.
+	allowed dashboard.ActionName
+	// refusal names it for the refusal classifier.
+	refusal dashboard.PullRequestAction
+	// unsupported is what a forge without the capability can't do, for the 400.
+	unsupported string
+	// failure is the log line when the forge refuses.
+	failure string
+	call    func(ctx context.Context, capability T, owner, name string, number int) error
+}
+
+// handleGuardedAction serves a guardedAction.
+func handleGuardedAction[T any](deps Deps, a guardedAction[T]) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		t, ok := readActionTarget(w, r)
+		if !ok {
+			return
+		}
+		if refuseIfNotAllowed(w, deps, t.user.ID, a.allowed, t.req.Forge, t.req.FullName, t.req.Number) {
+			return
+		}
+		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
+		if !ok {
+			return
+		}
+		capability, ok := capabilityOf[T](w, src, t.req.Forge, a.unsupported)
+		if !ok {
+			return
+		}
+
+		if err := a.call(r.Context(), capability, t.owner, t.name, t.req.Number); err != nil {
+			slog.Warn(a.failure, "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "error", err)
+			writeActionRefusal(r.Context(), w, capability, a.refusal, t.owner, t.name, t.req.Number, err)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
