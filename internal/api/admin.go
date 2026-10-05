@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
@@ -177,7 +178,9 @@ func handleAdminCreateInvite(deps Deps) http.HandlerFunc {
 		}
 
 		var req adminInviteCreateRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" || req.DisplayName == "" {
+		err := json.NewDecoder(r.Body).Decode(&req)
+		req.Username = strings.TrimSpace(req.Username)
+		if err != nil || req.Username == "" || req.DisplayName == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("username and displayName are required"))
 
 			return
