@@ -3,6 +3,17 @@
 #
 # Grows a job here the same PR that adds the tool it runs — a linter with no
 # hook is a linter you only meet at CI.
+#
+# CI-only, on purpose: gitleaks (the scan needs the pushed history, not the
+# staged files), `go build` (the pre-push test run compiles everything it
+# tests), `go test -race` (about three times slower than the plain run),
+# container-integration (needs Docker and several minutes), e2e and
+# Lighthouse (need a built image and a browser). Everything else CI runs has
+# a hook above.
+
+# Print only what fails; a passing hook is noise in a commit.
+output:
+  - failure
 
 # pre-commit may write. Let every fixer run and restage what it touched — a
 # commit should not fail over a quote style a tool can settle by itself.
