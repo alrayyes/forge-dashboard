@@ -877,8 +877,8 @@ your dashboard, and `GET /api/admin/users` plus the revoke/delete
 endpoints, alongside `GET/POST /api/admin/invites` and
 `POST /api/admin/invites/{token}/revoke` for generating, listing, and
 revoking registration invites, every one of them refusing anyone but the
-designated admin. `redocly lint` validates it; nothing yet asserts the
-handlers still match it (see
+designated admin. `redocly lint` validates it, and Go contract tests in
+`internal/api` check recorded responses against it (see
 [CONTRIBUTING.md](CONTRIBUTING.md#how-it-fits-together)). Rendered docs
 live at `docs/api/index.html` (Scalar, zero-build), published
 to <https://alrayyes.github.io/forge-dashboard/docs/api/> on every push to
@@ -893,7 +893,10 @@ authenticates.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain, the hooks, and
-how a change gets reviewed and released.
+how a change gets reviewed and released. [ARCHITECTURE.md](ARCHITECTURE.md)
+is the one-page map of how the pieces fit, and
+[the decision records](docs/adr/) record why the big choices went the way
+they did.
 
 ## Licence
 
