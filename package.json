@@ -2,10 +2,25 @@
   "name": "forge-dashboard-tooling",
   "private": true,
   "description": "The Go backend is the real application; this covers its frontend -- a SvelteKit app (see web/) being migrated to incrementally, alongside the vanilla-JS/CSS pages it hasn't replaced yet -- and the surrounding tooling: commitlint's shared config, Prettier, markdownlint, Redocly, the Playwright accessibility journey tests, and the Lighthouse CI audit, both run against the built binary.",
-  "packageManager": "bun@1.3.14",
   "workspaces": [
     "web"
   ],
+  "scripts": {
+    "build:web": "bun run --filter web build && ./scripts/sync-web-build.sh",
+    "capture-screenshots": "tsx scripts/capture-screenshots.ts",
+    "check:tests": "tsc -p tsconfig.json",
+    "check:web": "bun run --filter web check",
+    "format:check": "prettier --check \"**/*.{md,yml,yaml,svelte}\"",
+    "lint:api": "redocly lint",
+    "lint:js": "biome check",
+    "lint:md": "markdownlint-cli2",
+    "lint:mechanics": "./scripts/lint-mechanics.sh",
+    "lint:pkg": "sort-package-json --check package.json web/package.json",
+    "lint:prose": "./scripts/lint-prose.sh",
+    "prepare": "lefthook install",
+    "test:e2e": "playwright test",
+    "test:lighthouse": "lhci autorun"
+  },
   "browserslist": [
     "last 2 Chrome versions",
     "last 2 Firefox versions",
@@ -25,26 +40,13 @@
     "markdownlint-cli2": "0.23.3",
     "prettier": "3.9.9",
     "prettier-plugin-svelte": "4.1.1",
+    "sort-package-json": "4.0.0",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
     "wait-on": "9.5.1"
   },
+  "packageManager": "bun@1.3.14",
   "trustedDependencies": [
     "lefthook"
-  ],
-  "scripts": {
-    "prepare": "lefthook install",
-    "format:check": "prettier --check \"**/*.{md,yml,yaml,svelte}\"",
-    "lint:md": "markdownlint-cli2",
-    "lint:js": "biome check",
-    "lint:api": "redocly lint",
-    "lint:prose": "./scripts/lint-prose.sh",
-    "lint:mechanics": "./scripts/lint-mechanics.sh",
-    "test:e2e": "playwright test",
-    "test:lighthouse": "lhci autorun",
-    "capture-screenshots": "tsx scripts/capture-screenshots.ts",
-    "build:web": "bun run --filter web build && ./scripts/sync-web-build.sh",
-    "check:web": "bun run --filter web check",
-    "check:tests": "tsc -p tsconfig.json"
-  }
+  ]
 }
