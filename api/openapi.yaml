@@ -1207,6 +1207,84 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
+  /api/pull-requests/rerun-checks:
+    post:
+      operationId: rerunPullRequestChecks
+      summary: Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
+      description: |
+        Asks the forge to rerun the failed jobs of the GitHub Actions
+        workflow runs on the pull request's head commit, and nothing that
+        passed. It answers once the forge has queued them, not when they
+        finish, so a client shows a queued state and lets the next refresh
+        carry the result.
+
+        GitHub only (#698). A pull request offers it as a `rerun_checks`
+        entry in `allowedActions`, when its CI is failing. Forgejo's commit
+        statuses don't say which workflow run they came from, so a Forgejo
+        pull request never lists it. A failed check that isn't an Actions job
+        (a third-party check, a legacy status) can't be rerun here.
+
+        Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
+        means the pull request has no failed check to rerun. Anything the
+        forge refuses (the token may not write to Actions, the run is too
+        old or already running) arrives with its own plain-words `message`.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestActionRequest"
+      responses:
+        "204":
+          description: The failed jobs were queued to rerun.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", no credentials are saved for that forge, or that
+            forge's client doesn't support rerunning checks.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized. The saved token can't write to Actions on that repo. `code` is `permission`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "404":
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token). `code` is `unknown`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "409":
+          description: There is no failed Actions job to rerun, or the pull request was already merged or closed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "429":
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+
   /api/pull-requests/update-branch:
     post:
       operationId: updatePullRequestBranch
@@ -3493,6 +3571,7 @@ components:
             - dependabot_rebase
             - dependabot_recreate
             - renovate_rebase
+            - rerun_checks
         blocked:
           type: object
           required: [code, message]
