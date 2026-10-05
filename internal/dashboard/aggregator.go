@@ -46,8 +46,11 @@ type Aggregator struct {
 	// show what it did. Lock order: mu before botMu, never the other way.
 	botMu       sync.Mutex
 	botRequests map[string]*botEntry
-	fetchSeq    atomic.Uint64
-	now         func() time.Time
+	// updateRequests holds the Update branch requests the forge accepted
+	// (#982), under botMu too and keyed the same way.
+	updateRequests map[string]*updateEntry
+	fetchSeq       atomic.Uint64
+	now            func() time.Time
 
 	// firstRefreshed flips once, when the first refreshOnce finishes —
 	// every source answered or reported itself unreachable. Readiness
@@ -84,16 +87,17 @@ func WithClock(now func() time.Time) AggregatorOption {
 // until the first Refresh (or Run) completes.
 func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 	a := &Aggregator{
-		sources:      sources,
-		snap:         newEmptySnapshot(),
-		subs:         make(map[chan Snapshot]struct{}),
-		refresh:      newCoalescer(),
-		repoRefresh:  newKeyedCoalescer(),
-		settled:      make(map[string]time.Time),
-		settleWindow: defaultSettleWindow,
-		botRequests:  make(map[string]*botEntry),
-		now:          time.Now,
-		lastGood:     make(map[Forge]time.Time),
+		sources:        sources,
+		snap:           newEmptySnapshot(),
+		subs:           make(map[chan Snapshot]struct{}),
+		refresh:        newCoalescer(),
+		repoRefresh:    newKeyedCoalescer(),
+		settled:        make(map[string]time.Time),
+		settleWindow:   defaultSettleWindow,
+		botRequests:    make(map[string]*botEntry),
+		updateRequests: make(map[string]*updateEntry),
+		now:            time.Now,
+		lastGood:       make(map[Forge]time.Time),
 	}
 	for _, opt := range opts {
 		opt(a)
