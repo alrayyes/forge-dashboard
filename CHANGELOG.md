@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.134.2](https://github.com/alrayyes/forge-dashboard/compare/v0.134.1...v0.134.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* **api:** cap every request body at 1 MiB ([#1013](https://github.com/alrayyes/forge-dashboard/issues/1013)) ([05b8317](https://github.com/alrayyes/forge-dashboard/commit/05b8317c466daafb9fa4e7be2a6aad0909dda7a4)), closes [#1008](https://github.com/alrayyes/forge-dashboard/issues/1008)
+
 ## [0.134.1](https://github.com/alrayyes/forge-dashboard/compare/v0.134.0...v0.134.1) (2026-10-05)
 
 
