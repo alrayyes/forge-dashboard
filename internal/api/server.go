@@ -95,6 +95,8 @@ type Deps struct {
 // The dashboard itself, and the page that renders it, require a valid
 // session; registration, login and the handful of static assets a login
 // page needs (its own HTML/JS, the shared stylesheet, the favicon) don't.
+//
+//nolint:funlen // a route table: one statement per route, which splitting would only scatter
 func NewMux(deps Deps) http.Handler {
 	mux := http.NewServeMux()
 
