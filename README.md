@@ -893,7 +893,10 @@ authenticates.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain, the hooks, and
-how a change gets reviewed and released.
+how a change gets reviewed and released. [ARCHITECTURE.md](ARCHITECTURE.md)
+is the one-page map of how the pieces fit, and
+[the decision records](docs/adr/) record why the big choices went the way
+they did.
 
 ## Licence
 
