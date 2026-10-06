@@ -1955,13 +1955,19 @@ paths:
       tags: [health]
       responses:
         "200":
-          description: The server can serve.
+          description: |
+            The server can serve. The body also says how many goroutines and
+            OS threads the process holds. The container's pids limit counts
+            threads, so a climb here shows before the healthcheck can no
+            longer start.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Health"
+                $ref: "#/components/schemas/Ready"
               example:
                 status: ok
+                goroutines: 42
+                threads: 14
         "503":
           description: |
             Not ready yet, the database is failing or slow, or the server is
@@ -2402,6 +2408,24 @@ components:
         status:
           type: string
           const: ok
+
+    Ready:
+      type: object
+      required: [status, goroutines]
+      properties:
+        status:
+          type: string
+          const: ok
+        goroutines:
+          type: integer
+          minimum: 1
+          description: Goroutines the process holds right now.
+        threads:
+          type: integer
+          minimum: 1
+          description: |
+            OS threads the process holds right now, read from
+            `/proc/self/status`. Left out where that can't be read.
 
     Version:
       type: object

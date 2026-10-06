@@ -831,7 +831,10 @@ counts. A freshly started container has no refresh to wait for, since the
 app only fetches from the forges after a sign-in. The database ping gets 2
 seconds and its result is reused for about 3, so a stuck database answers
 503 instead of hanging the probe. On SIGTERM it answers 503 at once, then
-the server waits `SHUTDOWN_DRAIN` before it stops. Read it with:
+the server waits `SHUTDOWN_DRAIN` before it stops. A 200 also reports the
+`goroutines` and OS `threads` the process holds. The container's process limit
+counts threads, so watch `threads` to see growth before the healthcheck can no
+longer start. Read it with:
 
 ```sh
 docker inspect --format '{{.State.Health.Status}}' <container>

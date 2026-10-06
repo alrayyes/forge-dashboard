@@ -2,11 +2,13 @@ package api_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -70,7 +72,29 @@ func TestReadyz_DatabaseUpAndFirstRefreshDone_Answers200(t *testing.T) {
 	code, body := getBody(t, srv.URL+"/readyz")
 
 	assert.Equal(t, http.StatusOK, code)
-	assert.JSONEq(t, `{"status":"ok"}`, body)
+
+	var got api.Ready
+	require.NoError(t, json.Unmarshal([]byte(body), &got))
+	assert.Equal(t, "ok", got.Status)
+}
+
+// The thread count is what the container's process limit counts (#902), so a
+// climb shows here before the healthcheck can no longer start.
+func TestReadyz_ReportsHowManyThreadsAndGoroutinesTheServiceHolds(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS != "linux" {
+		t.Skip("the thread count is read from /proc")
+	}
+
+	srv := readyzServer(t, fakeDB{}, fakeRefresh{done: true})
+
+	_, body := getBody(t, srv.URL+"/readyz")
+
+	var got api.Ready
+	require.NoError(t, json.Unmarshal([]byte(body), &got))
+	assert.Positive(t, got.Threads)
+	assert.Positive(t, got.Goroutines)
 }
 
 func TestReadyz_FirstRefreshPending_Answers503WithShortReason_HealthzStays200(t *testing.T) {
