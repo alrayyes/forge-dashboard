@@ -132,12 +132,12 @@ exactly what the server answered sets `allowedActions` itself, as
 - `internal/api/static` is the frontend, embedded into the binary with
   `//go:embed` — SvelteKit throughout (`web/src/routes`, built with
   `bun run build:web` and merged in by `scripts/sync-web-build.sh`),
-  migrated incrementally, one page at a time, per #326, now complete.
+  migrated incrementally, one page at a time, now complete.
   `web/src/routes/(app)` is that route group's own shared layout
   (header, nav — a persistent top nav plus a mobile bottom tab bar
-  below `style.css`'s 420px breakpoint, real Svelte state as of #645 —
+  below `style.css`'s 420px breakpoint, real Svelte state —
   a shared `Footer` component (`web/src/lib/Footer.svelte`, real Svelte
-  state as of #646, also used directly by `web/src/routes/login`), theme
+  state, also used directly by `web/src/routes/login`), theme
   sync), and every page under it gets that chrome, including the
   dashboard
   (`web/src/routes/(app)/+page.svelte`) and the three pages that stay

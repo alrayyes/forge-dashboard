@@ -52,4 +52,5 @@ server log. The tickets' criteria win over those two details.
   greyed out with an info icon that opens the blocked reason.
   `crop-pr-detail-dialog.png` is the pop-up alone. Stitch project "Forge
   Dashboard UI Audit" (`564147752128938905`), screen
-  `4ef3db25112f48d8ab758be286a7c8bd`. It's the design for #943 and #944.
+  `4ef3db25112f48d8ab758be286a7c8bd`. It is the design for the pull request pop-up
+  and the greyed-out Merge button.
