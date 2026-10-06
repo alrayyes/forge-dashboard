@@ -138,9 +138,10 @@ export function allowedActionsFor(pr: StandInPR): StandInEntry[] {
       { action: 'dependabot_recreate' },
     );
   if (isRenovate) out.push({ action: 'renovate_rebase' });
-  // Failed checks can be rerun on GitHub only (#698).
-  if (pr.forge === 'github' && pr.ci === 'failure')
-    out.push({ action: 'rerun_checks' });
+  // Failed checks can be rerun on either forge. The list only knows the CI
+  // is failing; a Forgejo pull request on an external CI offers it and the
+  // rerun answers that there is nothing to rerun.
+  if (pr.ci === 'failure') out.push({ action: 'rerun_checks' });
   return out;
 }
 
