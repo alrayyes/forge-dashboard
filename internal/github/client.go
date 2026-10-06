@@ -544,6 +544,9 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPut, "url", path)
 	opts := &ghsdk.PullRequestOptions{MergeMethod: mergeMethodFor(repo, c.linearHistoryRequired(ctx, owner, name, repo.GetDefaultBranch()))}
+	if opts.MergeMethod == "squash" {
+		opts.CommitTitle = c.squashCommitTitle(ctx, owner, name, number)
+	}
 	_, mergeResp, err := c.restClient.PullRequests.Merge(ctx, owner, name, number, "", opts)
 	if err != nil {
 		return asClientError(c.restError(ctx, http.MethodPut, path, err))
@@ -551,6 +554,26 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	c.recordRESTSuccess(ctx, http.MethodPut, path, mergeResp)
 
 	return nil
+}
+
+// squashCommitTitle is the pull request's own title with its number, which is
+// what GitHub's own squash button writes. Left to itself GitHub follows the
+// repo's setting, and with the usual "commit or pull request title" a stray
+// commit on the branch becomes the subject, and so a release's changelog
+// entry. A failed lookup answers "", which leaves the choice to GitHub: the
+// merge itself shouldn't depend on it.
+func (c *Client) squashCommitTitle(ctx context.Context, owner, name string, number int) string {
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	pr, resp, err := c.restClient.PullRequests.Get(ctx, owner, name, number)
+	if err != nil {
+		slog.Warn("reading the pull request title for a squash failed", "repo", owner+"/"+name, "number", number, "error", err)
+
+		return ""
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+
+	return fmt.Sprintf("%s (#%d)", pr.GetTitle(), number)
 }
 
 // ReadPullRequestState implements dashboard.PullRequestStateReader via
@@ -700,6 +723,7 @@ query($owner: String!, $name: String!, $number: Int!) {
     }
     pullRequest(number: $number) {
       id
+      title
     }
   }
 }
@@ -709,8 +733,8 @@ query($owner: String!, $name: String!, $number: Int!) {
 // already looked up via autoMergeLookupQuery. GitHub's mutation returns
 // nothing this client needs back, unlike the query above.
 const enablePullRequestAutoMergeMutation = `
-mutation($id: ID!, $method: PullRequestMergeMethod!) {
-  enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: $method}) {
+mutation($id: ID!, $method: PullRequestMergeMethod!, $headline: String) {
+  enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: $method, commitHeadline: $headline}) {
     clientMutationId
   }
 }
@@ -725,7 +749,8 @@ type autoMergeLookupResponse struct {
 			Name string `json:"name"`
 		} `json:"defaultBranchRef"`
 		PullRequest struct {
-			ID string `json:"id"`
+			ID    string `json:"id"`
+			Title string `json:"title"`
 		} `json:"pullRequest"`
 	} `json:"repository"`
 }
@@ -758,6 +783,10 @@ func (c *Client) EnableAutoMerge(ctx context.Context, owner, name string, number
 	vars := map[string]any{
 		"id":     lookup.Repository.PullRequest.ID,
 		"method": autoMergeMethodFor(lookup, c.linearHistoryRequired(ctx, owner, name, lookup.Repository.DefaultBranchRef.Name)),
+	}
+	// The pull request's own title for a squash, as in MergePullRequest.
+	if vars["method"] == "SQUASH" {
+		vars["headline"] = fmt.Sprintf("%s (#%d)", lookup.Repository.PullRequest.Title, number)
 	}
 	if err := c.graphqlDo(ctx, enablePullRequestAutoMergeMutation, vars, nil); err != nil {
 		return asClientError(err)
