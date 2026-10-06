@@ -19,6 +19,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -303,17 +304,45 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 	msg := err.Error()
 	kind := dashboard.ForgeErrorUnreachable
 	statusCode := 0
+	var rateLimit *dashboard.RateLimit
 	if resp != nil {
 		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
 			msg += fmt.Sprintf(" (retry after %ss)", retryAfter)
 		}
 		kind = forgeErrorKind(resp.StatusCode)
 		statusCode = resp.StatusCode
+		if kind == dashboard.ForgeErrorRateLimited {
+			rateLimit = rateLimitFromRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+		}
 	}
 	c.recordRequest(ctx, method, path, statusCode, string(kind))
 	wrapped := fmt.Errorf("forgejo: %s %s: %w: %s", method, path, errForgeRefused, msg)
 
-	return &dashboard.ClientError{Kind: kind, Err: wrapped}
+	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit}
+}
+
+// rateLimitFromRetryAfter turns a Retry-After header (RFC 9110 10.2.3: a
+// number of seconds or an HTTP date) into the budget a refused action
+// reports, so the refusal can say when to try again. Only ResetsAt is known,
+// since Forgejo reports no budget of its own. Nil when the header is absent
+// or isn't either form.
+func rateLimitFromRetryAfter(header string, now time.Time) *dashboard.RateLimit {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return nil
+	}
+	if seconds, err := strconv.Atoi(header); err == nil {
+		if seconds < 0 {
+			return nil
+		}
+
+		return &dashboard.RateLimit{ResetsAt: now.Add(time.Duration(seconds) * time.Second)}
+	}
+	if at, err := http.ParseTime(header); err == nil {
+		return &dashboard.RateLimit{ResetsAt: at}
+	}
+
+	return nil
 }
 
 // forgeErrorKind classifies an HTTP status code from a response that was
@@ -379,8 +408,12 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 // ReadPullRequestState implements dashboard.PullRequestStateReader via
 // Forgejo's "Get a pull request". It reports merged, state and a single
 // mergeable verdict, with no mergeable_state to say why a PR isn't
-// mergeable, so an open PR that isn't mergeable is Blocked and no more
-// specific.
+// mergeable. Gitea computes that flag from the merge check alone: false for
+// a conflict, but also while the check is still running or has errored, and
+// it ignores branch protection altogether. So an open, non-draft PR with a
+// false flag is reported as ConflictUnconfirmed, and one with an empty diff
+// (which Gitea also marks unmergeable) as Blocked. A missing review or
+// check isn't visible here: the merge refusal's own text names it.
 func (c *Client) ReadPullRequestState(ctx context.Context, owner, name string, number int) (dashboard.PullRequestState, error) {
 	c.setContext(ctx)
 
@@ -393,11 +426,14 @@ func (c *Client) ReadPullRequestState(ctx context.Context, owner, name string, n
 	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	closed := pr.State == gitea.StateClosed
+	unmergeable := !closed && !pr.HasMerged && !pr.Mergeable
 
 	return dashboard.PullRequestState{
-		Merged:  pr.HasMerged,
-		Closed:  closed,
-		Blocked: !closed && !pr.Mergeable,
+		Merged:              pr.HasMerged,
+		Closed:              closed,
+		Draft:               !closed && pr.Draft,
+		ConflictUnconfirmed: unmergeable && !isEmpty(pr),
+		Blocked:             unmergeable && isEmpty(pr),
 	}, nil
 }
 

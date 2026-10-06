@@ -47,7 +47,8 @@ type ActionRefusal struct {
 // PullRequestState is a live re-read of one pull request, just enough to
 // explain why an action on it was refused. Forge-neutral: GitHub fills the
 // flags from mergeable_state, Forgejo (which has no equivalent) only knows
-// merged, closed and an overall not-mergeable verdict (Blocked).
+// merged, closed, draft and an overall not-mergeable verdict, which it
+// reports as ConflictUnconfirmed or, for an empty diff, Blocked.
 type PullRequestState struct {
 	Merged        bool
 	Closed        bool
@@ -56,6 +57,11 @@ type PullRequestState struct {
 	Behind        bool
 	Blocked       bool
 	ChecksFailing bool
+	// ConflictUnconfirmed is set when the forge says the pull request isn't
+	// mergeable but can't say why. Forgejo's mergeable flag is false for a
+	// conflict, and equally while it is still checking or when the check
+	// errored, so a conflict is the probable cause and not a proven one.
+	ConflictUnconfirmed bool
 	// ChangesWorkflows is set when the pull request changes a file under
 	// .github/workflows/. GitHub won't update such a branch for an app
 	// without the Workflows permission (#919).
@@ -264,6 +270,9 @@ func classifyMergeRefusal(forgeText string, state *PullRequestState) ActionRefus
 	}
 
 	lower := strings.ToLower(forgeText)
+	if strings.Contains(lower, "approval") || strings.Contains(lower, "requested change") {
+		return ActionRefusal{Code: ActionBlockedByProtection, Message: "Blocked by branch protection: a required review is missing."}
+	}
 	if strings.Contains(lower, "status check") {
 		if strings.Contains(lower, "fail") {
 			return ActionRefusal{Code: ActionChecksFailing, Message: "A required check is failing. Fix it, then merge."}
@@ -326,6 +335,8 @@ func refusalFromFlags(state *PullRequestState) (ActionRefusal, bool) {
 	switch {
 	case state.Conflicting:
 		return ActionRefusal{Code: ActionConflict, Message: "Merge conflict. Resolve it on the forge, then merge."}, true
+	case state.ConflictUnconfirmed:
+		return ActionRefusal{Code: ActionConflict, Message: "Probably a merge conflict: the forge says this isn't mergeable but not why, and says the same while it is still checking. Refresh in a moment; if it stays, resolve the conflict on the forge."}, true
 	case state.Behind:
 		return ActionRefusal{Code: ActionBehind, Message: "Behind the base branch. Bring it up to date, then merge."}, true
 	case state.Draft:
