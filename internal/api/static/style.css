@@ -2727,6 +2727,22 @@ footer a.mono:focus-visible {
   font-weight: 600;
 }
 
+/* Who handles auto-merge on a Forgejo group: neutral, an explanation and not
+   an alert. */
+.group-callout {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 13px;
+}
+.group-callout a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 /* The header's budget text, e.g. "GH: 0/5,000 reqs, resets 14:32". */
 .forge-health-budget {
   font-family: "IBM Plex Mono", monospace;
