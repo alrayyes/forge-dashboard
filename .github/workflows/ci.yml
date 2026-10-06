@@ -133,6 +133,24 @@ jobs:
           test -s coverage.out
           go tool cover -func=coverage.out > /dev/null
           python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('junit.xml')"
+      # Proves the published layout assembles, on every run, so a broken
+      # convert or copy step fails here and not on the first push to main.
+      # The first checks the script against inputs of its own; the second
+      # runs it over this job's real output.
+      - name: Reports assemble into the published layout
+        run: |
+          scripts/test-build-reports.sh
+          scripts/build-reports.sh "$RUNNER_TEMP/site"
+      # Only the default branch publishes (the pages job); a pull request's
+      # numbers belong in its own checks and would not be deployed anyway.
+      - name: Upload the Go test and coverage reports
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-reports
+          path: |
+            junit.xml
+            coverage.out
       # Skipped until CODECOV_TOKEN is set on the repo (repo-creation.md:
       # signing in to codecov.io is a browser step only the account owner
       # can do) — a missing secret isn't a coverage problem.
@@ -316,7 +334,16 @@ jobs:
         with:
           name: lighthouse-reports
           path: .lighthouseci
+          # .lighthouseci is a dot directory, which upload-artifact skips
+          # unless told otherwise.
+          include-hidden-files: true
           if-no-files-found: ignore
+      - name: upload the e2e JUnit report
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-reports
+          path: e2e.xml
 
   # Layout and structure. Style and mechanics are prose.yml — see its header
   # comment for why they're split out.
@@ -394,17 +421,21 @@ jobs:
       - name: spectral lint
         run: bun run lint:api:security
 
-  # Publishes docs/api/index.html (Scalar) to GitHub Pages,
-  # pointed at the same spec `api` above just linted -- gated on that job
-  # rather than its own check, since a docs page built from an unlinted
-  # spec isn't worth publishing. `needs:` only resolves within one workflow
-  # file, which is why this is a job here rather than a separate workflow:
-  # `api` already runs on push to main, so the dependency is real.
+  # Publishes the API reference (docs/api/index.html, Scalar) and the test,
+  # coverage and Lighthouse reports to GitHub Pages, as one deployment: a repo
+  # has one, and a second replaces the first (rules/published-reports.md).
+  # Gated on `api`, since a docs page built from an unlinted spec isn't worth
+  # publishing, and on the jobs that produce the reports, so a red test or e2e
+  # run publishes nothing. Every one of them runs on a push to main whatever
+  # changed (the `changes` job turns every area on there), because a deploy
+  # replaces the whole site and a skipped producer would delete its report.
+  # `needs:` only resolves within one workflow file, which is why this is a job
+  # here rather than a separate workflow.
   pages:
-    needs: api
+    needs: [api, test, e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       pages: write
       id-token: write
@@ -416,21 +447,55 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: go-reports
+          path: go-reports
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: e2e-reports
+          path: e2e-reports
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci
       - name: assemble the Pages artifact
-        # Mirrors just the paths the page's own relative apiDescriptionUrl
-        # expects -- docs/api/index.html two directories above
-        # api/openapi.yaml -- plus llms.txt (llmstxt.org), scoped to
-        # docs/api/ since that's the only page actually deployed here --
-        # rather than uploading the whole checkout.
+        # The docs mirror just the paths the page's own relative
+        # apiDescriptionUrl expects -- docs/api/index.html two directories
+        # above api/openapi.yaml -- plus llms.txt (llmstxt.org), scoped to
+        # docs/api/ since that's the only page deployed -- rather than
+        # uploading the whole checkout. The reports land in site/reports/,
+        # with no repo-name prefix: a project site is already served under
+        # /<repo>/.
+        env:
+          GO_JUNIT: go-reports/junit.xml
+          COVERAGE_OUT: go-reports/coverage.out
+          E2E_JUNIT: e2e-reports/e2e.xml
+          LHCI_DIR: .lighthouseci
         run: |
           mkdir -p site/docs/api site/api
           cp docs/api/index.html site/docs/api/index.html
           cp docs/api/llms.txt site/docs/api/llms.txt
           cp api/openapi.yaml site/api/openapi.yaml
+          scripts/build-reports.sh site
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
-      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      # A deploy succeeds whether or not the URL serves what it should, so
+      # fetch the real file. The retries cover the CDN catching up.
+      - name: Live coverage.xml is served and is Cobertura
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          curl --fail --silent --show-error --location \
+            --retry 6 --retry-delay 10 --retry-all-errors \
+            --output coverage.xml "${PAGE_URL%/}/reports/coverage/coverage.xml"
+          grep -q '<coverage ' coverage.xml
 
   # Biome leads for every file type it supports -- linting.md. Same command
   # the pre-push hook runs, so the two can't drift.

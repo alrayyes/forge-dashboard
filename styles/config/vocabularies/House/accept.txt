@@ -88,3 +88,5 @@ README('s)?
 svelte-check
 Streamable
 breakpoints?
+JUnit
+Cobertura
