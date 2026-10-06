@@ -83,6 +83,23 @@
     // An Update branch the forge accepted that no snapshot has shown
     // landing yet (#982). The server owns it too.
     updateRequest?: ServerUpdateRequest;
+    // Where this app's own auto-merge stands, present only on a Forgejo
+    // pull request the signed-in user armed it on.
+    autoMerge?: ServerAutoMergeStatus;
+  };
+  // Matches components.schemas.AutoMergeStatus in api/openapi.yaml.
+  type ServerAutoMergeStatus = {
+    state: "waiting" | "stopped";
+    code?: string;
+    message: string;
+  };
+  // Matches components.schemas.AutoMergedPullRequest in api/openapi.yaml.
+  type ServerAutoMerged = {
+    forge: string;
+    fullName: string;
+    number: number;
+    mergedAt: string;
+    message: string;
   };
   // Matches components.schemas.BotRequest in api/openapi.yaml.
   type ServerBotRequest = {
@@ -145,6 +162,8 @@
     repos?: Filters.RepoRef[];
     // Drafts the API left out (#791). 0 when the request asked for them.
     hiddenDrafts?: number;
+    // What this app auto-merged in the last ten minutes (Forgejo).
+    autoMerged?: ServerAutoMerged[];
   };
   type ActionPhase =
     | "idle"
@@ -581,14 +600,30 @@
     // is `null` for a forge that can't report this at all (Forgejo,
     // today), which must never render as "not enabled": strict ===
     // true, not a truthy check.
-    function autoMergePill(
-      autoMergeEnabled: boolean | null,
-    ): HTMLElement | null {
-      if (autoMergeEnabled !== true) return null;
+    function autoMergePill(pr: PullRequestItem): HTMLElement | null {
+      if (pr.autoMergeEnabled !== true) return null;
       const pill = el("span", "merge-pill auto-merge");
       pill.appendChild(el("span", "dot"));
+      // On Forgejo this app does the merging, not the forge, and the pill
+      // says so in words (it has no GitHub-style setting to point at).
+      if (pr.forge === "forgejo") {
+        pill.appendChild(document.createTextNode("Auto-merge on"));
+        pill.appendChild(el("span", "pill-note", "Managed by Forge Dashboard"));
+        return pill;
+      }
       pill.appendChild(document.createTextNode("Auto-merge"));
       return pill;
+    }
+
+    // Why an armed Forgejo pull request hasn't merged yet, as text led by
+    // the state, so it never rests on colour alone.
+    function autoMergeStatusLine(pr: PullRequestItem): HTMLElement | null {
+      if (pr.forge !== "forgejo" || !pr.autoMerge) return null;
+      const lead = pr.autoMerge.state === "stopped" ? "Stopped" : "Waiting";
+      const line = el("span", `auto-merge-status ${pr.autoMerge.state}`);
+      line.appendChild(el("strong", "", `${lead}: `));
+      line.appendChild(document.createTextNode(pr.autoMerge.message));
+      return line;
     }
 
     // ---- stacked pull requests (#861) ----
@@ -726,11 +761,16 @@
         if (outOfDatePill) statusCell.appendChild(outOfDatePill);
         const rebasing = rebasingPill(pr);
         if (rebasing) statusCell.appendChild(rebasing);
-        const mergePill = autoMergePill(pr.autoMergeEnabled);
+        const mergePill = autoMergePill(pr);
         if (mergePill) statusCell.appendChild(mergePill);
+        const mergeStatusLine = autoMergeStatusLine(pr);
+        if (mergeStatusLine) statusCell.appendChild(mergeStatusLine);
+
         // Found already merged or closed: the badge replaces Merge, and
         // nothing else on the row has anything left to do.
         const settledRow = isSettled(pr);
+        const cancelAutoMerge = settledRow ? null : cancelAutoMergeCell(pr);
+        if (cancelAutoMerge) statusCell.appendChild(cancelAutoMerge);
         const updateBranchAction = settledRow
           ? null
           : updateBranchActionCell(pr);
@@ -1479,6 +1519,90 @@
       button.disabled = enabling;
       button.addEventListener("click", () => {
         doEnableAutoMerge(item, button);
+      });
+      return button;
+    }
+
+    // ---- cancel this app's auto-merge (Forgejo) ----
+    // The intent is stored here, so cancelling sends nothing to the forge
+    // and has nothing to confirm: arming it again is one click.
+    const cancelAutoMergeState: Record<string, ActionState> = {};
+
+    function doCancelAutoMerge(item: PullRequestItem) {
+      const key = prKey(item);
+      cancelAutoMergeState[key] = { phase: "requesting" };
+      keepFocusAcross(renderPRBoard);
+      const fkey = `cancel-auto-merge:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Cancel auto-merge",
+        phase: "working",
+        inline: "Cancelling auto-merge…",
+        message: "Cancelling auto-merge…",
+        announce: "Cancelling auto-merge…",
+        retry: () => doCancelAutoMerge(item),
+      });
+
+      fetch("/api/pull-requests/auto-merge/cancel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          forge: item.forge,
+          fullName: item.repo,
+          number: item.number,
+        }),
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = "/login.html";
+            throw new Error("session expired");
+          }
+          if (res.status === 204) return null;
+          return readActionFailure(res).then((err) => {
+            throw err;
+          });
+        })
+        .then(() => {
+          delete cancelAutoMergeState[key];
+          feedback.update(fkey, {
+            phase: "done",
+            message: "Auto-merge cancelled.",
+            toast: true,
+            announce: "Auto-merge cancelled.",
+          });
+          return fetch(withDrafts("/api/dashboard/refresh"), {
+            method: "POST",
+            headers: { Accept: "application/json" },
+          })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (data) applySnapshot(data, true);
+            });
+        })
+        .catch((err: ActionRequestError) => {
+          renderActionRefusal(item, err, fkey, "cancel auto-merge", (next) => {
+            cancelAutoMergeState[key] = next;
+          });
+        });
+    }
+
+    function cancelAutoMergeCell(item: PullRequestItem): HTMLElement | null {
+      if (!findAction(item, "cancel_auto_merge")) return null;
+
+      const requesting =
+        cancelAutoMergeState[prKey(item)]?.phase === "requesting";
+      const button = buttonEl(
+        "row-action",
+        requesting ? "Cancelling…" : "Cancel auto-merge",
+      );
+      button.type = "button";
+      button.disabled = requesting;
+      button.addEventListener("click", () => {
+        doCancelAutoMerge(item);
       });
       return button;
     }
@@ -4885,6 +5009,46 @@
     });
 
     // ---- main fetch/render loop ----
+    // Each pull request this app auto-merged is announced once, matched on
+    // forge, repository, number and merge time. The server lists them for
+    // ten minutes, so a reload inside that window must not say it again.
+    const AUTO_MERGED_SEEN_KEY = "forge-dashboard.auto-merged-seen";
+    const autoMergedSeen = new Set<string>(
+      (() => {
+        try {
+          return JSON.parse(
+            localStorage.getItem(AUTO_MERGED_SEEN_KEY) ?? "[]",
+          ) as string[];
+        } catch {
+          return [];
+        }
+      })(),
+    );
+
+    function announceAutoMerged(merged: ServerAutoMerged[]) {
+      let changed = false;
+      for (const m of merged) {
+        const id = `${m.forge}/${m.fullName}#${m.number}@${m.mergedAt}`;
+        if (autoMergedSeen.has(id)) continue;
+        autoMergedSeen.add(id);
+        changed = true;
+        feedback.notify({
+          title: "Auto-merge",
+          message: m.message,
+          announce: m.message,
+        });
+      }
+      if (!changed) return;
+      try {
+        localStorage.setItem(
+          AUTO_MERGED_SEEN_KEY,
+          JSON.stringify([...autoMergedSeen].slice(-100)),
+        );
+      } catch {
+        // Storage is a convenience: without it a reload may repeat a toast.
+      }
+    }
+
     function applySnapshot(
       data: DashboardSnapshot,
       userAsked = false,
@@ -4911,6 +5075,7 @@
       clearStaleLocks(mergeState);
       clearStaleLocks(closeState);
       clearStaleLocks(updateBranchState);
+      announceAutoMerged(data.autoMerged ?? []);
       const prs = data.pullRequests || [];
       hiddenDrafts = data.hiddenDrafts ?? 0;
       syncDraftsToggle();

@@ -10,6 +10,7 @@ export type ActionName =
   | 'close'
   | 'update_branch'
   | 'auto_merge'
+  | 'cancel_auto_merge'
   | 'dependabot_rebase'
   | 'dependabot_recreate'
   | 'renovate_rebase'

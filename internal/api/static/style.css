@@ -1235,6 +1235,20 @@ select.col-filter {
 .merge-pill.auto-merge .dot {
   background: var(--good);
 }
+/* "Managed by Forge Dashboard": the app, not the forge, does this merge. */
+.merge-pill .pill-note {
+  font-weight: 400;
+}
+.merge-pill .pill-note::before {
+  content: "\00b7";
+  margin-right: 6px;
+}
+/* Why an armed pull request hasn't merged: the state leads in bold text, so
+   it never rests on colour. */
+.auto-merge-status {
+  font-size: 12px;
+  color: var(--ink);
+}
 /* Neutral, not warning/critical: being behind is routine for a
    bot-managed pull request, not a problem the way conflicting/blocked
    are. --neutral itself is only ~3.1:1 against --neutral-bg though —

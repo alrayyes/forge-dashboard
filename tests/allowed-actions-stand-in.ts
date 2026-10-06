@@ -119,7 +119,8 @@ export function allowedActionsFor(pr: StandInPR): StandInEntry[] {
   }
 
   function autoMergeOffered(): boolean {
-    if (pr.forge !== 'github') return false;
+    if (pr.forge !== 'github' && pr.forge !== 'forgejo') return false;
+    if (pr.forge === 'forgejo' && pr.draft) return false;
     if (pr.autoMergeEnabled === true) return false;
     if (pr.autoMergeAllowed === false) return false;
     if (pr.empty || pr.mergeStatus === 'conflicting') return false;
@@ -132,6 +133,10 @@ export function allowedActionsFor(pr: StandInPR): StandInEntry[] {
   const ub = updateBranch();
   if (ub) out.push(ub);
   if (autoMergeOffered()) out.push({ action: 'auto_merge' });
+  // Only Forgejo's auto-merge is this app's to cancel. GitHub's belongs to
+  // GitHub.
+  if (pr.forge === 'forgejo' && pr.autoMergeEnabled === true)
+    out.push({ action: 'cancel_auto_merge' });
   if (pr.forge === 'github' && isDependabot)
     out.push(
       { action: 'dependabot_rebase' },
