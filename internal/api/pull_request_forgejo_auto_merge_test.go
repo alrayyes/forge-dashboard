@@ -226,3 +226,51 @@ func TestForgejoAutoMerge_Arm_WithNoForgejoCredentials_Returns400(t *testing.T) 
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
+
+func autoMergeStatus(t *testing.T, pr map[string]any) map[string]any {
+	t.Helper()
+
+	status, _ := pr["autoMerge"].(map[string]any)
+
+	return status
+}
+
+func TestForgejoAutoMerge_Armed_BoardSaysItIsWaitingForChecks(t *testing.T) {
+	t.Parallel()
+	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
+	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	_ = resp.Body.Close()
+
+	status := autoMergeStatus(t, boardPR(t, srv, cookie))
+
+	assert.Equal(t, "waiting", status["state"])
+	assert.Equal(t, "checks_pending", status["code"])
+}
+
+func TestForgejoAutoMerge_Armed_FailingChecksStopIt(t *testing.T) {
+	t.Parallel()
+	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }))
+	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	_ = resp.Body.Close()
+
+	status := autoMergeStatus(t, boardPR(t, srv, cookie))
+
+	assert.Equal(t, "stopped", status["state"])
+}
+
+func TestForgejoAutoMerge_NotArmed_HasNoStatus(t *testing.T) {
+	t.Parallel()
+	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
+
+	assert.Nil(t, autoMergeStatus(t, boardPR(t, srv, cookie)))
+}
+
+func TestForgejoAutoMerge_Board_ListsNothingMergedAsAnEmptyArray(t *testing.T) {
+	t.Parallel()
+	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
+
+	merged, ok := fetchDashboardWith(t, srv.URL, cookie, "")["autoMerged"].([]any)
+
+	assert.True(t, ok)
+	assert.Empty(t, merged)
+}
