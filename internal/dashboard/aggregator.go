@@ -37,6 +37,9 @@ type Aggregator struct {
 	// auto_update_branch.go.
 	autoUpdate *autoUpdateBranchConfig
 
+	// autoMerge is nil unless EnableAutoMerge was called — see auto_merge.go.
+	autoMerge *autoMergeConfig
+
 	// settled holds pull requests a merge or close just succeeded on (#835),
 	// keyed by settledKey. The forge can go on listing one as open for a
 	// few seconds, so refreshes keep it off the board until the forge
@@ -333,6 +336,7 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 
 	a.notify(merged)
 	a.runAutoUpdateBranch(ctx, merged)
+	a.runAutoMerge(ctx, merged)
 }
 
 // sortByRecency orders both slices most-recently-updated first, except
@@ -440,6 +444,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	a.notify(snap)
 	a.runAutoUpdateBranch(ctx, snap)
+	a.runAutoMerge(ctx, snap)
 }
 
 // logRateLimitTransitions logs a rate-limit budget crossing into or out of

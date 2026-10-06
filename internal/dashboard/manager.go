@@ -20,6 +20,8 @@ type Manager struct {
 	// or ever, if it's never called, skips the auto-update-branch hook
 	// entirely (#365).
 	autoUpdateBranchLister AutoUpdateBranchLister
+	// autoMergeStore is nil until SetAutoMergeStore is called.
+	autoMergeStore AutoMergeStore
 	// ciPollInterval is zero until SetCIPollInterval is called — every
 	// Aggregator this Manager builds before that point, or ever, if
 	// it's never called, skips the CI-poll fallback (#177) entirely.
@@ -69,6 +71,15 @@ func (m *Manager) SetAutoUpdateBranchLister(lister AutoUpdateBranchLister) {
 	m.autoUpdateBranchLister = lister
 }
 
+// SetAutoMergeStore turns on the Forgejo auto-merge hook for every Aggregator
+// this Manager builds from here on, the same way SetAutoUpdateBranchLister
+// does: call once, before the first Ensure.
+func (m *Manager) SetAutoMergeStore(store AutoMergeStore) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.autoMergeStore = store
+}
+
 // SetCIPollInterval turns on the CI-status poll fallback (#177) for
 // every Aggregator this Manager builds from here on — a setter rather
 // than a NewManager parameter, the same reason
@@ -107,6 +118,9 @@ func (m *Manager) Ensure(ctx context.Context, userID []byte, sources []Source) {
 	if m.autoUpdateBranchLister != nil {
 		agg.EnableAutoUpdateBranch(userID, m.autoUpdateBranchLister)
 	}
+	if m.autoMergeStore != nil {
+		agg.EnableAutoMerge(userID, m.autoMergeStore)
+	}
 	m.users[key] = &managedAggregator{agg: agg, cancel: cancel, started: time.Now()}
 	go agg.Run(runCtx, m.refreshInterval)
 	if m.ciPollInterval > 0 {
@@ -138,6 +152,9 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 	agg := NewAggregator(sources)
 	if m.autoUpdateBranchLister != nil {
 		agg.EnableAutoUpdateBranch(userID, m.autoUpdateBranchLister)
+	}
+	if m.autoMergeStore != nil {
+		agg.EnableAutoMerge(userID, m.autoMergeStore)
 	}
 	m.users[key] = &managedAggregator{agg: agg, cancel: cancel, started: time.Now()}
 	go agg.Run(runCtx, m.refreshInterval)
