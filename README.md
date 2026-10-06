@@ -357,8 +357,8 @@ merged or closed, that is what the row says, not "check your token". Only a
 rate limit skips the re-read, since it would be limited as well.
 On Forgejo a rate limit comes from a proxy in front of it, and its reset time is
 read from the `Retry-After` header. Forgejo's API says only whether a pull
-request can be merged, not why, so a Merge it refuses on a pull request marked
-unmergeable is reported as a probable conflict, with the message saying it can't
+request can be merged, not why, so a Merge it refuses on a pull request that
+can't be merged is reported as a probable conflict, with the message saying it can't
 tell a conflict from a merge check that is still running. A missing review or
 check is named when the refusal's own text names it.
 
