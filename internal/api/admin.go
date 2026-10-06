@@ -168,6 +168,26 @@ type adminInviteCreateRequest struct {
 	DisplayName string `json:"displayName"`
 }
 
+// decodeInviteRequest reads the invite request, and answers 400 itself when it
+// can't use it.
+func decodeInviteRequest(w http.ResponseWriter, r *http.Request) (adminInviteCreateRequest, bool) {
+	var req adminInviteCreateRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	req.Username = strings.TrimSpace(req.Username)
+	if err == nil && overBound(w,
+		bound{"username", req.Username, maxUsernameLen},
+		bound{"displayName", req.DisplayName, maxDisplayNameLen}) {
+		return req, false
+	}
+	if err != nil || req.Username == "" || req.DisplayName == "" {
+		writeJSON(w, http.StatusBadRequest, errorBody("username and displayName are required"))
+
+		return req, false
+	}
+
+	return req, true
+}
+
 func handleAdminCreateInvite(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		requester, ok := auth.UserFromContext(r.Context())
@@ -177,12 +197,8 @@ func handleAdminCreateInvite(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		var req adminInviteCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		req.Username = strings.TrimSpace(req.Username)
-		if err != nil || req.Username == "" || req.DisplayName == "" {
-			writeJSON(w, http.StatusBadRequest, errorBody("username and displayName are required"))
-
+		req, ok := decodeInviteRequest(w, r)
+		if !ok {
 			return
 		}
 

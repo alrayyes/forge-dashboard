@@ -88,6 +88,9 @@ func handleTokensPost(store *auth.Store) http.HandlerFunc {
 			return
 		}
 		label := strings.TrimSpace(req.Label)
+		if overBound(w, bound{"label", label, maxLabelLen}) {
+			return
+		}
 		if label == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("label is required"))
 

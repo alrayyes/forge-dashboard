@@ -42,6 +42,15 @@ func readActionTarget(w http.ResponseWriter, r *http.Request) (actionTarget, boo
 		return actionTarget{}, false
 	}
 
+	if overBound(w, bound{"fullName", req.FullName, maxRepoFullNameLen}) {
+		return actionTarget{}, false
+	}
+	if req.Number > maxPullRequestNumber {
+		writeJSON(w, http.StatusBadRequest, fieldErrorBody("number", "number is too large"))
+
+		return actionTarget{}, false
+	}
+
 	owner, name, ok := splitFullName(req.FullName)
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))

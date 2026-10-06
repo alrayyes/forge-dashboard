@@ -209,6 +209,15 @@ func decodeSettingsPut(w http.ResponseWriter, r *http.Request) (settingsPutReque
 
 		return settingsPutRequest{}, false
 	}
+	if overBound(w,
+		bound{"githubToken", req.GitHubToken, maxForgeTokenLen},
+		bound{"githubUsername", req.GitHubUsername, maxUsernameLen},
+		bound{"forgejoUrl", req.ForgejoURL, maxForgeURLLen},
+		bound{"forgejoToken", req.ForgejoToken, maxForgeTokenLen},
+		bound{"forgejoUsername", req.ForgejoUsername, maxUsernameLen},
+		bound{"renovateRebaseLabel", req.RenovateRebaseLabel, maxLabelLen}) {
+		return settingsPutRequest{}, false
+	}
 
 	return req, true
 }
@@ -255,6 +264,8 @@ func settingsFieldError(merged settings.Credentials, req settingsPutRequest, git
 		return "forgejoUrl", "forgejoUrl is required when a Forgejo token or username is set"
 	case req.GitHubAppInstallationID < 0:
 		return "githubAppInstallationId", "githubAppInstallationId must be positive"
+	case req.GitHubAppInstallationID > maxInstallationID:
+		return "githubAppInstallationId", "githubAppInstallationId is too large"
 	case merged.GitHubAppInstallationID != 0 && !githubAppConfigured:
 		// #620: a saved installation ID this server can never actually
 		// exercise (no GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY_BASE64
@@ -398,6 +409,9 @@ func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
 
+			return
+		}
+		if overBound(w, bound{"timezone", req.Timezone, maxTimezoneLen}) {
 			return
 		}
 		if !validTimezone(req.Timezone) {

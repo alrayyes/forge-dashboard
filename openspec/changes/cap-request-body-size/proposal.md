@@ -8,7 +8,7 @@ Every JSON endpoint decoded its request body with no limit, so a client could se
 
 - A request body is capped at 1 MiB at the mux. A declared length over it is answered 413 before the handler reads; a chunked body is cut off at the cap.
 - The forges' webhook routes keep their own 5 MiB cap.
-- Field-level bounds (`maxLength`, `maximum`, `maxItems`) on the request schemas follow in later pull requests.
+- Every request field carries a bound in the spec (`maxLength`, `maximum`; no request has a list but the opaque ones), and a value over it is a 400 with a field error. Spectral's `request-*-limit` rules hold the spec to it.
 
 ## Capabilities
 

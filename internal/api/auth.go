@@ -42,6 +42,12 @@ func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 		// so an empty one here isn't a client error.
 		err := json.NewDecoder(r.Body).Decode(&req)
 		req.Username = strings.TrimSpace(req.Username)
+		if err == nil && overBound(w,
+			bound{"username", req.Username, maxUsernameLen},
+			bound{"displayName", req.DisplayName, maxDisplayNameLen},
+			bound{"inviteToken", req.InviteToken, maxInviteTokenLen}) {
+			return
+		}
 		if err != nil || req.Username == "" || (req.InviteToken == "" && req.DisplayName == "") {
 			writeJSON(w, http.StatusBadRequest, errorBody("username and displayName are required"))
 
@@ -122,6 +128,9 @@ func handleLoginBegin(svc *auth.Service) http.HandlerFunc {
 		var req loginBeginRequest
 		err := json.NewDecoder(r.Body).Decode(&req)
 		req.Username = strings.TrimSpace(req.Username)
+		if err == nil && overBound(w, bound{"username", req.Username, maxUsernameLen}) {
+			return
+		}
 		if err != nil || req.Username == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("username is required"))
 

@@ -7,15 +7,42 @@ rules:
   # describe. The force-refresh cooldown (429 and Retry-After) is #809.
   owasp:api4:2023-rate-limit: off
 
-  # These five bound what a client may send. Most of what they flag is
-  # response-only shapes this server writes itself, where a bound protects
-  # nothing, and the spec can't scope them to request bodies. Bounding the
-  # request bodies is #1008.
+  # The stock limit rules flag every string, integer and array in the spec,
+  # response-only shapes included, where a bound protects nothing and the
+  # server writes the value itself. They stay off, and the three
+  # `request-*-limit` rules below hold request bodies to the same bar (#1008).
   owasp:api4:2023-string-limit: off
   owasp:api4:2023-string-restricted: off
   owasp:api4:2023-integer-limit: off
   owasp:api4:2023-integer-format: off
   owasp:api4:2023-array-limit: off
+
+  # Every string, whole number and list a client can send is bounded. The
+  # opaque shapes (WebAuthn, the filter state) declare no properties, so only
+  # the body cap bounds them.
+  request-string-limit:
+    description: A string in a request body needs maxLength.
+    severity: error
+    given: "$.paths[*][*].requestBody.content[*].schema..properties[?(@.type == 'string' && @.format != 'date-time')]"
+    then:
+      field: maxLength
+      function: truthy
+
+  request-integer-limit:
+    description: An integer in a request body needs maximum.
+    severity: error
+    given: "$.paths[*][*].requestBody.content[*].schema..properties[?(@.type == 'integer')]"
+    then:
+      field: maximum
+      function: truthy
+
+  request-array-limit:
+    description: An array in a request body needs maxItems.
+    severity: error
+    given: "$.paths[*][*].requestBody.content[*].schema..properties[?(@.type == 'array')]"
+    then:
+      field: maxItems
+      function: truthy
 
   # One bearer scheme for everyone, with the admin check on the server
   # (auth.RequireAdmin). A second scheme would add nothing the server doesn't

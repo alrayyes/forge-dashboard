@@ -26,7 +26,9 @@ func doJSON(tb testing.TB, method, url, body string, cookie *http.Cookie) *http.
 	tb.Helper()
 	req, err := http.NewRequest(method, url, strings.NewReader(body))
 	require.NoError(tb, err)
-	req.AddCookie(cookie)
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(tb, err)

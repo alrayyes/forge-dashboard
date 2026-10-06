@@ -62,6 +62,15 @@ func readDependabotTarget(w http.ResponseWriter, r *http.Request) (dependabotTar
 		return dependabotTarget{}, false
 	}
 
+	if overBound(w, bound{"fullName", req.FullName, maxRepoFullNameLen}) {
+		return dependabotTarget{}, false
+	}
+	if req.Number > maxPullRequestNumber {
+		writeJSON(w, http.StatusBadRequest, fieldErrorBody("number", "number is too large"))
+
+		return dependabotTarget{}, false
+	}
+
 	comment, ok := dependabotCommentBodies[req.Action]
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, errorBody(`action must be "rebase" or "recreate"`))
