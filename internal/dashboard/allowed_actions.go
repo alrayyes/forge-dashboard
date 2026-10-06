@@ -56,9 +56,11 @@ func AllowedActions(pr PullRequest) []ActionAvailability {
 	if isRenovatePR(pr) {
 		out = append(out, ActionAvailability{Action: ActionRenovateRebase})
 	}
-	// Failed checks can be rerun on GitHub only (#698): Forgejo's commit
-	// statuses don't say which workflow run they came from.
-	if pr.Forge == ForgeGitHub && pr.CI == CIFailure {
+	// Failed checks can be rerun on either forge. The list only knows the CI
+	// is failing, not whether an Actions run is behind it, so a Forgejo pull
+	// request on an external CI offers it and the rerun answers that there is
+	// nothing to rerun.
+	if pr.CI == CIFailure {
 		out = append(out, ActionAvailability{Action: ActionRerunChecks})
 	}
 

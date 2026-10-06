@@ -46,19 +46,31 @@ func (s *rerunSource) calls() []string {
 func rerunBoard(t *testing.T, rerunErr error, prs ...dashboard.PullRequest) (*httptest.Server, *http.Cookie, *rerunSource) {
 	t.Helper()
 
+	return rerunBoardFor(t, dashboard.ForgeGitHub, rerunErr, prs...)
+}
+
+// rerunBoardFor is rerunBoard for either forge: the source answers for forge,
+// and only that forge's token builds it.
+func rerunBoardFor(t *testing.T, forge dashboard.Forge, rerunErr error, prs ...dashboard.PullRequest) (*httptest.Server, *http.Cookie, *rerunSource) {
+	t.Helper()
+
 	const token = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
 	src := &rerunSource{err: rerunErr}
-	src.health = dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1}
+	src.health = dashboard.ForgeHealth{Forge: forge, Reachable: true, RepoCount: 1}
 	src.prs = prs
+	settingsBody := `{"githubToken":"` + token + `"}`
+	if forge == dashboard.ForgeForgejo {
+		settingsBody = `{"forgejoUrl":"https://git.example","forgejoToken":"` + token + `"}`
+	}
 	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
-		if c.GitHubToken != token {
+		if c.GitHubToken != token && c.ForgejoToken != token {
 			return nil
 		}
 
 		return []dashboard.Source{src}
 	})
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", settingsBody, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -74,7 +86,13 @@ func rerunBoard(t *testing.T, rerunErr error, prs ...dashboard.PullRequest) (*ht
 func postRerunChecks(t *testing.T, srvURL string, cookie *http.Cookie) (int, map[string]any) {
 	t.Helper()
 
-	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 5})
+	return postRerunChecksFor(t, "github", srvURL, cookie)
+}
+
+func postRerunChecksFor(t *testing.T, forge, srvURL string, cookie *http.Cookie) (int, map[string]any) {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]any{"forge": forge, "fullName": "alrayyes/a", "number": 5})
 	require.NoError(t, err)
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/rerun-checks", strings.NewReader(string(body)))
 	require.NoError(t, err)
@@ -179,4 +197,58 @@ func TestPullRequestRerunChecks_Unauthenticated_Returns401(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func failingForgejoPR() dashboard.PullRequest {
+	pr := failingPR()
+	pr.Forge = dashboard.ForgeForgejo
+
+	return pr
+}
+
+func TestPullRequestRerunChecks_OnForgejo_Reruns_AndAnswers204(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie, src := rerunBoardFor(t, dashboard.ForgeForgejo, nil, failingForgejoPR())
+
+	status, _ := postRerunChecksFor(t, "forgejo", srv.URL, cookie)
+
+	assert.Equal(t, http.StatusNoContent, status)
+	assert.Equal(t, []string{"alrayyes/a#5"}, src.calls())
+}
+
+func TestPullRequestRerunChecks_OnForgejo_RefusesAPassingPullRequest_WithoutAskingTheForge(t *testing.T) {
+	t.Parallel()
+
+	passing := failingForgejoPR()
+	passing.CI = dashboard.CISuccess
+	srv, cookie, src := rerunBoardFor(t, dashboard.ForgeForgejo, nil, passing)
+
+	status, _ := postRerunChecksFor(t, "forgejo", srv.URL, cookie)
+
+	assert.Equal(t, http.StatusConflict, status)
+	assert.Empty(t, src.calls(), "the forge must not be asked")
+}
+
+func TestPullRequestRerunChecks_OnForgejo_NoFailedJob_Is409InThePlainSentence(t *testing.T) {
+	t.Parallel()
+
+	noRun := &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errors.New("no failed job to rerun on this pull request")}
+	srv, cookie, _ := rerunBoardFor(t, dashboard.ForgeForgejo, noRun, failingForgejoPR())
+
+	status, body := postRerunChecksFor(t, "forgejo", srv.URL, cookie)
+
+	assert.Equal(t, http.StatusConflict, status)
+	assert.Equal(t, "no failed job to rerun on this pull request", body["message"])
+}
+
+func TestPullRequestRerunChecks_OnForgejo_TheTokenMayNotRerun_Is403(t *testing.T) {
+	t.Parallel()
+
+	denied := &dashboard.ClientError{Kind: dashboard.ForgeErrorUnauthorized, Err: errors.New("forgejo: POST /x: refused: token does not have the scope")}
+	srv, cookie, _ := rerunBoardFor(t, dashboard.ForgeForgejo, denied, failingForgejoPR())
+
+	status, _ := postRerunChecksFor(t, "forgejo", srv.URL, cookie)
+
+	assert.Equal(t, http.StatusForbidden, status)
 }
