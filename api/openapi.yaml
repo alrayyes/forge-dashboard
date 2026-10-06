@@ -1060,9 +1060,18 @@ paths:
   /api/pull-requests/auto-merge:
     post:
       operationId: enablePullRequestAutoMerge
-      summary: Arm a pull request's own native auto-merge, on the signed-in user's behalf
+      summary: Arm auto-merge on a pull request, on the signed-in user's behalf
       description: |
-        GitHub only, today. Enables the named pull request's own
+        Forgejo: this app keeps the intent itself and merges the pull
+        request from its background pass once its checks pass (Forgejo's
+        own scheduled merge has no way to read its state back). Nothing is
+        sent to the forge now. The intent is stored per signed-in user and
+        pull request, and the pull request then reports
+        `autoMergeEnabled: true` and offers `cancel_auto_merge`. A repeat
+        call is a 204. Only a pull request the user armed here is ever
+        merged this way.
+
+        GitHub: enables the named pull request's own
         auto-merge via GitHub's `enablePullRequestAutoMerge` GraphQL
         mutation — REST has no equivalent endpoint. Unlike Merge, that
         mutation asks for an explicit merge method rather than picking
@@ -1140,6 +1149,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ActionError"
+
+  /api/pull-requests/auto-merge/cancel:
+    post:
+      operationId: cancelPullRequestAutoMerge
+      summary: Cancel the auto-merge this app holds for a pull request
+      description: |
+        Forgejo only: removes the intent stored by
+        `POST /api/pull-requests/auto-merge`, so the background pass never
+        merges the pull request. Nothing is sent to the forge. Idempotent: a
+        pull request with no intent is a 204 too. GitHub's own auto-merge
+        isn't cancelled from here, so a GitHub pull request is a 400.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestActionRequest"
+      responses:
+        "204":
+          description: No intent is stored for this pull request any more.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", or `forge` isn't `forgejo`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/pull-requests/close:
     post:
@@ -3489,9 +3534,10 @@ components:
           type: boolean
           description: |
             Whether auto-merge is currently scheduled on this pull request.
-            Omitted when the owning forge has no way to report this at all
-            (Forgejo, today) — never false in that case, since this service
-            genuinely doesn't know.
+            On Forgejo it is true when the signed-in user armed it in this
+            app, which holds the intent itself. Otherwise omitted when the
+            owning forge has no way to report this — never false in that
+            case, since this service genuinely doesn't know.
         autoMergeAllowed:
           type: boolean
           description: |
@@ -3630,6 +3676,7 @@ components:
             - close
             - update_branch
             - auto_merge
+            - cancel_auto_merge
             - dependabot_rebase
             - dependabot_recreate
             - renovate_rebase
