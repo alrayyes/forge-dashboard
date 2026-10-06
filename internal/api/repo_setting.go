@@ -28,6 +28,9 @@ func handleRepoSetting(deps Deps, apply func(ctx context.Context, store *setting
 
 			return
 		}
+		if overBound(w, bound{"fullName", req.FullName, maxRepoFullNameLen}) {
+			return
+		}
 		if _, _, ok := splitFullName(req.FullName); !ok {
 			writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
 

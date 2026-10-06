@@ -47,6 +47,9 @@ func handleRepoIgnore(deps Deps) http.HandlerFunc {
 
 			return
 		}
+		if overBound(w, bound{"fullName", req.FullName, maxRepoFullNameLen}) {
+			return
+		}
 		if _, _, ok := splitFullName(req.FullName); !ok {
 			writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
 

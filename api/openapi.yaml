@@ -2492,6 +2492,7 @@ components:
       properties:
         username:
           type: string
+          maxLength: 64
           description: |
             Surrounding whitespace is trimmed by the server, and what is
             left must not be empty. Clients may check the same pattern for
@@ -2500,6 +2501,7 @@ components:
           examples: [ryan]
         displayName:
           type: string
+          maxLength: 100
           description: |
             Ignored once an invite is required (any account already
             exists) — the invite's own displayName (set by the admin who
@@ -2508,6 +2510,7 @@ components:
           examples: [Ryan]
         inviteToken:
           type: string
+          maxLength: 256
           description: |
             Required once any account already exists (see GET
             /api/auth/registration-status) — a single-use token from POST
@@ -2528,6 +2531,7 @@ components:
       properties:
         username:
           type: string
+          maxLength: 64
           description: |
             Surrounding whitespace is trimmed by the server, and what is
             left must not be empty. Clients may check the same pattern for
@@ -2613,6 +2617,7 @@ components:
       properties:
         username:
           type: string
+          maxLength: 64
           description: |
             Surrounding whitespace is trimmed by the server, and what is
             left must not be empty. Clients may check the same pattern for
@@ -2621,6 +2626,7 @@ components:
           examples: [alex]
         displayName:
           type: string
+          maxLength: 100
           examples: [Alex]
 
     AdminInviteCreateResponse:
@@ -2817,18 +2823,22 @@ components:
       properties:
         githubToken:
           type: string
+          maxLength: 512
         githubUsername:
           type: string
+          maxLength: 64
         githubAppInstallationId:
           type: integer
           format: int64
           minimum: 0
+          maximum: 9007199254740991
           description: |
             0 means none. A negative or non-integer value is a 400 naming
             this field, as is any value on a server with no GitHub App
             configured.
         forgejoUrl:
           type: string
+          maxLength: 2048
           description: |
             Required, once the save is merged with what is already stored,
             whenever a Forgejo token or username is set. That depends on
@@ -2836,10 +2846,13 @@ components:
             breaks it is a 400 naming `forgejoUrl`.
         forgejoToken:
           type: string
+          maxLength: 512
         forgejoUsername:
           type: string
+          maxLength: 64
         renovateRebaseLabel:
           type: string
+          maxLength: 100
 
     ThemeResponse:
       type: object
@@ -2857,6 +2870,7 @@ components:
       properties:
         theme:
           type: string
+          maxLength: 5
           enum: ["", light, dark]
 
     TimezoneResponse:
@@ -2876,6 +2890,7 @@ components:
       properties:
         timezone:
           type: string
+          maxLength: 64
           description: An IANA zone name, or empty for the browser's own. `Local` is refused.
 
     Credential:
@@ -2932,6 +2947,7 @@ components:
       properties:
         label:
           type: string
+          maxLength: 100
         expiresAt:
           type: string
           format: date-time
@@ -2974,6 +2990,7 @@ components:
           $ref: "#/components/schemas/Forge"
         fullName:
           type: string
+          maxLength: 255
           description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
 
     RepoIgnoreRequest:
@@ -2989,6 +3006,7 @@ components:
           $ref: "#/components/schemas/Forge"
         fullName:
           type: string
+          maxLength: 255
           description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
         prs:
           type: boolean
@@ -3006,9 +3024,11 @@ components:
           $ref: "#/components/schemas/Forge"
         fullName:
           type: string
+          maxLength: 255
           description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
         number:
           type: integer
+          maximum: 2147483647
           description: Matching a PullRequest.number from GET /api/dashboard.
 
     PullRequestDependabotActionRequest:
@@ -3020,17 +3040,21 @@ components:
           $ref: "#/components/schemas/Forge"
         fullName:
           type: string
+          maxLength: 255
           description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
         number:
           type: integer
+          maximum: 2147483647
           description: Matching a PullRequest.number from GET /api/dashboard.
         action:
           type: string
+          maxLength: 8
           enum: [rebase, recreate]
           description: Which Dependabot comment command to post — "@dependabot rebase" or "@dependabot recreate".
 
     Forge:
       type: string
+      maxLength: 7
       enum: [github, forgejo]
 
     CIStatus:
