@@ -121,6 +121,7 @@ type boardSettings struct {
 	deliveries       map[string]struct{}
 	ignored          map[string]settings.IgnoreScope
 	autoUpdateBranch map[string]struct{}
+	autoMerge        map[string]struct{}
 	logins           map[dashboard.Forge]string
 }
 
@@ -144,6 +145,12 @@ func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte
 		autoUpdateBranch = nil
 	}
 
+	autoMerge, err := store.AutoMergeIntents(ctx, userID)
+	if err != nil {
+		slog.Warn("could not load auto-merge intents for dashboard response", "error", err)
+		autoMerge = nil
+	}
+
 	// The signed-in user's own login on each forge, from Settings. A store
 	// failure degrades to "no login", so nothing is marked as requested.
 	logins := map[dashboard.Forge]string{}
@@ -152,7 +159,7 @@ func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte
 		logins[dashboard.ForgeForgejo] = creds.ForgejoUsername
 	}
 
-	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, logins: logins}
+	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, autoMerge: autoMerge, logins: logins}
 }
 
 // repoStatuses is the tracked-repo list with each repo's webhook coverage and
@@ -197,6 +204,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDraf
 
 			continue
 		}
+		pr = withAutoMergeIntent(pr, b.autoMerge)
 		out = append(out, pullRequestView{
 			PullRequest:    pr,
 			Kind:           dashboard.KindOf(pr),

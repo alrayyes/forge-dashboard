@@ -12,6 +12,7 @@ const (
 	ActionClose              ActionName = "close"
 	ActionUpdateBranch       ActionName = "update_branch"
 	ActionAutoMerge          ActionName = "auto_merge"
+	ActionCancelAutoMerge    ActionName = "cancel_auto_merge"
 	ActionDependabotRebase   ActionName = "dependabot_rebase"
 	ActionDependabotRecreate ActionName = "dependabot_recreate"
 	ActionRenovateRebase     ActionName = "renovate_rebase"
@@ -49,6 +50,11 @@ func AllowedActions(pr PullRequest) []ActionAvailability {
 	}
 	if autoMergeOffered(pr) {
 		out = append(out, ActionAvailability{Action: ActionAutoMerge})
+	}
+	// Only Forgejo's auto-merge is this app's to cancel. GitHub's belongs to
+	// GitHub.
+	if pr.Forge == ForgeForgejo && pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled {
+		out = append(out, ActionAvailability{Action: ActionCancelAutoMerge})
 	}
 	if pr.Forge == ForgeGitHub && isDependabotPR(pr) {
 		out = append(out, ActionAvailability{Action: ActionDependabotRebase}, ActionAvailability{Action: ActionDependabotRecreate})
@@ -130,13 +136,17 @@ func updateBranchAvailability(pr PullRequest) (ActionAvailability, bool) {
 	return ActionAvailability{Action: ActionUpdateBranch}, true
 }
 
-// autoMergeOffered: GitHub only, and not when it is already on (nil means the
-// forge can't say, which isn't "on"), when GitHub says it would refuse (nil
-// isn't a refusal, #738), when there is nothing to merge, when conflicts need
-// fixing first, or when the pull request is clean and Merge covers it (#662).
+// autoMergeOffered: GitHub, or Forgejo where this app holds the intent, and not
+// when it is already on (nil means the forge can't say, which isn't "on"),
+// when GitHub says it would refuse (nil isn't a refusal, #738), when there is
+// nothing to merge, when conflicts need fixing first, or when the pull request
+// is clean and Merge covers it (#662). A Forgejo draft can't merge yet, so
+// there is nothing to arm.
 func autoMergeOffered(pr PullRequest) bool {
 	switch {
-	case pr.Forge != ForgeGitHub:
+	case pr.Forge != ForgeGitHub && pr.Forge != ForgeForgejo:
+		return false
+	case pr.Forge == ForgeForgejo && pr.Draft:
 		return false
 	case pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled:
 		return false

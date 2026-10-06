@@ -128,25 +128,31 @@ func handleGuardedAction[T any](deps Deps, a guardedAction[T]) http.HandlerFunc 
 		if !ok {
 			return
 		}
-		if refuseIfNotAllowed(w, deps, t.user.ID, a.allowed, t.req.Forge, t.req.FullName, t.req.Number) {
-			return
-		}
-		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
-		if !ok {
-			return
-		}
-		capability, ok := capabilityOf[T](w, src, t.req.Forge, a.unsupported)
-		if !ok {
-			return
-		}
-
-		if err := a.call(r.Context(), capability, t.owner, t.name, t.req.Number); err != nil {
-			slog.Warn(a.failure, "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "error", err)
-			writeActionRefusal(r.Context(), w, capability, a.refusal, t.owner, t.name, t.req.Number, err)
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNoContent)
+		serveGuardedAction(w, r, deps, a, t)
 	}
+}
+
+// serveGuardedAction is handleGuardedAction once the target is read, for a
+// handler that sends some forges elsewhere first.
+func serveGuardedAction[T any](w http.ResponseWriter, r *http.Request, deps Deps, a guardedAction[T], t actionTarget) {
+	if refuseIfNotAllowed(w, deps, t.user.ID, a.allowed, t.req.Forge, t.req.FullName, t.req.Number) {
+		return
+	}
+	src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
+	if !ok {
+		return
+	}
+	capability, ok := capabilityOf[T](w, src, t.req.Forge, a.unsupported)
+	if !ok {
+		return
+	}
+
+	if err := a.call(r.Context(), capability, t.owner, t.name, t.req.Number); err != nil {
+		slog.Warn(a.failure, "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "error", err)
+		writeActionRefusal(r.Context(), w, capability, a.refusal, t.owner, t.name, t.req.Number, err)
+
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
