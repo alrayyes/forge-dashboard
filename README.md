@@ -8,12 +8,8 @@
 
 A dashboard of open pull requests, issues, and CI status across
 every repository you have write access to on **GitHub** and a **Forgejo**
-instance — one page instead of two forge UIs. See
-[#1](https://github.com/alrayyes/forge-dashboard/issues/1) for the v1
-acceptance criteria this was built against, and
-[#3](https://github.com/alrayyes/forge-dashboard/issues/3) for the
-passwordless login, per-user tokens, sharing, and an admin role this document
-now describes the first slice of.
+instance — one page instead of two forge UIs. It has passwordless login,
+per-user tokens, sharing and an admin role.
 
 ![forge-dashboard, light mode](docs/screenshots/dashboard-light.png)
 ![forge-dashboard, dark mode](docs/screenshots/dashboard-dark.png)
@@ -50,7 +46,7 @@ stale.
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
   Streamable HTTP transport.
 - **One Go binary.** The frontend — SvelteKit throughout, migrated
-  incrementally one page at a time (see #326) — ends up embedded into
+  incrementally, one page at a time — ends up embedded into
   the binary with `//go:embed`; a released binary needs nothing but
   `go build` to run. Building from source needs one extra step first,
   `bun run build:web`, to produce the pages `internal/api/static`
@@ -169,7 +165,7 @@ against any endpoint the frontend itself calls, `RequireAuth` accepts
 either credential (session cookie or a live token) the same way. The one
 exception is the web UI's saved filters (`/api/settings/filter-state`): that
 is the browser's own state, so it takes a session cookie only and answers a
-token with 403 (#1000). Each save is logged with the user agent, so a filter
+token with 403. Each save is logged with the user agent, so a filter
 that changed by itself can be traced to the client that wrote it. The raw
 value is shown exactly once, right after generating it — only its hash
 is stored, so losing it means generating a new one, same as any other
@@ -451,7 +447,7 @@ background poll. If the countdown runs out before the refresh lands, it reads
 clears once a refresh shows the branch caught up. If the request fails, the
 button comes back and the row and an error toast say why.
 
-The server keeps the request (#982): a branch update the forge accepted shows
+The server keeps the request: a branch update the forge accepted shows
 up on the pull request as `updateRequest`, with a phase (`queued` or
 `expired`), when it was asked and `expiresAt`. It clears on the first snapshot
 from a fetch that started after the request and shows the pull request no
@@ -469,7 +465,7 @@ actions button when the menu closes), and the row says the bot will pick it up
 shortly and that it can take a few minutes (a "Requested" age ticks along, kept
 out of what a screen reader announces). Dependabot is asked with the
 `@dependabot rebase` comment and Renovate with the `rebase` label, and the copy
-says which. The request lives on the server (#808): a successful Dependabot or
+says which. The request lives on the server: a successful Dependabot or
 Renovate request shows up on the pull request as `botRequest`, so a reload
 mid-wait still shows the row waiting, with the "Requested ago" clock counted
 from when it was asked. The page only draws it. When the server moves the
