@@ -5,6 +5,10 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -62,6 +66,38 @@ func (c *readyCache) ping(ctx context.Context, db DatabasePinger, ttl, timeout t
 // Health matches components.schemas.Health in api/openapi.yaml.
 type Health struct {
 	Status string `json:"status"`
+}
+
+// Ready matches components.schemas.Ready in api/openapi.yaml: Health plus how
+// many goroutines and OS threads the process holds (#902).
+type Ready struct {
+	Status     string `json:"status"`
+	Goroutines int    `json:"goroutines"`
+	// Threads is left out where the process can't count its own, which is
+	// anywhere without /proc.
+	Threads int `json:"threads,omitempty"`
+}
+
+// threadCount reads Threads: from /proc/self/status, the number the container's
+// pids limit counts. A goroutine blocked in a syscall holds a thread, so this
+// climbs before the goroutine count does. It answers 0 where it can't be read.
+func threadCount() int {
+	status, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return 0
+	}
+	for line := range strings.SplitSeq(string(status), "\n") {
+		if value, found := strings.CutPrefix(line, "Threads:"); found {
+			n, err := strconv.Atoi(strings.TrimSpace(value))
+			if err != nil {
+				return 0
+			}
+
+			return n
+		}
+	}
+
+	return 0
 }
 
 // handleHealth answers 200 once the process has started — see the
@@ -128,6 +164,6 @@ func handleReady(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, Health{Status: "ok"})
+		writeJSON(w, http.StatusOK, Ready{Status: "ok", Goroutines: runtime.NumGoroutine(), Threads: threadCount()})
 	}
 }
