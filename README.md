@@ -420,6 +420,10 @@ request once its checks have passed and Forgejo says it can merge, with the
 repo's own merge method, the same as Merge. A pull request you didn't arm is
 never merged. Checks that fail, conflicts, a draft, a stack parent that hasn't
 merged yet or no checks at all keep it waiting, and it merges once that clears.
+The row says which, in words: waiting for checks, stopped by a failed check or a
+conflict, or stopped because Forgejo refused the merge, including a token without
+merge permission. When the server merges one it tells the page, which shows
+"Auto-merged owner/repo#N after checks passed" for the next few minutes.
 If Forgejo refuses the merge, the server doesn't ask again until the pull
 request changes (a rate limit or an unreachable forge is retried after five
 minutes), and the log records each attempt by repo and number. Closing or

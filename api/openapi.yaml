@@ -3086,6 +3086,53 @@ components:
           type: boolean
           description: Whether to ignore this repo's issues.
 
+    AutoMergeStatus:
+      type: object
+      required: [state, message]
+      description: |
+        Where an armed Forgejo pull request stands, so the row can say why
+        auto-merge is waiting or stopped in words and not by colour. Present
+        only while the signed-in user has auto-merge armed on it. This app
+        holds that intent itself, so GitHub's own auto-merge never has it.
+      properties:
+        state:
+          type: string
+          enum: [waiting, stopped]
+          description: |
+            `waiting` clears by itself: checks still running, a draft, a
+            stack parent that hasn't merged, a rate limit. `stopped` needs the
+            person: a failing check, a conflict, or a merge Forgejo refused
+            (including a token without merge permission). A stopped pull
+            request stays armed and merges once the cause is gone, or the
+            person cancels.
+        code:
+          type: string
+          description: |
+            The same codes as `ActionError.code` (`checks_pending`,
+            `checks_failing`, `conflict`, `stacked`, `permission`,
+            `rate_limited`, `not_mergeable`). Omitted when the pull request
+            is simply waiting for the next refresh to merge it.
+        message:
+          type: string
+          description: Plain words, safe to show a person.
+
+    AutoMergedPullRequest:
+      type: object
+      required: [forge, fullName, number, mergedAt, message]
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+        number:
+          type: integer
+        mergedAt:
+          type: string
+          format: date-time
+        message:
+          type: string
+          description: 'Ready to show: "Auto-merged owner/repo#N after checks passed".'
+
     PullRequestActionRequest:
       type: object
       required: [forge, fullName, number]
@@ -3566,6 +3613,8 @@ components:
             always in it. Live state is the client's: a rate-limited or
             unreachable forge, a missing token and an action already in
             flight can still stop an offered action.
+        autoMerge:
+          $ref: "#/components/schemas/AutoMergeStatus"
 
         readyToMerge:
           type: boolean
@@ -3805,8 +3854,19 @@ components:
           openIssueCount,
           repos,
           hiddenDrafts,
+          autoMerged,
         ]
       properties:
+        autoMerged:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutoMergedPullRequest"
+          description: |
+            Pull requests this app auto-merged in the last ten minutes, newest
+            first. They have already left `pullRequests`, so this is how a
+            client shows "Auto-merged owner/repo#N after checks passed". Always
+            present, empty when there are none. A client shows each one once,
+            matched on `forge`, `fullName`, `number` and `mergedAt`.
         openIssueCount:
           type: integer
           description: |

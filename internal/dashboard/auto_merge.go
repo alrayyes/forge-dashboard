@@ -29,6 +29,9 @@ type autoMergeConfig struct {
 	// times a minute). Guarded by mu.
 	mu       sync.Mutex
 	attempts map[string]autoMergeAttempt
+	// failures and merged feed AutoMergeReport. Guarded by mu.
+	failures map[string]AutoMergeFailure
+	merged   []AutoMerged
 }
 
 // autoMergeAttempt is one merge call. It stands until the pull request
@@ -49,7 +52,7 @@ const transientAutoMergeWait = 5 * time.Minute
 // merge it, once its checks pass and the forge calls it mergeable. Nothing
 // else is ever merged: a pull request the user didn't arm is never touched.
 func (a *Aggregator) EnableAutoMerge(userID []byte, store AutoMergeStore) {
-	a.autoMerge = &autoMergeConfig{userID: userID, store: store, attempts: make(map[string]autoMergeAttempt)}
+	a.autoMerge = &autoMergeConfig{userID: userID, store: store, attempts: make(map[string]autoMergeAttempt), failures: make(map[string]AutoMergeFailure)}
 }
 
 // runAutoMerge is the post-refresh hook. A store failure is logged and
@@ -110,6 +113,7 @@ func (a *Aggregator) autoMergeNow(ctx context.Context, pr PullRequest) {
 	slog.Info("auto-merge: merging", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number)
 	if err := merger.MergePullRequest(ctx, owner, name, pr.Number); err != nil {
 		a.autoMerge.failed(pr, err)
+		a.notify(a.Get())
 		slog.Warn("auto-merge: merge failed", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
 
 		return
@@ -119,6 +123,7 @@ func (a *Aggregator) autoMergeNow(ctx context.Context, pr PullRequest) {
 	if err := a.autoMerge.store.CancelAutoMerge(ctx, a.autoMerge.userID, string(pr.Forge), pr.Repo, pr.Number); err != nil {
 		slog.Warn("auto-merge: could not clear the intent", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
 	}
+	a.autoMerge.recordMerged(AutoMerged{Forge: pr.Forge, Repo: pr.Repo, Number: pr.Number, At: a.now()}, a.now())
 	a.MarkSettled(pr.Forge, pr.Repo, pr.Number)
 }
 
@@ -211,17 +216,34 @@ func (c *autoMergeConfig) begin(pr PullRequest) bool {
 	return true
 }
 
-// failed lets a rate limit or an unreachable forge be tried again after a
-// wait. Any other refusal stands until the pull request changes.
+// failed records the refusal, and lets a rate limit or an unreachable forge be
+// tried again after a wait. Any other refusal stands until the pull request
+// changes.
 func (c *autoMergeConfig) failed(pr PullRequest, err error) {
-	if r, ok := refusalFromKind(err); (!ok || r.Code != ActionRateLimited) && !isUnreachable(err) {
-		return
-	}
-
 	key := dependabotPRKey(pr)
+	refusal := mergeRefusal(err)
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.attempts[key] = autoMergeAttempt{updatedAt: pr.UpdatedAt, until: time.Now().Add(transientAutoMergeWait)}
+	c.failures[key] = AutoMergeFailure{UpdatedAt: pr.UpdatedAt, Refusal: refusal}
+	if refusal.Code == ActionRateLimited || isUnreachable(err) {
+		c.attempts[key] = autoMergeAttempt{updatedAt: pr.UpdatedAt, until: time.Now().Add(transientAutoMergeWait)}
+	}
+}
+
+// recordMerged keeps a merge for the report, newest first, dropping the ones
+// too old to show.
+func (c *autoMergeConfig) recordMerged(m AutoMerged, now time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	kept := []AutoMerged{m}
+	for _, old := range c.merged {
+		if now.Sub(old.At) < autoMergedKeep {
+			kept = append(kept, old)
+		}
+	}
+	c.merged = kept
+	delete(c.failures, dependabotPRKey(PullRequest{Forge: m.Forge, Repo: m.Repo, Number: m.Number}))
 }
 
 func isUnreachable(err error) bool {
@@ -238,6 +260,11 @@ func (c *autoMergeConfig) prune(armed map[string]struct{}) {
 	for key := range c.attempts {
 		if _, ok := armed[key]; !ok {
 			delete(c.attempts, key)
+		}
+	}
+	for key := range c.failures {
+		if _, ok := armed[key]; !ok {
+			delete(c.failures, key)
 		}
 	}
 }

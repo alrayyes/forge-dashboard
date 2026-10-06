@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
@@ -48,6 +49,9 @@ type dashboardResponse struct {
 	// HiddenDrafts is how many draft pull requests PullRequests leaves out
 	// (#791). Always serialized, and zero when the request included drafts.
 	HiddenDrafts int `json:"hiddenDrafts"`
+	// AutoMerged is what this app merged for the user in the last few
+	// minutes, so the page can say so once the pull request has left.
+	AutoMerged []autoMergedView `json:"autoMerged"`
 }
 
 // issueView is an issue as the API serves it: the snapshot's own fields plus
@@ -76,6 +80,47 @@ type pullRequestView struct {
 	// asks the signed-in user to review it (#695), by the username saved in
 	// Settings for its forge. False when no username is saved.
 	ReviewRequestedFromMe bool `json:"reviewRequestedFromMe"`
+	// AutoMerge says why an armed pull request is waiting or stopped. Absent
+	// when auto-merge isn't armed on it.
+	AutoMerge *dashboard.AutoMergeStatus `json:"autoMerge,omitempty"`
+}
+
+// autoMergedView matches components.schemas.AutoMergedPullRequest.
+type autoMergedView struct {
+	Forge    dashboard.Forge `json:"forge"`
+	FullName string          `json:"fullName"`
+	Number   int             `json:"number"`
+	MergedAt time.Time       `json:"mergedAt"`
+	Message  string          `json:"message"`
+}
+
+// autoMerged lists the report's recent merges, newest first, as the message
+// the page shows. Never nil: the contract promises an array.
+func (b boardSettings) autoMerged() []autoMergedView {
+	out := make([]autoMergedView, 0, len(b.autoMergeReport.Merged))
+	for _, m := range b.autoMergeReport.Merged {
+		out = append(out, autoMergedView{
+			Forge: m.Forge, FullName: m.Repo, Number: m.Number, MergedAt: m.At,
+			Message: "Auto-merged " + m.Repo + "#" + strconv.Itoa(m.Number) + " after checks passed",
+		})
+	}
+
+	return out
+}
+
+// autoMergeStatus explains pr when the user armed auto-merge on it, nil
+// otherwise.
+func (b boardSettings) autoMergeStatus(pr dashboard.PullRequest) *dashboard.AutoMergeStatus {
+	if pr.AutoMergeEnabled == nil || !*pr.AutoMergeEnabled || pr.Forge != dashboard.ForgeForgejo {
+		return nil
+	}
+	var failure *dashboard.AutoMergeFailure
+	if f, ok := b.autoMergeReport.Failures[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)]; ok {
+		failure = &f
+	}
+	status := dashboard.AutoMergeStatusOf(pr, failure)
+
+	return &status
 }
 
 // buildDashboardResponse merges snap's tracked-repo list with userID's
@@ -99,8 +144,9 @@ type pullRequestView struct {
 // can be merged or updated on one, and are counted in HiddenDrafts instead.
 // Ignored repos filter first, so HiddenDrafts counts only drafts in repos
 // whose other pull requests would show.
-func buildDashboardResponse(ctx context.Context, store *settings.Store, userID []byte, snap dashboard.Snapshot, includeDrafts bool) dashboardResponse {
-	board := loadBoardSettings(ctx, store, userID)
+func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap dashboard.Snapshot, includeDrafts bool) dashboardResponse {
+	board := loadBoardSettings(ctx, deps.SettingsStore, userID)
+	board.autoMergeReport = deps.Manager.AutoMergeReport(userID)
 	pullRequests, hiddenDrafts := board.pullRequestViews(snap.PullRequests, includeDrafts)
 	issues, openIssues := board.issueViews(snap.Issues)
 
@@ -112,6 +158,7 @@ func buildDashboardResponse(ctx context.Context, store *settings.Store, userID [
 		OpenIssueCount: openIssues,
 		Repos:          board.repoStatuses(snap.Repos),
 		HiddenDrafts:   hiddenDrafts,
+		AutoMerged:     board.autoMerged(),
 	}
 }
 
@@ -122,6 +169,7 @@ type boardSettings struct {
 	ignored          map[string]settings.IgnoreScope
 	autoUpdateBranch map[string]struct{}
 	autoMerge        map[string]struct{}
+	autoMergeReport  dashboard.AutoMergeReport
 	logins           map[dashboard.Forge]string
 }
 
@@ -213,6 +261,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDraf
 			NeedsReview:    dashboard.NeedsReview(pr),
 
 			ReviewRequestedFromMe: dashboard.ReviewRequestedFrom(pr, b.logins[pr.Forge]),
+			AutoMerge:             b.autoMergeStatus(pr),
 		})
 	}
 
@@ -291,7 +340,7 @@ func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, o
 	if ownerUsername == "" || ownerUsername == requester.Username {
 		warmUpAggregator(ctx, deps, requester.ID, requester.Username)
 
-		return buildDashboardResponse(ctx, deps.SettingsStore, requester.ID, deps.Manager.Get(requester.ID), includeDrafts), nil
+		return buildDashboardResponse(ctx, deps, requester.ID, deps.Manager.Get(requester.ID), includeDrafts), nil
 	}
 
 	owner, err := deps.AuthStore.GetUserByUsername(ctx, ownerUsername)
@@ -313,7 +362,7 @@ func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, o
 
 	warmUpAggregator(ctx, deps, owner.ID, owner.Username)
 
-	return buildDashboardResponse(ctx, deps.SettingsStore, owner.ID, deps.Manager.Get(owner.ID), includeDrafts), nil
+	return buildDashboardResponse(ctx, deps, owner.ID, deps.Manager.Get(owner.ID), includeDrafts), nil
 }
 
 // handleDashboard answers the requested dashboard: the signed-in user's
@@ -431,7 +480,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, deps.Manager.Get(u.ID), wantsDrafts(r)))
+		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps, u.ID, deps.Manager.Get(u.ID), wantsDrafts(r)))
 	}
 }
 
@@ -487,7 +536,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		flusher.Flush()
 
 		streamSnapshots(r.Context(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
-			return buildDashboardResponse(r.Context(), deps.SettingsStore, u.ID, snap, includeDrafts)
+			return buildDashboardResponse(r.Context(), deps, u.ID, snap, includeDrafts)
 		})
 	}
 }
