@@ -143,8 +143,10 @@ func refusalNeedsNoReRead(err error) bool {
 // the order dashboard.autoMergeOffered rules it out.
 func autoMergeNotOffered(pr dashboard.PullRequest) dashboard.ActionRefusal {
 	switch {
-	case pr.Forge != dashboard.ForgeGitHub:
-		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Auto-merge is only available on GitHub."}
+	case pr.Forge != dashboard.ForgeGitHub && pr.Forge != dashboard.ForgeForgejo:
+		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Auto-merge is only available on GitHub and Forgejo."}
+	case pr.Forge == dashboard.ForgeForgejo && pr.Draft:
+		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Draft pull request. Mark it ready for review to turn on auto-merge."}
 	case pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled:
 		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Auto-merge is already on for this pull request."}
 	case pr.AutoMergeAllowed != nil && !*pr.AutoMergeAllowed:
