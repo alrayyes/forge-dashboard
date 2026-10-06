@@ -296,6 +296,7 @@ func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval t
 	// settingsStore satisfies dashboard.AutoUpdateBranchLister (#365)
 	// with its own AutoUpdateBranchRepos/RenovateRebaseLabel methods.
 	manager.SetAutoUpdateBranchLister(settingsStore)
+	manager.SetAutoMergeStore(settingsStore)
 	manager.SetCIPollInterval(ciPollInterval)
 
 	return manager
