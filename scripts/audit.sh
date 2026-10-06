@@ -10,6 +10,7 @@ set -euo pipefail
 
 ignores=(
   # No published version fixes these, any release.
+  --ignore GHSA-hp3w-g68c-fv3c # sprintf-js <=1.1.3, latest is 1.1.3, via argparse (dev tooling), added 2026-10-06
   --ignore GHSA-vfj7-8cjw-p6xm # braces <=3.0.3, via markdownlint-cli2 > globby (dev tooling)
   --ignore GHSA-7pqw-9j4j-h8q3 # extract-zip <=2.0.1, via @lhci/cli > lighthouse (dev tooling)
   --ignore GHSA-jmr9-qjv8-65gv # extract-zip <=2.0.1, same path
