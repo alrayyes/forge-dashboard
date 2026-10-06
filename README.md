@@ -912,6 +912,20 @@ Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource
 the preceding **Design** section for what it exposes and how it
 authenticates.
 
+## Reports
+
+Every push to `main` that passes CI publishes the generated reports at
+<https://apis.ryankes.eu/forge-dashboard/reports/>:
+
+- [Test results](https://apis.ryankes.eu/forge-dashboard/reports/tests/), the
+  JUnit XML of the Go tests (`unit.xml`) and the Playwright journeys
+  (`e2e.xml`).
+- [Coverage](https://apis.ryankes.eu/forge-dashboard/reports/coverage/), an
+  HTML view plus `coverage.xml` (Cobertura) and the native Go `coverage.out`.
+- [Lighthouse](https://apis.ryankes.eu/forge-dashboard/reports/lighthouse/report.html)
+  for the login page, with the run's
+  [JSON](https://apis.ryankes.eu/forge-dashboard/reports/lighthouse/report.json).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain, the hooks, and

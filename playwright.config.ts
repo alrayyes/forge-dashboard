@@ -5,7 +5,11 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8080',
   },
-  reporter: 'list',
+  // CI also writes JUnit XML, which the pages job publishes next to the Go
+  // test results (rules/published-reports.md).
+  reporter: process.env.CI
+    ? [['list'], ['junit', { outputFile: 'e2e.xml' }]]
+    : 'list',
   // Registers the very first user (who becomes admin) once, before any
   // test file runs — see the file's own header comment for why this
   // can't be a per-file beforeAll.

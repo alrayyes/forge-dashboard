@@ -29,6 +29,10 @@ while IFS= read -r path; do
       release-please-config.json | .release-please-manifest.json | LICENSE | \
       .gitignore | .prettierignore | openspec/*)
       ;;
+    # The test job runs these, and needs go for them.
+    scripts/build-reports.sh | scripts/test-build-reports.sh)
+      go=true
+      ;;
     *.go | go.mod | go.sum | .golangci.yml | integration/* | internal/* | cmd/*)
       go=true
       ;;
