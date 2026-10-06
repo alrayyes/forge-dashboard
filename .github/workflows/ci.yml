@@ -531,3 +531,43 @@ jobs:
         run: |
           scripts/check-release-type.sh range "$BASE" "$HEAD"
           scripts/check-release-type.sh title "$TITLE" "$BASE" "$HEAD"
+
+  # The one check branch protection requires (rules/ci.md). It needs every job
+  # above and fails when any of them failed or was cancelled. A job skipped by
+  # its path filter passes, which is what allowed-skips says. Requiring this
+  # instead of each job by name covers a new job at once, and a renamed or
+  # skipped one can't leave an orphaned required context behind.
+  ci-result:
+    name: ci result
+    if: always()
+    needs:
+      [
+        changes,
+        lint,
+        test,
+        build,
+        container-integration,
+        govulncheck,
+        gomod,
+        goreleaser,
+        dockerfile,
+        docker,
+        e2e,
+        prose,
+        api,
+        semgrep,
+        api-security,
+        pages,
+        js,
+        audit,
+        svelte-check,
+        tests-types,
+        commits,
+      ]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}
+          allowed-skips: ${{ toJSON(needs) }}
