@@ -434,6 +434,10 @@ and number. Closing or merging the pull request elsewhere removes the intent,
 once Forgejo confirms it. A token that can push but not merge only finds out at
 the merge itself.
 
+Under a Forgejo repo's heading, when pull requests are grouped, a note says that
+Forge Dashboard handles auto-merge there, not Forgejo, and links to the "Forgejo
+auto-merge" card in Settings, which explains it in plain words.
+
 Merge, close, auto-merge, Update branch, and the Dependabot and Renovate actions
 all report on the row you acted on, not in a banner at the top of the page. The
 row gets a status line under its actions ("Merging…", "Queued", "Rebasing…", or

@@ -877,6 +877,23 @@
       );
     }
 
+    // Forgejo has no auto-merge this app can read, so Forge Dashboard does
+    // the merging itself. Said once under each Forgejo group heading, with a
+    // way to the full explanation.
+    function groupAutoMergeCallout(forgeName: string): HTMLElement | null {
+      if (forgeName !== "forgejo") return null;
+      const note = el(
+        "p",
+        "group-callout",
+        "Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo itself. Manage it in ",
+      );
+      const link = el("a", "", "Settings") as HTMLAnchorElement;
+      link.href = "/settings.html#forgejo-auto-merge";
+      note.appendChild(link);
+      note.appendChild(document.createTextNode("."));
+      return note;
+    }
+
     let actionLockReasonCounter = 0;
 
     // Same aria-disabled + visible, wired-up reason shape webhooks.js's
@@ -3727,6 +3744,8 @@
           container.appendChild(heading);
           const note = isPR ? groupRateLimitNote(first.forge) : null;
           if (note) container.appendChild(note);
+          const callout = isPR ? groupAutoMergeCallout(first.forge) : null;
+          if (callout) container.appendChild(callout);
           appendEntries(container, entriesFor(groups[key]));
         }
       }
