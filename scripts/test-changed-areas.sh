@@ -41,6 +41,8 @@ check "go image e2e" "go.mod"
 check "go image e2e prose" ".golangci.yml"
 check "go image e2e prose" "internal/forgejo/README.md"
 check "go api image e2e prose" "api/openapi.yaml"
+check "go image e2e" "scripts/build-reports.sh"
+check "go image e2e" "scripts/test-build-reports.sh"
 
 # Web only.
 check "web image e2e" "web/src/lib/filters.ts"
