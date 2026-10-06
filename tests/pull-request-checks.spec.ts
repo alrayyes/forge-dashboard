@@ -37,6 +37,7 @@ interface MockPR {
   updatedAt: string;
   mergeStatus: string;
   behind: boolean;
+  allowedActions?: unknown[];
 }
 
 function makePR(overrides: Partial<MockPR> = {}): MockPR {
@@ -459,6 +460,67 @@ test.describe('pull request pipeline checks panel', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('a failing Forgejo pull request offers "Rerun failed checks" too, and a pull request with nothing to rerun shows the forge reason', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      'forgejo',
+      makePR({ forge: 'forgejo', repo: 'alrayyes/dotfiles', ci: 'failure' }),
+    );
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    let posted: unknown = null;
+    let answer = 204;
+    await page.route('**/api/pull-requests/rerun-checks', async (route) => {
+      posted = route.request().postDataJSON();
+      await route.fulfill(
+        answer === 204
+          ? { status: 204 }
+          : {
+              status: 409,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                error: 'raw',
+                code: 'conflict',
+                message: 'no failed job to rerun on this pull request',
+              }),
+            },
+      );
+    });
+    await page.reload();
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'View pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const rerun = dialog.getByRole('button', { name: 'Rerun failed checks' });
+
+    answer = 409;
+    await rerun.click();
+    await expect(
+      dialog.getByText('no failed job to rerun on this pull request'),
+    ).toBeVisible();
+    await expect(rerun).toBeEnabled();
+
+    answer = 204;
+    await rerun.click();
+    await expect(dialog.getByText('Rerun queued')).toBeVisible();
+    expect(posted).toEqual({
+      forge: 'forgejo',
+      fullName: 'alrayyes/dotfiles',
+      number: 42,
+    });
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('a refused rerun shows the reason in the panel and leaves the button to try again', async ({
     page,
   }) => {
@@ -501,7 +563,7 @@ test.describe('pull request pipeline checks panel', () => {
     await mockDashboard(
       page,
       'forgejo',
-      makePR({ forge: 'forgejo', ci: 'failure' }),
+      makePR({ forge: 'forgejo', ci: 'failure', allowedActions: [] }),
     );
     await mockChecks(page, {
       checks: [{ name: 'test', state: 'failure', url: '' }],
