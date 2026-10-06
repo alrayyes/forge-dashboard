@@ -19,6 +19,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -303,17 +304,45 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 	msg := err.Error()
 	kind := dashboard.ForgeErrorUnreachable
 	statusCode := 0
+	var rateLimit *dashboard.RateLimit
 	if resp != nil {
 		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
 			msg += fmt.Sprintf(" (retry after %ss)", retryAfter)
 		}
 		kind = forgeErrorKind(resp.StatusCode)
 		statusCode = resp.StatusCode
+		if kind == dashboard.ForgeErrorRateLimited {
+			rateLimit = rateLimitFromRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+		}
 	}
 	c.recordRequest(ctx, method, path, statusCode, string(kind))
 	wrapped := fmt.Errorf("forgejo: %s %s: %w: %s", method, path, errForgeRefused, msg)
 
-	return &dashboard.ClientError{Kind: kind, Err: wrapped}
+	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit}
+}
+
+// rateLimitFromRetryAfter turns a Retry-After header (RFC 9110 10.2.3: a
+// number of seconds or an HTTP date) into the budget a refused action
+// reports, so the refusal can say when to try again. Only ResetsAt is known,
+// since Forgejo reports no budget of its own. Nil when the header is absent
+// or isn't either form.
+func rateLimitFromRetryAfter(header string, now time.Time) *dashboard.RateLimit {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return nil
+	}
+	if seconds, err := strconv.Atoi(header); err == nil {
+		if seconds < 0 {
+			return nil
+		}
+
+		return &dashboard.RateLimit{ResetsAt: now.Add(time.Duration(seconds) * time.Second)}
+	}
+	if at, err := http.ParseTime(header); err == nil {
+		return &dashboard.RateLimit{ResetsAt: at}
+	}
+
+	return nil
 }
 
 // forgeErrorKind classifies an HTTP status code from a response that was

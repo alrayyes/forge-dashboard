@@ -268,6 +268,95 @@ func TestListRepos_RetryAfterIncludedWhenPresent(t *testing.T) {
 	assert.Contains(t, err.Error(), "retry after 30s")
 }
 
+// Forgejo has no rate limiting of its own, so a 429 comes from a proxy in
+// front of it, which answers Retry-After in delta-seconds (RFC 9110 10.2.3).
+func TestMergePullRequest_RateLimitedWithRetryAfterSeconds_CarriesResetsAt(t *testing.T) {
+	t.Parallel()
+
+	srv := rateLimitedForgejo(t, "30")
+	defer srv.Close()
+
+	err := forgejo.NewClient(srv.URL, "test-token", "").MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	require.NotNil(t, clientErr.RateLimit)
+	assert.WithinDuration(t, time.Now().Add(30*time.Second), clientErr.RateLimit.ResetsAt, 5*time.Second)
+}
+
+func TestMergePullRequest_RateLimitedWithRetryAfterDate_CarriesResetsAt(t *testing.T) {
+	t.Parallel()
+
+	reset := time.Now().Add(2 * time.Minute).UTC().Truncate(time.Second)
+	srv := rateLimitedForgejo(t, reset.Format(http.TimeFormat))
+	defer srv.Close()
+
+	err := forgejo.NewClient(srv.URL, "test-token", "").MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	require.NotNil(t, clientErr.RateLimit)
+	assert.True(t, clientErr.RateLimit.ResetsAt.Equal(reset))
+}
+
+func TestMergePullRequest_RateLimitedWithoutRetryAfter_HasNoResetsAt(t *testing.T) {
+	t.Parallel()
+
+	srv := rateLimitedForgejo(t, "")
+	defer srv.Close()
+
+	err := forgejo.NewClient(srv.URL, "test-token", "").MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Nil(t, clientErr.RateLimit)
+}
+
+func TestMergePullRequest_RetryAfterGarbage_HasNoResetsAt(t *testing.T) {
+	t.Parallel()
+
+	srv := rateLimitedForgejo(t, "soon")
+	defer srv.Close()
+
+	err := forgejo.NewClient(srv.URL, "test-token", "").MergePullRequest(t.Context(), "alrayyes", "a", 5)
+
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Nil(t, clientErr.RateLimit)
+}
+
+func TestMergePullRequest_RateLimited_ClassifiesAsRateLimitedWithResetsAt(t *testing.T) {
+	t.Parallel()
+
+	srv := rateLimitedForgejo(t, "30")
+	defer srv.Close()
+
+	err := forgejo.NewClient(srv.URL, "test-token", "").MergePullRequest(t.Context(), "alrayyes", "a", 5)
+	got := dashboard.ClassifyActionRefusal(err, nil)
+
+	assert.Equal(t, dashboard.ActionRateLimited, got.Code)
+	require.NotNil(t, got.ResetsAt)
+}
+
+// rateLimitedForgejo answers the repo lookup and the merge with a 429, plus
+// a Retry-After header when retryAfter is not empty.
+func rateLimitedForgejo(t *testing.T, retryAfter string) *httptest.Server {
+	t.Helper()
+
+	limited := func(w http.ResponseWriter, _ *http.Request) {
+		if retryAfter != "" {
+			w.Header().Set("Retry-After", retryAfter)
+		}
+		w.WriteHeader(http.StatusTooManyRequests)
+		writeJSON(t, w, map[string]string{"message": "Too Many Requests"})
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a", limited)
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5/merge", limited)
+
+	return httptest.NewServer(mux)
+}
+
 func TestListRepos_ClassifiesErrorKind(t *testing.T) {
 	t.Parallel()
 
