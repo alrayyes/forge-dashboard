@@ -42,9 +42,22 @@ type cachedResponse struct {
 	header http.Header
 }
 
+// defaultTransport is a copy of http.DefaultTransport, so its connection pool
+// belongs to one client.
+func defaultTransport() http.RoundTripper {
+	if t, ok := http.DefaultTransport.(*http.Transport); ok {
+		return t.Clone()
+	}
+
+	return http.DefaultTransport
+}
+
 func newETagTransport(base http.RoundTripper) *etagTransport {
 	if base == nil {
-		base = http.DefaultTransport
+		// A transport of its own, not the process-wide default: every
+		// httptest.Server.Close() calls CloseIdleConnections on the default
+		// and cuts another client's connection mid-request (#1044).
+		base = defaultTransport()
 	}
 
 	return &etagTransport{base: base, cache: make(map[string]cachedResponse)}
