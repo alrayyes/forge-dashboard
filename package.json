@@ -28,6 +28,10 @@
     "last 2 Safari versions",
     "last 2 Edge versions"
   ],
+  "overrides": {
+    "katex": "0.19.0",
+    "smol-toml": "1.9.0"
+  },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@biomejs/biome": "2.5.15",
