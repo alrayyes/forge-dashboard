@@ -33,14 +33,13 @@ const (
 	concurrentTabs = 6
 )
 
-// threads reads the process's thread count, the number a container's pid
-// limit counts. It skips the test where /proc isn't there.
-func threads(tb testing.TB) int {
-	tb.Helper()
-
+// readThreads reads the process's thread count, the number a container's pid
+// limit counts. It returns false where /proc isn't there. It asserts nothing,
+// so the sampling goroutine can call it.
+func readThreads() (int, bool) {
 	f, err := os.Open("/proc/self/status")
 	if err != nil {
-		tb.Skip("no /proc/self/status on this platform")
+		return 0, false
 	}
 	defer func() { _ = f.Close() }()
 
@@ -48,14 +47,12 @@ func threads(tb testing.TB) int {
 	for scanner.Scan() {
 		if v, ok := strings.CutPrefix(scanner.Text(), "Threads:"); ok {
 			n, err := strconv.Atoi(strings.TrimSpace(v))
-			require.NoError(tb, err)
 
-			return n
+			return n, err == nil
 		}
 	}
-	tb.Fatal("no Threads: line in /proc/self/status")
 
-	return 0
+	return 0, false
 }
 
 // stubForgejo answers like a Forgejo with repoCount repositories and nothing
@@ -105,7 +102,10 @@ func TestRefresh_ManyReposAndTabs_StaysUnderTheThreadBudget(t *testing.T) {
 	client := forgejo.NewClient(srv.URL, "test-token", "", recorder)
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency)
 
-	idle := threads(t)
+	idle, ok := readThreads()
+	if !ok {
+		t.Skip("no /proc/self/status on this platform")
+	}
 
 	var peak atomic.Int64
 	stop := make(chan struct{})
@@ -117,7 +117,9 @@ func TestRefresh_ManyReposAndTabs_StaysUnderTheThreadBudget(t *testing.T) {
 			case <-stop:
 				return
 			default:
-				peak.Store(max(peak.Load(), int64(threads(t))))
+				if n, ok := readThreads(); ok {
+					peak.Store(max(peak.Load(), int64(n)))
+				}
 				time.Sleep(2 * time.Millisecond)
 			}
 		}
