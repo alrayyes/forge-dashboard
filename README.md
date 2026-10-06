@@ -404,6 +404,9 @@ instead of switching to GitHub's own UI just to turn it on. It picks a
 merge method the repo actually allows, the same `merge` > `squash` >
 `rebase` precedence Merge already uses, with no override of its own.
 Merge is skipped when the default branch requires linear history.
+A squash, from Merge or from auto-merge, is titled with the pull request's own
+title and its number, `title (#N)`, whatever commits the branch holds, so a stray
+commit message can't become the subject and the changelog entry.
 Available whenever the pull request isn't a genuine conflict — unlike
 Merge, a pending or not-yet-required check doesn't hide it, since
 arming auto-merge ahead of CI finishing is the whole point. It only
