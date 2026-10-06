@@ -5,6 +5,7 @@
 /dist
 coverage.out
 junit.xml
+e2e.xml
 
 node_modules/
 .bun-cache/
