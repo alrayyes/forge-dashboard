@@ -149,20 +149,17 @@ test.describe('pull request Enable auto-merge action', () => {
     ).toBeVisible();
   });
 
-  test('a Forgejo pull request shows no button — Forgejo has no equivalent one-click action yet', async ({
+  test('a Forgejo pull request offers the button too, since this app holds that intent itself', async ({
     page,
   }) => {
     await mockDashboard(page, makePR({ forge: 'forgejo' }));
     await page.reload();
 
-    // No other overflow-eligible action applies to this row either (not
-    // Dependabot/Renovate-authored, and View pipeline is inline now, not
-    // in this menu — #636), so "More actions" holds Close alone.
     const row = page.locator('#pr-rows .row').first();
-    await expectMenuHoldsOnlyClose(row);
+    await openMoreActions(row);
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
-    ).toHaveCount(0);
+    ).toBeVisible();
   });
 
   test('a pull request already auto-merging shows no button — the Auto-merge pill already says so', async ({
