@@ -58,6 +58,45 @@ func TestClassifyActionRefusal(t *testing.T) {
 	}
 }
 
+// Gitea/Forgejo answer a merge that branch protection holds back with 405 and
+// the reason in the message. Shapes follow Gitea's ErrDisallowedToMerge; not
+// verified against a live instance.
+func TestClassifyActionRefusal_ForgejoProtectionReasons(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		text string
+		code dashboard.ActionCode
+		said string
+	}{
+		{"missing approvals", "forgejo: POST /repos/o/r/pulls/5/merge: not allowed to merge [reason: Does not have enough approvals yet. 0 of 1 approvals granted.]", dashboard.ActionBlockedByProtection, "review"},
+		{"requested changes", "forgejo: POST /repos/o/r/pulls/5/merge: not allowed to merge [reason: There are requested changes]", dashboard.ActionBlockedByProtection, "review"},
+		{"status checks", "forgejo: POST /repos/o/r/pulls/5/merge: not allowed to merge [reason: Not all required status checks successful]", dashboard.ActionChecksPending, "check"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := dashboard.ClassifyActionRefusal(refusal(dashboard.ForgeErrorConflict, tc.text), &dashboard.PullRequestState{})
+
+			assert.Equal(t, tc.code, got.Code)
+			assert.Contains(t, got.Message, tc.said)
+		})
+	}
+}
+
+func TestClassifyActionRefusal_ForgejoProbableConflictSaysWhatItCannotTellApart(t *testing.T) {
+	t.Parallel()
+
+	err := refusal(dashboard.ForgeErrorConflict, "forgejo: POST /repos/o/r/pulls/5/merge: Please try again later")
+
+	got := dashboard.ClassifyActionRefusal(err, &dashboard.PullRequestState{ConflictUnconfirmed: true})
+
+	assert.Equal(t, dashboard.ActionConflict, got.Code)
+	assert.Contains(t, got.Message, "still checking")
+}
+
 func TestClassifyActionRefusal_UnknownKeepsTheForgesOwnReasonWithoutTheDiagnosticPrefix(t *testing.T) {
 	t.Parallel()
 

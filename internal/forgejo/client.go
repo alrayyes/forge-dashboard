@@ -408,8 +408,12 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 // ReadPullRequestState implements dashboard.PullRequestStateReader via
 // Forgejo's "Get a pull request". It reports merged, state and a single
 // mergeable verdict, with no mergeable_state to say why a PR isn't
-// mergeable, so an open PR that isn't mergeable is Blocked and no more
-// specific.
+// mergeable. Gitea computes that flag from the merge check alone: false for
+// a conflict, but also while the check is still running or has errored, and
+// it ignores branch protection altogether. So an open, non-draft PR with a
+// false flag is reported as ConflictUnconfirmed, and one with an empty diff
+// (which Gitea also marks unmergeable) as Blocked. A missing review or
+// check isn't visible here: the merge refusal's own text names it.
 func (c *Client) ReadPullRequestState(ctx context.Context, owner, name string, number int) (dashboard.PullRequestState, error) {
 	c.setContext(ctx)
 
@@ -422,11 +426,14 @@ func (c *Client) ReadPullRequestState(ctx context.Context, owner, name string, n
 	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	closed := pr.State == gitea.StateClosed
+	unmergeable := !closed && !pr.HasMerged && !pr.Mergeable
 
 	return dashboard.PullRequestState{
-		Merged:  pr.HasMerged,
-		Closed:  closed,
-		Blocked: !closed && !pr.Mergeable,
+		Merged:              pr.HasMerged,
+		Closed:              closed,
+		Draft:               !closed && pr.Draft,
+		ConflictUnconfirmed: unmergeable && !isEmpty(pr),
+		Blocked:             unmergeable && isEmpty(pr),
 	}, nil
 }
 

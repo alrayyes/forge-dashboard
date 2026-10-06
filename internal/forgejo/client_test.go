@@ -1605,6 +1605,11 @@ func TestListChecks_ActionsJobMatchingAPattern_IsRequiredButNonMatchStaysUnknown
 // mergeable. It has no mergeable_state equivalent, so only merged, closed
 // and a not-mergeable verdict can be told apart. Not verified against a
 // live instance: shapes follow the swagger the SDK is generated from.
+//
+// Gitea sets mergeable to false for a merge conflict, but also while it is
+// still checking and when the check errored, so an open PR with a false
+// mergeable is only a probable conflict (ConflictUnconfirmed). Branch
+// protection isn't part of the flag at all.
 func TestReadPullRequestState_MapsGetPullRequestFields(t *testing.T) {
 	t.Parallel()
 
@@ -1615,7 +1620,10 @@ func TestReadPullRequestState_MapsGetPullRequestFields(t *testing.T) {
 	}{
 		{"already merged", map[string]any{"state": "closed", "merged": true, "mergeable": false, "merged_at": "2026-10-01T10:00:00Z"}, dashboard.PullRequestState{Merged: true, Closed: true}},
 		{"closed unmerged", map[string]any{"state": "closed", "merged": false, "mergeable": true}, dashboard.PullRequestState{Closed: true}},
-		{"open and not mergeable", map[string]any{"state": "open", "merged": false, "mergeable": false}, dashboard.PullRequestState{Blocked: true}},
+		{"open and not mergeable", map[string]any{"state": "open", "merged": false, "mergeable": false, "additions": 4, "deletions": 1, "changed_files": 1}, dashboard.PullRequestState{ConflictUnconfirmed: true}},
+		{"open, not mergeable and nothing to merge", map[string]any{"state": "open", "merged": false, "mergeable": false, "additions": 0, "deletions": 0, "changed_files": 0}, dashboard.PullRequestState{Blocked: true}},
+		{"open, not mergeable, diff size unreported", map[string]any{"state": "open", "merged": false, "mergeable": false}, dashboard.PullRequestState{ConflictUnconfirmed: true}},
+		{"open draft", map[string]any{"state": "open", "merged": false, "mergeable": true, "draft": true}, dashboard.PullRequestState{Draft: true}},
 		{"open and mergeable", map[string]any{"state": "open", "merged": false, "mergeable": true}, dashboard.PullRequestState{}},
 	}
 	for _, tc := range cases {
