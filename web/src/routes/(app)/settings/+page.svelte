@@ -1562,6 +1562,37 @@
     </div>
   </form>
 
+  <div class="card" id="forgejo-auto-merge">
+    <h2>Forgejo auto-merge</h2>
+    <p class="field-hint">
+      Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo itself.
+      Forgejo's own scheduled merge can't be read back, so this app keeps the
+      intent and does the merging.
+    </p>
+    <ul class="field-hint">
+      <li>
+        It's off for every pull request until you choose "Enable auto-merge" in
+        a Forgejo row's More actions. Nothing is merged that you didn't arm.
+      </li>
+      <li>
+        An armed pull request shows "Auto-merge on" and "Managed by Forge
+        Dashboard". It merges after a refresh once its checks have passed and
+        Forgejo says it can merge, with the repo's own merge method.
+      </li>
+      <li>
+        While it waits or stops, the row says why in words: checks still
+        running, a failed check, a conflict, or a merge Forgejo refused.
+      </li>
+      <li>
+        "Cancel auto-merge" on the row removes the intent. Closing or merging
+        the pull request elsewhere removes it too.
+      </li>
+      <li>
+        The merge uses your Forgejo token, so it needs permission to merge.
+      </li>
+    </ul>
+  </div>
+
   <div class="card" id="webhooks">
     <h2>Webhooks</h2>
     <p class="hint">

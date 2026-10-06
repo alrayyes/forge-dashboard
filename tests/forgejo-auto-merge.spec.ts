@@ -269,3 +269,71 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     expect(results.violations).toEqual([]);
   });
 });
+
+const CALLOUT =
+  'Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo itself.';
+
+test.describe('Forgejo auto-merge explained where it is used', () => {
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+  });
+
+  test('a grouped Forgejo repo says who handles auto-merge and links to Settings', async ({
+    page,
+  }) => {
+    await mockDashboard(page, snapshot(makePR()));
+    await page.reload();
+    await page.selectOption('#shared-group-select', 'repo');
+
+    const callout = page.locator('#pr-rows .group-callout');
+    await expect(callout).toContainText(CALLOUT);
+    await expect(
+      callout.getByRole('link', { name: 'Settings' }),
+    ).toHaveAttribute('href', '/settings.html#forgejo-auto-merge');
+  });
+
+  test('a GitHub repo group has no such callout', async ({ page }) => {
+    await mockDashboard(
+      page,
+      snapshot(makePR({ forge: 'github', repo: 'alrayyes/forge-dashboard' }), {
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+      }),
+    );
+    await page.reload();
+    await page.selectOption('#shared-group-select', 'repo');
+
+    await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(1);
+    await expect(page.locator('#pr-rows .group-callout')).toHaveCount(0);
+  });
+
+  test('the callout has no axe-core violations', async ({ page }) => {
+    await mockDashboard(page, snapshot(makePR()));
+    await page.reload();
+    await page.selectOption('#shared-group-select', 'repo');
+    await expect(page.locator('#pr-rows .group-callout')).toBeVisible();
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('Settings explains Forgejo auto-merge in plain words, with no axe-core violations', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html#forgejo-auto-merge');
+
+    const section = page.locator('#forgejo-auto-merge');
+    await expect(
+      section.getByRole('heading', { name: 'Forgejo auto-merge' }),
+    ).toBeVisible();
+    await expect(section).toContainText(CALLOUT);
+    await expect(section).toContainText('Enable auto-merge');
+    await expect(section).toContainText('Cancel auto-merge');
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+});
