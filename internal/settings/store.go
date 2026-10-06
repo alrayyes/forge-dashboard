@@ -128,6 +128,14 @@ func (s *Store) Init(ctx context.Context) error {
 		repo_full_name TEXT NOT NULL,
 		PRIMARY KEY (user_id, forge, repo_full_name)
 	);
+	CREATE TABLE IF NOT EXISTS auto_merge_intents (
+		user_id TEXT NOT NULL,
+		forge TEXT NOT NULL,
+		repo_full_name TEXT NOT NULL,
+		number INTEGER NOT NULL,
+		armed_at TIMESTAMP NOT NULL,
+		PRIMARY KEY (user_id, forge, repo_full_name, number)
+	);
 	`
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("settings: create schema: %w", err)
@@ -409,6 +417,9 @@ func (s *Store) Delete(ctx context.Context, userID []byte) error {
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM auto_update_branch_repos WHERE user_id = ?`, encodedID); err != nil {
 		return fmt.Errorf("settings: delete auto-update-branch repos: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM auto_merge_intents WHERE user_id = ?`, encodedID); err != nil {
+		return fmt.Errorf("settings: delete auto-merge intents: %w", err)
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM user_credentials WHERE user_id = ?`, encodedID)
 	if err != nil {

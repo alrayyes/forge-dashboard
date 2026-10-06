@@ -58,27 +58,44 @@ func TestAllowedActions(t *testing.T) {
 		{"unstable with an optional check pending still merges (#956)", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnstable; p.CI = dashboard.CIPending }), []string{"auto_merge", "close", "merge"}},
 		{"CI pending locks merge even when mergeable", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{"auto_merge", "close", "merge:checks_pending"}},
 		{"behind and not mergeable", ghPR(func(p *dashboard.PullRequest) { p.Behind = true; p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:behind", "update_branch"}},
-		{"behind but mergeable keeps merge (Forgejo)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.Behind = true }), []string{"close", "merge", "update_branch"}},
+		{"behind but mergeable keeps merge (Forgejo)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.Behind = true }), []string{"auto_merge", "close", "merge", "update_branch"}},
 		{"blocked with CI failing", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge:checks_failing", "rerun_checks"}},
 		{"failing CI on GitHub offers rerunning the failed checks (#698)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},
-		{"failing CI on Forgejo offers rerunning the failed checks (#1032)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIFailure }), []string{"close", "merge", "rerun_checks"}},
+		{"failing CI on Forgejo offers rerunning the failed checks (#1032)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},
 		{"passing CI on Forgejo has nothing to rerun", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CISuccess }), []string{"close", "merge"}},
 		{"blocked otherwise", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:blocked_by_protection"}},
 		{"merge status not known yet", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }), []string{"auto_merge", "close", "merge:not_mergeable"}},
 		{"auto-merge already on is not offered again", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"close", "merge:checks_pending"}},
 		{"auto-merge refused by the forge for this PR", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeAllowed = new(false) }), []string{"close", "merge:checks_pending"}},
-		{"auto-merge is GitHub only", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIPending }), []string{"close", "merge:checks_pending"}},
+		{"Forgejo with CI pending offers the app's own auto-merge", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIPending }), []string{"auto_merge", "close", "merge:checks_pending"}},
+		{"Forgejo that is already clean has nothing to wait for", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo }), []string{"close", "merge"}},
+		{"Forgejo draft is not offered auto-merge", ghPR(func(p *dashboard.PullRequest) {
+			p.Forge = dashboard.ForgeForgejo
+			p.Draft = true
+			p.CI = dashboard.CIPending
+		}), []string{"close", "merge:not_mergeable"}},
+		{"Forgejo armed offers cancelling instead", ghPR(func(p *dashboard.PullRequest) {
+			p.Forge = dashboard.ForgeForgejo
+			p.CI = dashboard.CIPending
+			p.AutoMergeEnabled = new(true)
+		}), []string{"cancel_auto_merge", "close", "merge:checks_pending"}},
+		{"Forgejo armed with conflicts can still be cancelled", ghPR(func(p *dashboard.PullRequest) {
+			p.Forge = dashboard.ForgeForgejo
+			p.MergeStatus = dashboard.MergeConflicting
+			p.AutoMergeEnabled = new(true)
+		}), []string{"cancel_auto_merge", "close", "merge:conflict"}},
+		{"GitHub armed has no cancel here", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"close", "merge:checks_pending"}},
 		{"Dependabot behind on GitHub gets its own rebase, not update branch", ghPR(func(p *dashboard.PullRequest) { p.Author = "dependabot[bot]"; p.Behind = true }), []string{"auto_merge", "close", "dependabot_rebase", "dependabot_recreate", "merge"}},
 		{"Dependabot on Forgejo gets no bot commands", ghPR(func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeForgejo
 			p.Author = "dependabot"
 			p.Behind = true
-		}), []string{"close", "merge"}},
+		}), []string{"auto_merge", "close", "merge"}},
 		{"Renovate behind gets its rebase on either forge", ghPR(func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeForgejo
 			p.Author = "renovate"
 			p.Behind = true
-		}), []string{"close", "merge", "renovate_rebase"}},
+		}), []string{"auto_merge", "close", "merge", "renovate_rebase"}},
 		{"release-please behind keeps update branch", ghPR(func(p *dashboard.PullRequest) {
 			p.Behind = true
 			p.Labels = []dashboard.Label{{Name: "autorelease: pending"}}
