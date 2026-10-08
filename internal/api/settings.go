@@ -5,7 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -34,6 +36,9 @@ type SettingsResponse struct {
 	// round-trips as a plain value, unlike the forge tokens above, since
 	// it isn't a secret.
 	RenovateRebaseLabel string `json:"renovateRebaseLabel"`
+	// RenovateAuthors — see settings.Credentials' own doc comment. Always a
+	// list on the wire, never null.
+	RenovateAuthors []string `json:"renovateAuthors"`
 	// Theme — see settings.Credentials' own doc comment. Round-tripped
 	// here too so the Settings page's own save confirms what it just set,
 	// even though the lightweight GET /api/settings/theme below is what
@@ -57,6 +62,7 @@ func settingsResponseOf(c settings.Credentials, githubAppConfigured bool) Settin
 		WebhookToken:            c.WebhookToken,
 		WebhookSecret:           c.WebhookSecret,
 		RenovateRebaseLabel:     c.RenovateRebaseLabel,
+		RenovateAuthors:         append([]string{}, c.RenovateAuthors...),
 		Theme:                   c.Theme,
 		Timezone:                c.Timezone,
 	}
@@ -192,6 +198,40 @@ type settingsPutRequest struct {
 	ForgejoToken            string `json:"forgejoToken"`
 	ForgejoUsername         string `json:"forgejoUsername"`
 	RenovateRebaseLabel     string `json:"renovateRebaseLabel"`
+	// RenovateAuthors replaces the saved list. Omitted or empty clears it.
+	RenovateAuthors []string `json:"renovateAuthors"`
+}
+
+// cleanLogins trims the logins, drops blanks and repeats (a forge login isn't
+// case sensitive), and answers whether the list is acceptable. A login holds
+// no comma, which is what the store joins on.
+func cleanLogins(w http.ResponseWriter, logins []string) ([]string, bool) {
+	if len(logins) > maxRenovateAuthors {
+		writeJSON(w, http.StatusBadRequest, fieldErrorBody("renovateAuthors", "renovateAuthors lists too many logins"))
+
+		return nil, false
+	}
+
+	var out []string
+	seen := map[string]struct{}{}
+	for _, l := range logins {
+		l = strings.TrimSpace(l)
+		if l == "" {
+			continue
+		}
+		if strings.Contains(l, ",") || utf8.RuneCountInString(l) > maxUsernameLen {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("renovateAuthors", "renovateAuthors holds one login per entry"))
+
+			return nil, false
+		}
+		if _, dup := seen[strings.ToLower(l)]; dup {
+			continue
+		}
+		seen[strings.ToLower(l)] = struct{}{}
+		out = append(out, l)
+	}
+
+	return out, true
 }
 
 // decodeSettingsPut reads the body, and answers 400 itself when it can't. A
@@ -218,6 +258,10 @@ func decodeSettingsPut(w http.ResponseWriter, r *http.Request) (settingsPutReque
 		bound{"renovateRebaseLabel", req.RenovateRebaseLabel, maxLabelLen}) {
 		return settingsPutRequest{}, false
 	}
+	var ok bool
+	if req.RenovateAuthors, ok = cleanLogins(w, req.RenovateAuthors); !ok {
+		return settingsPutRequest{}, false
+	}
 
 	return req, true
 }
@@ -233,6 +277,7 @@ func mergeSettings(req settingsPutRequest, existing settings.Credentials) settin
 		ForgejoToken:            coalesce(req.ForgejoToken, existing.ForgejoToken),
 		ForgejoUsername:         req.ForgejoUsername,
 		RenovateRebaseLabel:     req.RenovateRebaseLabel,
+		RenovateAuthors:         req.RenovateAuthors,
 		// Theme isn't part of this request at all — it has its own
 		// dedicated PUT /api/settings/theme (handleThemePut) so
 		// picking it applies and saves instantly rather than

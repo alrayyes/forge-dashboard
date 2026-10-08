@@ -55,13 +55,17 @@ func writeActionRefusal(ctx context.Context, w http.ResponseWriter, src any, act
 // message the board shows and reports true, so the caller never asks the
 // forge. A pull request the board doesn't hold is left to the forge, which
 // has the final say either way.
-func refuseIfNotAllowed(w http.ResponseWriter, deps Deps, userID []byte, action dashboard.ActionName, forge, fullName string, number int) bool {
+func refuseIfNotAllowed(ctx context.Context, w http.ResponseWriter, deps Deps, userID []byte, action dashboard.ActionName, forge, fullName string, number int) bool {
 	pr, found := deps.Manager.FindPullRequest(userID, dashboard.Forge(forge), fullName, number)
 	if !found {
 		return false
 	}
 
-	for _, a := range dashboard.AllowedActions(pr) {
+	// A failed read leaves no extra Renovate logins, which is what the board
+	// shows too when its own read fails.
+	renovateAuthors, _ := deps.SettingsStore.RenovateAuthors(ctx, userID)
+
+	for _, a := range dashboard.AllowedActions(pr, renovateAuthors) {
 		if a.Action != action {
 			continue
 		}

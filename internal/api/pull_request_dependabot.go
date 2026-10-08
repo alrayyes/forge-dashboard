@@ -106,7 +106,7 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if refuseIfNotAllowed(w, deps, t.user.ID, dependabotActions[t.action], t.req.Forge, t.req.FullName, t.req.Number) {
+		if refuseIfNotAllowed(r.Context(), w, deps, t.user.ID, dependabotActions[t.action], t.req.Forge, t.req.FullName, t.req.Number) {
 			return
 		}
 

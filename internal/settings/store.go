@@ -38,6 +38,12 @@ type Credentials struct {
 	// rather than a hardcoded constant). Empty means "use Renovate's own
 	// default" — see renovateRebaseLabelOrDefault.
 	RenovateRebaseLabel string
+	// RenovateAuthors are the logins that are Renovate on the user's forges.
+	// On GitHub the App's own slugs are fixed and built in; a Forgejo or
+	// GitLab instance has no App, so Renovate runs as an ordinary account
+	// there, named whatever the instance chose. Only the user knows it, so
+	// nothing is assumed (#1062). Empty means none beyond the built-in slugs.
+	RenovateAuthors []string
 	// Theme is "light", "dark", or "" (system — the default, matching
 	// the pre-paint theme script's cookie-unset behavior). Set only from Settings
 	// (#352: no header toggle anywhere else) and read on every page load
@@ -101,6 +107,7 @@ func (s *Store) Init(ctx context.Context) error {
 		webhook_token TEXT NOT NULL DEFAULT '',
 		webhook_secret TEXT NOT NULL DEFAULT '',
 		renovate_rebase_label TEXT NOT NULL DEFAULT '',
+		renovate_authors TEXT NOT NULL DEFAULT '',
 		filter_state TEXT NOT NULL DEFAULT '{}',
 		theme TEXT NOT NULL DEFAULT '',
 		timezone TEXT NOT NULL DEFAULT '',
@@ -159,6 +166,7 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 		`ALTER TABLE user_credentials ADD COLUMN theme TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE user_credentials ADD COLUMN timezone TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE user_credentials ADD COLUMN github_app_installation_id INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE user_credentials ADD COLUMN renovate_authors TEXT NOT NULL DEFAULT ''`,
 		// Default 1 (true): a repo ignored before #511 was all-or-nothing,
 		// so it keeps ignoring both PRs and issues after upgrading.
 		`ALTER TABLE ignored_repos ADD COLUMN ignore_prs BOOLEAN NOT NULL DEFAULT 1`,
@@ -191,8 +199,8 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO user_credentials
-			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, renovate_rebase_label, theme, timezone, github_app_installation_id, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, renovate_rebase_label, renovate_authors, theme, timezone, github_app_installation_id, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (user_id) DO UPDATE SET
 			github_token = excluded.github_token,
 			github_username = excluded.github_username,
@@ -200,11 +208,12 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 			forgejo_token = excluded.forgejo_token,
 			forgejo_username = excluded.forgejo_username,
 			renovate_rebase_label = excluded.renovate_rebase_label,
+			renovate_authors = excluded.renovate_authors,
 			theme = excluded.theme,
 			timezone = excluded.timezone,
 			github_app_installation_id = excluded.github_app_installation_id,
 			updated_at = excluded.updated_at`,
-		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.RenovateRebaseLabel, c.Theme, c.Timezone, c.GitHubAppInstallationID, time.Now().UTC(),
+		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.RenovateRebaseLabel, strings.Join(c.RenovateAuthors, ","), c.Theme, c.Timezone, c.GitHubAppInstallationID, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("settings: save credentials: %w", err)
@@ -219,17 +228,20 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 		c                               Credentials
 		encGitHubToken, encForgejoToken string
 	)
+	var authors string
 	err := s.db.QueryRowContext(ctx, `
-		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, renovate_rebase_label, theme, timezone, github_app_installation_id, updated_at
+		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, renovate_rebase_label, renovate_authors, theme, timezone, github_app_installation_id, updated_at
 		FROM user_credentials WHERE user_id = ?`,
 		encodeUserID(userID),
-	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.RenovateRebaseLabel, &c.Theme, &c.Timezone, &c.GitHubAppInstallationID, &c.UpdatedAt)
+	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.RenovateRebaseLabel, &authors, &c.Theme, &c.Timezone, &c.GitHubAppInstallationID, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Credentials{}, ErrNotFound
 	}
 	if err != nil {
 		return Credentials{}, fmt.Errorf("settings: load credentials: %w", err)
 	}
+
+	c.RenovateAuthors = splitLogins(authors)
 
 	if c.GitHubToken, err = s.cipher.Decrypt(encGitHubToken); err != nil {
 		return Credentials{}, err
@@ -260,6 +272,32 @@ func (s *Store) RenovateRebaseLabel(ctx context.Context, userID []byte) (string,
 	}
 
 	return c.RenovateRebaseLabelOrDefault(), nil
+}
+
+// splitLogins reads the comma-joined column back. A forge login can't hold a
+// comma, so nothing escapes it. An empty column is no logins, not one empty one.
+func splitLogins(joined string) []string {
+	if joined == "" {
+		return nil
+	}
+
+	return strings.Split(joined, ",")
+}
+
+// RenovateAuthors reports userID's own saved Renovate logins, none for a user
+// who has never saved settings. It exists, like RenovateRebaseLabel, so
+// dashboard.AutoUpdateBranchLister needn't take the whole Credentials shape.
+func (s *Store) RenovateAuthors(ctx context.Context, userID []byte) ([]string, error) {
+	c, err := s.Get(ctx, userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return c.RenovateAuthors, nil
 }
 
 // EnsureWebhookCredentials returns userID's webhook token and secret,

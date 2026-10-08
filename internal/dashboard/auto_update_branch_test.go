@@ -44,8 +44,13 @@ func (f *fakeBranchUpdaterSource) updatedBranches() []string {
 type fakeAutoUpdateBranchLister struct {
 	enabled       map[string]struct{}
 	renovateLabel string
+	authors       []string
 	err           error
 	labelErr      error
+}
+
+func (f *fakeAutoUpdateBranchLister) RenovateAuthors(_ context.Context, _ []byte) ([]string, error) {
+	return f.authors, nil
 }
 
 func (f *fakeAutoUpdateBranchLister) AutoUpdateBranchRepos(_ context.Context, _ []byte) (map[string]struct{}, error) {
@@ -571,6 +576,28 @@ func TestAggregator_Refresh_BehindRenovatePROnForgejo_AddsRebaseLabelInsteadOfUp
 	lister := &fakeAutoUpdateBranchLister{
 		enabled:       map[string]struct{}{"forgejo/alrayyes/a": {}},
 		renovateLabel: "rebase",
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"alrayyes/a#1: rebase"}, src.labels())
+	assert.Empty(t, src.updatedBranches())
+}
+
+func TestAggregator_Refresh_BehindPRFromAConfiguredRenovateAuthor_AddsRebaseLabel(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeLabelerAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // see the Renovate tests above
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeForgejo, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "mend-bot"},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"forgejo/alrayyes/a": {}},
+		authors: []string{"mend-bot"},
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
