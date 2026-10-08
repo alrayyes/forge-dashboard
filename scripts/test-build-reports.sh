@@ -21,19 +21,25 @@ cp "$work/junit.xml" "$work/e2e.xml"
 mkdir "$work/lhci"
 echo '<html>run</html>' >"$work/lhci/lhr-1.html"
 echo '{"categories":{}}' >"$work/lhci/lhr-1.json"
-echo '[{"isRepresentativeRun":true,"htmlPath":"/ci/work/lhci/lhr-1.html","jsonPath":"/ci/work/lhci/lhr-1.json"}]' >"$work/lhci/manifest.json"
+echo '<html>run2</html>' >"$work/lhci/lhr-2.html"
+echo '{"categories":{}}' >"$work/lhci/lhr-2.json"
+echo '[{"url":"http://localhost:8080/login.html","isRepresentativeRun":true,"htmlPath":"/ci/work/lhci/lhr-1.html","jsonPath":"/ci/work/lhci/lhr-1.json"},{"url":"http://localhost:8080/issues.html","isRepresentativeRun":true,"htmlPath":"/ci/work/lhci/lhr-2.html","jsonPath":"/ci/work/lhci/lhr-2.json"}]' >"$work/lhci/manifest.json"
 
 # Everything present: every report lands, with no repo-name prefix.
 full="$work/full"
 GO_JUNIT="$work/junit.xml" COVERAGE_OUT="$work/coverage.out" E2E_JUNIT="$work/e2e.xml" LHCI_DIR="$work/lhci" \
   "$root/scripts/build-reports.sh" "$full"
 for f in index.html tests/index.html tests/unit.xml tests/e2e.xml coverage/index.html \
-  coverage/coverage.xml coverage/coverage.out lighthouse/report.html lighthouse/report.json; do
+  coverage/coverage.xml coverage/coverage.out lighthouse/index.html lighthouse/report.html lighthouse/report.json; do
   [ -s "$full/reports/$f" ] || fail "missing reports/$f"
 done
 grep -q '<coverage ' "$full/reports/coverage/coverage.xml" || fail "coverage.xml is not Cobertura"
 grep -q '<testsuite' "$full/reports/tests/unit.xml" || fail "unit.xml has no testsuite"
-grep -q 'lighthouse/report.html' "$full/reports/index.html" || fail "index.html does not link lighthouse"
+grep -q 'href="lighthouse/"' "$full/reports/index.html" || fail "index.html does not link lighthouse"
+for page in /login.html /issues.html; do
+  grep -q "$page" "$full/reports/lighthouse/index.html" || fail "lighthouse index misses $page"
+done
+grep -q 'lhr-2.html' "$full/reports/lighthouse/index.html" || fail "lighthouse index does not link every page's run"
 grep -q 'e2e.xml' "$full/reports/tests/index.html" || fail "tests index does not link e2e.xml"
 [ ! -e "$full/forge-dashboard" ] || fail "reports carry a repo-name prefix"
 

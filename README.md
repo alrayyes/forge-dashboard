@@ -943,9 +943,9 @@ Every push to `main` that passes CI publishes the generated reports at
   (`e2e.xml`).
 - [Coverage](https://apis.ryankes.eu/forge-dashboard/reports/coverage/), an
   HTML view plus `coverage.xml` (Cobertura) and the native Go `coverage.out`.
-- [Lighthouse](https://apis.ryankes.eu/forge-dashboard/reports/lighthouse/report.html)
-  for the login page, with the run's
-  [JSON](https://apis.ryankes.eu/forge-dashboard/reports/lighthouse/report.json).
+- [Lighthouse](https://apis.ryankes.eu/forge-dashboard/reports/lighthouse/),
+  one report (and its JSON) for the login page and for each signed-in page.
+  `lighthouse/report.html` and `report.json` stay as the first page's run.
 
 ## Contributing
 

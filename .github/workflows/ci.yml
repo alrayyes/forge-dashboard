@@ -319,13 +319,11 @@ jobs:
           # check here covers. Accessibility is deliberately off in
           # lighthouserc.json: a11y.md's axe-core scan above is the
           # account's one chosen accessibility tool, not something to
-          # duplicate with a second, less precise one. Scoped to
-          # /login.html only — the one page this app serves with no
-          # session — since auditing anything behind auth would need its
-          # own Puppeteer login script the way Playwright's own tests use
-          # a CDP virtual authenticator; left for a follow-up rather than
-          # bundled in here. Reuses this same already-running binary,
-          # rather than a second server boot.
+          # duplicate with a second, less precise one. Audits the login
+          # page and the signed-in pages: scripts/lighthouse-session.js
+          # reuses the session cookie Playwright's global setup saved to
+          # tests/.auth/admin.json, so no second login flow. Reuses this
+          # same already-running binary, rather than a second server boot.
           bunx lhci autorun
           kill "$(cat server.pid)"
       - name: upload Lighthouse reports
