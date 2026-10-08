@@ -171,6 +171,8 @@ type boardSettings struct {
 	autoMerge        map[string]struct{}
 	autoMergeReport  dashboard.AutoMergeReport
 	logins           map[dashboard.Forge]string
+	// renovateAuthors are the logins the user says are Renovate (#1062).
+	renovateAuthors []string
 }
 
 // loadBoardSettings reads boardSettings. Each store failure degrades that one
@@ -202,12 +204,14 @@ func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte
 	// The signed-in user's own login on each forge, from Settings. A store
 	// failure degrades to "no login", so nothing is marked as requested.
 	logins := map[dashboard.Forge]string{}
+	var renovateAuthors []string
 	if creds, err := store.Get(ctx, userID); err == nil {
+		renovateAuthors = creds.RenovateAuthors
 		logins[dashboard.ForgeGitHub] = creds.GitHubUsername
 		logins[dashboard.ForgeForgejo] = creds.ForgejoUsername
 	}
 
-	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, autoMerge: autoMerge, logins: logins}
+	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, autoMerge: autoMerge, logins: logins, renovateAuthors: renovateAuthors}
 }
 
 // repoStatuses is the tracked-repo list with each repo's webhook coverage and
@@ -255,8 +259,8 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDraf
 		pr = withAutoMergeIntent(pr, b.autoMerge)
 		out = append(out, pullRequestView{
 			PullRequest:    pr,
-			Kind:           dashboard.KindOf(pr),
-			AllowedActions: dashboard.AllowedActions(pr),
+			Kind:           dashboard.KindOf(pr, b.renovateAuthors),
+			AllowedActions: dashboard.AllowedActions(pr, b.renovateAuthors),
 			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
 			NeedsReview:    dashboard.NeedsReview(pr),
 

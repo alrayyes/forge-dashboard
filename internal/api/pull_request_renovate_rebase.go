@@ -19,7 +19,7 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if refuseIfNotAllowed(w, deps, t.user.ID, dashboard.ActionRenovateRebase, t.req.Forge, t.req.FullName, t.req.Number) {
+		if refuseIfNotAllowed(r.Context(), w, deps, t.user.ID, dashboard.ActionRenovateRebase, t.req.Forge, t.req.FullName, t.req.Number) {
 			return
 		}
 		src, creds, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)

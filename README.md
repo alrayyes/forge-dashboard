@@ -518,7 +518,11 @@ A queued Dependabot request names itself: `Rebase requested` or
 outcome. Both buttons come back once the bot has acted.
 
 A Dependabot or Renovate pull request gets no Update branch button: each
-has its own `Rebase` action instead (below). A release-please pull request
+has its own `Rebase` action instead (below). GitHub's Renovate App is
+recognised by its slug. A Forgejo or GitLab instance names its Renovate
+account itself, so list it in Settings under `Renovate logins`
+(`renovateAuthors` in the API). Until you do, that account's pull requests
+look like a person's. A release-please pull request
 does get one, because release-please has no `rebase` command. It only
 regenerates its pull request when the release notes change. A release
 pull request can therefore fall behind with nothing else to catch it up. When

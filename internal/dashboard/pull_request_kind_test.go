@@ -37,7 +37,16 @@ func TestKindOf(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.want, dashboard.KindOf(tc.pr))
+			assert.Equal(t, tc.want, dashboard.KindOf(tc.pr, nil))
 		})
 	}
+}
+
+func TestKindOf_ConfiguredRenovateAuthorIsADependency(t *testing.T) {
+	t.Parallel()
+
+	pr := dashboard.PullRequest{Forge: dashboard.ForgeForgejo, Author: "mend-bot"}
+
+	assert.Equal(t, dashboard.KindRegular, dashboard.KindOf(pr, nil))
+	assert.Equal(t, dashboard.KindDependency, dashboard.KindOf(pr, []string{"mend-bot"}))
 }

@@ -50,7 +50,7 @@ The system SHALL automatically update a pull request's branch only when its repo
 
 ### Requirement: Automatic updates treat bot-managed pull requests through their own actions
 
-The system SHALL NOT automatically update a release-please, Dependabot or Renovate pull request's branch with the generic branch update. A Dependabot pull request gets Dependabot's own rebase command, and a recreate command when that rebase leaves its CI failing (#540). A Renovate pull request gets its own rebase label (#541). A release-please pull request is left alone, since release-please regenerates it.
+The system SHALL NOT automatically update a release-please, Dependabot or Renovate pull request's branch with the generic branch update. A Dependabot pull request gets Dependabot's own rebase command, and a recreate command when that rebase leaves its CI failing (#540). A Renovate pull request gets its own rebase label (#541). A pull request is Renovate's when its author is one of GitHub's Renovate App slugs (`renovate`, `renovate[bot]`) or one of the logins the user lists as Renovate in Settings, matched ignoring case (#1062). The system does not assume any other account name, since a Forgejo or GitLab instance names its Renovate account itself. A release-please pull request is left alone, since release-please regenerates it.
 
 #### Scenario: A release-please PR is skipped by auto-update
 
@@ -66,3 +66,13 @@ The system SHALL NOT automatically update a release-please, Dependabot or Renova
 
 - **WHEN** a scheduled refresh finds a behind Renovate pull request on a repo with automatic branch updates enabled
 - **THEN** the system adds Renovate's rebase label instead of updating the branch itself
+
+#### Scenario: A Renovate account the user lists is recognised on any forge
+
+- **WHEN** a scheduled refresh finds a behind pull request whose author is a login the user listed as Renovate in Settings, on a repo with automatic branch updates enabled
+- **THEN** the system adds Renovate's rebase label instead of updating the branch itself, and the pull request offers Renovate's rebase and no Update branch
+
+#### Scenario: An unlisted account is a person's pull request
+
+- **WHEN** a behind pull request's author is neither a GitHub Renovate App slug nor a login the user listed
+- **THEN** the system treats it as an ordinary pull request and updates its branch the generic way

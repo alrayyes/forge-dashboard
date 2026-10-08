@@ -1,6 +1,9 @@
 package dashboard
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // DependabotRebaseComment and DependabotRecreateComment are Dependabot's own
 // documented PR-comment commands (docs.github.com/en/code-security/
@@ -42,9 +45,18 @@ func isDependabotPR(pr PullRequest) bool {
 }
 
 // Same GraphQL-bare-slug-vs-REST-"[bot]"-suffix split as isDependabotPR,
-// for Renovate's own GitHub App install.
-func isRenovatePR(pr PullRequest) bool {
-	return pr.Author == "renovate" || pr.Author == "renovate[bot]"
+// for Renovate's own GitHub App install. A Forgejo or GitLab instance has no
+// App: Renovate runs there as an ordinary account with whatever name the
+// instance gave it, so the user lists those logins in Settings (#1062) and
+// they arrive here as authors. Forge logins aren't case sensitive.
+func isRenovatePR(pr PullRequest, authors []string) bool {
+	if pr.Author == "renovate" || pr.Author == "renovate[bot]" {
+		return true
+	}
+
+	return pr.Author != "" && slices.ContainsFunc(authors, func(a string) bool {
+		return strings.EqualFold(a, pr.Author)
+	})
 }
 
 // PullRequestKind is what sort of pull request this is. Matches
@@ -63,11 +75,11 @@ const (
 // auto-update pass use. A release label wins: it is the only signal for
 // release-please's pull requests, and it is a stronger statement than an
 // author.
-func KindOf(pr PullRequest) PullRequestKind {
+func KindOf(pr PullRequest, renovateAuthors []string) PullRequestKind {
 	switch {
 	case isReleasePleasePR(pr):
 		return KindRelease
-	case isDependabotPR(pr), isRenovatePR(pr):
+	case isDependabotPR(pr), isRenovatePR(pr, renovateAuthors):
 		return KindDependency
 	default:
 		return KindRegular

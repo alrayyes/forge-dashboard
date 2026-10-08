@@ -18,6 +18,9 @@ const (
 	maxLabelLen        = 100
 	maxTimezoneLen     = 64
 	maxRepoFullNameLen = 255
+	// maxRenovateAuthors caps the Renovate logins a user lists. One account
+	// per forge is the norm; this is only a bound on the request.
+	maxRenovateAuthors = 20
 
 	// maxPullRequestNumber is the largest int32: no forge numbers a pull
 	// request higher.
