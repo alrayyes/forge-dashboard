@@ -23,6 +23,10 @@ type AutoUpdateBranchLister interface {
 	// UpdateBranch call (#541), mirroring the manual Renovate: Rebase
 	// button.
 	RenovateRebaseLabel(ctx context.Context, userID []byte) (string, error)
+	// RenovateAuthors reports the logins userID has said are Renovate's
+	// (Settings), so a Forgejo or GitLab Renovate account is recognised
+	// (#1062).
+	RenovateAuthors(ctx context.Context, userID []byte) ([]string, error)
 }
 
 // autoUpdateBranchConfig holds what an Aggregator needs to run the
@@ -136,6 +140,13 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 		return
 	}
 
+	renovateAuthors, err := a.autoUpdate.lister.RenovateAuthors(ctx, a.autoUpdate.userID)
+	if err != nil {
+		slog.Warn("auto-update-branch: could not load renovate authors", "error", err)
+
+		return
+	}
+
 	for _, pr := range snap.PullRequests {
 		// Nothing can be done with a draft (#791), and its branch is still
 		// being worked on.
@@ -149,7 +160,7 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 			continue
 		}
 
-		a.updateBehindPR(ctx, pr, renovateLabel)
+		a.updateBehindPR(ctx, pr, renovateLabel, renovateAuthors)
 	}
 }
 
@@ -158,14 +169,14 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 // gets renovateLabel added, and anything else gets the generic
 // UpdateBranch — runAutoUpdateBranch's own per-PR routing, split out only
 // to keep that loop's own branching under gocyclo's threshold.
-func (a *Aggregator) updateBehindPR(ctx context.Context, pr PullRequest, renovateLabel string) {
+func (a *Aggregator) updateBehindPR(ctx context.Context, pr PullRequest, renovateLabel string, renovateAuthors []string) {
 	if isDependabotPR(pr) {
 		a.rebaseDependabotPR(ctx, pr)
 
 		return
 	}
 
-	if isRenovatePR(pr) {
+	if isRenovatePR(pr, renovateAuthors) {
 		a.labelRenovatePR(ctx, pr, renovateLabel)
 
 		return

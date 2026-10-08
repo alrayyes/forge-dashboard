@@ -135,7 +135,7 @@ func handleGuardedAction[T any](deps Deps, a guardedAction[T]) http.HandlerFunc 
 // serveGuardedAction is handleGuardedAction once the target is read, for a
 // handler that sends some forges elsewhere first.
 func serveGuardedAction[T any](w http.ResponseWriter, r *http.Request, deps Deps, a guardedAction[T], t actionTarget) {
-	if refuseIfNotAllowed(w, deps, t.user.ID, a.allowed, t.req.Forge, t.req.FullName, t.req.Number) {
+	if refuseIfNotAllowed(r.Context(), w, deps, t.user.ID, a.allowed, t.req.Forge, t.req.FullName, t.req.Number) {
 		return
 	}
 	src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)

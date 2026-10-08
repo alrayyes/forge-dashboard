@@ -2803,6 +2803,7 @@ components:
           webhookToken,
           webhookSecret,
           renovateRebaseLabel,
+          renovateAuthors,
           theme,
         ]
       properties:
@@ -2861,6 +2862,18 @@ components:
             per-repo configurable, so this is a user-set override rather
             than a hardcoded constant). Empty means Renovate's own
             documented default, `rebase`.
+        renovateAuthors:
+          type: array
+          items:
+            type: string
+          description: |
+            The logins that are Renovate on the user's forges. On GitHub the
+            App's own `renovate` and `renovate[bot]` are always recognised.
+            A Forgejo or GitLab instance has no App: Renovate runs there as
+            an ordinary account with whatever name the instance gave it, so
+            the user lists it here. A pull request by one of these gets
+            Renovate's own rebase, not Update branch, and is a `dependency`.
+            Matched case-insensitively. Empty means only the GitHub slugs.
         theme:
           type: string
           enum: ["", light, dark]
@@ -2924,6 +2937,16 @@ components:
         renovateRebaseLabel:
           type: string
           maxLength: 100
+        renovateAuthors:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 64
+            pattern: "^[^,]*$"
+          description: |
+            Replaces the saved list. Entries are trimmed; blanks and
+            repeats (ignoring case) are dropped. Omitted or empty clears it.
 
     ThemeResponse:
       type: object

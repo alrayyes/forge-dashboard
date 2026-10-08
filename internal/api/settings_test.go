@@ -245,6 +245,57 @@ func TestSettingsPut_ThenGet_RoundTripsRenovateRebaseLabel(t *testing.T) {
 	assert.Equal(t, "retry", got.RenovateRebaseLabel)
 }
 
+func TestSettingsPut_ThenGet_RoundTripsRenovateAuthors(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+		`{"renovateAuthors":["mend-bot"," other "]}`,
+		sessionCookie)
+	defer func() { _ = putResp.Body.Close() }()
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	defer func() { _ = getResp.Body.Close() }()
+
+	var got api.SettingsResponse
+	require.NoError(t, readJSON(getResp, &got))
+	assert.Equal(t, []string{"mend-bot", "other"}, got.RenovateAuthors, "trimmed")
+}
+
+func TestSettingsPut_RejectsAMalformedRenovateAuthorList(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	for name, body := range map[string]string{
+		"a comma inside a login": `{"renovateAuthors":["a,b"]}`,
+		"too many logins":        `{"renovateAuthors":["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21"]}`,
+	} {
+		resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", body, sessionCookie)
+		_ = resp.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode, name)
+	}
+}
+
+func TestSettingsGet_RenovateAuthorsDefaultToAnEmptyList(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	defer func() { _ = getResp.Body.Close() }()
+
+	var got api.SettingsResponse
+	require.NoError(t, readJSON(getResp, &got))
+	assert.NotNil(t, got.RenovateAuthors, "[] on the wire, not null")
+	assert.Empty(t, got.RenovateAuthors)
+}
+
 func TestSettingsGet_FirstVisit_GeneratesWebhookCredentials(t *testing.T) {
 	t.Parallel()
 

@@ -56,7 +56,7 @@ func armForgejoAutoMerge(w http.ResponseWriter, r *http.Request, deps Deps, t ac
 
 		return
 	}
-	if refuseIfNotAllowed(w, deps, t.user.ID, dashboard.ActionAutoMerge, forge, t.req.FullName, t.req.Number) {
+	if refuseIfNotAllowed(r.Context(), w, deps, t.user.ID, dashboard.ActionAutoMerge, forge, t.req.FullName, t.req.Number) {
 		return
 	}
 	// Merging later needs a Forgejo token to merge with.
