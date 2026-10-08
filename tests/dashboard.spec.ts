@@ -109,6 +109,19 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#footer-version')).toContainText('· dev build');
   });
 
+  test('the footer links the repository as GitHub, with the mark, and has no Source link', async ({
+    page,
+  }) => {
+    const footer = page.locator('footer');
+    const link = footer.getByRole('link', { name: 'GitHub', exact: true });
+    await expect(link).toHaveAttribute(
+      'href',
+      'https://github.com/alrayyes/forge-dashboard',
+    );
+    await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+    await expect(footer.getByRole('link', { name: 'Source' })).toHaveCount(0);
+  });
+
   test('the footer links a real released version to the changelog, with no separate release history link', async ({
     page,
   }) => {
