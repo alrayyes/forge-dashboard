@@ -12,8 +12,13 @@ import (
 // enabled one and "action:code" for a blocked one, sorted, so a case reads as
 // one line of what the page offers.
 func summary(pr dashboard.PullRequest) []string {
+	return summaryWith(pr, nil)
+}
+
+// summaryWith is summary for a user who has set renovateAuthors in Settings.
+func summaryWith(pr dashboard.PullRequest, renovateAuthors []string) []string {
 	out := []string{}
-	for _, a := range dashboard.AllowedActions(pr) {
+	for _, a := range dashboard.AllowedActions(pr, renovateAuthors) {
 		s := string(a.Action)
 		if a.Blocked != nil {
 			s += ":" + string(a.Blocked.Code)
@@ -124,7 +129,7 @@ func TestAllowedActions_BlockedMergeSaysWhatToDoNext(t *testing.T) {
 	pr := ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending })
 
 	var merge dashboard.ActionAvailability
-	for _, a := range dashboard.AllowedActions(pr) {
+	for _, a := range dashboard.AllowedActions(pr, nil) {
 		if a.Action == dashboard.ActionMerge {
 			merge = a
 		}
@@ -142,7 +147,7 @@ func TestAllowedActions_StackedMergeNamesTheParent(t *testing.T) {
 	pr := ghPR(func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840} })
 
 	var merge dashboard.ActionAvailability
-	for _, a := range dashboard.AllowedActions(pr) {
+	for _, a := range dashboard.AllowedActions(pr, nil) {
 		if a.Action == dashboard.ActionMerge {
 			merge = a
 		}
@@ -152,4 +157,23 @@ func TestAllowedActions_StackedMergeNamesTheParent(t *testing.T) {
 		assert.Equal(t, "Stacked on #840. Merge that one first.", merge.Blocked.Message)
 		assert.Equal(t, "Merge unlocks once #840 merges and this pull request is retargeted.", merge.Blocked.Next)
 	}
+}
+
+// A Forgejo instance has no Renovate App, so its Renovate account has whatever
+// name the instance gave it. The user says which logins are Renovate's (#1062).
+func TestAllowedActions_RenovateAuthorsComeFromSettings(t *testing.T) {
+	t.Parallel()
+
+	behind := ghPR(func(p *dashboard.PullRequest) {
+		p.Forge = dashboard.ForgeForgejo
+		p.Author = "mend-bot"
+		p.Behind = true
+	})
+
+	assert.Equal(t, []string{"auto_merge", "close", "merge", "update_branch"}, summaryWith(behind, nil),
+		"an unknown account is a person's pull request")
+	assert.Equal(t, []string{"auto_merge", "close", "merge", "renovate_rebase"}, summaryWith(behind, []string{"mend-bot"}))
+	assert.Equal(t, []string{"auto_merge", "close", "merge", "renovate_rebase"}, summaryWith(behind, []string{"Mend-Bot"}),
+		"forge logins aren't case sensitive")
+	assert.Equal(t, []string{"auto_merge", "close", "merge", "update_branch"}, summaryWith(behind, []string{"someone-else"}))
 }

@@ -43,9 +43,9 @@ type Blocked struct {
 // itself, so every client gets the same answer. Live state stays with the
 // client: a rate-limited or unreachable forge, a missing token, an action
 // already in flight.
-func AllowedActions(pr PullRequest) []ActionAvailability {
+func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailability {
 	out := []ActionAvailability{mergeAvailability(pr), {Action: ActionClose}}
-	if a, ok := updateBranchAvailability(pr); ok {
+	if a, ok := updateBranchAvailability(pr, renovateAuthors); ok {
 		out = append(out, a)
 	}
 	if autoMergeOffered(pr) {
@@ -59,7 +59,7 @@ func AllowedActions(pr PullRequest) []ActionAvailability {
 	if pr.Forge == ForgeGitHub && isDependabotPR(pr) {
 		out = append(out, ActionAvailability{Action: ActionDependabotRebase}, ActionAvailability{Action: ActionDependabotRecreate})
 	}
-	if isRenovatePR(pr) {
+	if isRenovatePR(pr, renovateAuthors) {
 		out = append(out, ActionAvailability{Action: ActionRenovateRebase})
 	}
 	// Failed checks can be rerun on either forge. The list only knows the CI
@@ -119,11 +119,11 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 // updateBranchAvailability: only a pull request that is behind and has
 // something to merge. Dependabot and Renovate pull requests use their own
 // rebase instead; release-please keeps this one.
-func updateBranchAvailability(pr PullRequest) (ActionAvailability, bool) {
+func updateBranchAvailability(pr PullRequest, renovateAuthors []string) (ActionAvailability, bool) {
 	if !pr.Behind || pr.Empty {
 		return ActionAvailability{}, false
 	}
-	if (isDependabotPR(pr) || isRenovatePR(pr)) && !isReleasePleasePR(pr) {
+	if (isDependabotPR(pr) || isRenovatePR(pr, renovateAuthors)) && !isReleasePleasePR(pr) {
 		return ActionAvailability{}, false
 	}
 	if pr.MergeStatus == MergeConflicting {
