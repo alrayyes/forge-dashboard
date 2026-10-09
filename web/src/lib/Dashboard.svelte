@@ -3348,9 +3348,8 @@
     // no equivalent on the other entity type (status,
     // hideDependencyDashboard). allPRs/allIssues is the pool the shared
     // bar's dynamic controls (repo/author/label/title) are populated
-    // from — both entity types combined, forge-scoped, not just one
-    // board's own items, since picking "author: alice" should narrow
-    // both boards.
+    // from — only the current page's own entity type (#1071), though a
+    // picked filter still applies to both boards, so it carries over.
     const sharedState = Filters.loadState();
     let allPRs: PullRequestItem[] = [];
     // repos[] from the last snapshot, keyed forge+fullName, for the host
@@ -3400,7 +3399,10 @@
     function sharedPoolExcluding(
       excludeKey: "" | "repo" | "author" | "label",
     ): FilterableItem[] {
-      const items: FilterableItem[] = [...allPRs, ...allIssues];
+      // Only this page's own entity: a repo, author or label that exists
+      // only on the other page would be an option that matches no row
+      // here (#1071).
+      const items: FilterableItem[] = view === "pulls" ? allPRs : allIssues;
       const shared: Record<string, string> = { ...sharedState.shared };
       if (excludeKey) shared[excludeKey] = "";
       return items.filter((item) =>
