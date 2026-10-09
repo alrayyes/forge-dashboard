@@ -53,7 +53,16 @@ type dashboardResponse struct {
 	// AutoMerged is what this app merged for the user in the last few
 	// minutes, so the page can say so once the pull request has left.
 	AutoMerged []autoMergedView `json:"autoMerged"`
+	// ReadIntervalSeconds is how often a client should re-read the dashboard
+	// (#809). Always the same answer for now; it lives in the response so a
+	// client keeps no interval of its own.
+	ReadIntervalSeconds int `json:"readIntervalSeconds"`
 }
+
+// clientReadInterval is what the API advises clients to re-read the
+// dashboard at. A read serves the cached snapshot and never calls a forge, so
+// this is not the backend's REFRESH_INTERVAL.
+const clientReadInterval = 30 * time.Second
 
 // issueView is an issue as the API serves it: the snapshot's own fields plus
 // whether it is a bot's housekeeping issue, decided here so every client
@@ -160,6 +169,8 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap 
 		Repos:          board.repoStatuses(snap.Repos),
 		HiddenDrafts:   hiddenDrafts,
 		AutoMerged:     board.autoMerged(),
+
+		ReadIntervalSeconds: int(clientReadInterval / time.Second),
 	}
 }
 

@@ -3894,6 +3894,7 @@ components:
           repos,
           hiddenDrafts,
           autoMerged,
+          readIntervalSeconds,
         ]
       properties:
         autoMerged:
@@ -3915,6 +3916,14 @@ components:
           type: string
           format: date-time
           description: When this snapshot was refreshed, not when it was requested.
+        readIntervalSeconds:
+          type: integer
+          minimum: 1
+          description: |
+            How often, in seconds, a client should re-read GET
+            /api/dashboard. The server's advice, so a client needs no
+            interval of its own. The read is cheap and never calls a
+            forge; this is not the backend's refresh schedule.
         hiddenDrafts:
           type: integer
           minimum: 0
