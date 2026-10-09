@@ -28,7 +28,7 @@
     "@types/node": "26.6.4",
     "svelte-check": "4.7.6",
     "typescript": "6.0.3",
-    "vite": "8.3.2",
+    "vite": "8.3.3",
     "webmcp-types": "0.1.10"
   }
 }
