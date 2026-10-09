@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.135.0](https://github.com/alrayyes/forge-dashboard/compare/v0.134.3...v0.135.0) (2026-10-09)
+
+
+### Features
+
+* **api:** report each pull request's kind, and delete the page's copy of the rule ([#1029](https://github.com/alrayyes/forge-dashboard/issues/1029)) ([f048026](https://github.com/alrayyes/forge-dashboard/commit/f04802661e353fbf4eaf082679e4df2d04939033))
+* **api:** report goroutine and thread counts on /readyz ([#1041](https://github.com/alrayyes/forge-dashboard/issues/1041)) ([7de4b57](https://github.com/alrayyes/forge-dashboard/commit/7de4b5772836fa682e9b173b65bac1233a4d36c3)), closes [#902](https://github.com/alrayyes/forge-dashboard/issues/902)
+* **api:** say why Forgejo auto-merge waits or stopped, and report what it merged ([#1055](https://github.com/alrayyes/forge-dashboard/issues/1055)) ([7e65f70](https://github.com/alrayyes/forge-dashboard/commit/7e65f7079b01839a22850d56df86fe46f2eac312))
+* **api:** store Forgejo auto-merge intent and offer enable and cancel ([#1050](https://github.com/alrayyes/forge-dashboard/issues/1050)) ([6ad20b8](https://github.com/alrayyes/forge-dashboard/commit/6ad20b800876b172fd16c7fc4f28703e3683af35))
+* **checks:** rerun failed checks from the pipeline panel (GitHub) ([#1033](https://github.com/alrayyes/forge-dashboard/issues/1033)) ([6c838d3](https://github.com/alrayyes/forge-dashboard/commit/6c838d3b418b461463c10e59ecba1e2706dec0f5))
+* **checks:** rerun failed checks on a Forgejo pull request ([#1048](https://github.com/alrayyes/forge-dashboard/issues/1048)) ([e1b6de4](https://github.com/alrayyes/forge-dashboard/commit/e1b6de4225344869d7b19ca52c885d0b53292e74))
+* **dashboard:** merge armed Forgejo pull requests once checks pass ([#1053](https://github.com/alrayyes/forge-dashboard/issues/1053)) ([df66281](https://github.com/alrayyes/forge-dashboard/commit/df66281a014eb01c53673029ec1fcc8a16269508))
+* **feedback:** reveal a filtered-out or paged-away row from Show row ([#1074](https://github.com/alrayyes/forge-dashboard/issues/1074)) ([de30bf0](https://github.com/alrayyes/forge-dashboard/commit/de30bf0c310c2601a08a7d581ac606b9e9ca3eb0)), closes [#723](https://github.com/alrayyes/forge-dashboard/issues/723)
+* **footer:** replace the Source link with the GitHub mark and label ([#1066](https://github.com/alrayyes/forge-dashboard/issues/1066)) ([6fa27b1](https://github.com/alrayyes/forge-dashboard/commit/6fa27b1829123e6a975c762d239f091947b6acbc)), closes [#1065](https://github.com/alrayyes/forge-dashboard/issues/1065)
+* **forgejo:** refused actions carry resetsAt and a finer conflict reason ([#1049](https://github.com/alrayyes/forge-dashboard/issues/1049)) ([d3f84a6](https://github.com/alrayyes/forge-dashboard/commit/d3f84a6311bc909cf76bd2a665e92295fca82478))
+* **web:** arm, show and cancel Forgejo auto-merge on a pull request row ([#1056](https://github.com/alrayyes/forge-dashboard/issues/1056)) ([4b9a64d](https://github.com/alrayyes/forge-dashboard/commit/4b9a64d58356c9c7391193dcb66e9fe21e2891e0)), closes [#712](https://github.com/alrayyes/forge-dashboard/issues/712)
+* **web:** keep finished Activity entries across a reload ([#1035](https://github.com/alrayyes/forge-dashboard/issues/1035)) ([e03c0e5](https://github.com/alrayyes/forge-dashboard/commit/e03c0e564cad536d666f63e7c3e63703ab295d74)), closes [#724](https://github.com/alrayyes/forge-dashboard/issues/724)
+* **web:** say who handles Forgejo auto-merge, on the group and in Settings ([#1057](https://github.com/alrayyes/forge-dashboard/issues/1057)) ([90fab6e](https://github.com/alrayyes/forge-dashboard/commit/90fab6ef35e10460af89b4e360afca8c94a7671b)), closes [#712](https://github.com/alrayyes/forge-dashboard/issues/712)
+* **web:** show a failed check's step, duration and log excerpt in the inspector ([#1031](https://github.com/alrayyes/forge-dashboard/issues/1031)) ([5fe943b](https://github.com/alrayyes/forge-dashboard/commit/5fe943bfd69e94beb705e4c6620c0ca60cd8bc76)), closes [#697](https://github.com/alrayyes/forge-dashboard/issues/697)
+* **web:** show every time in the viewer's zone and name it ([#1030](https://github.com/alrayyes/forge-dashboard/issues/1030)) ([85c9d6f](https://github.com/alrayyes/forge-dashboard/commit/85c9d6fb643136f76c79185788fe6040ae064970))
+
+
+### Bug Fixes
+
+* **api:** bound every request body field ([#1036](https://github.com/alrayyes/forge-dashboard/issues/1036)) ([2449ec2](https://github.com/alrayyes/forge-dashboard/commit/2449ec2204ac25c8bf6b3578582021b9007a7e8b)), closes [#1008](https://github.com/alrayyes/forge-dashboard/issues/1008)
+* **dashboard:** let the user say which logins are Renovate ([#1064](https://github.com/alrayyes/forge-dashboard/issues/1064)) ([7e5f1e8](https://github.com/alrayyes/forge-dashboard/commit/7e5f1e80619bb5918f3b41d09282c9d04534f2d5)), closes [#1062](https://github.com/alrayyes/forge-dashboard/issues/1062)
+* **deps:** build with Go 1.27.2, which fixes the net/http stdlib vulnerabilities ([#1072](https://github.com/alrayyes/forge-dashboard/issues/1072)) ([9efff12](https://github.com/alrayyes/forge-dashboard/commit/9efff122b4129e475528dbcea56dff75f986cbec))
+* **filters:** list only the repos, authors and labels on the current page ([#1073](https://github.com/alrayyes/forge-dashboard/issues/1073)) ([20b2a83](https://github.com/alrayyes/forge-dashboard/commit/20b2a834449d5b5105cc3408ccd4ad986d82e615)), closes [#1071](https://github.com/alrayyes/forge-dashboard/issues/1071)
+* **github:** give each client its own transport ([#1046](https://github.com/alrayyes/forge-dashboard/issues/1046)) ([743b580](https://github.com/alrayyes/forge-dashboard/commit/743b580640ed9a202b427eaf285251bd438e84ac)), closes [#1044](https://github.com/alrayyes/forge-dashboard/issues/1044)
+* **github:** title a squash merge with the pull request's title ([#1059](https://github.com/alrayyes/forge-dashboard/issues/1059)) ([1e7fb7c](https://github.com/alrayyes/forge-dashboard/commit/1e7fb7ce79cb00a6d520288b7e0e17dcc9c15c05)), closes [#1058](https://github.com/alrayyes/forge-dashboard/issues/1058)
+
 ## [0.134.3](https://github.com/alrayyes/forge-dashboard/compare/v0.134.2...v0.134.3) (2026-10-05)
 
 
