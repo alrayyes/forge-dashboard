@@ -21,7 +21,15 @@ import {
 // How long a success toast stays before it dismisses itself.
 export const TOAST_LIFETIME_MS = 6000;
 
+// What the page did to make a row reachable (#723). `cleared` names the
+// filters it turned off; `page` is the page it moved to, if it moved.
+export type RevealOutcome =
+  | { kind: 'gone' }
+  | { kind: 'unavailable' }
+  | { kind: 'ready'; cleared: string[]; page: number | null };
+
 export type FeedbackUIOptions = {
+  revealRow?: (key: string) => RevealOutcome;
   // The "(next refresh in 12s)" / " Refreshing…" text. Only ever shown
   // aria-hidden: a number that changes each second must not be spoken.
   countdownText: () => string;
@@ -82,13 +90,28 @@ export function mountFeedbackUI(
   }
 
   function showRow(ref: { key: string; repo: string; number: number }) {
+    const outcome = options.revealRow?.(ref.key);
+    if (outcome?.kind === 'gone') {
+      announce(
+        `${refText(ref)}: that pull request is merged or closed, so its row is gone.`,
+      );
+      return;
+    }
     const row = rowElement(ref.key);
     if (!row) {
-      // Merged or closed, filtered out, or on another page of the list.
       announce(
         `${refText(ref)}: that row isn't on the page right now. It may be filtered out, on another page, or gone.`,
       );
       return;
+    }
+    if (outcome?.kind === 'ready') {
+      const said: string[] = [];
+      if (outcome.cleared.length > 0)
+        said.push(
+          `Cleared the ${outcome.cleared.join(' and ')} filter${outcome.cleared.length > 1 ? 's' : ''} to show it.`,
+        );
+      if (outcome.page !== null) said.push(`Moved to page ${outcome.page}.`);
+      if (said.length > 0) announce(`${refText(ref)}: ${said.join(' ')}`);
     }
     row.scrollIntoView({
       block: 'center',
