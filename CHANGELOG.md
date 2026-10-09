@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.136.0](https://github.com/alrayyes/forge-dashboard/compare/v0.135.0...v0.136.0) (2026-10-09)
+
+
+### Features
+
+* **api:** leave Update branch off the rows of a repo that updates branches itself ([#1081](https://github.com/alrayyes/forge-dashboard/issues/1081)) ([323bda3](https://github.com/alrayyes/forge-dashboard/commit/323bda3e5cec6664c42c26fabe7a4b1402019b58))
+
 ## [0.135.0](https://github.com/alrayyes/forge-dashboard/compare/v0.134.3...v0.135.0) (2026-10-09)
 
 
