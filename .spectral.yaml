@@ -3,9 +3,15 @@
 extends: ["@stoplight/spectral-owasp-ruleset"]
 
 rules:
-  # No inbound rate limiting exists yet, so there are no RateLimit headers to
-  # describe. The force-refresh cooldown (429 and Retry-After) is #809.
+  # No general inbound rate limiting exists, so there are no RateLimit headers
+  # to describe. The one throttle, the force-refresh cooldown, answers 200
+  # with a Retry-After header (#809).
   owasp:api4:2023-rate-limit: off
+
+  # The API is same-origin: the page and the API share a host and the server
+  # sends no CORS headers. The rule fires on any documented response header,
+  # so declaring Retry-After would otherwise demand one.
+  owasp:api8:2023-define-cors-origin: off
 
   # The stock limit rules flag every string, integer and array in the spec,
   # response-only shapes included, where a bound protects nothing and the

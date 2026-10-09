@@ -33,6 +33,8 @@ type Manager struct {
 	// firstRefreshGrace is how long an Aggregator's first refresh is waited
 	// for before the process counts as ready anyway (#893).
 	firstRefreshGrace time.Duration
+	// forceRefreshCooldown is the window ForceRefresh throttles inside.
+	forceRefreshCooldown time.Duration
 }
 
 // defaultFirstRefreshGrace is how long readiness waits for a first refresh. A
@@ -45,6 +47,8 @@ type managedAggregator struct {
 	agg     *Aggregator
 	cancel  context.CancelFunc
 	started time.Time
+	// lastForced is when ForceRefresh last fetched, guarded by Manager.mu.
+	lastForced time.Time
 }
 
 // NewManager returns a Manager whose per-user Aggregators refresh every
@@ -54,6 +58,8 @@ func NewManager(refreshInterval time.Duration) *Manager {
 		users:             make(map[string]*managedAggregator),
 		refreshInterval:   refreshInterval,
 		firstRefreshGrace: defaultFirstRefreshGrace,
+
+		forceRefreshCooldown: DefaultForceRefreshCooldown,
 	}
 }
 
@@ -253,6 +259,48 @@ func (m *Manager) RefreshNow(ctx context.Context, userID []byte) bool {
 	entry.agg.Refresh(ctx)
 
 	return true
+}
+
+// DefaultForceRefreshCooldown is how long ForceRefresh leaves a user alone
+// after one that fetched (#809).
+const DefaultForceRefreshCooldown = 5 * time.Second
+
+// SetForceRefreshCooldown changes the window ForceRefresh throttles inside.
+// A setter, like SetCIPollInterval, so NewManager's callers are unaffected.
+func (m *Manager) SetForceRefreshCooldown(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.forceRefreshCooldown = d
+}
+
+// ForceRefresh is RefreshNow for a user's own "refresh now" request, with a
+// per-user cooldown so that call can't be used to spend a forge's API budget.
+// A call inside the window does not fetch: it returns the time left, and the
+// caller serves the current snapshot. A call that fetched returns zero. ok is
+// false when userID has no running Aggregator, as with RefreshNow.
+//
+// Webhooks keep calling RefreshNow: a forge event isn't a user's click, and
+// throttling it would leave the board stale.
+func (m *Manager) ForceRefresh(ctx context.Context, userID []byte) (retryAfter time.Duration, ok bool) {
+	m.mu.Lock()
+	entry, found := m.users[string(userID)]
+	if !found {
+		m.mu.Unlock()
+
+		return 0, false
+	}
+	if left := m.forceRefreshCooldown - time.Since(entry.lastForced); !entry.lastForced.IsZero() && left > 0 {
+		m.mu.Unlock()
+
+		return left, true
+	}
+	// Claimed before the fetch, so two clicks in the same instant fetch once.
+	entry.lastForced = time.Now()
+	m.mu.Unlock()
+
+	entry.agg.Refresh(ctx)
+
+	return 0, true
 }
 
 // MarkSettled delegates to userID's Aggregator — see
