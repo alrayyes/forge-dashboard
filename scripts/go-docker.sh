@@ -15,5 +15,5 @@ docker run --rm --user "$(id -u):$(id -g)" \
   -v "$(pwd):/src" -w /src \
   -e GOCACHE=/gocache -v "$HOME/.cache/go-build-docker:/gocache" \
   -e GOMODCACHE=/gomod -v "$HOME/.cache/go-mod-docker:/gomod" \
-  golang:1.27.0-bookworm@sha256:ded31c68586d2e49e760acc2e65a884b23d032e9bbbed0ae0c55abd3fcaf4452 \
+  golang:1.27.2-bookworm@sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61 \
   "$@"
