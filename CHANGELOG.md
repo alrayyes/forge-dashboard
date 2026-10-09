@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.138.2](https://github.com/alrayyes/forge-dashboard/compare/v0.138.1...v0.138.2) (2026-10-09)
+
+
+### Performance Improvements
+
+* **api:** cache hashed assets and compress text ([#1092](https://github.com/alrayyes/forge-dashboard/issues/1092)) ([97da785](https://github.com/alrayyes/forge-dashboard/commit/97da78509ad3f4e3aa97ecbd0cc9a7febb8a0c64))
+
 ## [0.138.1](https://github.com/alrayyes/forge-dashboard/compare/v0.138.0...v0.138.1) (2026-10-09)
 
 
