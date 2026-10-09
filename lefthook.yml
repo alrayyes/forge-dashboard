@@ -9,12 +9,16 @@
 # tests), `go test -race` (about three times slower than the plain run),
 # container-integration (needs Docker and several minutes), e2e and
 # Lighthouse (need a built image and a browser). Everything else CI runs has
-# a hook above.
+# a hook above or below.
 
 # Print only what fails; a passing hook is noise in a commit.
 output:
   - failure
 
+# pre-commit judges only what the commit contains: every job takes
+# {staged_files}, and anything that can't (golangci-lint, redocly, spectral,
+# the builds) runs at pre-push and in CI instead. linting.md.
+#
 # pre-commit may write. Let every fixer run and restage what it touched — a
 # commit should not fail over a quote style a tool can settle by itself.
 pre-commit:
@@ -44,9 +48,12 @@ pre-commit:
       run: bunx prettier --write {staged_files}
       stage_fixed: true
 
+    # --no-globs: .markdownlint-cli2.yaml lists `**/*.md`, which markdownlint-cli2
+    # adds to the files named here, so without it the whole tree is linted.
+    # The config's `ignores` still apply.
     - name: markdownlint
       glob: "*.md"
-      run: bunx markdownlint-cli2 {staged_files}
+      run: bunx markdownlint-cli2 --no-globs {staged_files}
 
     # Biome leads for every file type it supports -- linting.md. Excludes
     # .html/.svg via biome.json's own files.includes, not the glob here:
@@ -64,18 +71,6 @@ pre-commit:
       run: bunx biome check --write {staged_files}
       stage_fixed: true
 
-    # rules/containers.md: a Dockerfile problem that only a build shows should
-    # fail when you commit, not at push or in CI. Scoped to what the image
-    # builds from, so a docs-only commit doesn't pay for it.
-    - name: docker-build
-      glob:
-        - "Dockerfile*"
-        - "*.go"
-        - "go.mod"
-        - "go.sum"
-        - "web/**"
-      run: docker build -t forge-dashboard:pre-commit-check .
-
     # Fast enough for a commit. LTeX is not — around ten seconds a file — so
     # mechanics run at push instead, where the wait is paid once rather than
     # per commit.
@@ -90,26 +85,13 @@ pre-commit:
         - "openspec/specs/**"
       run: scripts/vale.sh {staged_files}
 
-    # Reads only, so it changes nothing to restage. Invoked bare rather than
-    # on {staged_files}: what gets linted is the `apis` list in redocly.yaml,
-    # and naming a path here is how the hook and CI end up checking different
-    # files. The glob only decides whether it's worth running at all.
-    - name: redocly
-      glob:
-        - "api/*.yaml"
-        - "api/*.yml"
-        - "api/**/*.yaml"
-        - "api/**/*.yml"
-        - "redocly.yaml"
-      run: bunx redocly lint
-
     # The same image as ci.yml's dockerfile job, so the hook and CI can't
     # disagree about a Dockerfile; scripts/test-hadolint-pin.sh fails when
     # the two drift.
     #
     # Pinned by digest rather than `latest`, like any other container image —
     # dependencies.md's rule applies to an image named in a hook command just
-    # as much as one named in a Dockerfile itself. Both Dockerfiles at once,
+    # as much as one named in a Dockerfile itself. The staged Dockerfiles,
     # mounted rather than piped over stdin, since stdin only ever carries one
     # file.
     - name: hadolint
@@ -119,7 +101,7 @@ pre-commit:
       run: >-
         docker run --rm -v "$(pwd):/work" -w /work
         hadolint/hadolint:v2.15.1-alpine@sha256:a1d49ae1a4e83c1dbad26b8c1ad7588c8bd1e04f4866b34ad3cac50335198552
-        /bin/hadolint Dockerfile Dockerfile.release
+        /bin/hadolint {staged_files}
 
 commit-msg:
   jobs:
@@ -229,6 +211,6 @@ pre-push:
       run: bun run check:tests
 
     # Proves the image still builds before anyone pushes, without publishing
-    # anything.
+    # anything. Here rather than at commit: it builds the tree, not the commit.
     - name: docker-build
       run: docker build -t forge-dashboard:pre-push-check .
