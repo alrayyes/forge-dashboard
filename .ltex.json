@@ -3,6 +3,8 @@
   "ltex.dictionary": {
     "en-GB": [
       "Dependabot",
+      "brotli",
+      "gzip",
       "Cobertura",
       "Codecov",
       "Forgejo",

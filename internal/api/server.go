@@ -181,7 +181,8 @@ func NewMux(deps Deps) http.Handler {
 		// guarantee, not a runtime condition to recover from.
 		panic(err)
 	}
-	fileServer := http.FileServerFS(static)
+	publicFiles := newStaticHandler(static, false)
+	privateFiles := newStaticHandler(static, true)
 
 	// The dashboard page, the settings page, and the scripts that
 	// populate them all need a session, same as the API they call — an
@@ -190,21 +191,21 @@ func NewMux(deps Deps) http.Handler {
 	// have. Everything else under static/ (the login page itself, the
 	// shared stylesheet, the favicon) stays public; these specific paths
 	// are more specific than the catch-all "/" below and win for them.
-	mux.Handle("GET /{$}", requireAuthPage(deps.AuthStore, fileServer))
-	mux.Handle("GET /app.js", requireAuthPage(deps.AuthStore, fileServer))
-	mux.Handle("GET /settings.html", requireAuthPage(deps.AuthStore, fileServer))
-	mux.Handle("GET /settings.js", requireAuthPage(deps.AuthStore, fileServer))
-	mux.Handle("GET /issues.html", requireAuthPage(deps.AuthStore, fileServer))
-	mux.Handle("GET /insights.html", requireAuthPage(deps.AuthStore, fileServer))
-	mux.Handle("GET /insights.js", requireAuthPage(deps.AuthStore, fileServer))
-	mux.Handle("GET /webhooks.html", requireAuthPage(deps.AuthStore, fileServer))
-	mux.Handle("GET /webhooks.js", requireAuthPage(deps.AuthStore, fileServer))
+	mux.Handle("GET /{$}", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /app.js", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /settings.html", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /settings.js", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /issues.html", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /insights.html", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /insights.js", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /webhooks.html", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /webhooks.js", requireAuthPage(deps.AuthStore, privateFiles))
 	// admin.html/js only need a session at this layer — a non-admin who
 	// navigates here directly gets bounced by the page's own JS once
 	// /api/admin/users answers 403, same as any other API call it makes.
-	mux.Handle("GET /admin.html", requireAuthPage(deps.AuthStore, fileServer))
-	mux.Handle("GET /admin.js", requireAuthPage(deps.AuthStore, fileServer))
-	mux.Handle("GET /", fileServer)
+	mux.Handle("GET /admin.html", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /admin.js", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /", publicFiles)
 
 	return accessLogMiddleware(limitRequestBody(mux))
 }

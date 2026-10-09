@@ -90,3 +90,5 @@ Streamable
 breakpoints?
 JUnit
 Cobertura
+brotli
+gzip

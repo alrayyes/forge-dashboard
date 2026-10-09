@@ -53,7 +53,15 @@ stale.
   embeds — run automatically in CI and the Docker build's own
   `web-build` stage, a manual step before a local `go build` otherwise.
   See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain either half
-  needs.
+  needs. The server sets the cache headers itself: files under
+  `/_app/immutable/` (content-hashed) get `Cache-Control: public,
+max-age=31536000, immutable`; every other file gets `no-cache` and a weak
+  `ETag`, so a browser checks with a cheap 304; the pages behind a
+  session get `private, no-cache`. Text responses (HTML, JS, CSS, JSON, SVG,
+  plain text) over 1 KiB are sent compressed with brotli or gzip when the client
+  accepts it, with `Vary: Accept-Encoding`. Compression covers the static
+  files only, not the API and not its event streams. A reverse proxy in front
+  needs no cache or compression rules of its own.
 - **Read-only against both forges, with one caveat.** Nothing here writes
   back to GitHub or Forgejo — it aggregates and displays, and every row
   links out to the real thing. The caveat: checking whether a repo's
@@ -163,7 +171,7 @@ curl -H "Authorization: Bearer fdb_<the-generated-token>" \
 
 against any endpoint the frontend itself calls, `RequireAuth` accepts
 either credential (session cookie or a live token) the same way. The one
-exception is the web UI's saved filters (`/api/settings/filter-state`): that
+exception is the saved filters of the web UI (`/api/settings/filter-state`): that
 is the browser's own state, so it takes a session cookie only and answers a
 token with 403. Each save is logged with the user agent, so a filter
 that changed by itself can be traced to the client that wrote it. The raw
