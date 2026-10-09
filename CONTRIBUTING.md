@@ -6,7 +6,7 @@
 - **[bun](https://bun.sh)** for the tooling that isn't Go — commitlint,
   Prettier, markdownlint, [Redocly](https://redocly.com/docs/cli), and
   [Playwright](https://playwright.dev) for the accessibility journey test.
-- **[golangci-lint](https://golangci-lint.run) v2.13.1**, which the
+- **[golangci-lint](https://golangci-lint.run) v2.14.0**, which the
   pre-commit hook runs from your `PATH` while CI runs it pinned. Install
   that version rather than whichever is current: when the two disagree,
   the hook passes and the pipeline fails, and the reason isn't obvious

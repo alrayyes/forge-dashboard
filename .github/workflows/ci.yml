@@ -24,7 +24,7 @@ env:
   # The same version the pre-commit hook runs. When these two disagree the
   # hook passes and the pipeline fails, and the reason isn't obvious from the
   # failure.
-  GOLANGCI_LINT_VERSION: v2.13.1
+  GOLANGCI_LINT_VERSION: v2.14.0
 
 jobs:
   # Works out which kinds of file the change touches, so each job below runs
