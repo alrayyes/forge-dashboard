@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.138.1](https://github.com/alrayyes/forge-dashboard/compare/v0.138.0...v0.138.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* **api:** let new allowed actions and block codes ship as a minor release ([#1091](https://github.com/alrayyes/forge-dashboard/issues/1091)) ([f0a4106](https://github.com/alrayyes/forge-dashboard/commit/f0a41066f426d2f0f4608511a42f0c3e112f095a)), closes [#1054](https://github.com/alrayyes/forge-dashboard/issues/1054)
+
 ## [0.138.0](https://github.com/alrayyes/forge-dashboard/compare/v0.137.0...v0.138.0) (2026-10-09)
 
 
