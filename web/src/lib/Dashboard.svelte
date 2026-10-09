@@ -31,6 +31,7 @@
     createFeedbackStore,
   } from "#lib/feedback.js";
   import { mountFeedbackUI } from "#lib/feedback-ui.js";
+  import type { RevealOutcome } from "#lib/feedback-ui.js";
   import {
     budgetText,
     isRateLimited,
@@ -241,6 +242,7 @@
     );
     const feedbackUI = mountFeedbackUI(feedback, {
       countdownText: () => queuedCountdownText(),
+      revealRow: (key) => revealRow(key),
     });
     function actionRef(item: PullRequestItem): ActionRef {
       return { key: prKey(item), repo: item.repo, number: item.number };
@@ -1719,6 +1721,12 @@
         }
       });
       wrap.appendChild(cancelButton);
+
+      // How to back out without finding Cancel (#767). Plain text, not
+      // live: the arming announcement stays the only message spoken.
+      wrap.appendChild(
+        el("span", "confirm-hint", "Esc or click away to cancel"),
+      );
 
       // Decoration for sighted users; the announcement carries the rest.
       // Started part-way through when the row was rebuilt mid-countdown.
@@ -3587,6 +3595,10 @@
       render: () => void;
       resetPage: () => void;
       toggleStatus?: (value: string) => string;
+      // Show row (#723): the item with this key, if the board holds it, and
+      // a move to the page it sits on under the current filters.
+      find: (key: string) => (PullRequestItem | IssueItem) | undefined;
+      showPageOf: (key: string) => number | null;
     };
 
     function createBoard(
@@ -3920,6 +3932,27 @@
         resetPage: () => {
           onUserChange?.();
           state.page = 1;
+        },
+        find: (key) => state.items.find((item) => prKey(item) === key),
+        showPageOf: (key) => {
+          // Grouped mode has no pages: every filtered row is on screen.
+          if (sharedState.shared.groupBy) return null;
+          const visible = state.items.filter((item) =>
+            Filters.matchesFilters(item, isPR, sharedState.shared, extraState),
+          );
+          const pages = Stacks.pagesOf(entriesFor(visible), state.pageSize);
+          const page =
+            pages.findIndex((entries) =>
+              entries.some((entry) =>
+                entry.kind === "single"
+                  ? prKey(entry.item) === key
+                  : entry.members.some((m) => prKey(m.item) === key),
+              ),
+            ) + 1;
+          if (page === 0 || page === state.page) return null;
+          state.page = page;
+          render();
+          return page;
         },
         toggleStatus: isPR
           ? (value: string) => {
@@ -4339,6 +4372,50 @@
     phoneQuery.addEventListener("change", () => {
       if (!phoneQuery.matches && filterSheet?.open) filterSheet.close();
     });
+
+    // Show row (#723): make the row reachable. A row hidden by filters has
+    // exactly those filters cleared, and a row on another page gets that
+    // page. Says what it did so the feedback line can announce it.
+    function revealRow(key: string): RevealOutcome {
+      if (view !== "pulls") return { kind: "unavailable" };
+      const item = prBoard.find(key);
+      if (!item) return { kind: "gone" };
+      const failing = Filters.failingFilters(
+        item,
+        true,
+        sharedState.shared,
+        sharedState.pr,
+      );
+      for (const filter of failing) {
+        if (filter === "quick") sharedState.pr.quick = "";
+        else sharedState.shared[filter] = "";
+      }
+      if (failing.length > 0) {
+        syncQuickPills();
+        document
+          .querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+            `${FILTER_CONTROLS}`,
+          )
+          .forEach((c) => {
+            if (
+              failing.includes(c.dataset.col ?? "") &&
+              !(c instanceof HTMLInputElement && c.type === "radio")
+            )
+              c.value = "";
+          });
+        updateSharedFilterOptions();
+        prBoard.resetPage();
+        issueBoard.resetPage();
+        Filters.saveState(sharedState);
+        renderBoth();
+      }
+      const page = prBoard.showPageOf(key);
+      return {
+        kind: "ready",
+        cleared: failing.map((f) => Filters.FILTER_NAMES[f] ?? f),
+        page,
+      };
+    }
 
     const clearFiltersButton = document.getElementById("clear-filters-button");
     clearFiltersButton?.addEventListener("click", () => {

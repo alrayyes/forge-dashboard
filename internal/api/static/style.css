@@ -1364,6 +1364,16 @@ select.col-filter {
 .confirm-group .row-action {
   min-height: 44px;
 }
+/* The back-out hint (#767): its own line under the buttons, so it never
+   widens the row. */
+.confirm-group {
+  flex-wrap: wrap;
+}
+.confirm-hint {
+  flex-basis: 100%;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
 .confirm-countdown {
   position: absolute;
   left: 0;

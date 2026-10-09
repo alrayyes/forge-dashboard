@@ -326,7 +326,8 @@ failing. A token missing the right permission, or the forge being unreachable,
 locks it too. Merge asks for confirmation first: the button turns into Confirm
 and Cancel, and the step ends on Cancel, a click anywhere else (which still does
 what it would have done), Escape, or after 8 seconds, shown by a thin line that
-runs down and waits while the pointer or keyboard focus is in the pair. Only one
+runs down and waits while the pointer or keyboard focus is in the pair. A line
+under the buttons reminds you that Escape or a click elsewhere cancels. Only one
 Merge or Close is armed at a time, and a double-click on Merge arms it without
 confirming. If the forge still refuses,
 the server re-reads the pull request and answers with a code and a short
@@ -450,7 +451,9 @@ clears when you dismiss it, when you start another action on the row, with
 "Clear finished", or when a refresh shows the pull request gone. A toast appears
 bottom-right when something completes or fails: up to three at a time, the
 newest on top, with the `owner/repo#N`, a one-line message, "Show row" (scrolls
-to the row and focuses it) and a dismiss button. Success toasts go after about
+to the row and focuses it; if a filter hides the row it clears just that filter,
+if the row is on another page it moves there, and if the pull request is merged
+or closed it says so) and a dismiss button. Success toasts go after about
 six seconds and wait while you hover or focus them. Error toasts stay until you
 dismiss them. The sticky "Activity" control keeps a count and opens a panel of
 in-flight and recent actions per pull request, with "Show row" and "Clear

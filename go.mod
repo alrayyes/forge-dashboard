@@ -1,6 +1,6 @@
 module github.com/alrayyes/forge-dashboard
 
-go 1.27.0
+go 1.27.2
 
 require (
 	code.gitea.io/sdk/gitea v0.25.1
