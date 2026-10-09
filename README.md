@@ -450,7 +450,9 @@ clears when you dismiss it, when you start another action on the row, with
 "Clear finished", or when a refresh shows the pull request gone. A toast appears
 bottom-right when something completes or fails: up to three at a time, the
 newest on top, with the `owner/repo#N`, a one-line message, "Show row" (scrolls
-to the row and focuses it) and a dismiss button. Success toasts go after about
+to the row and focuses it; if a filter hides the row it clears just that filter,
+if the row is on another page it moves there, and if the pull request is merged
+or closed it says so) and a dismiss button. Success toasts go after about
 six seconds and wait while you hover or focus them. Error toasts stay until you
 dismiss them. The sticky "Activity" control keeps a count and opens a panel of
 in-flight and recent actions per pull request, with "Show row" and "Clear

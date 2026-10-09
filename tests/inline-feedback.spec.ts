@@ -75,7 +75,9 @@ function snapshot(prs: MockPR[]) {
 
 const toasts = (page: Page) => page.locator('#feedback-toasts .feedback-toast');
 const rowFor = (page: Page, n: number) =>
-  page.locator('#pr-rows .row', { hasText: `Pull request ${n}` });
+  page.locator('#pr-rows .row', {
+    hasText: new RegExp(`Pull request ${n}(?!\\d)`),
+  });
 
 interface Mocks {
   hits: Record<number, number>;
@@ -324,6 +326,78 @@ test.describe('inline feedback, toasts and the activity panel', () => {
       .click();
     await expect(target).toBeInViewport();
     await expect(target).toBeFocused();
+  });
+
+  test('Show row clears the filter that hides the row, says which, and focuses it (#723)', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1), makePR(2, { author: 'alice' }), makePR(3)]);
+    await updateBranch(rowFor(page, 2));
+    await page.selectOption('#shared-author-select', 'claude');
+    await expect(rowFor(page, 2)).toHaveCount(0);
+
+    await toasts(page)
+      .first()
+      .getByRole('button', { name: 'Show row' })
+      .click();
+
+    await expect(page.locator('#shared-author-select')).toHaveValue('');
+    await expect(rowFor(page, 2)).toBeFocused();
+    await expect(page.locator('#feedback-live')).toContainText(
+      'Cleared the Author filter',
+    );
+  });
+
+  test('Show row moves the list to the page the row is on (#723)', async ({
+    page,
+  }) => {
+    const prs = Array.from({ length: 30 }, (_, i) =>
+      makePR(i + 1, {
+        updatedAt: new Date(Date.now() - i * 1000).toISOString(),
+      }),
+    );
+    await setup(page, prs);
+    await updateBranch(rowFor(page, 1));
+    await page.getByRole('button', { name: '2', exact: true }).click();
+    await expect(rowFor(page, 1)).toHaveCount(0);
+
+    await toasts(page)
+      .first()
+      .getByRole('button', { name: 'Show row' })
+      .click();
+
+    await expect(rowFor(page, 1)).toBeFocused();
+    await expect(page.locator('#feedback-live')).toContainText(
+      'Moved to page 1',
+    );
+  });
+
+  test('Show row says so when the pull request is merged or closed (#723)', async ({
+    page,
+  }) => {
+    const prs = [makePR(1), makePR(2)];
+    await setup(page, prs);
+    await updateBranch(rowFor(page, 2));
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snapshot([prs[0]])),
+      }),
+    );
+    await page.click('#force-refresh-button');
+    await expect(rowFor(page, 2)).toHaveCount(0);
+
+    await page.locator('#activity-toggle').click();
+    await page
+      .locator('#activity-panel .activity-item')
+      .first()
+      .getByRole('button', { name: 'Show row' })
+      .click();
+
+    await expect(page.locator('#feedback-live')).toContainText(
+      'merged or closed',
+    );
   });
 
   test('the Activity panel lists every action with its state, Show row, and Clear finished', async ({

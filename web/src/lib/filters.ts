@@ -316,33 +316,59 @@ export function matchesFilters(
   shared: Record<string, string>,
   extra: Record<string, string> | undefined,
 ): boolean {
+  return failingFilters(item, isPR, shared, extra).length === 0;
+}
+
+// Which active filters exclude an item, by the key each is stored under
+// (shared.repo, pr.status, pr.quick, ...). Empty when it matches. Show row
+// (#723) uses it to say what hides a row and to clear exactly those.
+export function failingFilters(
+  item: FilterableItem,
+  isPR: boolean,
+  shared: Record<string, string>,
+  extra: Record<string, string> | undefined,
+): string[] {
   const repoKey = `${item.forge}:${item.repo}`.toLowerCase();
-  if (shared.forge && item.forge !== shared.forge) return false;
-  if (shared.repo && repoKey !== shared.repo) return false;
+  const failing: string[] = [];
+  if (shared.forge && item.forge !== shared.forge) failing.push('forge');
+  if (shared.repo && repoKey !== shared.repo) failing.push('repo');
   if (shared.title && !item.title.toLowerCase().includes(shared.title))
-    return false;
+    failing.push('title');
   if (
     shared.author &&
     !(item.author || '').toLowerCase().includes(shared.author)
   )
-    return false;
+    failing.push('author');
   if (shared.created && minutesAgo(item.createdAt) > Number(shared.created))
-    return false;
+    failing.push('created');
   if (shared.updated && minutesAgo(item.updatedAt) > Number(shared.updated))
-    return false;
+    failing.push('updated');
   if (
     shared.label &&
     !(item.labels || []).some((l) => l.name.toLowerCase() === shared.label)
   )
-    return false;
-  if (isPR && extra?.status && item.ci !== extra.status) return false;
-  if (isPR && !matchesQuickFilter(item, extra?.quick)) return false;
+    failing.push('label');
+  if (isPR && extra?.status && item.ci !== extra.status) failing.push('status');
+  if (isPR && !matchesQuickFilter(item, extra?.quick)) failing.push('quick');
   // A bot's housekeeping issue (Renovate's Dependency Dashboard): the
   // server says which ones those are (#980), so this only reads the flag.
   if (!isPR && extra?.hideDependencyDashboard && item.housekeeping)
-    return false;
-  return true;
+    failing.push('hideDependencyDashboard');
+  return failing;
 }
+
+// What a filter key is called on the page.
+export const FILTER_NAMES: Record<string, string> = {
+  forge: 'Forge',
+  repo: 'Repo',
+  title: 'Title',
+  author: 'Author',
+  created: 'Created',
+  updated: 'Updated',
+  label: 'Label',
+  status: 'CI status',
+  quick: 'quick',
+};
 
 // Distinct, sorted values of getValues(item) across items — what both
 // a filter <select>'s options and a filter <input>'s <datalist>
