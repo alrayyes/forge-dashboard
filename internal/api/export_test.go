@@ -5,4 +5,6 @@ package api
 var (
 	RepoFromPayload = repoFromPayload
 	ValidSignature  = validSignature
+
+	NewStaticHandler = newStaticHandler
 )
