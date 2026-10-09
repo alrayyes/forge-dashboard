@@ -102,6 +102,12 @@ exactly what the server answered sets `allowedActions` itself, as
 
 - `api/openapi.yaml` is the contract — handwritten and reviewed as the
   design — see `internal/api`'s handlers for what implements it.
+  Two value lists are open on purpose: `AllowedAction.action` and
+  `AllowedAction.blocked.code` use `x-extensible-enum`, so a new value is a
+  minor SDK release (`oasdiff` calls a new value in a closed `enum` breaking).
+  Every other list stays closed. `kin-openapi` doesn't check an extension, so
+  `internal/api/openapi_extensible_enums_test.go` holds the Go list. Add a
+  new action or code there, in the spec, and where the server emits it.
 - `internal/dashboard` is the domain: the `PullRequest`/`Issue`/`Snapshot`
   model, the `Source`/`ForgeClient` interfaces, the `Aggregator` that
   refreshes one user's snapshot in the background so a request never
