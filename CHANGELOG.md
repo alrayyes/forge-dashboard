@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.138.0](https://github.com/alrayyes/forge-dashboard/compare/v0.137.0...v0.138.0) (2026-10-09)
+
+
+### Features
+
+* **api:** enforce the force-refresh cooldown on the server ([#1090](https://github.com/alrayyes/forge-dashboard/issues/1090)) ([d8df52f](https://github.com/alrayyes/forge-dashboard/commit/d8df52f71a1d05f2410ca773fd5819570c54f338))
+
 ## [0.137.0](https://github.com/alrayyes/forge-dashboard/compare/v0.136.0...v0.137.0) (2026-10-09)
 
 
