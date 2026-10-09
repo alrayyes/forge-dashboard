@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.137.0](https://github.com/alrayyes/forge-dashboard/compare/v0.136.0...v0.137.0) (2026-10-09)
+
+
+### Features
+
+* **web:** show Dependabot's thumbs-up on a rebase request ([#1084](https://github.com/alrayyes/forge-dashboard/issues/1084)) ([182e902](https://github.com/alrayyes/forge-dashboard/commit/182e9020f189264aad145d3df3da9ade662fb7bb))
+
 ## [0.136.0](https://github.com/alrayyes/forge-dashboard/compare/v0.135.0...v0.136.0) (2026-10-09)
 
 
