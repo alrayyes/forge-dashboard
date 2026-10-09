@@ -3759,7 +3759,12 @@ components:
       properties:
         action:
           type: string
-          enum:
+          description: |
+            One of the values below today, and the server may learn more.
+            A client should treat a value it doesn't know as an action it
+            can't offer, not as an error. Declared with `x-extensible-enum`
+            so adding a value is a minor SDK release.
+          x-extensible-enum:
             - merge
             - close
             - update_branch
@@ -3778,8 +3783,11 @@ components:
           properties:
             code:
               type: string
-              description: The same codes as `ActionError.code`.
-              enum:
+              description: |
+                The same codes as `ActionError.code`. The server may learn
+                more, so a client should show `message` for a code it doesn't
+                know. Declared with `x-extensible-enum`.
+              x-extensible-enum:
                 - already_up_to_date
                 - conflict
                 - not_mergeable
