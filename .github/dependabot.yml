@@ -87,12 +87,33 @@ updates:
         patterns: ["*"]
         update-types: [major]
 
-  # chore, on purpose for now. The packages the web build compiles into the
-  # shipped UI (svelte, @sveltejs/kit and friends) would deserve fix:, but
-  # they sit in devDependencies next to the tooling, and Dependabot sets one
-  # prefix per entry, not per package. Splitting them needs the shipped ones
-  # in `dependencies` and a separate entry for web/, which shares this root
-  # lockfile; that is tracked in #1006 rather than guessed at here.
+  # The web UI. Two entries, because Dependabot sets one commit prefix per
+  # entry, not per package, and bun has no `prefix-development`. The split is
+  # by directory plus `allow: dependency-type`: web/package.json keeps what
+  # the build compiles into the shipped UI (svelte, @sveltejs/kit, the
+  # fontsource packages) in `dependencies`, and a bump there is a change to
+  # what ships, so fix:. Everything else is tooling and gets chore:. Keep that
+  # split true when adding a package (see #1006).
+  - package-ecosystem: bun
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Amsterdam
+    allow:
+      - dependency-type: production
+    commit-message:
+      prefix: fix
+      include: scope
+    groups:
+      web-shipped:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      web-shipped-major:
+        patterns: ["*"]
+        update-types: [major]
+
   - package-ecosystem: bun
     directory: /
     schedule:
@@ -100,6 +121,8 @@ updates:
       day: monday
       time: "06:00"
       timezone: Europe/Amsterdam
+    allow:
+      - dependency-type: development
     commit-message:
       prefix: chore
       include: scope
