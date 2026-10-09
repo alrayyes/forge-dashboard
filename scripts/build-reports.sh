@@ -42,16 +42,33 @@ index_links='<li><a href="tests/">Test results</a> (JUnit XML)</li>
 <li><a href="coverage/">Coverage</a> (<a href="coverage/coverage.xml">Cobertura XML</a>, <a href="coverage/coverage.out">Go profile</a>)</li>'
 
 # Lighthouse CI's filesystem target writes one lhr-<timestamp>.{html,json} pair
-# per run plus a manifest.json. Publish every pair, and copy the manifest's
-# representative run to report.html and report.json, the stable names.
+# per run plus a manifest.json. Publish every pair, list each audited page's
+# representative run in lighthouse/index.html, and copy the first page's to
+# report.html and report.json, the stable names.
 if [ -n "$lhci_dir" ] && [ -s "$lhci_dir/manifest.json" ]; then
   mkdir -p "$reports/lighthouse"
   cp "$lhci_dir"/lhr-*.html "$lhci_dir"/lhr-*.json "$lhci_dir/manifest.json" "$reports/lighthouse/"
   rep="$(jq -r '[.[] | select(.isRepresentativeRun)][0] // .[0] | .htmlPath' "$lhci_dir/manifest.json")"
   cp "$lhci_dir/$(basename "$rep")" "$reports/lighthouse/report.html"
   cp "$lhci_dir/$(basename "${rep%.html}.json")" "$reports/lighthouse/report.json"
+  pages="$(jq -r '.[] | select(.isRepresentativeRun) | [(.url | sub("^https?://[^/]+"; "")), (.htmlPath | split("/") | last)] | @tsv' "$lhci_dir/manifest.json" |
+    while IFS=$'\t' read -r page file; do
+      echo "<li><a href=\"$file\">$page</a> (<a href=\"${file%.html}.json\">JSON</a>)</li>"
+    done)"
+  cat >"$reports/lighthouse/index.html" <<HTML
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Lighthouse reports</title></head>
+<body><main><h1>Lighthouse reports</h1>
+<p>One report per audited page, the run Lighthouse CI marked representative.</p>
+<ul>
+$pages
+</ul>
+<p><a href="../">All reports</a></p></main></body>
+</html>
+HTML
   index_links="$index_links
-<li><a href=\"lighthouse/report.html\">Lighthouse</a> (<a href=\"lighthouse/report.json\">JSON</a>)</li>"
+<li><a href=\"lighthouse/\">Lighthouse</a> (one report per page)</li>"
 fi
 
 commit="${GITHUB_SHA:-unknown}"

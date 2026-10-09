@@ -1,14 +1,40 @@
 {
   "ci": {
     "collect": {
-      "url": ["http://localhost:8080/login.html"],
-      "numberOfRuns": 3
+      "url": [
+        "http://localhost:8080/login.html",
+        "http://localhost:8080/index.html",
+        "http://localhost:8080/issues.html",
+        "http://localhost:8080/insights.html",
+        "http://localhost:8080/settings.html",
+        "http://localhost:8080/releases.html"
+      ],
+      "numberOfRuns": 3,
+      "puppeteerScript": "./scripts/lighthouse-session.js",
+      "puppeteerLaunchOptions": {
+        "args": ["--no-sandbox"]
+      }
     },
     "assert": {
       "assertions": {
-        "categories:performance": ["warn", { "minScore": 0.9 }],
-        "categories:best-practices": ["warn", { "minScore": 0.9 }],
-        "categories:seo": ["warn", { "minScore": 0.9 }],
+        "categories:performance": [
+          "warn",
+          {
+            "minScore": 0.9
+          }
+        ],
+        "categories:best-practices": [
+          "warn",
+          {
+            "minScore": 0.9
+          }
+        ],
+        "categories:seo": [
+          "warn",
+          {
+            "minScore": 0.9
+          }
+        ],
         "categories:accessibility": "off"
       }
     },
