@@ -324,7 +324,11 @@ jobs:
           # reuses the session cookie Playwright's global setup saved to
           # tests/.auth/admin.json, so no second login flow. Reuses this
           # same already-running binary, rather than a second server boot.
-          bunx lhci autorun
+          # puppeteerScript makes lhci resolve Chrome through puppeteer-core,
+          # which has no browser of its own and hides the installed ones, so
+          # point it at the Chromium Playwright installed above.
+          CHROME_PATH="$(node -p "require('@playwright/test').chromium.executablePath()")" \
+            bunx lhci autorun
           kill "$(cat server.pid)"
       - name: upload Lighthouse reports
         if: ${{ !cancelled() }}
