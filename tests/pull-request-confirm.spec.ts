@@ -548,6 +548,57 @@ test.describe('confirm step: screen readers', () => {
     );
   });
 
+  test('an armed Merge and Close show how to back out, and the hint is not announced (#767)', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await mockDashboard(page, [makePR(2)]);
+    await page.reload();
+    const hint = (row: Locator) => row.locator('.confirm-group .confirm-hint');
+
+    await mergeButton(rowOf(page, 0)).click();
+    await expect(hint(rowOf(page, 0))).toHaveText(
+      'Esc or click away to cancel',
+    );
+    await expect(page.locator('#feedback-live')).toHaveText(
+      'Confirm merge of #2? Press Confirm or Cancel.',
+    );
+    await expect(page.locator('#feedback-live')).not.toContainText('Esc');
+
+    await page.keyboard.press('Escape');
+    await expect(hint(rowOf(page, 0))).toHaveCount(0);
+
+    await (await openClose(rowOf(page, 0))).click();
+    await expect(hint(rowOf(page, 0))).toHaveText(
+      'Esc or click away to cancel',
+    );
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('the hint fits a 390px phone without a horizontal scroll (#767)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockDashboard(page, [makePR(2)]);
+    await page.reload();
+
+    await mergeButton(rowOf(page, 0)).click();
+    const hint = rowOf(page, 0).locator('.confirm-group .confirm-hint');
+    await expect(hint).toBeVisible();
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBe(false);
+    const box = await hint.boundingBox();
+    expect(box && box.x + box.width).toBeLessThanOrEqual(390);
+  });
+
   test('an armed Merge row has no axe-core violations', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await mockDashboard(page, [makePR(2)]);
