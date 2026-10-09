@@ -302,6 +302,8 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 // before the lock was released let the later write drop the earlier one's
 // repo (#966).
 func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue) {
+	a.checkDependabotAcks(ctx)
+
 	a.mu.Lock()
 	current := a.snap
 
@@ -426,6 +428,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	for _, h := range snap.Forges {
 		reachable[h.Forge] = h.Reachable
 	}
+	a.checkDependabotAcks(ctx)
 	a.applyBotRequests(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
 	AnnotateStacks(snap.PullRequests)
 	sortByRecency(snap.PullRequests, snap.Issues)

@@ -280,7 +280,9 @@ for (const b of bots) {
 
       await expect(line(page)).toContainText('Timed out');
       await expect(
-        line(page).getByRole('button', { name: 'Retry' }),
+        line(page).getByRole('button', {
+          name: b.id === 'dependabot' ? 'Ask again' : 'Retry',
+        }),
       ).toBeVisible();
       const toasts = page.locator(
         '#feedback-toasts .feedback-toast[data-kind="error"]',

@@ -164,6 +164,8 @@ export function mountFeedbackUI(
   function botLine(entry: ActivityEntry, bot: BotRequest): string {
     if (entry.phase === 'rebasing')
       return `${bot.bot} picked this up and is rebasing. Waiting for CI to restart.`;
+    if (bot.acknowledged)
+      return `${bot.bot} acknowledged your rebase. Waiting for it to push the rebased commit.`;
     const how = bot.trigger === 'label' ? ' The rebase label is set.' : '';
     return `${bot.bot} will pick this up shortly.${how} This can take a few minutes, no need to click again.`;
   }
@@ -203,7 +205,10 @@ export function mountFeedbackUI(
 
   function signature(key: string): string {
     return inlineEntries(key)
-      .map((e) => `${e.id}|${e.phase}|${e.inline}`)
+      .map(
+        (e) =>
+          `${e.id}|${e.phase}|${e.inline}|${e.bot?.acknowledged ?? ''}|${e.commentUrl ?? ''}`,
+      )
       .join(';');
   }
 
@@ -214,6 +219,14 @@ export function mountFeedbackUI(
     for (const entry of entries) {
       const line = node('div', 'row-feedback-line');
       line.dataset.phase = entry.phase;
+      if (entry.phase === 'queued' && entry.bot?.acknowledged) {
+        line.dataset.acknowledged = 'true';
+        // The words carry the meaning; the thumbs-up only echoes
+        // Dependabot's own reaction.
+        const icon = node('span', 'feedback-ack-icon', '👍');
+        icon.setAttribute('aria-hidden', 'true');
+        line.appendChild(icon);
+      }
       line.appendChild(node('span', 'row-feedback-text', lineText(entry)));
       const bot = entry.bot;
       if (bot && entry.phase === 'queued') {
@@ -232,14 +245,30 @@ export function mountFeedbackUI(
         entry.canRetry &&
         entry.retry
       ) {
+        const verb = entry.retryLabel ?? 'Retry';
         const retry = button(
           'row-action row-feedback-retry',
-          'Retry',
-          `Retry for ${refText(entry.ref)}`,
+          verb,
+          `${verb} for ${refText(entry.ref)}`,
         );
         const run = entry.retry;
         retry.addEventListener('click', () => run());
         line.appendChild(retry);
+        if (entry.commentUrl) {
+          const open = node(
+            'a',
+            'row-action row-feedback-open',
+            'Open comment',
+          ) as HTMLAnchorElement;
+          open.href = entry.commentUrl;
+          open.target = '_blank';
+          open.rel = 'noopener noreferrer';
+          open.setAttribute(
+            'aria-label',
+            `Open comment for ${refText(entry.ref)}, opens in a new tab`,
+          );
+          line.appendChild(open);
+        }
       }
       if (entry.phase === 'failed' || entry.phase === 'expired') {
         const dismiss = button(

@@ -39,9 +39,11 @@ const (
 
 const (
 	// botQueuedWait is how long a request may stay queued without a
-	// snapshot showing the bot acted. A bot that ignores the request would
-	// otherwise leave the row waiting for good.
-	botQueuedWait = 5 * time.Minute
+	// snapshot showing the bot acted, and how long Dependabot gets to push
+	// once it has acknowledged. A bot that ignores the request would
+	// otherwise leave the row waiting for good. Dependabot can sit on a
+	// command for several minutes when it is busy, so this is generous.
+	botQueuedWait = 10 * time.Minute
 	// botRebasingWait is how long "rebasing" waits for CI to show as
 	// restarted, for a repo whose CI never will.
 	botRebasingWait = 2 * time.Minute
@@ -60,6 +62,12 @@ type BotRequest struct {
 	RequestedAt time.Time `json:"requestedAt"`
 	// ExpiresAt is when the server stops waiting in the current phase.
 	ExpiresAt time.Time `json:"expiresAt"`
+	// AcknowledgedAt is when this app first saw Dependabot's thumbs-up on the
+	// command comment (#1082). Nil until then, and always nil for Renovate.
+	AcknowledgedAt *time.Time `json:"acknowledgedAt,omitempty"`
+	// CommentURL is the command comment on the forge, once this app has
+	// found it.
+	CommentURL string `json:"commentUrl,omitempty"`
 }
 
 // botEntry is a BotRequest plus what the server needs to tell it landed.

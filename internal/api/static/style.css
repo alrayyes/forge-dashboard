@@ -1898,9 +1898,29 @@ select.col-filter {
 /* A failure line's buttons keep a 44px hit area so a thumb can find them
    (#752). */
 .row-feedback-retry,
-.row-feedback-dismiss {
+.row-feedback-dismiss,
+.row-feedback-open {
   min-width: 44px;
   min-height: 44px;
+}
+
+/* A link styled as one of the line's buttons (#1082). */
+.row-feedback-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  text-decoration: none;
+}
+
+/* Dependabot has thumbed up the command: the line takes the accent instead
+   of the neutral rule, and the words still say it (#1082). */
+.row-feedback-line[data-acknowledged="true"] {
+  border-left-color: var(--accent);
+}
+
+.feedback-ack-icon {
+  flex: none;
 }
 
 .feedback-requested {
