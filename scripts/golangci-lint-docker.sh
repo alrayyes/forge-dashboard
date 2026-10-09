@@ -13,5 +13,5 @@ docker run --rm --user "$(id -u):$(id -g)" \
   -v "$(pwd):/src" -w /src \
   -e GOCACHE=/gocache -v "$HOME/.cache/go-build-docker:/gocache" \
   -e GOLANGCI_LINT_CACHE=/cache -v "$HOME/.cache/golangci-lint-docker:/cache" \
-  golangci/golangci-lint:v2.13.1@sha256:d371321370bf2907bd13a8f6f8baff0e0ca7438d76fdf636b281eadf7e2305e3 \
+  golangci/golangci-lint:v2.14.0@sha256:ad862ba6b3798cbe0fd9fd7408d498fd74fbd2623a92406b2fd3898faf0bf98f \
   "$@"
