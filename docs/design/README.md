@@ -54,3 +54,12 @@ server log. The tickets' criteria win over those two details.
   Dashboard UI Audit" (`564147752128938905`), screen
   `4ef3db25112f48d8ab758be286a7c8bd`. It is the design for the pull request pop-up
   and the greyed-out Merge button.
+
+- `screen-dependabot-ack.png`: a Dependabot request to bring a branch up to
+  date, in four states (requested, acknowledged by Dependabot's thumbs-up, no
+  reply after about ten minutes, done) and the acknowledged row in the list.
+  `crop-dependabot-ack-states.png` is the four states and
+  `crop-dependabot-ack-row.png` the row. Stitch project "Forge Dashboard UI
+  Audit" (`564147752128938905`), screen `2a2e5152e22e47d1af61540a14e50a69`.
+  It's the design for #1082. The banner, "State Lock" and "Worker Task"
+  labels and stage numbers are review chrome and don't ship.
