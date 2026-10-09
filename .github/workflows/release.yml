@@ -50,10 +50,20 @@ jobs:
       # runtime the wrapper reports success with no output and never runs the action
       # it wraps (Wandalen/wretry.action#193, open), so no release was ever cut.
       # Re-run a failed job by hand if a secondary rate limit trips it.
+      # The release is created with the repo's GitHub App, not RELEASE_TOKEN:
+      # create-a-release answers 404 to RELEASE_TOKEN on this repo although the
+      # same secret releases every other one (#1060).
+      - id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          token: ${{ secrets.RELEASE_TOKEN }}
+          token: ${{ steps.app.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
