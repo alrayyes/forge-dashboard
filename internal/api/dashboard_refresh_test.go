@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -76,4 +77,40 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	require.NoError(t, readJSON(refreshResp, &snap))
 	require.Len(t, snap.Forges, 1)
 	assert.Equal(t, wantHealth, snap.Forges[0])
+}
+
+// A refresh inside the cooldown answers with the current snapshot and says
+// how long to wait, instead of fetching or refusing (#809).
+func TestDashboardRefresh_InsideTheCooldown_AnswersWithRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
+	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+		if c.GitHubToken != secretToken {
+			return nil
+		}
+
+		return []dashboard.Source{&fakeConfiguredSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
+	})
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+secretToken+`"}`, sessionCookie)
+	_ = putResp.Body.Close()
+	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	refresh := func() (status int, retryAfter string) {
+		resp := doJSON(t, http.MethodPost, srv.URL+"/api/dashboard/refresh", "", sessionCookie)
+		defer func() { _ = resp.Body.Close() }()
+
+		return resp.StatusCode, resp.Header.Get("Retry-After")
+	}
+
+	_, firstRetryAfter := refresh()
+	secondStatus, secondRetryAfter := refresh()
+
+	assert.Empty(t, firstRetryAfter, "the call that fetched")
+	assert.Equal(t, http.StatusOK, secondStatus)
+	retryAfter, err := strconv.Atoi(secondRetryAfter)
+	require.NoError(t, err)
+	assert.Positive(t, retryAfter)
+	assert.LessOrEqual(t, retryAfter, 5)
 }

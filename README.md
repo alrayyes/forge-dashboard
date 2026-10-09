@@ -959,6 +959,12 @@ live at `docs/api/index.html` (Scalar, zero-build), published
 to <https://alrayyes.github.io/forge-dashboard/docs/api/> on every push to
 `main` that passes lint.
 
+The dashboard response carries `readIntervalSeconds`, the server's advice on
+how often to re-read it. `POST /api/dashboard/refresh` fetches from the forges
+right now, but at most once every five seconds per user. A call inside that
+window skips the fetch and answers 200 with the current snapshot and a
+`Retry-After` header, so a follow-up refresh after an action never fails.
+
 `GET/POST/DELETE /api/mcp` sits outside this contract — it's the MCP
 Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource
 `redocly`/OpenAPI describes), not a plain request/response endpoint. See

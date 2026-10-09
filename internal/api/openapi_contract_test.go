@@ -160,5 +160,12 @@ func TestContract_DashboardAndRefresh(t *testing.T) {
 		req, got := record(t, http.MethodPost, srv.URL+"/api/dashboard/refresh", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
+
+		// The second call lands inside the cooldown: same 200, plus the
+		// Retry-After header the spec documents.
+		req, got = record(t, http.MethodPost, srv.URL+"/api/dashboard/refresh", cookie)
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		require.NotEmpty(t, got.header.Get("Retry-After"))
+		validateAgainstSpec(t, req, got)
 	})
 }
