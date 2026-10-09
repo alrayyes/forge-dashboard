@@ -10,7 +10,10 @@
         "http://localhost:8080/releases.html"
       ],
       "numberOfRuns": 3,
-      "puppeteerScript": "./scripts/lighthouse-session.js"
+      "puppeteerScript": "./scripts/lighthouse-session.js",
+      "puppeteerLaunchOptions": {
+        "args": ["--no-sandbox"]
+      }
     },
     "assert": {
       "assertions": {
