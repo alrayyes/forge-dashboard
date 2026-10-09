@@ -932,7 +932,11 @@ so it lags the published release until the deployment updates.
 `api/openapi.yaml` is the contract: `GET /healthz` for liveness, `GET /readyz`
 for readiness,
 `GET /api/dashboard` for the signed-in user's aggregated snapshot (or,
-with `?owner=<username>`, one shared with them), `GET`/`PUT
+with `?owner=<username>`, one shared with them; its `readIntervalSeconds`
+says how often to re-read it), `POST /api/dashboard/refresh` to fetch from the
+forges right now (at most once every five seconds per user: a call inside that
+window skips the fetch, answers 200 with the current snapshot and a
+`Retry-After` header), `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the
 `PUT` response never echoes a token back, only whether one is now set
 — `GET/PUT /api/settings/timezone` for the zone the user wants times shown
