@@ -22,6 +22,9 @@ export type BotRequest = {
   // How the request reached the bot, in the words of the row line:
   // "comment" is a command comment, "label" the rebase label.
   trigger: 'comment' | 'label';
+  // Dependabot reacted to the command comment with a thumbs-up (#1082), so
+  // it is known to have received it.
+  acknowledged?: boolean;
 };
 
 export type ActivityEntry = {
@@ -42,6 +45,12 @@ export type ActivityEntry = {
   // Offered as "Retry" once the entry has failed or expired.
   retry?: () => void;
   canRetry: boolean;
+  // What the retry button says instead of "Retry", where asking again
+  // reads better (#1082).
+  retryLabel?: string;
+  // A link to the comment the request went out as, once the server has
+  // found it (#1082).
+  commentUrl?: string;
 };
 
 export type ToastKind = 'success' | 'error';
@@ -81,6 +90,9 @@ export type UpdateInput = {
   toast?: boolean;
   announce?: string;
   canRetry?: boolean;
+  acknowledged?: boolean;
+  retryLabel?: string;
+  commentUrl?: string;
 };
 
 export type NoticeInput = {
@@ -268,6 +280,10 @@ export function createFeedbackStore(
       if (patch.inline !== undefined) entry.inline = patch.inline;
       if (patch.message !== undefined) entry.message = patch.message;
       if (patch.canRetry !== undefined) entry.canRetry = patch.canRetry;
+      if (patch.retryLabel !== undefined) entry.retryLabel = patch.retryLabel;
+      if (patch.commentUrl !== undefined) entry.commentUrl = patch.commentUrl;
+      if (patch.acknowledged !== undefined && entry.bot)
+        entry.bot = { ...entry.bot, acknowledged: patch.acknowledged };
       entry.updatedAt = now();
       if (patch.toast) {
         // Only a failure or a timeout is an error; a request the forge

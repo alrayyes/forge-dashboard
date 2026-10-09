@@ -109,6 +109,9 @@
     phase: "queued" | "rebasing" | "expired";
     requestedAt: string;
     expiresAt: string;
+    // Dependabot's thumbs-up on the command comment was seen (#1082).
+    acknowledgedAt?: string;
+    commentUrl?: string;
   };
   // Matches components.schemas.UpdateRequest in api/openapi.yaml.
   type ServerUpdateRequest = {
@@ -2141,10 +2144,14 @@
     };
 
     // What the row line needs to talk about the bot (#707).
-    function botLineInfo(bot: "Dependabot" | "Renovate"): BotRequest {
+    function botLineInfo(
+      bot: "Dependabot" | "Renovate",
+      acknowledged = false,
+    ): BotRequest {
       return {
         bot,
         trigger: bot === "Renovate" ? "label" : "comment",
+        ...(acknowledged ? { acknowledged } : {}),
       };
     }
 
@@ -4837,14 +4844,31 @@
         finishedMessage: "Dependabot rebase finished.",
         expiredMessage: (reason: string) =>
           `Dependabot hasn't acted: ${reason}`,
+        // A rebase with no thumbs-up after the wait may have been dropped;
+        // one that was acknowledged but never pushed is a different story
+        // (#1082).
+        expiredReason: (request: ServerBotRequest) => {
+          if (request.action !== "rebase") return undefined;
+          return request.acknowledgedAt
+            ? "Dependabot acknowledged it but hasn't pushed a rebase."
+            : "No reply from Dependabot yet. The command may have been dropped or rate limited.";
+        },
+        askAgainLabel: (request: ServerBotRequest) =>
+          request.action === "rebase" && !request.acknowledgedAt
+            ? "Ask again"
+            : undefined,
         pickedUpMessage: "Dependabot picked up the rebase.",
         restoredFeedback: (pr: PullRequestItem, request: SyncedRequest) => {
-          const action = (request.request as ServerBotRequest).action;
+          const server = request.request as ServerBotRequest;
+          const action = server.action;
           return {
             label: DEPENDABOT_ACTION_LABELS[action],
             inline: "Waiting for Dependabot",
             message: `Dependabot ${action} requested.`,
-            bot: action === "rebase" ? botLineInfo("Dependabot") : undefined,
+            bot:
+              action === "rebase"
+                ? botLineInfo("Dependabot", Boolean(server.acknowledgedAt))
+                : undefined,
             retry: () => doDependabotAction(pr, action, buttonEl("row-action")),
           };
         },
@@ -4855,6 +4879,8 @@
         requestOf: botRequestOf("renovate", (pk) => pk),
         finishedMessage: "Renovate rebase finished.",
         expiredMessage: (reason: string) => `Renovate hasn't acted: ${reason}`,
+        expiredReason: (_request: ServerBotRequest) => undefined,
+        askAgainLabel: (_request: ServerBotRequest) => undefined,
         pickedUpMessage: "Renovate picked up the rebase.",
         restoredFeedback: (pr: PullRequestItem, request: SyncedRequest) => ({
           label: "Renovate: Rebase",
@@ -4877,6 +4903,8 @@
         finishedMessage: "Branch updated.",
         expiredMessage: (reason: string) =>
           `The branch update hasn't landed: ${reason}`,
+        expiredReason: (_request: ServerBotRequest) => undefined,
+        askAgainLabel: (_request: ServerBotRequest) => undefined,
         pickedUpMessage: "",
         restoredFeedback: (pr: PullRequestItem) => ({
           label: "Update branch",
@@ -4940,7 +4968,10 @@
             changed.add(queued.prKey);
           if (current.phase === "expired") {
             delete stateMap[key];
-            const reason = "No change seen in the time allowed.";
+            // Only a bot request has these; an update request has none.
+            const bot = current as ServerBotRequest;
+            const reason =
+              kind.expiredReason(bot) ?? "No change seen in the time allowed.";
             const message = kind.expiredMessage(reason);
             feedback.update(fkey, {
               phase: "expired",
@@ -4949,6 +4980,19 @@
               toast: true,
               announce: message,
               canRetry: true,
+              retryLabel: kind.askAgainLabel(bot),
+              commentUrl: bot.commentUrl,
+            });
+          } else if (
+            current.phase === "queued" &&
+            (current as ServerBotRequest).acknowledgedAt &&
+            !feedback.entries().find((e) => e.actionKey === fkey)?.bot
+              ?.acknowledged
+          ) {
+            // Dependabot thumbed up the command (#1082): say so, once.
+            feedback.update(fkey, {
+              acknowledged: true,
+              announce: "Dependabot acknowledged your rebase.",
             });
           } else if (current.phase === "rebasing" && entry.phase === "queued") {
             entry.phase = "rebasing";

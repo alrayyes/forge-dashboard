@@ -462,7 +462,7 @@ for as long as the tab stays open, up to 40, until you use "Clear finished" (the
 live in the tab's `sessionStorage`; with storage blocked the list starts empty).
 A restored failure has no Retry. A request still queued comes back from the
 server, which holds it on the pull request until a refresh shows it landed or
-five minutes pass. One polite live region announces
+the wait runs out. One polite live region announces
 each event once and never reads out the countdown, and with reduced motion on,
 toasts appear without animation. The banner at the top is left for global
 conditions such as a rate limit or an unreachable forge.
@@ -502,17 +502,33 @@ from when it was asked. The page only draws it. When the server moves the
 request to `rebasing` (the bot pushed, and CI hasn't restarted), the row shows a
 "Rebasing…" pill. When the server drops it (CI showing pending, two minutes
 after the push, or the pull request leaving), the row finishes with a toast.
-When the server marks it `expired` (five minutes with no sign of the bot), the
+When the server marks it `expired` (ten minutes with no sign of the bot), the
 row says it timed out, with an error toast and a Retry.
 
+Dependabot tells you it got a command by reacting to the comment with a
+thumbs-up, and it can then take several minutes to push. The server looks for
+that reaction on each refresh while a Dependabot `rebase` is waiting, and the
+row changes from "will pick this up shortly" to `Dependabot acknowledged your
+rebase. Waiting for it to push the rebased commit.`, with a thumbs-up beside
+the words and one announcement for screen readers. If no thumbs-up shows after
+ten minutes the row says "No reply from Dependabot yet. The command may have
+been dropped or rate limited.", and offers `Ask again` (it posts the command
+once more) and `Open comment`, a link to the comment on GitHub. A thumbs-up
+that turns up after that revives the request. An acknowledgment gets another
+ten minutes to become a push. Looking up the reaction needs no extra
+permission, and if GitHub can't answer, the row stays on "will pick this up
+shortly" and shows no error. Renovate and `Dependabot: Recreate` have no such
+signal and read as before.
+
 The server's `botRequest` has these fields: the bot, the action, a phase
-(`queued`, `rebasing` or `expired`), when it was asked and `expiresAt`, when the
-server stops waiting in that phase. It moves along on each snapshot from a fetch
-that started after the request: a changed head, or a pull request that was
-behind and isn't, means the bot pushed. An expired request goes after an hour.
-The record is in memory per account, so a server restart forgets it and a
-browser reload doesn't. The page shows the request as queued the moment you
-click, until the next snapshot says otherwise.
+(`queued`, `rebasing` or `expired`), when it was asked, `expiresAt` (when the
+server stops waiting in that phase) and, for a Dependabot `rebase`,
+`acknowledgedAt` (when its thumbs-up was first seen) and `commentUrl`. It moves
+along on each snapshot from a fetch that started after the request: a changed
+head, or a pull request that was behind and isn't, means the bot pushed. An
+expired request goes after an hour. The record is in memory per account, so a
+server restart forgets it and a browser reload doesn't. The page shows the
+request as queued the moment you click, until the next snapshot says otherwise.
 
 A queued Dependabot request names itself: `Rebase requested` or
 `Recreate requested`. While `Recreate requested` shows, the row hides
