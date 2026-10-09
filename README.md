@@ -327,7 +327,7 @@ locks it too. Merge asks for confirmation first: the button turns into Confirm
 and Cancel, and the step ends on Cancel, a click anywhere else (which still does
 what it would have done), Escape, or after 8 seconds, shown by a thin line that
 runs down and waits while the pointer or keyboard focus is in the pair. A line
-under the buttons says "Esc or click away to cancel". Only one
+under the buttons reminds you that Escape or a click elsewhere cancels. Only one
 Merge or Close is armed at a time, and a double-click on Merge arms it without
 confirming. If the forge still refuses,
 the server re-reads the pull request and answers with a code and a short
