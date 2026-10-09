@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -53,7 +54,16 @@ type dashboardResponse struct {
 	// AutoMerged is what this app merged for the user in the last few
 	// minutes, so the page can say so once the pull request has left.
 	AutoMerged []autoMergedView `json:"autoMerged"`
+	// ReadIntervalSeconds is how often a client should re-read the dashboard
+	// (#809). Always the same answer for now; it lives in the response so a
+	// client keeps no interval of its own.
+	ReadIntervalSeconds int `json:"readIntervalSeconds"`
 }
+
+// clientReadInterval is what the API advises clients to re-read the
+// dashboard at. A read serves the cached snapshot and never calls a forge, so
+// this is not the backend's REFRESH_INTERVAL.
+const clientReadInterval = 30 * time.Second
 
 // issueView is an issue as the API serves it: the snapshot's own fields plus
 // whether it is a bot's housekeeping issue, decided here so every client
@@ -160,6 +170,8 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap 
 		Repos:          board.repoStatuses(snap.Repos),
 		HiddenDrafts:   hiddenDrafts,
 		AutoMerged:     board.autoMerged(),
+
+		ReadIntervalSeconds: int(clientReadInterval / time.Second),
 	}
 }
 
@@ -471,7 +483,8 @@ func loadAndEnsure(ctx context.Context, deps Deps, userID []byte, username strin
 // the signed-in user's own dashboard and blocks until it completes,
 // returning the resulting snapshot — for retrying right away after a
 // forge was only briefly unreachable, instead of waiting out the rest of
-// the scheduled REFRESH_INTERVAL.
+// the scheduled REFRESH_INTERVAL. A call inside the per-user cooldown
+// (Manager.ForceRefresh) skips the fetch and says so with Retry-After.
 //
 // Like handleDashboardStream, and unlike handleDashboard: no ?owner=,
 // only ever the signed-in user's own dashboard, so a user with shared
@@ -493,12 +506,19 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		if !deps.Manager.RefreshNow(deps.AppContext, u.ID) {
+		retryAfter, running := deps.Manager.ForceRefresh(deps.AppContext, u.ID)
+		if !running {
 			// No Aggregator running yet (Settings has never been saved) —
 			// the same condition and message handleDashboardStream uses.
 			writeJSON(w, http.StatusNotFound, errorBody("no background refresh is running yet for this user"))
 
 			return
+		}
+		if retryAfter > 0 {
+			// Inside the cooldown: no fetch, the current snapshot and the
+			// wait. Not a 429 -- the page calls this after every action, and
+			// a refusal would leave the row stale (#809).
+			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
 		}
 		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps, u.ID, deps.Manager.Get(u.ID), wantsDrafts(r)))
 	}
