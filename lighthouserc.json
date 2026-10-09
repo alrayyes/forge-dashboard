@@ -35,6 +35,10 @@
             "minScore": 0.9
           }
         ],
+        "cache-insight": "warn",
+        "document-latency-insight": "warn",
+        "render-blocking-insight": "warn",
+        "network-dependency-tree-insight": "warn",
         "categories:accessibility": "off"
       }
     },
