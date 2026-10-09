@@ -932,11 +932,7 @@ so it lags the published release until the deployment updates.
 `api/openapi.yaml` is the contract: `GET /healthz` for liveness, `GET /readyz`
 for readiness,
 `GET /api/dashboard` for the signed-in user's aggregated snapshot (or,
-with `?owner=<username>`, one shared with them; its `readIntervalSeconds`
-says how often to re-read it), `POST /api/dashboard/refresh` to fetch from the
-forges right now (at most once every five seconds per user: a call inside that
-window skips the fetch, answers 200 with the current snapshot and a
-`Retry-After` header), `GET`/`PUT
+with `?owner=<username>`, one shared with them), `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the
 `PUT` response never echoes a token back, only whether one is now set
 — `GET/PUT /api/settings/timezone` for the zone the user wants times shown
@@ -954,6 +950,12 @@ designated admin. `redocly lint` validates it, and Go contract tests in
 live at `docs/api/index.html` (Scalar, zero-build), published
 to <https://alrayyes.github.io/forge-dashboard/docs/api/> on every push to
 `main` that passes lint.
+
+The dashboard response carries `readIntervalSeconds`, the server's advice on
+how often to re-read it. `POST /api/dashboard/refresh` fetches from the forges
+right now, but at most once every five seconds per user. A call inside that
+window skips the fetch and answers 200 with the current snapshot and a
+`Retry-After` header, so a follow-up refresh after an action never fails.
 
 `GET/POST/DELETE /api/mcp` sits outside this contract — it's the MCP
 Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource
