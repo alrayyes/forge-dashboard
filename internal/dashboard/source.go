@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"net/url"
+	"time"
 )
 
 // Result is what one forge contributes to a Snapshot. Health.Reachable is
@@ -158,6 +159,24 @@ func DependabotCommandsBlockedReason(src Source) string {
 // rather than exposing a generic "post any comment" capability.
 type PullRequestCommenter interface {
 	CommentPullRequest(ctx context.Context, owner, name string, number int, body string) error
+}
+
+// CommandAck is what a forge shows of one Dependabot command comment (#1082):
+// where the comment is and whether Dependabot reacted to it with a thumbs-up,
+// which is how it says it received the command.
+type CommandAck struct {
+	CommentURL   string
+	Acknowledged bool
+}
+
+// DependabotAckReader is implemented by a Source that can look up the command
+// comment this app posted on a pull request and whether Dependabot has
+// reacted to it. command is the exact comment body, and since is when the
+// request was made, so an older comment with the same body is not mistaken
+// for it. A pull request with no such comment yet gives a zero CommandAck.
+// Optional, like PullRequestCommenter: only GitHub has Dependabot.
+type DependabotAckReader interface {
+	DependabotAck(ctx context.Context, owner, name string, number int, command string, since time.Time) (CommandAck, error)
 }
 
 // PullRequestLabeler is implemented by a ForgeClient (or, for

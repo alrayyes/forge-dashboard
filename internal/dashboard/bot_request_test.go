@@ -112,7 +112,7 @@ func botRequestOf(t *testing.T, agg *dashboard.Aggregator) *dashboard.BotRequest
 func TestAggregator_RecordBotRequest(t *testing.T) {
 	t.Parallel()
 
-	t.Run("shows the request on the pull request at once, queued for five minutes", func(t *testing.T) {
+	t.Run("shows the request on the pull request at once, queued for ten minutes", func(t *testing.T) {
 		t.Parallel()
 		src := newBotSource(botPR("a", true, dashboard.CIFailure))
 		agg, clock := botAggregator(t, src)
@@ -125,7 +125,7 @@ func TestAggregator_RecordBotRequest(t *testing.T) {
 		assert.Equal(t, dashboard.BotDependabot, got.Bot)
 		assert.Equal(t, dashboard.BotRebase, got.Action)
 		assert.Equal(t, clock.now(), got.RequestedAt)
-		assert.Equal(t, clock.now().Add(5*time.Minute), got.ExpiresAt)
+		assert.Equal(t, clock.now().Add(10*time.Minute), got.ExpiresAt)
 	})
 
 	t.Run("tells subscribers at once", func(t *testing.T) {
@@ -246,12 +246,12 @@ func TestAggregator_RecordBotRequest(t *testing.T) {
 		assert.Nil(t, botRequestOf(t, agg))
 	})
 
-	t.Run("queued past five minutes becomes expired and stays", func(t *testing.T) {
+	t.Run("queued past ten minutes becomes expired and stays", func(t *testing.T) {
 		t.Parallel()
 		src := newBotSource(botPR("a", true, dashboard.CIFailure))
 		agg, clock := botAggregator(t, src)
 		request(agg)
-		clock.advance(5*time.Minute + time.Second)
+		clock.advance(10*time.Minute + time.Second)
 
 		agg.Refresh(t.Context())
 		assert.Equal(t, dashboard.BotExpired, botRequestOf(t, agg).Phase)
@@ -266,7 +266,7 @@ func TestAggregator_RecordBotRequest(t *testing.T) {
 		src := newBotSource(botPR("a", true, dashboard.CIFailure))
 		agg, clock := botAggregator(t, src)
 		request(agg)
-		clock.advance(6 * time.Minute)
+		clock.advance(11 * time.Minute)
 		agg.Refresh(t.Context())
 		clock.advance(61 * time.Minute)
 
@@ -280,7 +280,7 @@ func TestAggregator_RecordBotRequest(t *testing.T) {
 		src := newBotSource(botPR("a", true, dashboard.CIFailure))
 		agg, clock := botAggregator(t, src)
 		request(agg)
-		clock.advance(6 * time.Minute)
+		clock.advance(11 * time.Minute)
 		agg.Refresh(t.Context())
 
 		request(agg)
