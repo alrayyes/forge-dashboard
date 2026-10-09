@@ -1722,6 +1722,12 @@
       });
       wrap.appendChild(cancelButton);
 
+      // How to back out without finding Cancel (#767). Plain text, not
+      // live: the arming announcement stays the only message spoken.
+      wrap.appendChild(
+        el("span", "confirm-hint", "Esc or click away to cancel"),
+      );
+
       // Decoration for sighted users; the announcement carries the rest.
       // Started part-way through when the row was rebuilt mid-countdown.
       const line = el("span", "confirm-countdown");
