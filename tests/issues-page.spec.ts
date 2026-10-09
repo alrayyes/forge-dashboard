@@ -77,7 +77,11 @@ const ISSUES = [
   makeIssue(99, { title: 'Dependency Dashboard', author: 'renovate[bot]' }),
 ];
 
-async function mockDashboard(page: Page, issues = ISSUES) {
+async function mockDashboard(
+  page: Page,
+  issues = ISSUES,
+  pullRequests: unknown[] = [makePR(1), makePR(2)],
+) {
   // The real stream would push the server's own (empty) snapshot over the
   // mocked one after a reload.
   await page.route('**/api/dashboard/stream', (route: Route) => route.abort());
@@ -88,7 +92,7 @@ async function mockDashboard(page: Page, issues = ISSUES) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: [makePR(1), makePR(2)],
+        pullRequests,
         issues,
         repos: [],
         hiddenDrafts: 0,
@@ -182,6 +186,50 @@ test.describe('issues page (#827)', () => {
     ]) {
       await expect(page.locator(id)).toBeVisible();
     }
+  });
+
+  test('each page offers only the repos, authors and labels it actually lists (#1071)', async ({
+    page,
+  }) => {
+    const prs = [
+      {
+        ...makePR(1),
+        repo: 'alrayyes/pr-only',
+        author: 'pr-author',
+        labels: [{ name: 'pr-label', color: 'ff0000' }],
+      },
+    ];
+    const issues = [
+      makeIssue(1, {
+        repo: 'alrayyes/issue-only',
+        author: 'issue-author',
+        labels: [{ name: 'issue-label', color: '00ff00' }],
+      }),
+    ];
+    await mockDashboard(page, issues, prs);
+
+    const values = (id: string) =>
+      page
+        .locator(`${id} option`)
+        .evaluateAll((os) =>
+          os.map((o) => (o as HTMLOptionElement).value).filter(Boolean),
+        );
+
+    await page.goto('/');
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+    expect(await values('#shared-repo-select')).toEqual([
+      'github:alrayyes/pr-only',
+    ]);
+    expect(await values('#shared-author-select')).toEqual(['pr-author']);
+    expect(await values('#shared-label-select')).toEqual(['pr-label']);
+
+    await page.goto('/issues.html');
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+    expect(await values('#shared-repo-select')).toEqual([
+      'github:alrayyes/issue-only',
+    ]);
+    expect(await values('#shared-author-select')).toEqual(['issue-author']);
+    expect(await values('#shared-label-select')).toEqual(['issue-label']);
   });
 
   test('a filter set on one page is still set on the other, and survives a reload', async ({
