@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -260,7 +261,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDraf
 		out = append(out, pullRequestView{
 			PullRequest:    pr,
 			Kind:           dashboard.KindOf(pr, b.renovateAuthors),
-			AllowedActions: dashboard.AllowedActions(pr, b.renovateAuthors),
+			AllowedActions: b.allowedActions(pr),
 			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
 			NeedsReview:    dashboard.NeedsReview(pr),
 
@@ -270,6 +271,21 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDraf
 	}
 
 	return out, hiddenDrafts
+}
+
+// allowedActions is the pull request's actions, minus an offer to update its
+// branch where the repo updates branches itself (#1080): the app is about to
+// do it. A blocked entry stays, since auto-update can't resolve a conflict and
+// the user needs to hear about it.
+func (b boardSettings) allowedActions(pr dashboard.PullRequest) []dashboard.ActionAvailability {
+	actions := dashboard.AllowedActions(pr, b.renovateAuthors)
+	if _, auto := b.autoUpdateBranch[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)]; !auto {
+		return actions
+	}
+
+	return slices.DeleteFunc(actions, func(a dashboard.ActionAvailability) bool {
+		return a.Action == dashboard.ActionUpdateBranch && a.Blocked == nil
+	})
 }
 
 // issueViews leaves out the issues of ignored repos and counts the ones that
