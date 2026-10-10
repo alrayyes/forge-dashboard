@@ -194,6 +194,10 @@
 
 <svelte:head>
   <title>Sign in — Forge Board</title>
+  <meta
+    name="description"
+    content="Sign in to Forge Board with a passkey, or register one from an invite."
+  />
   <style>
     .auth-wrap {
       min-height: 100vh;

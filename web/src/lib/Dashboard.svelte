@@ -5445,6 +5445,12 @@
 
 <svelte:head>
   <title>{view === "issues" ? "Issues — Forge Board" : "Forge Board"}</title>
+  <meta
+    name="description"
+    content={view === "issues"
+      ? "Open issues across your GitHub and Forgejo repositories, in one list."
+      : "Open pull requests across your GitHub and Forgejo repositories, with the actions you can take on each."}
+  />
 </svelte:head>
 
 <div class="wrap">
