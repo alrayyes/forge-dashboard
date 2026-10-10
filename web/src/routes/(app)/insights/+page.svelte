@@ -314,6 +314,10 @@
 
 <svelte:head>
   <title>Insights — Forge Board</title>
+  <meta
+    name="description"
+    content="CI status, busiest repositories, pull request and issue age, and API rate limits across your tracked repositories."
+  />
   <style>
     .insights-wrap {
       max-width: 720px;

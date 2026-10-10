@@ -792,6 +792,10 @@
 
 <svelte:head>
   <title>Settings — Forge Board</title>
+  <meta
+    name="description"
+    content="Your appearance, sharing, GitHub and Forgejo connections, pull request behavior, webhooks, passkeys and API tokens."
+  />
   <style>
     .settings-wrap {
       max-width: 640px;
