@@ -11,12 +11,19 @@ every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. It has passwordless login,
 per-user tokens, sharing and an admin role.
 
-![forge-dashboard, light mode](docs/screenshots/dashboard-light.png)
-![forge-dashboard, dark mode](docs/screenshots/dashboard-dark.png)
+| Page                                                                                        | Light                                                          | Dark                                                         |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
+| **Dashboard**. Open pull requests across both forges, with CI status, filters, and sorting. | ![Dashboard, light mode](docs/screenshots/dashboard-light.png) | ![Dashboard, dark mode](docs/screenshots/dashboard-dark.png) |
+| **Issues**. Open issues across both forges.                                                 | ![Issues, light mode](docs/screenshots/issues-light.png)       | ![Issues, dark mode](docs/screenshots/issues-dark.png)       |
+| **Insights**. Charts of CI state and the busiest repos.                                     | ![Insights, light mode](docs/screenshots/insights-light.png)   | ![Insights, dark mode](docs/screenshots/insights-dark.png)   |
+| **Webhooks**. Which tracked repos have a confirmed webhook, and a way to add one.           | ![Webhooks, light mode](docs/screenshots/webhooks-light.png)   | ![Webhooks, dark mode](docs/screenshots/webhooks-dark.png)   |
+| **Settings**. Theme, time zone, and dashboard sharing.                                      | ![Settings, light mode](docs/screenshots/settings-light.png)   | ![Settings, dark mode](docs/screenshots/settings-dark.png)   |
+| **Admin**. Users and invites, for the first registered user.                                | ![Admin, light mode](docs/screenshots/admin-light.png)         | ![Admin, dark mode](docs/screenshots/admin-dark.png)         |
+| **Login**. Passkey sign-in.                                                                 | ![Login, light mode](docs/screenshots/login-light.png)         | ![Login, dark mode](docs/screenshots/login-dark.png)         |
 
-Fixture data, not a real account's actual repositories — regenerated
-automatically by the release workflow on every release (see
-`scripts/capture-screenshots.ts`), so it's never more than one release
+Fixture data, not a real account's actual repositories. The release
+workflow regenerates every screenshot on each release (see
+`scripts/capture-screenshots.ts`), so they're never more than one release
 stale.
 
 ## Design
