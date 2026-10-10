@@ -223,7 +223,6 @@ test.describe('the row follows allowedActions (#805)', () => {
         ],
       }),
     );
-    await row.getByRole('button', { name: 'More actions' }).click();
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
@@ -264,7 +263,6 @@ test.describe('the row follows allowedActions (#805)', () => {
         allowedActions: [{ action: 'merge' }, { action: 'close' }],
       }),
     );
-    await row.getByRole('button', { name: 'More actions' }).click();
     await expect(row.getByRole('button', { name: /^Dependabot:/ })).toHaveCount(
       0,
     );

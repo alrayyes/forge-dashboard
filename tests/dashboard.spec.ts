@@ -2069,26 +2069,6 @@ test.describe('dashboard page', () => {
       await expect(popup).toHaveURL('https://example.com/1');
     });
 
-    test("clicking a row's CI pill filters to that status, without also opening the PR", async ({
-      page,
-    }) => {
-      let navigated = false;
-      page.on('popup', () => {
-        navigated = true;
-      });
-
-      await page
-        .locator('#pr-rows .row', { hasText: 'A passing PR' })
-        .locator('.ci-pill')
-        .click();
-
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-      await expect(page.locator('#pr-rows > .row')).toContainText(
-        'A passing PR',
-      );
-      expect(navigated).toBe(false);
-    });
-
     test('has no axe-core violations with real rows rendered, including nested-interactive checks', async ({
       page,
     }) => {

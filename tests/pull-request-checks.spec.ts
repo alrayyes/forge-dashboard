@@ -100,7 +100,7 @@ test.describe('pull request pipeline checks panel', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
-      row.getByRole('button', { name: 'View pipeline' }),
+      row.getByRole('button', { name: 'Open pipeline' }),
     ).toBeVisible();
   });
 
@@ -110,7 +110,7 @@ test.describe('pull request pipeline checks panel', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
-      row.getByRole('button', { name: 'View pipeline' }),
+      row.getByRole('button', { name: 'Open pipeline' }),
     ).toHaveCount(0);
   });
 
@@ -140,7 +140,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'View pipeline' }).click();
+    await row.getByRole('button', { name: 'Open pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(dialog).toBeVisible();
@@ -188,7 +188,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'View pipeline' }).click();
+    await row.getByRole('button', { name: 'Open pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     const items = dialog.locator('.pipeline-check');
@@ -225,7 +225,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'View pipeline' }).click();
+    await row.getByRole('button', { name: 'Open pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     const items = dialog.locator('.pipeline-check');
@@ -248,7 +248,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'View pipeline' }).click();
+    await row.getByRole('button', { name: 'Open pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(dialog).toContainText(
@@ -275,7 +275,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -311,7 +311,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -342,7 +342,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -366,7 +366,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -400,7 +400,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -439,7 +439,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
@@ -494,7 +494,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     const rerun = dialog.getByRole('button', { name: 'Rerun failed checks' });
@@ -544,7 +544,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
@@ -573,7 +573,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
@@ -614,7 +614,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
@@ -656,7 +656,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page
       .locator('#pr-rows .row')
       .first()
-      .getByRole('button', { name: 'View pipeline' })
+      .getByRole('button', { name: 'Open pipeline' })
       .click();
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
@@ -717,7 +717,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'View pipeline' }).click();
+    await row.getByRole('button', { name: 'Open pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(dialog).toContainText(/unreachable/i);
@@ -740,7 +740,7 @@ test.describe('pull request pipeline checks panel', () => {
     // "More actions" entry — closing the dialog rebuilds the row (same
     // as every other row action already does) and refocuses this same
     // button by its stable id, not a menu trigger.
-    const viewPipeline = row.getByRole('button', { name: 'View pipeline' });
+    const viewPipeline = row.getByRole('button', { name: 'Open pipeline' });
     await viewPipeline.click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -757,7 +757,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'View pipeline' }).click();
+    await row.getByRole('button', { name: 'Open pipeline' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Close pipeline checks' }).click();
@@ -777,7 +777,7 @@ test.describe('pull request pipeline checks panel', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'View pipeline' }).click();
+    await row.getByRole('button', { name: 'Open pipeline' }).click();
     await expect(
       page.getByRole('dialog', { name: 'Pipeline checks' }),
     ).toBeVisible();

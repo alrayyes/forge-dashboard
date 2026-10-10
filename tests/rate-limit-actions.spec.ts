@@ -154,7 +154,7 @@ test.describe('rate-limited actions (#732)', () => {
     await page.reload();
 
     const pipeline = firstRow(page).getByRole('button', {
-      name: 'View pipeline',
+      name: 'Open pipeline',
     });
     await expect(pipeline).toBeVisible();
     await expect(pipeline).not.toHaveAttribute('aria-disabled', 'true');
