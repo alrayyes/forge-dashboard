@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.141.5](https://github.com/alrayyes/forge-dashboard/compare/v0.141.4...v0.141.5) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** give the narrow pages one width ([#1141](https://github.com/alrayyes/forge-dashboard/issues/1141)) ([5f44930](https://github.com/alrayyes/forge-dashboard/commit/5f44930586b016ad53f5eabf234e4ed69b8ac60d)), closes [#1109](https://github.com/alrayyes/forge-dashboard/issues/1109)
+
 ## [0.141.4](https://github.com/alrayyes/forge-dashboard/compare/v0.141.3...v0.141.4) (2026-10-10)
 
 
