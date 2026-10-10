@@ -439,7 +439,7 @@ func (a *Aggregator) labelRenovatePR(ctx context.Context, pr PullRequest, label 
 	if !ok {
 		return
 	}
-	if err := labeler.AddLabel(ctx, owner, name, pr.Number, label); err != nil {
+	if _, err := RequestRenovateRebase(ctx, labeler, labeler, owner, name, pr.Number, label); err != nil {
 		slog.Warn("auto-update-branch: renovate rebase label failed", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "label", label, "error", err)
 	}
 }

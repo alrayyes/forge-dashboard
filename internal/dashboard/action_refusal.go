@@ -32,7 +32,10 @@ const (
 	ActionPermission          ActionCode = "permission"
 	ActionRateLimited         ActionCode = "rate_limited"
 	ActionStacked             ActionCode = "stacked"
-	ActionUnknown             ActionCode = "unknown"
+	// ActionAlreadyRequested: a Renovate rebase is already asked for (its
+	// rebase-check box is ticked), so asking again does nothing.
+	ActionAlreadyRequested ActionCode = "already_requested"
+	ActionUnknown          ActionCode = "unknown"
 )
 
 // ActionRefusal is the classified outcome of a refused action. Message is
