@@ -46,6 +46,18 @@ test.describe('disclaimer and privacy pages', () => {
     });
   }
 
+  // #1109: Svelte trims whitespace around {#if} blocks, which ran the
+  // separators into the words before them ("dev build· Disclaimer· Privacy").
+  test('the footer separates its items with a space on each side', async ({
+    page,
+  }) => {
+    await page.goto('/login.html');
+    const text = await page
+      .locator('footer')
+      .evaluate((el) => (el as HTMLElement).innerText);
+    expect(text).toContain('dev build · Disclaimer · Privacy');
+  });
+
   test('the footer links to both from another page, but not from themselves', async ({
     page,
   }) => {
