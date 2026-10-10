@@ -48,7 +48,7 @@
   // each page's own, and nothing sets it once nav.js is retired here),
   // this reuses isCurrentRoute's own tolerant path matching against
   // currentPath directly: no child-to-parent signaling needed.
-  const PUBLIC_ROUTES = ["/releases", "/disclaimer", "/privacy"];
+  const PUBLIC_ROUTES = ["/changelog", "/disclaimer", "/privacy"];
 
   function isPublicRoute(): boolean {
     return PUBLIC_ROUTES.some((route) => isCurrentRoute(route));

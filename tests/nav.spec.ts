@@ -31,7 +31,7 @@ const NAV_PAGES = [
 ];
 
 const NO_SESSION_PAGES = [
-  '/releases.html',
+  '/changelog.html',
   '/disclaimer.html',
   '/privacy.html',
 ];

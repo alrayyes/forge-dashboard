@@ -10,7 +10,7 @@ async function registerAndSignIn(
   request: APIRequestContext,
   baseURL: string | undefined,
 ) {
-  const username = `releases-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  const username = `changelog-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   await registerViaInvite(
     page,
     request,
@@ -38,9 +38,9 @@ test.describe('release history page', () => {
   test('reachable without a session, unlike the dashboard itself', async ({
     page,
   }) => {
-    await page.goto('/releases.html');
-    await expect(page).toHaveURL(/\/releases\.html$/);
-    await expect(page.locator('.releases-header h1')).toHaveText(
+    await page.goto('/changelog.html');
+    await expect(page).toHaveURL(/\/changelog\.html$/);
+    await expect(page.locator('.changelog-header h1')).toHaveText(
       'Release history',
     );
   });
@@ -58,7 +58,7 @@ test.describe('release history page', () => {
         urls.push(r.url());
       }
     });
-    await page.goto('/releases.html');
+    await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
     await expect(page.locator('.release').first()).toBeVisible();
 
@@ -73,7 +73,7 @@ test.describe('release history page', () => {
     page,
   }) => {
     expect(CHANGELOG_VERSIONS.length).toBeGreaterThan(0);
-    await page.goto('/releases.html');
+    await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
 
     await expect(page.locator('.release')).toHaveCount(
@@ -115,7 +115,7 @@ test.describe('release history page', () => {
         }),
       }),
     );
-    await page.goto('/releases.html');
+    await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
 
     const links = page.locator('.release-notes a');
@@ -138,7 +138,7 @@ test.describe('release history page', () => {
     await page.route('**/changelog.json', (route) =>
       route.fulfill({ status: 404 }),
     );
-    await page.goto('/releases.html');
+    await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
 
     await expect(page.locator('#status.error')).toContainText(
@@ -168,9 +168,9 @@ test.describe('release history page', () => {
     const versionLink = page.locator('#footer-version a', {
       hasText: 'v1.2.3',
     });
-    await expect(versionLink).toHaveAttribute('href', '/releases.html');
+    await expect(versionLink).toHaveAttribute('href', '/changelog.html');
     await versionLink.click();
-    await expect(page).toHaveURL(/\/releases\.html$/);
+    await expect(page).toHaveURL(/\/changelog\.html$/);
 
     await expect(page.locator('#footer-version')).toContainText('v1.2.3');
     await expect(page.locator('#footer-version a')).toHaveCount(0);
@@ -180,7 +180,7 @@ test.describe('release history page', () => {
   });
 
   test('has no axe-core violations at desktop width', async ({ page }) => {
-    await page.goto('/releases.html');
+    await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
 
     const results = await new AxeBuilder({ page })
@@ -194,7 +194,7 @@ test.describe('release history page', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/releases.html');
+    await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
 
     const results = await new AxeBuilder({ page })
