@@ -68,9 +68,10 @@
   >
   <span id="footer-version"
     >{#if versionState.kind === "dev"}&#183; dev build{:else if versionState.kind === "released"}&#183;
-      {#if isCurrentRoute("/releases")}<span class="mono"
+      {#if isCurrentRoute("/changelog")}<span class="mono"
           >v{versionState.version}</span
-        >{:else}<a class="mono" href="/releases.html">v{versionState.version}</a
+        >{:else}<a class="mono" href="/changelog.html"
+          >v{versionState.version}</a
         >{/if}{/if}</span
   >{#if !isCurrentRoute("/disclaimer")}
     &#183; <a href="/disclaimer.html">Disclaimer</a

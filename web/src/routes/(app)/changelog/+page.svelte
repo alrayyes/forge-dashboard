@@ -114,15 +114,15 @@
 <svelte:head>
   <title>Release history — Forge Board</title>
   <style>
-    .releases-wrap {
+    .changelog-wrap {
       max-width: 720px;
       margin: 0 auto;
       padding: 28px 0 64px;
     }
-    .releases-header {
+    .changelog-header {
       margin-bottom: 22px;
     }
-    .releases-header h1 {
+    .changelog-header h1 {
       font-size: 19px;
       margin: 0;
     }
@@ -205,8 +205,8 @@
   </style>
 </svelte:head>
 
-<div class="releases-wrap">
-  <div class="releases-header">
+<div class="changelog-wrap">
+  <div class="changelog-header">
     <h1>Release history</h1>
   </div>
 

@@ -942,7 +942,7 @@ not here.
 
 ### The changelog page
 
-The version in the footer links to `/releases.html`, which works without
+The version in the footer links to `/changelog.html`, which works without
 signing in. It lists the releases in `CHANGELOG.md`, newest first, and makes no
 request to GitHub. The web build turns `CHANGELOG.md` into
 `/changelog.json` (`scripts/changelog-json.ts`, a build output that isn't

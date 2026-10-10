@@ -7,7 +7,7 @@
         "http://localhost:8080/issues.html",
         "http://localhost:8080/insights.html",
         "http://localhost:8080/settings.html",
-        "http://localhost:8080/releases.html"
+        "http://localhost:8080/changelog.html"
       ],
       "numberOfRuns": 3,
       "puppeteerScript": "./scripts/lighthouse-session.js",
