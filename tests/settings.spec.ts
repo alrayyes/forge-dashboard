@@ -23,6 +23,35 @@ test.describe('settings page', () => {
     await registerAndSignIn(page, request, baseURL);
   });
 
+  // #1135: Lighthouse fails the page when under 60% of its text is 12px or
+  // larger, and settings was at 43%. Nothing visible may be under 12px.
+  test('no visible text on the page is under 12px', async ({ page }) => {
+    await page.goto('/settings.html');
+    await expect(page.locator('#settings-form')).toBeVisible();
+
+    const small = await page.evaluate(() => {
+      const found: string[] = [];
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const el = node.parentElement;
+        if (!el || !node.textContent?.trim()) continue;
+        // The header's count bubble is one digit in a small circle, not text.
+        if (el.closest('script, style, [hidden], .nav-badge')) continue;
+        if (!el.checkVisibility()) continue;
+        const style = getComputedStyle(el);
+        if (parseFloat(style.fontSize) < 12)
+          found.push(
+            `${el.tagName.toLowerCase()}.${el.className} ${style.fontSize}`,
+          );
+      }
+      return found;
+    });
+    expect(small).toEqual([]);
+  });
+
   test.describe('theme control (#352)', () => {
     test('defaults to System, with no theme applied', async ({ page }) => {
       await page.goto('/settings.html');
