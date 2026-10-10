@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.141.7](https://github.com/alrayyes/forge-dashboard/compare/v0.141.6...v0.141.7) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** ignore a snapshot older than the one already applied ([#1127](https://github.com/alrayyes/forge-dashboard/issues/1127)) ([57ff5e8](https://github.com/alrayyes/forge-dashboard/commit/57ff5e8f1ea453f33961c320923b389bb840519c)), closes [#1124](https://github.com/alrayyes/forge-dashboard/issues/1124)
+
 ## [0.141.6](https://github.com/alrayyes/forge-dashboard/compare/v0.141.5...v0.141.6) (2026-10-10)
 
 
