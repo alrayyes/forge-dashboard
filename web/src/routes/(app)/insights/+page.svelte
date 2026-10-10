@@ -406,28 +406,6 @@
       text-align: right;
     }
 
-    /* Present alongside the chart, not hidden behind it — a chart is
-       never the only way to read the numbers here. */
-    .data-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12.5px;
-    }
-    .data-table th,
-    .data-table td {
-      text-align: left;
-      padding: 6px 8px;
-      border-bottom: 1px solid var(--border);
-    }
-    .data-table th {
-      color: var(--ink-2);
-      font-weight: 500;
-    }
-    .data-table td.num {
-      text-align: right;
-      font-family: "IBM Plex Mono", ui-monospace, monospace;
-    }
-
     /* ---- repo ranking (single neutral hue — repo identity rides the
        label, not a color, since a fixed categorical hue order doesn't
        scale past a handful of repos) ---- */
@@ -773,25 +751,27 @@
         {/each}
       </div>
 
-      <table class="data-table" id="ci-status-table">
-        <caption class="sr-only"
-          >CI status counts across open pull requests</caption
-        >
-        <thead>
-          <tr>
-            <th scope="col">Status</th>
-            <th scope="col">Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each CI_STATES as state (state.key)}
+      <div class="sr-only">
+        <table id="ci-status-table">
+          <caption class="sr-only"
+            >CI status counts across open pull requests</caption
+          >
+          <thead>
             <tr>
-              <td>{state.label}</td>
-              <td class="num">{ciCounts[state.key]}</td>
+              <th scope="col">Status</th>
+              <th scope="col">Count</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {#each CI_STATES as state (state.key)}
+              <tr>
+                <td>{state.label}</td>
+                <td class="num">{ciCounts[state.key]}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {/if}
   </div>
 
@@ -889,23 +869,25 @@
         {/each}
       </div>
 
-      <table class="data-table" id="pr-age-table">
-        <caption class="sr-only">Open pull request counts by age</caption>
-        <thead>
-          <tr>
-            <th scope="col">Age</th>
-            <th scope="col">Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each AGE_BUCKETS as bucket (bucket.key)}
+      <div class="sr-only">
+        <table id="pr-age-table">
+          <caption class="sr-only">Open pull request counts by age</caption>
+          <thead>
             <tr>
-              <td>{bucket.label}</td>
-              <td class="num">{prAgeHistogram.counts[bucket.key]}</td>
+              <th scope="col">Age</th>
+              <th scope="col">Count</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {#each AGE_BUCKETS as bucket (bucket.key)}
+              <tr>
+                <td>{bucket.label}</td>
+                <td class="num">{prAgeHistogram.counts[bucket.key]}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {/if}
   </div>
 
@@ -933,23 +915,25 @@
         {/each}
       </div>
 
-      <table class="data-table" id="issue-age-table">
-        <caption class="sr-only">Open issue counts by age</caption>
-        <thead>
-          <tr>
-            <th scope="col">Age</th>
-            <th scope="col">Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each AGE_BUCKETS as bucket (bucket.key)}
+      <div class="sr-only">
+        <table id="issue-age-table">
+          <caption class="sr-only">Open issue counts by age</caption>
+          <thead>
             <tr>
-              <td>{bucket.label}</td>
-              <td class="num">{issueAgeHistogram.counts[bucket.key]}</td>
+              <th scope="col">Age</th>
+              <th scope="col">Count</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {#each AGE_BUCKETS as bucket (bucket.key)}
+              <tr>
+                <td>{bucket.label}</td>
+                <td class="num">{issueAgeHistogram.counts[bucket.key]}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {/if}
   </div>
 
