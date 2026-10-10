@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.143.2](https://github.com/alrayyes/forge-dashboard/compare/v0.143.1...v0.143.2) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** show each insights chart's numbers once, keep the table for screen readers ([#1158](https://github.com/alrayyes/forge-dashboard/issues/1158)) ([b2f41cd](https://github.com/alrayyes/forge-dashboard/commit/b2f41cd5eab9c70a4cc515e9426b73aae1e64796)), closes [#1109](https://github.com/alrayyes/forge-dashboard/issues/1109)
+
 ## [0.143.1](https://github.com/alrayyes/forge-dashboard/compare/v0.143.0...v0.143.1) (2026-10-10)
 
 
