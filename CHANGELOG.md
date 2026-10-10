@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.143.1](https://github.com/alrayyes/forge-dashboard/compare/v0.143.0...v0.143.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** show the newest releases first and older ones on request ([#1160](https://github.com/alrayyes/forge-dashboard/issues/1160)) ([7c7a361](https://github.com/alrayyes/forge-dashboard/commit/7c7a361113003142a0f55dd45c8869bdab7d23ec))
+
 ## [0.143.0](https://github.com/alrayyes/forge-dashboard/compare/v0.142.1...v0.143.0) (2026-10-10)
 
 
