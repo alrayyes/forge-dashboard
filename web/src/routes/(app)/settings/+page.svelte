@@ -829,6 +829,12 @@
       color: var(--ink-3);
       margin: 0 0 16px;
     }
+    /* Nothing hangs below the last thing in a card (#1109). */
+    .card > :last-child,
+    .card .field:last-of-type,
+    .card .field:last-of-type > :last-child {
+      margin-bottom: 0;
+    }
     .card .hint a {
       color: var(--accent);
     }
@@ -1021,6 +1027,15 @@
       font-size: 12.5px;
       min-height: 1.4em;
     }
+    /* The live region stays in the page for screen readers, but an empty one
+       takes no room (#1109). */
+    .status:empty {
+      min-height: 0;
+      margin: 0;
+    }
+    .status:not(:empty) {
+      margin: 8px 0 0;
+    }
     .status.error {
       color: var(--critical);
     }
@@ -1109,6 +1124,8 @@
       font-size: 12.5px;
       color: var(--ink-3);
       margin: 0;
+      padding: 4px 0;
+      text-align: left;
     }
     .copy-button,
     .token-copy-button {
