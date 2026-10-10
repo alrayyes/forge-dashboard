@@ -197,8 +197,33 @@ test.describe('insights page', () => {
     // The chart is never the only way to read the numbers — a real table
     // carries the same counts for anyone who'd rather read than look at bars.
     const table = page.locator('#ci-status-table');
-    await expect(table).toBeVisible();
     await expect(table.locator('tbody tr')).toHaveCount(4);
+  });
+
+  // #1109: the bars already print their numbers, so a second visible table
+  // with the same counts only repeated them. It stays for assistive tech.
+  test('each chart keeps its table for screen readers only, not shown twice', async ({
+    page,
+  }) => {
+    await mockDashboard(page, {
+      pullRequests: [pr('success', { createdAt: hoursAgo(24 * 15) })],
+      issues: [issue({ number: 1, createdAt: hoursAgo(2) })],
+    });
+    await page.goto('/insights.html');
+
+    for (const [chart, table] of [
+      ['#ci-status-chart', '#ci-status-table'],
+      ['#pr-age-chart', '#pr-age-table'],
+      ['#issue-age-chart', '#issue-age-table'],
+    ]) {
+      await expect(page.locator(chart)).toBeVisible();
+      const box = await page.locator(table).locator('..').boundingBox();
+      expect(
+        box?.height ?? 0,
+        `${table} is visually hidden`,
+      ).toBeLessThanOrEqual(1);
+      await expect(page.locator(`${table} tbody tr`).first()).toBeAttached();
+    }
   });
 
   test('shows an explicit empty state with no open pull requests, not a blank or all-zero chart', async ({
