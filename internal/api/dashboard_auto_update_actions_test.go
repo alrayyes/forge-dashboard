@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// updateBranchServer tracks two behind pull requests on alrayyes/a: #1 is
-// clean, #2 conflicts. autoUpdate turns auto-update-branch on for that repo
+// updateBranchServer tracks three behind pull requests on alrayyes/a: #1 is
+// clean, #2 conflicts, #3 is a release PR. autoUpdate turns auto-update-branch on for that repo
 // before the first dashboard fetch (#1080).
 func updateBranchServer(t *testing.T, autoUpdate bool) (srvURL string, sessionCookie *http.Cookie) {
 	t.Helper()
@@ -24,6 +24,12 @@ func updateBranchServer(t *testing.T, autoUpdate bool) (srvURL string, sessionCo
 		prs: []dashboard.PullRequest{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true},
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, Behind: true, MergeStatus: dashboard.MergeConflicting},
+			// A release-please PR, which auto-update skips on purpose (#1104).
+			{
+				Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 3, Author: "alrayyes", Behind: true,
+				MergeStatus: dashboard.MergeBlocked, CI: dashboard.CISuccess,
+				Labels: []dashboard.Label{{Name: "autorelease: pending"}},
+			},
 		},
 	}
 	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
@@ -53,7 +59,7 @@ func updateBranchServer(t *testing.T, autoUpdate bool) (srvURL string, sessionCo
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboardWith(t, srv.URL, sessionCookie, "")["pullRequests"].([]any)
 
-		return len(prs) == 2
+		return len(prs) == 3
 	}, time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
 
 	return srv.URL, sessionCookie
@@ -104,4 +110,39 @@ func TestDashboard_UpdateBranchIsLeftOutWhereAutoUpdateIsOn(t *testing.T) {
 	assert.Nil(t, entries[1], "the app updates this one itself")
 	require.NotNil(t, entries[2], "a conflict is the user's to fix, so it keeps saying so")
 	assert.Equal(t, "conflict", entries[2]["blocked"].(map[string]any)["code"])
+}
+
+// Auto-update skips release-please pull requests, so nothing else brings one
+// up to date. The row keeps Update branch and Merge says why (#1104).
+func TestDashboard_ReleasePullRequestKeepsUpdateBranchWhereAutoUpdateIsOn(t *testing.T) {
+	t.Parallel()
+
+	srvURL, cookie := updateBranchServer(t, true)
+
+	entries := updateBranchEntries(t, srvURL, cookie)
+
+	require.NotNil(t, entries[3], "auto-update skips release PRs, so the user has to")
+	assert.NotContains(t, entries[3], "blocked")
+}
+
+func TestDashboard_BehindReasonSaysWhoUpdatesTheBranch(t *testing.T) {
+	t.Parallel()
+
+	srvURL, cookie := updateBranchServer(t, true)
+
+	next := map[int]string{}
+	prs, _ := fetchDashboardWith(t, srvURL, cookie, "")["pullRequests"].([]any)
+	for _, p := range prs {
+		pr := p.(map[string]any)
+		for _, a := range pr["allowedActions"].([]any) {
+			if e := a.(map[string]any); e["action"] == "merge" && e["blocked"] != nil {
+				next[int(pr["number"].(float64))], _ = e["blocked"].(map[string]any)["next"].(string)
+			}
+		}
+	}
+
+	assert.Contains(t, next[1], "update")
+	assert.Contains(t, next[1], "automatically", "auto-update is about to do it")
+	assert.Contains(t, next[3], "Update branch")
+	assert.Contains(t, next[3], "release-please", "auto-update skips it, so say why")
 }

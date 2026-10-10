@@ -581,7 +581,9 @@ posting comments Dependabot would only refuse.
 
 A repo with a behind pull request can also be brought up to date without a
 click at all, by enabling auto-update-branch for it in Settings. The Update branch
-button then stays off that repo's rows, except to flag a conflict. For a
+button then stays off that repo's rows, except to flag a conflict and on a
+release-please pull request (the pass skips those). The "behind" reason on
+Merge says who brings it up to date. For a
 Dependabot pull request specifically, that background pass drives the same `@dependabot
 rebase` command the manual button does rather than a generic branch update
 — and if that `rebase` leaves the pull request's CI failing, follows up with
