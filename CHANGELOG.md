@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.142.0](https://github.com/alrayyes/forge-dashboard/compare/v0.141.7...v0.142.0) (2026-10-10)
+
+
+### Features
+
+* **web:** the CI pill opens the pipeline, and a lone extra action shows directly ([#1154](https://github.com/alrayyes/forge-dashboard/issues/1154)) ([919d183](https://github.com/alrayyes/forge-dashboard/commit/919d1831322dded97bef45cfeb489d6036671cd7)), closes [#1139](https://github.com/alrayyes/forge-dashboard/issues/1139)
+
 ## [0.141.7](https://github.com/alrayyes/forge-dashboard/compare/v0.141.6...v0.141.7) (2026-10-10)
 
 
