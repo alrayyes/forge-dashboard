@@ -949,7 +949,8 @@ request to GitHub. The web build turns `CHANGELOG.md` into
 committed) and the page reads that one same-origin file. It therefore lists
 exactly the releases the running version was built from, so the footer
 version and the newest entry agree. The footer reads the running binary,
-so it lags the published release until the deployment updates.
+so it lags the published release until the deployment updates. The old
+`/releases` and `/releases.html` URLs redirect (301) to `/changelog.html`.
 
 ## API
 
