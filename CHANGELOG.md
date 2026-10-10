@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.141.4](https://github.com/alrayyes/forge-dashboard/compare/v0.141.3...v0.141.4) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** make the settings page's small text 12px ([#1137](https://github.com/alrayyes/forge-dashboard/issues/1137)) ([27761d6](https://github.com/alrayyes/forge-dashboard/commit/27761d60a20a4aa0da466fd2398cec0b04bc3318)), closes [#1135](https://github.com/alrayyes/forge-dashboard/issues/1135)
+
 ## [0.141.3](https://github.com/alrayyes/forge-dashboard/compare/v0.141.2...v0.141.3) (2026-10-10)
 
 
