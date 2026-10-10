@@ -337,7 +337,7 @@
   />
   <style>
     .admin-wrap {
-      max-width: 760px;
+      max-width: 720px;
       margin: 0 auto;
       padding: 28px 0 64px;
     }
