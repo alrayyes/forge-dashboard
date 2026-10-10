@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.141.2](https://github.com/alrayyes/forge-dashboard/compare/v0.141.1...v0.141.2) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** put the visible text inside two accessible names ([#1138](https://github.com/alrayyes/forge-dashboard/issues/1138)) ([eb42f13](https://github.com/alrayyes/forge-dashboard/commit/eb42f13c3b3c619eada131b58ccd46918f238985)), closes [#1135](https://github.com/alrayyes/forge-dashboard/issues/1135)
+
 ## [0.141.1](https://github.com/alrayyes/forge-dashboard/compare/v0.141.0...v0.141.1) (2026-10-10)
 
 
