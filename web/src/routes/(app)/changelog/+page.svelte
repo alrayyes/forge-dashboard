@@ -113,6 +113,10 @@
 
 <svelte:head>
   <title>Release history — Forge Board</title>
+  <meta
+    name="description"
+    content="Every Forge Board release, newest first, with what changed in each."
+  />
   <style>
     .changelog-wrap {
       max-width: 720px;

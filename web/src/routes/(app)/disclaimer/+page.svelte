@@ -1,5 +1,9 @@
 <svelte:head>
   <title>Disclaimer — Forge Board</title>
+  <meta
+    name="description"
+    content="What Forge Board is, that it comes with no warranty, and the third-party services it relies on."
+  />
   <style>
     .legal-wrap {
       max-width: 720px;

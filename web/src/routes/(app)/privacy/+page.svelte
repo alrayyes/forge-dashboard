@@ -1,5 +1,9 @@
 <svelte:head>
   <title>Privacy — Forge Board</title>
+  <meta
+    name="description"
+    content="How Forge Board handles sign-in, your forge credentials and webhook credentials."
+  />
   <style>
     .legal-wrap {
       max-width: 720px;
