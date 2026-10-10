@@ -288,16 +288,38 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDraf
 // allowedActions is the pull request's actions, minus an offer to update its
 // branch where the repo updates branches itself (#1080): the app is about to
 // do it. A blocked entry stays, since auto-update can't resolve a conflict and
-// the user needs to hear about it.
+// the user needs to hear about it. A release-please pull request keeps its
+// offer: auto-update skips it, so nothing else will bring it up to date
+// (#1104). Merge's "behind" reason then says who does.
 func (b boardSettings) allowedActions(pr dashboard.PullRequest) []dashboard.ActionAvailability {
 	actions := dashboard.AllowedActions(pr, b.renovateAuthors)
 	if _, auto := b.autoUpdateBranch[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)]; !auto {
 		return actions
 	}
-
-	return slices.DeleteFunc(actions, func(a dashboard.ActionAvailability) bool {
+	if dashboard.KindOf(pr, b.renovateAuthors) == dashboard.KindRelease {
+		return explainBehind(actions, "Use Update branch. Auto-update skips release-please pull requests, and release-please only rewrites its branch for a new release.")
+	}
+	left := slices.DeleteFunc(slices.Clone(actions), func(a dashboard.ActionAvailability) bool {
 		return a.Action == dashboard.ActionUpdateBranch && a.Blocked == nil
 	})
+	if len(left) == len(actions) {
+		return left
+	}
+
+	return explainBehind(left, "Auto-update is bringing it up to date automatically.")
+}
+
+// explainBehind rewrites the next step on Merge's "behind" reason.
+func explainBehind(actions []dashboard.ActionAvailability, next string) []dashboard.ActionAvailability {
+	for i, a := range actions {
+		if a.Action == dashboard.ActionMerge && a.Blocked != nil && a.Blocked.Code == dashboard.ActionBehind {
+			blocked := *a.Blocked
+			blocked.Next = next
+			actions[i].Blocked = &blocked
+		}
+	}
+
+	return actions
 }
 
 // issueViews leaves out the issues of ignored repos and counts the ones that
