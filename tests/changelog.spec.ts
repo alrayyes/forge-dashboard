@@ -34,6 +34,13 @@ async function waitForReleasesToSettle(page: Page) {
   ]);
 }
 
+// #1135: the page shows the newest releases and reveals older ones on
+// request, so a long history doesn't put thousands of elements on the page.
+async function showAllReleases(page: Page) {
+  const more = page.getByRole('button', { name: /older releases/i });
+  while (await more.isVisible()) await more.click();
+}
+
 test.describe('release history page', () => {
   test('reachable without a session, unlike the dashboard itself', async ({
     page,
@@ -75,6 +82,7 @@ test.describe('release history page', () => {
     expect(CHANGELOG_VERSIONS.length).toBeGreaterThan(0);
     await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
+    await showAllReleases(page);
 
     await expect(page.locator('.release')).toHaveCount(
       CHANGELOG_VERSIONS.length,
@@ -86,6 +94,32 @@ test.describe('release history page', () => {
     const first = page.locator('.release').first();
     await expect(first.locator('.release-date')).not.toHaveText('');
     await expect(first.locator('.release-notes li').first()).toBeVisible();
+  });
+
+  test('keeps the DOM small on load and reveals older releases on request', async ({
+    page,
+  }) => {
+    // Needs more releases than one page holds, or there is nothing to page.
+    expect(CHANGELOG_VERSIONS.length).toBeGreaterThan(20);
+    await page.goto('/changelog.html');
+    await waitForReleasesToSettle(page);
+
+    const elements = await page.evaluate(
+      () => document.querySelectorAll('*').length,
+    );
+    expect(elements).toBeLessThan(1500);
+    const shown = await page.locator('.release').count();
+    expect(shown).toBeLessThan(CHANGELOG_VERSIONS.length);
+
+    const more = page.getByRole('button', { name: /older releases/i });
+    await expect(more).toBeVisible();
+    await more.click();
+    expect(await page.locator('.release').count()).toBeGreaterThan(shown);
+    await showAllReleases(page);
+    await expect(more).toBeHidden();
+    await expect(page.locator('.release')).toHaveCount(
+      CHANGELOG_VERSIONS.length,
+    );
   });
 
   // The notes come from commit messages, so a link in them is untrusted text
