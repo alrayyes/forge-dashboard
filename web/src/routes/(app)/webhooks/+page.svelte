@@ -475,6 +475,10 @@
 
 <svelte:head>
   <title>Webhooks — Forge Board</title>
+  <meta
+    name="description"
+    content="Which tracked repositories have a confirmed webhook, and a button to add one."
+  />
   <style>
     .webhooks-wrap {
       max-width: 720px;

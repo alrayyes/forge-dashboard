@@ -331,6 +331,10 @@
 
 <svelte:head>
   <title>Admin — Forge Board</title>
+  <meta
+    name="description"
+    content="Invite people to this Forge Board and review its outbound requests."
+  />
   <style>
     .admin-wrap {
       max-width: 720px;
