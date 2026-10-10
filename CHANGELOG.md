@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.139.1](https://github.com/alrayyes/forge-dashboard/compare/v0.139.0...v0.139.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **api:** keep Update branch on a release PR where auto-update is on ([#1105](https://github.com/alrayyes/forge-dashboard/issues/1105)) ([fdaec5b](https://github.com/alrayyes/forge-dashboard/commit/fdaec5b2840b13e94ee2e22a53ba4cec4caf8a25))
+
 ## [0.139.0](https://github.com/alrayyes/forge-dashboard/compare/v0.138.3...v0.139.0) (2026-10-10)
 
 
