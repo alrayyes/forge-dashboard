@@ -287,6 +287,15 @@
     let lastGeneratedAt: string | null = null;
 
     // ---- formatting ----
+    // A caption over the value: the row is a two-line card, so a header row
+    // would sit far from the cells it names (#1109).
+    function timeCell(cls: string, label: string, iso: string): HTMLElement {
+      const cell = el("div", cls);
+      cell.appendChild(el("span", "time-label", label));
+      cell.appendChild(el("span", "time-value", relativeTime(iso)));
+      return cell;
+    }
+
     function relativeTime(iso: string): string {
       const mins = Filters.minutesAgo(iso);
       if (mins < 1) return "just now";
@@ -743,8 +752,8 @@
 
       const meta = el("div", "row-meta");
       meta.appendChild(el("div", "author", item.author));
-      meta.appendChild(el("div", "created", relativeTime(item.createdAt)));
-      meta.appendChild(el("div", "updated", relativeTime(item.updatedAt)));
+      meta.appendChild(timeCell("created", "Created", item.createdAt));
+      meta.appendChild(timeCell("updated", "Updated", item.updatedAt));
       if (isPR) {
         const pr = item as PullRequestItem;
         // One cell, possibly several pills — keeps .row's fixed
