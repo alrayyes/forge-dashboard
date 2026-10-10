@@ -5213,6 +5213,15 @@
       userAsked = false,
       startedSeq?: number,
     ) {
+      // A refresh answer can land after a pushed snapshot that is newer than
+      // it, and would put back what the push already moved on from, such as
+      // a request drawn as queued again after it expired (#1124). An equal
+      // time is not older: a cooldown answer repeats the current snapshot.
+      if (
+        lastGeneratedAt &&
+        Date.parse(data.generatedAt) < Date.parse(lastGeneratedAt)
+      )
+        return;
       clearError();
       lastGeneratedAt = data.generatedAt;
       tickRefreshedAt();
