@@ -509,7 +509,8 @@ A bot `rebase` waits on the bot, not on the dashboard. The button becomes
 actions button when the menu closes), and the row says the bot will pick it up
 shortly and that it can take a few minutes (a "Requested" age ticks along, kept
 out of what a screen reader announces). Dependabot is asked with the
-`@dependabot rebase` comment and Renovate with the `rebase` label, and the copy
+`@dependabot rebase` comment and Renovate with the `rebase-check` checkbox in the
+pull request body (the `rebase` label when the body has none), and the copy
 says which. The request lives on the server: a successful Dependabot or
 Renovate request shows up on the pull request as `botRequest`, so a reload
 mid-wait still shows the row waiting, with the "Requested ago" clock counted
@@ -590,8 +591,9 @@ rebase` command the manual button does rather than a generic branch update
 `@dependabot recreate` on its own, the same way you'd notice the failure
 and click Recreate yourself. A Renovate pull request gets the same
 treatment as the manual `Renovate: Rebase` button below it — the
-configured `rebase` label added instead of a generic branch update,
-since that's Renovate's own rebase/retry trigger, not a comment command.
+body's `rebase-check` checkbox ticked (or the configured `rebase` label when the
+body has none) instead of a generic branch update, since that's Renovate's
+own rebase/retry trigger, not a comment command.
 The background pass always skips release-please pull requests, so nothing
 writes to a release branch unattended. The manual Update branch button is
 the way to catch one up. A generic update the forge refuses, such as a merge
@@ -600,13 +602,17 @@ and any other failure waits five minutes, so a stuck pull request costs one
 request, not one per refresh.
 
 A Renovate-authored pull request, on either forge, gets a `Renovate:
-Rebase` button that adds the configured `rebase` label (Settings' own
-`Renovate rebase label` field, described earlier) instead of you finding
-and adding it yourself — Renovate's own rebase/retry trigger is a label,
-not a comment command. On Forgejo the label has to already exist on the
-repo (its labels API takes an existing label's ID, not an arbitrary
-name); the button reports that plainly instead of silently doing
-nothing if it doesn't.
+Rebase` button that ticks the `rebase-check` checkbox in the pull request's
+body, which every Renovate pull request carries and which needs no setup on
+the repo. Renovate doesn't read comments as commands, so the checkbox and a
+label are its only rebase/retry triggers. The dashboard edits that one
+character and leaves the rest of the body alone. If the box is already
+ticked the button answers `already_requested` and changes nothing. A body
+with no checkbox falls back to adding the configured `rebase` label
+(Settings' own `Renovate rebase label` field, described earlier). On Forgejo
+that label has to already exist on the repo (its labels API takes an
+existing label's ID, not an arbitrary name); the button reports that plainly
+instead of silently doing nothing if it doesn't.
 
 A pull request with any CI reported at all gets a `View pipeline`
 button, opening a panel that lists every individual job/check against
