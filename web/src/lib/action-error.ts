@@ -18,6 +18,7 @@ export type ActionCode =
   | 'checks_failing'
   | 'blocked_by_protection'
   | 'already_up_to_date'
+  | 'already_requested'
   | 'auto_merge_not_allowed'
   | 'ready_to_merge'
   | 'label_missing'
@@ -57,6 +58,7 @@ const CODES: ReadonlySet<string> = new Set<ActionCode>([
   'checks_failing',
   'blocked_by_protection',
   'already_up_to_date',
+  'already_requested',
   'auto_merge_not_allowed',
   'ready_to_merge',
   'label_missing',
