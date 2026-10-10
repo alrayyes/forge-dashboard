@@ -73,10 +73,10 @@
         >{:else}<a class="mono" href="/changelog.html"
           >v{versionState.version}</a
         >{/if}{/if}</span
-  >{#if !isCurrentRoute("/disclaimer")}
-    &#183; <a href="/disclaimer.html">Disclaimer</a
-    >{/if}{#if !isCurrentRoute("/privacy")}
-    &#183; <a href="/privacy.html">Privacy</a>{/if}
+  >{#if !isCurrentRoute("/disclaimer")}{" "}&#183;
+    <a href="/disclaimer.html">Disclaimer</a
+    >{/if}{#if !isCurrentRoute("/privacy")}{" "}&#183;
+    <a href="/privacy.html">Privacy</a>{/if}
 </footer>
 
 <style>
