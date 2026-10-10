@@ -2561,13 +2561,7 @@
         ).find((row) => row.dataset.issueKey === key);
         if (!old) continue;
         old.replaceWith(
-          buildRow(
-            item,
-            false,
-            undefined,
-            handleLabelClick,
-            sharedState.shared.label,
-          ),
+          buildRow(item, false, handleLabelClick, sharedState.shared.label),
         );
       }
     }
