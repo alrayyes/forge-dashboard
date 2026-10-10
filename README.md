@@ -660,6 +660,18 @@ required when a pattern matches its job name or its workflow-file
 context; it is never marked advisory. If nothing is known for any check,
 the panel stays the flat list.
 
+## Releases
+
+Release pull requests have their own page, `/releases.html`, reached from the
+**Releases** item in the navigation. It is the pull request board over the
+pull requests the server marks `kind: release` (release-please's, by its
+`autorelease:` label), with the same filters, rows and actions as the main
+page. Each row shows the version being released next to the title. Merge is
+offered when the release can merge, or greyed out with the reason when it
+can't. A release that is behind its base branch gets Update branch and a line
+saying release-please won't update it until a releasable change lands. With no
+release pull requests open the page says nothing is waiting to ship.
+
 ## Issues
 
 Open issues have their own page, `/issues.html`, reached from the **Issues**
@@ -954,8 +966,10 @@ request to GitHub. The web build turns `CHANGELOG.md` into
 committed) and the page reads that one same-origin file. It therefore lists
 exactly the releases the running version was built from, so the footer
 version and the newest entry agree. The footer reads the running binary,
-so it lags the published release until the deployment updates. The old
-`/releases` and `/releases.html` URLs redirect (301) to `/changelog.html`.
+so it lags the published release until the deployment updates. The page used
+to live at `/releases.html`. That address now serves the Releases page below,
+with no redirect, so an old bookmark or a browser that cached the earlier 301
+needs `/changelog.html` typed once.
 
 ## API
 

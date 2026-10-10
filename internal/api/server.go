@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -206,20 +205,13 @@ func NewMux(deps Deps) http.Handler {
 	// /api/admin/users answers 403, same as any other API call it makes.
 	mux.Handle("GET /admin.html", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /admin.js", requireAuthPage(deps.AuthStore, privateFiles))
-	// The changelog page used to live at /releases.html (#1108). Old links
-	// get a permanent redirect; the page is public, so no session is needed.
-	mux.HandleFunc("GET /releases", redirectToChangelog)
-	mux.HandleFunc("GET /releases.html", redirectToChangelog)
+	// Release pull requests, with their own actions (#1107). This was the
+	// changelog's address until #1108, which redirected it; the redirect is
+	// gone now that the name means this page.
+	mux.Handle("GET /releases.html", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /", publicFiles)
 
 	return accessLogMiddleware(limitRequestBody(mux))
-}
-
-// redirectToChangelog sends an old /releases URL to /changelog.html, keeping
-// the query string.
-func redirectToChangelog(w http.ResponseWriter, r *http.Request) {
-	target := url.URL{Path: "/changelog.html", RawQuery: r.URL.RawQuery}
-	http.Redirect(w, r, target.String(), http.StatusMovedPermanently)
 }
 
 // maxRequestBodyBytes caps what any JSON endpoint reads (#1008). Every body
