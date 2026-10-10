@@ -12,10 +12,12 @@ on:
 permissions:
   contents: read
 
-# A second push to the same branch makes the first run pointless.
+# A second push to the same branch makes the first run pointless, except on
+# main: merges arrive in bursts there, and a cancelled run's red "ci result"
+# reads as a broken main (#1128).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   # No hooks in a pipeline (tooling.md): a `bun install` here would otherwise
