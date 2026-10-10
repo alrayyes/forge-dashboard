@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.140.1](https://github.com/alrayyes/forge-dashboard/compare/v0.140.0...v0.140.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** caption each row's created and updated time ([#1120](https://github.com/alrayyes/forge-dashboard/issues/1120)) ([cc43a13](https://github.com/alrayyes/forge-dashboard/commit/cc43a13b064b0d706e496aab80a0b719625cb133)), closes [#1109](https://github.com/alrayyes/forge-dashboard/issues/1109)
+
 ## [0.140.0](https://github.com/alrayyes/forge-dashboard/compare/v0.139.2...v0.140.0) (2026-10-10)
 
 
