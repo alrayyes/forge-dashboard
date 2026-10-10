@@ -158,6 +158,8 @@
   };
   type DashboardSnapshot = {
     generatedAt: string;
+    // How often, in seconds, to re-read the snapshot (the server's advice).
+    readIntervalSeconds?: number;
     forges: Forge[];
     pullRequests: PullRequestItem[];
     issues: IssueItem[];
@@ -218,15 +220,18 @@
   // state" for the same principle applied to a goroutine instead of a
   // browser tab.
   function initDashboard() {
-    const REFRESH_INTERVAL_MS = 30000;
+    // How long to wait between reads of the snapshot. The server says so in
+    // every snapshot (readIntervalSeconds, #809), so the page keeps no
+    // interval of its own; this is only the wait before the first answer
+    // has arrived, e.g. when that first read failed.
+    let readIntervalMs = 10_000;
     // Counts the snapshot fetches started so far, so a queued bot rebase
     // can tell a fetch begun before its click from one begun after (#691).
     let requestSeq = 0;
     // When the background poll next fires — what the queued-action
     // banner's countdown reads, so it tracks the real cadence instead of
-    // a number hard-coded next to REFRESH_INTERVAL_MS. Re-armed by the
-    // setInterval(refresh) callback itself.
-    let nextPollAt = Date.now() + REFRESH_INTERVAL_MS;
+    // a number hard-coded beside the interval. Re-armed by schedulePoll.
+    let nextPollAt = Date.now() + readIntervalMs;
 
     // Per-pull-request action feedback (#714): inline row lines, toasts
     // and the Activity panel. State lives here, outside the DOM, so it
@@ -3182,7 +3187,7 @@
     // One alone isn't collapsed: it's drawn directly (#1139).
     //
     // Keyed by prKey, not a per-row DOM flag: applySnapshot rebuilds
-    // every row from scratch on each 30s poll (REFRESH_INTERVAL_MS), so
+    // every row from scratch on each poll, so
     // an open/closed flag living only in the DOM would slam shut on its
     // own mid-decision. Persisting it here is the same reason
     // mergeState/closeState/etc. all live outside the DOM node too.
@@ -5049,7 +5054,6 @@
 
     // ---- force-refresh: retry right now instead of waiting out the
     // rest of the background poll's own interval ----
-    const FORCE_REFRESH_COOLDOWN_MS = 5000;
     const forceRefreshButton = document.getElementById(
       "force-refresh-button",
     ) as HTMLButtonElement | null;
@@ -5060,39 +5064,53 @@
     // on screen. POSTs, not the plain GET refresh() polls with — this
     // forces a real re-fetch from the forge instead of possibly
     // answering from a cache.
-    function refreshDashboardNow(): Promise<void> {
+    // Resolves to how many seconds the server wants this client to wait
+    // before forcing another one: the Retry-After of an answer given inside
+    // the per-user cooldown, which carries the current snapshot instead of a
+    // fetch. undefined when the server did fetch.
+    function refreshDashboardNow(): Promise<number | undefined> {
       const seq = ++requestSeq;
       return fetch(withDrafts("/api/dashboard/refresh"), {
         method: "POST",
         headers: { Accept: "application/json" },
-      })
-        .then((res) => {
-          if (res.status === 401) {
-            window.location.href = "/login.html";
-            throw new Error("session expired");
-          }
-          if (!res.ok) throw new Error(`backend answered ${res.status}`);
-          return res.json();
-        })
-        .then((data) => applySnapshot(data, true, seq));
+      }).then((res) => {
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          throw new Error("session expired");
+        }
+        if (!res.ok) throw new Error(`backend answered ${res.status}`);
+        const wait = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
+        return res.json().then((data) => {
+          applySnapshot(data, true, seq);
+          return wait >= 1 ? wait : undefined;
+        });
+      });
     }
 
     forceRefreshButton?.addEventListener("click", () => {
       forceRefreshButton.disabled = true;
       forceRefreshButton.classList.add("is-refreshing");
+      let lockSeconds: number | undefined;
       refreshDashboardNow()
+        .then((wait) => {
+          lockSeconds = wait;
+        })
         .catch((err: Error) => {
           showError(`Could not refresh: ${err.message}`);
         })
         .finally(() => {
           forceRefreshButton.classList.remove("is-refreshing");
-          // Cooldown starts once the response is already in hand, not
-          // from the click — a user mashing the button gets one real
-          // refresh and a short pause, not a queue of them landing back
-          // to back.
+          // The server enforces the cooldown. A click inside it was answered
+          // with the current snapshot and a Retry-After, and the button
+          // stays locked that long; a click that fetched needs no lock, the
+          // next one is the server's to answer.
+          if (lockSeconds === undefined) {
+            forceRefreshButton.disabled = false;
+            return;
+          }
           setTimeout(() => {
             forceRefreshButton.disabled = false;
-          }, FORCE_REFRESH_COOLDOWN_MS);
+          }, lockSeconds * 1000);
         });
     });
 
@@ -5196,6 +5214,7 @@
         return;
       clearError();
       lastGeneratedAt = data.generatedAt;
+      followReadInterval(data.readIntervalSeconds);
       tickRefreshedAt();
 
       renderForgeHealth(data.forges || []);
@@ -5301,11 +5320,26 @@
         });
     }
 
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    function schedulePoll() {
+      clearTimeout(pollTimer);
+      nextPollAt = Date.now() + readIntervalMs;
+      pollTimer = setTimeout(() => {
+        refresh();
+        schedulePoll();
+      }, readIntervalMs);
+    }
+    // Follows the server's advice, and only re-arms when it changes, so a
+    // snapshot that arrives between polls doesn't push the next one back.
+    function followReadInterval(seconds: number | undefined) {
+      if (typeof seconds !== "number" || !(seconds >= 1)) return;
+      if (seconds * 1000 === readIntervalMs) return;
+      readIntervalMs = seconds * 1000;
+      schedulePoll();
+    }
+
     refresh();
-    setInterval(() => {
-      nextPollAt = Date.now() + REFRESH_INTERVAL_MS;
-      refresh();
-    }, REFRESH_INTERVAL_MS);
+    schedulePoll();
 
     // ---- WebMCP (webmachinelearning/webmcp) tool: get_dashboard ----
     // Experimental browser API -- document.modelContext only exists in

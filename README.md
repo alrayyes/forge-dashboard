@@ -704,7 +704,8 @@ nothing changes except that the title filter now sits first in the bar.
 
 ## Live updates
 
-The board polls every 30 seconds and takes pushes over a live stream, but
+The board polls on the schedule in `readIntervalSeconds` (30 seconds today, set
+by the server) and takes pushes over a live stream, but
 rows don't move while you're reading. A change to a row's own content (CI,
 merge status, behind, labels, title) updates that row where it stands and
 marks it "Updated just now" for a couple of seconds. Anything that would
@@ -725,7 +726,8 @@ filters and goes with every dashboard request, refresh and the live stream.
 ## Webhooks
 
 Optional. Without one, the dashboard still refreshes on its own schedule
-and the browser tab polls it every 30 seconds; a webhook just means a new
+and the browser tab polls it on the server's schedule (30 seconds
+today); a webhook just means a new
 pull request, a closed issue, or a CI status change on a tracked repo
 shows up within seconds instead of at the next poll. Set up from the
 Settings page, one forge at a time — full copy-pasteable steps, exactly
@@ -983,7 +985,9 @@ The dashboard response carries `readIntervalSeconds`, the server's advice on
 how often to re-read it. `POST /api/dashboard/refresh` fetches from the forges
 right now, but at most once every five seconds per user. A call inside that
 window skips the fetch and answers 200 with the current snapshot and a
-`Retry-After` header, so a follow-up refresh after an action never fails.
+`Retry-After` header, so a follow-up refresh after an action never fails. The
+page follows both: it polls at `readIntervalSeconds`, and "Refresh now" locks
+for `Retry-After` seconds. Neither number lives in the front end.
 
 `GET/POST/DELETE /api/mcp` sits outside this contract — it's the MCP
 Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource

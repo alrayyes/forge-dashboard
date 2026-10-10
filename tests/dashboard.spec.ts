@@ -2497,7 +2497,7 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toContainText('A fresh PR');
     });
 
-    test('disables itself immediately, and re-enables after the cooldown once the response has landed', async ({
+    test('disables itself immediately, and re-enables after the Retry-After the server gave once the response has landed', async ({
       page,
     }) => {
       await page.route('**/api/dashboard/refresh', async (route) => {
@@ -2508,9 +2508,12 @@ test.describe('dashboard page', () => {
         // tick as the click, and the assertion below races the class's
         // own removal instead of ever seeing it (#413).
         await new Promise((resolve) => setTimeout(resolve, 200));
+        // A refresh inside the server's cooldown: the current snapshot and
+        // how long to wait (#809).
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
+          headers: { 'Retry-After': '2' },
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [],
@@ -2528,7 +2531,7 @@ test.describe('dashboard page', () => {
       await expect(button).toHaveClass(/is-refreshing/);
 
       // The spin class comes off once the response is in hand, but the
-      // button itself stays disabled through the cooldown that follows.
+      // button itself stays disabled for the Retry-After that follows.
       await expect(button).not.toHaveClass(/is-refreshing/);
       await expect(button).toBeDisabled();
 
