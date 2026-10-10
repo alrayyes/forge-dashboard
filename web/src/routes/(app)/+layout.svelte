@@ -59,6 +59,12 @@
   const issuesLabel = $derived(
     issueCount.value === null ? "Issues" : `Issues, ${issueCount.value} open`,
   );
+  // The bottom tab shows the count before the word ("12 Issues"), and a label
+  // has to contain the words on screen (WCAG 2.5.3, #1135), so it reads the
+  // same way round.
+  const issuesTabLabel = $derived(
+    issueCount.value === null ? "Issues" : `${issueCount.value} Issues open`,
+  );
 
   function signOut() {
     fetch("/api/auth/logout", { method: "POST" }).finally(() => {
@@ -365,7 +371,7 @@
   <a
     class="bottom-nav-link nav-with-badge"
     href="/issues.html"
-    aria-label={issuesLabel}
+    aria-label={issuesTabLabel}
     aria-current={isCurrentRoute("/issues") ? "page" : undefined}
   >
     <svg
