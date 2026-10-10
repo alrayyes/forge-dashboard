@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.142.1](https://github.com/alrayyes/forge-dashboard/compare/v0.142.0...v0.142.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** drop the tall empty space under settings and admin card content ([#1156](https://github.com/alrayyes/forge-dashboard/issues/1156)) ([f05effa](https://github.com/alrayyes/forge-dashboard/commit/f05effaa510bba877a2d0821c1788ce461b459f6)), closes [#1109](https://github.com/alrayyes/forge-dashboard/issues/1109)
+
 ## [0.142.0](https://github.com/alrayyes/forge-dashboard/compare/v0.141.7...v0.142.0) (2026-10-10)
 
 

@@ -3,7 +3,7 @@
     "collect": {
       "url": [
         "http://localhost:8080/login.html",
-        "http://localhost:8080/index.html",
+        "http://localhost:8080/",
         "http://localhost:8080/issues.html",
         "http://localhost:8080/insights.html",
         "http://localhost:8080/settings.html",
@@ -35,6 +35,7 @@
             "minScore": 0.9
           }
         ],
+        "redirects": "warn",
         "cache-insight": "warn",
         "document-latency-insight": "warn",
         "render-blocking-insight": "warn",

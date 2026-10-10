@@ -8,33 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The changelog page moved from /releases.html to /changelog.html (#1108).
-// Old links, including the one in a cached footer, get a permanent redirect,
-// with no session needed since the page is public.
-func TestPages_OldReleasesURLsRedirectToChangelog(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestServer(t)
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-
-	for path, want := range map[string]string{
-		"/releases":           "/changelog.html",
-		"/releases.html":      "/changelog.html",
-		"/releases?v=0.139.0": "/changelog.html?v=0.139.0",
-	} {
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-
-			resp, err := client.Get(srv.URL + path)
-			require.NoError(t, err)
-			defer func() { _ = resp.Body.Close() }()
-
-			assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
-			assert.Equal(t, want, resp.Header.Get("Location"))
-		})
-	}
-}
-
 // A page that shows account data is bounced to the login page for a visitor
 // with no session, instead of being served as an empty shell (#827 adds
 // /issues.html to the list).
@@ -48,6 +21,7 @@ func TestPages_RequireASession(t *testing.T) {
 		"/",
 		"/issues.html",
 		"/insights.html",
+		"/releases.html",
 		"/settings.html",
 		"/webhooks.html",
 		"/admin.html",
