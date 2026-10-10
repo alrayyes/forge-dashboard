@@ -63,3 +63,17 @@ server log. The tickets' criteria win over those two details.
   Audit" (`564147752128938905`), screen `2a2e5152e22e47d1af61540a14e50a69`.
   It's the design for #1082. The banner, "State Lock" and "Worker Task"
   labels and stage numbers are review chrome and don't ship.
+
+- `screen-releases-light.png` and `screen-releases-dark.png`: a page for
+  release pull requests only, in light and dark. Rows are grouped by repo
+  with the version large in a fixed-width face, a changelog summary, CI and merge
+  pills, a "What's in this release" list, and Merge, Update branch and a More
+  menu. It also draws the empty, loading and rate-limited states.
+  `crop-releases-behind-row.png` is the Behind row, with the plain-words
+  reason next to Update branch. Stitch project "Forge Dashboard UI Audit"
+  (`564147752128938905`), screens `9f255af3c7674e40af6cd00b3a6e3823` (light)
+  and `164a64303e3046dea0eff04607122151` (dark). It's the design for #1107.
+  The "Trigger Manual Cut", "Pipeline Rules", "Force changelog scan" and
+  "Retry Endpoint" buttons, the hotkeys bar, the queue and latency figures and
+  the "Component State" panels are Stitch's own additions: they aren't in the
+  ticket and don't ship.
