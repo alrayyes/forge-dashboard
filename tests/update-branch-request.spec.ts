@@ -257,6 +257,51 @@ test.describe('update branch request from the server', () => {
     ).toBeDisabled();
   });
 
+  // #1124: Update branch asks for a refresh once the server answers 202. That
+  // answer carries the queued record. If a pushed snapshot with the request
+  // expired lands first, the late answer must not draw it as queued again.
+  test('a refresh answer older than a pushed snapshot cannot undo it', async ({
+    page,
+  }) => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let staleBody = '';
+    await page.route('**/api/dashboard/refresh', async (route: Route) => {
+      staleBody = JSON.stringify(snapshot(current));
+      await gate;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: staleBody,
+      });
+    });
+
+    await row(page).getByRole('button', { name: 'Update branch' }).click();
+    await expect(
+      row(page).getByRole('button', { name: 'Queued…' }),
+    ).toBeDisabled();
+    await expect.poll(() => staleBody).not.toBe('');
+
+    current = {
+      ...current,
+      updateRequest: updateRequest('expired', 5 * 60_000),
+    };
+    await push(page, current);
+    await expect(line(page)).toContainText('Timed out');
+
+    release();
+    await page.waitForTimeout(800);
+    await expect(line(page)).toContainText('Timed out');
+    await expect(
+      line(page).getByRole('button', { name: 'Retry' }),
+    ).toBeVisible();
+    await expect(
+      row(page).getByRole('button', { name: 'Queued…' }),
+    ).toHaveCount(0);
+  });
+
   test('an expired record found after a reload is not drawn as queued', async ({
     page,
   }) => {
