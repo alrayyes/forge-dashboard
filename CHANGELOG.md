@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.141.0](https://github.com/alrayyes/forge-dashboard/compare/v0.140.1...v0.141.0) (2026-10-10)
+
+
+### Features
+
+* **web:** read an already-ticked Renovate rebase as requested ([#1123](https://github.com/alrayyes/forge-dashboard/issues/1123)) ([d3edb50](https://github.com/alrayyes/forge-dashboard/commit/d3edb5073e162ecab3b8221707f3072c0e201c43)), closes [#1063](https://github.com/alrayyes/forge-dashboard/issues/1063)
+
 ## [0.140.1](https://github.com/alrayyes/forge-dashboard/compare/v0.140.0...v0.140.1) (2026-10-10)
 
 
