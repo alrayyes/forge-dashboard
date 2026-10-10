@@ -2742,6 +2742,20 @@
         retry: () => doRenovateRebase(item, buttonEl("row-action")),
       });
 
+      // Stays "queued" until the next snapshot, same as Dependabot.
+      // Same "close the popover this button lives in, once it has
+      // nothing left to say" reasoning doDependabotAction's own
+      // success handler uses.
+      const requested = (alreadyTicked = false) => {
+        confirmRequest(renovateRebaseState, key);
+        feedback.update(fkey, {
+          toast: true,
+          ...(alreadyTicked && { message: "Rebase requested." }),
+          announce: "Renovate rebase requested. It will pick this up shortly.",
+        });
+        closeMenuKeepingFocus(prKey(item));
+      };
+
       fetch("/api/pull-requests/renovate-rebase", {
         method: "POST",
         headers: {
@@ -2764,20 +2778,14 @@
             throw err;
           });
         })
-        .then(() => {
-          // Stays "queued" until the next snapshot, same as Dependabot.
-          // Same "close the popover this button lives in, once it has
-          // nothing left to say" reasoning doDependabotAction's own
-          // success handler uses.
-          confirmRequest(renovateRebaseState, key);
-          feedback.update(fkey, {
-            toast: true,
-            announce:
-              "Renovate rebase requested. It will pick this up shortly.",
-          });
-          closeMenuKeepingFocus(prKey(item));
-        })
+        .then(() => requested())
         .catch((err: ActionRequestError) => {
+          // The body's checkbox was already ticked: someone, or an earlier
+          // click, got there first. That is the state the user asked for.
+          if (err.code === "already_requested") {
+            requested(true);
+            return;
+          }
           renderActionRefusal(
             item,
             err,
