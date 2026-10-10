@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.143.0](https://github.com/alrayyes/forge-dashboard/compare/v0.142.1...v0.143.0) (2026-10-10)
+
+
+### Features
+
+* **web:** a Releases page for release pull requests ([#1161](https://github.com/alrayyes/forge-dashboard/issues/1161)) ([7d3da85](https://github.com/alrayyes/forge-dashboard/commit/7d3da856ee2c4c769bb7aea66ddd7e74619d0464)), closes [#1107](https://github.com/alrayyes/forge-dashboard/issues/1107)
+
 ## [0.142.1](https://github.com/alrayyes/forge-dashboard/compare/v0.142.0...v0.142.1) (2026-10-10)
 
 
