@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.140.0](https://github.com/alrayyes/forge-dashboard/compare/v0.139.2...v0.140.0) (2026-10-10)
+
+
+### Features
+
+* **api:** redirect /releases and /releases.html to /changelog.html ([#1110](https://github.com/alrayyes/forge-dashboard/issues/1110)) ([ace02dd](https://github.com/alrayyes/forge-dashboard/commit/ace02ddc10d1d8d70ec0df76d33491260e1768e4))
+
 ## [0.139.2](https://github.com/alrayyes/forge-dashboard/compare/v0.139.1...v0.139.2) (2026-10-10)
 
 
