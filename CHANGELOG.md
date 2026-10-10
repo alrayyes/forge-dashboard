@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.139.2](https://github.com/alrayyes/forge-dashboard/compare/v0.139.1...v0.139.2) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** tidy the webhooks page controls ([#1113](https://github.com/alrayyes/forge-dashboard/issues/1113)) ([5cb255b](https://github.com/alrayyes/forge-dashboard/commit/5cb255b4f916fdb76dd317d3df09e4a1371abd08)), closes [#1109](https://github.com/alrayyes/forge-dashboard/issues/1109)
+
 ## [0.139.1](https://github.com/alrayyes/forge-dashboard/compare/v0.139.0...v0.139.1) (2026-10-10)
 
 
