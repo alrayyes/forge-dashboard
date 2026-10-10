@@ -1372,6 +1372,88 @@ test.describe('webhooks page', () => {
     });
   });
 
+  test.describe('controls look consistent (#1109)', () => {
+    const repos = [
+      {
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
+    ];
+
+    test('the forge filter shows only the pill, not native radio circles', async ({
+      page,
+    }) => {
+      await mockDashboard(page, repos);
+      await page.goto('/webhooks.html');
+
+      const radios = page.locator('.forge-segmented input[type="radio"]');
+      await expect(radios).toHaveCount(3);
+      for (const radio of await radios.all()) {
+        await expect(radio).toHaveCSS('opacity', '0');
+      }
+    });
+
+    test('the row actions use the app font and one link style', async ({
+      page,
+    }) => {
+      await mockDashboard(page, repos);
+      await page.goto('/webhooks.html');
+
+      const bodyFont = await page.evaluate(
+        () => getComputedStyle(document.body).fontFamily,
+      );
+      const row = page.locator('#webhooks-rows tr').first();
+      const controls = [
+        row.getByRole('button', { name: 'Add a webhook' }),
+        row.getByRole('button', { name: /Enable auto-update/ }),
+        row.getByRole('combobox', { name: /Ignore/ }),
+      ];
+      for (const control of controls) {
+        await expect(control).toHaveCSS('font-family', bodyFont);
+        await expect(control).toHaveCSS('text-decoration-line', 'underline');
+      }
+    });
+
+    test('every action column has a header', async ({ page }) => {
+      await mockDashboard(page, repos);
+      await page.goto('/webhooks.html');
+
+      const headers = page.locator('#webhooks-table thead th');
+      await expect(headers).toHaveCount(6);
+      for (const header of await headers.all()) {
+        await expect(header).not.toHaveText('');
+      }
+    });
+
+    test('the repo search and status select sit on one row', async ({
+      page,
+    }) => {
+      await mockDashboard(page, repos);
+      await page.goto('/webhooks.html');
+
+      const search = await page.locator('#webhooks-repo-filter').boundingBox();
+      const status = await page
+        .locator('#webhooks-status-filter')
+        .boundingBox();
+      expect(search).not.toBeNull();
+      expect(status).not.toBeNull();
+      expect(Math.abs((search?.y ?? 0) - (status?.y ?? 99))).toBeLessThan(4);
+    });
+
+    test('has no axe-core violations', async ({ page }) => {
+      await mockDashboard(page, repos);
+      await page.goto('/webhooks.html');
+      await expect(page.locator('#webhooks-table')).toBeVisible();
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
+
   test('the persistent nav highlights Webhooks and still links to Settings', async ({
     page,
   }) => {

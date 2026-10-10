@@ -909,7 +909,8 @@ select.col-filter {
    specificity, ballooning each input past its own label and over its
    neighbors' — confirmed live as exactly that: each input measuring
    120px wide regardless of its label's real size. */
-.filter-bar .forge-segmented input {
+.filter-bar .forge-segmented input,
+.webhooks-filter-bar .forge-segmented input {
   position: absolute;
   inset: 0;
   margin: 0;
