@@ -72,6 +72,12 @@ EXPOSE 8080
 # unready. --start-period is failure-free time for a cold volume and the
 # schema setup; the first refresh only starts once someone signs in, so a
 # restarted container is ready on the database alone.
+#
+# Resource note: a container's pids limit counts OS threads, and the
+# healthcheck is a second process that needs one more. A 50-repo refresh from
+# six tabs peaks at about 20 threads (internal/forgejo/thread_budget_test.go
+# holds it under 30), so a limit of 64 leaves room. /readyz reports the live
+# `threads` and `goroutines`; alert on `threads` well before the limit (#902).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD ["/forge-dashboard", "healthcheck"]
 
