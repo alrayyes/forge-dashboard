@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.141.1](https://github.com/alrayyes/forge-dashboard/compare/v0.141.0...v0.141.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** space the footer separators ([#1122](https://github.com/alrayyes/forge-dashboard/issues/1122)) ([64277e7](https://github.com/alrayyes/forge-dashboard/commit/64277e7241b9007000cee4ef6118f7e1f18e31b2)), closes [#1109](https://github.com/alrayyes/forge-dashboard/issues/1109)
+
 ## [0.141.0](https://github.com/alrayyes/forge-dashboard/compare/v0.140.1...v0.141.0) (2026-10-10)
 
 
