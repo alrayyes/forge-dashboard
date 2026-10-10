@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-// Regenerates docs/screenshots/dashboard-{light,dark}.png against a real
+// Regenerates docs/screenshots/<page>-{light,dark}.png for the dashboard,
+// issues, insights, webhooks, settings, admin and login pages (the footer
+// pages are left out) against a real
 // build of the binary, run by the release workflow's screenshots job —
 // not a Playwright *test* (playwright.config.js only looks in tests/),
 // so the main e2e suite never picks this up.
 //
-// The dashboard's own /api/dashboard fetch is mocked with fixture data,
+// Every page's /api/dashboard fetch is mocked with fixture data,
 // the same way tests/dashboard.spec.ts's own route mocks work: this runs
 // in CI with no live GitHub/Forgejo credentials, and a screenshot only
 // needs to look like the real product, not show a real account's actual
@@ -26,7 +28,7 @@ function daysAgo(n: number) {
 const SNAPSHOT = {
   generatedAt: new Date().toISOString(),
   forges: [
-    { forge: 'github', reachable: true, repoCount: 6 },
+    { forge: 'github', reachable: true, repoCount: 4 },
     { forge: 'forgejo', reachable: true, repoCount: 2 },
   ],
   pullRequests: [
@@ -116,10 +118,65 @@ const SNAPSHOT = {
   ],
 };
 
+// Fixture repos for the webhooks page (/api/dashboard's `repos` list).
+const REPOS = [
+  {
+    forge: 'github',
+    fullName: 'alrayyes/forge-dashboard',
+    hasWebhook: true,
+    canManageWebhooks: true,
+  },
+  {
+    forge: 'github',
+    fullName: 'example-org/wiki',
+    hasWebhook: true,
+    canManageWebhooks: true,
+  },
+  {
+    forge: 'github',
+    fullName: 'example-org/api-gateway',
+    hasWebhook: false,
+    canManageWebhooks: true,
+  },
+  {
+    forge: 'github',
+    fullName: 'example-org/docs-site',
+    hasWebhook: false,
+    canManageWebhooks: true,
+  },
+  {
+    forge: 'forgejo',
+    fullName: 'sandbox/vps-docker',
+    hasWebhook: true,
+    canManageWebhooks: true,
+  },
+  {
+    forge: 'forgejo',
+    fullName: 'sandbox/dotfiles',
+    hasWebhook: false,
+    canManageWebhooks: true,
+  },
+];
+
+// One entry per page. `ready` only matches once the page shows real
+// content, so a spinner or an error state is never shot.
+const PAGES = [
+  { name: 'dashboard', url: '/', ready: '#stat-prs:not(:text("–"))' },
+  { name: 'issues', url: '/issues.html', ready: 'a[href*="issues/145"]' },
+  { name: 'insights', url: '/insights.html', ready: '.insights-header h1' },
+  { name: 'webhooks', url: '/webhooks.html', ready: '#webhooks-rows tr' },
+  { name: 'settings', url: '/settings.html', ready: 'h1' },
+  { name: 'admin', url: '/admin.html', ready: 'h1' },
+];
+
+const THEMES = ['light', 'dark'] as const;
+
 async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
+    timezoneId: 'UTC',
+    locale: 'en-US',
   });
   const page = await context.newPage();
 
@@ -131,43 +188,81 @@ async function main() {
   await page.click('#register-submit');
   await page.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
 
+  // The first registered user is the admin, so this one session covers
+  // the admin page too. Give that page a second registered user and an
+  // unredeemed invite, both with fictional names, so its tables aren't
+  // empty. The invite goes through the admin session's own cookies.
+  const colleague = await page.request.post(`${BASE_URL}/api/admin/invites`, {
+    data: { username: 'demo-colleague', displayName: 'Demo Colleague' },
+  });
+  const { token } = await colleague.json();
+  const colleagueContext = await browser.newContext();
+  const colleaguePage = await colleagueContext.newPage();
+  await addVirtualAuthenticator(colleaguePage);
+  await colleaguePage.goto(
+    `${BASE_URL}/login.html?invite=${encodeURIComponent(token)}&username=demo-colleague`,
+  );
+  await colleaguePage.click('#register-submit');
+  await colleaguePage.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
+  await colleagueContext.close();
+  await page.request.post(`${BASE_URL}/api/admin/invites`, {
+    data: { username: 'demo-guest', displayName: 'Demo Guest' },
+  });
+
+  // The live stream is aborted so nothing replaces the fixture after the
+  // page loads.
+  await page.route('**/api/dashboard/stream', (route) => route.abort());
   await page.route('**/api/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(SNAPSHOT),
+      body: JSON.stringify({ ...SNAPSHOT, repos: REPOS }),
     }),
   );
-  await page.reload();
-  await page.waitForFunction(
-    () => document.getElementById('stat-prs')?.textContent !== '–',
-  );
 
-  await page.screenshot({
-    path: path.join(OUT_DIR, 'dashboard-light.png'),
-  });
+  for (const theme of THEMES) {
+    // #352: theme is a Settings-only control now, not a header toggle —
+    // same real PUT tests/theme-helper.ts's setTheme uses.
+    await page.evaluate(
+      (t) =>
+        fetch('/api/settings/theme', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ theme: t }),
+        }),
+      theme,
+    );
+    for (const { name, url, ready } of PAGES) {
+      await page.goto(`${BASE_URL}${url}`);
+      await page.waitForFunction(
+        (t) => document.documentElement.getAttribute('data-theme') === t,
+        theme,
+      );
+      await page.locator(ready).first().waitFor();
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: path.join(OUT_DIR, `${name}-${theme}.png`),
+      });
+    }
+  }
+  await context.close();
 
-  // #352: theme is a Settings-only control now, not a header toggle —
-  // same real PUT tests/theme-helper.ts's setTheme uses, then a reload
-  // so the layout's own theme sync picks it up.
-  await page.evaluate(() =>
-    fetch('/api/settings/theme', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ theme: 'dark' }),
-    }),
-  );
-  await page.reload();
-  await page.waitForFunction(
-    () => document.getElementById('stat-prs')?.textContent !== '–',
-  );
-  await page.waitForFunction(
-    () => document.documentElement.getAttribute('data-theme') === 'dark',
-  );
-  await page.screenshot({
-    path: path.join(OUT_DIR, 'dashboard-dark.png'),
-  });
+  // Login is shot signed out: a fresh context with no session.
+  for (const theme of THEMES) {
+    const signedOut = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+      colorScheme: theme,
+    });
+    const loginPage = await signedOut.newPage();
+    await loginPage.goto(`${BASE_URL}/login.html`);
+    await loginPage.locator('#login-username').waitFor();
+    await loginPage.waitForLoadState('networkidle');
+    await loginPage.screenshot({
+      path: path.join(OUT_DIR, `login-${theme}.png`),
+    });
+    await signedOut.close();
+  }
 
   await browser.close();
 }
