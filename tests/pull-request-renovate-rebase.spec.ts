@@ -212,6 +212,43 @@ test.describe('pull request Renovate rebase button', () => {
     await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
+  // #1063: the server ticks the body's checkbox once. A second click finds it
+  // ticked and answers 409 already_requested; that is the state the user
+  // wanted, so it reads as requested, not as an error.
+  test('an already-ticked checkbox reads as requested, not as a failure', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR());
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
+      route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'dashboard: already requested',
+          code: 'already_requested',
+          message:
+            'Renovate already has a rebase request on this pull request.',
+        }),
+      }),
+    );
+    await page.reload();
+
+    const row = page.locator('#pr-rows .row').first();
+    await openMoreActions(row);
+    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+
+    await expect(page.locator('#feedback-toasts')).toContainText(
+      'Rebase requested',
+    );
+    await expect(row.locator('.row-feedback')).toContainText(
+      'will pick this up shortly',
+    );
+    await expect(row.locator('.row-feedback')).not.toContainText(
+      /couldn't|failed|refused/i,
+    );
+    await expect(page.locator('#status-banner')).toHaveCount(0);
+  });
+
   test('a transient failure shows an error and re-enables the button for another try', async ({
     page,
   }) => {
