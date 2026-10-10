@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.141.6](https://github.com/alrayyes/forge-dashboard/compare/v0.141.5...v0.141.6) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** draw the updates bar only when it has something to say ([#1130](https://github.com/alrayyes/forge-dashboard/issues/1130)) ([ac84dba](https://github.com/alrayyes/forge-dashboard/commit/ac84dbab2b24417d828ff61aeb28db2256f6f678)), closes [#1109](https://github.com/alrayyes/forge-dashboard/issues/1109)
+
 ## [0.141.5](https://github.com/alrayyes/forge-dashboard/compare/v0.141.4...v0.141.5) (2026-10-10)
 
 
