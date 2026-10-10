@@ -1537,9 +1537,10 @@
           bind:value={renovateRebaseLabel}
         />
         <p class="field-hint" id="renovate-rebase-label-hint">
-          The label Renovate's own rebase/retry trigger listens for on your
-          repos (Renovate's own <code>rebaseLabel</code> config option — genuinely
-          per-repo configurable). Leave blank to use Renovate's own default, "rebase".
+          Only used when a Renovate pull request's body has no rebase checkbox,
+          so the button falls back to this label (Renovate's own
+          <code>rebaseLabel</code> config option — genuinely per-repo configurable).
+          Leave blank to use Renovate's own default, "rebase".
         </p>
       </div>
     </div>
