@@ -16,6 +16,14 @@
   let releases = $state<Release[]>([]);
   let loaded = $state(false);
 
+  // The newest releases show first and older ones on request: all of them in
+  // one list was 3,490 elements and failed Lighthouse's DOM size audit
+  // (#1135). Nothing is dropped, only revealed a page at a time.
+  const PAGE_SIZE = 20;
+  let visibleCount = $state(PAGE_SIZE);
+  const shown = $derived(releases.slice(0, visibleCount));
+  const hiddenCount = $derived(Math.max(0, releases.length - visibleCount));
+
   // textContent -> innerHTML escapes & < > but not quotes, and a link's URL
   // ends up inside a quoted attribute below, so quotes are escaped here too.
   function escapeHTML(s: string): string {
@@ -201,6 +209,26 @@
     .release-notes .mono {
       font-size: 12px;
     }
+    .more-releases {
+      display: block;
+      margin: 18px auto 0;
+      min-height: 44px;
+      padding: 0 16px;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .more-releases:hover {
+      background: var(--surface-2, var(--surface));
+    }
+    .more-releases:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
     .empty-state {
       font-size: 13px;
       color: var(--ink-3);
@@ -224,7 +252,7 @@
   </p>
 
   <ul class="release-list" id="release-list">
-    {#each releases as r (r.version)}
+    {#each shown as r (r.version)}
       <li class="release">
         <div class="release-head">
           <h2>
@@ -243,6 +271,16 @@
       </li>
     {/each}
   </ul>
+  {#if hiddenCount > 0}
+    <button
+      type="button"
+      class="more-releases"
+      id="more-releases"
+      onclick={() => (visibleCount += PAGE_SIZE)}
+    >
+      Show {Math.min(PAGE_SIZE, hiddenCount)} older releases ({hiddenCount} more)
+    </button>
+  {/if}
   <p
     class="empty-state"
     id="release-empty"
