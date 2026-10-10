@@ -32,9 +32,16 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 		}
 
 		label := creds.RenovateRebaseLabelOrDefault()
-		if err := labeler.AddLabel(r.Context(), t.owner, t.name, t.req.Number, label); err != nil {
-			slog.Warn("renovate rebase label failed", "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "label", label, "error", err)
+		outcome, err := dashboard.RequestRenovateRebase(r.Context(), src, labeler, t.owner, t.name, t.req.Number, label)
+		if err != nil {
+			slog.Warn("renovate rebase request failed", "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "label", label, "error", err)
 			writeActionRefusal(r.Context(), w, labeler, dashboard.PullRequestActionRenovateRebase, t.owner, t.name, t.req.Number, err)
+
+			return
+		}
+		if outcome == dashboard.RenovateRebaseAlreadyRequested {
+			const message = "A Renovate rebase is already requested on this pull request."
+			writeJSON(w, http.StatusConflict, actionErrorBody{Error: message, Code: string(dashboard.ActionAlreadyRequested), Message: message})
 
 			return
 		}
