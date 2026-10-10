@@ -887,7 +887,7 @@
       margin-bottom: 5px;
     }
     .field label .configured {
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 500;
       color: var(--good);
       background: var(--good-bg);
@@ -936,7 +936,7 @@
       top: 50%;
       transform: translateY(-50%);
       font-family: inherit;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 500;
       padding: 5px 9px;
       border-radius: 6px;
@@ -953,13 +953,13 @@
       outline-offset: 1px;
     }
     .field .field-hint {
-      font-size: 11.5px;
+      font-size: 12px;
       color: var(--ink-3);
       margin-top: 4px;
     }
     .field .field-hint code {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: 11px;
+      font-size: 12px;
       background: var(--surface-sunken);
       border: 1px solid var(--border);
       border-radius: 4px;
@@ -1113,7 +1113,7 @@
       top: 50%;
       transform: translateY(-50%);
       font-family: inherit;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 500;
       padding: 5px 9px;
       border-radius: 6px;
