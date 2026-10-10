@@ -478,6 +478,12 @@
       min-height: 1.4em;
       margin: 0 0 12px;
     }
+    /* The live region stays in the page for screen readers, but an empty one
+       takes no room (#1109). */
+    .status:empty {
+      min-height: 0;
+      margin: 0;
+    }
     .status.error {
       color: var(--critical);
     }
@@ -487,7 +493,9 @@
     .empty-state {
       font-size: 13px;
       color: var(--ink-3);
-      padding: 8px 0;
+      margin: 0;
+      padding: 4px 0;
+      text-align: left;
     }
     .request-filters {
       display: flex;
