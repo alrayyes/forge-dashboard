@@ -77,3 +77,22 @@ server log. The tickets' criteria win over those two details.
   "Retry Endpoint" buttons, the hotkeys bar, the queue and latency figures and
   the "Component State" panels are Stitch's own additions: they aren't in the
   ticket and don't ship.
+
+- `screen-ci-pill-actions.png`: four pull request rows in a full-width list
+  where the CI pill is the button that opens the pipeline, with a hover
+  label, a focus ring and a chevron, and the separate "View pipeline"
+  button is gone. A row with one extra action (Close) shows it directly.
+  A row with two or more extra actions keeps the More actions menu, drawn open
+  on the second row. `crop-ci-pill-actions-rows.png` is the first two rows.
+  Stitch project "Forge Dashboard UI Audit" (`564147752128938905`), screen
+  `d9f335e35872473abec7a73468b3ce83`. It's the design for #1139. The open menu
+  covers the Dependabot row's actions and part of the draft row's Close, and
+  the hover label sits over the header; both are Stitch drawing slips, not design.
+  The notification bell, Group by repo toggle and footer text aren't in the
+  ticket and don't ship.
+- `screen-pipeline-sheet-mobile.png`: the pipeline as a bottom sheet on a
+  phone, opened from the CI pill: the failing check with its error, the
+  passing checks, Rerun failed checks and Close. Screen
+  `c8c48a12ec30434f949a43b7f7a125c4`. It doesn't draw the cards behind it, so
+  it does not show the single-action rule on a phone. The bottom tab bar and
+  the "Live" chip aren't in the ticket and don't ship.
