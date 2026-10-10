@@ -1,9 +1,11 @@
 <script lang="ts">
-  // The dashboard is two pages sharing one script: pull requests at "/" and
-  // issues at "/issues" (#827). Each view renders only its own board and
-  // controls; every id the script looks up that the other view lacks is
-  // already null-guarded.
-  let { view }: { view: "pulls" | "issues" } = $props();
+  // The dashboard is three pages sharing one script: pull requests at "/",
+  // issues at "/issues" (#827) and release pull requests at "/releases"
+  // (#1107). Each view renders only its own board and controls; every id the
+  // script looks up that the other view lacks is already null-guarded. The
+  // releases view is the pull request board over release pull requests only.
+  let { view }: { view: "pulls" | "issues" | "releases" } = $props();
+  const pullsView = $derived(view !== "issues");
 
   import { onMount } from "svelte";
   import * as Filters from "#lib/filters.js";
@@ -740,6 +742,12 @@
       return info;
     }
 
+    // "chore(main): release 0.74.2" -> "0.74.2". Display only: whether a pull
+    // request is a release is the server's `kind`, not this.
+    function releaseVersion(title: string): string {
+      return /\brelease\s+v?(\d+\.\d+\.\d+\S*)/i.exec(title)?.[1] ?? "";
+    }
+
     function buildRow(
       item: PullRequestItem | IssueItem,
       isPR: boolean,
@@ -754,6 +762,23 @@
       if (!isPR) row.dataset.issueKey = prKey(item);
       if (isPR && (item as PullRequestItem).stack)
         titleCellEl.appendChild(stackInfo(item as PullRequestItem));
+      // The Releases page shows the version being released, and says why a
+      // behind release needs Update branch from a person (#1107).
+      if (isPR && view === "releases") {
+        const version = releaseVersion(item.title);
+        if (version)
+          titleCellEl.appendChild(
+            el("span", "release-version mono", `v${version}`),
+          );
+        if ((item as PullRequestItem).behind)
+          titleCellEl.appendChild(
+            el(
+              "p",
+              "release-behind-note",
+              "Behind the base branch. release-please won't update this pull request until a releasable change lands, so Update branch brings it up to date.",
+            ),
+          );
+      }
       if (isPR) {
         row.dataset.prKey = prKey(item);
         if (updatedMarkers.has(prKey(item)))
@@ -3414,7 +3439,7 @@
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
       // here (#1071).
-      const items: FilterableItem[] = view === "pulls" ? allPRs : allIssues;
+      const items: FilterableItem[] = pullsView ? allPRs : allIssues;
       const shared: Record<string, string> = { ...sharedState.shared };
       if (excludeKey) shared[excludeKey] = "";
       return items.filter((item) =>
@@ -3845,7 +3870,7 @@
         if (noResults)
           noResults.hidden = visible.length !== 0 || state.items.length === 0;
 
-        if (isPR === (view === "pulls")) {
+        if (isPR === pullsView) {
           visibleResultCount = visible.length;
         }
         const count = document.getElementById(`${idPrefix}-count`);
@@ -4280,12 +4305,12 @@
           label: `Updated ${selectText("updated", shared.updated)}`,
           clear: () => clearSelect("updated"),
         });
-      if (view === "pulls" && sharedState.pr.status)
+      if (pullsView && sharedState.pr.status)
         chips.push({
           label: `CI ${selectText("status", sharedState.pr.status)}`,
           clear: () => clearSelect("status"),
         });
-      if (view === "pulls" && draftsOn())
+      if (pullsView && draftsOn())
         chips.push({
           label: "Drafts shown",
           clear: () => showDraftsButton?.click(),
@@ -5229,7 +5254,11 @@
       clearStaleLocks(closeState);
       clearStaleLocks(updateBranchState);
       announceAutoMerged(data.autoMerged ?? []);
-      const prs = data.pullRequests || [];
+      // The Releases page is the same board over release pull requests
+      // only; the server says which those are (#716).
+      const prs = (data.pullRequests || []).filter(
+        (p) => view !== "releases" || p.kind === "release",
+      );
       hiddenDrafts = data.hiddenDrafts ?? 0;
       syncDraftsToggle();
       // Only a snapshot that shows the request settled ends a queued bot
@@ -5419,12 +5448,20 @@
 </script>
 
 <svelte:head>
-  <title>{view === "issues" ? "Issues — Forge Board" : "Forge Board"}</title>
+  <title
+    >{view === "issues"
+      ? "Issues — Forge Board"
+      : view === "releases"
+        ? "Releases — Forge Board"
+        : "Forge Board"}</title
+  >
   <meta
     name="description"
     content={view === "issues"
       ? "Open issues across your GitHub and Forgejo repositories, in one list."
-      : "Open pull requests across your GitHub and Forgejo repositories, with the actions you can take on each."}
+      : view === "releases"
+        ? "Release pull requests waiting to ship across your GitHub and Forgejo repositories, with Merge and Update branch on each."
+        : "Open pull requests across your GitHub and Forgejo repositories, with the actions you can take on each."}
   />
 </svelte:head>
 
@@ -5513,10 +5550,12 @@
     </button>
   </div>
   <div class="stats">
-    {#if view === "pulls"}
+    {#if pullsView}
       <div class="stat">
         <div class="n" id="stat-prs">&ndash;</div>
-        <div class="label">Open pull requests</div>
+        <div class="label">
+          {view === "releases" ? "Release pull requests" : "Open pull requests"}
+        </div>
       </div>
       <button
         type="button"
@@ -5566,7 +5605,7 @@
         data-pill="forgejo"
         aria-pressed="false">Forgejo</button
       >
-      {#if view === "pulls"}
+      {#if pullsView}
         <button
           type="button"
           class="quick-pill"
@@ -5653,7 +5692,7 @@
           aria-pressed="false">Forgejo</button
         >
       </div>
-      {#if view === "pulls"}
+      {#if pullsView}
         <button
           type="button"
           class="drafts-toggle"
@@ -5790,10 +5829,10 @@
     >
   </div>
 
-  {#if view === "pulls"}
+  {#if pullsView}
     <section class="board" aria-label="Open pull requests">
       <div class="board-head">
-        <h2>Pull requests</h2>
+        <h2>{view === "releases" ? "Releases" : "Pull requests"}</h2>
         <div class="board-head-controls">
           <select
             class="col-filter"
@@ -5811,7 +5850,11 @@
       </div>
 
       <div id="pr-rows"></div>
-      <p class="empty-state" id="pr-empty" hidden>No open pull requests.</p>
+      <p class="empty-state" id="pr-empty" hidden>
+        {view === "releases"
+          ? "No release pull requests are open. Nothing is waiting to ship."
+          : "No open pull requests."}
+      </p>
       <p class="no-results" id="pr-no-results" hidden>
         No pull requests match these filters.
       </p>
@@ -5866,7 +5909,7 @@
   {/if}
 </div>
 
-{#if view === "pulls"}
+{#if pullsView}
   <dialog
     id="pipeline-dialog"
     class="pipeline-dialog"
