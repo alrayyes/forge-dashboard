@@ -548,6 +548,7 @@
       color: var(--ink-3);
     }
     .data-table td.action button {
+      font-family: inherit;
       font-size: 12.5px;
       color: var(--accent);
       background: none;
@@ -563,16 +564,19 @@
       text-decoration: none;
     }
     .ignore-scope-select {
+      font-family: inherit;
       font-size: 12.5px;
       color: var(--accent);
       background: none;
       border: none;
       padding: 0;
       cursor: pointer;
+      text-decoration: underline;
     }
     .ignore-scope-select:disabled {
       color: var(--ink-3);
       cursor: default;
+      text-decoration: none;
     }
     .webhook-locked {
       display: flex;
@@ -626,6 +630,11 @@
       align-items: center;
       gap: 10px;
       margin-bottom: 14px;
+    }
+    .webhooks-filter-bar .col-filter {
+      width: auto;
+      flex: 1 1 130px;
+      min-width: 120px;
     }
     .ignored-disclosure {
       margin-top: 18px;
@@ -967,9 +976,9 @@
                   ></button
                 >
               </th>
-              <th scope="col" role="columnheader"></th>
-              <th scope="col" role="columnheader"></th>
-              <th scope="col" role="columnheader"></th>
+              <th scope="col" role="columnheader">Set up</th>
+              <th scope="col" role="columnheader">Auto-update</th>
+              <th scope="col" role="columnheader">Ignore</th>
             </tr>
           </thead>
           <!-- svelte-ignore a11y_no_redundant_roles -->

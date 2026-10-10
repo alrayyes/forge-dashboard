@@ -140,7 +140,7 @@ test.describe('dashboard page', () => {
     const versionLink = page.locator('#footer-version a', {
       hasText: 'v1.2.3',
     });
-    await expect(versionLink).toHaveAttribute('href', '/releases.html');
+    await expect(versionLink).toHaveAttribute('href', '/changelog.html');
     await expect(versionLink).not.toHaveAttribute('target', '_blank');
     await expect(
       page.locator('#footer-version a', { hasText: 'Release history' }),
