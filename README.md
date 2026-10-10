@@ -358,8 +358,10 @@ forge reports it's possible; it doesn't ask, since a merge from the base branch
 is easy to reverse and a merge itself isn't. On a pull request that's behind
 but also conflicts with its base, Update branch is locked with a note that the
 conflicts need fixing by hand, since the forge would refuse the update.
-Close isn't a row button: it lives in the "More actions" menu, in the danger
-tone, on every open pull request regardless of mergeability. For one that turns
+Close isn't a standalone row button: it lives in the "More actions" menu, in
+the danger tone, on every open pull request regardless of mergeability. A menu
+is for the overflow, so when Close is the row's only extra action it's drawn
+directly instead. For one that turns
 out not to need merging at all (a duplicate, or one whose content already
 landed another way) it's the action that applies. It asks for confirmation the
 same way Merge does, inside the menu. Confirming closes the menu and shows
@@ -401,7 +403,7 @@ since a fine-grained token can lack one permission and have the rest. The lock
 lasts as long as the failure line that explains it: dismiss the line and the
 action is free again, with no reload. A failure line stays on its row however
 many refreshes arrive, and goes when you dismiss it, act on the row again, or
-the row leaves the board. Read-only actions such as View pipeline stay enabled,
+the row leaves the board. Read-only actions such as opening the pipeline stay enabled,
 and the header shows each forge's remaining budget and reset time as text. Which
 locks offer Retry follows the refusal's `code` (`rate_limited` and `permission`
 don't), not the words in its message. The banner at the top of the page follows
@@ -614,10 +616,11 @@ that label has to already exist on the repo (its labels API takes an
 existing label's ID, not an arbitrary name); the button reports that plainly
 instead of silently doing nothing if it doesn't.
 
-A pull request with any CI reported at all gets a `View pipeline`
-button, opening a panel that lists every individual job/check against
-its head commit — status, name, and a link to that job's own page on
-the forge — instead of only the row's own collapsed CI pill. Fetched
+On a pull request with any CI reported, the CI pill is a button that opens
+a panel listing every individual job/check against its head commit —
+status, name, and a link to that job's own page on the forge — instead of
+only the pill's own summary. (Filtering by CI status is the column filter's
+job.) Fetched
 fresh every time the panel opens, not cached, or part of the regular
 dashboard refresh. Falls back to the legacy combined commit-status
 API's own per-check entries when a repo (or an older Forgejo instance)

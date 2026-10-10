@@ -38,6 +38,13 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
     // Higher numbers are newer, so row 0 is the highest number.
     updatedAt: new Date(Date.now() - (100 - number) * 1000).toISOString(),
     mergeStatus: 'mergeable',
+    // Two extra actions, so Close stays behind "More actions" (#1139): a
+    // lone one is drawn directly.
+    allowedActions: [
+      { action: 'merge' },
+      { action: 'auto_merge' },
+      { action: 'close' },
+    ],
     ...overrides,
   };
 }

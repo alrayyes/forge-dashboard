@@ -88,10 +88,13 @@ async function openMoreActions(row: Locator) {
 // for a row with nothing else to offer. What these tests pin is that the
 // menu holds Close and nothing more.
 async function expectMenuHoldsOnlyClose(row: Locator) {
-  await openMoreActions(row);
-  const items = row.locator('.row-actions-popover').getByRole('button');
-  await expect(items).toHaveCount(1);
-  await expect(items.first()).toHaveText('Close');
+  // A lone action is drawn directly, with no menu around it (#1139).
+  await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
+    0,
+  );
+  await expect(
+    row.getByRole('button', { name: 'Close', exact: true }),
+  ).toBeVisible();
 }
 
 test.describe('pull request Enable auto-merge action', () => {

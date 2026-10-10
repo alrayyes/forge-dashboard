@@ -83,7 +83,15 @@ function mockDashboard(page: Page, pr?: MockPR) {
 // is left alone.
 async function openClose(row: Locator) {
   const trigger = row.getByRole('button', { name: 'More actions' });
-  if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
+  // A row whose only extra action is Close draws it directly (#1139).
+  await row
+    .getByRole('button', { name: /^(More actions|Close)$/ })
+    .first()
+    .waitFor();
+  if (
+    (await trigger.count()) > 0 &&
+    (await trigger.getAttribute('aria-expanded')) !== 'true'
+  ) {
     await trigger.click();
   }
   return row.getByRole('button', { name: 'Close', exact: true });

@@ -507,8 +507,8 @@
     }
 
     // status is a real button — see titleCell's comment on why the row
-    // isn't an <a> around everything. onStatusClick is only ever passed
-    // for the pull requests board (isPR).
+    // isn't an <a> around everything. It opens the pipeline panel
+    // (#1139); filtering by CI status lives in the column filter.
     // "Passing" reads fine right next to a Merge button already
     // prompting action on the same row — "Passed" there is just a
     // second, redundant way of saying "ready." Once there's no merge
@@ -517,25 +517,33 @@
     // GitLab's own terminal-state convention (both say "passed", not
     // "passing", for a completed successful run).
     function ciPill(
-      status: string,
-      onStatusClick: ((status: string) => void) | undefined,
+      item: PullRequestItem,
       showsMergeButton: boolean,
-    ): HTMLButtonElement {
+    ): HTMLElement {
+      const status = item.ci;
       const label =
         status === "success" && !showsMergeButton
           ? "Passed"
           : CI_LABELS[status] || status;
+      // No CI, no pipeline to open: a plain badge (#1139).
+      if (status === "none") {
+        const badge = el("span", `ci-pill ${status}`);
+        badge.appendChild(el("span", "dot"));
+        badge.appendChild(document.createTextNode(label));
+        return badge;
+      }
       const pill = document.createElement("button");
       pill.type = "button";
       pill.className = `ci-pill ${status}`;
+      // Given a stable id: openPipelineDialog's "close" handler refocuses
+      // it by this id once a later render has rebuilt the row.
+      pill.id = `pipeline-trigger-${domSafeId(prKey(item))}`;
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode(label));
-      pill.setAttribute(
-        "aria-label",
-        `Filter pull requests by CI status: ${label}`,
-      );
+      // The visible word leads the name (WCAG 2.5.3).
+      pill.setAttribute("aria-label", `${label}. Open pipeline`);
       pill.addEventListener("click", () => {
-        onStatusClick?.(status);
+        openPipelineDialog(item);
       });
       return pill;
     }
@@ -735,7 +743,6 @@
     function buildRow(
       item: PullRequestItem | IssueItem,
       isPR: boolean,
-      onStatusClick: ((status: string) => void) | undefined,
       onLabelClick: (name: string) => void,
       activeLabel: string,
     ): HTMLElement {
@@ -768,8 +775,7 @@
         const mergeAction = mergeActionCell(pr);
         statusCell.appendChild(
           ciPill(
-            pr.ci,
-            onStatusClick,
+            pr,
             mergeAction !== null &&
               !mergeAction.classList.contains("row-action-locked"),
           ),
@@ -819,12 +825,6 @@
           const promoted = renovateRebaseActionCell(pr);
           if (promoted) statusCell.appendChild(promoted);
         }
-        // Inline like every other row action, not collapsed into "More
-        // actions" (#636): it's a read-only drill-down into data the row
-        // is already summarizing (the CI pill), not a rare or mutating
-        // action the way Dependabot/Renovate's own actions are.
-        const pipelineAction = pipelineActionCell(pr);
-        if (pipelineAction) statusCell.appendChild(pipelineAction);
         if (mergeAction) statusCell.appendChild(mergeAction);
         // Close lives in "More actions" behind its confirm step (#705):
         // it's rarely what the row needs, and the one button left beside
@@ -2561,13 +2561,7 @@
         ).find((row) => row.dataset.issueKey === key);
         if (!old) continue;
         old.replaceWith(
-          buildRow(
-            item,
-            false,
-            undefined,
-            handleLabelClick,
-            sharedState.shared.label,
-          ),
+          buildRow(item, false, handleLabelClick, sharedState.shared.label),
         );
       }
     }
@@ -2870,7 +2864,7 @@
 
     // Which row's dialog this is — closing it (via Escape, a backdrop
     // click, or the close button itself) moves focus back to that row's
-    // own "View pipeline" button, the same "return focus to what opened
+    // own CI pill, the same "return focus to what opened
     // it" contract every other transient UI in this file already honors
     // (see retryLockedAction moving focus back to a just-re-rendered
     // locked button). Not a direct element reference: a later render
@@ -3150,7 +3144,7 @@
 
     // Fires for every close path — Escape, the close button, and the
     // backdrop-click handler just below — so focus returns to the row's
-    // own "View pipeline" button no matter which one was used to get
+    // own CI pill no matter which one was used to get
     // here. renderPRBoard() rebuilds the row from scratch first (the same
     // poll-driven rebuild every other row action already lives with), so
     // the refocus below has to find the freshly built node by its stable
@@ -3176,36 +3170,15 @@
       }
     });
 
-    // Visible whenever the row has any CI at all — "none" already has
-    // nothing to show a panel about, the same signal ciPill's own
-    // CI_LABELS.none already reads. Inline on the row itself (#636), not
-    // collapsed into "More actions": a read-only drill-down into data the
-    // CI pill is already summarizing, reached on nearly every row with CI
-    // configured, not the rare, mutating kind of action that menu exists
-    // for. Given a stable id — openPipelineDialog's own "close" handler
-    // refocuses it by this id once the row it lives on has been rebuilt
-    // from scratch by a later render.
-    function pipelineActionCell(item: PullRequestItem): HTMLElement | null {
-      if (item.ci === "none") return null;
-      const button = buttonEl("row-action", "View pipeline");
-      button.id = `pipeline-trigger-${domSafeId(prKey(item))}`;
-      button.addEventListener("click", () => {
-        openPipelineDialog(item);
-      });
-      return button;
-    }
-
     // ---- "More actions" overflow menu ----
-    // Merge/Update branch/Close/View pipeline stay inline — every PR row
-    // has at most one of the first two, Close is universal, and View
-    // pipeline is a read-only drill-down reached on nearly every row with
-    // CI configured (#636), not the rare, mutating kind of action this
-    // menu exists for. Dependabot Recreate, and Dependabot/Renovate
+    // Merge/Update branch stay inline — every PR row has at most one of
+    // them — and the CI pill opens the pipeline (#1139). Close, Dependabot
+    // Recreate, and Dependabot/Renovate
     // Rebase while it isn't currently the promoted, out-of-date-only
-    // inline action (#635), are what's left to stack up on a bot-managed
-    // row — reached rarely enough that collapsing them behind one trigger
-    // reads as tidying up rather than hiding something anyone reaches for
-    // often.
+    // inline action (#635), are what's left to stack up on a row —
+    // reached rarely enough that collapsing them behind one trigger reads
+    // as tidying up rather than hiding something anyone reaches for often.
+    // One alone isn't collapsed: it's drawn directly (#1139).
     //
     // Keyed by prKey, not a per-row DOM flag: applySnapshot rebuilds
     // every row from scratch on each poll, so
@@ -3243,6 +3216,8 @@
       actions: HTMLElement[],
     ): HTMLElement | null {
       if (actions.length === 0) return null;
+      // A menu is for the overflow, not a home for one action (#1139).
+      if (actions.length === 1) return actions[0];
 
       const key = prKey(item);
       const domKey = domSafeId(key);
@@ -3321,7 +3296,7 @@
       return wrap;
     }
 
-    // View pipeline opens its own real, modal <dialog> — pipelineDialog
+    // The CI pill opens its own real, modal <dialog> — pipelineDialog
     // further down — independently of this menu (#636: it's an inline row
     // button now, not one of this menu's own actions). A modal dialog
     // still owns Escape and outside clicks while it's open (native
@@ -3591,7 +3566,7 @@
       renderBoth();
     }
 
-    // Clicking a CI pill or the "CI failing" stat tile jumps to the
+    // Clicking the "CI failing" stat tile jumps to the
     // pull requests board filtered to that status. Status has no
     // equivalent on the issues board, so this only ever re-renders the
     // Pull Requests board.
@@ -3635,7 +3610,6 @@
       emptyId: string,
       noResultsId: string,
       isPR: boolean,
-      onStatusClick: ((status: string) => void) | undefined,
       idPrefix: string,
       extraState: Record<string, string>,
       onUserChange?: () => void,
@@ -3699,13 +3673,7 @@
         entries: Stacks.Entry<PullRequestItem | IssueItem>[],
       ) {
         const build = (item: PullRequestItem | IssueItem) =>
-          buildRow(
-            item,
-            isPR,
-            onStatusClick,
-            handleLabelClick,
-            sharedState.shared.label,
-          );
+          buildRow(item, isPR, handleLabelClick, sharedState.shared.label);
         for (const entry of entries) {
           if (entry.kind === "single") {
             container.appendChild(build(entry.item));
@@ -4002,7 +3970,6 @@
       "pr-empty",
       "pr-no-results",
       true,
-      handleStatusClick,
       "pr",
       sharedState.pr,
       applyPendingNow,
@@ -4012,7 +3979,6 @@
       "issue-empty",
       "issue-no-results",
       false,
-      undefined,
       "issue",
       sharedState.issue,
       applyPendingIssuesNow,
