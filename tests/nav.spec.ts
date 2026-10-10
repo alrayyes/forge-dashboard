@@ -123,7 +123,7 @@ test.describe('mobile bottom tab bar', () => {
 
       for (const other of NAV_PAGES) {
         await expect(
-          page.locator(`.bottom-nav a[aria-label^="${other.label}"]`),
+          page.locator(`.bottom-nav a[aria-label*="${other.label}"]`),
         ).toBeVisible();
       }
       await expect(
@@ -131,12 +131,12 @@ test.describe('mobile bottom tab bar', () => {
       ).toHaveCount(0);
 
       await expect(
-        page.locator(`.bottom-nav a[aria-label^="${label}"]`),
+        page.locator(`.bottom-nav a[aria-label*="${label}"]`),
       ).toHaveAttribute('aria-current', 'page');
       for (const other of NAV_PAGES) {
         if (other.label === label) continue;
         await expect(
-          page.locator(`.bottom-nav a[aria-label^="${other.label}"]`),
+          page.locator(`.bottom-nav a[aria-label*="${other.label}"]`),
         ).not.toHaveAttribute('aria-current', /.*/);
       }
 

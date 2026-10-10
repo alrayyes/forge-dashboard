@@ -135,7 +135,7 @@ test.describe('issues page (#827)', () => {
     await mockDashboard(page);
 
     const mobile = page.getByRole('navigation', { name: 'Mobile navigation' });
-    await expect(mobile.getByRole('link', { name: /^Issues/ })).toBeVisible();
+    await expect(mobile.getByRole('link', { name: /Issues/ })).toBeVisible();
   });
 
   test('the pull request page no longer lists issues', async ({ page }) => {

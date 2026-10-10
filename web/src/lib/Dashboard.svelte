@@ -5507,10 +5507,13 @@
         type="button"
         class="stat"
         id="stat-failing-tile"
-        aria-label="Filter pull requests by CI status: Failing"
+        aria-describedby="stat-failing-hint"
       >
         <div class="n" id="stat-failing">&ndash;</div>
         <div class="label">CI failing</div>
+        <span class="sr-only" id="stat-failing-hint"
+          >Filters pull requests by CI status.</span
+        >
       </button>
     {:else}
       <div class="stat">
