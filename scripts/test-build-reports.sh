@@ -19,11 +19,15 @@ cat >"$work/junit.xml" <<'XML'
 XML
 cp "$work/junit.xml" "$work/e2e.xml"
 mkdir "$work/lhci"
-echo '<html>run</html>' >"$work/lhci/lhr-1.html"
-echo '{"categories":{}}' >"$work/lhci/lhr-1.json"
-echo '<html>run2</html>' >"$work/lhci/lhr-2.html"
-echo '{"categories":{}}' >"$work/lhci/lhr-2.json"
-echo '[{"url":"http://localhost:8080/login.html","isRepresentativeRun":true,"htmlPath":"/ci/work/lhci/lhr-1.html","jsonPath":"/ci/work/lhci/lhr-1.json"},{"url":"http://localhost:8080/issues.html","isRepresentativeRun":true,"htmlPath":"/ci/work/lhci/lhr-2.html","jsonPath":"/ci/work/lhci/lhr-2.json"}]' >"$work/lhci/manifest.json"
+# Lighthouse CI names its files localhost-<page>_html-<timestamp>.report.{html,json},
+# not lhr-*, so the fixture uses the real shape.
+login="localhost-login_html-2026_10_10_10_00_00.report"
+issues="localhost-issues_html-2026_10_10_10_00_01.report"
+for name in "$login" "$issues"; do
+  echo "<html>$name</html>" >"$work/lhci/$name.html"
+  echo '{"categories":{}}' >"$work/lhci/$name.json"
+done
+printf '[{"url":"http://localhost:8080/login.html","isRepresentativeRun":true,"htmlPath":"/ci/work/lhci/%s.html","jsonPath":"/ci/work/lhci/%s.json"},{"url":"http://localhost:8080/issues.html","isRepresentativeRun":true,"htmlPath":"/ci/work/lhci/%s.html","jsonPath":"/ci/work/lhci/%s.json"}]' "$login" "$login" "$issues" "$issues" >"$work/lhci/manifest.json"
 
 # Everything present: every report lands, with no repo-name prefix.
 full="$work/full"
@@ -39,7 +43,11 @@ grep -q 'href="lighthouse/"' "$full/reports/index.html" || fail "index.html does
 for page in /login.html /issues.html; do
   grep -q "$page" "$full/reports/lighthouse/index.html" || fail "lighthouse index misses $page"
 done
-grep -q 'lhr-2.html' "$full/reports/lighthouse/index.html" || fail "lighthouse index does not link every page's run"
+grep -q "$issues.html" "$full/reports/lighthouse/index.html" || fail "lighthouse index does not link every page's run"
+# Every link on the index must open something.
+while read -r href; do
+  [ -s "$full/reports/lighthouse/$href" ] || fail "lighthouse index links $href but the file is not published"
+done < <(grep -o 'href="[^"]*"' "$full/reports/lighthouse/index.html" | sed 's/^href="//; s/"$//' | grep -v '^\.\./')
 grep -q 'e2e.xml' "$full/reports/tests/index.html" || fail "tests index does not link e2e.xml"
 [ ! -e "$full/forge-dashboard" ] || fail "reports carry a repo-name prefix"
 
