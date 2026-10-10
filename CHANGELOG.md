@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.139.0](https://github.com/alrayyes/forge-dashboard/compare/v0.138.3...v0.139.0) (2026-10-10)
+
+
+### Features
+
+* **renovate:** tick the rebase-check checkbox instead of only labeling ([#1103](https://github.com/alrayyes/forge-dashboard/issues/1103)) ([9ea1562](https://github.com/alrayyes/forge-dashboard/commit/9ea1562f0940324f64ed6ac4b58d75dd6a595074))
+
 ## [0.138.3](https://github.com/alrayyes/forge-dashboard/compare/v0.138.2...v0.138.3) (2026-10-10)
 
 
