@@ -233,6 +233,35 @@ test.describe('stable rows (#710)', () => {
     );
   });
 
+  // #1109: with nothing held the bar was a grey strip holding only the
+  // Pause button. It draws its box when it has something to say.
+  test('the updates bar draws no box while nothing is held, and does once something is', async ({
+    page,
+  }) => {
+    const bar = page.locator('#updates-bar');
+    const box = () =>
+      bar.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return {
+          background: style.backgroundColor,
+          border: style.borderTopColor,
+        };
+      });
+    await expect(page.locator('#updates-count')).toHaveText('');
+    expect(await box()).toEqual({
+      background: 'rgba(0, 0, 0, 0)',
+      border: 'rgba(0, 0, 0, 0)',
+    });
+
+    await push(page, [initial[1]]);
+    await expect(page.locator('#updates-count')).toHaveText(
+      '1 update available',
+    );
+    const held = await box();
+    expect(held.background).not.toBe('rgba(0, 0, 0, 0)');
+    expect(held.border).not.toBe('rgba(0, 0, 0, 0)');
+  });
+
   test('changing a filter applies the pending snapshot', async ({ page }) => {
     await push(page, [
       makePR(3, { updatedAt: new Date().toISOString() }),
