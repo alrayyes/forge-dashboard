@@ -160,7 +160,12 @@ export function installAllowedActionsStandIn(
       pullRequests?: StandInPR[];
       issues?: { title: string; housekeeping?: boolean }[];
       openIssueCount?: number;
+      readIntervalSeconds?: number;
     };
+    // The server tells the page how often to re-read (#809). A mock that
+    // doesn't say gets the server's own default.
+    if (snapshot && snapshot.readIntervalSeconds === undefined)
+      snapshot.readIntervalSeconds = 30;
     if (snapshot && Array.isArray(snapshot.pullRequests))
       for (const pr of snapshot.pullRequests) {
         if (pr.allowedActions === undefined) pr.allowedActions = allowedFor(pr);
