@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.141.3](https://github.com/alrayyes/forge-dashboard/compare/v0.141.2...v0.141.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* **web:** give every page a meta description ([#1136](https://github.com/alrayyes/forge-dashboard/issues/1136)) ([4313209](https://github.com/alrayyes/forge-dashboard/commit/4313209559feb4684103532f8d607c997e7cb996)), closes [#1135](https://github.com/alrayyes/forge-dashboard/issues/1135)
+
 ## [0.141.2](https://github.com/alrayyes/forge-dashboard/compare/v0.141.1...v0.141.2) (2026-10-10)
 
 
