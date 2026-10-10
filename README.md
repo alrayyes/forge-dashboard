@@ -872,7 +872,7 @@ moment the container is recreated:
 docker build -t forge-dashboard .
 docker run --rm -p 8080:8080 \
   --cap-drop=ALL --security-opt=no-new-privileges --read-only \
-  --memory=64m --cpus=0.5 \
+  --memory=64m --cpus=0.5 --pids-limit=64 \
   -v forge-dashboard-data:/data \
   -e RP_ID=localhost -e RP_ORIGIN=http://localhost:8080 \
   -e ENCRYPTION_KEY="$(openssl rand -base64 32)" \
@@ -890,7 +890,8 @@ seconds and its result is reused for about 3, so a stuck database answers
 the server waits `SHUTDOWN_DRAIN` before it stops. A 200 also reports the
 `goroutines` and OS `threads` the process holds. The container's process limit
 counts threads, so watch `threads` to see growth before the healthcheck can no
-longer start. Read it with:
+longer start. A 50-repo refresh from six tabs peaks at about 20 threads, so
+`--pids-limit=64` leaves room. Read it with:
 
 ```sh
 docker inspect --format '{{.State.Health.Status}}' <container>
