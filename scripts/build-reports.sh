@@ -41,13 +41,18 @@ go tool cover -html="$coverage_out" -o "$reports/coverage/index.html"
 index_links='<li><a href="tests/">Test results</a> (JUnit XML)</li>
 <li><a href="coverage/">Coverage</a> (<a href="coverage/coverage.xml">Cobertura XML</a>, <a href="coverage/coverage.out">Go profile</a>)</li>'
 
-# Lighthouse CI's filesystem target writes one lhr-<timestamp>.{html,json} pair
-# per run plus a manifest.json. Publish every pair, list each audited page's
+# Lighthouse CI's filesystem target writes one <page>-<timestamp>.report.{html,json}
+# pair per run (the names the manifest gives, not a fixed prefix) plus a
+# manifest.json. Publish every file the manifest names, list each audited page's
 # representative run in lighthouse/index.html, and copy the first page's to
 # report.html and report.json, the stable names.
 if [ -n "$lhci_dir" ] && [ -s "$lhci_dir/manifest.json" ]; then
   mkdir -p "$reports/lighthouse"
-  cp "$lhci_dir"/lhr-*.html "$lhci_dir"/lhr-*.json "$lhci_dir/manifest.json" "$reports/lighthouse/"
+  jq -r '.[] | .htmlPath, .jsonPath' "$lhci_dir/manifest.json" |
+    while read -r path; do
+      cp "$lhci_dir/$(basename "$path")" "$reports/lighthouse/"
+    done
+  cp "$lhci_dir/manifest.json" "$reports/lighthouse/"
   rep="$(jq -r '[.[] | select(.isRepresentativeRun)][0] // .[0] | .htmlPath' "$lhci_dir/manifest.json")"
   cp "$lhci_dir/$(basename "$rep")" "$reports/lighthouse/report.html"
   cp "$lhci_dir/$(basename "${rep%.html}.json")" "$reports/lighthouse/report.json"
