@@ -3712,3 +3712,67 @@ test.describe('repo group headers: host and sync status (#679)', () => {
     });
   }
 });
+
+// #1109: a row's two times read "5h ago" and "1h ago" with nothing saying
+// which is which. Each cell carries its own caption instead of a header row,
+// since the rows are two-line cards, not a table.
+test.describe('time cells say what they are (#1109)', () => {
+  const now = Date.now();
+  const item = {
+    forge: 'github',
+    repo: 'alrayyes/app',
+    number: 1,
+    title: 'x',
+    url: 'https://example.com/1',
+    author: 'ryan',
+    labels: [],
+    createdAt: new Date(now - 5 * 3600_000).toISOString(),
+    updatedAt: new Date(now - 3600_000).toISOString(),
+  };
+
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+    await page.route('**/api/dashboard/stream', (route) =>
+      route.fulfill({ status: 404, body: '{}' }),
+    );
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date(now).toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [
+            { ...item, draft: false, ci: 'success', mergeStatus: 'mergeable' },
+          ],
+          issues: [{ ...item, number: 2 }],
+        }),
+      }),
+    );
+    await page.reload();
+  });
+
+  for (const [name, path, rows] of [
+    ['pull request', '/', '#pr-rows'],
+    ['issue', '/issues.html', '#issue-rows'],
+  ]) {
+    test(`each ${name} row captions its created and updated time`, async ({
+      page,
+    }) => {
+      await page.goto(path);
+      const row = page.locator(`${rows} > .row`).first();
+      await expect(row.locator('.created')).toContainText('Created');
+      await expect(row.locator('.created')).toContainText('5h ago');
+      await expect(row.locator('.updated')).toContainText('Updated');
+      await expect(row.locator('.updated')).toContainText('1h ago');
+    });
+  }
+
+  test('has no axe-core violations with the captions', async ({ page }) => {
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+});
