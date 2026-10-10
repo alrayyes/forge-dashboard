@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.138.3](https://github.com/alrayyes/forge-dashboard/compare/v0.138.2...v0.138.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* **deps:** bump the web-shipped group across 1 directory with 2 updates ([#1093](https://github.com/alrayyes/forge-dashboard/issues/1093)) ([bba4414](https://github.com/alrayyes/forge-dashboard/commit/bba441422fbef716f5e379ce32261f87ee607985))
+
 ## [0.138.2](https://github.com/alrayyes/forge-dashboard/compare/v0.138.1...v0.138.2) (2026-10-09)
 
 
