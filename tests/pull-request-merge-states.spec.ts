@@ -211,7 +211,6 @@ test.describe('Merge states on a pull request row', () => {
   for (const [name, overrides] of [
     ['pending', { ci: 'pending' }],
     ['blocked', { mergeStatus: 'blocked', ci: 'failure' }],
-    ['ready', {}],
   ] as const) {
     test(`${name}: Close is only in More actions`, async ({ page }) => {
       await mockDashboard(page, makePR(overrides));
@@ -229,6 +228,22 @@ test.describe('Merge states on a pull request row', () => {
       ).toBeVisible();
     });
   }
+
+  // A lone extra action is drawn directly (#1139).
+  test('ready: Close is drawn directly, with no More actions menu', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.reload();
+
+    const row = rowOf(page);
+    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
+      0,
+    );
+    await expect(
+      row.getByRole('button', { name: 'Close', exact: true }),
+    ).toBeVisible();
+  });
 
   test('a Renovate pull request waiting on CI keeps its bot layout, with Merge locked and Close in More actions', async ({
     page,
