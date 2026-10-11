@@ -150,6 +150,15 @@ func (a *Aggregator) MarkSettled(forge Forge, repo string, number int) {
 	a.notify(next)
 }
 
+// Unsettle forgets a MarkSettled for forge/repo#number, for a pull request
+// that was reopened: the next refresh lists it again instead of holding it
+// back. The snapshot itself is left to that refresh.
+func (a *Aggregator) Unsettle(forge Forge, repo string, number int) {
+	a.settledMu.Lock()
+	defer a.settledMu.Unlock()
+	delete(a.settled, settledKey(forge, repo, number))
+}
+
 // withoutSettled drops from prs every pull request MarkSettled is still
 // holding back, and forgets the ones the forge no longer lists or whose
 // window has passed. prs is what a fetch just returned: the whole board, or
@@ -222,12 +231,19 @@ func (a *Aggregator) Subscribe() (<-chan Snapshot, func()) {
 }
 
 // notify delivers snap to every current subscriber without blocking — see
-// Subscribe's doc comment on why a full channel is skipped rather than
-// waited on.
+// Subscribe's doc comment on why a full channel is never waited on. A
+// subscriber that has not read the previous snapshot yet has it replaced:
+// what it needs is the newest state, and keeping the stale one instead left a
+// merged pull request on a stream client's board until the next refresh
+// (#966). subsMu serialises senders, so the send after the drain finds room.
 func (a *Aggregator) notify(snap Snapshot) {
 	a.subsMu.Lock()
 	defer a.subsMu.Unlock()
 	for ch := range a.subs {
+		select {
+		case <-ch:
+		default:
+		}
 		select {
 		case ch <- snap:
 		default:
@@ -268,7 +284,11 @@ func (a *Aggregator) Refresh(ctx context.Context) {
 // Concurrent calls for the same repo coalesce the same way Refresh's own
 // calls do — see coalescer — keyed so an unrelated repo's own refresh
 // never waits on this one.
-func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, fullName string) bool {
+//
+// attrs are slog key/value pairs added to the "scoped refresh failed" line, so
+// a caller that knows why it refreshed (a webhook delivery's id and pull
+// request number) can have the failure say so (#966).
+func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
 	var refresher RepoRefresher
 	for _, src := range a.sources {
 		if src.Forge() != forge {
@@ -290,7 +310,7 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 		seq := a.fetchSeq.Add(1)
 		prs, issues, err := refresher.FetchRepo(ctx, owner, name, fullName)
 		if err != nil {
-			slog.Warn("scoped refresh failed", "forge", forge, "repo", fullName, "error", err)
+			slog.Warn("scoped refresh failed", append([]any{"forge", forge, "repo", fullName, "error", err}, attrs...)...)
 
 			return
 		}
