@@ -73,6 +73,21 @@
   // the .dashboard-toolbar div below, right where the old duplicate
   // <header> used to sit.
 
+  // components.schemas.QueuedAction: a safe action queued to run when a
+  // rate-limited forge resets (#756). The server owns the queue.
+  type QueuedActionItem = {
+    id: string;
+    action: "update_branch" | "dependabot_rebase" | "renovate_rebase";
+    forge: string;
+    fullName: string;
+    number: number;
+    status: "queued" | "done" | "skipped" | "failed";
+    runAt: string;
+    createdAt: string;
+    finishedAt?: string;
+    code?: string;
+    message?: string;
+  };
   type PullRequestItem = FilterableItem & {
     number: number;
     url: string;
@@ -84,6 +99,9 @@
     empty: boolean;
     // What the server offers on this pull request (#805).
     allowedActions?: AllowedAction[];
+    // The action queued on this pull request that is still waiting for its
+    // forge's rate limit to reset, or null (#756).
+    queued?: QueuedActionItem | null;
     // Where it sits in a stack of pull requests (#861).
     stack?: { position: number; size: number } | null;
     stackedOn?: { number: number; url: string } | null;
@@ -180,6 +198,9 @@
     hiddenDrafts?: number;
     // What this app auto-merged in the last ten minutes (Forgejo).
     autoMerged?: ServerAutoMerged[];
+    // The user's queued actions: waiting, and finished in the last 24 hours
+    // (#756).
+    queuedActions?: QueuedActionItem[];
   };
   type ActionPhase =
     | "idle"
@@ -887,6 +908,8 @@
         ).filter((cell): cell is HTMLElement => cell !== null);
         const moreActions = moreActionsCell(pr, secondaryActions);
         if (moreActions) statusCell.appendChild(moreActions);
+        const queueCell = queueActionCell(pr);
+        if (queueCell) statusCell.appendChild(queueCell);
         dedupeRetryButtons(statusCell);
         meta.appendChild(statusCell);
       } else {
@@ -2910,6 +2933,203 @@
         doRenovateRebase(item, button);
       });
       return button;
+    }
+
+    // ---- queue a safe action for the rate limit reset (#756) ----
+    // While a forge's REST budget is spent its row is read-only (#755), and
+    // the one thing still worth offering is to do the safe, idempotent part
+    // later: Update branch, or a Dependabot or Renovate rebase. The server
+    // keeps the queue, re-reads the pull request at the reset and runs the
+    // action only if it still applies. Merge and Close are never offered
+    // here: running them unattended is the case to avoid.
+    const QUEUE_LABELS: Record<QueuedActionItem["action"], string> = {
+      update_branch: "Update branch",
+      dependabot_rebase: "Dependabot rebase",
+      renovate_rebase: "Renovate rebase",
+    };
+    const QUEUE_VERBS: Record<QueuedActionItem["action"], string> = {
+      update_branch: "update",
+      dependabot_rebase: "rebase",
+      renovate_rebase: "rebase",
+    };
+
+    // What can be queued on this row, if anything: an action the server
+    // lists as usable, and a pull request that is behind.
+    function queueableAction(
+      item: PullRequestItem,
+    ): QueuedActionItem["action"] | null {
+      if (!item.behind) return null;
+      for (const action of [
+        "update_branch",
+        "dependabot_rebase",
+        "renovate_rebase",
+      ] as const) {
+        const offered = findAction(item, action);
+        if (offered && !offered.blocked) return action;
+      }
+      return null;
+    }
+
+    function queuedText(q: QueuedActionItem): string {
+      switch (q.status) {
+        case "queued":
+          return `${QUEUE_LABELS[q.action]} queued for ${formatTime(q.runAt)}`;
+        case "done":
+          return `${QUEUE_LABELS[q.action]} done`;
+        case "skipped":
+          return `${QUEUE_LABELS[q.action]} skipped: ${q.message ?? "it no longer applied"}`;
+        default:
+          return `${QUEUE_LABELS[q.action]} failed: ${q.message ?? "the forge refused it"}`;
+      }
+    }
+
+    function queueActionCell(item: PullRequestItem): HTMLElement | null {
+      if (item.queued) {
+        const queued = item.queued;
+        const line = el("span", "queued-action");
+        line.appendChild(el("span", "queued-action-text", queuedText(queued)));
+        const cancel = buttonEl("row-action", "Cancel");
+        cancel.type = "button";
+        cancel.setAttribute(
+          "aria-label",
+          `Cancel queued ${QUEUE_VERBS[queued.action]} for ${item.repo}#${item.number}`,
+        );
+        cancel.addEventListener("click", () => cancelQueued(queued));
+        line.appendChild(cancel);
+        return line;
+      }
+      // Only while the forge's REST budget is spent: with budget left the
+      // direct button is there, and there is nothing to wait for.
+      const lock = proactiveActionLockReason(item.forge);
+      if (lock?.code !== "rate_limited") return null;
+      const action = queueableAction(item);
+      if (!action) return null;
+      const health = lastForges.find((f) => f.forge === item.forge);
+      if (!isRateLimited(health?.rateLimitREST)) return null;
+      const resets = health?.rateLimitREST?.resetsAt ?? "";
+      const button = buttonEl(
+        "row-action",
+        `Queue ${QUEUE_VERBS[action]} for ${formatTime(resets)}`,
+      );
+      button.type = "button";
+      button.addEventListener("click", () =>
+        queueForReset(item, action, button),
+      );
+      return button;
+    }
+
+    function queueForReset(
+      item: PullRequestItem,
+      action: QueuedActionItem["action"],
+      button: HTMLButtonElement,
+    ) {
+      button.disabled = true;
+      fetch("/api/queued-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          action,
+          forge: item.forge,
+          fullName: item.repo,
+          number: item.number,
+        }),
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = "/login.html";
+            throw new Error("session expired");
+          }
+          if (res.status === 201 || res.status === 200)
+            return res.json().then((q: QueuedActionItem) => {
+              feedback.announce(
+                `${queuedText(q)} for ${item.repo}#${item.number}.`,
+              );
+              return refreshDashboardNow();
+            });
+          return readActionFailure(res).then((err) => {
+            throw err;
+          });
+        })
+        .catch((err: Error) => {
+          button.disabled = false;
+          showError(
+            `Couldn't queue the ${QUEUE_VERBS[action]} for ${item.repo}#${item.number}: ${err.message}`,
+          );
+        });
+    }
+
+    function cancelQueued(q: QueuedActionItem) {
+      fetch(`/api/queued-actions/${encodeURIComponent(q.id)}`, {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = "/login.html";
+            throw new Error("session expired");
+          }
+          if (!res.ok && res.status !== 404)
+            throw new Error(`backend answered ${res.status}`);
+          feedback.announce(
+            q.status === "queued"
+              ? `Cancelled ${QUEUE_LABELS[q.action]} for ${q.fullName}#${q.number}.`
+              : "Cleared.",
+          );
+          return refreshDashboardNow();
+        })
+        .catch((err: Error) => {
+          showError(`Couldn't cancel the queued action: ${err.message}`);
+        });
+    }
+
+    // The Activity panel's list of queued actions, and the one polite toast
+    // for each outcome that arrives while the page is open. What was
+    // already final when the page loaded is only listed.
+    const announcedQueued = new Set<string>();
+    let queuedSeen = false;
+
+    function syncQueuedActions(items: QueuedActionItem[]) {
+      for (const q of items) {
+        if (q.status === "queued" || announcedQueued.has(q.id)) continue;
+        announcedQueued.add(q.id);
+        if (!queuedSeen) continue;
+        const text = `${queuedText(q)}.`;
+        feedback.notify({
+          title: `${q.fullName}#${q.number}`,
+          message: text,
+          announce: `${q.fullName}#${q.number}: ${text}`,
+        });
+      }
+      queuedSeen = true;
+      const wrap = document.getElementById("activity-queued");
+      const list = document.getElementById("activity-queued-list");
+      if (!wrap || !list) return;
+      wrap.hidden = items.length === 0;
+      list.replaceChildren();
+      for (const q of items) {
+        const li = el("li", "activity-queued-item");
+        li.dataset.status = q.status;
+        li.appendChild(
+          el("span", "activity-queued-ref", `${q.fullName}#${q.number}`),
+        );
+        li.appendChild(document.createTextNode(" "));
+        li.appendChild(el("span", "activity-queued-text", queuedText(q)));
+        const button = buttonEl(
+          "row-action",
+          q.status === "queued" ? "Cancel" : "Clear",
+        );
+        button.type = "button";
+        button.setAttribute(
+          "aria-label",
+          `${q.status === "queued" ? "Cancel" : "Clear"} ${QUEUE_LABELS[q.action]} for ${q.fullName}#${q.number}`,
+        );
+        button.addEventListener("click", () => cancelQueued(q));
+        li.appendChild(button);
+        list.appendChild(li);
+      }
     }
 
     // ---- pipeline checks panel ----
@@ -5408,6 +5628,7 @@
       // shows none of them and the Releases board only them. The server says
       // which are which (#716). The nav counts both from the full list.
       setPullRequestCounts(data.pullRequests);
+      syncQueuedActions(data.queuedActions ?? []);
       const prs = (data.pullRequests || []).filter((p) =>
         viewKind
           ? p.kind === viewKind
@@ -5658,6 +5879,11 @@
         >
       </div>
       <ul class="activity-list"></ul>
+      <!-- Actions queued for a rate limit reset (#756), from the snapshot. -->
+      <div class="activity-queued" id="activity-queued" hidden>
+        <p class="activity-title">Queued for a rate limit reset</p>
+        <ul class="activity-queued-list" id="activity-queued-list"></ul>
+      </div>
     </div>
   </div>
   <div class="dashboard-toolbar">
