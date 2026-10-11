@@ -18,6 +18,7 @@
     type ActionCode,
     type ActionRequestError,
     interpretActionFailure,
+    NETWORK_FAILURE,
     readActionFailure,
     type SettledState,
     settledBadge,
@@ -254,6 +255,11 @@
     const feedbackUI = mountFeedbackUI(feedback, {
       countdownText: () => queuedCountdownText(),
       revealRow: (key) => revealRow(key),
+      // The write may have landed before the connection dropped, so the row
+      // is read again from the server before the action is offered anew.
+      onTransientFailureCleared: () => {
+        refreshDashboardNow().catch(() => {});
+      },
     });
     function actionRef(item: PullRequestItem): ActionRef {
       return { key: prKey(item), repo: item.repo, number: item.number };
@@ -265,6 +271,7 @@
       what: string,
       reason: string,
       canRetry: boolean,
+      transient = false,
     ) {
       const message = `Couldn't ${what}: ${reason}`;
       feedback.update(actionKey, {
@@ -274,6 +281,9 @@
         toast: true,
         announce: message,
         canRetry,
+        // A failure that passes by itself clears its row line after a few
+        // seconds (#1206).
+        transient,
       });
     }
     const CI_LABELS: Record<string, string> = {
@@ -1225,7 +1235,7 @@
         failAction(fkey, what, outcome.reason, false);
       } else {
         setState({ phase: "idle" });
-        failAction(fkey, what, outcome.reason, true);
+        failAction(fkey, what, outcome.reason, true, outcome.transient);
       }
       renderPRBoard();
     }
@@ -1344,11 +1354,11 @@
                 } else {
                   renderPRBoard();
                 }
-                failAction(fkey, "merge", err.message, true);
+                failAction(fkey, "merge", NETWORK_FAILURE, true, true);
               })
               .catch(() => {
                 mergeState[key] = { phase: "idle" };
-                failAction(fkey, "merge", err.message, true);
+                failAction(fkey, "merge", NETWORK_FAILURE, true, true);
                 renderPRBoard();
               });
             return;
