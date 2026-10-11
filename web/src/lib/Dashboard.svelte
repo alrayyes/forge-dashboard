@@ -2704,6 +2704,11 @@
       }
     }
 
+    // Whether the issues board has been drawn at least once. With no issues the
+    // first snapshot has nothing to add, so without this the empty state would
+    // never show (#1228).
+    let issuesDrawn = false;
+
     // Returns true when it rendered the board.
     function reconcileIssues(): boolean {
       if (!latestIssues) {
@@ -2731,9 +2736,15 @@
         // Nothing on screen differs, but the rows off screen may. Keep them
         // current so a filter change later shows fresh data, without drawing.
         shownIssues = latestIssues;
-        issueBoard.replaceItems(shownIssues);
         latestIssues = null;
         showUpdatesBar(0);
+        if (!issuesDrawn) {
+          issuesDrawn = true;
+          issueBoard.setItems(shownIssues, true);
+
+          return true;
+        }
+        issueBoard.replaceItems(shownIssues);
 
         return false;
       }
@@ -2743,6 +2754,7 @@
         latestIssues = null;
         latestIssuesAsked = false;
         showUpdatesBar(0);
+        issuesDrawn = true;
         issueBoard.setItems(shownIssues, true);
 
         return true;
