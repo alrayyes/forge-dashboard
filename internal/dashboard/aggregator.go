@@ -460,6 +460,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		forge := a.sources[i].Forge()
 		if r.Health.Reachable {
 			goodAt[forge] = snap.GeneratedAt
+			r = keepFailedRepos(r, earlier, forge)
 		} else if at, ok := goodAt[forge]; ok {
 			// A failed fetch carries no data. Showing none would drop every
 			// row of this forge until the next good refresh (#922), so show
@@ -683,6 +684,47 @@ func carryOver(res Result, earlier Snapshot, forge Forge) Result {
 	res.Repos = slices.DeleteFunc(slices.Clone(earlier.Repos), func(r Repo) bool { return r.Forge != forge })
 
 	return res
+}
+
+// keepFailedRepos puts back what the forge had for each repo it answered but
+// could not fully fetch. A list that failed is not an empty one, and
+// dropping it blanked the repo's rows until the next good fetch (#1194). The
+// repo says since when its rows are the old ones. A part that did fetch keeps
+// the forge's own answer.
+func keepFailedRepos(res Result, earlier Snapshot, forge Forge) Result {
+	res.Repos = slices.Clone(res.Repos)
+	for _, failed := range res.FailedRepos {
+		key := repoKey{forge, failed.FullName}
+		if failed.PullRequests {
+			res.PullRequests = append(res.PullRequests, slices.DeleteFunc(slices.Clone(earlier.PullRequests), func(pr PullRequest) bool {
+				return (repoKey{pr.Forge, pr.Repo}) != key
+			})...)
+		}
+		if failed.Issues {
+			res.Issues = append(res.Issues, slices.DeleteFunc(slices.Clone(earlier.Issues), func(i Issue) bool {
+				return (repoKey{i.Forge, i.Repo}) != key
+			})...)
+		}
+		markRepoStale(res.Repos, earlier, key)
+	}
+
+	return res
+}
+
+// markRepoStale sets StaleSince on key's repo in repos: when its rows were
+// last fetched, which is the earlier snapshot unless that was stale already.
+func markRepoStale(repos []Repo, earlier Snapshot, key repoKey) {
+	since := earlier.GeneratedAt
+	for _, r := range earlier.Repos {
+		if (repoKey{r.Forge, r.FullName}) == key && r.StaleSince != nil {
+			since = *r.StaleSince
+		}
+	}
+	for i := range repos {
+		if (repoKey{repos[i].Forge, repos[i].FullName}) == key {
+			repos[i].StaleSince = &since
+		}
+	}
 }
 
 // repoKey names one repository on one forge.
