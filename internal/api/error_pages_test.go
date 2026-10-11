@@ -132,3 +132,17 @@ func TestServer_UnknownAPIPath_IsJSONNotThePage(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
 }
+
+func TestStatic_TheErrorPageFilesThemselves_NeverAnswer200(t *testing.T) {
+	t.Parallel()
+
+	h := api.NewStaticHandler(errorPageFixture(), false)
+
+	for _, path := range []string{"/404.html", "/500.html"} {
+		resp := get(h, path, "")
+
+		assert.Equal(t, http.StatusNotFound, resp.Code, path)
+		assert.Contains(t, resp.Body.String(), "Page not found", path)
+		assert.Equal(t, "no-cache", resp.Header().Get("Cache-Control"), path)
+	}
+}

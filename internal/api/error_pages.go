@@ -31,6 +31,12 @@ func withNotFoundPage(fsys fs.FS, next http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The two files are real pages too, but visiting one by name is a path
+		// that isn't a page: answer it as the 404 it is, never a 200.
+		if r.URL.Path == "/"+notFoundPage || r.URL.Path == "/"+serverErrorPage {
+			r = r.Clone(r.Context())
+			r.URL.Path = "/no-such-page"
+		}
 		if !asksForAPage(r.URL.Path) {
 			next.ServeHTTP(w, r)
 
@@ -70,6 +76,7 @@ func (w *notFoundWriter) WriteHeader(status int) {
 	h := w.Header()
 	h.Set("Content-Type", "text/html; charset=utf-8")
 	h.Set("Cache-Control", cacheRevalidate)
+	h.Del("ETag")
 	h.Del("X-Content-Type-Options")
 	h.Del("Content-Length")
 	w.ResponseWriter.WriteHeader(http.StatusNotFound)
