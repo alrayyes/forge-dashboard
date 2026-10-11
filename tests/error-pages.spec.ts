@@ -133,7 +133,7 @@ test.describe('error pages (#1175)', () => {
     await openError(page, BODY_500, 500);
     const again = page.getByRole('link', { name: 'Try again' });
     await expect(again).toBeVisible();
-    await expect(again).toHaveAttribute('href', '');
+    await expect(again).toHaveAttribute('href', '?');
   });
 
   test('the 404 page offers no Try again, since the address is the problem', async ({

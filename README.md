@@ -359,24 +359,26 @@ takes the pull request off the board at once, even if the forge goes on listing
 it as open for a few seconds; the server holds it back for up to two minutes.
 Update branch appears when the
 forge reports it's possible; it doesn't ask, since a merge from the base branch
-is easy to reverse and a merge itself isn't. On a pull request that's behind
-but also conflicts with its base, Update branch is locked with a note that the
-conflicts need fixing by hand, since the forge would refuse the update.
-Close isn't a standalone row button: it lives in the "More actions" menu on
-every open pull request regardless of mergeability. A menu is for the overflow,
-so when Close is the row's only extra action it's drawn directly instead. It
-reads "Close pull request" and is a neutral button on every row, never green or
-red: closing is reversible, since the pull request stays listed as closed and
-can be reopened, so the warning tone is kept for the confirm step ("Confirm
-close pull request?"). For one that turns out not to need merging at all (a
-duplicate, or one whose content already landed another way) it's the action that
-applies. It asks for confirmation the same way Merge does, inside the menu.
-Confirming closes the menu and shows progress on the row. Escape drops an
-unconfirmed Close and leaves the menu open, a second Escape closes the menu, and
-closing the menu any other way drops it too. If the forge refuses a confirmed
-Close, the row shows "Close locked" next to the closed menu and the reason
-becomes the menu button's description, so you don't have to reopen the menu to
-find out.
+is easy to reverse and a merge itself isn't. A GitHub pull request counts as
+behind whenever its base has commits it lacks, even in a repo that doesn't
+require branches to be up-to-date, and Merge stays allowed there. On a pull
+request that's behind but also conflicts with its base, Update branch is locked
+with a note that the conflicts need fixing by hand, since the forge would refuse
+the update. Close isn't a standalone row button: it lives in the "More actions"
+menu on every open pull request regardless of mergeability. A menu is for the
+overflow, so when Close is the row's only extra action it's drawn directly
+instead. It reads "Close pull request" and is a neutral button on every row,
+never green or red: closing is reversible, since the pull request stays listed
+as closed and can be reopened, so the warning tone is kept for the confirm step
+("Confirm close pull request?"). For one that turns out not to need merging at
+all (a duplicate, or one whose content already landed another way) it's the
+action that applies. It asks for confirmation the same way Merge does, inside
+the menu. Confirming closes the menu and shows progress on the row. Escape drops
+an unconfirmed Close and leaves the menu open, a second Escape closes the menu,
+and closing the menu any other way drops it too. If the forge refuses a
+confirmed Close, the row shows "Close locked" next to the closed menu and the
+reason becomes the menu button's description, so you don't have to reopen the
+menu to find out.
 A permission refusal is re-read too: if the pull request turns out to be
 merged or closed, that is what the row says, not "check your token". Only a
 rate limit skips the re-read, since it would be limited as well.
@@ -433,6 +435,32 @@ offer Retry follows the refusal's `code` (`rate_limited` and `permission`
 don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
 so the page holds no threshold of its own.
+
+While a forge is rate limited, you can queue Update branch, `Dependabot: Rebase`
+or `Renovate: Rebase` to run when its budget comes back, instead of returning to
+click again. `POST /api/queued-actions` stores the choice on the server, per
+user, so it survives a page reload and a server restart. The pull request carries
+the waiting item as `queued`, for a row to say "Update branch queued for 14:32"
+with Cancel, and the dashboard's `queuedActions` list holds the items and, once
+they ran, their outcomes for 24 hours.
+
+It only works while the forge really is limited (a spent budget whose reset is
+still ahead), for a pull request that is on your board, behind its base branch
+and offering that action. At the reset, plus a 30-second pad, the server reads
+the board fresh and looks at the pull request again before it does anything. It
+runs the action only if it still applies. Otherwise it records why it did
+nothing: the pull request was merged or closed, caught up, picked up a conflict,
+or already has the request. A forge that is still limited moves the item to the
+new reset. One that doesn't answer is tried again every five minutes for an hour.
+A refusal is recorded with the same `code` and `message` the button would have
+shown. It runs with your own saved credentials for that forge and no one else's,
+and does nothing if you have removed them.
+
+Merge and Close can't be queued, and the API answers 400. They would act
+unattended on a pull request whose checks or commits may have changed in the
+meantime. To merge once the limit lifts, arm the forge's own auto-merge instead.
+After a restart the server starts the dashboard of every user with a waiting
+item, so the action still runs at the reset without anyone signing in.
 
 A forge that fails a refresh keeps showing its last good pull requests and
 issues, and the header says so next to it: "Showing data from 3m ago". The
@@ -742,8 +770,8 @@ The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
 and saved with your other filters, so a filter set on one page is still set on
 the other. The pull-request-only controls (CI status, the quick filters for
-failing, ready and needs-review pull requests, Show drafts) are not on the
-issues page.
+failing, ready, needs-review and conflicting pull requests, Show drafts)
+are not on the issues page.
 
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows is held behind an "N updates available" bar while you're scrolled
@@ -880,6 +908,11 @@ server matches, ignoring case, against the username saved for that forge in
 Settings. It needs that username: with none saved for a forge, none of that
 forge's pull requests match. It adds no requests, since the requested
 reviewers' names come with the data already fetched.
+
+The **Conflicts** quick filter keeps the pull requests with a merge conflict, so
+they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
+`conflicting`, the same field behind the row's own Conflicting pill, so the page
+holds no rule of its own. A draft that conflicts is listed too.
 
 Draft pull requests are left out of `/api/dashboard` by default, since nothing
 can be merged or updated on one. The response says how many it left out in
@@ -1061,6 +1094,10 @@ window skips the fetch and answers 200 with the current snapshot and a
 `Retry-After` header, so a follow-up refresh after an action never fails. The
 page follows both: it polls at `readIntervalSeconds`, and "Refresh now" locks
 for `Retry-After` seconds. Neither number lives in the front end.
+
+`GET/POST /api/queued-actions` and `DELETE /api/queued-actions/{id}` list,
+queue and cancel the actions that wait for a rate limit reset (see Pull request
+actions).
 
 `GET/POST/DELETE /api/mcp` sits outside this contract — it's the MCP
 Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource
