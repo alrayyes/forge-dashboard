@@ -317,6 +317,18 @@ func (m *Manager) MarkSettled(userID []byte, forge Forge, repo string, number in
 	entry.agg.MarkSettled(forge, repo, number)
 }
 
+// Unsettle delegates to userID's Aggregator — see Aggregator.Unsettle.
+func (m *Manager) Unsettle(userID []byte, forge Forge, repo string, number int) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return
+	}
+	entry.agg.Unsettle(forge, repo, number)
+}
+
 // RecordBotRequest delegates to userID's Aggregator — see
 // Aggregator.RecordBotRequest. A user with no running Aggregator has no board
 // to show it on, so it does nothing.
@@ -350,7 +362,7 @@ func (m *Manager) RecordUpdateRequest(userID []byte, forge Forge, repo string, n
 // Aggregator, the same as RefreshNow, and also false wherever
 // Aggregator.RefreshRepo itself would — a caller should fall back to
 // RefreshNow either way, without needing to tell the two apart.
-func (m *Manager) RefreshRepo(ctx context.Context, userID []byte, forge Forge, owner, name, fullName string) bool {
+func (m *Manager) RefreshRepo(ctx context.Context, userID []byte, forge Forge, owner, name, fullName string, attrs ...any) bool {
 	m.mu.Lock()
 	entry, ok := m.users[string(userID)]
 	m.mu.Unlock()
@@ -359,7 +371,7 @@ func (m *Manager) RefreshRepo(ctx context.Context, userID []byte, forge Forge, o
 		return false
 	}
 
-	return entry.agg.RefreshRepo(ctx, forge, owner, name, fullName)
+	return entry.agg.RefreshRepo(ctx, forge, owner, name, fullName, attrs...)
 }
 
 // Subscribe delegates to userID's Aggregator — see Aggregator.Subscribe.
