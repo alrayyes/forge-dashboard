@@ -89,6 +89,9 @@ const LINKS = ['/issues.html', '/releases.html', '/bots.html'];
 test.describe('empty pages leave the navigation (#1228)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('with nothing to show, the three links are gone from the header and the tab bar, and Home stays', async ({
