@@ -131,6 +131,13 @@ doesn't carry one (the initial "ping", most concretely) falls back to a
 full refresh instead, so every event type still results in _something_
 refreshing either way.
 
+A `pull_request` delivery whose action is `closed` also takes that pull
+request off the board before the refresh runs, merged or not. GitHub can go
+on listing a pull request it just merged as open for a few seconds, and a
+refresh that fails lists nothing, so the delivery itself is trusted. The
+pull request stays off until a refresh stops listing it or two minutes
+pass, and a `reopened` delivery puts it back at once.
+
 ## Troubleshooting
 
 - **Everything about a pull request updates live except its CI colour**:
@@ -166,7 +173,9 @@ refreshing either way.
   once the triggered refresh actually runs. No `LOG_LEVEL` change is
   needed to see them; each logs at its natural level (`INFO` for a
   normal delivery, `WARN` for a rejected one) regardless of what
-  `LOG_LEVEL` is set to.
+  `LOG_LEVEL` is set to. A refresh that fails logs `scoped refresh failed`
+  with the repo, the delivery ID and, for a pull request event, the pull
+  request number.
 - **You want to rotate the secret**: there's currently no way to do that
   from the dashboard — it's generated once, the first time the Settings
   page is opened, and stays fixed after that for as long as the account
