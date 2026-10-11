@@ -441,6 +441,10 @@ type Repo struct {
 	// permission change since the last refresh can still make a
 	// following EnsureWebhook call fail despite this having said true.
 	CanManageWebhooks bool `json:"canManageWebhooks"`
+	// StaleSince is set when this refresh could not fetch some of the repo's
+	// pull requests or issues, and the ones shown are the last good ones,
+	// fetched at this time (#1194). Absent when the repo's data is current.
+	StaleSince *time.Time `json:"staleSince,omitempty"`
 }
 
 // Snapshot matches components.schemas.Dashboard — the whole body
