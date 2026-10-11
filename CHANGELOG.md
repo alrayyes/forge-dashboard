@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.154.1](https://github.com/alrayyes/forge-dashboard/compare/v0.154.0...v0.154.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **github:** show a branch as behind when the base moved in a non-strict repo ([#1205](https://github.com/alrayyes/forge-dashboard/issues/1205)) ([38dfbb5](https://github.com/alrayyes/forge-dashboard/commit/38dfbb5ce5bae7274f2097e30a5f21f326b4a8de)), closes [#1183](https://github.com/alrayyes/forge-dashboard/issues/1183)
+
 ## [0.154.0](https://github.com/alrayyes/forge-dashboard/compare/v0.153.0...v0.154.0) (2026-10-11)
 
 
