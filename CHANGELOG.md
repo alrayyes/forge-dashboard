@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.161.0](https://github.com/alrayyes/forge-dashboard/compare/v0.160.0...v0.161.0) (2026-10-11)
+
+
+### Features
+
+* **api:** the CI status of every default branch at GET /api/main-branches ([#1232](https://github.com/alrayyes/forge-dashboard/issues/1232)) ([822ee74](https://github.com/alrayyes/forge-dashboard/commit/822ee7420a4b65b11de11853703f57d3fa91b524))
+
 ## [0.160.0](https://github.com/alrayyes/forge-dashboard/compare/v0.159.0...v0.160.0) (2026-10-11)
 
 
