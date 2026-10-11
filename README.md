@@ -714,11 +714,13 @@ issues page.
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows is held behind an "N updates available" bar while you're scrolled
 below the top, a control in the list has focus, or live updates are paused;
-**Show updates**, or a change to a filter or the sort, applies it. At the top
-with nothing focused, changes just appear. A row whose own content changed
-updates where it stands, and a refresh with no change leaves every row alone.
-Sort works as it does for pull requests. The pause setting is shared with the
-pull request page.
+**Show updates**, or a change to a filter or the sort, applies it. The bar
+counts only issues the list would show: a change to one the filters or the
+hidden Dependency Dashboard keep out of sight asks for nothing, and neither does
+a change to pull requests. At the top with nothing focused, changes just appear.
+A row whose own content changed updates where it stands, and a refresh with no
+change leaves every row alone. Sort works as it does for pull requests. The
+pause setting is shared with the pull request page.
 
 ## Filters on a phone
 
