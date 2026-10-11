@@ -210,8 +210,12 @@ func NewMux(deps Deps) http.Handler {
 	// gone now that the name means this page.
 	mux.Handle("GET /releases.html", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /", publicFiles)
+	// An unknown API path is JSON, never the page for people (#1175).
+	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusNotFound, errorBody("not found"))
+	})
 
-	return accessLogMiddleware(limitRequestBody(mux))
+	return accessLogMiddleware(recoverPanics(static, limitRequestBody(mux)))
 }
 
 // maxRequestBodyBytes caps what any JSON endpoint reads (#1008). Every body
