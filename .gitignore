@@ -51,6 +51,7 @@ CHANGELOG.md
 /internal/api/static/disclaimer.html
 /internal/api/static/changelog.html
 /internal/api/static/bots.html
+/internal/api/static/main-branches.html
 /internal/api/static/404.html
 /internal/api/static/500.html
 /internal/api/static/releases.html
