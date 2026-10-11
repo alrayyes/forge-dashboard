@@ -7,4 +7,5 @@ var (
 	ValidSignature  = validSignature
 
 	NewStaticHandler = newStaticHandler
+	RecoverPanics    = recoverPanics
 )
