@@ -268,6 +268,7 @@ func run() error {
 		GitHubAppConfigured: githubAppID != 0,
 	}
 
+	resumeQueuedActions(ctx, settingsStore, settingsStore, deps.BuildSources, manager)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
 
 	return serve(ctx, newServer(addr, deps), &drain)
@@ -297,6 +298,7 @@ func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval t
 	// with its own AutoUpdateBranchRepos/RenovateRebaseLabel methods.
 	manager.SetAutoUpdateBranchLister(settingsStore)
 	manager.SetAutoMergeStore(settingsStore)
+	manager.SetQueuedActionStore(settingsStore)
 	manager.SetCIPollInterval(ciPollInterval)
 
 	return manager

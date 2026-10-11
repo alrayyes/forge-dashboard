@@ -40,6 +40,11 @@ type Aggregator struct {
 	// autoMerge is nil unless EnableAutoMerge was called — see auto_merge.go.
 	autoMerge *autoMergeConfig
 
+	// queued is nil unless EnableQueuedActions was called — see
+	// queued_runner.go. queuedBuffer is how long past a reset it waits.
+	queued       *queuedActionsConfig
+	queuedBuffer time.Duration
+
 	// settled holds pull requests a merge or close just succeeded on (#835),
 	// keyed by settledKey. The forge can go on listing one as open for a
 	// few seconds, so refreshes keep it off the board until the forge
@@ -99,19 +104,19 @@ func WithClock(now func() time.Time) AggregatorOption {
 // until the first Refresh (or Run) completes.
 func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 	a := &Aggregator{
-		sources:        sources,
-		snap:           newEmptySnapshot(),
-		subs:           make(map[chan Snapshot]struct{}),
-		refresh:        newCoalescer(),
-		repoRefresh:    newKeyedCoalescer(),
-		scopedSeq:      make(map[repoKey]uint64),
-		settled:        make(map[string]time.Time),
-		settleWindow:   defaultSettleWindow,
-		botRequests:    make(map[string]*botEntry),
-		updateRequests: make(map[string]*updateEntry),
-		now:            time.Now,
-		lastGood:       make(map[Forge]time.Time),
-
+		sources:          sources,
+		snap:             newEmptySnapshot(),
+		subs:             make(map[chan Snapshot]struct{}),
+		refresh:          newCoalescer(),
+		repoRefresh:      newKeyedCoalescer(),
+		scopedSeq:        make(map[repoKey]uint64),
+		settled:          make(map[string]time.Time),
+		settleWindow:     defaultSettleWindow,
+		botRequests:      make(map[string]*botEntry),
+		updateRequests:   make(map[string]*updateEntry),
+		now:              time.Now,
+		lastGood:         make(map[Forge]time.Time),
+		queuedBuffer:     backoffBuffer,
 		firstRefreshedCh: make(chan struct{}),
 	}
 	for _, opt := range opts {
@@ -432,7 +437,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 
 	var wg sync.WaitGroup
 	for i, src := range a.sources {
-		if health, ok := exhaustedHealth(earlier, src.Forge()); ok {
+		if health, ok := exhaustedHealth(earlier, src.Forge(), a.now()); ok {
 			// No budget left until the reset: a call would only fail, and
 			// the attempt itself counts against the forge (#755). Keep the
 			// last rows and the exhausted budget, so the banner holds.
@@ -453,8 +458,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 
 // exhaustedHealth returns forge's health from snap when one of its budgets is
 // spent and its reset is still ahead, so a fetch before then cannot work.
-func exhaustedHealth(snap Snapshot, forge Forge) (ForgeHealth, bool) {
-	now := time.Now()
+func exhaustedHealth(snap Snapshot, forge Forge, now time.Time) (ForgeHealth, bool) {
 	for _, h := range snap.Forges {
 		if h.Forge != forge {
 			continue
