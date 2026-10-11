@@ -64,6 +64,11 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 // The Close button wherever it sits: direct on a lone-action row, or inside
 // More actions.
 async function closeButton(page: Page): Promise<Locator> {
+  // Wait for the row to have rendered one or the other before looking.
+  await row(page)
+    .getByRole('button', { name: /^(More actions|Close pull request)$/ })
+    .first()
+    .waitFor();
   const more = row(page).getByRole('button', { name: 'More actions' });
   if ((await more.count()) > 0) await more.click();
   return row(page).getByRole('button', {
@@ -91,6 +96,9 @@ async function token(page: Page, name: string) {
 test.describe('Close is neutral, and says what it closes (#1223)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('on a pull request with nothing to merge it is not green, and looks like Close elsewhere', async ({
