@@ -2106,6 +2106,24 @@ button.ci-pill:hover {
   color: var(--warning);
 }
 
+/* "What still works" under a read-only banner (#755): closed until asked. */
+.rate-limit-still-works {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.rate-limit-still-works summary {
+  cursor: pointer;
+  min-height: 24px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.rate-limit-still-works ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
 footer {
   text-align: center;
   font-size: 12px;
@@ -2789,20 +2807,6 @@ footer a.mono:focus-visible {
     background: var(--accent);
     color: var(--accent-ink);
   }
-}
-
-/* One line under a repo group heading while its forge's API budget is
-   spent (#732): the reset time, stated once. Plain text, in the same
-   critical colour as the page banner. */
-.group-rate-limit {
-  margin: 0 0 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--critical);
-  border-radius: var(--radius);
-  background: var(--critical-bg);
-  color: var(--critical);
-  font-size: 13px;
-  font-weight: 600;
 }
 
 /* Who handles auto-merge on a Forgejo group: neutral, an explanation and not
