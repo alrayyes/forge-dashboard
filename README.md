@@ -431,6 +431,32 @@ don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
 so the page holds no threshold of its own.
 
+While a forge is rate limited, you can queue Update branch, `Dependabot: Rebase`
+or `Renovate: Rebase` to run when its budget comes back, instead of returning to
+click again. `POST /api/queued-actions` stores the choice on the server, per
+user, so it survives a page reload and a server restart. The pull request carries
+the waiting item as `queued`, for a row to say "Update branch queued for 14:32"
+with Cancel, and the dashboard's `queuedActions` list holds the items and, once
+they ran, their outcomes for 24 hours.
+
+It only works while the forge really is limited (a spent budget whose reset is
+still ahead), for a pull request that is on your board, behind its base branch
+and offering that action. At the reset, plus a 30-second pad, the server reads
+the board fresh and looks at the pull request again before it does anything. It
+runs the action only if it still applies. Otherwise it records why it did
+nothing: the pull request was merged or closed, caught up, picked up a conflict,
+or already has the request. A forge that is still limited moves the item to the
+new reset. One that doesn't answer is tried again every five minutes for an hour.
+A refusal is recorded with the same `code` and `message` the button would have
+shown. It runs with your own saved credentials for that forge and no one else's,
+and does nothing if you have removed them.
+
+Merge and Close can't be queued, and the API answers 400. They would act
+unattended on a pull request whose checks or commits may have changed in the
+meantime. To merge once the limit lifts, arm the forge's own auto-merge instead.
+After a restart the server starts the dashboard of every user with a waiting
+item, so the action still runs at the reset without anyone signing in.
+
 A forge that fails a refresh keeps showing its last good pull requests and
 issues, and the header says so next to it: "Showing data from 3m ago". The
 time comes from the server's `staleSince`, which is gone again after the next
@@ -1063,6 +1089,10 @@ window skips the fetch and answers 200 with the current snapshot and a
 `Retry-After` header, so a follow-up refresh after an action never fails. The
 page follows both: it polls at `readIntervalSeconds`, and "Refresh now" locks
 for `Retry-After` seconds. Neither number lives in the front end.
+
+`GET/POST /api/queued-actions` and `DELETE /api/queued-actions/{id}` list,
+queue and cancel the actions that wait for a rate limit reset (see Pull request
+actions).
 
 `GET/POST/DELETE /api/mcp` sits outside this contract — it's the MCP
 Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource
