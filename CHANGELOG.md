@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.147.3](https://github.com/alrayyes/forge-dashboard/compare/v0.147.2...v0.147.3) (2026-10-11)
+
+
+### Bug Fixes
+
+* **web:** count only the issues the list shows in the updates bar ([#1202](https://github.com/alrayyes/forge-dashboard/issues/1202)) ([ab3806e](https://github.com/alrayyes/forge-dashboard/commit/ab3806ecb56fd1e3796307ad28720f2596c1a7cc))
+
 ## [0.147.2](https://github.com/alrayyes/forge-dashboard/compare/v0.147.1...v0.147.2) (2026-10-11)
 
 
