@@ -836,7 +836,7 @@ works on a pull request's checks, not on a default-branch run. With every
 default branch passing the page says so, and a filter that matches nothing
 offers **Reset filters**. A repo with no pipeline says no run was found.
 
-## Main branches
+## Main branches API
 
 `GET /api/main-branches` answers the CI status of every tracked repo's default
 branch, so a broken main shows up without opening each repo. One row per repo:
