@@ -51,6 +51,12 @@ export type ActivityEntry = {
   // A link to the comment the request went out as, once the server has
   // found it (#1082).
   commentUrl?: string;
+  // The failure is one that passes by itself: the request never reached the
+  // server, or a forge answered 502, 503 or 504. Its row line clears itself
+  // (#1206). A refusal that needs a person is not, and stays.
+  transient?: boolean;
+  // The row line has cleared itself. The entry stays in Activity.
+  inlineCleared?: boolean;
 };
 
 export type ToastKind = 'success' | 'error';
@@ -93,6 +99,7 @@ export type UpdateInput = {
   acknowledged?: boolean;
   retryLabel?: string;
   commentUrl?: string;
+  transient?: boolean;
 };
 
 export type NoticeInput = {
@@ -282,6 +289,7 @@ export function createFeedbackStore(
       if (patch.canRetry !== undefined) entry.canRetry = patch.canRetry;
       if (patch.retryLabel !== undefined) entry.retryLabel = patch.retryLabel;
       if (patch.commentUrl !== undefined) entry.commentUrl = patch.commentUrl;
+      if (patch.transient !== undefined) entry.transient = patch.transient;
       if (patch.acknowledged !== undefined && entry.bot)
         entry.bot = { ...entry.bot, acknowledged: patch.acknowledged };
       entry.updatedAt = now();
@@ -321,6 +329,15 @@ export function createFeedbackStore(
       if (input.announce) {
         for (const fn of Array.from(announcers)) fn(input.announce);
       }
+      emit();
+    },
+
+    // The row's failure line goes, the entry stays in Activity, and nothing is
+    // announced (#1206).
+    clearInline(id: number) {
+      const entry = entries.find((e) => e.id === id);
+      if (!entry || entry.inlineCleared) return;
+      entry.inlineCleared = true;
       emit();
     },
 

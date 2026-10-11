@@ -21,6 +21,10 @@ import {
 // How long a success toast stays before it dismisses itself.
 export const TOAST_LIFETIME_MS = 6000;
 
+// How long a row's line for a failure that passes by itself (the network
+// dropped, a forge answered 502) stays before it clears itself (#1206).
+export const TRANSIENT_FAILURE_LIFETIME_MS = 10000;
+
 // What the page did to make a row reachable (#723). `cleared` names the
 // filters it turned off; `page` is the page it moved to, if it moved.
 export type RevealOutcome =
@@ -33,6 +37,9 @@ export type FeedbackUIOptions = {
   // The "(next refresh in 12s)" / " Refreshing…" text. Only ever shown
   // aria-hidden: a number that changes each second must not be spoken.
   countdownText: () => string;
+  // A transient failure line has cleared itself. Whether the write landed is
+  // unknown, so the page reads the row again from the server (#1206).
+  onTransientFailureCleared?: (entry: ActivityEntry) => void;
 };
 
 function node(tag: string, className = '', text = ''): HTMLElement {
@@ -200,7 +207,86 @@ export function mountFeedbackUI(
   // A successful finish has nothing left to say on the row: it shows up as
   // a toast and in Activity.
   function inlineEntries(key: string): ActivityEntry[] {
-    return store.entriesFor(key).filter((e) => e.phase !== 'done');
+    return store
+      .entriesFor(key)
+      .filter((e) => e.phase !== 'done' && !e.inlineCleared);
+  }
+
+  // ---- transient failure lines (#1206) ----
+  // WCAG 2.2.1 Timing Adjustable: the line that clears itself holds while
+  // it is hovered or has focus, and restarts when that ends. The timers
+  // live here, by entry, because every render rebuilds the line.
+  const failureTimers = new Map<number, ToastTimer>();
+
+  function expireFailure(id: number) {
+    const timer = failureTimers.get(id);
+    failureTimers.delete(id);
+    if (timer?.handle != null) window.clearTimeout(timer.handle);
+    // By id, not by action: a Retry may have replaced the entry since.
+    const entry = store.entries().find((e) => e.id === id);
+    if (!entry || !entry.transient || entry.phase !== 'failed') return;
+    store.clearInline(id);
+    options.onTransientFailureCleared?.(entry);
+  }
+
+  function startFailureTimer(id: number) {
+    const timer = failureTimers.get(id);
+    if (!timer || timer.handle !== null) return;
+    if (timer.hovered || timer.focused) return;
+    timer.startedAt = Date.now();
+    timer.handle = window.setTimeout(() => expireFailure(id), timer.remaining);
+  }
+
+  function pauseFailureTimer(id: number) {
+    const timer = failureTimers.get(id);
+    if (!timer || timer.handle === null) return;
+    window.clearTimeout(timer.handle);
+    timer.handle = null;
+    timer.remaining = Math.max(
+      1000,
+      timer.remaining - (Date.now() - timer.startedAt),
+    );
+  }
+
+  // Called each time the line is built. The first time starts the clock;
+  // a rebuild keeps its progress, and drops any hover or focus the old node
+  // can no longer report the end of.
+  function watchFailureLine(entry: ActivityEntry, line: HTMLElement) {
+    if (!entry.transient || entry.phase !== 'failed') return;
+    const id = entry.id;
+    let timer = failureTimers.get(id);
+    if (!timer) {
+      timer = {
+        remaining: TRANSIENT_FAILURE_LIFETIME_MS,
+        startedAt: 0,
+        handle: null,
+        hovered: false,
+        focused: false,
+      };
+      failureTimers.set(id, timer);
+    }
+    const t = timer;
+    t.hovered = false;
+    t.focused = false;
+    line.addEventListener('mouseenter', () => {
+      t.hovered = true;
+      pauseFailureTimer(id);
+    });
+    line.addEventListener('mouseleave', () => {
+      t.hovered = false;
+      startFailureTimer(id);
+    });
+    line.addEventListener('focusin', () => {
+      t.focused = true;
+      pauseFailureTimer(id);
+    });
+    line.addEventListener('focusout', (event) => {
+      if (line.contains((event as FocusEvent).relatedTarget as Node | null))
+        return;
+      t.focused = false;
+      startFailureTimer(id);
+    });
+    startFailureTimer(id);
   }
 
   function signature(key: string): string {
@@ -280,6 +366,7 @@ export function mountFeedbackUI(
         dismiss.addEventListener('click', () => store.drop(actionKey));
         line.appendChild(dismiss);
       }
+      watchFailureLine(entry, line);
       wrap.appendChild(line);
     }
     return wrap;
