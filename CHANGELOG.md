@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.147.1](https://github.com/alrayyes/forge-dashboard/compare/v0.147.0...v0.147.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **dashboard:** keep a repo's rows when its fetch fails on a reachable forge ([#1196](https://github.com/alrayyes/forge-dashboard/issues/1196)) ([43e1cd5](https://github.com/alrayyes/forge-dashboard/commit/43e1cd5460a15fc05c684c4b3c567dcada143114)), closes [#1194](https://github.com/alrayyes/forge-dashboard/issues/1194)
+
 ## [0.147.0](https://github.com/alrayyes/forge-dashboard/compare/v0.146.0...v0.147.0) (2026-10-11)
 
 
