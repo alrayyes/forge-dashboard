@@ -1100,6 +1100,9 @@ type statusCheckRollup struct {
 	Contexts *struct {
 		CheckRunCountsByState      []stateCount `json:"checkRunCountsByState"`
 		StatusContextCountsByState []stateCount `json:"statusContextCountsByState"`
+		// Nodes are the checks themselves. Only the default-branch read
+		// (#1224) asks for them; a pull request's rollup leaves them out.
+		Nodes []branchContext `json:"nodes"`
 	} `json:"contexts"`
 }
 
@@ -1157,15 +1160,24 @@ type prCommitNode struct {
 // status, the same fallback ciStatus used to do by hand against two REST
 // endpoints.
 func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
-	if len(commits) == 0 || commits[0].Commit.StatusCheckRollup == nil {
+	if len(commits) == 0 {
 		return dashboard.CINone
 	}
-	rollup := commits[0].Commit.StatusCheckRollup
-	switch rollup.State {
+
+	return commits[0].Commit.StatusCheckRollup.ci()
+}
+
+// ci is the rollup's combined result. A commit with no rollup (nil) has no
+// checks at all.
+func (r *statusCheckRollup) ci() dashboard.CIStatus {
+	if r == nil {
+		return dashboard.CINone
+	}
+	switch r.State {
 	case "SUCCESS":
 		return dashboard.CISuccess
 	case "ERROR", "FAILURE":
-		return rollup.settleFailedRollup()
+		return r.settleFailedRollup()
 	case "PENDING", "EXPECTED":
 		return dashboard.CIPending
 	default:
@@ -1297,6 +1309,8 @@ type graphqlRepo struct {
 	Issues struct {
 		Nodes []graphqlIssue `json:"nodes"`
 	} `json:"issues"`
+	// DefaultBranchRef is null for a repo with no commit yet (#1224).
+	DefaultBranchRef *graphqlBranchRef `json:"defaultBranchRef"`
 }
 
 // hasWriteAccess mirrors the REST client's old permissions.push filter —
@@ -1451,13 +1465,14 @@ query($cursor: String, $since: DateTime) {
             updatedAt
           }
         }
+        %[2]s
       }
     }
   }
 }
 `
 
-var reposQuery = fmt.Sprintf(reposQueryTemplate, itemsPerRepo)
+var reposQuery = fmt.Sprintf(reposQueryTemplate, itemsPerRepo, defaultBranchSelection)
 
 // appRepoFieldsTemplate is the per-repo pull-request/issue selection
 // fetchAppRepos embeds once per alias in its batched query — the same
@@ -1548,9 +1563,10 @@ const appRepoFieldsTemplate = `
         updatedAt
       }
     }
+    %[2]s
 `
 
-var appRepoFields = fmt.Sprintf(appRepoFieldsTemplate, itemsPerRepo)
+var appRepoFields = fmt.Sprintf(appRepoFieldsTemplate, itemsPerRepo, defaultBranchSelection)
 
 // buildAppRepoQuery returns the GraphQL query and its variables for one
 // batch of repos, aliasing each as r0, r1, ... since repository(owner:,
@@ -1962,6 +1978,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 			}
 		}
 		result.Issues = append(result.Issues, issuesByRepo[fullName]...)
+		result.MainBranches = append(result.MainBranches, mainBranchFrom(fullName, r.URL, r.DefaultBranchRef))
 	}
 	c.resolveAmbiguousBehind(ctx, result.PullRequests, behindChecks)
 

@@ -836,6 +836,38 @@ works on a pull request's checks, not on a default-branch run. With every
 default branch passing the page says so, and a filter that matches nothing
 offers **Reset filters**. A repo with no pipeline says no run was found.
 
+## Main branches API
+
+`GET /api/main-branches` answers the CI status of every tracked repo's default
+branch, so a broken main shows up without opening each repo. One row per repo:
+its default branch, the status of the pipeline on the newest commit (`failed`,
+`passed`, `running` or `none`), the commit (short SHA, subject, author), the
+names of the failed jobs, when the pipeline finished and how long it ran, and a
+link to the run. The response also counts the rows per status. Every row is
+returned whatever its status, failed first, so a client filters it and its
+counts always match what it lists.
+
+It reads the snapshot the background refresh already holds and never calls a
+forge, so reading it costs no rate-limit budget. The refresh gets the data
+cheaply:
+
+- **GitHub**: the default branch's newest commit and its checks ride the
+  repository query the refresh already makes for pull requests and issues, so
+  they add no request. That covers a personal access token and a GitHub App.
+  A username with no token has no rows, because its hourly budget is too small
+  to spend on this.
+- **Forgejo**: the refresh lists the Actions runs of each repo's default
+  branch (one call per repo, plus one for the commit, plus one for the jobs of
+  a failed run). Forgejo has no rate limit by default.
+
+A forge that can't be reached keeps its last known rows, each marked `stale`
+with the time it was last fetched, and so does a forge whose rate-limit budget
+is spent (the refresh skips it until the reset). A repo whose read failed while
+its forge answered keeps its own earlier row the same way. A repo with no
+pipeline on its newest commit, an empty repo, or a Forgejo instance without
+Actions shows `none`. The snapshot updates on each full refresh, not on a
+webhook delivery.
+
 ## Issues
 
 Open issues have their own page, `/issues.html`, reached from the **Issues**
@@ -1147,7 +1179,8 @@ below, with no redirect, so an old bookmark or a browser that cached the earlier
 `api/openapi.yaml` is the contract: `GET /healthz` for liveness, `GET /readyz`
 for readiness,
 `GET /api/dashboard` for the signed-in user's aggregated snapshot (or,
-with `?owner=<username>`, one shared with them), `GET`/`PUT
+with `?owner=<username>`, one shared with them), `GET /api/main-branches` for
+the CI status of every default branch, `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the
 `PUT` response never echoes a token back, only whether one is now set
 — `GET/PUT /api/settings/timezone` for the zone the user wants times shown
