@@ -264,6 +264,11 @@ func (a *Aggregator) notify(snap Snapshot) {
 	}
 }
 
+// Republish tells every subscriber the current snapshot again, for a change a
+// client reads next to it that the snapshot itself doesn't hold, like a queued
+// action (#756).
+func (a *Aggregator) Republish() { a.notify(a.Get()) }
+
 // Get returns the current snapshot. Safe to call concurrently with Refresh.
 func (a *Aggregator) Get() Snapshot {
 	a.mu.RLock()
