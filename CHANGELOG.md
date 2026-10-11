@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.145.0](https://github.com/alrayyes/forge-dashboard/compare/v0.144.1...v0.145.0) (2026-10-11)
+
+
+### Features
+
+* **api:** answer unknown paths and panics with the app's own error pages ([#1178](https://github.com/alrayyes/forge-dashboard/issues/1178)) ([6e9f6db](https://github.com/alrayyes/forge-dashboard/commit/6e9f6db11f199cfd290f7d0ecfd9a12171aefb78))
+
 ## [0.144.1](https://github.com/alrayyes/forge-dashboard/compare/v0.144.0...v0.144.1) (2026-10-11)
 
 
