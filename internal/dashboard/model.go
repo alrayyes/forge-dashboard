@@ -455,6 +455,9 @@ type Snapshot struct {
 	PullRequests []PullRequest `json:"pullRequests"`
 	Issues       []Issue       `json:"issues"`
 	Repos        []Repo        `json:"repos"`
+	// MainBranches is the CI status of every tracked repo's default branch
+	// (#1224), one row per repo, served by GET /api/main-branches.
+	MainBranches []MainBranch `json:"mainBranches"`
 }
 
 // newEmptySnapshot never has nil slices: the API contract promises arrays,
@@ -465,5 +468,6 @@ func newEmptySnapshot() Snapshot {
 		PullRequests: []PullRequest{},
 		Issues:       []Issue{},
 		Repos:        []Repo{},
+		MainBranches: []MainBranch{},
 	}
 }

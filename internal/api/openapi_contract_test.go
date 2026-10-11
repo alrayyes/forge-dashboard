@@ -119,7 +119,8 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Title: "Dependency Dashboard", URL: "https://github.com/alrayyes/a/issues/1", Author: "renovate[bot]", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, Title: "A real bug", URL: "https://github.com/alrayyes/a/issues/2", Author: "alice", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
 		},
-		repos: []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a", URL: "https://github.com/alrayyes/a"}},
+		repos:    []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a", URL: "https://github.com/alrayyes/a"}},
+		branches: contractBranches(now),
 	}
 	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
@@ -140,6 +141,54 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 	}, time.Second, 10*time.Millisecond)
 
 	return srv, cookie
+}
+
+// contractBranches is one default-branch row of each shape the spec describes:
+// a failed one with every field, a running one, an empty repo with no commit
+// and a stale one.
+func contractBranches(now time.Time) []dashboard.MainBranch {
+	seconds := 270
+	stale := now.Add(-time.Hour)
+
+	return []dashboard.MainBranch{
+		{
+			Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a", URL: "https://github.com/alrayyes/a", Branch: "main",
+			Status: dashboard.MainBranchFailed, FailingJobs: []string{"test"}, RunURL: "https://github.com/alrayyes/a/actions/runs/1",
+			Commit:     &dashboard.MainBranchCommit{SHA: "0123456", Subject: "fix: stop the thing", Author: "alrayyes", CommittedAt: &now},
+			FinishedAt: &now, DurationSeconds: &seconds,
+		},
+		{
+			Forge: dashboard.ForgeGitHub, FullName: "alrayyes/b", URL: "https://github.com/alrayyes/b", Branch: "main",
+			Status: dashboard.MainBranchRunning, FailingJobs: []string{}, RunURL: "https://github.com/alrayyes/b",
+			Commit: &dashboard.MainBranchCommit{SHA: "89abcde", Subject: "feat: add it", Author: "bob"},
+		},
+		{
+			Forge: dashboard.ForgeGitHub, FullName: "alrayyes/empty", URL: "https://github.com/alrayyes/empty",
+			Status: dashboard.MainBranchNone, FailingJobs: []string{}, RunURL: "https://github.com/alrayyes/empty",
+		},
+		{
+			Forge: dashboard.ForgeGitHub, FullName: "alrayyes/old", URL: "https://github.com/alrayyes/old", Branch: "main",
+			Status: dashboard.MainBranchPassed, FailingJobs: []string{}, RunURL: "https://github.com/alrayyes/old", StaleSince: &stale,
+		},
+	}
+}
+
+func TestContract_MainBranches(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie := populatedBoard(t)
+
+	req, got := record(t, http.MethodGet, srv.URL+"/api/main-branches", cookie)
+	require.Equal(t, http.StatusOK, got.status, string(got.body))
+	validateAgainstSpec(t, req, got)
+
+	t.Run("without a session", func(t *testing.T) {
+		t.Parallel()
+
+		req, got := record(t, http.MethodGet, srv.URL+"/api/main-branches", nil)
+		require.Equal(t, http.StatusUnauthorized, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+	})
 }
 
 func TestContract_DashboardAndRefresh(t *testing.T) {

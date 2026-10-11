@@ -546,6 +546,7 @@ func repoRef(r *gitea.Repository) dashboard.RepoRef {
 		Name:              r.Name,
 		URL:               r.HTMLURL,
 		CanManageWebhooks: r.Permissions != nil && r.Permissions.Admin,
+		DefaultBranch:     r.DefaultBranch,
 	}
 }
 

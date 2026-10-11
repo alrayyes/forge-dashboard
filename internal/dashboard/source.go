@@ -25,6 +25,9 @@ type Result struct {
 	// missing from PullRequests and Issues, which says nothing about whether
 	// they are gone, so the aggregator keeps the last ones it had (#1194).
 	FailedRepos []FailedRepo
+	// MainBranches is one row per repo this forge reads the default-branch CI
+	// of (#1224). A repo whose read failed is in FailedRepos and missing here.
+	MainBranches []MainBranch
 }
 
 // FailedRepo is one repo a Source could not fully fetch, and which parts.
@@ -32,6 +35,8 @@ type FailedRepo struct {
 	FullName     string
 	PullRequests bool
 	Issues       bool
+	// MainBranch means the default-branch read failed (#1224).
+	MainBranch bool
 }
 
 // Source is one forge's half of the aggregate. github.Source and
