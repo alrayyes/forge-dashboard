@@ -91,6 +91,9 @@ async function token(page: Page, name: string) {
 test.describe('Close is neutral, and says what it closes (#1223)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('on a pull request with nothing to merge it is not green, and looks like Close elsewhere', async ({
