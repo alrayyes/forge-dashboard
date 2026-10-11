@@ -706,11 +706,17 @@ Release pull requests have their own page, `/releases.html`, reached from the
 **Releases** item in the navigation. It is the pull request board over the
 pull requests the server marks `kind: release` (release-please's, by its
 `autorelease:` label), with the same filters, rows and actions as the main
-page. Each row shows the version being released next to the title. Merge is
-offered when the release can merge, or greyed out with the reason when it
-can't. A release that is behind its base branch gets Update branch and a line
-saying release-please won't update it until a releasable change lands. With no
-release pull requests open the page says nothing is waiting to ship.
+page. The main pull request page lists none of them, and doesn't count them. Each
+row shows the version being released next to the title. Merge is offered when
+the release can merge, or greyed out with the reason when it can't. A release
+that is behind its base branch gets Update branch and a line saying
+release-please won't update it until a releasable change lands. With no release
+pull requests open the page says nothing is waiting to ship.
+
+The navigation shows how many are waiting, as it does for Issues: the number of
+open pull requests (without releases) on the Home item and the number of open
+release pull requests on Releases. The dashboard pages set both from each
+snapshot, and the other signed-in pages load them once.
 
 ## Issues
 
