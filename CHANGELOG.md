@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.148.0](https://github.com/alrayyes/forge-dashboard/compare/v0.147.3...v0.148.0) (2026-10-11)
+
+
+### Features
+
+* **web:** a failure line for a network failure clears itself after ten seconds ([#1207](https://github.com/alrayyes/forge-dashboard/issues/1207)) ([fc82163](https://github.com/alrayyes/forge-dashboard/commit/fc821631a6a6731d1b0dc9f942859bdaeee4c4c4)), closes [#1206](https://github.com/alrayyes/forge-dashboard/issues/1206)
+
 ## [0.147.3](https://github.com/alrayyes/forge-dashboard/compare/v0.147.2...v0.147.3) (2026-10-11)
 
 
