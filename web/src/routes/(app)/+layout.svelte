@@ -136,6 +136,39 @@
     // Times on every page below read this; a failure leaves the browser's zone.
     loadTimezone();
 
+    // The dashboard views set the counts from their own snapshots. Every
+    // other page asks once, so the badges are there too. Asked only once a
+    // session exists: the changelog, disclaimer and privacy pages are open to
+    // visitors, who have none (#1261).
+    function loadNavCounts() {
+      if (
+        !isCurrentRoute("/") &&
+        !isCurrentRoute("/issues") &&
+        !isCurrentRoute("/releases") &&
+        !isCurrentRoute("/bots")
+      ) {
+        fetch("/api/dashboard", { headers: { Accept: "application/json" } })
+          .then((res) => (res.ok ? res.json() : null))
+          .then(
+            (
+              data: {
+                openIssueCount?: number;
+                pullRequests?: { kind?: string }[];
+              } | null,
+            ) => {
+              if (!data) return;
+              if (typeof data.openIssueCount === "number")
+                issueCount.value = data.openIssueCount;
+              if (Array.isArray(data.pullRequests))
+                setPullRequestCounts(data.pullRequests);
+            },
+          )
+          .catch(() => {
+            /* no badge is better than a wrong one */
+          });
+      }
+    }
+
     // ---- who's signed in ----
     // Ported from nav.js verbatim in behavior: same endpoint, same 401
     // redirect target — except release history, disclaimer and privacy
@@ -156,40 +189,11 @@
         if (!session) return;
         displayName = session.displayName;
         isAdmin = session.isAdmin;
+        loadNavCounts();
       })
       .catch(() => {
         /* a transient failure here isn't worth blocking the page over */
       });
-
-    // The dashboard views set the counts from their own snapshots. Every
-    // other signed-in page asks once, so the badges are there too.
-    if (
-      !isPublicRoute() &&
-      !isCurrentRoute("/") &&
-      !isCurrentRoute("/issues") &&
-      !isCurrentRoute("/releases") &&
-      !isCurrentRoute("/bots")
-    ) {
-      fetch("/api/dashboard", { headers: { Accept: "application/json" } })
-        .then((res) => (res.ok ? res.json() : null))
-        .then(
-          (
-            data: {
-              openIssueCount?: number;
-              pullRequests?: { kind?: string }[];
-            } | null,
-          ) => {
-            if (!data) return;
-            if (typeof data.openIssueCount === "number")
-              issueCount.value = data.openIssueCount;
-            if (Array.isArray(data.pullRequests))
-              setPullRequestCounts(data.pullRequests);
-          },
-        )
-        .catch(() => {
-          /* no badge is better than a wrong one */
-        });
-    }
   });
 </script>
 
