@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.158.0](https://github.com/alrayyes/forge-dashboard/compare/v0.157.0...v0.158.0) (2026-10-11)
+
+
+### Features
+
+* **web:** leave empty pages out of the navigation ([#1234](https://github.com/alrayyes/forge-dashboard/issues/1234)) ([712dd75](https://github.com/alrayyes/forge-dashboard/commit/712dd7541cd7ff9fa1fbf1149dabfd09763437aa))
+
 ## [0.157.0](https://github.com/alrayyes/forge-dashboard/compare/v0.156.0...v0.157.0) (2026-10-11)
 
 
