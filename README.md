@@ -362,21 +362,23 @@ forge reports it's possible; it doesn't ask, since a merge from the base branch
 is easy to reverse and a merge itself isn't. A GitHub pull request counts as
 behind whenever its base has commits it lacks, even in a repo that doesn't
 require branches to be up-to-date, and Merge stays allowed there. On a pull
-request that's behind but also conflicts with its base, Update branch is
-locked with a note that the conflicts need fixing by hand, since the forge
-would refuse the update.
-Close isn't a standalone row button: it lives in the "More actions" menu, in
-the danger tone, on every open pull request regardless of mergeability. A menu
-is for the overflow, so when Close is the row's only extra action it's drawn
-directly instead. For one that turns
-out not to need merging at all (a duplicate, or one whose content already
-landed another way) it's the action that applies. It asks for confirmation the
-same way Merge does, inside the menu. Confirming closes the menu and shows
-progress on the row. Escape drops an unconfirmed Close and leaves the menu open,
-a second Escape closes the menu, and closing the menu any other way drops it
-too. If the forge refuses a confirmed Close, the row shows "Close locked" next
-to the closed menu and the reason becomes the menu button's description, so you
-don't have to reopen the menu to find out.
+request that's behind but also conflicts with its base, Update branch is locked
+with a note that the conflicts need fixing by hand, since the forge would refuse
+the update. Close isn't a standalone row button: it lives in the "More actions"
+menu on every open pull request regardless of mergeability. A menu is for the
+overflow, so when Close is the row's only extra action it's drawn directly
+instead. It reads "Close pull request" and is a neutral button on every row,
+never green or red: closing is reversible, since the pull request stays listed
+as closed and can be reopened, so the warning tone is kept for the confirm step
+("Confirm close pull request?"). For one that turns out not to need merging at
+all (a duplicate, or one whose content already landed another way) it's the
+action that applies. It asks for confirmation the same way Merge does, inside
+the menu. Confirming closes the menu and shows progress on the row. Escape drops
+an unconfirmed Close and leaves the menu open, a second Escape closes the menu,
+and closing the menu any other way drops it too. If the forge refuses a
+confirmed Close, the row shows "Close locked" next to the closed menu and the
+reason becomes the menu button's description, so you don't have to reopen the
+menu to find out.
 A permission refusal is re-read too: if the pull request turns out to be
 merged or closed, that is what the row says, not "check your token". Only a
 rate limit skips the re-read, since it would be limited as well.
