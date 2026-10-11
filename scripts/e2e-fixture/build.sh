@@ -16,9 +16,14 @@ git fetch -q origin
 git checkout -q -B main origin/main
 GIT=(git -c user.name="Ryan Kes" -c user.email="ryan@andthensome.nl")
 
-# Bases, one per branch-protection setup.
-BASES=(base/clean base/open base/req-check base/req-check-admin base/strict base/review base/linear base/convo)
-for b in "${BASES[@]}"; do git push -q -f origin "main:refs/heads/$b"; done
+# Bases, one per branch-protection setup. main is protected, so the bases carry
+# one change of their own: a slow check sleeps fifty-five minutes instead of
+# ten, long enough to build the fixture and run the test while it is pending.
+git checkout -q -B seed origin/main
+sed -i 's/sleep 600/sleep 3300/; s/timeout-minutes: 15/timeout-minutes: 60/' .github/workflows/ci.yml
+"${GIT[@]}" commit -qam "ci: keep a slow check pending for fifty-five minutes"
+BASES=(base/clean base/open base/req-check base/req-check-admin base/strict base/review base/linear base/convo base/merged base/methods base/methods-linear)
+for b in "${BASES[@]}"; do git push -q -f origin "seed:refs/heads/$b"; done
 
 # pr NAME BASE REQUIRED OPTIONAL [draft] [FILE=CONTENT]
 # REQUIRED and OPTIONAL are what ci/required.txt and ci/optional.txt say:
@@ -58,8 +63,16 @@ pr conversation-unresolved    base/convo          pass pass
 pr linear-history             base/linear         pass pass
 
 # Behind: strict protection makes it BEHIND; without it GitHub still says clean.
+# The dashboard's auto-update bot brings any behind branch up to date in a repo
+# it watches, whatever the UI hides, unless the pull request carries the label
+# release-please uses: it leaves those alone. Both get it, or they'd be current
+# before the test looks.
+gh label create "autorelease: pending" -R "$REPO" --color ededed >/dev/null 2>&1 || true
 pr behind-strict              base/strict         pass pass
 pr behind-not-strict          base/open           pass pass
+for b in behind-strict behind-not-strict; do
+  gh pr edit -R "$REPO" "head/$b" --add-label "autorelease: pending" >/dev/null
+done
 
 # Conflicting: head and base both change conflict.txt.
 git checkout -q -B head/conflict-seed origin/base/open
@@ -79,13 +92,17 @@ gh pr create -R "$REPO" --base base/open --head head/empty-no-diff --title empty
   --body "Fixture scenario \`empty-no-diff\`. One empty commit, so no diff." >/dev/null
 echo "created empty-no-diff -> base/open"
 
-# Stacked: B's base is A's head branch.
-git push -q -f origin head/clean-no-protection:refs/heads/base/stack-parent
-pr stacked-child              base/stack-parent   pass pass
+# Stacked: B's base is A's head branch (clean-no-protection's).
+pr stacked-child              head/clean-no-protection pass pass
 
-# Closed without merging.
+# Auto-merge will be armed on this one: a review it never gets keeps it open.
+pr auto-merge-armed           base/review         pass pass
+
+# Closed without merging, and merged.
 pr closed-unmerged            base/clean          pass pass
 gh pr close -R "$REPO" head/closed-unmerged >/dev/null
+pr merged                     base/merged         pass pass
+gh pr merge -R "$REPO" head/merged --merge >/dev/null
 
 # Make the "behind" and "conflicting" PRs so, by advancing their bases.
 git checkout -q -B advance origin/base/strict
@@ -114,6 +131,10 @@ J
 prot base/linear <<'J'
 {"required_status_checks":null,"enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null,"required_linear_history":true}
 J
+# The merge-method tests open and merge pull requests of their own on these two.
+prot base/methods-linear <<'J'
+{"required_status_checks":null,"enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null,"required_linear_history":true}
+J
 prot base/convo <<'J'
 {"required_status_checks":null,"enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null,"required_conversation_resolution":true}
 J
@@ -122,8 +143,9 @@ J
 n=$(gh pr view -R "$REPO" head/conversation-unresolved --json number --jq .number)
 gh api "repos/$REPO/pulls/$n/comments" -f body="Unresolved thread." -f commit_id="$(git rev-parse origin/head/conversation-unresolved)" -f path=changes/conversation-unresolved.txt -F line=1 -f side=RIGHT >/dev/null
 
-# Auto-merge armed on a PR that can't merge yet.
-n=$(gh pr view -R "$REPO" head/required-pending --json number --jq .number)
-gh pr merge -R "$REPO" "$n" --auto --squash >/dev/null || echo "could not arm auto-merge on required-pending"
+# Auto-merge armed on a PR that can't merge yet. It waits on a review nobody
+# gives, not on a check, so it never merges itself into its base.
+n=$(gh pr view -R "$REPO" head/auto-merge-armed --json number --jq .number)
+gh pr merge -R "$REPO" "$n" --auto --squash >/dev/null || echo "could not arm auto-merge on auto-merge-armed"
 
 echo "done: $(gh pr list -R "$REPO" --state open --json number --jq length) open pull requests"

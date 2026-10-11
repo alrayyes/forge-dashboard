@@ -18,11 +18,13 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,16 +33,40 @@ const (
 	fixtureRepo  = "forge-dashboard-e2e-fixture"
 )
 
-// knownDisagreements lists scenarios where the dashboard and GitHub differ,
-// by scenario title and the ticket (or reason) that tracks each. The
-// test fails on a listed scenario that now agrees, so the entry gets removed
-// with the fix instead of rotting.
-var knownDisagreements = map[string]string{
+// difference is a scenario where the dashboard and GitHub deliberately or
+// knowingly differ: ticket says which ticket or decision tracks it, and code
+// is the reason the dashboard gives for refusing Merge. The test fails on a
+// listed scenario that now agrees, so the entry gets removed with the fix
+// instead of rotting.
+type difference struct {
+	ticket string
+	code   dashboard.ActionCode
+}
+
+// knownDisagreements maps a scenario title to its difference. Every entry is
+// by design today; a real bug found here goes in with its ticket number
+// until the fix lands.
+var knownDisagreements = map[string]difference{
 	// GitHub will merge an empty pull request (an empty merge commit); the
 	// dashboard refuses on purpose, since there is nothing to merge
 	// (dashboard.mergeAvailability's empty case, with its own tests).
-	"empty-no-diff": "by design: the dashboard blocks a merge that would be empty",
+	"empty-no-diff": {"by design: the dashboard blocks a merge that would be empty", dashboard.ActionAlreadyUpToDate},
+	// GitHub has no notion of a stack. The dashboard blocks the child until
+	// its parent merges, since merging it lands it in the parent's branch (#860).
+	"stacked-child": {"by design: a stacked pull request waits for its parent (#860)", dashboard.ActionStacked},
 }
+
+// knownBehind lists scenarios where GitHub's compare says the branch is behind
+// and the dashboard doesn't: without "require branches to be up to date"
+// mergeStateStatus is CLEAN, which the client reads as not behind.
+var knownBehind = map[string]string{
+	"behind-not-strict": "https://github.com/alrayyes/forge-dashboard/issues/1183",
+}
+
+// bypassIssueURL is the owner's "merge without waiting for requirements".
+// GitHub offers it to a repo admin when enforce_admins is off; the dashboard
+// never does, on purpose. Declined, not a bug.
+const bypassIssueURL = "https://github.com/alrayyes/forge-dashboard/issues/958" //nolint:gosec // an issue URL, not a credential
 
 // emptyScenario is the fixture pull request built to have no diff at all
 // (scripts/e2e-fixture/build.sh).
@@ -48,24 +74,30 @@ const emptyScenario = "empty-no-diff"
 
 // githubTruth is what GitHub says about one pull request.
 type githubTruth struct {
-	Number              int       `json:"number"`
-	Title               string    `json:"title"`
-	IsDraft             bool      `json:"isDraft"`
-	Mergeable           string    `json:"mergeable"`
-	MergeStateStatus    string    `json:"mergeStateStatus"`
-	ReviewDecision      string    `json:"reviewDecision"`
-	ViewerCanMergeAdmin bool      `json:"viewerCanMergeAsAdmin"`
-	AutoMergeRequest    *struct{} `json:"autoMergeRequest"`
+	Number                   int       `json:"number"`
+	Title                    string    `json:"title"`
+	State                    string    `json:"state"`
+	IsDraft                  bool      `json:"isDraft"`
+	Mergeable                string    `json:"mergeable"`
+	MergeStateStatus         string    `json:"mergeStateStatus"`
+	ReviewDecision           string    `json:"reviewDecision"`
+	ViewerCanMergeAdmin      bool      `json:"viewerCanMergeAsAdmin"`
+	ViewerCanEnableAutoMerge bool      `json:"viewerCanEnableAutoMerge"`
+	AutoMergeRequest         *struct{} `json:"autoMergeRequest"`
+	BaseRefName              string    `json:"baseRefName"`
+	HeadRefName              string    `json:"headRefName"`
 }
 
-const truthQuery = `query { repository(owner:"` + fixtureOwner + `", name:"` + fixtureRepo + `") {
-  pullRequests(states:OPEN, first:100) { nodes {
-    number title isDraft mergeable mergeStateStatus reviewDecision viewerCanMergeAsAdmin autoMergeRequest{mergeMethod}
+func truthQuery(states string) string {
+	return `query { repository(owner:"` + fixtureOwner + `", name:"` + fixtureRepo + `") {
+  pullRequests(states:` + states + `, first:100, orderBy:{field:CREATED_AT, direction:DESC}) { nodes {
+    number title state baseRefName headRefName isDraft mergeable mergeStateStatus reviewDecision viewerCanMergeAsAdmin viewerCanEnableAutoMerge autoMergeRequest{mergeMethod}
   } } } }`
+}
 
-func fetchTruth(t *testing.T) map[int]githubTruth {
+func fetchTruth(t *testing.T, states string) map[int]githubTruth {
 	t.Helper()
-	out, err := exec.Command("gh", "api", "graphql", "-f", "query="+truthQuery).Output()
+	out, err := exec.Command("gh", "api", "graphql", "-f", "query="+truthQuery(states)).Output() //nolint:gosec // test: gh with a fixed query
 	require.NoError(t, err, "gh api graphql")
 	var resp struct {
 		Data struct {
@@ -85,9 +117,22 @@ func fetchTruth(t *testing.T) map[int]githubTruth {
 	return truth
 }
 
+// behindBy is how many commits the base branch has that the head doesn't,
+// from GitHub's compare endpoint. mergeStateStatus can't say: BEHIND is
+// reported only when nothing else (conflicts, blocks) outranks it.
+func (g githubTruth) behindBy(t *testing.T) int {
+	t.Helper()
+	out, err := exec.Command("gh", "api", fmt.Sprintf("repos/%s/%s/compare/%s...%s", fixtureOwner, fixtureRepo, g.BaseRefName, g.HeadRefName), "--jq", ".behind_by").Output() //nolint:gosec // test: gh with branch names from the fixture
+	require.NoError(t, err, "gh api compare")
+	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	require.NoError(t, err)
+
+	return n
+}
+
 // githubMergeable is GitHub's own answer to "can the merge button be pressed
-// by anyone": the state says so and the PR isn't a draft. admin adds the
-// owner's "merge without waiting for requirements" bypass.
+// by anyone": the state says so and the PR isn't a draft. The owner's bypass
+// is a separate column.
 func (g githubTruth) githubMergeable() bool {
 	switch g.MergeStateStatus {
 	case "CLEAN", "UNSTABLE", "HAS_HOOKS":
@@ -97,18 +142,117 @@ func (g githubTruth) githubMergeable() bool {
 	return false
 }
 
-func dashboardMergeAllowed(pr dashboard.PullRequest) (bool, string) {
-	for _, a := range dashboard.AllowedActions(pr) {
-		if a.Action == dashboard.ActionMerge {
-			if a.Blocked != nil {
-				return false, string(a.Blocked.Code) + ": " + a.Blocked.Message
-			}
+// bypassOffered is GitHub offering the owner a merge of a pull request that
+// requirements block.
+func (g githubTruth) bypassOffered() bool {
+	return g.ViewerCanMergeAdmin && g.MergeStateStatus == "BLOCKED"
+}
 
-			return true, ""
+func dashboardMerge(pr dashboard.PullRequest) (bool, *dashboard.Blocked) {
+	for _, a := range dashboard.AllowedActions(pr, nil) {
+		if a.Action == dashboard.ActionMerge {
+			return a.Blocked == nil, a.Blocked
 		}
 	}
 
-	return false, "no merge action"
+	return false, &dashboard.Blocked{Message: "no merge action"}
+}
+
+func dashboardOffers(pr dashboard.PullRequest, action dashboard.ActionName) bool {
+	for _, a := range dashboard.AllowedActions(pr, nil) {
+		if a.Action == action {
+			return true
+		}
+	}
+
+	return false
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+
+	return "no"
+}
+
+func stackCell(pr dashboard.PullRequest) string {
+	switch {
+	case pr.StackedOn != nil:
+		return fmt.Sprintf("on #%d", pr.StackedOn.Number)
+	case len(pr.StackChildren) > 0:
+		return "parent"
+	}
+
+	return "-"
+}
+
+// mergeVerdict compares Merge: agree, an explained difference, or a problem.
+func mergeVerdict(g githubTruth, pr dashboard.PullRequest) (string, []string) {
+	allowed, blocked := dashboardMerge(pr)
+	want := g.githubMergeable()
+	known, isKnown := knownDisagreements[g.Title]
+	switch {
+	case allowed != want && isKnown:
+		if blocked == nil || blocked.Code != known.code {
+			return "known, " + known.ticket, []string{fmt.Sprintf("known difference should be refused with code %q, got %+v", known.code, blocked)}
+		}
+
+		return "known, " + known.ticket, nil
+	case allowed == want && isKnown:
+		return "agree", []string{fmt.Sprintf("now agrees, remove it from knownDisagreements (%s)", known.ticket)}
+	case !allowed && !want && g.bypassOffered():
+		return "expected, owner bypass: " + bypassIssueURL, nil
+	case allowed != want:
+		why := ""
+		if blocked != nil {
+			why = string(blocked.Code) + ": " + blocked.Message
+		}
+
+		return "", []string{fmt.Sprintf("Merge (GitHub can merge=%t, dashboard allows=%t: %s)", want, allowed, why)}
+	}
+
+	return "agree", nil
+}
+
+// fieldProblems compares everything but Merge itself.
+func fieldProblems(t *testing.T, g githubTruth, pr dashboard.PullRequest) []string {
+	t.Helper()
+	var problems []string
+	if g.Title == emptyScenario && !pr.Empty {
+		// The fixture's empty pull request has to be empty to exercise the
+		// rule at all; a GitHub-side change that makes it non-empty would
+		// otherwise pass here unnoticed.
+		problems = append(problems, "the fixture's empty pull request isn't empty")
+	}
+	if pr.Draft != g.IsDraft {
+		problems = append(problems, fmt.Sprintf("draft: GitHub %t, dashboard %t", g.IsDraft, pr.Draft))
+	}
+	// Behind means the base has commits the head lacks. The dashboard looks
+	// past mergeStateStatus for this, so compare with the compare endpoint,
+	// not the state. Without strict protection a behind branch is still CLEAN
+	// and mergeable.
+	wantBehind := g.behindBy(t) > 0
+	ticket, knownBehind := knownBehind[g.Title]
+	switch {
+	case pr.Behind != wantBehind && knownBehind:
+		// Known: the row's verdict still says so through knownBehind.
+	case pr.Behind != wantBehind:
+		problems = append(problems, fmt.Sprintf("behind: GitHub compare says %t (state %s), dashboard %t", wantBehind, g.MergeStateStatus, pr.Behind))
+	case knownBehind:
+		problems = append(problems, fmt.Sprintf("behind now agrees, remove it from knownBehind (%s)", ticket))
+	}
+	if pr.AutoMergeEnabled == nil || *pr.AutoMergeEnabled != (g.AutoMergeRequest != nil) {
+		problems = append(problems, fmt.Sprintf("auto-merge armed: GitHub %t, dashboard %v", g.AutoMergeRequest != nil, pr.AutoMergeEnabled))
+	}
+	if pr.AutoMergeAllowed == nil || *pr.AutoMergeAllowed != g.ViewerCanEnableAutoMerge {
+		problems = append(problems, fmt.Sprintf("auto-merge allowed: GitHub %t, dashboard %v", g.ViewerCanEnableAutoMerge, pr.AutoMergeAllowed))
+	}
+	if offered := dashboardOffers(pr, dashboard.ActionAutoMerge); offered && (!g.ViewerCanEnableAutoMerge || g.AutoMergeRequest != nil) {
+		problems = append(problems, "dashboard offers Enable auto-merge, GitHub would refuse or has it on already")
+	}
+
+	return problems
 }
 
 func TestGitHubState_DashboardAgreesWithGitHub(t *testing.T) {
@@ -117,7 +261,7 @@ func TestGitHubState_DashboardAgreesWithGitHub(t *testing.T) {
 		t.Skip("GITHUB_TOKEN not set")
 	}
 
-	truth := fetchTruth(t)
+	truth := fetchTruth(t, "OPEN")
 	require.NotEmpty(t, truth, "fixture has no open pull requests; run scripts/e2e-fixture/build.sh")
 	for _, g := range truth {
 		require.NotEqual(t, "UNKNOWN", g.MergeStateStatus, "#%d is still being computed by GitHub; rerun in a minute", g.Number)
@@ -126,6 +270,7 @@ func TestGitHubState_DashboardAgreesWithGitHub(t *testing.T) {
 	client := github.NewClient(token, "", "")
 	prs, _, err := client.FetchRepo(t.Context(), fixtureOwner, fixtureRepo, fixtureOwner+"/"+fixtureRepo)
 	require.NoError(t, err)
+	dashboard.AnnotateStacks(prs)
 	byNumber := map[int]dashboard.PullRequest{}
 	for _, pr := range prs {
 		byNumber[pr.Number] = pr
@@ -138,43 +283,61 @@ func TestGitHubState_DashboardAgreesWithGitHub(t *testing.T) {
 	sort.Ints(nums)
 
 	var table strings.Builder
-	fmt.Fprintf(&table, "\n%-4s %-28s | %-9s %-9s %-5s %-8s | %-10s %-5s %-6s %-5s %-7s | %s\n",
-		"#", "scenario", "GH state", "mergeable", "draft", "adminOK", "dash merge", "ci", "behind", "empty", "status", "verdict")
+	fmt.Fprintf(&table, "\n%-4s %-28s | %-9s %-11s %-5s %-6s %-8s | %-5s %-12s %-6s %-5s %-6s %-8s | %s\n",
+		"#", "scenario", "GH state", "mergeable", "draft", "admin", "autoMrg", "merge", "status", "behind", "empty", "stack", "autoMrg", "verdict")
 	var disagreements []string
 	for _, n := range nums {
 		g := truth[n]
 		pr, ok := byNumber[n]
 		if !ok {
 			disagreements = append(disagreements, fmt.Sprintf("#%d %s: GitHub lists it, the dashboard doesn't", n, g.Title))
+
 			continue
 		}
-		allowed, why := dashboardMergeAllowed(pr)
-		want := g.githubMergeable()
-		verdict := "agree"
-		ticket, known := knownDisagreements[g.Title]
-		switch {
-		case allowed != want && known:
-			verdict = fmt.Sprintf("known, %s (GitHub can merge=%t, dashboard allows=%t)", ticket, want, allowed)
-		case allowed == want && known:
-			verdict = "agree"
-			disagreements = append(disagreements, fmt.Sprintf("#%d %s: now agrees, remove it from knownDisagreements (%s)", n, g.Title, ticket))
-		case allowed != want:
-			verdict = fmt.Sprintf("DISAGREE (GitHub can merge=%t, dashboard allows=%t: %s)", want, allowed, why)
-			disagreements = append(disagreements, fmt.Sprintf("#%d %s: %s", n, g.Title, verdict))
-		case g.Title == emptyScenario && !pr.Empty:
-			// The fixture's empty pull request has to be empty to exercise the
-			// rule at all (#967); a GitHub-side change that makes it non-empty
-			// would otherwise pass here unnoticed.
-			verdict = "DISAGREE (the fixture's empty pull request isn't empty)"
-			disagreements = append(disagreements, fmt.Sprintf("#%d %s: %s", n, g.Title, verdict))
-		case pr.Draft != g.IsDraft:
-			verdict = fmt.Sprintf("DISAGREE (draft: GitHub %t, dashboard %t)", g.IsDraft, pr.Draft)
+		allowed, _ := dashboardMerge(pr)
+		verdict, problems := mergeVerdict(g, pr)
+		problems = append(problems, fieldProblems(t, g, pr)...)
+		if ticket, ok := knownBehind[g.Title]; ok && len(problems) == 0 {
+			verdict = "known (behind), " + ticket
+		}
+		if len(problems) > 0 {
+			verdict = "DISAGREE (" + strings.Join(problems, "; ") + ")"
 			disagreements = append(disagreements, fmt.Sprintf("#%d %s: %s", n, g.Title, verdict))
 		}
-		fmt.Fprintf(&table, "%-4d %-28s | %-9s %-9s %-5t %-8t | %-10t %-5s %-6t %-5t %-7s | %s\n",
-			n, g.Title, g.MergeStateStatus, g.Mergeable, g.IsDraft, g.ViewerCanMergeAdmin,
-			allowed, pr.CI, pr.Behind, pr.Empty, pr.MergeStatus, verdict)
+		stack := stackCell(pr)
+		fmt.Fprintf(&table, "%-4d %-28s | %-9s %-11s %-5t %-6s %-8s | %-5s %-12s %-6t %-5t %-6s %-8s | %s\n",
+			n, g.Title, g.MergeStateStatus, g.Mergeable, g.IsDraft, yesNo(g.ViewerCanMergeAdmin),
+			yesNo(g.ViewerCanEnableAutoMerge)+"/"+yesNo(g.AutoMergeRequest != nil),
+			yesNo(allowed), pr.MergeStatus, pr.Behind, pr.Empty, stack,
+			yesNo(pr.AutoMergeAllowed != nil && *pr.AutoMergeAllowed)+"/"+yesNo(pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled), verdict)
 	}
 	t.Log(table.String())
 	require.Empty(t, disagreements, "the dashboard and GitHub disagree:\n%s", strings.Join(disagreements, "\n"))
+}
+
+// A closed or merged pull request is gone from the dashboard: it lists open
+// ones only.
+func TestGitHubState_ClosedAndMergedPullRequestsAreNotListed(t *testing.T) {
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		t.Skip("GITHUB_TOKEN not set")
+	}
+
+	closed := fetchTruth(t, "[CLOSED, MERGED]")
+	require.NotEmpty(t, closed, "fixture has no closed or merged pull requests; run scripts/e2e-fixture/build.sh")
+	states := map[string]bool{}
+	for _, g := range closed {
+		states[g.State] = true
+	}
+	require.True(t, states["CLOSED"] && states["MERGED"], "the fixture needs one closed and one merged pull request, has %v", states)
+
+	prs, _, err := github.NewClient(token, "", "").FetchRepo(t.Context(), fixtureOwner, fixtureRepo, fixtureOwner+"/"+fixtureRepo)
+	require.NoError(t, err)
+	listed := map[int]bool{}
+	for _, pr := range prs {
+		listed[pr.Number] = true
+	}
+	for n, g := range closed {
+		assert.False(t, listed[n], "#%d %s is %s on GitHub but the dashboard lists it", n, g.Title, g.State)
+	}
 }
