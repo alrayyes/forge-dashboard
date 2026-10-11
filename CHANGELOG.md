@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.162.0](https://github.com/alrayyes/forge-dashboard/compare/v0.161.3...v0.162.0) (2026-10-11)
+
+
+### Features
+
+* **web:** open Main branches repo and run links in a new tab ([#1267](https://github.com/alrayyes/forge-dashboard/issues/1267)) ([d1efb00](https://github.com/alrayyes/forge-dashboard/commit/d1efb00256ace108d294909088130310675cc356)), closes [#1266](https://github.com/alrayyes/forge-dashboard/issues/1266)
+
 ## [0.161.3](https://github.com/alrayyes/forge-dashboard/compare/v0.161.2...v0.161.3) (2026-10-11)
 
 
