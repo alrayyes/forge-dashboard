@@ -98,7 +98,7 @@ func (g githubTruth) githubMergeable() bool {
 }
 
 func dashboardMergeAllowed(pr dashboard.PullRequest) (bool, string) {
-	for _, a := range dashboard.AllowedActions(pr) {
+	for _, a := range dashboard.AllowedActions(pr, nil) {
 		if a.Action == dashboard.ActionMerge {
 			if a.Blocked != nil {
 				return false, string(a.Blocked.Code) + ": " + a.Blocked.Message
