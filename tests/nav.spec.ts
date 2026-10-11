@@ -26,6 +26,7 @@ const NAV_PAGES = [
   { path: '/', label: 'Home' },
   { path: '/issues.html', label: 'Issues' },
   { path: '/insights.html', label: 'Insights' },
+  { path: '/main-branches.html', label: 'Main branches' },
   { path: '/webhooks.html', label: 'Webhooks' },
   { path: '/settings.html', label: 'Settings' },
 ];

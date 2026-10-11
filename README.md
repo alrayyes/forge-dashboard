@@ -806,6 +806,36 @@ known yet is not 0, so the links stay until the first snapshot says otherwise,
 and the page you are on keeps its own link until you leave it. The page still
 opens when typed into the address bar, and says it is empty.
 
+## Main branches
+
+The CI status of every tracked repository's default branch is on one page,
+`/main-branches.html`, reached from the **Main branches** item in the
+navigation (labelled **Main** in the phone's bottom tab bar). The item has no
+count badge, so it always shows. The page reads `GET /api/main-branches`, so
+a broken main shows up without opening each repo.
+
+A line at the top counts the rows by status. Each row shows the status as an
+icon and a word (Failed, Running, Passed or No pipeline), the repo, the
+branch, the short SHA, subject and author of the newest commit, how long ago the
+run finished and how long it ran. A failed row names its failing jobs and
+expands to list them. **View run** opens the run on the forge. Rows come
+failing first, then running, passing and no pipeline, in the order the server
+sends them.
+
+The pills (All, Failing, Passing, Running, No pipeline) carry the server's
+counts. A forge toggle and a search box narrow the list further; search
+matches the repo, branch, commit, author and failing job names. The filter is
+saved in a cookie of its own, `forge-board-main-branches`, and is still set
+after a reload. It is not part of the shared filter cookie, which holds
+pull request and issue state.
+
+Rows from a forge that can't be read, or whose rate limit is spent, keep their
+last known status, are marked **stale**, and sit under one banner. The page
+offers no write at all: there is no Re-run, because the only re-run endpoint
+works on a pull request's checks, not on a default-branch run. With every
+default branch passing the page says so, and a filter that matches nothing
+offers **Reset filters**. A repo with no pipeline says no run was found.
+
 ## Issues
 
 Open issues have their own page, `/issues.html`, reached from the **Issues**
