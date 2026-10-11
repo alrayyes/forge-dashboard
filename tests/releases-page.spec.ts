@@ -69,6 +69,9 @@ const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 test.describe('Releases page (#1107)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('lists release pull requests only, each with its version, repo and CI status', async ({
