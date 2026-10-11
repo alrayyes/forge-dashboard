@@ -76,7 +76,7 @@ func newStaticHandler(fsys fs.FS, private bool) http.Handler {
 		revalidate = cacheRevalidatePrivate
 	}
 
-	return compress(withCacheHeaders(fsys, revalidate, http.FileServerFS(fsys)))
+	return compress(withCacheHeaders(fsys, revalidate, withNotFoundPage(fsys, http.FileServerFS(fsys))))
 }
 
 // withCacheHeaders sets Cache-Control and a weak ETag for files that exist.
