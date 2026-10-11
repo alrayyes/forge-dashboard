@@ -81,10 +81,12 @@ type fakeConfiguredSource struct {
 	prs    []dashboard.PullRequest
 	issues []dashboard.Issue
 	repos  []dashboard.Repo
+	// branches are the default-branch rows (#1224).
+	branches []dashboard.MainBranch
 }
 
 func (s *fakeConfiguredSource) Fetch(_ context.Context) dashboard.Result {
-	return dashboard.Result{Health: s.health, PullRequests: s.prs, Issues: s.issues, Repos: s.repos}
+	return dashboard.Result{Health: s.health, PullRequests: s.prs, Issues: s.issues, Repos: s.repos, MainBranches: s.branches}
 }
 
 func (s *fakeConfiguredSource) Forge() dashboard.Forge { return s.health.Forge }

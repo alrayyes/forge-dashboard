@@ -113,6 +113,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/auth/session", auth.RequireAuth(deps.AuthStore)(handleGetSession()))
 
 	mux.Handle("GET /api/dashboard", auth.RequireAuth(deps.AuthStore)(handleDashboard(deps)))
+	mux.Handle("GET /api/main-branches", auth.RequireAuth(deps.AuthStore)(handleMainBranches(deps)))
 	mux.Handle("GET /api/dashboard/stream", auth.RequireAuth(deps.AuthStore)(handleDashboardStream(deps)))
 	mux.Handle("POST /api/dashboard/refresh", auth.RequireAuth(deps.AuthStore)(handleDashboardRefresh(deps)))
 	// The Streamable HTTP transport itself routes GET (a standalone SSE
