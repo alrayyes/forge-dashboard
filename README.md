@@ -399,39 +399,50 @@ Enable auto-merge can say the repo doesn't allow it or that the pull request is
 already ready to merge, and Renovate `rebase` can say the label is missing on the
 repo.
 
-A locked action offers Retry only when waiting might fix it, such as a 502 or an
-unreachable forge. When a forge's API budget is spent, the forge goes read-only:
-the controls that need that budget (Merge, Update branch, the Dependabot and
-Renovate commands, Close and, on its GraphQL budget, Enable auto-merge) are not
-drawn at all, and one banner at the top says so for that forge ("GitHub is rate
-limited. Read-only until 14:32.") with a live countdown. When only one budget is
-spent the banner names what is affected. REST drives Merge, Update branch, the
-bot commands and Close, and GraphQL drives auto-merge, so the others keep
-working. A "What still works" disclosure under the banner lists the read-only
-actions: the pipeline panel, the link to the pull request on the forge, and
-browsing and filtering the last data. A "Why?" under the banner explains the
-limit in a few sentences, so it isn't taken for a fault in the dashboard, and
-for GitHub links to its own rate limit rules. Other forges are unaffected. The
-controls come back by themselves at the reset time, with a polite "Rate limit
-reset, actions available again" toast. While the forge is read-only the server
-stops refreshing it until the reset, so the rows are the last ones it saw. The
-header's Refreshed time shows how old they are. A missing token permission locks
-that action on that pull request, with no Retry either, and the reason points to
-Settings. Other pull requests and other actions stay usable, since a
-fine-grained token can lack one permission and have the rest. The lock lasts as
-long as the failure line that explains it: dismiss the line and the action is
-free again, with no reload. A failure line stays on its row however many
-refreshes arrive, and goes when you dismiss it, act on the row again, or the row
-leaves the board. The exception is a failure that passes by itself, one where
-the request never got an answer (it says "Couldn't reach the server") or a forge
-answered 502, 503 or 504. That line clears itself after ten seconds, holds while
-you hover it or have focus in it, and when it clears the row is read again from
-the server, since the write may have landed before the connection dropped.
-Nothing is announced when it clears, the failure stays in Activity, and an error
-toast waits for you as before. A 429 on a click the snapshot hadn't foreseen
-still greys that one action out with its reason until the next snapshot. The
-header shows each forge's remaining budget and reset time as text. Which locks
-offer Retry follows the refusal's `code` (`rate_limited` and `permission`
+A locked action offers Retry only when waiting might fix it, such as a 502. When
+a forge's API budget is spent, the forge goes read-only: the controls that need
+that budget (Merge, Update branch, the Dependabot and Renovate commands, Close
+and, on its GraphQL budget, Enable auto-merge) are not drawn at all, and one
+banner at the top says so for that forge ("GitHub is rate limited. Read-only
+until 14:32.") with a live countdown. When only one budget is spent the banner
+names what is affected. REST drives Merge, Update branch, the bot commands and
+Close, and GraphQL drives auto-merge, so the others keep working. A "What still
+works" disclosure under the banner lists the read-only actions: the pipeline
+panel, the link to the pull request on the forge, and browsing and filtering the
+last data. A "Why?" under the banner explains the limit in a few sentences, so
+it isn't taken for a fault in the dashboard, and for GitHub links to its own
+rate limit rules. Other forges are unaffected. The controls come back by
+themselves at the reset time, with a polite "Rate limit reset, actions available
+again" toast. While the forge is read-only the server stops refreshing it until
+the reset, so the rows are the last ones it saw. The header's Refreshed time
+shows how old they are.
+
+A forge that can't be reached gets the same treatment. Its controls are not
+drawn either, and no row carries a Retry or a pointer to a status line. One
+banner that stays in view while you scroll, on a phone too, says "GitHub is
+unreachable. Showing the last data from 14:32.", gives the cause in plain words,
+and has the one Retry, which forces a refresh. When the forge answers again the
+controls return without a reload, with a polite "GitHub is reachable again,
+actions available" toast, and the banner clears. A row's own reason for Merge
+(stacked, waiting for CI) shows whenever its forge can be reached.
+
+A missing token permission locks that action on that pull request, with no Retry
+either, and the reason points to Settings. Other pull requests and other actions
+stay usable, since a fine-grained token can lack one permission and have the
+rest. The lock lasts as long as the failure line that explains it: dismiss the
+line and the action is free again, with no reload. A failure line stays on its
+row however many refreshes arrive, and goes when you dismiss it, act on the row
+again, or the row leaves the board. The exception is a failure that passes by
+itself, one where the request never got an answer (it says "Couldn't reach the
+server") or a forge answered 502, 503 or 504. That line clears itself after ten
+seconds, holds while you hover it or have focus in it, and when it clears the
+row is read again from the server, since the write may have landed before the
+connection dropped. Nothing is announced when it clears, the failure stays in
+Activity, and an error toast waits for you as before. A 429 on a click the
+snapshot hadn't foreseen still greys that one action out with its reason until
+the next snapshot. The header shows each forge's remaining budget and reset time
+as text. Which locks offer Retry follows the refusal's `code` (`rate_limited`
+and `permission`
 don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
 so the page holds no threshold of its own.
