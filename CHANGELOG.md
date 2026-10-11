@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.155.0](https://github.com/alrayyes/forge-dashboard/compare/v0.154.1...v0.155.0) (2026-10-11)
+
+
+### Features
+
+* **web:** queue Update branch or a bot rebase for the rate limit reset ([#1210](https://github.com/alrayyes/forge-dashboard/issues/1210)) ([8e05bb6](https://github.com/alrayyes/forge-dashboard/commit/8e05bb64f1f40b3dadc7164393bba860f5e5d3b8)), closes [#756](https://github.com/alrayyes/forge-dashboard/issues/756)
+
 ## [0.154.1](https://github.com/alrayyes/forge-dashboard/compare/v0.154.0...v0.154.1) (2026-10-11)
 
 
