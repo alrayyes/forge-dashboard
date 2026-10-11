@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.151.0](https://github.com/alrayyes/forge-dashboard/compare/v0.150.0...v0.151.0) (2026-10-11)
+
+
+### Features
+
+* **web:** a Bots page for Dependabot and Renovate pull requests, off the pull request page ([#1200](https://github.com/alrayyes/forge-dashboard/issues/1200)) ([fcb9073](https://github.com/alrayyes/forge-dashboard/commit/fcb9073f3cbcf7021f4577acb652b3240205aa2f))
+
 ## [0.150.0](https://github.com/alrayyes/forge-dashboard/compare/v0.149.1...v0.150.0) (2026-10-11)
 
 
