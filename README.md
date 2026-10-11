@@ -394,33 +394,34 @@ Enable auto-merge can say the repo doesn't allow it or that the pull request is
 already ready to merge, and Renovate `rebase` can say the label is missing on the
 repo.
 
-A locked action offers Retry only when waiting might fix it, such as a 502 or
-an unreachable forge. When a forge's API budget is spent, the forge goes
-read-only: the controls that need that budget (Merge, Update branch, the
-Dependabot and Renovate commands, Close and, on its GraphQL budget, Enable
-auto-merge) are
-not drawn at all, and one banner at the top says so for that forge ("GitHub is
-rate limited. Read-only until 14:32.") with a live countdown. When only one
-budget is spent the banner names what is affected. REST drives Merge, Update
-branch, the bot commands and Close, and GraphQL drives auto-merge, so the others
-keep working. A "What still works" disclosure under the banner lists the read-only
+A locked action offers Retry only when waiting might fix it, such as a 502 or an
+unreachable forge. When a forge's API budget is spent, the forge goes read-only:
+the controls that need that budget (Merge, Update branch, the Dependabot and
+Renovate commands, Close and, on its GraphQL budget, Enable auto-merge) are not
+drawn at all, and one banner at the top says so for that forge ("GitHub is rate
+limited. Read-only until 14:32.") with a live countdown. When only one budget is
+spent the banner names what is affected. REST drives Merge, Update branch, the
+bot commands and Close, and GraphQL drives auto-merge, so the others keep
+working. A "What still works" disclosure under the banner lists the read-only
 actions: the pipeline panel, the link to the pull request on the forge, and
-browsing and filtering the last data. Other forges are unaffected. The
+browsing and filtering the last data. A "Why?" under the banner explains the
+limit in a few sentences, so it isn't taken for a fault in the dashboard, and
+for GitHub links to its own rate limit rules. Other forges are unaffected. The
 controls come back by themselves at the reset time, with a polite "Rate limit
 reset, actions available again" toast. While the forge is read-only the server
 stops refreshing it until the reset, so the rows are the last ones it saw. The
-header's Refreshed time shows how old they are. A missing token
-permission locks that action on that pull request, with no Retry either, and the
-reason points to Settings. Other pull requests and other actions stay usable,
-since a fine-grained token can lack one permission and have the rest. The lock
-lasts as long as the failure line that explains it: dismiss the line and the
-action is free again, with no reload. A failure line stays on its row however
-many refreshes arrive, and goes when you dismiss it, act on the row again, or
-the row leaves the board. The exception is a failure that passes by itself, one
-where the request never got an answer (it says "Couldn't reach the server") or a
-forge answered 502, 503 or 504. That line clears itself after ten seconds, holds
-while you hover it or have focus in it, and when it clears the row is read again
-from the server, since the write may have landed before the connection dropped.
+header's Refreshed time shows how old they are. A missing token permission locks
+that action on that pull request, with no Retry either, and the reason points to
+Settings. Other pull requests and other actions stay usable, since a
+fine-grained token can lack one permission and have the rest. The lock lasts as
+long as the failure line that explains it: dismiss the line and the action is
+free again, with no reload. A failure line stays on its row however many
+refreshes arrive, and goes when you dismiss it, act on the row again, or the row
+leaves the board. The exception is a failure that passes by itself, one where
+the request never got an answer (it says "Couldn't reach the server") or a forge
+answered 502, 503 or 504. That line clears itself after ten seconds, holds while
+you hover it or have focus in it, and when it clears the row is read again from
+the server, since the write may have landed before the connection dropped.
 Nothing is announced when it clears, the failure stays in Activity, and an error
 toast waits for you as before. A 429 on a click the snapshot hadn't foreseen
 still greys that one action out with its reason until the next snapshot. The
@@ -430,19 +431,41 @@ don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
 so the page holds no threshold of its own.
 
-While a forge's REST budget is spent, a pull request that is behind its base can
-queue the safe part of its update for the reset: the button reads "Queue update
-for 14:32" (`Queue rebase for 14:32` for a Dependabot or Renovate pull request)
-where Update branch would have been. The server keeps the queue per user, so it
-survives a reload and a restart. At the reset it reads the pull request again
-and runs the action only if it still applies, using your own saved credentials
-for that forge. The row then says "Update branch queued for 14:32" with a Cancel
-button, and Activity lists it. When it has run, a polite toast and the Activity
-list say whether it was done, skipped with the reason ("Already merged") or
-failed. Only Update branch and the Dependabot and Renovate bot commands can be
-queued. Merge and Close can't, because running them unattended on a pull request
-whose checks or commits may have changed is the case to avoid. For merging, arm
-the forge's own auto-merge once the limit lifts.
+While a forge is rate limited, you can queue Update branch, `Dependabot: Rebase`
+or `Renovate: Rebase` to run when its budget comes back, instead of returning to
+click again. `POST /api/queued-actions` stores the choice on the server, per
+user, so it survives a page reload and a server restart. The pull request carries
+the waiting item as `queued`, for a row to say "Update branch queued for 14:32"
+with Cancel, and the dashboard's `queuedActions` list holds the items and, once
+they ran, their outcomes for 24 hours.
+
+It only works while the forge really is limited (a spent budget whose reset is
+still ahead), for a pull request that is on your board, behind its base branch
+and offering that action. At the reset, plus a 30-second pad, the server reads
+the board fresh and looks at the pull request again before it does anything. It
+runs the action only if it still applies. Otherwise it records why it did
+nothing: the pull request was merged or closed, caught up, picked up a conflict,
+or already has the request. A forge that is still limited moves the item to the
+new reset. One that doesn't answer is tried again every five minutes for an hour.
+A refusal is recorded with the same `code` and `message` the button would have
+shown. It runs with your own saved credentials for that forge and no one else's,
+and does nothing if you have removed them.
+
+Merge and Close can't be queued, and the API answers 400. They would act
+unattended on a pull request whose checks or commits may have changed in the
+meantime. To merge once the limit lifts, arm the forge's own auto-merge instead.
+After a restart the server starts the dashboard of every user with a waiting
+item, so the action still runs at the reset without anyone signing in.
+
+On the page, a pull request that is behind its base on a forge whose REST budget
+is spent gets a button where Update branch would have been: "Queue update for
+14:32", or `Queue rebase for 14:32` for a Dependabot or Renovate pull request.
+Queueing posts to `/api/queued-actions`. The row then says "Update branch queued
+for 14:32" with a Cancel button, and Activity lists the item with Cancel (or
+Clear, once it has finished). When an outcome arrives while the page is open, a
+polite toast and the Activity list say whether it was done, skipped with the
+reason ("Already merged") or failed. No queue button is offered for Merge or
+Close, for a pull request that isn't behind, or while the forge has budget left.
 
 A forge that fails a refresh keeps showing its last good pull requests and
 issues, and the header says so next to it: "Showing data from 3m ago". The
@@ -1071,6 +1094,10 @@ window skips the fetch and answers 200 with the current snapshot and a
 `Retry-After` header, so a follow-up refresh after an action never fails. The
 page follows both: it polls at `readIntervalSeconds`, and "Refresh now" locks
 for `Retry-After` seconds. Neither number lives in the front end.
+
+`GET/POST /api/queued-actions` and `DELETE /api/queued-actions/{id}` list,
+queue and cancel the actions that wait for a rate limit reset (see Pull request
+actions).
 
 `GET/POST/DELETE /api/mcp` sits outside this contract — it's the MCP
 Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource

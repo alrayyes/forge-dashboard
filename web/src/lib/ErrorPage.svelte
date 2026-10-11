@@ -159,9 +159,11 @@
     <div class="error-actions">
       <a class="error-primary" href="/">Back to pull requests</a>
       {#if !notFound}
-        <!-- A link to this same address: it reloads without any script, which
-             these pages don't run (see the routes' +page.ts). -->
-        <a class="error-secondary" href="">Try again</a>
+        <!-- A link back to this same address ("?" is the page with an empty
+             query, so it reloads it): it works without any script, which
+             these pages don't run (see the routes' +page.ts). An empty href
+             is flagged as invalid. -->
+        <a class="error-secondary" href="?">Try again</a>
       {/if}
     </div>
     <nav class="error-links" aria-label="Where to go next">

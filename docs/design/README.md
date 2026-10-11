@@ -78,6 +78,36 @@ server log. The tickets' criteria win over those two details.
   the "Component State" panels are Stitch's own additions: they aren't in the
   ticket and don't ship.
 
+- `screen-main-branches-light.png`, `screen-main-branches-dark.png` and
+  `screen-main-branches-mobile.png`: a page with the CI status of every
+  repo's default branch, in light, dark and at 390px. Rows carry status,
+  branch, latest commit, failing workflow and age; filter pills with counts,
+  a forge toggle, search and a failing-first sort sit above them, and a failed
+  row shows its failing job and last log lines.
+  `crop-main-branches-filter-bar.png` is the header and filter bar and
+  `crop-main-branches-failing-row.png` a failed row. Stitch project "Forge
+  Dashboard UI Audit" (`564147752128938905`), screens
+  `0011e2f09e594d16871f5e7aa4d2af70` (light),
+  `94f04efcc8654316a921472cfbb2e7e1` (dark) and
+  `57560cd0bdea420f92350ea3fee104cd` (phone). It's the design for #1224. The
+  header chips, "Delight Preview", the two cards at the foot, the stability
+  figures, the progress percentage, Cancel, Force sync, the raw-log
+  buttons and the phone's bottom tab bar are Stitch's own additions: they
+  aren't in the ticket and don't ship.
+
+- `screen-waiting-states-light.png`, `screen-waiting-states-dark.png` and
+  `screen-waiting-states-mobile.png`: one status chip in a pull request row's
+  action area for every wait, in light, dark and at 390px: a bot update, an
+  Update branch, armed auto-merge, an action queued for a rate limit reset, a
+  merge in progress, then Settled and Still waiting. The row never changes
+  height. `crop-waiting-chips.png` is the chips on their own. Stitch project
+  "Forge Dashboard UI Audit" (`564147752128938905`), screens
+  `f231531e0fa24a46a9eaacc36ba8dbfe` (light), `de83d97b0cac412d90be8021301a354c`
+  (dark) and `2b083d7f858a4dd3b33d29ab0819079c` (phone). It's the design for
+  #1229. The progress percentage and estimate, the header chips, "Highlight
+  Pending", the "Timeout" CI pill, the worker names and the "Ergonomic Rules"
+  panel are Stitch's own additions: they aren't in the ticket and don't ship.
+
 - `screen-ci-pill-actions.png`: four pull request rows in a full-width list
   where the CI pill is the button that opens the pipeline, with a hover
   label, a focus ring and a chevron, and the separate "View pipeline"
