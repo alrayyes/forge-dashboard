@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.148.0](https://github.com/alrayyes/forge-dashboard/compare/v0.147.3...v0.148.0) (2026-10-11)
+
+
+### Features
+
+* **web:** a failure line for a network failure clears itself after ten seconds ([#1207](https://github.com/alrayyes/forge-dashboard/issues/1207)) ([fc82163](https://github.com/alrayyes/forge-dashboard/commit/fc821631a6a6731d1b0dc9f942859bdaeee4c4c4)), closes [#1206](https://github.com/alrayyes/forge-dashboard/issues/1206)
+
+## [0.147.3](https://github.com/alrayyes/forge-dashboard/compare/v0.147.2...v0.147.3) (2026-10-11)
+
+
+### Bug Fixes
+
+* **web:** count only the issues the list shows in the updates bar ([#1202](https://github.com/alrayyes/forge-dashboard/issues/1202)) ([ab3806e](https://github.com/alrayyes/forge-dashboard/commit/ab3806ecb56fd1e3796307ad28720f2596c1a7cc))
+
+## [0.147.2](https://github.com/alrayyes/forge-dashboard/compare/v0.147.1...v0.147.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **api:** wait for the first refresh before answering a dashboard read ([#1197](https://github.com/alrayyes/forge-dashboard/issues/1197)) ([f2aa4ec](https://github.com/alrayyes/forge-dashboard/commit/f2aa4ecf18346ff3a83ebbc906e70a5efc8938ea)), closes [#1194](https://github.com/alrayyes/forge-dashboard/issues/1194)
+
+## [0.147.1](https://github.com/alrayyes/forge-dashboard/compare/v0.147.0...v0.147.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **dashboard:** keep a repo's rows when its fetch fails on a reachable forge ([#1196](https://github.com/alrayyes/forge-dashboard/issues/1196)) ([43e1cd5](https://github.com/alrayyes/forge-dashboard/commit/43e1cd5460a15fc05c684c4b3c567dcada143114)), closes [#1194](https://github.com/alrayyes/forge-dashboard/issues/1194)
+
+## [0.147.0](https://github.com/alrayyes/forge-dashboard/compare/v0.146.0...v0.147.0) (2026-10-11)
+
+
+### Features
+
+* **web:** count badges on Home and Releases, and no release pull requests on the pull request page ([#1189](https://github.com/alrayyes/forge-dashboard/issues/1189)) ([334b51f](https://github.com/alrayyes/forge-dashboard/commit/334b51f06fed18b30e954fede6bed5d6829cf0c1))
+
 ## [0.146.0](https://github.com/alrayyes/forge-dashboard/compare/v0.145.0...v0.146.0) (2026-10-11)
 
 
