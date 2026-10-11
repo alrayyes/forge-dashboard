@@ -1157,15 +1157,24 @@ type prCommitNode struct {
 // status, the same fallback ciStatus used to do by hand against two REST
 // endpoints.
 func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
-	if len(commits) == 0 || commits[0].Commit.StatusCheckRollup == nil {
+	if len(commits) == 0 {
 		return dashboard.CINone
 	}
-	rollup := commits[0].Commit.StatusCheckRollup
-	switch rollup.State {
+
+	return commits[0].Commit.StatusCheckRollup.ci()
+}
+
+// ci is the rollup's combined result. A commit with no rollup (nil) has no
+// checks at all.
+func (r *statusCheckRollup) ci() dashboard.CIStatus {
+	if r == nil {
+		return dashboard.CINone
+	}
+	switch r.State {
 	case "SUCCESS":
 		return dashboard.CISuccess
 	case "ERROR", "FAILURE":
-		return rollup.settleFailedRollup()
+		return r.settleFailedRollup()
 	case "PENDING", "EXPECTED":
 		return dashboard.CIPending
 	default:
