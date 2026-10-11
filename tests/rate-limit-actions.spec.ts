@@ -85,9 +85,6 @@ const exhausted = (inMs = 12 * 60 * 1000): RateLimit => ({
   resetsAt: new Date(Date.now() + inMs).toISOString(),
 });
 
-const RESUME =
-  /GitHub API rate limit reached\. Actions resume at .+ \(in \d+ min\)\./;
-
 const firstRow = (page: Page) => page.locator('#pr-rows .row').first();
 
 async function expectLockedWithoutRetry(row: Locator, label: string) {
@@ -101,20 +98,24 @@ test.describe('rate-limited actions (#732)', () => {
     await registerAndSignIn(page, request, baseURL);
   });
 
-  test('an exhausted forge greys out Merge, Update branch and Close with no Retry, and says when actions resume', async ({
+  // #755: a spent budget makes the forge read-only. The controls are not
+  // drawn (the banner says why, once), instead of greyed on every row.
+  test('an exhausted forge draws no Merge, Update branch or Close, and no Retry', async ({
     page,
   }) => {
     await mockDashboard(page, exhausted());
     await page.reload();
 
     const row = firstRow(page);
-    // Close sits in "More actions" since #705, still locked like the rest.
-    await row.getByRole('button', { name: 'More actions' }).click();
+    await expect(row.getByText('A pull request')).toBeVisible();
     for (const label of ['Merge', 'Update branch', 'Close']) {
-      const button = await expectLockedWithoutRetry(row, label);
-      // The reason is the accessible description, not a hover-only tooltip.
-      await expect(button).toHaveAccessibleDescription(RESUME);
+      await expect(
+        row.getByRole('button', { name: label, exact: true }),
+      ).toHaveCount(0);
     }
+    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
+      0,
+    );
     await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
   });
 
@@ -132,7 +133,7 @@ test.describe('rate-limited actions (#732)', () => {
     await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('grouped by repo, the reset time is stated once under the group heading', async ({
+  test('grouped by repo, the reset time is stated once in the banner, not under each group', async ({
     page,
   }) => {
     await mockDashboard(page, exhausted(), [
@@ -142,9 +143,10 @@ test.describe('rate-limited actions (#732)', () => {
     await page.reload();
     await page.locator('#shared-group-select').selectOption('repo');
 
-    const notes = page.locator('#pr-rows .group-rate-limit');
-    await expect(notes).toHaveCount(1);
-    await expect(notes).toHaveText(RESUME);
+    await expect(page.locator('#pr-rows .group-rate-limit')).toHaveCount(0);
+    await expect(
+      page.locator('#rate-limit-banner .rate-limit-banner-row'),
+    ).toHaveCount(1);
   });
 
   test('read-only actions stay enabled while rate limited', async ({
@@ -183,10 +185,11 @@ test.describe('rate-limited actions (#732)', () => {
       name: 'Merge',
       exact: true,
     });
-    await expect(merge).toHaveAttribute('aria-disabled', 'true');
+    await expect(merge).toHaveCount(0);
 
     await page.clock.fastForward(61 * 1000);
 
+    await expect(merge).toBeVisible();
     await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
     await expect(
       page.locator('#feedback-toasts .feedback-toast'),
@@ -309,11 +312,12 @@ test.describe('rate-limited actions (#732)', () => {
     );
     await page.reload();
 
+    // Auto-merge is not drawn; Close, left alone in the row, is shown
+    // directly (#1139) and stays clickable.
     const row = firstRow(page);
-    await row.getByRole('button', { name: 'More actions' }).click();
-    const autoMerge = row.getByRole('button', { name: 'Enable auto-merge' });
-    await expect(autoMerge).toHaveAttribute('aria-disabled', 'true');
-    await expect(autoMerge).toHaveAccessibleDescription(RESUME);
+    await expect(
+      row.getByRole('button', { name: 'Enable auto-merge' }),
+    ).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: 'Close', exact: true }),
     ).not.toHaveAttribute('aria-disabled', 'true');
@@ -323,7 +327,7 @@ test.describe('rate-limited actions (#732)', () => {
     await mockDashboard(page, exhausted());
     await page.reload();
     await page.locator('#shared-group-select').selectOption('repo');
-    await expect(page.locator('.group-rate-limit')).toBeVisible();
+    await expect(page.locator('#rate-limit-banner')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
