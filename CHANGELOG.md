@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.153.0](https://github.com/alrayyes/forge-dashboard/compare/v0.152.1...v0.153.0) (2026-10-11)
+
+
+### Features
+
+* **dashboard:** run queued actions when the rate limit resets (3/3) ([#1181](https://github.com/alrayyes/forge-dashboard/issues/1181)) ([11f3ef2](https://github.com/alrayyes/forge-dashboard/commit/11f3ef2bbf0ea4155e298ddfed26c2b65fa163d1))
+
 ## [0.152.1](https://github.com/alrayyes/forge-dashboard/compare/v0.152.0...v0.152.1) (2026-10-11)
 
 
