@@ -84,7 +84,9 @@ test.describe('visible text is part of the accessible name (#1135)', () => {
       page,
     }) => {
       await page.goto(path);
-      await expect(page.locator('.bottom-nav .nav-badge')).toBeVisible();
+      await expect(
+        page.locator('.bottom-nav a[href="/issues.html"] .nav-badge'),
+      ).toBeVisible();
       expect(await mismatches(page)).toEqual([]);
     });
   }
