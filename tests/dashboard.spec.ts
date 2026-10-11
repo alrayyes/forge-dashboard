@@ -3339,6 +3339,8 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       review: { decision: 'none', approvals: 0, requestedReviewers: 1 },
     }),
   ];
+  // The release-please pull request (5) is on the Releases page, not here.
+  const LISTED = PRS.length - 1;
   const ISSUES = [
     {
       forge: 'github',
@@ -3378,7 +3380,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       }),
     );
     await page.reload();
-    await expect(rowTitles(page)).toHaveCount(PRS.length);
+    await expect(rowTitles(page)).toHaveCount(LISTED);
   });
 
   test('shows all eight pills in a labelled group with exactly one active', async ({
@@ -3458,14 +3460,14 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('Bot PRs keeps dependabot, renovate and release-please pull requests', async ({
+  test('Bot PRs keeps dependabot and renovate pull requests, and release-please has its own page', async ({
     page,
   }) => {
     await pill(page, 'Bot PRs').click();
-    await expect(rowTitles(page)).toHaveCount(3);
+    await expect(rowTitles(page)).toHaveCount(2);
     await expect(page.locator('#pr-rows')).toContainText('Bump dep');
     await expect(page.locator('#pr-rows')).toContainText('Renovate bump');
-    await expect(page.locator('#pr-rows')).toContainText('Release 1.0');
+    await expect(page.locator('#pr-rows')).not.toContainText('Release 1.0');
   });
 
   test('choosing a pill clears the previous one, All clears everything', async ({
@@ -3481,7 +3483,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(rowTitles(page)).toHaveCount(1);
     await expect(rowTitles(page)).toContainText('Broken build');
     await pill(page, 'All').click();
-    await expect(rowTitles(page)).toHaveCount(PRS.length);
+    await expect(rowTitles(page)).toHaveCount(LISTED);
     await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
   });
 
@@ -3502,7 +3504,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
 
   test('the active pill survives a reload', async ({ page }) => {
     await pill(page, 'Bot PRs').click();
-    await expect(rowTitles(page)).toHaveCount(3);
+    await expect(rowTitles(page)).toHaveCount(2);
     // The click sets the cookie at once and saves to the server in the
     // background. A reload before the save lands loads an older server copy
     // (#900), so wait for it like the other persistence tests do.
@@ -3514,7 +3516,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       .toBe('bots');
     await page.reload();
     await expect(pill(page, 'Bot PRs')).toHaveAttribute('aria-pressed', 'true');
-    await expect(rowTitles(page)).toHaveCount(3);
+    await expect(rowTitles(page)).toHaveCount(2);
   });
 
   test('"/" focuses the title search, but types a slash once an input has focus', async ({

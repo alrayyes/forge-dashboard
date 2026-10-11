@@ -10,6 +10,7 @@
   import { onMount } from "svelte";
   import * as Filters from "#lib/filters.js";
   import { issueCount } from "#lib/issue-count.svelte.js";
+  import { setPullRequestCounts } from "#lib/pull-request-counts.svelte.js";
   import { findAction, type AllowedAction } from "#lib/allowed-actions.js";
   import * as Stacks from "#lib/stacks.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
@@ -5254,10 +5255,12 @@
       clearStaleLocks(closeState);
       clearStaleLocks(updateBranchState);
       announceAutoMerged(data.autoMerged ?? []);
-      // The Releases page is the same board over release pull requests
-      // only; the server says which those are (#716).
+      // Release pull requests have their own page: the pull request board
+      // shows none of them and the Releases board only them. The server says
+      // which are which (#716). The nav counts both from the full list.
+      setPullRequestCounts(data.pullRequests);
       const prs = (data.pullRequests || []).filter(
-        (p) => view !== "releases" || p.kind === "release",
+        (p) => (p.kind === "release") === (view === "releases"),
       );
       hiddenDrafts = data.hiddenDrafts ?? 0;
       syncDraftsToggle();
