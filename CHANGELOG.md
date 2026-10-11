@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.155.0](https://github.com/alrayyes/forge-dashboard/compare/v0.154.1...v0.155.0) (2026-10-11)
+
+
+### Features
+
+* **web:** queue Update branch or a bot rebase for the rate limit reset ([#1210](https://github.com/alrayyes/forge-dashboard/issues/1210)) ([8e05bb6](https://github.com/alrayyes/forge-dashboard/commit/8e05bb64f1f40b3dadc7164393bba860f5e5d3b8)), closes [#756](https://github.com/alrayyes/forge-dashboard/issues/756)
+
+## [0.154.1](https://github.com/alrayyes/forge-dashboard/compare/v0.154.0...v0.154.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **github:** show a branch as behind when the base moved in a non-strict repo ([#1205](https://github.com/alrayyes/forge-dashboard/issues/1205)) ([38dfbb5](https://github.com/alrayyes/forge-dashboard/commit/38dfbb5ce5bae7274f2097e30a5f21f326b4a8de)), closes [#1183](https://github.com/alrayyes/forge-dashboard/issues/1183)
+
+## [0.154.0](https://github.com/alrayyes/forge-dashboard/compare/v0.153.0...v0.154.0) (2026-10-11)
+
+
+### Features
+
+* **web:** a Conflicts quick filter for pull requests with a merge conflict ([#1219](https://github.com/alrayyes/forge-dashboard/issues/1219)) ([a263cfe](https://github.com/alrayyes/forge-dashboard/commit/a263cfec5518f17e332de2c631ebaf4cde7a3d76)), closes [#1215](https://github.com/alrayyes/forge-dashboard/issues/1215)
+
+## [0.153.0](https://github.com/alrayyes/forge-dashboard/compare/v0.152.1...v0.153.0) (2026-10-11)
+
+
+### Features
+
+* **dashboard:** run queued actions when the rate limit resets (3/3) ([#1181](https://github.com/alrayyes/forge-dashboard/issues/1181)) ([11f3ef2](https://github.com/alrayyes/forge-dashboard/commit/11f3ef2bbf0ea4155e298ddfed26c2b65fa163d1))
+
 ## [0.152.1](https://github.com/alrayyes/forge-dashboard/compare/v0.152.0...v0.152.1) (2026-10-11)
 
 

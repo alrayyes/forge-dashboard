@@ -56,13 +56,6 @@ var knownDisagreements = map[string]difference{
 	"stacked-child": {"by design: a stacked pull request waits for its parent (#860)", dashboard.ActionStacked},
 }
 
-// knownBehind lists scenarios where GitHub's compare says the branch is behind
-// and the dashboard doesn't: without "require branches to be up to date"
-// mergeStateStatus is CLEAN, which the client reads as not behind.
-var knownBehind = map[string]string{
-	"behind-not-strict": "https://github.com/alrayyes/forge-dashboard/issues/1183",
-}
-
 // bypassIssueURL is the owner's "merge without waiting for requirements".
 // GitHub offers it to a repo admin when enforce_admins is off; the dashboard
 // never does, on purpose. Declined, not a bug.
@@ -230,17 +223,11 @@ func fieldProblems(t *testing.T, g githubTruth, pr dashboard.PullRequest) []stri
 	}
 	// Behind means the base has commits the head lacks. The dashboard looks
 	// past mergeStateStatus for this, so compare with the compare endpoint,
-	// not the state. Without strict protection a behind branch is still CLEAN
-	// and mergeable.
+	// not the state: without strict protection a behind branch is still CLEAN
+	// and mergeable (#1183).
 	wantBehind := g.behindBy(t) > 0
-	ticket, knownBehind := knownBehind[g.Title]
-	switch {
-	case pr.Behind != wantBehind && knownBehind:
-		// Known: the row's verdict still says so through knownBehind.
-	case pr.Behind != wantBehind:
+	if pr.Behind != wantBehind {
 		problems = append(problems, fmt.Sprintf("behind: GitHub compare says %t (state %s), dashboard %t", wantBehind, g.MergeStateStatus, pr.Behind))
-	case knownBehind:
-		problems = append(problems, fmt.Sprintf("behind now agrees, remove it from knownBehind (%s)", ticket))
 	}
 	if pr.AutoMergeEnabled == nil || *pr.AutoMergeEnabled != (g.AutoMergeRequest != nil) {
 		problems = append(problems, fmt.Sprintf("auto-merge armed: GitHub %t, dashboard %v", g.AutoMergeRequest != nil, pr.AutoMergeEnabled))
@@ -297,9 +284,6 @@ func TestGitHubState_DashboardAgreesWithGitHub(t *testing.T) {
 		allowed, _ := dashboardMerge(pr)
 		verdict, problems := mergeVerdict(g, pr)
 		problems = append(problems, fieldProblems(t, g, pr)...)
-		if ticket, ok := knownBehind[g.Title]; ok && len(problems) == 0 {
-			verdict = "known (behind), " + ticket
-		}
 		if len(problems) > 0 {
 			verdict = "DISAGREE (" + strings.Join(problems, "; ") + ")"
 			disagreements = append(disagreements, fmt.Sprintf("#%d %s: %s", n, g.Title, verdict))
