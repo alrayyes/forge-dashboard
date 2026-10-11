@@ -208,8 +208,8 @@ test.describe('pull request Renovate rebase button', () => {
       'aria-live',
       'polite',
     );
-    await expect(row.locator('.row-feedback')).toContainText(
-      'will pick this up shortly',
+    await expect(row.locator('.wait-chip-label')).toHaveText(
+      'Rebase requested',
     );
     await expect(page.locator('#status-banner')).toHaveCount(0);
   });
@@ -242,12 +242,10 @@ test.describe('pull request Renovate rebase button', () => {
     await expect(page.locator('#feedback-toasts')).toContainText(
       'Rebase requested',
     );
-    await expect(row.locator('.row-feedback')).toContainText(
-      'will pick this up shortly',
+    await expect(row.locator('.wait-chip-label')).toHaveText(
+      'Rebase requested',
     );
-    await expect(row.locator('.row-feedback')).not.toContainText(
-      /couldn't|failed|refused/i,
-    );
+    await expect(row.locator('.row-feedback')).toHaveCount(0);
     await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 

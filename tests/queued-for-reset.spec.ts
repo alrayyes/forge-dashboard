@@ -178,9 +178,15 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
       fullName: 'alrayyes/forge-dashboard',
       number: 42,
     });
-    await expect(row(page)).toContainText(
-      /Update branch queued for \d{1,2}:\d{2}/,
+    // The row's waiting chip (#1229) carries it, with Cancel inside.
+    const chip = row(page).locator('.wait-chip');
+    await expect(chip.locator('.wait-chip-label')).toHaveText(
+      /^Queued · \d{1,2}:\d{2}$/,
     );
+    await expect(chip.locator('.wait-chip-detail')).toContainText(/Resets in/);
+    await expect(
+      chip.getByRole('button', { name: /^Cancel queued update for/ }),
+    ).toBeVisible();
     await expect(
       row(page).getByRole('button', { name: /^Queue update for/ }),
     ).toHaveCount(0);
@@ -200,14 +206,14 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
     await row(page)
       .getByRole('button', { name: /^Queue update for/ })
       .click();
-    await expect(row(page)).toContainText('queued for');
+    await expect(row(page).locator('.wait-chip')).toBeVisible();
 
     await row(page)
       .getByRole('button', { name: /^Cancel queued update/ })
       .click();
 
     await expect.poll(() => state.deletes).toEqual(['q1']);
-    await expect(row(page)).not.toContainText('queued for');
+    await expect(row(page).locator('.wait-chip')).toHaveCount(0);
     await expect(
       row(page).getByRole('button', { name: /^Queue update for/ }),
     ).toBeVisible();
@@ -298,7 +304,7 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
     await row(page)
       .getByRole('button', { name: /^Queue update for/ })
       .click();
-    await expect(row(page)).toContainText('queued for');
+    await expect(row(page).locator('.wait-chip')).toBeVisible();
     await page.locator('#activity-toggle').click();
 
     expect(

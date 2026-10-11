@@ -391,7 +391,7 @@ test.describe('pull request close button', () => {
     await expect(
       row.getByRole('button', { name: 'More actions' }),
     ).toBeFocused();
-    await expect(row.locator('.row-feedback')).toContainText('Closing…');
+    await expect(row.locator('.wait-chip-label')).toHaveText('Closing');
   });
 
   test('shows an in-progress status while closing, then a success status', async ({
@@ -423,7 +423,7 @@ test.describe('pull request close button', () => {
       .getByRole('button', { name: 'Confirm close pull request?' })
       .click();
 
-    await expect(row.locator('.row-feedback')).toContainText('Closing…');
+    await expect(row.locator('.wait-chip-label')).toHaveText('Closing');
     const toast = page.locator('#feedback-toasts .feedback-toast').first();
     await expect(toast).toContainText('alrayyes/forge-dashboard#42');
     await expect(toast).toContainText('Closed.');

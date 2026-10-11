@@ -168,7 +168,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await registerAndSignIn(page, request, baseURL);
   });
 
-  test('two pull requests in flight each show their own inline status line', async ({
+  test('two pull requests in flight each show their own waiting chip', async ({
     page,
   }) => {
     await setup(page, [makePR(1), makePR(2)], { delayMs: 1500 });
@@ -176,9 +176,11 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await updateBranch(rowFor(page, 2));
 
     for (const n of [1, 2]) {
-      const line = rowFor(page, n).locator('.row-feedback');
-      await expect(line).toContainText('Queued');
-      await expect(line).toContainText('Awaiting the next refresh');
+      const chip = rowFor(page, n).locator('.wait-chip');
+      await expect(chip.locator('.wait-chip-label')).toHaveText(
+        'Updating branch',
+      );
+      await expect(chip).toContainText(/next refresh in \d+s/i);
     }
     // The top banner is not used for per-pull-request actions.
     await expect(page.locator('#status-banner')).toHaveCount(0);
@@ -186,7 +188,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await expect(page.locator('#activity-toggle')).toContainText('Activity 2');
   });
 
-  test('the inline line shows a countdown outside the announced text, then Refreshing…', async ({
+  test('the chip shows a countdown outside the announced text, then Refreshing…', async ({
     page,
   }) => {
     await page.addInitScript(() => {
@@ -199,7 +201,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await updateBranch(rowFor(page, 1));
 
     const countdown = rowFor(page, 1).locator('.feedback-countdown');
-    await expect(countdown).toHaveText(/next refresh in \d+s/);
+    await expect(countdown).toHaveText(/next refresh in \d+s/i);
     await expect(countdown).toHaveAttribute('aria-hidden', 'true');
 
     await page.evaluate(() => {
@@ -220,9 +222,9 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await expect(toast.getByRole('button', { name: 'Show row' })).toBeVisible();
     await toast.getByRole('button', { name: /Dismiss/ }).click();
     await expect(toasts(page)).toHaveCount(0);
-    // Dismissing the toast leaves the row's own line and the activity entry.
-    await expect(rowFor(page, 7).locator('.row-feedback')).toContainText(
-      'Queued',
+    // Dismissing the toast leaves the row's own chip and the activity entry.
+    await expect(rowFor(page, 7).locator('.wait-chip-label')).toHaveText(
+      'Updating branch',
     );
     await expect(page.locator('#activity-toggle')).toContainText('Activity 1');
   });
@@ -433,8 +435,8 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await expect(toggle).toContainText('Activity 1');
     // The failed row's inline line goes with it; the queued one stays.
     await expect(rowFor(page, 2).locator('.row-feedback')).toHaveCount(0);
-    await expect(rowFor(page, 1).locator('.row-feedback')).toContainText(
-      'Queued',
+    await expect(rowFor(page, 1).locator('.wait-chip-label')).toHaveText(
+      'Updating branch',
     );
 
     await page.keyboard.press('Escape');
@@ -532,8 +534,8 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await page.click('#force-refresh-button');
     await page.waitForTimeout(500);
 
-    await expect(rowFor(page, 1).locator('.row-feedback')).toContainText(
-      'Queued',
+    await expect(rowFor(page, 1).locator('.wait-chip-label')).toHaveText(
+      'Updating branch',
     );
     await expect(rowFor(page, 2).locator('.row-feedback')).toContainText(
       'Failed',
@@ -548,8 +550,8 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     const pr = makePR(9);
     await setup(page, [pr]);
     await updateBranch(rowFor(page, 9));
-    await expect(rowFor(page, 9).locator('.row-feedback')).toContainText(
-      'Queued',
+    await expect(rowFor(page, 9).locator('.wait-chip-label')).toHaveText(
+      'Updating branch',
     );
 
     await page.route('**/api/dashboard/refresh', (route: Route) =>
@@ -561,6 +563,9 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     );
     await page.click('#force-refresh-button');
 
+    await expect(rowFor(page, 9).locator('.wait-chip-label')).toHaveText(
+      'Settled',
+    );
     await expect(rowFor(page, 9).locator('.row-feedback')).toHaveCount(0);
     await expect(toasts(page).first()).toContainText('Branch updated.');
     await page.locator('#activity-toggle').click();

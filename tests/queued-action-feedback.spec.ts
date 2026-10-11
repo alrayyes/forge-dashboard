@@ -11,9 +11,9 @@ import { registerViaInvite } from './register-helper';
 
 // #680, #714: Update branch, Dependabot rebase and Renovate rebase all
 // answer with "Queued…" the instant they're clicked and hold that state
-// until the next refresh (or a failure). The row says so in its own inline
-// status line, with a countdown to the next poll; a toast and the
-// Activity panel carry the same events. The top banner is not used.
+// until the next refresh (or a failure). The row says so with its waiting
+// chip (#1229), and Update branch's counts down to the next poll; a toast
+// and the Activity panel carry the same events. The top banner is not used.
 
 async function registerAndSignIn(
   page: Page,
@@ -124,14 +124,17 @@ async function openMoreActions(row: Locator) {
   await row.getByRole('button', { name: 'More actions' }).click();
 }
 
-const COUNTDOWN = /next refresh in (\d+)s/;
+const COUNTDOWN = /next refresh in (\d+)s/i;
 
+// A failure still reads as a line under the row; a wait is the chip.
 const inline = (page: Page) =>
   page.locator('#pr-rows .row').first().locator('.row-feedback');
+const chip = (page: Page) =>
+  page.locator('#pr-rows .row').first().locator('.wait-chip');
 
 async function countdownSeconds(page: Page): Promise<number> {
   const text =
-    (await inline(page).locator('.feedback-countdown').textContent()) ?? '';
+    (await chip(page).locator('.feedback-countdown').textContent()) ?? '';
   const seconds = COUNTDOWN.exec(text)?.[1];
   expect(seconds, `no countdown on the row: ${text}`).toBeDefined();
   return Number(seconds);
@@ -146,7 +149,7 @@ interface Scenario {
   // What the disabled button reads once clicked: a bot rebase says what
   // was requested (#707), Update branch is a plain queue.
   queuedLabel: string;
-  // The row's inline status.
+  // The chip's label.
   waiting: string;
   // Only Update branch waits on the dashboard's own next refresh; a bot
   // rebase waits on the bot (#707).
@@ -167,9 +170,9 @@ const scenarios: Scenario[] = [
     button: 'Update branch',
     queuedLabel: 'Queued…',
     awaitsRefresh: true,
-    waiting: 'Queued',
+    waiting: 'Updating branch',
     toast: 'Branch update requested.',
-    announced: 'Branch update requested. Awaiting the next refresh.',
+    announced: 'Branch update requested.',
     failure: "Couldn't update the branch: upstream broke",
   },
   {
@@ -180,9 +183,9 @@ const scenarios: Scenario[] = [
     button: 'Dependabot: Rebase',
     queuedLabel: 'Rebase requested',
     awaitsRefresh: false,
-    waiting: 'Dependabot will pick this up shortly',
+    waiting: 'Rebase requested',
     toast: 'Dependabot rebase requested.',
-    announced: 'Dependabot rebase requested. It will pick this up shortly.',
+    announced: 'Dependabot rebase requested.',
     failure: "Couldn't ask Dependabot to rebase: upstream broke",
   },
   {
@@ -193,9 +196,9 @@ const scenarios: Scenario[] = [
     button: 'Renovate: Rebase',
     queuedLabel: 'Rebase requested',
     awaitsRefresh: false,
-    waiting: 'Renovate will pick this up shortly',
+    waiting: 'Rebase requested',
     toast: 'Renovate rebase requested.',
-    announced: 'Renovate rebase requested. It will pick this up shortly.',
+    announced: 'Renovate rebase requested.',
     failure: "Couldn't ask Renovate to rebase: upstream broke",
   },
 ];
@@ -325,19 +328,30 @@ for (const s of scenarios) {
       expect(results.violations).toEqual([]);
     });
 
-    test('the row says the action is waiting and counts down to the real next poll, with no banner', async ({
+    // Update branch waits on the dashboard's own refresh, so its chip counts
+    // down to it. A bot rebase waits on the bot, so its chip counts the age.
+    test('the row says the action is waiting, with no banner', async ({
       page,
     }) => {
       const { row } = await prepare(page);
       await row.getByRole('button', { name: s.button }).click();
 
-      const line = inline(page);
-      await expect(line).toContainText(s.waiting);
-      if (s.awaitsRefresh)
-        await expect(line).toContainText('Awaiting the next refresh');
-      await expect(line).toContainText(COUNTDOWN);
+      await expect(chip(page).locator('.wait-chip-label')).toHaveText(
+        s.waiting,
+      );
+      if (s.awaitsRefresh) await expect(chip(page)).toContainText(COUNTDOWN);
+      else
+        await expect(chip(page).locator('.feedback-countdown')).toHaveCount(0);
       await expect(page.locator('#status-banner')).toHaveCount(0);
       await expect(page.locator('#error-banner')).toHaveCount(0);
+      await expect(inline(page)).toHaveCount(0);
+    });
+
+    test('the countdown runs down to the real next poll', async ({ page }) => {
+      test.skip(!s.awaitsRefresh, 'only Update branch waits on the refresh');
+      const { row } = await prepare(page);
+      await row.getByRole('button', { name: s.button }).click();
+      await expect(chip(page)).toContainText(COUNTDOWN);
 
       // Derived from the 30s poll cadence, never a hard-coded number.
       const first = await countdownSeconds(page);
@@ -368,8 +382,10 @@ for (const s of scenarios) {
       const { row } = await prepare(page);
       await row.getByRole('button', { name: s.button }).click();
 
-      const countdown = inline(page).locator('.feedback-countdown');
-      await expect(countdown).toHaveAttribute('aria-hidden', 'true');
+      const ticking = chip(page).locator(
+        s.awaitsRefresh ? '.feedback-countdown' : '.feedback-requested',
+      );
+      await expect(ticking).toHaveAttribute('aria-hidden', 'true');
       // The announced text is stable: said once, no digits that change
       // each second.
       const live = page.locator('#feedback-live');
@@ -382,6 +398,7 @@ for (const s of scenarios) {
       );
       await expect(live).not.toContainText(/\d+s/);
       await expect(live.locator('.feedback-countdown')).toHaveCount(0);
+      await expect(live.locator('.feedback-requested')).toHaveCount(0);
     });
 
     test('the queued state survives the re-render that follows the request completing', async ({
@@ -399,14 +416,16 @@ for (const s of scenarios) {
       await expect(
         fresh.getByRole('button', { name: s.queuedLabel }),
       ).toBeDisabled();
-      await expect(inline(page)).toContainText(COUNTDOWN);
+      await expect(chip(page).locator('.wait-chip-label')).toHaveText(
+        s.waiting,
+      );
     });
 
     // #706: the banner used to vanish about a second after the click,
     // because any snapshot (the live stream pushes one constantly)
     // cleared a queued bot rebase. It has to hold until a snapshot that
     // actually reflects the action lands.
-    test('the inline line survives well past a second and an unrelated stream push', async ({
+    test('the chip survives well past a second and an unrelated stream push', async ({
       page,
     }) => {
       await page.addInitScript(() => {
@@ -425,12 +444,11 @@ for (const s of scenarios) {
       });
       const { row } = await prepare(page);
       await row.getByRole('button', { name: s.button }).click();
-      const line = inline(page);
-      await expect(line).toContainText(COUNTDOWN);
+      const line = chip(page).locator('.wait-chip-label');
+      await expect(line).toHaveText(s.waiting);
 
       await page.waitForTimeout(3200);
-      await expect(line).toContainText(s.waiting);
-      await expect(line).toContainText(COUNTDOWN);
+      await expect(line).toHaveText(s.waiting);
 
       // A snapshot that doesn't change this pull request's state. A bot
       // request is still on the pull request, as the server keeps it.
@@ -447,8 +465,7 @@ for (const s of scenarios) {
         JSON.stringify(snapshot(same)),
       );
       await page.waitForTimeout(1500);
-      await expect(line).toContainText(s.waiting);
-      await expect(line).toContainText(COUNTDOWN);
+      await expect(line).toHaveText(s.waiting);
       await expect(
         page.locator('#feedback-toasts .feedback-toast'),
       ).toHaveCount(1);
@@ -462,6 +479,7 @@ for (const s of scenarios) {
     test('the row says Refreshing… rather than vanishing when the countdown hits zero', async ({
       page,
     }) => {
+      test.skip(!s.awaitsRefresh, 'only Update branch waits on the refresh');
       await page.addInitScript(() => {
         const w = window as unknown as { __skew: number };
         w.__skew = 0;
@@ -470,7 +488,7 @@ for (const s of scenarios) {
       });
       const { row } = await prepare(page);
       await row.getByRole('button', { name: s.button }).click();
-      const line = inline(page);
+      const line = chip(page);
       await expect(line).toContainText(COUNTDOWN);
 
       await page.evaluate(() => {
@@ -496,7 +514,7 @@ for (const s of scenarios) {
       const line = inline(page);
       await expect(line).toContainText('Failed');
       await expect(line).toContainText('upstream broke');
-      await expect(line).not.toContainText(COUNTDOWN);
+      await expect(chip(page)).toHaveCount(0);
       await expect(page.locator('#error-banner')).toHaveCount(0);
       await expect(page.locator('#status-banner')).toHaveCount(0);
       await expect(
@@ -508,7 +526,9 @@ for (const s of scenarios) {
     test('has no axe violations while queued', async ({ page }) => {
       const { row } = await prepare(page);
       await row.getByRole('button', { name: s.button }).click();
-      await expect(inline(page)).toContainText(COUNTDOWN);
+      await expect(chip(page).locator('.wait-chip-label')).toHaveText(
+        s.waiting,
+      );
       await page.locator('#activity-toggle').click();
 
       const results = await new AxeBuilder({ page })
@@ -533,7 +553,7 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     );
   });
 
-  test('a Renovate rebase stays queued after the request succeeds, then moves to Rebasing… once a snapshot shows it landed', async ({
+  test('a Renovate rebase stays queued after the request succeeds, then moves to Rebasing once a snapshot shows it landed', async ({
     page,
   }) => {
     const pr = makePR({ author: 'renovate[bot]', behind: true });
@@ -563,7 +583,9 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
 
     // The request is done, but nothing has refreshed yet.
     await page.waitForTimeout(500);
-    await expect(row.locator('.row-feedback')).toContainText(COUNTDOWN);
+    await expect(row.locator('.wait-chip-label')).toHaveText(
+      'Rebase requested',
+    );
     await openMoreActions(row).catch(() => undefined);
     await expect(
       row.getByRole('button', { name: 'Rebase requested' }),
@@ -571,12 +593,11 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
 
     await page.click('#force-refresh-button');
 
-    // Picked up (#707): the row says Rebasing… until CI restarts rather
-    // than going quiet. The pill and the line are covered by
-    // bot-rebase-pickup.spec.ts; what matters here is that the request
-    // is no longer "waiting for the bot".
-    await expect(row.locator('.row-feedback')).not.toContainText(COUNTDOWN);
-    await expect(row.locator('.merge-pill.rebasing')).toHaveText('Rebasing…');
+    // Picked up (#707): the chip says Rebasing until CI restarts rather
+    // than going quiet. The chip is covered by bot-rebase-pickup.spec.ts;
+    // what matters here is that the request is no longer "waiting for the
+    // bot".
+    await expect(row.locator('.wait-chip-label')).toHaveText('Rebasing');
   });
 
   // #711, #808: a bot that never acts must not pin the button disabled for
@@ -604,7 +625,9 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
-    await expect(row.locator('.row-feedback')).toContainText(COUNTDOWN);
+    await expect(row.locator('.wait-chip-label')).toHaveText(
+      'Rebase requested',
+    );
 
     await page.click('#force-refresh-button');
 

@@ -3,6 +3,8 @@
 // announces. Pure state, no DOM, so it survives the board rebuilding every
 // row on each render and each new snapshot. feedback-ui.ts draws it.
 
+import type { WaitKind } from './wait-chip';
+
 export type ActionRef = { key: string; repo: string; number: number };
 
 export type FeedbackPhase =
@@ -33,6 +35,8 @@ export type ActivityEntry = {
   ref: ActionRef;
   // What was asked for, e.g. "Update branch".
   label: string;
+  // Which wait the row's chip draws while this is in flight (#1229).
+  kind?: WaitKind;
   phase: FeedbackPhase;
   // Short status text for the row's inline line, e.g. "Queued".
   inline: string;
@@ -77,6 +81,7 @@ export type StartInput = {
   actionKey: string;
   ref: ActionRef;
   label: string;
+  kind: WaitKind;
   phase: 'working' | 'queued';
   inline: string;
   message: string;
@@ -261,6 +266,7 @@ export function createFeedbackStore(
         actionKey: input.actionKey,
         ref: input.ref,
         label: input.label,
+        kind: input.kind,
         phase: input.phase,
         inline: input.inline,
         message: input.message,
