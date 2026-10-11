@@ -110,15 +110,22 @@ const drivers: Driver[] = [
     name: 'Close',
     endpoint: '**/api/pull-requests/close',
     pr: {},
-    button: 'Close',
+    button: 'Close pull request',
     act: async (row) => {
       await openMoreActions(row);
-      await row.getByRole('button', { name: 'Close', exact: true }).click();
-      await row.getByRole('button', { name: 'Confirm close?' }).click();
+      await row
+        .getByRole('button', { name: 'Close pull request', exact: true })
+        .click();
+      await row
+        .getByRole('button', { name: 'Confirm close pull request?' })
+        .click();
     },
     find: async (row) => {
       await openMoreActions(row);
-      return row.getByRole('button', { name: 'Close', exact: true });
+      return row.getByRole('button', {
+        name: 'Close pull request',
+        exact: true,
+      });
     },
   },
   {
@@ -303,7 +310,9 @@ for (const d of drivers) {
       });
       await (await d.find(row)).click();
       // Close asks again; the others act straight away.
-      const confirm = row.getByRole('button', { name: 'Confirm close?' });
+      const confirm = row.getByRole('button', {
+        name: 'Confirm close pull request?',
+      });
       if (await confirm.isVisible()) await confirm.click();
 
       await expect(row.locator('.row-settled')).toHaveText('Merged');

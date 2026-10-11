@@ -139,7 +139,9 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
     await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
       0,
     );
-    await row.getByRole('button', { name: 'Close', exact: true }).click();
+    await row
+      .getByRole('button', { name: 'Close pull request', exact: true })
+      .click();
     await expect(
       row.getByRole('button', { name: /Confirm close/ }),
     ).toBeVisible();
