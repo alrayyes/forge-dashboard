@@ -78,6 +78,9 @@ const badge = (page: Page, nav: 'header' | '.bottom-nav', link: string) =>
 test.describe('nav counts and the pull request page without releases', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('the pull request page lists no release pull requests', async ({

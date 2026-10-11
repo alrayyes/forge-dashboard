@@ -87,6 +87,9 @@ const MUTATING = [
 test.describe('a rate-limited forge goes read-only (#755)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('its rows draw no mutating control at all, and keep the read-only ones', async ({
