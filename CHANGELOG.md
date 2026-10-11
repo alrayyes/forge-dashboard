@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.149.1](https://github.com/alrayyes/forge-dashboard/compare/v0.149.0...v0.149.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **github:** look up linear history on the pull request's base branch ([#1186](https://github.com/alrayyes/forge-dashboard/issues/1186)) ([707e125](https://github.com/alrayyes/forge-dashboard/commit/707e125511d344880b7feeb9e639dbb99069ada0))
+
+## [0.149.0](https://github.com/alrayyes/forge-dashboard/compare/v0.148.0...v0.149.0) (2026-10-11)
+
+
+### Features
+
+* **api:** queue, list and cancel a safe action for a rate-limited forge (2/3) ([#1180](https://github.com/alrayyes/forge-dashboard/issues/1180)) ([f7f736a](https://github.com/alrayyes/forge-dashboard/commit/f7f736a4ff84fe782f3ce90dcf6678569cb64bb3))
+
+## [0.148.0](https://github.com/alrayyes/forge-dashboard/compare/v0.147.3...v0.148.0) (2026-10-11)
+
+
+### Features
+
+* **web:** a failure line for a network failure clears itself after ten seconds ([#1207](https://github.com/alrayyes/forge-dashboard/issues/1207)) ([fc82163](https://github.com/alrayyes/forge-dashboard/commit/fc821631a6a6731d1b0dc9f942859bdaeee4c4c4)), closes [#1206](https://github.com/alrayyes/forge-dashboard/issues/1206)
+
+## [0.147.3](https://github.com/alrayyes/forge-dashboard/compare/v0.147.2...v0.147.3) (2026-10-11)
+
+
+### Bug Fixes
+
+* **web:** count only the issues the list shows in the updates bar ([#1202](https://github.com/alrayyes/forge-dashboard/issues/1202)) ([ab3806e](https://github.com/alrayyes/forge-dashboard/commit/ab3806ecb56fd1e3796307ad28720f2596c1a7cc))
+
 ## [0.147.2](https://github.com/alrayyes/forge-dashboard/compare/v0.147.1...v0.147.2) (2026-10-11)
 
 

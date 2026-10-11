@@ -24,6 +24,7 @@
     type ActionCode,
     type ActionRequestError,
     interpretActionFailure,
+    NETWORK_FAILURE,
     readActionFailure,
     type SettledState,
     settledBadge,
@@ -260,6 +261,11 @@
     const feedbackUI = mountFeedbackUI(feedback, {
       countdownText: () => queuedCountdownText(),
       revealRow: (key) => revealRow(key),
+      // The write may have landed before the connection dropped, so the row
+      // is read again from the server before the action is offered anew.
+      onTransientFailureCleared: () => {
+        refreshDashboardNow().catch(() => {});
+      },
     });
     function actionRef(item: PullRequestItem): ActionRef {
       return { key: prKey(item), repo: item.repo, number: item.number };
@@ -271,6 +277,7 @@
       what: string,
       reason: string,
       canRetry: boolean,
+      transient = false,
     ) {
       const message = `Couldn't ${what}: ${reason}`;
       feedback.update(actionKey, {
@@ -280,6 +287,9 @@
         toast: true,
         announce: message,
         canRetry,
+        // A failure that passes by itself clears its row line after a few
+        // seconds (#1206).
+        transient,
       });
     }
     const CI_LABELS: Record<string, string> = {
@@ -1227,7 +1237,7 @@
         failAction(fkey, what, outcome.reason, false);
       } else {
         setState({ phase: "idle" });
-        failAction(fkey, what, outcome.reason, true);
+        failAction(fkey, what, outcome.reason, true, outcome.transient);
       }
       renderPRBoard();
     }
@@ -1346,11 +1356,11 @@
                 } else {
                   renderPRBoard();
                 }
-                failAction(fkey, "merge", err.message, true);
+                failAction(fkey, "merge", NETWORK_FAILURE, true, true);
               })
               .catch(() => {
                 mergeState[key] = { phase: "idle" };
-                failAction(fkey, "merge", err.message, true);
+                failAction(fkey, "merge", NETWORK_FAILURE, true, true);
                 renderPRBoard();
               });
             return;
@@ -2624,10 +2634,26 @@
         return false;
       }
       const userAsked = latestIssuesAsked || shownIssues.length === 0;
-      const diff = Filters.diffItems(shownIssues, latestIssues);
+      // The bar counts what the list would show: a change to an issue the
+      // filters or the hidden-by-default housekeeping flag keep off screen
+      // moves nothing, so it asks for nothing (#1198).
+      const onList = (items: IssueItem[]) =>
+        items.filter((item) =>
+          Filters.matchesFilters(
+            item,
+            false,
+            sharedState.shared,
+            sharedState.issue,
+          ),
+        );
+      const diff = Filters.diffItems(onList(shownIssues), onList(latestIssues));
       const structural = diff.added + diff.removed + diff.moved;
 
       if (structural === 0 && diff.changed.length === 0) {
+        // Nothing on screen differs, but the rows off screen may. Keep them
+        // current so a filter change later shows fresh data, without drawing.
+        shownIssues = latestIssues;
+        issueBoard.replaceItems(shownIssues);
         latestIssues = null;
         showUpdatesBar(0);
 
