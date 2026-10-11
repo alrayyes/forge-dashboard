@@ -1120,12 +1120,13 @@
     ): LockInfo | null {
       const health = lastForges.find((f) => f.forge === forgeName);
       if (health && health.reachable === false) {
-        // The specific reason (unreachable, rate-limited, ...) is
-        // already stated once in the forge-health panel above, via
-        // forgeErrorHeadline — repeating the same system-wide fact
-        // under every affected row read as noise, not information
-        // (#360).
-        return { reason: "See the forge status above." };
+        // The forge can't be reached, so nothing here can work (#1199). The
+        // controls are not drawn (see readOnlyBecauseRateLimited), and one
+        // banner says why, once (#360, #755).
+        return {
+          reason: "This forge can't be reached right now.",
+          code: "forge_unreachable",
+        };
       }
       // #361: Merge, Update branch, Close and the bot commands are REST
       // calls, so REST's budget decides them; auto-merge is a GraphQL
@@ -1142,12 +1143,15 @@
       return null;
     }
 
-    // A forge whose budget is spent is read-only (#755): the controls that
-    // need that budget are not drawn at all, instead of greyed out on every
-    // row. One banner says so once, with the reset time. A lock from a failed
-    // click (a 429 the snapshot hadn't shown yet) still draws, with its reason.
+    // A forge whose budget is spent, or that can't be reached, is read-only
+    // (#755, #1199): the controls that need it are not drawn at all, instead
+    // of greyed out on every row. One banner says so once. A lock from a
+    // failed click (a 429 the snapshot hadn't shown yet) still draws, with
+    // its reason.
     function readOnlyBecauseRateLimited(reason: LockInfo | null): boolean {
-      return reason?.code === "rate_limited";
+      return (
+        reason?.code === "rate_limited" || reason?.code === "forge_unreachable"
+      );
     }
 
     // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
@@ -4669,6 +4673,77 @@
       return out;
     }
 
+    // ---- unreachable-forge banner (#1199) ----
+    // One row per forge that can't be reached, as a spent rate limit gets
+    // one: what is wrong in plain words, how old the rows on screen are, and
+    // a single Retry that forces a refresh. A forge held back by its rate
+    // limit has that banner instead.
+    function unreachableCause(f: Forge): string {
+      switch (f.errorKind) {
+        case "unreachable":
+          return "It isn’t answering. This page tries again on its own.";
+        case "unauthorized":
+          return "Check the token in Settings.";
+        case "not_found":
+          return "Check the instance URL in Settings.";
+        default:
+          return "Something went wrong talking to it.";
+      }
+    }
+
+    function renderUnreachableBanner() {
+      const existing = document.getElementById("unreachable-banner");
+      const readOnlyByLimit = new Set(
+        rateLimitAlerts
+          .filter((a) => a.kind === "readonly")
+          .map((a) => a.label),
+      );
+      const down = lastForges.filter(
+        (f) =>
+          !f.reachable &&
+          !readOnlyByLimit.has(FORGE_LABELS[f.forge] || f.forge),
+      );
+      if (down.length === 0) {
+        existing?.remove();
+        return;
+      }
+      // The zone is part of it: a changed zone redraws the times.
+      const signature = [
+        effectiveZone(),
+        ...down.map((f) => `${f.forge}|${f.errorKind}|${f.staleSince}`),
+      ].join(";");
+      if (existing && existing.dataset.signature === signature) return;
+      existing?.remove();
+      const banner = el("div", "unreachable-banner");
+      banner.id = "unreachable-banner";
+      banner.dataset.signature = signature;
+      banner.setAttribute("role", "status");
+      for (const f of down) {
+        const label = FORGE_LABELS[f.forge] || f.forge;
+        const row = el("div", "unreachable-banner-row");
+        const text = el("p", "unreachable-banner-text");
+        text.appendChild(
+          el(
+            "strong",
+            "",
+            f.staleSince
+              ? `${label} is unreachable. Showing the last data from ${formatTime(f.staleSince)}.`
+              : `${label} is unreachable.`,
+          ),
+        );
+        text.appendChild(document.createTextNode(` ${unreachableCause(f)}`));
+        row.appendChild(text);
+        const retry = buttonEl("unreachable-banner-retry", "Retry");
+        retry.type = "button";
+        retry.addEventListener("click", () => forceRefreshButton?.click());
+        row.appendChild(retry);
+        banner.appendChild(row);
+      }
+      document
+        .querySelector(".stats")
+        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
+    }
+
     // Same rounding/format as Insights' own countdown (#361) — kept as a
     // separate copy rather than a shared import, since this page's own
     // architecture is a near-literal imperative-TS translation of the
@@ -4690,6 +4765,7 @@
     // reader read it out every second. The reset time in the label is the
     // static, spoken version of the same fact (#732).
     function renderRateLimitBanner() {
+      renderUnreachableBanner();
       const existing = document.getElementById("rate-limit-banner");
       if (rateLimitAlerts.length === 0) {
         existing?.remove();
@@ -5311,7 +5387,27 @@
       tickRefreshedAt();
 
       renderForgeHealth(data.forges || []);
+      const wasUnreachable = new Set(
+        lastForges.filter((f) => !f.reachable).map((f) => f.forge),
+      );
       lastForges = data.forges || [];
+      // Rows that didn't change aren't redrawn, but their controls follow
+      // whether the forge can be reached: a forge going down or coming back
+      // has to redraw them (#1199).
+      const reachabilityChanged = lastForges.some(
+        (f) => wasUnreachable.has(f.forge) === f.reachable,
+      );
+      // A forge that answers again gets its controls back, and one polite
+      // line saying so.
+      for (const f of lastForges) {
+        if (!f.reachable || !wasUnreachable.has(f.forge)) continue;
+        const label = FORGE_LABELS[f.forge] || f.forge;
+        feedback.notify({
+          title: "Forge",
+          message: `${label} is reachable again, actions available`,
+          announce: `${label} is reachable again, actions available`,
+        });
+      }
       rateLimitAlerts = computeRateLimitAlerts(lastForges);
       renderRateLimitBanner();
       scheduleRateLimitReset();
@@ -5365,6 +5461,7 @@
       // and either updates rows in place or holds the change behind the
       // updates bar — see reconcilePRs.
       ingestPRs(prs, userAsked, botChanged);
+      if (reachabilityChanged) renderPRBoard();
       // A bot request changing state (picked up, finished, expired) changes
       // the row's button, pill and line even when the pull request's own
       // data didn't, so the board redraws for it (#707).
