@@ -73,6 +73,8 @@ const github = (extra: Record<string, unknown>) => ({
   ...extra,
 });
 
+const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
+
 const MUTATING = [
   'Merge',
   'Update branch',
@@ -134,6 +136,60 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await still.click();
     await expect(banner).toContainText('View pipeline');
     await expect(banner).toContainText('Open a pull request on the forge');
+  });
+
+  // #735: a rate-limit message says what the limit is, so it isn't taken for
+  // a fault in the dashboard.
+  test('the banner has a Why? that explains the budget and links to GitHub’s own rules', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [github({ rateLimitREST: spent(), rateLimitGraphQL: spent() })],
+      [makePR()],
+    );
+    await page.reload();
+
+    const banner = page.locator('#rate-limit-banner');
+    const why = banner.getByText('Why?', { exact: true });
+    // Reachable and operable from the keyboard, with a name that says what it is.
+    await why.focus();
+    await page.keyboard.press('Enter');
+    await expect(banner).toContainText('request budget');
+    await expect(banner).toContainText('not a fault in the dashboard');
+    const docs = banner.getByRole('link', { name: /GitHub.*rate limit/i });
+    await expect(docs).toHaveAttribute(
+      'href',
+      'https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api',
+    );
+    await expect(docs).toHaveAttribute('target', '_blank');
+    await expect(docs).toHaveAttribute('rel', /noopener/);
+    expect(
+      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
+    ).toEqual([]);
+  });
+
+  test('for Forgejo the explanation names the proxy, not GitHub’s rules', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [
+        {
+          forge: 'forgejo',
+          reachable: true,
+          repoCount: 1,
+          rateLimitREST: spent(),
+        },
+      ],
+      [makePR({ forge: 'forgejo' })],
+    );
+    await page.reload();
+
+    const banner = page.locator('#rate-limit-banner');
+    await banner.getByText('Why?', { exact: true }).click();
+    await expect(banner).toContainText('proxy');
+    await expect(banner.getByRole('link')).toHaveCount(0);
   });
 
   test('another forge is unaffected: its rows stay interactive and no banner names it', async ({
