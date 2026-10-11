@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.152.0](https://github.com/alrayyes/forge-dashboard/compare/v0.151.0...v0.152.0) (2026-10-11)
+
+
+### Features
+
+* **web:** a Why? that explains a rate limit ([#1213](https://github.com/alrayyes/forge-dashboard/issues/1213)) ([a7f61b7](https://github.com/alrayyes/forge-dashboard/commit/a7f61b7bf99b5daaa3f2b367e5b98488fb4d492e)), closes [#735](https://github.com/alrayyes/forge-dashboard/issues/735)
+
 ## [0.151.0](https://github.com/alrayyes/forge-dashboard/compare/v0.150.0...v0.151.0) (2026-10-11)
 
 
