@@ -175,7 +175,7 @@ exactly what the server answered sets `allowedActions` itself, as
   migrated incrementally, one page at a time, now complete.
   `web/src/routes/(app)` is that route group's own shared layout
   (header, nav — a persistent top nav plus a mobile bottom tab bar
-  below `style.css`'s 420px breakpoint, real Svelte state —
+  below `web/src/style.css`'s 420px breakpoint, real Svelte state —
   a shared `Footer` component (`web/src/lib/Footer.svelte`, real Svelte
   state, also used directly by `web/src/routes/login`), theme
   sync), and every page under it gets that chrome, including the

@@ -1,9 +1,38 @@
+import { readFileSync } from 'node:fs';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { transform } from 'lightningcss';
+import { defineConfig, type Plugin } from 'vite';
+
+// style.css is the app's one global stylesheet, linked from app.html at a
+// fixed URL ahead of every page's own <style> (ten pages inject theirs from
+// <svelte:head> and count on loading second). Importing it from a layout
+// would hash and minify it but move it after those blocks, so this emits it
+// minified at the same URL instead (#1135).
+function minifiedStyleCss(): Plugin {
+  return {
+    name: 'minified-style-css',
+    apply: 'build',
+    generateBundle() {
+      if (this.environment.name !== 'client') return;
+      const path = new URL('./src/style.css', import.meta.url);
+      const { code } = transform({
+        filename: 'style.css',
+        code: readFileSync(path),
+        minify: true,
+      });
+      this.emitFile({
+        type: 'asset',
+        fileName: 'style.css',
+        source: code,
+      });
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [
+    minifiedStyleCss(),
     sveltekit({
       compilerOptions: {
         // Force runes mode for the project, except for libraries. Can be removed in svelte 6.

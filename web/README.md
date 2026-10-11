@@ -28,12 +28,13 @@ bun run --filter web build   # or: bun run build:web, from the repo root
 
 ## Developing
 
-`bun run --filter web dev` starts Vite's dev server, but it won't have the
-shared assets (`style.css`, `favicon.svg`) available —
-those are served from `internal/api/static` at runtime, not copied into
-this workspace. Iterate against a real build instead: `bun run build:web`
-from the repo root, then `go build && ./forge-dashboard` as the root
-README's "Running it" section describes.
+`bun run --filter web dev` starts Vite's dev server, but it won't serve
+`/style.css` or `favicon.svg`. The global CSS source is `src/style.css`,
+which the build minifies to `/style.css`; `favicon.svg` lives in
+`internal/api/static`, not in this workspace. Iterate against a real
+build instead: `bun run build:web` from the repo root, then
+`go build && ./forge-dashboard` as the root README's "Running it" section
+describes.
 
 ## Checking
 
