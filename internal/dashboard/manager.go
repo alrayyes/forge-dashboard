@@ -22,6 +22,8 @@ type Manager struct {
 	autoUpdateBranchLister AutoUpdateBranchLister
 	// autoMergeStore is nil until SetAutoMergeStore is called.
 	autoMergeStore AutoMergeStore
+	// queuedActionStore is nil until SetQueuedActionStore is called.
+	queuedActionStore QueuedActionStore
 	// ciPollInterval is zero until SetCIPollInterval is called — every
 	// Aggregator this Manager builds before that point, or ever, if
 	// it's never called, skips the CI-poll fallback (#177) entirely.
@@ -86,6 +88,15 @@ func (m *Manager) SetAutoMergeStore(store AutoMergeStore) {
 	m.autoMergeStore = store
 }
 
+// SetQueuedActionStore turns on running the actions users queued for a rate
+// limit's reset (#756) for every Aggregator this Manager builds from here on,
+// the way SetAutoMergeStore does: call once, before the first Ensure.
+func (m *Manager) SetQueuedActionStore(store QueuedActionStore) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.queuedActionStore = store
+}
+
 // SetCIPollInterval turns on the CI-status poll fallback (#177) for
 // every Aggregator this Manager builds from here on — a setter rather
 // than a NewManager parameter, the same reason
@@ -119,19 +130,7 @@ func (m *Manager) Ensure(ctx context.Context, userID []byte, sources []Source) {
 		existing.cancel()
 	}
 
-	runCtx, cancel := context.WithCancel(ctx)
-	agg := NewAggregator(sources)
-	if m.autoUpdateBranchLister != nil {
-		agg.EnableAutoUpdateBranch(userID, m.autoUpdateBranchLister)
-	}
-	if m.autoMergeStore != nil {
-		agg.EnableAutoMerge(userID, m.autoMergeStore)
-	}
-	m.users[key] = &managedAggregator{agg: agg, cancel: cancel, started: time.Now()}
-	go agg.Run(runCtx, m.refreshInterval)
-	if m.ciPollInterval > 0 {
-		go agg.RunCIPoll(runCtx, m.ciPollInterval)
-	}
+	m.startLocked(ctx, key, userID, sources)
 }
 
 // EnsureIfAbsent is Ensure, but only takes effect if userID has no
@@ -154,6 +153,12 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 		return
 	}
 
+	m.startLocked(ctx, key, userID, sources)
+}
+
+// startLocked builds userID's Aggregator from sources, with every hook this
+// Manager has been given, and starts its background loops. The caller holds m.mu.
+func (m *Manager) startLocked(ctx context.Context, key string, userID []byte, sources []Source) {
 	runCtx, cancel := context.WithCancel(ctx)
 	agg := NewAggregator(sources)
 	if m.autoUpdateBranchLister != nil {
@@ -166,6 +171,10 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 	go agg.Run(runCtx, m.refreshInterval)
 	if m.ciPollInterval > 0 {
 		go agg.RunCIPoll(runCtx, m.ciPollInterval)
+	}
+	if m.queuedActionStore != nil {
+		agg.EnableQueuedActions(userID, m.queuedActionStore)
+		go agg.RunQueuedActions(runCtx)
 	}
 }
 
@@ -345,9 +354,10 @@ func (m *Manager) RecordUpdateRequest(userID []byte, forge Forge, repo string, n
 	entry.agg.RecordUpdateRequest(forge, repo, number)
 }
 
-// Republish delegates to userID's Aggregator, see Aggregator.Republish. A user
-// with no running Aggregator has no subscribers, so it does nothing.
-func (m *Manager) Republish(userID []byte) {
+// QueuedActionsChanged delegates to userID's Aggregator, see
+// Aggregator.QueuedActionsChanged. A user with no running Aggregator has
+// nothing to wake and no subscribers, so it does nothing.
+func (m *Manager) QueuedActionsChanged(userID []byte) {
 	m.mu.Lock()
 	entry, ok := m.users[string(userID)]
 	m.mu.Unlock()
@@ -355,7 +365,7 @@ func (m *Manager) Republish(userID []byte) {
 	if !ok {
 		return
 	}
-	entry.agg.Republish()
+	entry.agg.QueuedActionsChanged()
 }
 
 // RefreshRepo delegates to userID's Aggregator — see

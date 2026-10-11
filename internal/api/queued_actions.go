@@ -89,7 +89,7 @@ func handleQueuedActionsCreate(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		deps.Manager.Republish(u.ID)
+		deps.Manager.QueuedActionsChanged(u.ID)
 		writeJSON(w, http.StatusCreated, item)
 	}
 }
@@ -174,7 +174,7 @@ func handleQueuedActionsCancel(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		deps.Manager.Republish(u.ID)
+		deps.Manager.QueuedActionsChanged(u.ID)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
