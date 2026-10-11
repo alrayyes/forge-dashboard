@@ -74,6 +74,40 @@ bun run check:tests        # tsc over the tests; Playwright itself never type-ch
 bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechanics too
 ```
 
+### Comparing with real GitHub
+
+The unit tests for merge status and allowed actions use handwritten GitHub
+payloads, so they prove the code matches what we assumed GitHub says. The
+`ghfixture` tests ask GitHub itself. They compare, pull request by pull
+request, GitHub's `mergeStateStatus`, draft flag, behind count, auto-merge
+state and merge methods with what the dashboard shows, in the public repo
+`alrayyes/forge-dashboard-e2e-fixture`.
+
+```sh
+scripts/e2e-fixture/reset.sh                 # close every PR, delete base/ and head/ branches
+scripts/e2e-fixture/build.sh /path/to/clone  # one open PR per state, a clone of the fixture repo
+GITHUB_TOKEN=$(gh auth token) go test -tags ghfixture -run TestGitHubState -v ./integration/
+```
+
+The test prints one row per pull request: what GitHub says, what the dashboard
+says, and the verdict. Needs:
+
+- `gh` logged in as the fixture repo's owner (the tests read `viewerCanMergeAsAdmin`,
+  change merge settings and open and merge pull requests of their own).
+- The fixture built, and its checks finished. Two pull requests hold a "slow" check
+  pending for 55 minutes, so run the test within that window or rebuild.
+
+A difference that is deliberate (an empty or stacked pull request, which the
+dashboard blocks and GitHub allows; the owner's merge past requirements,
+which the dashboard never offers) is listed in the test by reason, so the run
+passes and the table still shows it. A difference that is a bug is listed
+with its ticket until the fix lands, and the test fails once the entry is
+stale.
+
+It stays out of CI. The workflow's `GITHUB_TOKEN` is scoped to this repository,
+so it can't read or change the fixture repo, and a personal access token with
+admin rights on a repo to run on a schedule isn't worth the exposure.
+
 ### Running the Playwright suite locally
 
 `./tests/run-local.sh` builds the binary, starts it on a throwaway SQLite
