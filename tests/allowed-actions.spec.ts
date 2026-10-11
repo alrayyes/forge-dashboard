@@ -294,6 +294,6 @@ test.describe('the row follows allowedActions (#805)', () => {
       page,
       makePR({ allowedActions: [{ action: 'merge' }] }),
     );
-    expect(await names(row)).not.toContain('Close');
+    expect(await names(row)).not.toContain('Close pull request');
   });
 });

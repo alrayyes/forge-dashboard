@@ -85,7 +85,7 @@ async function openClose(row: Locator) {
   const trigger = row.getByRole('button', { name: 'More actions' });
   // A row whose only extra action is Close draws it directly (#1139).
   await row
-    .getByRole('button', { name: /^(More actions|Close)$/ })
+    .getByRole('button', { name: /^(More actions|Close pull request)$/ })
     .first()
     .waitFor();
   if (
@@ -94,7 +94,7 @@ async function openClose(row: Locator) {
   ) {
     await trigger.click();
   }
-  return row.getByRole('button', { name: 'Close', exact: true });
+  return row.getByRole('button', { name: 'Close pull request', exact: true });
 }
 
 // Holds requestAnimationFrame callbacks queued after holdFrames() until
@@ -152,7 +152,7 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: 'More actions' }),
@@ -169,18 +169,15 @@ test.describe('pull request close button', () => {
     await expect(await openClose(row)).toBeVisible();
     await expect(
       row.locator('.row-actions-popover').getByRole('button', {
-        name: 'Close',
+        name: 'Close pull request',
         exact: true,
       }),
     ).toBeVisible();
   });
 
-  // #543's own Merge stays visible-and-locked for an empty pull request
-  // (see pull-request-merge.spec.ts) rather than disappearing -- Close
-  // gets the visual nudge instead, so there's still one clear "do this"
-  // action on the row instead of a locked Merge and a Close that reads
-  // exactly like every other row's.
-  test('an empty pull request nudges toward Close instead of Merge', async ({
+  // #1223: no green nudge any more. Close is the same neutral button on an
+  // empty pull request as everywhere else; Merge is locked beside it.
+  test('an empty pull request gets no special colour on Close', async ({
     page,
   }) => {
     await mockDashboard(
@@ -190,7 +187,7 @@ test.describe('pull request close button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(await openClose(row)).toHaveClass(/suggested/);
+    await expect(await openClose(row)).not.toHaveClass(/suggested/);
   });
 
   test('clicking Close arms a confirm step instead of closing immediately', async ({
@@ -208,7 +205,7 @@ test.describe('pull request close button', () => {
     await (await openClose(row)).click();
 
     await expect(
-      row.getByRole('button', { name: 'Confirm close?' }),
+      row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeVisible();
     await expect(row.getByRole('button', { name: 'Cancel' })).toBeVisible();
     expect(closeCalled).toBe(false);
@@ -224,7 +221,7 @@ test.describe('pull request close button', () => {
     await (await openClose(row)).click();
 
     await expect(
-      row.getByRole('button', { name: 'Confirm close?' }),
+      row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeFocused();
   });
 
@@ -262,7 +259,7 @@ test.describe('pull request close button', () => {
     const popover = row.locator('.row-actions-popover');
     await expect(popover).toBeVisible();
     await expect(
-      popover.getByRole('button', { name: 'Confirm close?' }),
+      popover.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeFocused();
     await expect(
       row.getByRole('button', { name: 'More actions' }),
@@ -285,16 +282,16 @@ test.describe('pull request close button', () => {
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
     await expect(
-      row.getByRole('button', { name: 'Confirm close?' }),
+      row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeFocused();
 
     await page.keyboard.press('Escape');
 
     await expect(
-      row.getByRole('button', { name: 'Confirm close?' }),
+      row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toHaveCount(0);
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeFocused();
     await expect(row.locator('.row-actions-popover')).toBeVisible();
 
@@ -308,10 +305,10 @@ test.describe('pull request close button', () => {
     // Reopening finds a plain Close, not a confirm that was left armed.
     await row.getByRole('button', { name: 'More actions' }).click();
     await expect(
-      row.getByRole('button', { name: 'Confirm close?' }),
+      row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toHaveCount(0);
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeVisible();
   });
 
@@ -327,7 +324,7 @@ test.describe('pull request close button', () => {
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
     await expect(
-      row.getByRole('button', { name: 'Confirm close?' }),
+      row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeVisible();
 
     const results = await new AxeBuilder({ page })
@@ -362,7 +359,9 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
-    await row.getByRole('button', { name: 'Confirm close?' }).click();
+    await row
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
 
     await expect(page.locator('#pr-rows .row')).toHaveCount(0);
     expect(requestBody).toEqual({
@@ -384,13 +383,15 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
-    await row.getByRole('button', { name: 'Confirm close?' }).click();
+    await row
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
 
     await expect(row.locator('.row-actions-popover')).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: 'More actions' }),
     ).toBeFocused();
-    await expect(row.locator('.row-feedback')).toContainText('Closing…');
+    await expect(row.locator('.wait-chip-label')).toHaveText('Closing');
   });
 
   test('shows an in-progress status while closing, then a success status', async ({
@@ -418,9 +419,11 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
-    await row.getByRole('button', { name: 'Confirm close?' }).click();
+    await row
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
 
-    await expect(row.locator('.row-feedback')).toContainText('Closing…');
+    await expect(row.locator('.wait-chip-label')).toHaveText('Closing');
     const toast = page.locator('#feedback-toasts .feedback-toast').first();
     await expect(toast).toContainText('alrayyes/forge-dashboard#42');
     await expect(toast).toContainText('Closed.');
@@ -447,7 +450,9 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
-    await row.getByRole('button', { name: 'Confirm close?' }).click();
+    await row
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
 
     await expect(page.locator('#feedback-toasts')).toContainText(
       'pull request already merged',
@@ -480,7 +485,9 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
-    await row.getByRole('button', { name: 'Confirm close?' }).click();
+    await row
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
 
     // Confirming closes the menu; the lock is found by reopening it.
     const button = await openClose(row);
@@ -509,7 +516,9 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
-    await row.getByRole('button', { name: 'Confirm close?' }).click();
+    await row
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
 
     // Confirming closes the menu; the lock is found by reopening it.
     const button = await openClose(row);
@@ -559,7 +568,9 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
-    await row.getByRole('button', { name: 'Confirm close?' }).click();
+    await row
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
 
     await holdFrames(page);
     const button = await openClose(row);
@@ -592,7 +603,9 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
-    await row.getByRole('button', { name: 'Confirm close?' }).click();
+    await row
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
 
     const trigger = row.getByRole('button', { name: 'More actions' });
     await expect(trigger).toHaveAttribute('aria-expanded', 'false');
@@ -634,7 +647,9 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
-    await row.getByRole('button', { name: 'Confirm close?' }).click();
+    await row
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
 
     // Confirming closes the menu; the lock is found by reopening it.
     const button = await openClose(row);

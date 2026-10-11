@@ -74,6 +74,7 @@ function snapshot(pr: ReturnType<typeof makePR>) {
 
 const row = (page: Page) => page.locator('#pr-rows .row').first();
 const line = (page: Page) => row(page).locator('.row-feedback');
+const chip = (page: Page) => row(page).locator('.wait-chip');
 
 test.describe('Dependabot acknowledgment (#1082)', () => {
   let current: ReturnType<typeof makePR>;
@@ -163,10 +164,12 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
   }) => {
     await request(page);
 
-    await expect(line(page)).toContainText(
-      'Dependabot will pick this up shortly.',
+    const detail = chip(page).locator('.wait-chip-detail');
+    await expect(chip(page).locator('.wait-chip-label')).toHaveText(
+      'Rebase requested',
     );
-    await expect(line(page)).not.toContainText('acknowledged');
+    await expect(detail).toContainText('Dependabot');
+    await expect(detail).not.toContainText('got it');
   });
 
   test('a thumbs-up from Dependabot shows as acknowledged, in words, and is announced once', async ({
@@ -182,17 +185,12 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
     };
     await push(page, current);
 
-    await expect(line(page)).toContainText(
-      'Dependabot acknowledged your rebase.',
+    // The words carry the meaning, not a colour or an icon.
+    await expect(chip(page).locator('.wait-chip-detail')).toContainText(
+      'Dependabot got it',
     );
-    await expect(line(page)).toContainText(
-      'Waiting for it to push the rebased commit.',
-    );
-    await expect(line(page)).not.toContainText('will pick this up shortly');
-    // The thumbs-up is decoration: the words carry the meaning.
-    await expect(line(page).locator('.feedback-ack-icon')).toHaveAttribute(
-      'aria-hidden',
-      'true',
+    await expect(chip(page).locator('.wait-chip-tip')).toContainText(
+      "hasn't pushed yet",
     );
     await expect(page.locator('#feedback-live')).toContainText(
       'Dependabot acknowledged your rebase.',
@@ -223,8 +221,8 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
     };
     await page.reload();
 
-    await expect(line(page)).toContainText(
-      'Dependabot acknowledged your rebase.',
+    await expect(chip(page).locator('.wait-chip-detail')).toContainText(
+      'Dependabot got it',
     );
   });
 
@@ -276,8 +274,8 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
       .click();
 
     await expect.poll(() => posts).toBe(2);
-    await expect(line(page)).toContainText(
-      'Dependabot will pick this up shortly.',
+    await expect(chip(page).locator('.wait-chip-label')).toHaveText(
+      'Rebase requested',
     );
   });
 

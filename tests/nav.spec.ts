@@ -26,9 +26,17 @@ const NAV_PAGES = [
   { path: '/', label: 'Home' },
   { path: '/issues.html', label: 'Issues' },
   { path: '/insights.html', label: 'Insights' },
+  { path: '/main-branches.html', label: 'Main branches' },
   { path: '/webhooks.html', label: 'Webhooks' },
   { path: '/settings.html', label: 'Settings' },
 ];
+
+// Issues, Releases and Bots leave the navigation while their count is 0
+// (#1228), and a new user has nothing, so here only these four are always
+// there; the page you are on keeps its own link.
+const ALWAYS_THERE = ['Home', 'Insights', 'Webhooks', 'Settings'];
+const linksOn = (label: string) =>
+  NAV_PAGES.filter((p) => ALWAYS_THERE.includes(p.label) || p.label === label);
 
 const NO_SESSION_PAGES = [
   '/changelog.html',
@@ -47,7 +55,7 @@ test.describe('persistent top nav', () => {
     }) => {
       await page.goto(path);
 
-      for (const other of NAV_PAGES) {
+      for (const other of linksOn(label)) {
         await expect(
           page.locator(`.app-nav a[aria-label^="${other.label}"]`),
         ).toBeVisible();
@@ -56,7 +64,7 @@ test.describe('persistent top nav', () => {
       await expect(
         page.locator(`.app-nav a[aria-label^="${label}"]`),
       ).toHaveAttribute('aria-current', 'page');
-      for (const other of NAV_PAGES) {
+      for (const other of linksOn(label)) {
         if (other.label === label) continue;
         await expect(
           page.locator(`.app-nav a[aria-label^="${other.label}"]`),
@@ -121,7 +129,7 @@ test.describe('mobile bottom tab bar', () => {
       await page.setViewportSize(MOBILE_VIEWPORT);
       await page.goto(path);
 
-      for (const other of NAV_PAGES) {
+      for (const other of linksOn(label)) {
         await expect(
           page.locator(`.bottom-nav a[aria-label*="${other.label}"]`),
         ).toBeVisible();
@@ -133,7 +141,7 @@ test.describe('mobile bottom tab bar', () => {
       await expect(
         page.locator(`.bottom-nav a[aria-label*="${label}"]`),
       ).toHaveAttribute('aria-current', 'page');
-      for (const other of NAV_PAGES) {
+      for (const other of linksOn(label)) {
         if (other.label === label) continue;
         await expect(
           page.locator(`.bottom-nav a[aria-label*="${other.label}"]`),

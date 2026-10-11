@@ -359,21 +359,26 @@ takes the pull request off the board at once, even if the forge goes on listing
 it as open for a few seconds; the server holds it back for up to two minutes.
 Update branch appears when the
 forge reports it's possible; it doesn't ask, since a merge from the base branch
-is easy to reverse and a merge itself isn't. On a pull request that's behind
-but also conflicts with its base, Update branch is locked with a note that the
-conflicts need fixing by hand, since the forge would refuse the update.
-Close isn't a standalone row button: it lives in the "More actions" menu, in
-the danger tone, on every open pull request regardless of mergeability. A menu
-is for the overflow, so when Close is the row's only extra action it's drawn
-directly instead. For one that turns
-out not to need merging at all (a duplicate, or one whose content already
-landed another way) it's the action that applies. It asks for confirmation the
-same way Merge does, inside the menu. Confirming closes the menu and shows
-progress on the row. Escape drops an unconfirmed Close and leaves the menu open,
-a second Escape closes the menu, and closing the menu any other way drops it
-too. If the forge refuses a confirmed Close, the row shows "Close locked" next
-to the closed menu and the reason becomes the menu button's description, so you
-don't have to reopen the menu to find out.
+is easy to reverse and a merge itself isn't. A GitHub pull request counts as
+behind whenever its base has commits it lacks, even in a repo that doesn't
+require branches to be up-to-date, and Merge stays allowed there. On a pull
+request that's behind but also conflicts with its base, Update branch is locked
+with a note that the conflicts need fixing by hand, since the forge would refuse
+the update. Close isn't a standalone row button: it lives in the "More actions"
+menu on every open pull request regardless of mergeability. A menu is for the
+overflow, so when Close is the row's only extra action it's drawn directly
+instead. It reads "Close pull request" and is a neutral button on every row,
+never green or red: closing is reversible, since the pull request stays listed
+as closed and can be reopened, so the warning tone is kept for the confirm step
+("Confirm close pull request?"). For one that turns out not to need merging at
+all (a duplicate, or one whose content already landed another way) it's the
+action that applies. It asks for confirmation the same way Merge does, inside
+the menu. Confirming closes the menu and shows progress on the row. Escape drops
+an unconfirmed Close and leaves the menu open, a second Escape closes the menu,
+and closing the menu any other way drops it too. If the forge refuses a
+confirmed Close, the row shows "Close locked" next to the closed menu and the
+reason becomes the menu button's description, so you don't have to reopen the
+menu to find out.
 A permission refusal is re-read too: if the pull request turns out to be
 merged or closed, that is what the row says, not "check your token". Only a
 rate limit skips the re-read, since it would be limited as well.
@@ -394,42 +399,90 @@ Enable auto-merge can say the repo doesn't allow it or that the pull request is
 already ready to merge, and Renovate `rebase` can say the label is missing on the
 repo.
 
-A locked action offers Retry only when waiting might fix it, such as a 502 or an
-unreachable forge. When a forge's API budget is spent, the forge goes read-only:
-the controls that need that budget (Merge, Update branch, the Dependabot and
-Renovate commands, Close and, on its GraphQL budget, Enable auto-merge) are not
-drawn at all, and one banner at the top says so for that forge ("GitHub is rate
-limited. Read-only until 14:32.") with a live countdown. When only one budget is
-spent the banner names what is affected. REST drives Merge, Update branch, the
-bot commands and Close, and GraphQL drives auto-merge, so the others keep
-working. A "What still works" disclosure under the banner lists the read-only
-actions: the pipeline panel, the link to the pull request on the forge, and
-browsing and filtering the last data. A "Why?" under the banner explains the
-limit in a few sentences, so it isn't taken for a fault in the dashboard, and
-for GitHub links to its own rate limit rules. Other forges are unaffected. The
-controls come back by themselves at the reset time, with a polite "Rate limit
-reset, actions available again" toast. While the forge is read-only the server
-stops refreshing it until the reset, so the rows are the last ones it saw. The
-header's Refreshed time shows how old they are. A missing token permission locks
-that action on that pull request, with no Retry either, and the reason points to
-Settings. Other pull requests and other actions stay usable, since a
-fine-grained token can lack one permission and have the rest. The lock lasts as
-long as the failure line that explains it: dismiss the line and the action is
-free again, with no reload. A failure line stays on its row however many
-refreshes arrive, and goes when you dismiss it, act on the row again, or the row
-leaves the board. The exception is a failure that passes by itself, one where
-the request never got an answer (it says "Couldn't reach the server") or a forge
-answered 502, 503 or 504. That line clears itself after ten seconds, holds while
-you hover it or have focus in it, and when it clears the row is read again from
-the server, since the write may have landed before the connection dropped.
-Nothing is announced when it clears, the failure stays in Activity, and an error
-toast waits for you as before. A 429 on a click the snapshot hadn't foreseen
-still greys that one action out with its reason until the next snapshot. The
-header shows each forge's remaining budget and reset time as text. Which locks
-offer Retry follows the refusal's `code` (`rate_limited` and `permission`
+A locked action offers Retry only when waiting might fix it, such as a 502. When
+a forge's API budget is spent, the forge goes read-only: the controls that need
+that budget (Merge, Update branch, the Dependabot and Renovate commands, Close
+and, on its GraphQL budget, Enable auto-merge) are not drawn at all, and one
+banner at the top says so for that forge ("GitHub is rate limited. Read-only
+until 14:32.") with a live countdown. When only one budget is spent the banner
+names what is affected. REST drives Merge, Update branch, the bot commands and
+Close, and GraphQL drives auto-merge, so the others keep working. A "What still
+works" disclosure under the banner lists the read-only actions: the pipeline
+panel, the link to the pull request on the forge, and browsing and filtering the
+last data. A "Why?" under the banner explains the limit in a few sentences, so
+it isn't taken for a fault in the dashboard, and for GitHub links to its own
+rate limit rules. Other forges are unaffected. The controls come back by
+themselves at the reset time, with a polite "Rate limit reset, actions available
+again" toast. While the forge is read-only the server stops refreshing it until
+the reset, so the rows are the last ones it saw. The header's Refreshed time
+shows how old they are.
+
+A forge that can't be reached gets the same treatment. Its controls are not
+drawn either, and no row carries a Retry or a pointer to a status line. One
+banner that stays in view while you scroll, on a phone too, says "GitHub is
+unreachable. Showing the last data from 14:32.", gives the cause in plain words,
+and has the one Retry, which forces a refresh. When the forge answers again the
+controls return without a reload, with a polite "GitHub is reachable again,
+actions available" toast, and the banner clears. A row's own reason for Merge
+(stacked, waiting for CI) shows whenever its forge can be reached.
+
+A missing token permission locks that action on that pull request, with no Retry
+either, and the reason points to Settings. Other pull requests and other actions
+stay usable, since a fine-grained token can lack one permission and have the
+rest. The lock lasts as long as the failure line that explains it: dismiss the
+line and the action is free again, with no reload. A failure line stays on its
+row however many refreshes arrive, and goes when you dismiss it, act on the row
+again, or the row leaves the board. The exception is a failure that passes by
+itself, one where the request never got an answer (it says "Couldn't reach the
+server") or a forge answered 502, 503 or 504. That line clears itself after ten
+seconds, holds while you hover it or have focus in it, and when it clears the
+row is read again from the server, since the write may have landed before the
+connection dropped. Nothing is announced when it clears, the failure stays in
+Activity, and an error toast waits for you as before. A 429 on a click the
+snapshot hadn't foreseen still greys that one action out with its reason until
+the next snapshot. The header shows each forge's remaining budget and reset time
+as text. Which locks offer Retry follows the refusal's `code` (`rate_limited`
+and `permission`
 don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
 so the page holds no threshold of its own.
+
+While a forge is rate limited, you can queue Update branch, `Dependabot: Rebase`
+or `Renovate: Rebase` to run when its budget comes back, instead of returning to
+click again. `POST /api/queued-actions` stores the choice on the server, per
+user, so it survives a page reload and a server restart. The pull request
+carries the waiting item as `queued`, for a row to show a waiting chip, `Queued
+· 14:32` with `Resets in 8m` and `Cancel` (the "Queue update" button comes back
+once you cancel), and the dashboard's `queuedActions` list holds the items and,
+once they ran, their outcomes for 24 hours.
+
+It only works while the forge really is limited (a spent budget whose reset is
+still ahead), for a pull request that is on your board, behind its base branch
+and offering that action. At the reset, plus a 30-second pad, the server reads
+the board fresh and looks at the pull request again before it does anything. It
+runs the action only if it still applies. Otherwise it records why it did
+nothing: the pull request was merged or closed, caught up, picked up a conflict,
+or already has the request. A forge that is still limited moves the item to the
+new reset. One that doesn't answer is tried again every five minutes for an hour.
+A refusal is recorded with the same `code` and `message` the button would have
+shown. It runs with your own saved credentials for that forge and no one else's,
+and does nothing if you have removed them.
+
+Merge and Close can't be queued, and the API answers 400. They would act
+unattended on a pull request whose checks or commits may have changed in the
+meantime. To merge once the limit lifts, arm the forge's own auto-merge instead.
+After a restart the server starts the dashboard of every user with a waiting
+item, so the action still runs at the reset without anyone signing in.
+
+On the page, a pull request that is behind its base on a forge whose REST budget
+is spent gets a button where Update branch would have been: "Queue update for
+14:32", or `Queue rebase for 14:32` for a Dependabot or Renovate pull request.
+Queueing posts to `/api/queued-actions`. The row then says "Update branch queued
+for 14:32" with a Cancel button, and Activity lists the item with Cancel (or
+Clear, once it has finished). When an outcome arrives while the page is open, a
+polite toast and the Activity list say whether it was done, skipped with the
+reason ("Already merged") or failed. No queue button is offered for Merge or
+Close, for a pull request that isn't behind, or while the forge has budget left.
 
 A forge that fails a refresh keeps showing its last good pull requests and
 issues, and the header says so next to it: "Showing data from 3m ago". The
@@ -457,14 +510,15 @@ When GitHub's answer isn't known, the action shows as usual.
 Forgejo's own scheduled merge can't be read back, so on Forgejo this app keeps
 the auto-merge itself. "Enable auto-merge" stores your intent for that pull
 request and sends nothing to Forgejo. The pull request then shows "Auto-merge
-on" and "Managed by Forge Dashboard", with "Cancel auto-merge". After each
-refresh the server merges an armed pull request once its checks have passed and
-Forgejo says it can merge, with the repo's own merge method, the same as Merge.
-A pull request you didn't arm is never merged. Checks that fail, conflicts, a
-draft, a stack parent that hasn't merged yet or no checks at all keep it
-waiting, and it merges once that clears. The row says which, in words: waiting
-for checks, stopped by a failed check or a conflict, or stopped because Forgejo
-refused the merge, including a token without merge permission. When the server
+on" and "Managed by Forge Dashboard", and a waiting chip (below) with a `Disarm`
+button. After each refresh the server merges an armed pull request once its
+checks have passed and Forgejo says it can merge, with the repo's own merge
+method, the same as Merge. A pull request you didn't arm is never merged. Checks
+that fail, conflicts, a draft, a stack parent that hasn't merged yet or no
+checks at all keep it waiting, and it merges once that clears. The row says
+which, in words: the chip reads `Waiting for CI`, `Waiting for parent`, `Rate
+limited` and so on, and a text line says it stopped (a failed check, a conflict,
+or a refused merge, including a token without merge permission). When the server
 merges one it tells the page, which shows "Auto-merged owner/repo#N after checks
 passed" for the next few minutes. If Forgejo refuses the merge, the server
 doesn't ask again until the pull request changes (a rate limit or an unreachable
@@ -478,86 +532,107 @@ Forge Dashboard handles auto-merge there, not Forgejo, and links to the "Forgejo
 auto-merge" card in Settings, which explains it in plain words.
 
 Merge, close, auto-merge, Update branch, and the Dependabot and Renovate actions
-all report on the row you acted on, not in a banner at the top of the page. The
-row gets a status line under its actions ("Merging…", "Queued", "Rebasing…", or
-"Failed" with the reason, a Retry button and a Dismiss button), and each pull
-request in flight has its own. A failure says one plain sentence: the server's
-own reason when it gave one, or "The forge refused this action and gave no
-reason." The raw error text stays in the server log. Retry shows only for a
-failure that can pass by itself, such as the forge not answering. The line
-clears when you dismiss it, when you start another action on the row, with
-"Clear finished", or when a refresh shows the pull request gone. A toast appears
-bottom-right when something completes or fails: up to three at a time, the
-newest on top, with the `owner/repo#N`, a one-line message, "Show row" (scrolls
-to the row and focuses it; if a filter hides the row it clears just that filter,
-if the row is on another page it moves there, and if the pull request is merged
-or closed it says so) and a dismiss button. Success toasts go after about
-six seconds and wait while you hover or focus them. Error toasts stay until you
-dismiss them. The sticky "Activity" control keeps a count and opens a panel of
-in-flight and recent actions per pull request, with "Show row" and "Clear
-finished", so a dismissed toast isn't lost. A reload keeps the finished entries
-for as long as the tab stays open, up to 40, until you use "Clear finished" (they
-live in the tab's `sessionStorage`; with storage blocked the list starts empty).
-A restored failure has no Retry. A request still queued comes back from the
-server, which holds it on the pull request until a refresh shows it landed or
-the wait runs out. One polite live region announces
-each event once and never reads out the countdown, and with reduced motion on,
-toasts appear without animation. The banner at the top is left for global
-conditions such as a rate limit or an unreachable forge.
+all report on the row you acted on, not in a banner at the top of the page. A
+wait shows as one chip in the row's action area (below), and a failure gets a
+status line under the actions: "Failed" with the reason, a Retry button and a
+Dismiss button. Each pull request in flight has its own. A failure says one
+plain sentence: the server's own reason when it gave one, or "The forge refused
+this action and gave no reason." The raw error text stays in the server log.
+Retry shows only for a failure that can pass by itself, such as the forge not
+answering. The line clears when you dismiss it, when you start another action on
+the row, with "Clear finished", or when a refresh shows the pull request gone.
 
-Update branch, `Dependabot: Rebase` and `Renovate: Rebase` only ask the
-forge or a bot to act, and the result shows up on a later refresh. Update
-branch turns into a "Queued…" button the moment you click it. It ignores
-clicks but keeps keyboard focus (`aria-disabled`), so you don't lose your place.
-The row's status line says the request went out and counts down to the next
+A toast appears bottom-right when something completes or fails: up to three at a
+time, the newest on top, with the `owner/repo#N`, a one-line message, "Show row"
+(scrolls to the row and focuses it; if a filter hides the row it clears just
+that filter, if the row is on another page it moves there, and if the pull
+request is merged or closed it says so) and a dismiss button. Success toasts go
+after about six seconds and wait while you hover or focus them. Error toasts
+stay until you dismiss them. The sticky "Activity" control keeps a count and
+opens a panel of in-flight and recent actions per pull request, with "Show row"
+and "Clear finished", so a dismissed toast isn't lost. A reload keeps the
+finished entries for as long as the tab stays open, up to 40, until you use
+"Clear finished" (they live in the tab's `sessionStorage`; with storage blocked
+the list starts empty). A restored failure has no Retry. A request still queued
+comes back from the server, which holds it on the pull request until a refresh
+shows it landed or the wait runs out. One polite live region announces each
+event once and never reads out the countdown, and with reduced motion on, toasts
+appear without animation. The banner at the top is left for global conditions
+such as a rate limit or an unreachable forge.
+
+The waiting chip is how a row says "something is happening, hold on". It is one
+chip in a slot at the top of the row's action area, which every pull request row
+always reserves, so a chip coming or going never moves the row. It has an icon,
+a bold label of at most three words and a lighter line naming the actor or the
+reason. The fuller explanation is a hint that opens on hover and on keyboard
+focus (the chip takes focus), and a button shows only where one exists. The
+states: `Rebase requested` and then `Rebasing` for a Dependabot or Renovate
+`rebase`, `Recreating` for a Dependabot recreate, `Updating branch`, `Merging`
+and `Closing` while the forge answers, `Arming` and `Disarming` for auto-merge,
+and `Waiting for CI` (or `Waiting for parent`, `Rate limited`, `Waiting for
+ready`, `Waiting for forge`, `Merging next`) for an armed Forgejo auto-merge,
+with `Disarm`. When a request ends well the chip reads `Settled` for four
+seconds and goes. A wait with no change for two minutes reads `Still waiting`
+with `Check again`, which reads the row from the server now. Each change is
+announced once through the polite live region, the ticking age and the refresh
+countdown are kept out of it, and nothing is announced when the chip clears.
+With reduced motion on, the spinner is a still icon. Icon and words carry every
+state, not colour. On a phone the chip fills the card's width without widening
+it, and its button is 44px high. The chip's wording lives in one place,
+`web/src/lib/wait-chip.ts`. A failure or a timeout is not a wait and stays a
+text line with Retry and Dismiss.
+
+Update branch, `Dependabot: Rebase` and `Renovate: Rebase` only ask the forge or
+a bot to act, and the result shows up on a later refresh. Update branch turns
+into a "Queued…" button the moment you click it. It ignores clicks but keeps
+keyboard focus (`aria-disabled`), so you don't lose your place. The row's
+`Updating branch` chip says the request went out and counts down to the next
 background poll. If the countdown runs out before the refresh lands, it reads
 "Refreshing…" instead. An unrelated refresh doesn't clear it. Update branch
 clears once a refresh shows the branch caught up. If the request fails, the
 button comes back and the row and an error toast say why.
 
-The server keeps the request: a branch update the forge accepted shows
-up on the pull request as `updateRequest`, with a phase (`queued` or
-`expired`), when it was asked and `expiresAt`. It clears on the first snapshot
-from a fetch that started after the request and shows the pull request no
-longer behind, or when the pull request is gone, and goes `expired` after five
-minutes still behind. Like `botRequest` it is in memory per account, so a server
-restart forgets it. The page only draws it: the click shows `Queued…` at once,
-and after that each snapshot decides. A snapshot without the record finishes the
-row with "Branch updated.", the `expired` phase ends it with a timed-out line, an
-error toast and Retry, and a record the page never clicked (a reload mid-wait)
-starts the row as `Queued…`.
+The server keeps the request: a branch update the forge accepted shows up on the
+pull request as `updateRequest`, with a phase (`queued` or `expired`), when it
+was asked and `expiresAt`. It clears on the first snapshot from a fetch that
+started after the request and shows the pull request no longer behind, or when
+the pull request is gone, and goes `expired` after five minutes still behind.
+Like `botRequest` it is in memory per account, so a server restart forgets it.
+The page only draws it: the click shows the `Updating branch` chip at once, and
+after that each snapshot decides. A snapshot without the record finishes the row
+with a `Settled` chip ("Branch updated"), the `expired` phase ends it with a
+timed-out line, an error toast and Retry, and a record the page never clicked (a
+reload mid-wait) starts the row with the chip.
 
 A bot `rebase` waits on the bot, not on the dashboard. The button becomes
 `Rebase requested` and is `aria-disabled` (focus returns to the row's More
-actions button when the menu closes), and the row says the bot will pick it up
-shortly and that it can take a few minutes (a "Requested" age ticks along, kept
-out of what a screen reader announces). Dependabot is asked with the
-`@dependabot rebase` comment and Renovate with the `rebase-check` checkbox in the
-pull request body (the `rebase` label when the body has none), and the copy
-says which. The request lives on the server: a successful Dependabot or
-Renovate request shows up on the pull request as `botRequest`, so a reload
-mid-wait still shows the row waiting, with the "Requested ago" clock counted
+actions button when the menu closes), and the chip reads `Rebase requested` with
+the bot's name and an age that ticks along, kept out of what a screen reader
+announces. Its hint says the bot acts on its own schedule and that it can take a
+few minutes. Dependabot is asked with the `@dependabot rebase` comment and
+Renovate with the `rebase-check` checkbox in the pull request body (the `rebase`
+label when the body has none), and the hint says which. The request lives on the
+server: a successful Dependabot or Renovate request shows up on the pull request
+as `botRequest`, so a reload mid-wait still shows the chip, with the age counted
 from when it was asked. The page only draws it. When the server moves the
-request to `rebasing` (the bot pushed, and CI hasn't restarted), the row shows a
-"Rebasing…" pill. When the server drops it (CI showing pending, two minutes
-after the push, or the pull request leaving), the row finishes with a toast.
-When the server marks it `expired` (ten minutes with no sign of the bot), the
-row says it timed out, with an error toast and a Retry.
+request to `rebasing` (the bot pushed, and CI hasn't restarted), the chip reads
+`Rebasing`. When the server drops it (CI showing pending, two minutes after the
+push, or the pull request leaving), the chip reads `Settled`, then goes, and a
+toast says it finished. When the server marks it `expired` (ten minutes with no
+sign of the bot), the row says it timed out, with an error toast and a Retry.
 
 Dependabot tells you it got a command by reacting to the comment with a
 thumbs-up, and it can then take several minutes to push. The server looks for
 that reaction on each refresh while a Dependabot `rebase` is waiting, and the
-row changes from "will pick this up shortly" to `Dependabot acknowledged your
-rebase. Waiting for it to push the rebased commit.`, with a thumbs-up beside
-the words and one announcement for screen readers. If no thumbs-up shows after
-ten minutes the row says "No reply from Dependabot yet. The command may have
-been dropped or rate limited.", and offers `Ask again` (it posts the command
-once more) and `Open comment`, a link to the comment on GitHub. A thumbs-up
-that turns up after that revives the request. An acknowledgment gets another
-ten minutes to become a push. Looking up the reaction needs no extra
-permission, and if GitHub can't answer, the row stays on "will pick this up
-shortly" and shows no error. Renovate and `Dependabot: Recreate` have no such
-signal and read as before.
+chip's second line changes from "Dependabot" to "Dependabot got it", with one
+announcement for screen readers. If no thumbs-up shows after ten minutes the row
+says "No reply from Dependabot yet. The command may have been dropped or rate
+limited.", and offers `Ask again` (it posts the command once more) and `Open
+comment`, a link to the comment on GitHub. A thumbs-up that turns up after that
+revives the request. An acknowledgment gets another ten minutes to become a
+push. Looking up the reaction needs no extra permission, and if GitHub can't
+answer, the chip stays on "Dependabot" and shows no error. Renovate and
+`Dependabot: Recreate` have no such signal and read as before.
 
 The server's `botRequest` has these fields: the bot, the action, a phase
 (`queued`, `rebasing` or `expired`), when it was asked, `expiresAt` (when the
@@ -569,11 +644,11 @@ expired request goes after an hour. The record is in memory per account, so a
 server restart forgets it and a browser reload doesn't. The page shows the
 request as queued the moment you click, until the next snapshot says otherwise.
 
-A queued Dependabot request names itself: `Rebase requested` or
-`Recreate requested`. While `Recreate requested` shows, the row hides
-`Dependabot: Rebase`, since recreating rebuilds the whole pull request.
-`Rebase requested` keeps `Dependabot: Recreate`, which is still a different
-outcome. Both buttons come back once the bot has acted.
+A queued Dependabot request names itself: `Rebase requested` or `Recreate
+requested` on the button. While `Recreate requested` shows, the row hides
+`Dependabot: Rebase`, since recreating rebuilds the whole pull request. `Rebase
+requested` keeps `Dependabot: Recreate`, which is still a different outcome.
+Both buttons come back once the bot has acted.
 
 A Dependabot or Renovate pull request gets no Update branch button: each
 has its own `Rebase` action instead (below). GitHub's Renovate App is
@@ -724,7 +799,42 @@ The navigation shows how many are waiting, as it does for Issues: the number of
 open pull requests (without releases and bots) on the Home item, the number of
 open release pull requests on Releases and the number of bot pull requests on
 Bots. The dashboard pages set all three from each snapshot, and the other
-signed-in pages load them once.
+signed-in pages load them once. A page with nothing to show leaves the
+navigation: the Issues, Releases and Bots links are not in the header or the
+phone's tab bar while their count is 0. Home always shows. A count that isn't
+known yet is not 0, so the links stay until the first snapshot says otherwise,
+and the page you are on keeps its own link until you leave it. The page still
+opens when typed into the address bar, and says it is empty.
+
+## Main branches
+
+The CI status of every tracked repository's default branch is on one page,
+`/main-branches.html`, reached from the **Main branches** item in the
+navigation (labelled **Main** in the phone's bottom tab bar). The item has no
+count badge, so it always shows. The page reads `GET /api/main-branches`, so
+a broken main shows up without opening each repo.
+
+A line at the top counts the rows by status. Each row shows the status as an
+icon and a word (Failed, Running, Passed or No pipeline), the repo, the
+branch, the short SHA, subject and author of the newest commit, how long ago the
+run finished and how long it ran. A failed row names its failing jobs and
+expands to list them. **View run** opens the run on the forge. Rows come
+failing first, then running, passing and no pipeline, in the order the server
+sends them.
+
+The pills (All, Failing, Passing, Running, No pipeline) carry the server's
+counts. A forge toggle and a search box narrow the list further; search
+matches the repo, branch, commit, author and failing job names. The filter is
+saved in a cookie of its own, `forge-board-main-branches`, and is still set
+after a reload. It is not part of the shared filter cookie, which holds
+pull request and issue state.
+
+Rows from a forge that can't be read, or whose rate limit is spent, keep their
+last known status, are marked **stale**, and sit under one banner. The page
+offers no write at all: there is no Re-run, because the only re-run endpoint
+works on a pull request's checks, not on a default-branch run. With every
+default branch passing the page says so, and a filter that matches nothing
+offers **Reset filters**. A repo with no pipeline says no run was found.
 
 ## Main branches
 
@@ -771,8 +881,8 @@ The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
 and saved with your other filters, so a filter set on one page is still set on
 the other. The pull-request-only controls (CI status, the quick filters for
-failing, ready and needs-review pull requests, Show drafts) are not on the
-issues page.
+failing, ready, needs-review and conflicting pull requests, Show drafts)
+are not on the issues page.
 
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows is held behind an "N updates available" bar while you're scrolled
@@ -909,6 +1019,11 @@ server matches, ignoring case, against the username saved for that forge in
 Settings. It needs that username: with none saved for a forge, none of that
 forge's pull requests match. It adds no requests, since the requested
 reviewers' names come with the data already fetched.
+
+The **Conflicts** quick filter keeps the pull requests with a merge conflict, so
+they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
+`conflicting`, the same field behind the row's own Conflicting pill, so the page
+holds no rule of its own. A draft that conflicts is listed too.
 
 Draft pull requests are left out of `/api/dashboard` by default, since nothing
 can be merged or updated on one. The response says how many it left out in
@@ -1091,6 +1206,10 @@ window skips the fetch and answers 200 with the current snapshot and a
 `Retry-After` header, so a follow-up refresh after an action never fails. The
 page follows both: it polls at `readIntervalSeconds`, and "Refresh now" locks
 for `Retry-After` seconds. Neither number lives in the front end.
+
+`GET/POST /api/queued-actions` and `DELETE /api/queued-actions/{id}` list,
+queue and cancel the actions that wait for a rate limit reset (see Pull request
+actions).
 
 `GET/POST/DELETE /api/mcp` sits outside this contract — it's the MCP
 Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource

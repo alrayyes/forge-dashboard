@@ -66,6 +66,9 @@ function mockChecks(page: Page) {
 test.describe('CI pill opens the pipeline (#1139)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('the pill is a button naming the status and the destination, and opens the panel', async ({
@@ -139,7 +142,9 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
     await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
       0,
     );
-    await row.getByRole('button', { name: 'Close', exact: true }).click();
+    await row
+      .getByRole('button', { name: 'Close pull request', exact: true })
+      .click();
     await expect(
       row.getByRole('button', { name: /Confirm close/ }),
     ).toBeVisible();

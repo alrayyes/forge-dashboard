@@ -104,6 +104,18 @@
     botCount.value === null ? "Bots" : `${botCount.value} Bots open`,
   );
 
+  // A page with nothing to show leaves the navigation (#1228). A count that
+  // isn't known yet (null) is not zero, so a link doesn't blink in as the first
+  // snapshot arrives, and the page you are on keeps its own link until you
+  // leave it. Home always shows.
+  const showIssues = $derived(
+    issueCount.value !== 0 || isCurrentRoute("/issues"),
+  );
+  const showReleases = $derived(
+    releaseCount.value !== 0 || isCurrentRoute("/releases"),
+  );
+  const showBots = $derived(botCount.value !== 0 || isCurrentRoute("/bots"));
+
   function signOut() {
     fetch("/api/auth/logout", { method: "POST" }).finally(() => {
       window.location.href = "/login.html";
@@ -239,88 +251,120 @@
               aria-hidden="true">{pullRequestCount.value}</span
             >{/if}
         </a>
-        <a
-          class="theme-toggle nav-with-badge"
-          href="/issues.html"
-          aria-label={issuesLabel}
-          title="Issues"
-          aria-current={isCurrentRoute("/issues") ? "page" : undefined}
-          style="text-decoration:none;"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><circle cx="12" cy="12" r="10" /><circle
-              cx="12"
-              cy="12"
-              r="1"
-            /></svg
-          >{#if issueCount.value !== null}<span
-              class="nav-badge"
-              aria-hidden="true">{issueCount.value}</span
-            >{/if}
-        </a>
-        <a
-          class="theme-toggle nav-with-badge"
-          href="/releases.html"
-          aria-label={releasesLabel}
-          title="Releases"
-          aria-current={isCurrentRoute("/releases") ? "page" : undefined}
-          style="text-decoration:none;"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><path
-              d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
-            /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
-          >{#if releaseCount.value !== null}<span
-              class="nav-badge"
-              aria-hidden="true">{releaseCount.value}</span
-            >{/if}
-        </a>
-        <a
-          class="theme-toggle nav-with-badge"
-          href="/bots.html"
-          aria-label={botsLabel}
-          title="Bots"
-          aria-current={isCurrentRoute("/bots") ? "page" : undefined}
-          style="text-decoration:none;"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><path d="M12 8V4H8" /><rect
+        {#if showIssues}
+          <a
+            class="theme-toggle nav-with-badge"
+            href="/issues.html"
+            aria-label={issuesLabel}
+            title="Issues"
+            aria-current={isCurrentRoute("/issues") ? "page" : undefined}
+            style="text-decoration:none;"
+          >
+            <svg
               width="16"
-              height="12"
-              x="4"
-              y="8"
-              rx="2"
-            /><path d="M2 14h2" /><path d="M20 14h2" /><path
-              d="M15 13v2"
-            /><path d="M9 13v2" /></svg
-          >{#if botCount.value !== null}<span
-              class="nav-badge"
-              aria-hidden="true">{botCount.value}</span
-            >{/if}
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><circle cx="12" cy="12" r="10" /><circle
+                cx="12"
+                cy="12"
+                r="1"
+              /></svg
+            >{#if issueCount.value !== null}<span
+                class="nav-badge"
+                aria-hidden="true">{issueCount.value}</span
+              >{/if}
+          </a>
+        {/if}
+        {#if showReleases}
+          <a
+            class="theme-toggle nav-with-badge"
+            href="/releases.html"
+            aria-label={releasesLabel}
+            title="Releases"
+            aria-current={isCurrentRoute("/releases") ? "page" : undefined}
+            style="text-decoration:none;"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path
+                d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
+              /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
+            >{#if releaseCount.value !== null}<span
+                class="nav-badge"
+                aria-hidden="true">{releaseCount.value}</span
+              >{/if}
+          </a>
+        {/if}
+        {#if showBots}
+          <a
+            class="theme-toggle nav-with-badge"
+            href="/bots.html"
+            aria-label={botsLabel}
+            title="Bots"
+            aria-current={isCurrentRoute("/bots") ? "page" : undefined}
+            style="text-decoration:none;"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M12 8V4H8" /><rect
+                width="16"
+                height="12"
+                x="4"
+                y="8"
+                rx="2"
+              /><path d="M2 14h2" /><path d="M20 14h2" /><path
+                d="M15 13v2"
+              /><path d="M9 13v2" /></svg
+            >{#if botCount.value !== null}<span
+                class="nav-badge"
+                aria-hidden="true">{botCount.value}</span
+              >{/if}
+          </a>
+        {/if}
+        <a
+          class="theme-toggle"
+          href="/main-branches.html"
+          aria-label="Main branches"
+          title="Main branches"
+          aria-current={isCurrentRoute("/main-branches") ? "page" : undefined}
+          style="text-decoration:none;"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><line x1="6" x2="6" y1="3" y2="15" /><circle
+              cx="18"
+              cy="6"
+              r="3"
+            /><circle cx="6" cy="18" r="3" /><path
+              d="M18 9a9 9 0 0 1-9 9"
+            /></svg
+          >
         </a>
         <a
           class="theme-toggle"
@@ -480,78 +524,108 @@
       >{/if}
     <span class="bottom-nav-label">Home</span>
   </a>
-  <a
-    class="bottom-nav-link nav-with-badge"
-    href="/issues.html"
-    aria-label={issuesTabLabel}
-    aria-current={isCurrentRoute("/issues") ? "page" : undefined}
-  >
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      ><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" /></svg
-    >{#if issueCount.value !== null}<span class="nav-badge" aria-hidden="true"
-        >{issueCount.value}</span
-      >{/if}
-    <span class="bottom-nav-label">Issues</span>
-  </a>
-  <a
-    class="bottom-nav-link nav-with-badge"
-    href="/releases.html"
-    aria-label={releasesTabLabel}
-    aria-current={isCurrentRoute("/releases") ? "page" : undefined}
-  >
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      ><path
-        d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
-      /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
-    >{#if releaseCount.value !== null}<span class="nav-badge" aria-hidden="true"
-        >{releaseCount.value}</span
-      >{/if}
-    <span class="bottom-nav-label">Releases</span>
-  </a>
-  <a
-    class="bottom-nav-link nav-with-badge"
-    href="/bots.html"
-    aria-label={botsTabLabel}
-    aria-current={isCurrentRoute("/bots") ? "page" : undefined}
-  >
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      ><path d="M12 8V4H8" /><rect
+  {#if showIssues}
+    <a
+      class="bottom-nav-link nav-with-badge"
+      href="/issues.html"
+      aria-label={issuesTabLabel}
+      aria-current={isCurrentRoute("/issues") ? "page" : undefined}
+    >
+      <svg
         width="16"
-        height="12"
-        x="4"
-        y="8"
-        rx="2"
-      /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path
-        d="M9 13v2"
-      /></svg
-    >{#if botCount.value !== null}<span class="nav-badge" aria-hidden="true"
-        >{botCount.value}</span
-      >{/if}
-    <span class="bottom-nav-label">Bots</span>
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" /></svg
+      >{#if issueCount.value !== null}<span class="nav-badge" aria-hidden="true"
+          >{issueCount.value}</span
+        >{/if}
+      <span class="bottom-nav-label">Issues</span>
+    </a>
+  {/if}
+  {#if showReleases}
+    <a
+      class="bottom-nav-link nav-with-badge"
+      href="/releases.html"
+      aria-label={releasesTabLabel}
+      aria-current={isCurrentRoute("/releases") ? "page" : undefined}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><path
+          d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
+        /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
+      >{#if releaseCount.value !== null}<span
+          class="nav-badge"
+          aria-hidden="true">{releaseCount.value}</span
+        >{/if}
+      <span class="bottom-nav-label">Releases</span>
+    </a>
+  {/if}
+  {#if showBots}
+    <a
+      class="bottom-nav-link nav-with-badge"
+      href="/bots.html"
+      aria-label={botsTabLabel}
+      aria-current={isCurrentRoute("/bots") ? "page" : undefined}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><path d="M12 8V4H8" /><rect
+          width="16"
+          height="12"
+          x="4"
+          y="8"
+          rx="2"
+        /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path
+          d="M9 13v2"
+        /></svg
+      >{#if botCount.value !== null}<span class="nav-badge" aria-hidden="true"
+          >{botCount.value}</span
+        >{/if}
+      <span class="bottom-nav-label">Bots</span>
+    </a>
+  {/if}
+  <a
+    class="bottom-nav-link"
+    href="/main-branches.html"
+    aria-label="Main branches"
+    aria-current={isCurrentRoute("/main-branches") ? "page" : undefined}
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      ><line x1="6" x2="6" y1="3" y2="15" /><circle
+        cx="18"
+        cy="6"
+        r="3"
+      /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg
+    >
+    <span class="bottom-nav-label">Main</span>
   </a>
   <a
     class="bottom-nav-link"

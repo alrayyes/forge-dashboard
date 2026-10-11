@@ -444,7 +444,7 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
     // The row says what is happening, and a toast reports the result.
-    await expect(row.locator('.row-feedback')).toContainText('Merging…');
+    await expect(row.locator('.wait-chip-label')).toHaveText('Merging');
     await expect(page.locator('#feedback-live')).toHaveAttribute(
       'aria-live',
       'polite',
@@ -801,7 +801,7 @@ test.describe('pull request merge button', () => {
   });
 
   test.describe('proactive locking, before any click', () => {
-    test('a mergeable PR on an unreachable forge shows a locked Merge button pointing at the forge status above, not its own repeated reason (#360)', async ({
+    test('a mergeable PR on an unreachable forge draws no Merge button, Retry or pointer to a status line, and one banner says why (#1199)', async ({
       page,
     }) => {
       await mockDashboardCustom(
@@ -812,14 +812,18 @@ test.describe('pull request merge button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', { name: 'Retry' }).first();
-      await expect(button).toBeVisible();
-      await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-      await expect(row).toContainText('See the forge status above.');
-      await expect(row).not.toContainText(/unreachable/i);
+      await expect(row.getByText('A pull request')).toBeVisible();
+      await expect(
+        row.getByRole('button', { name: 'Merge', exact: true }),
+      ).toHaveCount(0);
+      await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+      await expect(row).not.toContainText('See the forge status above.');
+      await expect(page.locator('#unreachable-banner')).toContainText(
+        'GitHub is unreachable',
+      );
     });
 
-    test('a mergeable PR that is also behind its base branch, on an unreachable forge, shows a single Retry for the shared forge-wide reason (#516, #609)', async ({
+    test('a behind PR on an unreachable forge draws no action, and the banner holds the one Retry (#516, #609, #1199)', async ({
       page,
     }) => {
       await mockDashboardCustom(
@@ -830,30 +834,13 @@ test.describe('pull request merge button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      // Update branch, Merge and Close are all locked for the same
-      // forge-wide reason at once here. #572's per-button tooltip made
-      // the *reason text* on-demand (hover/focus) instead of always
-      // visible, but each locked action still renders its own always-
-      // visible button — and since all three of these render the same
-      // generic "Retry" label (lockedActionButton's onRetry branch),
-      // that regressed #516's original fix: three pixel-identical
-      // buttons stacked in one row, confirmed live via screenshot
-      // against alrayyes/alrayyes.github.io#17. dedupeRetryButtons
-      // collapses them back down to the one that actually matters —
-      // clicking any of them would trigger the exact same
-      // retryLockedAction refresh anyway.
-      const retryButtons = row.getByRole('button', { name: 'Retry' });
-      await expect(retryButtons).toHaveCount(1);
-      const reasons = row.locator('.row-action-reason');
-      await expect(reasons).toHaveCount(1);
-      // Hidden with opacity/pointer-events, not display/visibility (see
-      // the CSS's own comment on why), so toBeVisible() can't tell these
-      // apart from shown -- assert the opacity itself instead.
-      await expect(reasons).toHaveText('See the forge status above.');
-      await expect(reasons).toHaveCSS('opacity', '0');
-
-      await retryButtons.focus();
-      await expect(reasons).toHaveCSS('opacity', '1');
+      await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+      await expect(row.locator('.row-action-reason')).toHaveCount(0);
+      await expect(
+        page
+          .locator('#unreachable-banner')
+          .getByRole('button', { name: 'Retry' }),
+      ).toHaveCount(1);
     });
 
     test('a mergeable PR on a forge with an exhausted rate-limit budget draws no Merge button (#755)', async ({

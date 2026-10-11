@@ -23,6 +23,7 @@ func TestPages_RequireASession(t *testing.T) {
 		"/insights.html",
 		"/releases.html",
 		"/bots.html",
+		"/main-branches.html",
 		"/settings.html",
 		"/webhooks.html",
 		"/admin.html",

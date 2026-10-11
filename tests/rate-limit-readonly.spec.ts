@@ -78,7 +78,7 @@ const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const MUTATING = [
   'Merge',
   'Update branch',
-  'Close',
+  'Close pull request',
   'Enable auto-merge',
   'Dependabot: Rebase',
   'Renovate: Rebase',
@@ -87,6 +87,9 @@ const MUTATING = [
 test.describe('a rate-limited forge goes read-only (#755)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('its rows draw no mutating control at all, and keep the read-only ones', async ({
@@ -242,7 +245,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       row.getByRole('button', { name: 'Enable auto-merge', exact: true }),
     ).toHaveCount(0);
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeVisible();
     await expect(page.locator('#rate-limit-banner')).toContainText(
       /Enable auto-merge is unavailable until \d{1,2}:\d{2}/,
@@ -267,7 +270,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       row.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toHaveCount(0);
     await expect(page.locator('#rate-limit-banner')).toContainText(
       /Merge, Update branch, rebase and Close are unavailable until \d{1,2}:\d{2}/,

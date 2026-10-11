@@ -78,6 +78,9 @@ const badge = (page: Page, nav: 'header' | '.bottom-nav', link: string) =>
 test.describe('nav counts and the pull request page without releases', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('the pull request page lists no release pull requests', async ({
@@ -137,10 +140,15 @@ test.describe('nav counts and the pull request page without releases', () => {
     ).toEqual([]);
   });
 
-  test('a release count of zero still shows', async ({ page }) => {
+  // #1228: nothing to show, so no link and no badge for it.
+  test('a release count of zero takes the Releases link out of the nav', async ({
+    page,
+  }) => {
     await mockDashboard(page, [makePR(1)]);
     await page.goto('/');
     await expect(badge(page, 'header', '/')).toHaveText('1');
-    await expect(badge(page, 'header', '/releases.html')).toHaveText('0');
+    await expect(
+      page.locator('header nav a[href="/releases.html"]'),
+    ).toHaveCount(0);
   });
 });

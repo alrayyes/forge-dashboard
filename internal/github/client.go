@@ -2122,17 +2122,15 @@ func requestedReviewerLoginsFromGraphQL(p graphqlPullRequest) []string {
 }
 
 // ambiguousMergeState reports whether status alone can't say if a PR is
-// behind its base. BEHIND and CLEAN are the two reliable cases (see
-// mergeStatusFromGraphQL's own doc comment for why); every other status
-// can co-occur with the branch also genuinely being behind, which GitHub
-// collapses out of mergeStateStatus entirely (#495).
+// behind its base. Only BEHIND is reliable, and only in the positive: every
+// other status can co-occur with the branch also genuinely being behind.
+// GitHub collapses that out of mergeStateStatus when another block applies
+// (#495) and, for CLEAN, whenever the repo doesn't require branches to be
+// up to date (#1183). The lookup this triggers is one batched request for
+// the whole refresh, which GitHub costs at one GraphQL point however many
+// PRs it covers.
 func ambiguousMergeState(status string) bool {
-	switch status {
-	case "BEHIND", "CLEAN":
-		return false
-	default:
-		return true
-	}
+	return status != "BEHIND"
 }
 
 // behindCheck names one PR resolveAmbiguousBehind still needs to settle
@@ -2201,8 +2199,8 @@ func buildBehindCompareQuery(checks []behindCheck) (string, map[string]any) {
 }
 
 // resolveAmbiguousBehind patches prs[chk.prIndex].Behind for every check,
-// using one batched request — skipped entirely when checks is empty, so
-// an ordinary poll (nothing ambiguous) pays nothing extra. A failed
+// using one batched request, skipped when checks is empty (every PR is
+// already BEHIND, or none is open). A failed
 // request degrades to leaving Behind at its mergeStateStatus-derived
 // value rather than failing the whole fetch, the same shape checkWebhooks
 // already uses for its own secondary calls.

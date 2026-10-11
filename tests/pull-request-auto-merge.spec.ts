@@ -93,7 +93,7 @@ async function expectMenuHoldsOnlyClose(row: Locator) {
     0,
   );
   await expect(
-    row.getByRole('button', { name: 'Close', exact: true }),
+    row.getByRole('button', { name: 'Close pull request', exact: true }),
   ).toBeVisible();
 }
 
@@ -332,9 +332,7 @@ test.describe('pull request Enable auto-merge action', () => {
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Enable auto-merge' }).click();
 
-    await expect(row.locator('.row-feedback')).toContainText(
-      'Enabling auto-merge…',
-    );
+    await expect(row.locator('.wait-chip-label')).toHaveText('Arming');
     await expect(page.locator('#feedback-live')).toHaveAttribute(
       'aria-live',
       'polite',

@@ -712,7 +712,7 @@ section.board {
      "alrayyes/forge-dashboard") without one. Every .row shares this
      exact list, which is what keeps columns aligned down the board
      with no shared grid/subgrid — widen it here only, never per-row. */
-  grid-template-columns: 280px 1fr 96px 82px 82px 92px 22px;
+  grid-template-columns: 280px 1fr 96px 82px 82px 240px 22px;
   gap: 12px;
   align-items: center;
   padding: 12px 18px;
@@ -1308,17 +1308,6 @@ button.ci-pill:hover {
   background: var(--neutral);
 }
 
-/* #707: a bot rebase the bot has picked up, until CI restarts. Same
-   neutral substitution .merge-pill.behind makes for its text; the label
-   says "Rebasing…", so colour is never the only signal. */
-.merge-pill.rebasing {
-  background: var(--neutral-bg);
-  color: var(--ink-3);
-}
-.merge-pill.rebasing .dot {
-  background: var(--neutral);
-}
-
 /* Same "above .title::after's stretched-link overlay" reasoning .ci-pill
    already needs — a real button, not a badge, so it gets the same
    cursor/focus-visible treatment too.
@@ -1444,15 +1433,6 @@ button.ci-pill:hover {
     transform: scaleX(0);
   }
 }
-/* closeActionCell's own "nothing to merge, Close is the right move here"
-   nudge -- --good rather than --warning/--critical, since there's nothing
-   wrong with the pull request, just nothing left for Merge to do. Border/
-   background only, same shape as every other .row-action variant, so this
-   still reads as a real button rather than a status badge. */
-.row-action.suggested {
-  background: var(--good-bg);
-  color: var(--good);
-}
 /* A row whose pull request turned out to be merged or closed already
    (#750): a plain status word where the action button was. */
 .row-settled {
@@ -1492,8 +1472,7 @@ button.ci-pill:hover {
 .row-action-note-next {
   color: var(--ink-3);
 }
-/* Close inside "More actions" (#705): set apart and in the danger tone,
-   border and wording as well as colour. */
+/* Close inside "More actions" (#705): set apart from the rest by a rule. */
 .row-actions-popover .row-action-group.close-group,
 .row-actions-popover .row-action-locked.close-group {
   align-self: stretch;
@@ -1501,9 +1480,11 @@ button.ci-pill:hover {
   padding-top: 8px;
   border-top: 1px solid var(--border);
 }
+/* Close (#1223): a neutral secondary button. Closing is reversible, so the
+   danger tone is kept for the confirm step. */
 .row-action.close {
-  background: var(--critical-bg);
-  color: var(--critical);
+  background: var(--neutral-bg);
+  color: var(--ink-2);
 }
 .row-action-group {
   position: relative;
@@ -1911,6 +1892,134 @@ button.ci-pill:hover {
   margin-left: 14px;
 }
 
+/* The waiting chip (#1229): one chip in a slot the status cell always
+   reserves, so it comes and goes without moving the row or the cell. Icon
+   and words carry the state, never colour alone. */
+.wait-slot {
+  flex: 1 0 100%;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  height: 44px;
+  /* Above the row's stretched link, like every other control in the cell. */
+  position: relative;
+  z-index: 1;
+}
+
+.wait-chip {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  text-align: left;
+}
+.wait-chip[hidden] {
+  display: none;
+}
+.wait-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.wait-chip[data-state="settled"] {
+  background: var(--good-bg);
+  border-color: var(--good);
+  color: var(--good);
+}
+.wait-chip[data-state="stalled"] {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.wait-chip-icon {
+  flex: none;
+}
+.wait-chip-spinner {
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wait-chip-spinner {
+    animation: wait-chip-spin 1.1s linear infinite;
+  }
+}
+@keyframes wait-chip-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wait-chip-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.wait-chip-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wait-chip-detail {
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wait-chip[data-state="waiting"] .wait-chip-detail {
+  color: var(--ink-2);
+}
+
+/* Secondary, so it doesn't read as the row's main action. */
+.wait-chip-action {
+  flex: none;
+  min-height: 30px;
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+
+/* The fuller explanation. Opacity, not display, so it stays the chip's
+   aria-describedby target. Opens on hover and on keyboard focus (WCAG
+   1.4.13), and floats above the row. */
+.wait-chip-tip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 25;
+  width: max-content;
+  max-width: min(260px, 80vw);
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.35;
+  box-shadow: var(--shadow);
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+}
+.wait-chip:hover .wait-chip-tip,
+.wait-chip:focus-within .wait-chip-tip {
+  opacity: 1;
+}
+
 .row-feedback {
   position: relative;
   z-index: 1;
@@ -1955,16 +2064,6 @@ button.ci-pill:hover {
   justify-content: center;
   padding: 0 10px;
   text-decoration: none;
-}
-
-/* Dependabot has thumbed up the command: the line takes the accent instead
-   of the neutral rule, and the words still say it (#1082). */
-.row-feedback-line[data-acknowledged="true"] {
-  border-left-color: var(--accent);
-}
-
-.feedback-ack-icon {
-  flex: none;
 }
 
 .feedback-requested {
@@ -2065,6 +2164,10 @@ button.ci-pill:hover {
    branch, Dependabot/Renovate triggers) silently until the reset window
    passes. */
 .rate-limit-banner {
+  /* Stays in view while the list scrolls, on a phone too (#1199). */
+  position: sticky;
+  top: 0;
+  z-index: 5;
   background: var(--critical-bg);
   border: 1px solid var(--critical);
   border-radius: var(--radius);
@@ -2073,6 +2176,55 @@ button.ci-pill:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* An unreachable forge (#1199): the same weight as the rate-limit banner,
+   in the warning colour since nothing is wrong with the account. */
+.unreachable-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.unreachable-banner-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.unreachable-banner-text {
+  margin: 0;
+  flex: 1 1 260px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.unreachable-banner-retry {
+  min-height: 44px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.unreachable-banner-retry:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .rate-limit-banner-row {
@@ -2211,6 +2363,19 @@ footer a.mono:focus-visible {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+  }
+  /* The chip sits in the card at its full width, and its button gets a
+     44px target. */
+  .status-cell {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .wait-slot {
+    height: 52px;
+  }
+  .wait-chip-action {
+    min-width: 44px;
+    min-height: 44px;
   }
   .row.filter-row {
     display: flex;
@@ -2951,4 +3116,33 @@ footer a.mono:focus-visible {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+}
+
+.activity-queued {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.activity-queued-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-queued-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.activity-queued-ref {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--ink);
 }
