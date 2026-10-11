@@ -323,7 +323,10 @@ test.describe('stable rows (#710)', () => {
   test('nothing re-renders while a More actions menu is open', async ({
     page,
   }) => {
-    const bot = makePR(1, { author: 'dependabot' });
+    // Waiting on CI, so the row offers auto-merge and Close, and Close sits in
+    // More actions next to it (a lone action is drawn directly, #1139).
+    const waiting = { ci: 'pending', mergeStatus: 'blocked' };
+    const bot = makePR(1, waiting);
     await page.route('**/api/dashboard', (route: Route) =>
       route.fulfill({
         status: 200,
@@ -335,10 +338,7 @@ test.describe('stable rows (#710)', () => {
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'More actions' }).click();
 
-    await push(page, [
-      makePR(1, { author: 'dependabot', title: 'Changed' }),
-      initial[1],
-    ]);
+    await push(page, [makePR(1, { ...waiting, title: 'Changed' }), initial[1]]);
     await expect(page.locator('#updates-count')).toHaveText(
       '1 update available',
     );
