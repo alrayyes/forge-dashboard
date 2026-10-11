@@ -64,6 +64,10 @@ type Aggregator struct {
 	// every source answered or reported itself unreachable. Readiness
 	// (Manager.FirstRefreshComplete) reads it; it never flips back.
 	firstRefreshed atomic.Bool
+	// firstRefreshedCh is closed with it, for a reader that would rather wait
+	// than answer from the empty snapshot (WaitFirstRefresh).
+	firstRefreshedCh   chan struct{}
+	firstRefreshedOnce sync.Once
 
 	// lastGood is when each forge last fetched successfully, so a failed
 	// refresh can carry its data over and say how old it is (#922). Guarded
@@ -107,6 +111,8 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		updateRequests: make(map[string]*updateEntry),
 		now:            time.Now,
 		lastGood:       make(map[Forge]time.Time),
+
+		firstRefreshedCh: make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -197,6 +203,19 @@ func (a *Aggregator) withoutSettled(prs []PullRequest, forge Forge, repo string)
 // snapshot. A forge that failed still counts: done means "tried", not
 // "succeeded".
 func (a *Aggregator) FirstRefreshDone() bool { return a.firstRefreshed.Load() }
+
+// WaitFirstRefresh blocks until the first refresh has completed, ctx is done or
+// max passes, whichever comes first. A snapshot read before that is the empty
+// one, which a page shows as "no pull requests" until the fetch lands (#1194).
+func (a *Aggregator) WaitFirstRefresh(ctx context.Context, limit time.Duration) {
+	timer := time.NewTimer(limit)
+	defer timer.Stop()
+	select {
+	case <-a.firstRefreshedCh:
+	case <-ctx.Done():
+	case <-timer.C:
+	}
+}
 
 // Subscribe returns a channel that receives the new Snapshot after every
 // completed Refresh, and a function to stop receiving them. The channel is
@@ -493,6 +512,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.lastGood = goodAt
 	a.mu.Unlock()
 	a.firstRefreshed.Store(true)
+	a.firstRefreshedOnce.Do(func() { close(a.firstRefreshedCh) })
 
 	logRateLimitTransitions(previous.Forges, snap.Forges)
 
