@@ -36,10 +36,11 @@ const queuedActionsSchema = `
 const queuedActionColumns = `id, action, forge, repo_full_name, number, status, run_at, created_at, finished_at, code, message`
 
 // EnqueueQueuedAction stores a safe action for userID to run once a forge's
-// rate limit resets (#756) and returns it with its new ID. Idempotent: a
+// rate limit resets (#756) and returns it with its new ID and true. Idempotent: a
 // second request for the same action on the same pull request while the first
-// still waits returns the first, unchanged, rather than stacking a duplicate.
-func (s *Store) EnqueueQueuedAction(ctx context.Context, userID []byte, q dashboard.QueuedAction) (dashboard.QueuedAction, error) {
+// still waits returns the first, unchanged, and false, rather than stacking a
+// duplicate.
+func (s *Store) EnqueueQueuedAction(ctx context.Context, userID []byte, q dashboard.QueuedAction) (dashboard.QueuedAction, bool, error) {
 	encodedID := encodeUserID(userID)
 
 	row := s.db.QueryRowContext(ctx,
@@ -50,14 +51,14 @@ func (s *Store) EnqueueQueuedAction(ctx context.Context, userID []byte, q dashbo
 	existing, err := scanQueuedAction(row)
 	switch {
 	case err == nil:
-		return existing, nil
+		return existing, false, nil
 	case !errors.Is(err, sql.ErrNoRows):
-		return dashboard.QueuedAction{}, fmt.Errorf("settings: look up queued action: %w", err)
+		return dashboard.QueuedAction{}, false, fmt.Errorf("settings: look up queued action: %w", err)
 	}
 
 	id, err := newQueuedActionID()
 	if err != nil {
-		return dashboard.QueuedAction{}, err
+		return dashboard.QueuedAction{}, false, err
 	}
 	q.ID = id
 	q.Status = dashboard.QueuedWaiting
@@ -67,10 +68,10 @@ func (s *Store) EnqueueQueuedAction(ctx context.Context, userID []byte, q dashbo
 		q.ID, encodedID, string(q.Action), string(q.Forge), q.Repo, q.Number, string(q.Status), q.RunAt.UTC(), q.CreatedAt.UTC(),
 	)
 	if err != nil {
-		return dashboard.QueuedAction{}, fmt.Errorf("settings: enqueue queued action: %w", err)
+		return dashboard.QueuedAction{}, false, fmt.Errorf("settings: enqueue queued action: %w", err)
 	}
 
-	return q, nil
+	return q, true, nil
 }
 
 // QueuedActions returns every queued action userID has, waiting or finished,

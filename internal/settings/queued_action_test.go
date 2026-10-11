@@ -24,12 +24,13 @@ func TestStore_EnqueueQueuedAction_ThenQueuedActions_ReturnsItWithAnID(t *testin
 	store := newTestStore(t)
 	runAt := time.Date(2026, 10, 11, 14, 32, 0, 0, time.UTC)
 
-	saved, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(runAt))
+	saved, created, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(runAt))
 	require.NoError(t, err)
 
 	got, err := store.QueuedActions(t.Context(), []byte("user-1"))
 	require.NoError(t, err)
 	require.Len(t, got, 1)
+	assert.True(t, created)
 	assert.NotEmpty(t, saved.ID)
 	assert.Equal(t, saved.ID, got[0].ID)
 	assert.Equal(t, dashboard.ActionUpdateBranch, got[0].Action)
@@ -40,13 +41,14 @@ func TestStore_EnqueueQueuedAction_ThenQueuedActions_ReturnsItWithAnID(t *testin
 func TestStore_EnqueueQueuedAction_SameActionTwice_KeepsTheFirst(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	first, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
+	first, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
-	second, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(2*time.Hour)))
+	second, created, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(2*time.Hour)))
 	require.NoError(t, err)
 
 	assert.Equal(t, first.ID, second.ID)
+	assert.False(t, created, "the second request created nothing")
 	got, _ := store.QueuedActions(t.Context(), []byte("user-1"))
 	assert.Len(t, got, 1)
 }
@@ -64,7 +66,7 @@ func TestStore_QueuedActions_NoneQueued_ReturnsEmptyNotNil(t *testing.T) {
 func TestStore_QueuedActions_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	_, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
+	_, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
 	got, err := store.QueuedActions(t.Context(), []byte("user-2"))
@@ -76,7 +78,7 @@ func TestStore_QueuedActions_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
 func TestStore_CancelQueuedAction_RemovesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	saved, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
+	saved, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
 	found, err := store.CancelQueuedAction(t.Context(), []byte("user-1"), saved.ID)
@@ -90,7 +92,7 @@ func TestStore_CancelQueuedAction_RemovesIt(t *testing.T) {
 func TestStore_CancelQueuedAction_AnotherUsersItem_LeavesItAlone(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	saved, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
+	saved, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
 	found, err := store.CancelQueuedAction(t.Context(), []byte("user-2"), saved.ID)
@@ -124,7 +126,7 @@ func TestStore_QueuedActions_SurviveReopeningTheDatabase(t *testing.T) {
 
 		return store
 	}
-	saved, err := open().EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
+	saved, _, err := open().EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
 	got, err := open().QueuedActions(t.Context(), []byte("user-1"))
@@ -137,7 +139,7 @@ func TestStore_QueuedActions_SurviveReopeningTheDatabase(t *testing.T) {
 func TestStore_Delete_RemovesQueuedActions(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	_, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
+	_, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
 	require.NoError(t, store.Delete(t.Context(), []byte("user-1")))

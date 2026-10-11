@@ -54,6 +54,9 @@ type dashboardResponse struct {
 	// AutoMerged is what this app merged for the user in the last few
 	// minutes, so the page can say so once the pull request has left.
 	AutoMerged []autoMergedView `json:"autoMerged"`
+	// QueuedActions is the signed-in user's own queue, waiting and finished
+	// (#756). Empty on a shared dashboard: it is theirs, not the viewer's.
+	QueuedActions []dashboard.QueuedAction `json:"queuedActions"`
 	// ReadIntervalSeconds is how often a client should re-read the dashboard
 	// (#809). Always the same answer for now; it lives in the response so a
 	// client keeps no interval of its own.
@@ -94,6 +97,40 @@ type pullRequestView struct {
 	// AutoMerge says why an armed pull request is waiting or stopped. Absent
 	// when auto-merge isn't armed on it.
 	AutoMerge *dashboard.AutoMergeStatus `json:"autoMerge,omitempty"`
+	// Queued is the safe action this user queued on the pull request that is
+	// still waiting for the rate limit to reset, or null (#756).
+	Queued *dashboard.QueuedAction `json:"queued"`
+}
+
+// queuedActions is the user's queue, never nil: the contract promises an array.
+func (b boardSettings) queuedActions() []dashboard.QueuedAction {
+	if b.queued == nil {
+		return []dashboard.QueuedAction{}
+	}
+
+	return b.queued
+}
+
+// waitingQueuedAction is the action still waiting for the reset on pr, or nil.
+func (b boardSettings) waitingQueuedAction(pr dashboard.PullRequest) *dashboard.QueuedAction {
+	for _, q := range b.queued {
+		if q.Status == dashboard.QueuedWaiting && q.Forge == pr.Forge && q.Repo == pr.Repo && q.Number == pr.Number {
+			return &q
+		}
+	}
+
+	return nil
+}
+
+// withoutQueue removes the owner's queue from a dashboard shown to someone
+// else: who queued what, and how it went, is not the viewer's to see.
+func (r dashboardResponse) withoutQueue() dashboardResponse {
+	r.QueuedActions = []dashboard.QueuedAction{}
+	for i := range r.PullRequests {
+		r.PullRequests[i].Queued = nil
+	}
+
+	return r
 }
 
 // autoMergedView matches components.schemas.AutoMergedPullRequest.
@@ -170,6 +207,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap 
 		Repos:          board.repoStatuses(snap.Repos),
 		HiddenDrafts:   hiddenDrafts,
 		AutoMerged:     board.autoMerged(),
+		QueuedActions:  board.queuedActions(),
 
 		ReadIntervalSeconds: int(clientReadInterval / time.Second),
 	}
@@ -183,6 +221,7 @@ type boardSettings struct {
 	autoUpdateBranch map[string]struct{}
 	autoMerge        map[string]struct{}
 	autoMergeReport  dashboard.AutoMergeReport
+	queued           []dashboard.QueuedAction
 	logins           map[dashboard.Forge]string
 	// renovateAuthors are the logins the user says are Renovate (#1062).
 	renovateAuthors []string
@@ -208,6 +247,12 @@ func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte
 		autoUpdateBranch = nil
 	}
 
+	queued, err := store.QueuedActions(ctx, userID)
+	if err != nil {
+		slog.Warn("could not load queued actions for dashboard response", "error", err)
+		queued = nil
+	}
+
 	autoMerge, err := store.AutoMergeIntents(ctx, userID)
 	if err != nil {
 		slog.Warn("could not load auto-merge intents for dashboard response", "error", err)
@@ -224,7 +269,7 @@ func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte
 		logins[dashboard.ForgeForgejo] = creds.ForgejoUsername
 	}
 
-	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, autoMerge: autoMerge, logins: logins, renovateAuthors: renovateAuthors}
+	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, autoMerge: autoMerge, queued: queued, logins: logins, renovateAuthors: renovateAuthors}
 }
 
 // repoStatuses is the tracked-repo list with each repo's webhook coverage and
@@ -279,6 +324,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDraf
 
 			ReviewRequestedFromMe: dashboard.ReviewRequestedFrom(pr, b.logins[pr.Forge]),
 			AutoMerge:             b.autoMergeStatus(pr),
+			Queued:                b.waitingQueuedAction(pr),
 		})
 	}
 
@@ -416,7 +462,7 @@ func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, o
 
 	warmUpAggregator(ctx, deps, owner.ID, owner.Username)
 
-	return buildDashboardResponse(ctx, deps, owner.ID, deps.Manager.Get(owner.ID), includeDrafts), nil
+	return buildDashboardResponse(ctx, deps, owner.ID, deps.Manager.Get(owner.ID), includeDrafts).withoutQueue(), nil
 }
 
 // handleDashboard answers the requested dashboard: the signed-in user's
