@@ -96,3 +96,13 @@ server log. The tickets' criteria win over those two details.
   `c8c48a12ec30434f949a43b7f7a125c4`. It doesn't draw the cards behind it, so
   it does not show the single-action rule on a phone. The bottom tab bar and
   the "Live" chip aren't in the ticket and don't ship.
+
+- `screen-error-pages.png`: Stitch's candidate for the 404 and 500 pages, a
+  "Runtime Exception Simulator" with a status chip, headline, a sentence,
+  Back to pull requests, three next-step cards and recovery notes.
+  `crop-error-page-head.png` is the head block, the part to build. Stitch
+  project "Forge Dashboard UI Audit" (`564147752128938905`), screen
+  `993566920566427190fa5e956129caa1`. It's the design for #1175. Most of it
+  doesn't ship: the status tabs, trace and network panel, diagnostic JSON,
+  stack trace, host names, session key and recovery notes all show internals, which
+  an error page must not (rules/error-pages.md).
