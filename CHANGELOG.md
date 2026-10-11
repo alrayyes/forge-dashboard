@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.160.0](https://github.com/alrayyes/forge-dashboard/compare/v0.159.0...v0.160.0) (2026-10-11)
+
+
+### Features
+
+* **web:** one waiting chip for every in-progress state on a pull request row ([#1240](https://github.com/alrayyes/forge-dashboard/issues/1240)) ([0128a1c](https://github.com/alrayyes/forge-dashboard/commit/0128a1c282c9966a0b2064c3e64838c74b4f3f34))
+
 ## [0.159.0](https://github.com/alrayyes/forge-dashboard/compare/v0.158.0...v0.159.0) (2026-10-11)
 
 
