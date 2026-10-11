@@ -992,6 +992,12 @@ func TestFetchRepo_QueriesOnlyTheNamedRepo(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "compare(") {
+			// The behind lookup is its own request, aliased per PR.
+			writeJSON(t, w, map[string]any{"data": map[string]any{}})
+
+			return
+		}
 		assert.Contains(t, body.Query, "repository(owner: $owner, name: $name)")
 		assert.Equal(t, "alrayyes", body.Variables["owner"])
 		assert.Equal(t, "a", body.Variables["name"])
@@ -1408,20 +1414,19 @@ func TestFetch_MergeStateStatusBlockedAndNotBehind_StaysFalse(t *testing.T) {
 	assert.False(t, result.PullRequests[0].Behind)
 }
 
-// TestFetch_NoAmbiguousMergeStateStatus_IssuesNoCompareQuery guards the
-// common-case cost this fix has to stay cheap for: a poll where every PR
-// is already CLEAN or BEHIND (a reliable signal on its own) must not pay
-// for the extra compare request at all.
-func TestFetch_NoAmbiguousMergeStateStatus_IssuesNoCompareQuery(t *testing.T) {
+// TestFetch_BehindMergeStateStatus_IssuesNoCompareQuery guards the one case
+// that needs no lookup: BEHIND already says the branch is behind, so a poll
+// where every PR is BEHIND must not pay for the compare request.
+func TestFetch_BehindMergeStateStatus_IssuesNoCompareQuery(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		body := readGraphQLRequest(t, r)
 		if strings.Contains(body.Query, "compare(") {
-			t.Fatal("no ambiguous PR this poll — a compare query should never have been sent")
+			t.Fatal("every PR is already BEHIND — a compare query should never have been sent")
 		}
-		writeJSON(t, w, reposQueryFixture(pullRequestNode("CLEAN")))
+		writeJSON(t, w, reposQueryFixture(pullRequestNode("BEHIND")))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -1430,7 +1435,61 @@ func TestFetch_NoAmbiguousMergeStateStatus_IssuesNoCompareQuery(t *testing.T) {
 	result := client.Fetch(t.Context())
 
 	require.Len(t, result.PullRequests, 1)
-	assert.False(t, result.PullRequests[0].Behind)
+	assert.True(t, result.PullRequests[0].Behind)
+}
+
+// TestFetch_CleanMergeStateStatus_BehindFollowsCompare is the #1183
+// regression: without "require branches to be up to date" GitHub reports a
+// PR whose base moved as CLEAN, so mergeStateStatus can't say it is behind.
+// The batched compare decides: behindBy above zero is behind, zero is not,
+// and a null compare (a deleted head, a fork GitHub can't compare) leaves
+// it not behind. Merge stays allowed either way, since CLEAN is mergeable.
+func TestFetch_CleanMergeStateStatus_BehindFollowsCompare(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		compare any
+		want    bool
+	}{
+		{"behind by one", map[string]any{"behindBy": 1}, true},
+		{"not behind", map[string]any{"behindBy": 0}, false},
+		{"null compare", nil, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+				body := readGraphQLRequest(t, r)
+				if strings.Contains(body.Query, "compare(") {
+					writeJSON(t, w, map[string]any{
+						"data": map[string]any{
+							"pr0": map[string]any{
+								"pullRequest": map[string]any{
+									"baseRef": map[string]any{"compare": tc.compare},
+								},
+							},
+						},
+					})
+
+					return
+				}
+				writeJSON(t, w, reposQueryFixture(pullRequestNode("CLEAN")))
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := github.NewClient("test-token", "", srv.URL)
+			result := client.Fetch(t.Context())
+
+			require.Len(t, result.PullRequests, 1)
+			assert.Equal(t, tc.want, result.PullRequests[0].Behind)
+			assert.Equal(t, dashboard.MergeMergeable, result.PullRequests[0].MergeStatus)
+		})
+	}
 }
 
 // TestFetch_CompareQueryFails_DegradesToMergeStateStatusOnly matches the
@@ -1551,7 +1610,9 @@ func TestFetch_MapsAutoMergeAllowedFromViewerCanEnableAutoMerge(t *testing.T) {
 					Query string `json:"query"`
 				}
 				_ = json.NewDecoder(r.Body).Decode(&body)
-				query = body.Query
+				if !strings.Contains(body.Query, "compare(") {
+					query = body.Query
+				}
 
 				pr := map[string]any{
 					"number": 367, "title": "feat(runs): handler", "url": "https://github.com/alrayyes/pipeline-analytics/pull/367",
@@ -2861,7 +2922,9 @@ func TestFetch_MapsReviewState(t *testing.T) {
 					Query string `json:"query"`
 				}
 				assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-				seenQuery = body.Query
+				if !strings.Contains(body.Query, "compare(") {
+					seenQuery = body.Query
+				}
 				writeJSON(t, w, map[string]any{
 					"data": map[string]any{
 						"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
@@ -3256,7 +3319,9 @@ func TestFetch_MapsTheRequestedReviewerLogins(t *testing.T) {
 	var seenQuery string
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
-		seenQuery = readGraphQLRequest(t, r).Query
+		if q := readGraphQLRequest(t, r).Query; !strings.Contains(q, "compare(") {
+			seenQuery = q
+		}
 		writeJSON(t, w, reposQueryFixture(node))
 	})
 	srv := httptest.NewServer(mux)
