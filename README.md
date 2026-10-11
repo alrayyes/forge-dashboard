@@ -395,20 +395,30 @@ already ready to merge, and Renovate `rebase` can say the label is missing on th
 repo.
 
 A locked action offers Retry only when waiting might fix it, such as a 502 or
-an unreachable forge. When a forge's API budget is spent, its actions are
-greyed out with no Retry, and the reason says when they come back ("GitHub
-API rate limit reached. Actions resume at 14:32 (in 12 min)."). That line shows
-once under each repo group heading and as each disabled button's accessible
-description. The actions re-enable by themselves at the reset time, with a
-polite "Rate limit reset, actions available again" toast. A missing token
+an unreachable forge. When a forge's API budget is spent, the forge goes
+read-only: the controls that need that budget (Merge, Update branch, the
+Dependabot and Renovate commands, Close and, on its GraphQL budget, Enable
+auto-merge) are
+not drawn at all, and one banner at the top says so for that forge ("GitHub is
+rate limited. Read-only until 14:32.") with a live countdown. When only one
+budget is spent the banner names what is affected. REST drives Merge, Update
+branch, the bot commands and Close, and GraphQL drives auto-merge, so the others
+keep working. A "What still works" disclosure under the banner lists the read-only
+actions: the pipeline panel, the link to the pull request on the forge, and
+browsing and filtering the last data. Other forges are unaffected. The
+controls come back by themselves at the reset time, with a polite "Rate limit
+reset, actions available again" toast. While the forge is read-only the server
+stops refreshing it until the reset, so the rows are the last ones it saw. The
+header's Refreshed time shows how old they are. A missing token
 permission locks that action on that pull request, with no Retry either, and the
 reason points to Settings. Other pull requests and other actions stay usable,
 since a fine-grained token can lack one permission and have the rest. The lock
 lasts as long as the failure line that explains it: dismiss the line and the
 action is free again, with no reload. A failure line stays on its row however
 many refreshes arrive, and goes when you dismiss it, act on the row again, or
-the row leaves the board. Read-only actions such as opening the pipeline stay enabled,
-and the header shows each forge's remaining budget and reset time as text. Which
+the row leaves the board. A 429 on a click the snapshot hadn't foreseen still
+greys that one action out with its reason until the next snapshot. The header
+shows each forge's remaining budget and reset time as text. Which
 locks offer Retry follows the refusal's `code` (`rate_limited` and `permission`
 don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
