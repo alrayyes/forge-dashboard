@@ -4863,6 +4863,7 @@
     type RateLimitAlert =
       | {
           kind: "readonly";
+          forge: string;
           label: string;
           // Which budgets are spent, and when the last one comes back.
           rest: boolean;
@@ -4893,6 +4894,7 @@
             .sort((a, b) => Date.parse(b) - Date.parse(a));
           out.push({
             kind: "readonly",
+            forge: f.forge,
             label: name,
             rest: rest !== null,
             // A forge that reports no GraphQL budget (Forgejo) has nothing
@@ -4983,6 +4985,7 @@
         timer.setAttribute("aria-hidden", "true");
         row.appendChild(timer);
         banner.appendChild(row);
+        if (alert.kind === "readonly") banner.appendChild(whyDisclosure(alert));
       }
       if (rateLimitAlerts.some((a) => a.kind === "readonly"))
         banner.appendChild(stillWorksDisclosure());
@@ -5009,6 +5012,48 @@
       return alert.kind === "low"
         ? `${alert.remaining.toLocaleString()} of ${alert.limit.toLocaleString()} requests left — ${countdownLabel(alert.resetsAt)}`
         : countdownLabel(alert.resetsAt);
+    }
+
+    // "Why?" under a read-only row (#735): what the limit is, so it isn't
+    // taken for a fault in the dashboard. GitHub publishes its rules, so it
+    // links to them. Forgejo's limit comes from a proxy in front of it, with
+    // nothing to link to.
+    const GITHUB_RATE_LIMIT_DOCS =
+      "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api";
+
+    function whyDisclosure(alert: {
+      forge: string;
+      label: string;
+    }): HTMLElement {
+      const details = el("details", "rate-limit-why");
+      const summary = el("summary", "", "Why?");
+      summary.setAttribute(
+        "aria-label",
+        `Why? About ${alert.label}'s rate limit`,
+      );
+      details.appendChild(summary);
+      const github = alert.forge === "github";
+      details.appendChild(
+        el(
+          "p",
+          "",
+          github
+            ? "GitHub gives each token a request budget for every hour, and everything using that token spends it, this dashboard included. When it runs out GitHub refuses requests until the reset time, so this is the forge's limit and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back."
+            : `${alert.label} itself doesn't count requests; a proxy in front of it does. When the proxy's budget runs out it refuses requests until the reset time, so this is a limit on the way to the forge and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back.`,
+        ),
+      );
+      if (github) {
+        const link = el(
+          "a",
+          "",
+          "GitHub's rate limit rules (opens in a new tab)",
+        ) as HTMLAnchorElement;
+        link.href = GITHUB_RATE_LIMIT_DOCS;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        details.appendChild(link);
+      }
+      return details;
     }
 
     // A closed disclosure under the banner: the reader sees the read-only
