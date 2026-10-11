@@ -371,6 +371,19 @@ func (m *Manager) RecordUpdateRequest(userID []byte, forge Forge, repo string, n
 	entry.agg.RecordUpdateRequest(forge, repo, number)
 }
 
+// Republish delegates to userID's Aggregator, see Aggregator.Republish. A user
+// with no running Aggregator has no subscribers, so it does nothing.
+func (m *Manager) Republish(userID []byte) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return
+	}
+	entry.agg.Republish()
+}
+
 // RefreshRepo delegates to userID's Aggregator — see
 // Aggregator.RefreshRepo. Reports false if userID has no running
 // Aggregator, the same as RefreshNow, and also false wherever

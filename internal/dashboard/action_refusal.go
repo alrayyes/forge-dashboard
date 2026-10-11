@@ -35,7 +35,13 @@ const (
 	// ActionAlreadyRequested: a Renovate rebase is already asked for (its
 	// rebase-check box is ticked), so asking again does nothing.
 	ActionAlreadyRequested ActionCode = "already_requested"
-	ActionUnknown          ActionCode = "unknown"
+	// ActionNotRateLimited: queueing an action only makes sense while the
+	// forge is rate limited (#756); otherwise it can be taken directly.
+	ActionNotRateLimited ActionCode = "not_rate_limited"
+	// ActionNotOpen: a queued action found its pull request gone from the
+	// board when the reset came, merged or closed meanwhile.
+	ActionNotOpen ActionCode = "not_open"
+	ActionUnknown ActionCode = "unknown"
 )
 
 // ActionRefusal is the classified outcome of a refused action. Message is
