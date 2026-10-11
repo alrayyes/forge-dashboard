@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.144.0](https://github.com/alrayyes/forge-dashboard/compare/v0.143.2...v0.144.0) (2026-10-11)
+
+
+### Features
+
+* **dashboard:** stop calling a forge whose rate limit is spent until it resets ([#1170](https://github.com/alrayyes/forge-dashboard/issues/1170)) ([ff07ba1](https://github.com/alrayyes/forge-dashboard/commit/ff07ba1fa59b20da84d721569187e9f3c465259b)), closes [#755](https://github.com/alrayyes/forge-dashboard/issues/755)
+
 ## [0.143.2](https://github.com/alrayyes/forge-dashboard/compare/v0.143.1...v0.143.2) (2026-10-10)
 
 
