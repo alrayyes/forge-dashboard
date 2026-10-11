@@ -57,13 +57,12 @@ type Snapshot = { pullRequests: unknown[]; openIssueCount: number };
 function mockDashboard(
   page: Page,
   state: Snapshot,
-  options: { delayMs?: number } = {},
+  options: { gate?: Promise<void> } = {},
 ) {
   return page.route(
     /\/api\/dashboard(\/refresh)?(\?.*)?$/,
     async (route: Route) => {
-      if (options.delayMs)
-        await new Promise((r) => setTimeout(r, options.delayMs));
+      if (options.gate) await options.gate;
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -142,14 +141,21 @@ test.describe('empty pages leave the navigation (#1228)', () => {
   test('while the counts are not loaded the links stay, then go once they say zero', async ({
     page,
   }) => {
+    // The snapshot is held until the test lets it go, so the "not loaded yet"
+    // moment lasts exactly as long as the assertions need.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     await mockDashboard(
       page,
       { pullRequests: [makePR(1)], openIssueCount: 0 },
-      { delayMs: 1500 },
+      { gate },
     );
     await page.goto('/settings.html');
     for (const href of LINKS) await expect(header(page, href)).toHaveCount(1);
 
+    release();
     await expect(header(page, '/').locator('.nav-badge')).toHaveText('1');
     for (const href of LINKS) await expect(header(page, href)).toHaveCount(0);
   });
