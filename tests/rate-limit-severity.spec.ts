@@ -63,7 +63,7 @@ test.describe('rate limits follow the server (#806)', () => {
       },
     });
     await expect(page.locator('#rate-limit-banner')).toContainText(
-      'Rate limit exceeded',
+      'GitHub is rate limited',
     );
   });
 
