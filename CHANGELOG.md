@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.156.0](https://github.com/alrayyes/forge-dashboard/compare/v0.155.0...v0.156.0) (2026-10-11)
+
+
+### Features
+
+* **web:** make the close button neutral and name what it closes ([#1231](https://github.com/alrayyes/forge-dashboard/issues/1231)) ([1b0da20](https://github.com/alrayyes/forge-dashboard/commit/1b0da201333348761207e583a549047e238ccf6e)), closes [#1223](https://github.com/alrayyes/forge-dashboard/issues/1223)
+
 ## [0.155.0](https://github.com/alrayyes/forge-dashboard/compare/v0.154.1...v0.155.0) (2026-10-11)
 
 
