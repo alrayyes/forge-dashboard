@@ -12,6 +12,7 @@ package github
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -542,10 +543,21 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	c.recordRESTSuccess(ctx, http.MethodGet, repoPath, repoResp)
 
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, name, number)
+	pr := c.readPullRequest(ctx, owner, name, number)
+	// The linear-history rule belongs to the branch the pull request targets,
+	// which is not always the default branch (a release branch, a stack
+	// parent). A failed lookup falls back to the default branch.
+	base := cmp.Or(pr.GetBase().GetRef(), repo.GetDefaultBranch())
 	slog.Debug("github request", "method", http.MethodPut, "url", path)
-	opts := &ghsdk.PullRequestOptions{MergeMethod: mergeMethodFor(repo, c.linearHistoryRequired(ctx, owner, name, repo.GetDefaultBranch()))}
-	if opts.MergeMethod == "squash" {
-		opts.CommitTitle = c.squashCommitTitle(ctx, owner, name, number)
+	opts := &ghsdk.PullRequestOptions{MergeMethod: mergeMethodFor(repo, c.linearHistoryRequired(ctx, owner, name, base))}
+	if opts.MergeMethod == "squash" && pr != nil {
+		// The pull request's own title with its number, which is what GitHub's
+		// own squash button writes. Left to itself GitHub follows the repo's
+		// setting, and with the usual "commit or pull request title" a stray
+		// commit on the branch becomes the subject, and so a release's
+		// changelog entry. Without the lookup GitHub chooses: the merge itself
+		// shouldn't depend on it.
+		opts.CommitTitle = fmt.Sprintf("%s (#%d)", pr.GetTitle(), number)
 	}
 	_, mergeResp, err := c.restClient.PullRequests.Merge(ctx, owner, name, number, "", opts)
 	if err != nil {
@@ -556,24 +568,21 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	return nil
 }
 
-// squashCommitTitle is the pull request's own title with its number, which is
-// what GitHub's own squash button writes. Left to itself GitHub follows the
-// repo's setting, and with the usual "commit or pull request title" a stray
-// commit on the branch becomes the subject, and so a release's changelog
-// entry. A failed lookup answers "", which leaves the choice to GitHub: the
-// merge itself shouldn't depend on it.
-func (c *Client) squashCommitTitle(ctx context.Context, owner, name string, number int) string {
+// readPullRequest reads the pull request a merge is about to land: its title
+// and its base branch. A failed lookup answers nil, whose getters read as
+// empty, since the merge itself shouldn't depend on it.
+func (c *Client) readPullRequest(ctx context.Context, owner, name string, number int) *ghsdk.PullRequest {
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("github request", "method", http.MethodGet, "url", path)
 	pr, resp, err := c.restClient.PullRequests.Get(ctx, owner, name, number)
 	if err != nil {
-		slog.Warn("reading the pull request title for a squash failed", "repo", owner+"/"+name, "number", number, "error", err)
+		slog.Warn("reading the pull request before a merge failed", "repo", owner+"/"+name, "number", number, "error", err)
 
-		return ""
+		return nil
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
 
-	return fmt.Sprintf("%s (#%d)", pr.GetTitle(), number)
+	return pr
 }
 
 // ReadPullRequestState implements dashboard.PullRequestStateReader via
@@ -724,6 +733,7 @@ query($owner: String!, $name: String!, $number: Int!) {
     pullRequest(number: $number) {
       id
       title
+      baseRefName
     }
   }
 }
@@ -749,8 +759,9 @@ type autoMergeLookupResponse struct {
 			Name string `json:"name"`
 		} `json:"defaultBranchRef"`
 		PullRequest struct {
-			ID    string `json:"id"`
-			Title string `json:"title"`
+			ID          string `json:"id"`
+			Title       string `json:"title"`
+			BaseRefName string `json:"baseRefName"`
 		} `json:"pullRequest"`
 	} `json:"repository"`
 }
@@ -782,7 +793,7 @@ func (c *Client) EnableAutoMerge(ctx context.Context, owner, name string, number
 
 	vars := map[string]any{
 		"id":     lookup.Repository.PullRequest.ID,
-		"method": autoMergeMethodFor(lookup, c.linearHistoryRequired(ctx, owner, name, lookup.Repository.DefaultBranchRef.Name)),
+		"method": autoMergeMethodFor(lookup, c.linearHistoryRequired(ctx, owner, name, cmp.Or(lookup.Repository.PullRequest.BaseRefName, lookup.Repository.DefaultBranchRef.Name))),
 	}
 	// The pull request's own title for a squash, as in MergePullRequest.
 	if vars["method"] == "SQUASH" {
