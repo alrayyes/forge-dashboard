@@ -712,10 +712,21 @@ that is behind its base branch gets Update branch and a line saying
 release-please won't update it until a releasable change lands. With no release
 pull requests open the page says nothing is waiting to ship.
 
+## Bots
+
+Dependabot and Renovate pull requests have their own page, `/bots.html`,
+reached from the **Bots** item in the navigation. Like Releases, it is the pull
+request board over the pull requests the server marks `kind: dependency`, with
+the same filters, rows and actions as the main page. The main pull request page
+lists none of them, so it has no quick filter for bots. A filter saved before
+that change is ignored. With no bot pull requests open the page says there is
+nothing to review.
+
 The navigation shows how many are waiting, as it does for Issues: the number of
-open pull requests (without releases) on the Home item and the number of open
-release pull requests on Releases. The dashboard pages set both from each
-snapshot, and the other signed-in pages load them once.
+open pull requests (without releases and bots) on the Home item, the number of
+open release pull requests on Releases and the number of bot pull requests on
+Bots. The dashboard pages set all three from each snapshot, and the other
+signed-in pages load them once.
 
 ## Issues
 
@@ -730,7 +741,7 @@ The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
 and saved with your other filters, so a filter set on one page is still set on
 the other. The pull-request-only controls (CI status, the quick filters for
-failing, bot, ready and needs-review pull requests, Show drafts) are not on the
+failing, ready and needs-review pull requests, Show drafts) are not on the
 issues page.
 
 The issue list holds still while you read it. A refresh that would add, remove
