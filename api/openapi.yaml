@@ -84,6 +84,11 @@ tags:
     description: |
       Actions against a pull request already listed on the dashboard,
       taken on the signed-in user's own behalf.
+  - name: queued-actions
+    description: |
+      Safe actions (Update branch, Dependabot and Renovate rebase) queued to
+      run when a rate-limited forge resets (#756). Per user, stored on the
+      server, so they survive a reload and a restart.
   - name: tokens
     description: |
       Personal API tokens — a Bearer credential a script can use instead
@@ -1678,6 +1683,145 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/queued-actions:
+    get:
+      operationId: listQueuedActions
+      summary: List the signed-in user's queued actions, waiting and recently finished
+      description: |
+        Every action the user queued to run when a rate-limited forge
+        resets (#756), oldest first: the ones still `queued`, and the
+        final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
+        client can show the outcome in its Activity list. The same list
+        rides along on GET /api/dashboard as `queuedActions`.
+      tags: [queued-actions]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The user's queue. Always an array, empty when there is nothing queued.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QueuedAction"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: queueAction
+      summary: Queue a safe action to run when a rate-limited forge resets
+      description: |
+        Stores the intent server-side. When the forge's budget comes back
+        the server reads the pull request again and runs the action only
+        if it still applies; otherwise it records why it did nothing. It
+        survives a page reload and a server restart.
+
+        Only safe, idempotent actions can be queued: `update_branch`,
+        `dependabot_rebase` and `renovate_rebase`. Merge and Close are not
+        queueable and answer 400: they would act unattended on a pull
+        request whose checks or commits may have changed. To merge once
+        the limit lifts, use the forge's own auto-merge.
+
+        The forge must be rate limited right now (a spent budget in
+        `forges[].rateLimitRest` or `rateLimitGraphql` whose `resetsAt` is
+        ahead), otherwise there is nothing to wait for and the action
+        should be taken directly: 409 `not_rate_limited`. The pull request
+        must be on the signed-in user's board and offer the action
+        (`allowedActions`) and be behind its base branch, with the same
+        409 codes the direct action answers. The queued item runs with
+        the user's own saved credentials for that forge, never anyone
+        else's. Queueing the same action on the same pull request twice
+        returns the first item with 200.
+      tags: [queued-actions]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueuedActionRequest"
+      responses:
+        "201":
+          description: Queued. `runAt` is the forge's reset time.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueuedAction"
+        "200":
+          description: This action was already queued on this pull request. The existing item, unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueuedAction"
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", or `action` is not queueable (Merge, Close and
+            every other action are refused here).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The pull request isn't on the signed-in user's board, or the user has no credentials saved for that forge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: |
+            Nothing to queue. `not_rate_limited`: the forge isn't rate
+            limited, act directly. Otherwise the pull request's
+            `allowedActions` has no usable entry for the action, with that
+            entry's `code` and `message`, or `already_up_to_date` for a
+            pull request that isn't behind.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+
+  /api/queued-actions/{id}:
+    delete:
+      operationId: cancelQueuedAction
+      summary: Cancel a queued action, or clear a finished one from the list
+      description: |
+        A queued action that has not run is removed and nothing runs. A
+        finished one is cleared from the list. An id that isn't the
+        signed-in user's answers 404, the same as one that doesn't exist.
+      tags: [queued-actions]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: A `QueuedAction.id`.
+      responses:
+        "204":
+          description: Removed.
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No such queued action for this user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/admin/users:
     get:
       operationId: listUsers
@@ -2559,12 +2703,19 @@ components:
             - ready_to_merge
             - permission
             - rate_limited
+            - not_rate_limited
+            - not_open
             - unknown
           description: |
             Why the action was refused, from a re-read of the pull
             request's real state. `already_merged` and `already_closed`
             mean the dashboard's row was stale: the pull request has
             nothing left to merge.
+
+            `not_rate_limited` belongs to queueing an action: the forge
+            isn't rate limited, so act directly. `not_open` is only an
+            outcome of a queued action: the pull request was gone from the
+            board when the reset came, merged or closed.
 
             Three codes belong to one action each: `already_up_to_date`
             (Update branch: nothing to bring in), `auto_merge_not_allowed`
@@ -3602,6 +3753,16 @@ components:
           oneOf:
             - type: "null"
             - $ref: "#/components/schemas/UpdateRequest"
+        queued:
+          description: |
+            A safe action this user queued on this pull request that is still
+            waiting for its forge's rate limit to reset, or null. The row can
+            say "Update branch queued for 14:32" from `runAt` and offer
+            Cancel with `id`. A final outcome is not here: it is in the
+            dashboard's `queuedActions`.
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/QueuedAction"
         requestedReviewerLogins:
           type: array
           items:
@@ -3682,6 +3843,85 @@ components:
             isn't a draft. Unreviewed with nobody asked, approved, changes
             requested and an unknown review state are all false. Always
             present.
+
+    QueuedActionRequest:
+      type: object
+      required: [action, forge, fullName, number]
+      description: Which safe action to queue, on which pull request.
+      properties:
+        action:
+          type: string
+          enum: [update_branch, dependabot_rebase, renovate_rebase]
+          maxLength: 32
+          description: |
+            The `AllowedAction.action` to run at the reset. Only these
+            three are queueable; Merge, Close and the rest answer 400.
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          maxLength: 255
+          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+        number:
+          type: integer
+          maximum: 2147483647
+          description: Matching a PullRequest.number from GET /api/dashboard.
+
+    QueuedAction:
+      type: object
+      required: [id, action, forge, fullName, number, status, runAt, createdAt]
+      description: |
+        A safe action queued to run when a rate-limited forge resets. A
+        client shows a `queued` one as "Update branch queued for 14:32"
+        with Cancel, and a final one in its Activity list.
+      properties:
+        id:
+          type: string
+          description: Opaque. What DELETE /api/queued-actions/{id} takes.
+        action:
+          type: string
+          enum: [update_branch, dependabot_rebase, renovate_rebase]
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          description: '"owner/repo".'
+        number:
+          type: integer
+        status:
+          type: string
+          enum: [queued, done, skipped, failed]
+          description: |
+            `queued`: waiting for the reset. `done`: the action ran.
+            `skipped`: the server re-read the pull request at the reset and
+            it no longer needed the action, so nothing was done; `code` and
+            `message` say why ("Already merged"). `failed`: the action ran
+            and the forge refused, with the structured `code` and `message`
+            an immediate action would have answered.
+        runAt:
+          type: string
+          format: date-time
+          description: |
+            When the forge's budget comes back, which is when the server
+            looks again. If the budget is spent again by then, it moves to
+            the new reset instead of failing.
+        createdAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          description: Only on a final status.
+        code:
+          type: string
+          description: |
+            Only on `skipped` and `failed`. A value of ActionError.code,
+            for example `already_merged`, `already_closed`, `not_open`,
+            `already_up_to_date`, `conflict`, `already_requested`,
+            `permission`.
+        message:
+          type: string
+          description: Only on `skipped` and `failed`. Plain words safe to show a person.
 
     BotRequest:
       type: object
@@ -3934,6 +4174,18 @@ components:
           readIntervalSeconds,
         ]
       properties:
+        queuedActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/QueuedAction"
+          description: |
+            The signed-in user's queued actions, waiting and finished in the
+            last 24 hours (GET /api/queued-actions), so a client lists them in
+            its Activity panel and learns an outcome from the stream it
+            already reads. Empty when there are none, and always empty on
+            another user's shared dashboard. Not yet in `required`: the
+            handler that fills it ships in the next pull request of the
+            stack, which makes it required.
         autoMerged:
           type: array
           items:

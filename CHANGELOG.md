@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.147.0](https://github.com/alrayyes/forge-dashboard/compare/v0.146.0...v0.147.0) (2026-10-11)
+
+
+### Features
+
+* **web:** count badges on Home and Releases, and no release pull requests on the pull request page ([#1189](https://github.com/alrayyes/forge-dashboard/issues/1189)) ([334b51f](https://github.com/alrayyes/forge-dashboard/commit/334b51f06fed18b30e954fede6bed5d6829cf0c1))
+
 ## [0.146.0](https://github.com/alrayyes/forge-dashboard/compare/v0.145.0...v0.146.0) (2026-10-11)
 
 
