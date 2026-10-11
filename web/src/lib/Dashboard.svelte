@@ -844,8 +844,10 @@
           !pr.empty &&
           Boolean(findAction(pr, "renovate_rebase"));
         if (dependabotRebasePromoted) {
-          if (!dependabotRebaseHidden(pr))
-            statusCell.appendChild(dependabotActionButton(pr, "rebase"));
+          if (!dependabotRebaseHidden(pr)) {
+            const rebaseButton = dependabotActionButton(pr, "rebase");
+            if (rebaseButton) statusCell.appendChild(rebaseButton);
+          }
         } else if (renovateRebasePromoted) {
           const promoted = renovateRebaseActionCell(pr);
           if (promoted) statusCell.appendChild(promoted);
@@ -905,20 +907,6 @@
     // focus to it.
     function domSafeId(key: string): string {
       return key.replace(/[^a-zA-Z0-9_-]/g, "-");
-    }
-
-    // One line under a group heading while that forge's REST budget is
-    // spent, so the reset time is stated once instead of on every row
-    // (#732). Plain text, not a live region: the same sentence is already
-    // each disabled button's accessible description.
-    function groupRateLimitNote(forgeName: string): HTMLElement | null {
-      const health = lastForges.find((f) => f.forge === forgeName);
-      if (!isRateLimited(health?.rateLimitREST)) return null;
-      return el(
-        "p",
-        "group-rate-limit",
-        rateLimitedReason(forgeName, health?.rateLimitREST),
-      );
     }
 
     // Forgejo has no auto-merge this app can read, so Forge Dashboard does
@@ -1153,6 +1141,14 @@
       return null;
     }
 
+    // A forge whose budget is spent is read-only (#755): the controls that
+    // need that budget are not drawn at all, instead of greyed out on every
+    // row. One banner says so once, with the reset time. A lock from a failed
+    // click (a 429 the snapshot hadn't shown yet) still draws, with its reason.
+    function readOnlyBecauseRateLimited(reason: LockInfo | null): boolean {
+      return reason?.code === "rate_limited";
+    }
+
     // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
     // min)." Built fresh from the latest snapshot, so a 429 from a click
     // reads the same as a budget the snapshot already showed spent (#732).
@@ -1378,6 +1374,13 @@
       // unlocks by itself (#705).
       const merge = findAction(item, "merge");
       if (!merge) return null;
+      // Read-only while the forge's budget is spent (#755), blocked or not:
+      // the banner says why, so a greyed Merge adds nothing.
+      if (
+        (mergeState[prKey(item)]?.phase ?? "idle") === "idle" &&
+        readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
+      )
+        return null;
       if (merge.blocked)
         return lockedActionButton(
           "Merge",
@@ -1400,6 +1403,7 @@
       // landed.
       if (entry.phase === "idle") {
         const proactiveReason = proactiveActionLockReason(item.forge);
+        if (readOnlyBecauseRateLimited(proactiveReason)) return null;
         if (proactiveReason)
           return lockedActionButton("Merge", proactiveReason, () =>
             retryLockedAction(item),
@@ -1567,6 +1571,7 @@
           item.forge,
           "graphql",
         );
+        if (readOnlyBecauseRateLimited(proactiveReason)) return null;
         if (proactiveReason)
           return lockedActionButton("Enable auto-merge", proactiveReason);
       }
@@ -1991,6 +1996,7 @@
 
       if (entry.phase === "idle") {
         const proactiveReason = proactiveActionLockReason(item.forge);
+        if (readOnlyBecauseRateLimited(proactiveReason)) return null;
         if (proactiveReason)
           return markClose(
             lockedActionButton("Close", proactiveReason, () =>
@@ -2134,6 +2140,11 @@
       // each snapshot, so the real button comes back by itself (#701).
       const updateBranch = findAction(item, "update_branch");
       if (!updateBranch) return null;
+      if (
+        (updateBranchState[prKey(item)]?.phase ?? "idle") === "idle" &&
+        readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
+      )
+        return null;
       if (updateBranch.blocked)
         return lockedActionButton(
           "Update branch",
@@ -2150,6 +2161,7 @@
 
       if (entry.phase === "idle") {
         const proactiveReason = proactiveActionLockReason(item.forge);
+        if (readOnlyBecauseRateLimited(proactiveReason)) return null;
         if (proactiveReason)
           return lockedActionButton("Update branch", proactiveReason, () =>
             retryLockedAction(item),
@@ -2293,7 +2305,7 @@
     function dependabotActionButton(
       item: PullRequestItem,
       action: "rebase" | "recreate",
-    ): HTMLElement {
+    ): HTMLElement | null {
       const key = `${prKey(item)}:${action}`;
       const entry = dependabotActionState[key] || { phase: "idle" };
 
@@ -2314,6 +2326,7 @@
 
       if (entry.phase === "idle") {
         const proactiveReason = proactiveActionLockReason(item.forge);
+        if (readOnlyBecauseRateLimited(proactiveReason)) return null;
         if (proactiveReason)
           return lockedActionButton(
             DEPENDABOT_ACTION_LABELS[action],
@@ -2345,9 +2358,14 @@
       if (!rebase && !recreate) return null;
 
       const wrap = el("span", "row-action-group");
-      if (rebase && !dependabotRebaseHidden(item))
-        wrap.appendChild(dependabotActionButton(item, "rebase"));
-      if (recreate) wrap.appendChild(dependabotActionButton(item, "recreate"));
+      const buttons = [
+        rebase && !dependabotRebaseHidden(item)
+          ? dependabotActionButton(item, "rebase")
+          : null,
+        recreate ? dependabotActionButton(item, "recreate") : null,
+      ].filter((b): b is HTMLElement => b !== null);
+      if (buttons.length === 0) return null;
+      for (const button of buttons) wrap.appendChild(button);
       return wrap;
     }
 
@@ -2844,6 +2862,7 @@
 
       if (entry.phase === "idle") {
         const proactiveReason = proactiveActionLockReason(item.forge);
+        if (readOnlyBecauseRateLimited(proactiveReason)) return null;
         if (proactiveReason)
           return lockedActionButton("Renovate: Rebase", proactiveReason);
       }
@@ -3778,8 +3797,6 @@
             el("span", "group-count", String(groups[key].length)),
           );
           container.appendChild(heading);
-          const note = isPR ? groupRateLimitNote(first.forge) : null;
-          if (note) container.appendChild(note);
           const callout = isPR ? groupAutoMergeCallout(first.forge) : null;
           if (callout) container.appendChild(callout);
           appendEntries(container, entriesFor(groups[key]));
@@ -4588,31 +4605,60 @@
     // miss buried in a board below the fold. This mirrors it at the top
     // of the page, with the same critical prominence as the "CI failing"
     // stat tile, so it's visible at a glance.
-    type RateLimitAlert = {
-      label: string;
-      severity: "exceeded" | "low";
-      resetsAt: string;
-      remaining: number;
-      limit: number;
-    };
+    // One row per forge that went read-only (#755), and one per budget that is
+    // merely running low.
+    type RateLimitAlert =
+      | {
+          kind: "readonly";
+          label: string;
+          // Which budgets are spent, and when the last one comes back.
+          rest: boolean;
+          graphql: boolean;
+          resetsAt: string;
+        }
+      | {
+          kind: "low";
+          label: string;
+          resetsAt: string;
+          remaining: number;
+          limit: number;
+        };
     let rateLimitAlerts: RateLimitAlert[] = [];
 
     function computeRateLimitAlerts(forges: Forge[]): RateLimitAlert[] {
       const out: RateLimitAlert[] = [];
       for (const f of forges) {
         const name = FORGE_LABELS[f.forge] || f.forge;
+        const rest = isRateLimited(f.rateLimitREST) ? f.rateLimitREST : null;
+        const graphql = isRateLimited(f.rateLimitGraphQL)
+          ? f.rateLimitGraphQL
+          : null;
+        if (rest || graphql) {
+          const resets = [rest, graphql]
+            .filter((l): l is RateLimit => l !== null)
+            .map((l) => l.resetsAt)
+            .sort((a, b) => Date.parse(b) - Date.parse(a));
+          out.push({
+            kind: "readonly",
+            label: name,
+            rest: rest !== null,
+            // A forge that reports no GraphQL budget (Forgejo) has nothing
+            // there to keep working.
+            graphql: graphql !== null || !f.rateLimitGraphQL,
+            resetsAt: resets[0],
+          });
+        }
         for (const [kind, rl] of [
           ["GraphQL", f.rateLimitGraphQL],
           ["REST", f.rateLimitREST],
         ] as const) {
           // The server grades each budget from its own threshold, so the
-          // page holds none (#806). A warning is the gauge's amber stage;
-          // nothing here needs to act on it.
-          if (!rl || rl.severity === "ok" || rl.severity === "warning")
-            continue;
+          // page holds none (#806). Exceeded is the read-only row above; a
+          // warning is the gauge's amber stage and nothing here acts on it.
+          if (!rl || rl.severity !== "low") continue;
           out.push({
+            kind: "low",
             label: `${name} ${kind}`,
-            severity: rl.severity,
             resetsAt: rl.resetsAt,
             remaining: rl.remaining,
             limit: rl.limit,
@@ -4651,8 +4697,10 @@
       // The zone is part of it: a changed zone redraws the reset times.
       const signature = [
         effectiveZone(),
-        ...rateLimitAlerts.map(
-          (a) => `${a.label}|${a.severity}|${a.resetsAt}|${a.remaining}`,
+        ...rateLimitAlerts.map((a) =>
+          a.kind === "readonly"
+            ? `${a.label}|readonly|${a.rest}|${a.graphql}|${a.resetsAt}`
+            : `${a.label}|low|${a.resetsAt}|${a.remaining}`,
         ),
       ].join(";");
       if (existing && existing.dataset.signature === signature) {
@@ -4669,17 +4717,10 @@
       banner.dataset.signature = signature;
       banner.setAttribute("role", "alert");
       for (const alert of rateLimitAlerts) {
-        const exceeded = alert.severity === "exceeded";
-        const row = el("div", `rate-limit-banner-row${exceeded ? "" : " low"}`);
-        const resetAt = `resets at ${formatTime(alert.resetsAt)}`;
+        const readonly = alert.kind === "readonly";
+        const row = el("div", `rate-limit-banner-row${readonly ? "" : " low"}`);
         row.appendChild(
-          el(
-            "span",
-            "rate-limit-banner-label",
-            exceeded
-              ? `Rate limit exceeded — ${alert.label}, ${resetAt}`
-              : `Rate limit running low — ${alert.label}, ${resetAt}`,
-          ),
+          el("span", "rate-limit-banner-label", bannerLabel(alert)),
         );
         const timer = el(
           "span",
@@ -4690,15 +4731,47 @@
         row.appendChild(timer);
         banner.appendChild(row);
       }
+      if (rateLimitAlerts.some((a) => a.kind === "readonly"))
+        banner.appendChild(stillWorksDisclosure());
       document
         .querySelector(".stats")
         ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
     }
 
+    // Say what is off, not just that something is. Which actions need which
+    // budget follows proactiveActionLockReason: Merge, Update branch, Close
+    // and the bot commands are REST calls, auto-merge is GraphQL.
+    function bannerLabel(alert: RateLimitAlert): string {
+      const until = formatTime(alert.resetsAt);
+      if (alert.kind === "low")
+        return `Rate limit running low — ${alert.label}, resets at ${until}`;
+      if (alert.rest && alert.graphql)
+        return `${alert.label} is rate limited. Read-only until ${until}.`;
+      if (alert.rest)
+        return `${alert.label}'s REST budget is spent. Merge, Update branch, rebase and Close are unavailable until ${until}. Enable auto-merge still works.`;
+      return `${alert.label}'s GraphQL budget is spent. Enable auto-merge is unavailable until ${until}; everything else works.`;
+    }
+
     function bannerTimerText(alert: RateLimitAlert): string {
-      return alert.severity === "exceeded"
-        ? countdownLabel(alert.resetsAt)
-        : `${alert.remaining.toLocaleString()} of ${alert.limit.toLocaleString()} requests left — ${countdownLabel(alert.resetsAt)}`;
+      return alert.kind === "low"
+        ? `${alert.remaining.toLocaleString()} of ${alert.limit.toLocaleString()} requests left — ${countdownLabel(alert.resetsAt)}`
+        : countdownLabel(alert.resetsAt);
+    }
+
+    // A closed disclosure under the banner: the reader sees the read-only
+    // state first and opens this only if they wonder what is left.
+    function stillWorksDisclosure(): HTMLElement {
+      const details = el("details", "rate-limit-still-works");
+      details.appendChild(el("summary", "", "What still works"));
+      const list = el("ul", "");
+      for (const text of [
+        "View pipeline: the CI pill on a row opens its checks.",
+        "Open a pull request on the forge: the title links straight to it.",
+        "Browsing, search and filters, over the last data the dashboard has. Refreshed shows how old it is.",
+      ])
+        list.appendChild(el("li", "", text));
+      details.appendChild(list);
+      return details;
     }
 
     // ---- automatic re-enable at the reset time (#732) ----
