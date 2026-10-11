@@ -471,6 +471,16 @@ meantime. To merge once the limit lifts, arm the forge's own auto-merge instead.
 After a restart the server starts the dashboard of every user with a waiting
 item, so the action still runs at the reset without anyone signing in.
 
+On the page, a pull request that is behind its base on a forge whose REST budget
+is spent gets a button where Update branch would have been: "Queue update for
+14:32", or `Queue rebase for 14:32` for a Dependabot or Renovate pull request.
+Queueing posts to `/api/queued-actions`. The row then says "Update branch queued
+for 14:32" with a Cancel button, and Activity lists the item with Cancel (or
+Clear, once it has finished). When an outcome arrives while the page is open, a
+polite toast and the Activity list say whether it was done, skipped with the
+reason ("Already merged") or failed. No queue button is offered for Merge or
+Close, for a pull request that isn't behind, or while the forge has budget left.
+
 A forge that fails a refresh keeps showing its last good pull requests and
 issues, and the header says so next to it: "Showing data from 3m ago". The
 time comes from the server's `staleSince`, which is gone again after the next
