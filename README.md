@@ -424,6 +424,20 @@ don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
 so the page holds no threshold of its own.
 
+While a forge's REST budget is spent, a pull request that is behind its base can
+queue the safe part of its update for the reset: the button reads "Queue update
+for 14:32" (`Queue rebase for 14:32` for a Dependabot or Renovate pull request)
+where Update branch would have been. The server keeps the queue per user, so it
+survives a reload and a restart. At the reset it reads the pull request again
+and runs the action only if it still applies, using your own saved credentials
+for that forge. The row then says "Update branch queued for 14:32" with a Cancel
+button, and Activity lists it. When it has run, a polite toast and the Activity
+list say whether it was done, skipped with the reason ("Already merged") or
+failed. Only Update branch and the Dependabot and Renovate bot commands can be
+queued. Merge and Close can't, because running them unattended on a pull request
+whose checks or commits may have changed is the case to avoid. For merging, arm
+the forge's own auto-merge once the limit lifts.
+
 A forge that fails a refresh keeps showing its last good pull requests and
 issues, and the header says so next to it: "Showing data from 3m ago". The
 time comes from the server's `staleSince`, which is gone again after the next
