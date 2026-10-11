@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.146.0](https://github.com/alrayyes/forge-dashboard/compare/v0.145.0...v0.146.0) (2026-10-11)
+
+
+### Features
+
+* **web:** a rate-limited forge goes read-only, with one banner ([#1174](https://github.com/alrayyes/forge-dashboard/issues/1174)) ([a6d643e](https://github.com/alrayyes/forge-dashboard/commit/a6d643eea9a71d60c34ae05dde2bbc352c33bf50)), closes [#755](https://github.com/alrayyes/forge-dashboard/issues/755)
+
 ## [0.145.0](https://github.com/alrayyes/forge-dashboard/compare/v0.144.1...v0.145.0) (2026-10-11)
 
 
