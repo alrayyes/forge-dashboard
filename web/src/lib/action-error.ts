@@ -45,8 +45,10 @@ export type ActionOutcome =
   | { kind: 'settled'; state: SettledState; message: string }
   // A refusal that waiting won't fix and clicking again won't help.
   | { kind: 'locked'; code: ActionCode; reason: string }
-  // Anything else: show the reason, leave the action clickable.
-  | { kind: 'failed'; reason: string };
+  // Anything else: show the reason, leave the action clickable. `transient`
+  // is a failure that passes by itself (the request never got an answer, or
+  // a forge answered 502, 503 or 504): its row line clears itself (#1206).
+  | { kind: 'failed'; reason: string; transient?: boolean };
 
 const CODES: ReadonlySet<string> = new Set<ActionCode>([
   'already_merged',
@@ -70,6 +72,16 @@ const CODES: ReadonlySet<string> = new Set<ActionCode>([
 export const NO_REASON = 'The forge refused this action and gave no reason.';
 export const FORGE_UNAVAILABLE =
   "The forge didn't answer. Try again in a moment.";
+// What a request that got no answer at all says. The browser's own string
+// ("Failed to fetch") differs by browser and says nothing a person can use.
+export const NETWORK_FAILURE = "Couldn't reach the server.";
+
+// A failure that passes by itself, as opposed to a refusal that needs a
+// person: nothing reached the server, or a forge in front of it timed out.
+export function isTransientFailure(err: ActionRequestError): boolean {
+  if (err.status === undefined) return true;
+  return err.status === 502 || err.status === 503 || err.status === 504;
+}
 
 // What the row and the toast may say for a failure. Only the server's own
 // `message` qualifies, and only if it reads as a sentence: the raw `error`
@@ -130,6 +142,9 @@ export function interpretActionFailure(
   rateLimitedReason: (resetsAt: string | undefined) => string,
   retryable: ReadonlySet<ActionCode> = new Set(),
 ): ActionOutcome {
+  // No answer at all: say so in plain words, whatever string the browser gave.
+  if (err.status === undefined && err.code === undefined)
+    return { kind: 'failed', reason: NETWORK_FAILURE, transient: true };
   const code = err.code ?? 'unknown';
   if (retryable.has(code) && code !== 'permission' && code !== 'rate_limited')
     return { kind: 'failed', reason: err.message };
@@ -149,7 +164,11 @@ export function interpretActionFailure(
         ),
       };
     case 'unknown':
-      return { kind: 'failed', reason: err.message };
+      return {
+        kind: 'failed',
+        reason: err.message,
+        transient: isTransientFailure(err),
+      };
     default:
       return { kind: 'locked', code, reason: err.message };
   }
