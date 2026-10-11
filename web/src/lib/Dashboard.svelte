@@ -5738,6 +5738,12 @@
           data-pill="review-requested"
           aria-pressed="false">Review requested from me</button
         >
+        <button
+          type="button"
+          class="quick-pill"
+          data-pill="conflicting"
+          aria-pressed="false">Conflicts</button
+        >
       {/if}
     </div>
     <!-- Phones (#828): this row stays when the rest of the controls fold

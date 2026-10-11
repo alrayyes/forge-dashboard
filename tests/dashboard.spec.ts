@@ -3379,7 +3379,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(rowTitles(page)).toHaveCount(LISTED);
   });
 
-  test('shows all eight pills in a labelled group with exactly one active', async ({
+  test('shows all the pills in a labelled group with exactly one active', async ({
     page,
   }) => {
     const group = page.getByRole('group', { name: 'Quick filters' });
@@ -3392,6 +3392,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       'Ready to Merge',
       'Needs Review',
       'Review requested from me',
+      'Conflicts',
     ]);
     await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
     await expect(group.locator('[aria-pressed="true"]')).toHaveCount(1);

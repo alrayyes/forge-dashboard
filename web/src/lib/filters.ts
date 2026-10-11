@@ -46,6 +46,7 @@ export const QUICK_FILTERS = [
   'ready',
   'needs-review',
   'review-requested',
+  'conflicting',
 ] as const;
 export type QuickFilter = (typeof QUICK_FILTERS)[number];
 
@@ -66,6 +67,11 @@ export function matchesQuickFilter(
       return item.needsReview === true;
     case 'review-requested':
       return item.reviewRequestedFromMe === true;
+    case 'conflicting':
+      // The field the row's own Conflicting pill reads, so the page holds no
+      // rule of its own. A draft that conflicts still needs the conflict
+      // fixed, so it is listed too (#1215).
+      return item.mergeStatus === 'conflicting';
     default:
       return true;
   }
