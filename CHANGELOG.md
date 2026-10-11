@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.161.1](https://github.com/alrayyes/forge-dashboard/compare/v0.161.0...v0.161.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **web:** preload the latin fonts so the swap doesn't shift the footer ([#1257](https://github.com/alrayyes/forge-dashboard/issues/1257)) ([b187b5a](https://github.com/alrayyes/forge-dashboard/commit/b187b5ab1f85d6a280ce84ccfb2e9858bcab7237)), closes [#1255](https://github.com/alrayyes/forge-dashboard/issues/1255)
+
 ## [0.161.0](https://github.com/alrayyes/forge-dashboard/compare/v0.160.0...v0.161.0) (2026-10-11)
 
 
