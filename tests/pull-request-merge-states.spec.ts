@@ -256,7 +256,8 @@ test.describe('Merge states on a pull request row', () => {
         ci: 'pending',
       }),
     );
-    await page.reload();
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    await page.goto('/bots.html');
 
     const row = rowOf(page);
     await expect(

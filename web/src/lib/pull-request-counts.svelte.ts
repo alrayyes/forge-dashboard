@@ -7,14 +7,18 @@ export const pullRequestCount = $state<{ value: number | null }>({
   value: null,
 });
 export const releaseCount = $state<{ value: number | null }>({ value: null });
+export const botCount = $state<{ value: number | null }>({ value: null });
 
-// Release pull requests live on the Releases page and are not counted with the
-// rest; the server says which are which (`kind`).
+// Release pull requests live on the Releases page and Dependabot and Renovate's
+// on the Bots page, so neither is counted with the rest; the server says which
+// are which (`kind`).
 export function setPullRequestCounts(
   pullRequests: { kind?: string }[] | undefined,
 ) {
   const all = pullRequests ?? [];
   const releases = all.filter((p) => p.kind === 'release').length;
+  const bots = all.filter((p) => p.kind === 'dependency').length;
   releaseCount.value = releases;
-  pullRequestCount.value = all.length - releases;
+  botCount.value = bots;
+  pullRequestCount.value = all.length - releases - bots;
 }
