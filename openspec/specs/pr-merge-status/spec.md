@@ -26,6 +26,32 @@ reported state.
 - **WHEN** a pull request is clean and mergeable
 - **THEN** no blocked/conflict indicator appears on its row
 
+### Requirement: Pull request rows report a branch that is behind its base
+
+The system SHALL report a pull request as behind when its base branch has
+commits its head lacks, whatever merge state the forge reports and whether or
+not the repo requires branches to be up to date. Behind SHALL NOT block a
+merge: Merge stays as available as the forge makes it, and Update branch is
+offered. On GitHub, `mergeStateStatus` is only a reliable "behind" when it
+says so (`BEHIND`), so every other state is settled by one batched
+`Ref.compare` lookup per refresh, which GitHub costs at one GraphQL point
+however many pull requests it covers (#495, #1183).
+
+#### Scenario: Behind in a repo that does not require up-to-date branches
+
+- **WHEN** a GitHub pull request is mergeable (`CLEAN`) and its base branch has commits its head lacks
+- **THEN** the pull request is reported as behind, Update branch is offered, and Merge stays allowed
+
+#### Scenario: Not behind
+
+- **WHEN** a GitHub pull request's base branch has no commits its head lacks
+- **THEN** the pull request is not reported as behind
+
+#### Scenario: The comparison is unavailable
+
+- **WHEN** GitHub returns no comparison for a pull request, such as a deleted head
+- **THEN** the pull request is not reported as behind
+
 ### Requirement: Pull request rows report auto-merge status
 
 The system SHALL report, for each pull request, whether auto-merge is
