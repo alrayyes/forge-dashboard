@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"strings"
@@ -31,7 +32,7 @@ const fixtureSlug = fixtureOwner + "/" + fixtureRepo
 func ghAPI(t *testing.T, method, path string, body, out any) error {
 	t.Helper()
 	args := []string{"api", "-X", method, path}
-	cmd := exec.Command("gh", args...)
+	cmd := exec.Command("gh", args...) //nolint:gosec // test helper: gh with arguments this file builds
 	if body != nil {
 		raw, err := json.Marshal(body)
 		require.NoError(t, err)
@@ -45,7 +46,9 @@ func ghAPI(t *testing.T, method, path string, body, out any) error {
 		return fmt.Errorf("gh api %s %s: %w: %s", method, path, err, stderr.String())
 	}
 	if out != nil && len(raw) > 0 {
-		return json.Unmarshal(raw, out)
+		if err := json.Unmarshal(raw, out); err != nil {
+			return fmt.Errorf("gh api %s %s: decode: %w", method, path, err)
+		}
 	}
 
 	return nil
@@ -85,9 +88,7 @@ func openPR(t *testing.T, base, title string, extra map[string]string) int {
 	t.Cleanup(func() { _ = ghAPI(t, "DELETE", "repos/"+fixtureSlug+"/git/refs/heads/"+branch, nil, nil) })
 
 	files := map[string]string{"changes/" + title + ".txt": title + "\n"}
-	for k, v := range extra {
-		files[k] = v
-	}
+	maps.Copy(files, extra)
 	for path, content := range files {
 		put := map[string]string{"message": "test: " + title, "content": base64.StdEncoding.EncodeToString([]byte(content)), "branch": branch}
 		var existing struct {
@@ -110,6 +111,7 @@ func openPR(t *testing.T, base, title string, extra map[string]string) int {
 		var p struct {
 			Mergeable *bool `json:"mergeable"`
 		}
+
 		return ghAPI(t, "GET", fmt.Sprintf("repos/%s/pulls/%d", fixtureSlug, pr.Number), nil, &p) == nil && p.Mergeable != nil
 	}, 60*time.Second, 2*time.Second, "GitHub never worked out whether #%d merges", pr.Number)
 
@@ -117,7 +119,7 @@ func openPR(t *testing.T, base, title string, extra map[string]string) int {
 }
 
 // mergeShape says how a merged pull request landed.
-func mergeShape(t *testing.T, number int, title string) string {
+func mergeShape(t *testing.T, number int) string {
 	t.Helper()
 	var pr struct {
 		Merged         bool   `json:"merged"`
@@ -157,20 +159,20 @@ func TestGitHubState_MergeUsesAMethodTheRepoAllows(t *testing.T) {
 		name      string
 		settings  fixtureSettings
 		base      string
-		linear    bool   // base/linear requires linear history, for admins too
-		known     string // ticket tracking a known failure, so the test passes until it is fixed
+		linear    bool // the base requires linear history, for admins too
 		wantShape string
+		known     string // ticket tracking a known failure, so the test passes until it is fixed
 	}{
-		{"merge commit only", fixtureSettings{AllowMergeCommit: true, AllowAutoMerge: true}, "base/clean", false, "merge", ""},
-		{"squash only", fixtureSettings{AllowSquashMerge: true, AllowAutoMerge: true}, "base/clean", false, "squash", ""},
-		{"rebase only", fixtureSettings{AllowRebaseMerge: true, AllowAutoMerge: true}, "base/clean", false, "rebase", ""},
-		{"all three on a linear-history branch", fixtureSettings{AllowMergeCommit: true, AllowSquashMerge: true, AllowRebaseMerge: true, AllowAutoMerge: true}, "base/linear", true, "squash", "https://github.com/alrayyes/forge-dashboard/issues/1173"},
+		{"merge commit only", fixtureSettings{AllowMergeCommit: true, AllowAutoMerge: true}, methodsBase, false, "merge", ""},
+		{"squash only", fixtureSettings{AllowSquashMerge: true, AllowAutoMerge: true}, methodsBase, false, "squash", ""},
+		{"rebase only", fixtureSettings{AllowRebaseMerge: true, AllowAutoMerge: true}, methodsBase, false, "rebase", ""},
+		{"all three on a linear-history branch", fixtureSettings{AllowMergeCommit: true, AllowSquashMerge: true, AllowRebaseMerge: true, AllowAutoMerge: true}, methodsLinearBase, true, "squash", "https://github.com/alrayyes/forge-dashboard/issues/1173"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// GitHub refuses a merge-commit-only repo while any branch requires
-			// linear history, so base/linear's rule follows the case.
-			setLinearBase(t, tc.linear)
+			// linear history, so the linear branches' rule follows the case.
+			setLinearBases(t, tc.linear)
 			setSettings(t, tc.settings)
 			title := fmt.Sprintf("method-%d", time.Now().UnixNano())
 			number := openPR(t, tc.base, title, nil)
@@ -183,25 +185,40 @@ func TestGitHubState_MergeUsesAMethodTheRepoAllows(t *testing.T) {
 				return
 			}
 			require.NoError(t, err, "GitHub refused the method the dashboard picked")
-			assert.Equal(t, tc.wantShape, mergeShape(t, number, title))
+			assert.Equal(t, tc.wantShape, mergeShape(t, number))
 		})
 	}
 }
 
-// setLinearBase sets base/linear's protection: linear history required, and
-// when strict, enforced on admins too (otherwise the owner's token merges a
-// merge commit through it). build.sh leaves it required and not enforced; the
-// original comes back when the test ends.
-func setLinearBase(t *testing.T, strict bool) {
+// The branches these tests merge into, so merging doesn't move a base the
+// state table's pull requests sit on and make them behind. build.sh makes
+// both; methodsLinearBase requires linear history.
+const (
+	methodsBase       = "base/methods"
+	methodsLinearBase = "base/methods-linear"
+	tableLinearBase   = "base/linear"
+)
+
+// setLinearBases sets the linear-history rule on the branches that have it. On
+// is the rule on methodsLinearBase and enforced on admins too (otherwise the
+// owner's token merges a merge commit through it). Off drops it everywhere,
+// since GitHub refuses a merge-commit-only repo while any branch requires it.
+// build.sh leaves it required and not enforced on both; that comes back when
+// the test ends.
+func setLinearBases(t *testing.T, on bool) {
 	t.Helper()
-	put := func(linear, enforce bool) error {
-		return ghAPI(t, "PUT", "repos/"+fixtureSlug+"/branches/base/linear/protection", map[string]any{
+	put := func(branch string, linear, enforce bool) error {
+		return ghAPI(t, "PUT", "repos/"+fixtureSlug+"/branches/"+branch+"/protection", map[string]any{
 			"required_status_checks": nil, "enforce_admins": enforce, "required_pull_request_reviews": nil,
 			"restrictions": nil, "required_linear_history": linear,
 		}, nil)
 	}
-	t.Cleanup(func() { assert.NoError(t, put(true, false)) })
-	require.NoError(t, put(strict, strict))
+	t.Cleanup(func() {
+		assert.NoError(t, put(methodsLinearBase, true, false))
+		assert.NoError(t, put(tableLinearBase, true, false))
+	})
+	require.NoError(t, put(methodsLinearBase, on, on))
+	require.NoError(t, put(tableLinearBase, on, false))
 }
 
 // Turning auto-merge off for the repo takes "Enable auto-merge" away on
@@ -220,7 +237,7 @@ func TestGitHubState_AutoMergeFollowsTheRepoSetting(t *testing.T) {
 	number := openPR(t, "base/req-check", title, map[string]string{"ci/required.txt": "slow\n"})
 
 	allowed := func() (github bool, dash *bool) {
-		out, err := exec.Command("gh", "api", "graphql", "-f", fmt.Sprintf(`query=query { repository(owner:%q, name:%q) { pullRequest(number:%d) { viewerCanEnableAutoMerge } } }`, fixtureOwner, fixtureRepo, number), "--jq", ".data.repository.pullRequest.viewerCanEnableAutoMerge").Output()
+		out, err := exec.Command("gh", "api", "graphql", "-f", fmt.Sprintf(`query=query { repository(owner:%q, name:%q) { pullRequest(number:%d) { viewerCanEnableAutoMerge } } }`, fixtureOwner, fixtureRepo, number), "--jq", ".data.repository.pullRequest.viewerCanEnableAutoMerge").Output() //nolint:gosec // test: gh with arguments this file builds
 		require.NoError(t, err)
 		github = strings.TrimSpace(string(out)) == "true"
 		prs, _, err := client.FetchRepo(t.Context(), fixtureOwner, fixtureRepo, fixtureSlug)

@@ -56,10 +56,17 @@ var knownDisagreements = map[string]difference{
 	"stacked-child": {"by design: a stacked pull request waits for its parent (#860)", dashboard.ActionStacked},
 }
 
-// bypassTicket is the owner's "merge without waiting for requirements".
+// knownBehind lists scenarios where GitHub's compare says the branch is behind
+// and the dashboard doesn't: without "require branches to be up to date"
+// mergeStateStatus is CLEAN, which the client reads as not behind.
+var knownBehind = map[string]string{
+	"behind-not-strict": "https://github.com/alrayyes/forge-dashboard/issues/1183",
+}
+
+// bypassIssueURL is the owner's "merge without waiting for requirements".
 // GitHub offers it to a repo admin when enforce_admins is off; the dashboard
 // never does, on purpose. Declined, not a bug.
-const bypassTicket = "https://github.com/alrayyes/forge-dashboard/issues/958"
+const bypassIssueURL = "https://github.com/alrayyes/forge-dashboard/issues/958" //nolint:gosec // an issue URL, not a credential
 
 // emptyScenario is the fixture pull request built to have no diff at all
 // (scripts/e2e-fixture/build.sh).
@@ -90,7 +97,7 @@ func truthQuery(states string) string {
 
 func fetchTruth(t *testing.T, states string) map[int]githubTruth {
 	t.Helper()
-	out, err := exec.Command("gh", "api", "graphql", "-f", "query="+truthQuery(states)).Output()
+	out, err := exec.Command("gh", "api", "graphql", "-f", "query="+truthQuery(states)).Output() //nolint:gosec // test: gh with a fixed query
 	require.NoError(t, err, "gh api graphql")
 	var resp struct {
 		Data struct {
@@ -115,7 +122,7 @@ func fetchTruth(t *testing.T, states string) map[int]githubTruth {
 // reported only when nothing else (conflicts, blocks) outranks it.
 func (g githubTruth) behindBy(t *testing.T) int {
 	t.Helper()
-	out, err := exec.Command("gh", "api", fmt.Sprintf("repos/%s/%s/compare/%s...%s", fixtureOwner, fixtureRepo, g.BaseRefName, g.HeadRefName), "--jq", ".behind_by").Output()
+	out, err := exec.Command("gh", "api", fmt.Sprintf("repos/%s/%s/compare/%s...%s", fixtureOwner, fixtureRepo, g.BaseRefName, g.HeadRefName), "--jq", ".behind_by").Output() //nolint:gosec // test: gh with branch names from the fixture
 	require.NoError(t, err, "gh api compare")
 	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
 	require.NoError(t, err)
@@ -169,6 +176,85 @@ func yesNo(b bool) string {
 	return "no"
 }
 
+func stackCell(pr dashboard.PullRequest) string {
+	switch {
+	case pr.StackedOn != nil:
+		return fmt.Sprintf("on #%d", pr.StackedOn.Number)
+	case len(pr.StackChildren) > 0:
+		return "parent"
+	}
+
+	return "-"
+}
+
+// mergeVerdict compares Merge: agree, an explained difference, or a problem.
+func mergeVerdict(g githubTruth, pr dashboard.PullRequest) (string, []string) {
+	allowed, blocked := dashboardMerge(pr)
+	want := g.githubMergeable()
+	known, isKnown := knownDisagreements[g.Title]
+	switch {
+	case allowed != want && isKnown:
+		if blocked == nil || blocked.Code != known.code {
+			return "known, " + known.ticket, []string{fmt.Sprintf("known difference should be refused with code %q, got %+v", known.code, blocked)}
+		}
+
+		return "known, " + known.ticket, nil
+	case allowed == want && isKnown:
+		return "agree", []string{fmt.Sprintf("now agrees, remove it from knownDisagreements (%s)", known.ticket)}
+	case !allowed && !want && g.bypassOffered():
+		return "expected, owner bypass: " + bypassIssueURL, nil
+	case allowed != want:
+		why := ""
+		if blocked != nil {
+			why = string(blocked.Code) + ": " + blocked.Message
+		}
+
+		return "", []string{fmt.Sprintf("Merge (GitHub can merge=%t, dashboard allows=%t: %s)", want, allowed, why)}
+	}
+
+	return "agree", nil
+}
+
+// fieldProblems compares everything but Merge itself.
+func fieldProblems(t *testing.T, g githubTruth, pr dashboard.PullRequest) []string {
+	t.Helper()
+	var problems []string
+	if g.Title == emptyScenario && !pr.Empty {
+		// The fixture's empty pull request has to be empty to exercise the
+		// rule at all; a GitHub-side change that makes it non-empty would
+		// otherwise pass here unnoticed.
+		problems = append(problems, "the fixture's empty pull request isn't empty")
+	}
+	if pr.Draft != g.IsDraft {
+		problems = append(problems, fmt.Sprintf("draft: GitHub %t, dashboard %t", g.IsDraft, pr.Draft))
+	}
+	// Behind means the base has commits the head lacks. The dashboard looks
+	// past mergeStateStatus for this, so compare with the compare endpoint,
+	// not the state. Without strict protection a behind branch is still CLEAN
+	// and mergeable.
+	wantBehind := g.behindBy(t) > 0
+	ticket, knownBehind := knownBehind[g.Title]
+	switch {
+	case pr.Behind != wantBehind && knownBehind:
+		// Known: the row's verdict still says so through knownBehind.
+	case pr.Behind != wantBehind:
+		problems = append(problems, fmt.Sprintf("behind: GitHub compare says %t (state %s), dashboard %t", wantBehind, g.MergeStateStatus, pr.Behind))
+	case knownBehind:
+		problems = append(problems, fmt.Sprintf("behind now agrees, remove it from knownBehind (%s)", ticket))
+	}
+	if pr.AutoMergeEnabled == nil || *pr.AutoMergeEnabled != (g.AutoMergeRequest != nil) {
+		problems = append(problems, fmt.Sprintf("auto-merge armed: GitHub %t, dashboard %v", g.AutoMergeRequest != nil, pr.AutoMergeEnabled))
+	}
+	if pr.AutoMergeAllowed == nil || *pr.AutoMergeAllowed != g.ViewerCanEnableAutoMerge {
+		problems = append(problems, fmt.Sprintf("auto-merge allowed: GitHub %t, dashboard %v", g.ViewerCanEnableAutoMerge, pr.AutoMergeAllowed))
+	}
+	if offered := dashboardOffers(pr, dashboard.ActionAutoMerge); offered && (!g.ViewerCanEnableAutoMerge || g.AutoMergeRequest != nil) {
+		problems = append(problems, "dashboard offers Enable auto-merge, GitHub would refuse or has it on already")
+	}
+
+	return problems
+}
+
 func TestGitHubState_DashboardAgreesWithGitHub(t *testing.T) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
@@ -205,66 +291,20 @@ func TestGitHubState_DashboardAgreesWithGitHub(t *testing.T) {
 		pr, ok := byNumber[n]
 		if !ok {
 			disagreements = append(disagreements, fmt.Sprintf("#%d %s: GitHub lists it, the dashboard doesn't", n, g.Title))
+
 			continue
 		}
-		allowed, blocked := dashboardMerge(pr)
-		want := g.githubMergeable()
-		var problems []string
-		verdict := "agree"
-		known, isKnown := knownDisagreements[g.Title]
-		switch {
-		case allowed != want && isKnown:
-			verdict = "known, " + known.ticket
-			if blocked == nil || blocked.Code != known.code {
-				problems = append(problems, fmt.Sprintf("known difference should be refused with code %q, got %+v", known.code, blocked))
-			}
-		case allowed == want && isKnown:
-			problems = append(problems, fmt.Sprintf("now agrees, remove it from knownDisagreements (%s)", known.ticket))
-		case !allowed && !want && g.bypassOffered():
-			verdict = "expected, owner bypass: " + bypassTicket
-		case allowed != want:
-			why := ""
-			if blocked != nil {
-				why = string(blocked.Code) + ": " + blocked.Message
-			}
-			problems = append(problems, fmt.Sprintf("Merge (GitHub can merge=%t, dashboard allows=%t: %s)", want, allowed, why))
-		}
-		if g.Title == emptyScenario && !pr.Empty {
-			// The fixture's empty pull request has to be empty to exercise the
-			// rule at all (#967); a GitHub-side change that makes it non-empty
-			// would otherwise pass here unnoticed.
-			problems = append(problems, "the fixture's empty pull request isn't empty")
-		}
-		if pr.Draft != g.IsDraft {
-			problems = append(problems, fmt.Sprintf("draft: GitHub %t, dashboard %t", g.IsDraft, pr.Draft))
-		}
-		// Behind means the base has commits the head lacks. The dashboard looks
-		// past mergeStateStatus for this (#495), so compare with the compare
-		// endpoint, not the state. Without strict protection a behind branch is
-		// still CLEAN and mergeable.
-		if wantBehind := g.behindBy(t) > 0; pr.Behind != wantBehind {
-			problems = append(problems, fmt.Sprintf("behind: GitHub compare says %t (state %s), dashboard %t", wantBehind, g.MergeStateStatus, pr.Behind))
-		}
-		if pr.AutoMergeEnabled == nil || *pr.AutoMergeEnabled != (g.AutoMergeRequest != nil) {
-			problems = append(problems, fmt.Sprintf("auto-merge armed: GitHub %t, dashboard %v", g.AutoMergeRequest != nil, pr.AutoMergeEnabled))
-		}
-		if pr.AutoMergeAllowed == nil || *pr.AutoMergeAllowed != g.ViewerCanEnableAutoMerge {
-			problems = append(problems, fmt.Sprintf("auto-merge allowed: GitHub %t, dashboard %v", g.ViewerCanEnableAutoMerge, pr.AutoMergeAllowed))
-		}
-		if offered := dashboardOffers(pr, dashboard.ActionAutoMerge); offered && (!g.ViewerCanEnableAutoMerge || g.AutoMergeRequest != nil) {
-			problems = append(problems, "dashboard offers Enable auto-merge, GitHub would refuse or has it on already")
+		allowed, _ := dashboardMerge(pr)
+		verdict, problems := mergeVerdict(g, pr)
+		problems = append(problems, fieldProblems(t, g, pr)...)
+		if ticket, ok := knownBehind[g.Title]; ok && len(problems) == 0 {
+			verdict = "known (behind), " + ticket
 		}
 		if len(problems) > 0 {
 			verdict = "DISAGREE (" + strings.Join(problems, "; ") + ")"
 			disagreements = append(disagreements, fmt.Sprintf("#%d %s: %s", n, g.Title, verdict))
 		}
-		stack := "-"
-		switch {
-		case pr.StackedOn != nil:
-			stack = fmt.Sprintf("on #%d", pr.StackedOn.Number)
-		case len(pr.StackChildren) > 0:
-			stack = "parent"
-		}
+		stack := stackCell(pr)
 		fmt.Fprintf(&table, "%-4d %-28s | %-9s %-11s %-5t %-6s %-8s | %-5s %-12s %-6t %-5t %-6s %-8s | %s\n",
 			n, g.Title, g.MergeStateStatus, g.Mergeable, g.IsDraft, yesNo(g.ViewerCanMergeAdmin),
 			yesNo(g.ViewerCanEnableAutoMerge)+"/"+yesNo(g.AutoMergeRequest != nil),
