@@ -218,13 +218,13 @@ test.describe('Merge states on a pull request row', () => {
 
       const row = rowOf(page);
       await expect(
-        row.getByRole('button', { name: 'Close', exact: true }),
+        row.getByRole('button', { name: 'Close pull request', exact: true }),
       ).toHaveCount(0);
       await row.getByRole('button', { name: 'More actions' }).click();
       await expect(
         row
           .locator('.row-actions-popover')
-          .getByRole('button', { name: 'Close', exact: true }),
+          .getByRole('button', { name: 'Close pull request', exact: true }),
       ).toBeVisible();
     });
   }
@@ -241,7 +241,7 @@ test.describe('Merge states on a pull request row', () => {
       0,
     );
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeVisible();
   });
 
@@ -265,7 +265,7 @@ test.describe('Merge states on a pull request row', () => {
     ).toHaveAttribute('aria-disabled', 'true');
     await row.getByRole('button', { name: 'More actions' }).click();
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeVisible();
   });
 

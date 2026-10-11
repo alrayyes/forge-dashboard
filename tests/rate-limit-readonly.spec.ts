@@ -78,7 +78,7 @@ const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const MUTATING = [
   'Merge',
   'Update branch',
-  'Close',
+  'Close pull request',
   'Enable auto-merge',
   'Dependabot: Rebase',
   'Renovate: Rebase',
@@ -242,7 +242,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       row.getByRole('button', { name: 'Enable auto-merge', exact: true }),
     ).toHaveCount(0);
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeVisible();
     await expect(page.locator('#rate-limit-banner')).toContainText(
       /Enable auto-merge is unavailable until \d{1,2}:\d{2}/,
@@ -267,7 +267,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       row.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toHaveCount(0);
     await expect(page.locator('#rate-limit-banner')).toContainText(
       /Merge, Update branch, rebase and Close are unavailable until \d{1,2}:\d{2}/,

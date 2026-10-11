@@ -108,7 +108,7 @@ test.describe('rate-limited actions (#732)', () => {
 
     const row = firstRow(page);
     await expect(row.getByText('A pull request')).toBeVisible();
-    for (const label of ['Merge', 'Update branch', 'Close']) {
+    for (const label of ['Merge', 'Update branch', 'Close pull request']) {
       await expect(
         row.getByRole('button', { name: label, exact: true }),
       ).toHaveCount(0);
@@ -319,7 +319,7 @@ test.describe('rate-limited actions (#732)', () => {
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).not.toHaveAttribute('aria-disabled', 'true');
   });
 
