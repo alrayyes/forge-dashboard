@@ -629,3 +629,63 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     });
   }
 });
+
+test.describe('the waiting chip on an action queued for a reset (#756)', () => {
+  const queuedItem = (runAt: string) => ({
+    id: 'q1',
+    action: 'update_branch',
+    forge: 'github',
+    fullName: 'alrayyes/forge-dashboard',
+    number: 42,
+    status: 'queued',
+    runAt,
+    createdAt: new Date().toISOString(),
+  });
+
+  test('is one Queued chip with the reset time, Cancel inside, and the same slot size', async ({
+    page,
+    request,
+    baseURL,
+  }) => {
+    await registerAndSignIn(page, request, baseURL);
+    const pr = makePR({ behind: true, mergeStatus: 'blocked' });
+    let queued: ReturnType<typeof queuedItem> | null = null;
+    await page.route('**/api/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...snapshot({ ...pr, queued }),
+          queuedActions: queued ? [queued] : [],
+        }),
+      }),
+    );
+    const deletes: string[] = [];
+    await page.route('**/api/queued-actions/*', (route: Route) => {
+      deletes.push(route.request().url().split('/').pop() ?? '');
+      return route.fulfill({ status: 204 });
+    });
+    await page.reload();
+    await expect(slotOf(page)).toBeVisible();
+    const plain = await size(slotOf(page));
+
+    queued = queuedItem(new Date(Date.now() + 8 * 60_000).toISOString());
+    await page.reload();
+
+    const chip = chipOf(page);
+    await expect(chip.locator('.wait-chip-label')).toHaveText(
+      /^Queued · \d{1,2}:\d{2}$/,
+    );
+    const resets = chip.locator('.wait-chip-detail');
+    await expect(resets).toContainText(/Resets in [78]m/);
+    await expect(resets.locator('[aria-hidden="true"]')).toHaveCount(1);
+    expect(await size(slotOf(page))).toEqual(plain);
+
+    await chip
+      .getByRole('button', {
+        name: 'Cancel queued update for alrayyes/forge-dashboard#42',
+      })
+      .click();
+    await expect.poll(() => deletes).toEqual(['q1']);
+  });
+});

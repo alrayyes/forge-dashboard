@@ -2,6 +2,7 @@ import { expect } from '@playwright/test';
 import {
   type AutoMergeInput,
   autoMergeChip,
+  queuedChip,
   SETTLED_MS,
   STILL_WAITING_MS,
   settledChip,
@@ -161,5 +162,20 @@ test.describe('autoMergeChip wording', () => {
 
   test('a stopped auto-merge is not a wait', () => {
     expect(autoMergeChip(waiting({ state: 'stopped' }))).toBeNull();
+  });
+});
+
+test.describe('queuedChip wording', () => {
+  test('reads Queued with the reset time, offers Cancel, and is three words at most', () => {
+    const chip = queuedChip({
+      time: '14:32',
+      at: '14:32 CEST',
+      verb: 'update',
+    });
+    expect(chip.label).toBe('Queued · 14:32');
+    expect(words(chip.label)).toBeLessThanOrEqual(3);
+    expect(chip.action).toBe('cancel');
+    expect(chip.resets).toBe(true);
+    expect(chip.tooltip).toContain('14:32 CEST');
   });
 });

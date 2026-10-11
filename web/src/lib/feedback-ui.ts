@@ -484,7 +484,7 @@ export function mountFeedbackUI(
     if (wait) slot.appendChild(drawChip(wait.entry, wait.chip));
     for (const own of Array.from(
       slot.querySelectorAll<HTMLElement>(
-        ':scope > .wait-chip[data-source="auto-merge"]',
+        ':scope > .wait-chip:not([data-source="feedback"])',
       ),
     ))
       own.hidden = wait !== null;

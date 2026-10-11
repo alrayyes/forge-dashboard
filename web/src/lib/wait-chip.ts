@@ -38,7 +38,7 @@ export type ChipIcon = 'spinner' | 'hourglass' | 'check' | 'retry';
 
 // What a chip offers, if anything. The button itself is the caller's: only it
 // knows what the click does.
-export type ChipAction = 'check-again' | 'disarm';
+export type ChipAction = 'check-again' | 'disarm' | 'cancel';
 
 export type Chip = {
   state: 'waiting' | 'stalled' | 'settled';
@@ -54,6 +54,8 @@ export type Chip = {
   showAgo: boolean;
   // A "Next refresh in 12s" that keeps ticking after the detail.
   countdown: boolean;
+  // A "Resets in 8m" that keeps ticking as the detail.
+  resets?: boolean;
   action?: ChipAction;
 };
 
@@ -190,6 +192,27 @@ export function settledChip(message: string): Chip {
   };
 }
 
+// An action queued for a rate limit's reset (#756): `time` is the reset as
+// HH:MM, `at` the same with its date and zone for the hint, `verb` what will
+// run ("update" or "rebase").
+export function queuedChip(input: {
+  time: string;
+  at: string;
+  verb: string;
+}): Chip {
+  return {
+    state: 'waiting',
+    icon: 'hourglass',
+    label: `Queued · ${input.time}`,
+    detail: '',
+    tooltip: `The forge's rate limit resets at ${input.at}. Forge Dashboard runs the ${input.verb} then, if it still applies.`,
+    showAgo: false,
+    countdown: false,
+    resets: true,
+    action: 'cancel',
+  };
+}
+
 export type AutoMergeInput = {
   state: 'waiting' | 'stopped';
   code?: string;
@@ -292,7 +315,7 @@ function span(className: string, text = ''): HTMLElement {
 
 export type ChipDrawing = {
   // Where the chip comes from, so one source can replace its own chip.
-  source: 'feedback' | 'auto-merge';
+  source: 'feedback' | 'auto-merge' | 'queued';
   // Names the chip for a screen reader: the pull request it is on.
   subject: string;
   // The button the chip offers, already wired. Only passed where the chip's
@@ -301,6 +324,7 @@ export type ChipDrawing = {
   // The ticking parts, owned by the caller so one timer keeps them current.
   ago?: HTMLElement;
   countdown?: HTMLElement;
+  resets?: HTMLElement;
 };
 
 let chipCounter = 0;
@@ -326,6 +350,7 @@ export function buildWaitChip(chip: Chip, drawing: ChipDrawing): HTMLElement {
   if (chip.detail) parts.push(chip.detail);
   if (chip.showAgo && drawing.ago) parts.push(drawing.ago);
   if (chip.countdown && drawing.countdown) parts.push(drawing.countdown);
+  if (chip.resets && drawing.resets) parts.push(drawing.resets);
   parts.forEach((part, i) => {
     if (i > 0) detail.appendChild(document.createTextNode(' · '));
     detail.appendChild(

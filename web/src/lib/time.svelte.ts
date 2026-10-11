@@ -115,6 +115,22 @@ export function formatTime(
   }).format(date);
 }
 
+// Just the clock, "14:32", in the zone: short enough for a chip's label.
+// The date and the zone label are formatTime's job.
+export function formatClock(
+  iso: string,
+  zone: string = effectiveZone(),
+): string {
+  const date = parse(iso);
+  if (!date) return iso;
+  return new Intl.DateTimeFormat(undefined, {
+    timeZone: zone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(date);
+}
+
 // The calendar date in the zone, with no time and so no label.
 export function formatDate(
   iso: string,

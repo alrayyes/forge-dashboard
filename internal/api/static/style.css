@@ -3073,17 +3073,6 @@ footer a.mono:focus-visible {
   }
 }
 
-/* An action queued for a rate limit reset (#756): the row's line with Cancel,
-   and the list under Activity. Plain text beside a button, no colour alone. */
-.queued-action {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 12.5px;
-  color: var(--ink-2);
-}
-
 .activity-queued {
   margin-top: 10px;
   padding-top: 10px;

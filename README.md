@@ -437,10 +437,11 @@ so the page holds no threshold of its own.
 While a forge is rate limited, you can queue Update branch, `Dependabot: Rebase`
 or `Renovate: Rebase` to run when its budget comes back, instead of returning to
 click again. `POST /api/queued-actions` stores the choice on the server, per
-user, so it survives a page reload and a server restart. The pull request carries
-the waiting item as `queued`, for a row to say "Update branch queued for 14:32"
-with Cancel, and the dashboard's `queuedActions` list holds the items and, once
-they ran, their outcomes for 24 hours.
+user, so it survives a page reload and a server restart. The pull request
+carries the waiting item as `queued`, for a row to show a waiting chip, `Queued
+· 14:32` with `Resets in 8m` and `Cancel` (the "Queue update" button comes back
+once you cancel), and the dashboard's `queuedActions` list holds the items and,
+once they ran, their outcomes for 24 hours.
 
 It only works while the forge really is limited (a spent budget whose reset is
 still ahead), for a pull request that is on your board, behind its base branch

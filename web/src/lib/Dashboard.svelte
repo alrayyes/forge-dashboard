@@ -44,6 +44,7 @@
   import {
     autoMergeChip,
     buildWaitChip,
+    queuedChip,
     requestedAnnouncement,
     type WaitKind,
   } from "#lib/wait-chip.js";
@@ -57,6 +58,7 @@
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
   import {
+    formatClock,
     formatTime,
     onTimezoneChange,
     effectiveZone,
@@ -858,6 +860,10 @@
         const waitSlot = el("div", "wait-slot");
         const autoMergeWait = autoMergeWaitChip(pr);
         if (autoMergeWait) waitSlot.appendChild(autoMergeWait);
+        else {
+          const queuedWait = queuedWaitChip(pr);
+          if (queuedWait) waitSlot.appendChild(queuedWait);
+        }
         statusCell.appendChild(waitSlot);
         const mergeAction = mergeActionCell(pr);
         statusCell.appendChild(
@@ -3031,21 +3037,44 @@
       }
     }
 
+    // The waiting chip for an action queued for the reset, with Cancel
+    // inside it (#1229). The offer to queue is queueActionCell's.
+    function queuedWaitChip(item: PullRequestItem): HTMLElement | null {
+      const queued = item.queued;
+      if (!queued) return null;
+      const chip = queuedChip({
+        time: formatClock(queued.runAt),
+        at: formatTime(queued.runAt),
+        verb: QUEUE_VERBS[queued.action],
+      });
+      const cancel = buttonEl("row-action wait-chip-action", "Cancel");
+      cancel.type = "button";
+      cancel.setAttribute(
+        "aria-label",
+        `Cancel queued ${QUEUE_VERBS[queued.action]} for ${item.repo}#${item.number}`,
+      );
+      cancel.addEventListener("click", () => cancelQueued(queued));
+      const resets = el("span", "queued-resets", resetsInText(queued.runAt));
+      resets.setAttribute("aria-hidden", "true");
+      resets.dataset.runAt = queued.runAt;
+      return buildWaitChip(chip, {
+        source: "queued",
+        subject: `${item.repo}#${item.number}`,
+        button: cancel,
+        resets,
+      });
+    }
+
+    function resetsInText(runAt: string): string {
+      const minutes = Math.max(
+        0,
+        Math.ceil((Date.parse(runAt) - Date.now()) / 60_000),
+      );
+      return minutes === 0 ? "Resetting now" : `Resets in ${minutes}m`;
+    }
+
     function queueActionCell(item: PullRequestItem): HTMLElement | null {
-      if (item.queued) {
-        const queued = item.queued;
-        const line = el("span", "queued-action");
-        line.appendChild(el("span", "queued-action-text", queuedText(queued)));
-        const cancel = buttonEl("row-action", "Cancel");
-        cancel.type = "button";
-        cancel.setAttribute(
-          "aria-label",
-          `Cancel queued ${QUEUE_VERBS[queued.action]} for ${item.repo}#${item.number}`,
-        );
-        cancel.addEventListener("click", () => cancelQueued(queued));
-        line.appendChild(cancel);
-        return line;
-      }
+      if (item.queued) return null;
       // Only while the forge's REST budget is spent: with budget left the
       // direct button is there, and there is nothing to wait for.
       const lock = proactiveActionLockReason(item.forge);
@@ -5174,6 +5203,8 @@
     setInterval(() => {
       tickRefreshedAt();
       feedbackUI.tick();
+      for (const el of document.querySelectorAll<HTMLElement>(".queued-resets"))
+        el.textContent = resetsInText(el.dataset.runAt ?? "");
       // Cheap to call unconditionally — it removes and, only if there's
       // still something exhausted, redraws a handful of rows.
       renderRateLimitBanner();
