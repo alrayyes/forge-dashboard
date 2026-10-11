@@ -447,15 +447,17 @@ test.describe('the waiting chip on a merge and a close', () => {
   for (const s of [
     {
       name: 'Merge',
+      button: 'Merge',
       endpoint: 'merge',
       label: 'Merging',
       confirm: 'Confirm merge?',
     },
     {
       name: 'Close',
+      button: 'Close pull request',
       endpoint: 'close',
       label: 'Closing',
-      confirm: 'Confirm close?',
+      confirm: 'Confirm close pull request?',
     },
   ]) {
     test(`${s.name} in progress is a ${s.label} chip, and the row does not move`, async ({
@@ -483,7 +485,7 @@ test.describe('the waiting chip on a merge and a close', () => {
       await page.reload();
 
       const row = firstRow(page);
-      await row.getByRole('button', { name: s.name, exact: true }).click();
+      await row.getByRole('button', { name: s.button, exact: true }).click();
       const confirm = row.getByRole('button', { name: s.confirm });
       await expect(confirm).toBeVisible();
       const before = await layout(page);
@@ -493,7 +495,13 @@ test.describe('the waiting chip on a merge and a close', () => {
         s.label,
       );
       await expect(chipOf(page).getByRole('button')).toHaveCount(0);
-      expect(await layout(page)).toEqual(before);
+      const after = await layout(page);
+      // The chip's own slot is fixed, and the row is as wide as before and
+      // no taller: it may be shorter, since the confirm group (a longer
+      // "Confirm close pull request?" wraps) goes away in the same moment.
+      expect(after.slot).toEqual(before.slot);
+      expect(after.row.width).toBe(before.row.width);
+      expect(after.row.height).toBeLessThanOrEqual(before.row.height);
       release();
     });
   }
