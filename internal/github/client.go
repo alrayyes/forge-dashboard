@@ -1954,6 +1954,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		RateLimitREST:    c.lastRESTRate.Load(),
 		RepoCount:        len(tracked),
 	}}
+	c.withCheckedCommits(ctx, tracked)
 	var behindChecks []behindCheck
 	for _, r := range tracked {
 		fullName := r.Owner.Login + "/" + r.Name
