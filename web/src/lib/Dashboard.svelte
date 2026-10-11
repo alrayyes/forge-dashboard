@@ -5778,6 +5778,12 @@
         <button
           type="button"
           class="quick-pill"
+          data-pill="conflicting"
+          aria-pressed="false">Conflicts</button
+        >
+        <button
+          type="button"
+          class="quick-pill"
           data-pill="ready"
           aria-pressed="false">Ready to Merge</button
         >
