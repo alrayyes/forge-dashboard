@@ -159,11 +159,9 @@
     <div class="error-actions">
       <a class="error-primary" href="/">Back to pull requests</a>
       {#if !notFound}
-        <button
-          type="button"
-          class="error-secondary"
-          onclick={() => window.location.reload()}>Try again</button
-        >
+        <!-- A link to this same address: it reloads without any script, which
+             these pages don't run (see the routes' +page.ts). -->
+        <a class="error-secondary" href="">Try again</a>
       {/if}
     </div>
     <nav class="error-links" aria-label="Where to go next">
