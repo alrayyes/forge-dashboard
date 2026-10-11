@@ -660,6 +660,18 @@ required when a pattern matches its job name or its workflow-file
 context; it is never marked advisory. If nothing is known for any check,
 the panel stays the flat list.
 
+## Error pages
+
+The dashboard has its own error pages, built with the rest of the web app:
+`/404.html` ("Page not found") and `/500.html` ("Something went wrong on our
+side"). Each says what happened in plain words and gives a way back: a primary
+link to the pull requests and a short list of the other pages. The 500 page also
+has a `Try again` button. They show nothing about the server, with no stack
+trace, path, host or version, and follow the light or dark theme. Inside the
+app, `+error.svelte` renders the same page for an error the router meets, and
+`handleError` keeps the message generic. `src/error.html` is the static fallback
+for an error the app can't render itself.
+
 ## Releases
 
 Release pull requests have their own page, `/releases.html`, reached from the
