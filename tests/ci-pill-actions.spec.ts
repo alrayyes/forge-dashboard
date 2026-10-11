@@ -155,7 +155,8 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ author: 'dependabot' }));
-    await page.reload();
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    await page.goto('/bots.html');
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'More actions' }).click();
     const menu = page.getByRole('group', { name: 'More actions' });

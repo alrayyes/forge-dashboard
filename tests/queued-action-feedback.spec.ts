@@ -204,6 +204,9 @@ for (const s of scenarios) {
   test.describe(`queued state: ${s.name}`, () => {
     test.beforeEach(async ({ page, request, baseURL }) => {
       await registerAndSignIn(page, request, baseURL);
+      // Bot pull requests are on the Bots page, not the main list (#1192).
+      if (/^(dependabot|renovate)/.test(s.pr.author))
+        await page.goto('/bots.html');
       await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -519,6 +522,8 @@ for (const s of scenarios) {
 test.describe('queued state: bot rebases move on once a snapshot shows pickup', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    await page.goto('/bots.html');
     await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
       route.fulfill({
         status: 200,

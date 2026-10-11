@@ -90,6 +90,8 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
       username,
       'Dependabot Ack User',
     );
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    await page.goto('/bots.html');
     await page.addInitScript(() => {
       const w = window as unknown as {
         __streams: EventSource[];
