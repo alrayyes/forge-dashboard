@@ -324,6 +324,32 @@
         </a>
         <a
           class="theme-toggle"
+          href="/main-branches.html"
+          aria-label="Main branches"
+          title="Main branches"
+          aria-current={isCurrentRoute("/main-branches") ? "page" : undefined}
+          style="text-decoration:none;"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><line x1="6" x2="6" y1="3" y2="15" /><circle
+              cx="18"
+              cy="6"
+              r="3"
+            /><circle cx="6" cy="18" r="3" /><path
+              d="M18 9a9 9 0 0 1-9 9"
+            /></svg
+          >
+        </a>
+        <a
+          class="theme-toggle"
           href="/insights.html"
           aria-label="Insights"
           title="Insights"
@@ -552,6 +578,29 @@
         >{botCount.value}</span
       >{/if}
     <span class="bottom-nav-label">Bots</span>
+  </a>
+  <a
+    class="bottom-nav-link"
+    href="/main-branches.html"
+    aria-label="Main branches"
+    aria-current={isCurrentRoute("/main-branches") ? "page" : undefined}
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      ><line x1="6" x2="6" y1="3" y2="15" /><circle
+        cx="18"
+        cy="6"
+        r="3"
+      /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg
+    >
+    <span class="bottom-nav-label">Main</span>
   </a>
   <a
     class="bottom-nav-link"

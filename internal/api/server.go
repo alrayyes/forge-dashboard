@@ -214,6 +214,8 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /releases.html", requireAuthPage(deps.AuthStore, privateFiles))
 	// Dependabot and Renovate's pull requests, on their own page (#1192).
 	mux.Handle("GET /bots.html", requireAuthPage(deps.AuthStore, privateFiles))
+	// The CI status of every default branch (#1224).
+	mux.Handle("GET /main-branches.html", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /", publicFiles)
 	// An unknown API path is JSON, never the page for people (#1175).
 	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, _ *http.Request) {
