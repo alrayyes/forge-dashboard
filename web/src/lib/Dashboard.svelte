@@ -2075,7 +2075,7 @@
         // Confirming closes the menu, so the lock would only show after
         // reopening it. The trigger reads these to say so itself (#747).
         const locked = markClose(
-          lockedActionButton("Close", lockOf(entry), () =>
+          lockedActionButton("Close pull request", lockOf(entry), () =>
             retryLockedAction(item),
           ),
         );
@@ -2089,7 +2089,7 @@
         if (readOnlyBecauseRateLimited(proactiveReason)) return null;
         if (proactiveReason)
           return markClose(
-            lockedActionButton("Close", proactiveReason, () =>
+            lockedActionButton("Close pull request", proactiveReason, () =>
               retryLockedAction(item),
             ),
           );
@@ -2101,7 +2101,7 @@
       if (confirming || entry.phase === "closing") {
         const confirmButton = buttonEl(
           "row-action confirm",
-          confirming ? "Confirm close?" : "Closing…",
+          confirming ? "Confirm close pull request?" : "Closing…",
         );
         confirmButton.id = `close-confirm-${domSafeId(key)}`;
         confirmButton.disabled = !confirming;
@@ -2115,15 +2115,14 @@
         return wrap;
       }
 
-      // "suggested" when there's nothing to merge (mergeActionCell's own
-      // item.empty branch) -- Merge stays visible-and-locked there rather
-      // than disappearing (a past incident: a vanished Merge button with
-      // no explanation read as broken, not as "nothing to do here"), so
-      // Close gets the visual nudge instead of Merge losing its own.
-      const closeButton = buttonEl(
-        item.empty ? "row-action suggested" : "row-action close",
-        "Close",
-      );
+      // A neutral button on every row (#1223): closing is reversible, so it
+      // is not red, and green read as the affirmative, so an empty pull
+      // request no longer gets it. Merge stays visible-and-locked there (a
+      // past incident: a vanished Merge button with no explanation read as
+      // broken), and Close is the only enabled action beside it. The name
+      // says what it closes, so it can't be taken for a Cancel; only the
+      // confirm step carries the warning tone.
+      const closeButton = buttonEl("row-action close", "Close pull request");
       closeButton.type = "button";
       closeButton.id = `close-arm-${domSafeId(key)}`;
       closeButton.addEventListener("click", () => {
@@ -3562,7 +3561,7 @@
 
     function closeAllActionMenus() {
       for (const key of Object.keys(openActionMenus)) {
-        // A "Confirm close?" armed inside the menu doesn't outlive it:
+        // A "Confirm close pull request?" armed inside the menu doesn't outlive it:
         // reopening the menu later shouldn't find a destructive confirm
         // already waiting (#705).
         confirmArm.disarm("dropped", `close:${key}`);

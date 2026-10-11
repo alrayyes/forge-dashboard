@@ -216,8 +216,12 @@ test.describe('row failure lines (#752)', () => {
     // A different action on the same row: its own start replaces the old
     // failure rather than stacking a second line beside it.
     await row(page).getByRole('button', { name: 'More actions' }).click();
-    await row(page).getByRole('button', { name: 'Close', exact: true }).click();
-    await row(page).getByRole('button', { name: 'Confirm close?' }).click();
+    await row(page)
+      .getByRole('button', { name: 'Close pull request', exact: true })
+      .click();
+    await row(page)
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
     // The close is a wait, so it is a chip now, and the old failure line
     // is gone rather than stacked beside it.
     await expect(row(page).locator('.wait-chip .wait-chip-label')).toHaveText(

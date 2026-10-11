@@ -1433,15 +1433,6 @@ button.ci-pill:hover {
     transform: scaleX(0);
   }
 }
-/* closeActionCell's own "nothing to merge, Close is the right move here"
-   nudge -- --good rather than --warning/--critical, since there's nothing
-   wrong with the pull request, just nothing left for Merge to do. Border/
-   background only, same shape as every other .row-action variant, so this
-   still reads as a real button rather than a status badge. */
-.row-action.suggested {
-  background: var(--good-bg);
-  color: var(--good);
-}
 /* A row whose pull request turned out to be merged or closed already
    (#750): a plain status word where the action button was. */
 .row-settled {
@@ -1481,8 +1472,7 @@ button.ci-pill:hover {
 .row-action-note-next {
   color: var(--ink-3);
 }
-/* Close inside "More actions" (#705): set apart and in the danger tone,
-   border and wording as well as colour. */
+/* Close inside "More actions" (#705): set apart from the rest by a rule. */
 .row-actions-popover .row-action-group.close-group,
 .row-actions-popover .row-action-locked.close-group {
   align-self: stretch;
@@ -1490,9 +1480,11 @@ button.ci-pill:hover {
   padding-top: 8px;
   border-top: 1px solid var(--border);
 }
+/* Close (#1223): a neutral secondary button. Closing is reversible, so the
+   danger tone is kept for the confirm step. */
 .row-action.close {
-  background: var(--critical-bg);
-  color: var(--critical);
+  background: var(--neutral-bg);
+  color: var(--ink-2);
 }
 .row-action-group {
   position: relative;

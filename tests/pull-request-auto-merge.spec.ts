@@ -93,7 +93,7 @@ async function expectMenuHoldsOnlyClose(row: Locator) {
     0,
   );
   await expect(
-    row.getByRole('button', { name: 'Close', exact: true }),
+    row.getByRole('button', { name: 'Close pull request', exact: true }),
   ).toBeVisible();
 }
 

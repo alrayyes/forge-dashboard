@@ -82,7 +82,7 @@ async function openClose(row: Locator) {
   if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
     await trigger.click();
   }
-  return row.getByRole('button', { name: 'Close', exact: true });
+  return row.getByRole('button', { name: 'Close pull request', exact: true });
 }
 
 // A request the test has to be able to say never happened.
@@ -201,13 +201,13 @@ test.describe('confirm step: leaving it', () => {
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
     await expect(
-      row.getByRole('button', { name: 'Confirm close?' }),
+      row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeFocused();
 
     await page.keyboard.press('Escape');
 
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeFocused();
     await expect(row.locator('.row-actions-popover')).toBeVisible();
 
@@ -230,7 +230,7 @@ test.describe('confirm step: leaving it', () => {
     await cancelButton(row).click();
 
     await expect(
-      row.getByRole('button', { name: 'Close', exact: true }),
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeFocused();
     await expect(row.locator('.row-actions-popover')).toBeVisible();
   });
@@ -246,7 +246,7 @@ test.describe('confirm step: leaving it', () => {
     await page.locator('h1').first().click();
 
     await expect(
-      row.getByRole('button', { name: 'Confirm close?' }),
+      row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toHaveCount(0);
     await (await openClose(row)).waitFor();
   });
@@ -369,7 +369,9 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await (await openClose(rowOf(page, 1))).click();
 
     await expect(
-      rowOf(page, 1).getByRole('button', { name: 'Confirm close?' }),
+      rowOf(page, 1).getByRole('button', {
+        name: 'Confirm close pull request?',
+      }),
     ).toBeVisible();
     await expect(confirmMerge(rowOf(page, 0))).toHaveCount(0);
     await expect(mergeButton(rowOf(page, 0))).toBeVisible();
@@ -397,7 +399,7 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await (await openClose(row)).dblclick();
 
     await expect(
-      row.getByRole('button', { name: 'Confirm close?' }),
+      row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeVisible();
     await page.waitForTimeout(200);
     expect(calls).toEqual([]);
@@ -630,7 +632,7 @@ test.describe('confirm step: screen readers', () => {
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
     await expect(
-      row.getByRole('button', { name: 'Confirm close?' }),
+      row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeVisible();
 
     const results = await new AxeBuilder({ page })
