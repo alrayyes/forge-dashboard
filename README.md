@@ -770,8 +770,8 @@ The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
 and saved with your other filters, so a filter set on one page is still set on
 the other. The pull-request-only controls (CI status, the quick filters for
-failing, ready and needs-review pull requests, Show drafts) are not on the
-issues page.
+failing, ready, needs-review and conflicting pull requests, Show drafts)
+are not on the issues page.
 
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows is held behind an "N updates available" bar while you're scrolled
@@ -908,6 +908,11 @@ server matches, ignoring case, against the username saved for that forge in
 Settings. It needs that username: with none saved for a forge, none of that
 forge's pull requests match. It adds no requests, since the requested
 reviewers' names come with the data already fetched.
+
+The **Conflicts** quick filter keeps the pull requests with a merge conflict, so
+they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
+`conflicting`, the same field behind the row's own Conflicting pill, so the page
+holds no rule of its own. A draft that conflicts is listed too.
 
 Draft pull requests are left out of `/api/dashboard` by default, since nothing
 can be merged or updated on one. The response says how many it left out in

@@ -3383,7 +3383,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(rowTitles(page)).toHaveCount(LISTED);
   });
 
-  test('shows all seven pills in a labelled group with exactly one active', async ({
+  test('shows all the pills in a labelled group with exactly one active', async ({
     page,
   }) => {
     const group = page.getByRole('group', { name: 'Quick filters' });
@@ -3392,6 +3392,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       'GitHub',
       'Forgejo',
       'Failing CI',
+      'Conflicts',
       'Ready to Merge',
       'Needs Review',
       'Review requested from me',
