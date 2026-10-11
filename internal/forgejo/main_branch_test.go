@@ -1,8 +1,10 @@
 package forgejo_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -16,12 +18,15 @@ import (
 
 var _ dashboard.MainBranchReader = (*forgejo.Client)(nil)
 
+// actionRun is one run as a real Forgejo lists it: commit_sha, prettyref (the
+// branch, or "#N" for a pull request), title, workflow_id, started and stopped,
+// not the GitHub-style head_sha and head_branch (#1264).
 func actionRun(id int, branch, sha, status, started, completed string) map[string]any {
 	return map[string]any{
-		"id": id, "head_branch": branch, "head_sha": sha, "status": status,
-		"path": "ci.yaml@refs/heads/" + branch, "display_title": "title of " + sha,
-		"html_url": "https://forge.example/alrayyes/a/actions/runs/" + strconv.Itoa(id),
-		"actor":    map[string]any{"login": "bot"}, "started_at": started, "completed_at": completed,
+		"id": id, "prettyref": branch, "commit_sha": sha, "status": status, "event": "push",
+		"workflow_id": "ci.yaml", "title": "title of " + sha,
+		"html_url":     "https://forge.example/alrayyes/a/actions/runs/" + strconv.Itoa(id),
+		"trigger_user": map[string]any{"login": "bot"}, "started": started, "stopped": completed,
 	}
 }
 
@@ -290,6 +295,59 @@ func TestReadMainBranch(t *testing.T) {
 		assert.Equal(t, dashboard.MainBranchNone, row.Status)
 		assert.Empty(t, s.requests())
 	})
+}
+
+func TestReadMainBranch_RealResponse(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("testdata/actions_runs_master.json")
+	require.NoError(t, err)
+	var list struct {
+		Runs []map[string]any `json:"workflow_runs"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &list))
+	s := &mainBranchServer{runs: list.Runs, commit: goodCommit()}
+	client := s.start(t)
+
+	row, err := client.ReadMainBranch(t.Context(), dashboard.RepoRef{
+		FullName: "alrayyes/a", Owner: "alrayyes", Name: "a", URL: "https://forge.example/alrayyes/a", DefaultBranch: "master",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.MainBranchPassed, row.Status, "older failures and pull request runs are not master's newest commit")
+}
+
+func TestReadMainBranch_EachStatus(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		statuses []string
+		want     dashboard.MainBranchStatus
+	}{
+		{"success", []string{"success"}, dashboard.MainBranchPassed},
+		{"failure", []string{"failure"}, dashboard.MainBranchFailed},
+		{"cancelled alone", []string{"cancelled"}, dashboard.MainBranchFailed},
+		{"skipped alone", []string{"skipped"}, dashboard.MainBranchPassed},
+		{"running", []string{"running"}, dashboard.MainBranchRunning},
+		{"waiting", []string{"waiting"}, dashboard.MainBranchRunning},
+		{"skipped beside successes", []string{"success", "skipped", "success"}, dashboard.MainBranchPassed},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := &mainBranchServer{}
+			for i, st := range tc.statuses {
+				s.runs = append(s.runs, actionRun(10-i, "main", "cafef00d", st, "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z"))
+			}
+			client := s.start(t)
+
+			row, err := client.ReadMainBranch(t.Context(), repoA)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, row.Status)
+		})
+	}
 }
 
 func TestListRepos_CarriesTheDefaultBranch(t *testing.T) {
