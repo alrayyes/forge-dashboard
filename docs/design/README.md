@@ -78,6 +78,23 @@ server log. The tickets' criteria win over those two details.
   the "Component State" panels are Stitch's own additions: they aren't in the
   ticket and don't ship.
 
+- `screen-main-branches-light.png`, `screen-main-branches-dark.png` and
+  `screen-main-branches-mobile.png`: a page with the CI status of every
+  repo's default branch, in light, dark and at 390px. Rows carry status,
+  branch, latest commit, failing workflow and age; filter pills with counts,
+  a forge toggle, search and a failing-first sort sit above them, and a failed
+  row shows its failing job and last log lines.
+  `crop-main-branches-filter-bar.png` is the header and filter bar and
+  `crop-main-branches-failing-row.png` a failed row. Stitch project "Forge
+  Dashboard UI Audit" (`564147752128938905`), screens
+  `0011e2f09e594d16871f5e7aa4d2af70` (light),
+  `94f04efcc8654316a921472cfbb2e7e1` (dark) and
+  `57560cd0bdea420f92350ea3fee104cd` (phone). It's the design for #1224. The
+  header chips, "Delight Preview", the two cards at the foot, the stability
+  figures, the progress percentage, Cancel, Force sync, the raw-log
+  buttons and the phone's bottom tab bar are Stitch's own additions: they
+  aren't in the ticket and don't ship.
+
 - `screen-ci-pill-actions.png`: four pull request rows in a full-width list
   where the CI pill is the button that opens the pipeline, with a hover
   label, a focus ring and a chevron, and the separate "View pipeline"
