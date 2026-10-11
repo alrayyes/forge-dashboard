@@ -33,6 +33,7 @@ interface MockIssue {
   labels: { name: string; color: string }[];
   createdAt: string;
   updatedAt: string;
+  housekeeping?: boolean;
 }
 
 function makeIssue(number: number, overrides: Partial<MockIssue> = {}) {
@@ -53,18 +54,46 @@ function makeIssue(number: number, overrides: Partial<MockIssue> = {}) {
 // Enough rows that the page scrolls at the default viewport.
 const BASE = Array.from({ length: 24 }, (_, i) => makeIssue(i + 1));
 
-function snapshot(issues: MockIssue[]) {
+function makePR(number: number, overrides: Record<string, unknown> = {}) {
+  return {
+    forge: 'github',
+    repo: 'alrayyes/forge-dashboard',
+    number,
+    title: `Pull request ${number}`,
+    url: `https://example.com/pull/${number}`,
+    author: 'alrayyes',
+    draft: false,
+    ci: 'success',
+    labels: [],
+    createdAt: '2026-10-01T10:00:00Z',
+    updatedAt: '2026-10-02T10:00:00Z',
+    mergeStatus: 'mergeable',
+    behind: false,
+    kind: 'regular',
+    allowedActions: [],
+    ...overrides,
+  };
+}
+
+function snapshot(
+  issues: MockIssue[],
+  pullRequests: ReturnType<typeof makePR>[] = [],
+) {
   return {
     generatedAt: new Date().toISOString(),
     forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-    pullRequests: [],
+    pullRequests,
     issues,
     repos: [],
     hiddenDrafts: 0,
   };
 }
 
-async function open(page: Page, issues: MockIssue[] = BASE) {
+async function open(
+  page: Page,
+  issues: MockIssue[] = BASE,
+  pullRequests: ReturnType<typeof makePR>[] = [],
+) {
   await page.addInitScript(() => {
     const w = window as unknown as {
       __streams: EventSource[];
@@ -85,23 +114,28 @@ async function open(page: Page, issues: MockIssue[] = BASE) {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(snapshot(issues)),
+      body: JSON.stringify(snapshot(issues, pullRequests)),
     }),
   );
   await page.goto('/issues.html');
   await expect(page.locator('#issue-rows > .row')).toHaveCount(
-    Math.min(25, issues.length),
+    // A bot's housekeeping issue is hidden by default.
+    Math.min(25, issues.filter((i) => !i.housekeeping).length),
   );
 }
 
-async function push(page: Page, issues: MockIssue[]) {
+async function push(
+  page: Page,
+  issues: MockIssue[],
+  pullRequests: ReturnType<typeof makePR>[] = [],
+) {
   await page.evaluate(
     (data) => {
       const w = window as unknown as { __streams: EventSource[] };
       for (const stream of w.__streams)
         stream.onmessage?.(new MessageEvent('message', { data }));
     },
-    JSON.stringify(snapshot(issues)),
+    JSON.stringify(snapshot(issues, pullRequests)),
   );
 }
 
@@ -131,6 +165,96 @@ async function scrollDown(page: Page) {
 test.describe('steady issues refresh (#827, #718)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+  });
+
+  // #1198: the bar on the issues page counts issue rows only. Pull request
+  // changes in the same snapshot don't move anything in the issues list, so
+  // they must not raise it, however the list is being held.
+  test('a snapshot that changes only pull requests raises no bar on the issues page', async ({
+    page,
+  }) => {
+    await open(page, BASE, [makePR(1), makePR(2)]);
+    await scrollDown(page);
+
+    // A pull request added, one removed, one changed, one moved.
+    await push(page, BASE, [
+      makePR(2, { title: 'Retitled' }),
+      makePR(3, { updatedAt: '2026-10-03T10:00:00Z' }),
+    ]);
+    await expect(bar(page)).toHaveText('');
+    await expect(page.locator('#show-updates-button')).toBeHidden();
+  });
+
+  test('the same holds while updates are paused', async ({ page }) => {
+    await open(page, BASE, [makePR(1)]);
+    await page.locator('#pause-updates-button').click();
+
+    await push(page, BASE, [makePR(1), makePR(2)]);
+    await expect(bar(page)).toHaveText('');
+    await expect(page.locator('#show-updates-button')).toBeHidden();
+  });
+
+  // #1198: neither does a change to an issue the list isn't showing, such as
+  // Renovate's Dependency Dashboard (hidden by default), which Renovate
+  // rewrites on every run and so keeps moving to the top of the list.
+  test('a hidden housekeeping issue moving raises no bar', async ({ page }) => {
+    const dashboard = (updatedAt: string) =>
+      makeIssue(999, {
+        title: 'Dependency Dashboard',
+        updatedAt,
+        housekeeping: true,
+      });
+    await open(page, [dashboard('2026-09-01T10:00:00Z'), ...BASE]);
+    await expect(page.locator('#issue-rows')).not.toContainText(
+      'Dependency Dashboard',
+    );
+    await scrollDown(page);
+
+    await push(page, [dashboard('2026-10-09T10:00:00Z'), ...BASE]);
+    await expect(bar(page)).toHaveText('');
+    await expect(page.locator('#show-updates-button')).toBeHidden();
+  });
+
+  test('an issue the filters hide being added raises no bar', async ({
+    page,
+  }) => {
+    await open(page);
+    await page
+      .locator('.filter-bar .col-filter[data-col="title"]')
+      .fill('Issue 1');
+    await scrollDown(page);
+
+    await push(page, [makeIssue(100, { title: 'Something else' }), ...BASE]);
+    await expect(bar(page)).toHaveText('');
+    await expect(page.locator('#show-updates-button')).toBeHidden();
+  });
+
+  test('an issue the filters show being added still raises the bar', async ({
+    page,
+  }) => {
+    await open(page);
+    await page
+      .locator('.filter-bar .col-filter[data-col="title"]')
+      .fill('Issue 1');
+    await scrollDown(page);
+
+    await push(page, [makeIssue(101, { title: 'Issue 1 again' }), ...BASE]);
+    await expect(bar(page)).toHaveText('1 update available');
+    await expect(bar(page)).toHaveAttribute('role', 'status');
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('an issue added alongside a pull request change is counted as the one issue', async ({
+    page,
+  }) => {
+    await open(page, BASE, [makePR(1)]);
+    await scrollDown(page);
+
+    await push(page, [makeIssue(100), ...BASE], [makePR(1), makePR(2)]);
+    await expect(bar(page)).toHaveText('1 update available');
   });
 
   test('a snapshot with no change renders no issue row again', async ({

@@ -404,11 +404,13 @@ names what is affected. REST drives Merge, Update branch, the bot commands and
 Close, and GraphQL drives auto-merge, so the others keep working. A "What still
 works" disclosure under the banner lists the read-only actions: the pipeline
 panel, the link to the pull request on the forge, and browsing and filtering the
-last data. Other forges are unaffected. The controls come back by themselves at
-the reset time, with a polite "Rate limit reset, actions available again" toast.
-While the forge is read-only the server stops refreshing it until the reset, so
-the rows are the last ones it saw. The header's Refreshed time shows how old
-they are.
+last data. A "Why?" under the banner explains the limit in a few sentences, so
+it isn't taken for a fault in the dashboard, and for GitHub links to its own
+rate limit rules. Other forges are unaffected. The controls come back by
+themselves at the reset time, with a polite "Rate limit reset, actions available
+again" toast. While the forge is read-only the server stops refreshing it until
+the reset, so the rows are the last ones it saw. The header's Refreshed time
+shows how old they are.
 
 A forge that can't be reached gets the same treatment. Its controls are not
 drawn either, and no row carries a Retry or a pointer to a status line. One
@@ -419,17 +421,23 @@ controls return without a reload, with a polite "GitHub is reachable again,
 actions available" toast, and the banner clears. A row's own reason for Merge
 (stacked, waiting for CI) shows whenever its forge can be reached.
 
-A missing token
-permission locks that action on that pull request, with no Retry either, and the
-reason points to Settings. Other pull requests and other actions stay usable,
-since a fine-grained token can lack one permission and have the rest. The lock
-lasts as long as the failure line that explains it: dismiss the line and the
-action is free again, with no reload. A failure line stays on its row however
-many refreshes arrive, and goes when you dismiss it, act on the row again, or
-the row leaves the board. A 429 on a click the snapshot hadn't foreseen still
-greys that one action out with its reason until the next snapshot. The header
-shows each forge's remaining budget and reset time as text. Which
-locks offer Retry follows the refusal's `code` (`rate_limited` and `permission`
+A missing token permission locks that action on that pull request, with no Retry
+either, and the reason points to Settings. Other pull requests and other actions
+stay usable, since a fine-grained token can lack one permission and have the
+rest. The lock lasts as long as the failure line that explains it: dismiss the
+line and the action is free again, with no reload. A failure line stays on its
+row however many refreshes arrive, and goes when you dismiss it, act on the row
+again, or the row leaves the board. The exception is a failure that passes by
+itself, one where the request never got an answer (it says "Couldn't reach the
+server") or a forge answered 502, 503 or 504. That line clears itself after ten
+seconds, holds while you hover it or have focus in it, and when it clears the
+row is read again from the server, since the write may have landed before the
+connection dropped. Nothing is announced when it clears, the failure stays in
+Activity, and an error toast waits for you as before. A 429 on a click the
+snapshot hadn't foreseen still greys that one action out with its reason until
+the next snapshot. The header shows each forge's remaining budget and reset time
+as text. Which locks offer Retry follows the refusal's `code` (`rate_limited`
+and `permission`
 don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
 so the page holds no threshold of its own.
@@ -684,6 +692,22 @@ required when a pattern matches its job name or its workflow-file
 context; it is never marked advisory. If nothing is known for any check,
 the panel stays the flat list.
 
+## Error pages
+
+The dashboard has its own error pages, built with the rest of the web app as
+`404.html` ("Page not found") and `500.html` ("Something went wrong on our
+side"). The Go server sends the first for an address nothing matches and the
+second for a crash, each with its real status code. Asking for either file by
+name gets the 404, never a 200. Each page says what happened in plain words and
+gives a way back: a primary link to the pull requests and a short list of the
+other pages. The 500 page also has a `Try again` link to the same address. They
+show nothing about the server, with no stack trace, path, host or version, and
+follow the light or dark theme. They run no script, so the app's router can't
+swap one for the page whose address it was sent at. Inside the app,
+`+error.svelte` renders the same page for an error the router meets, and
+`handleError` keeps the message generic. `src/error.html` is the static fallback
+for an error the app can't render itself.
+
 ## Releases
 
 Release pull requests have their own page, `/releases.html`, reached from the
@@ -697,10 +721,21 @@ that is behind its base branch gets Update branch and a line saying
 release-please won't update it until a releasable change lands. With no release
 pull requests open the page says nothing is waiting to ship.
 
+## Bots
+
+Dependabot and Renovate pull requests have their own page, `/bots.html`,
+reached from the **Bots** item in the navigation. Like Releases, it is the pull
+request board over the pull requests the server marks `kind: dependency`, with
+the same filters, rows and actions as the main page. The main pull request page
+lists none of them, so it has no quick filter for bots. A filter saved before
+that change is ignored. With no bot pull requests open the page says there is
+nothing to review.
+
 The navigation shows how many are waiting, as it does for Issues: the number of
-open pull requests (without releases) on the Home item and the number of open
-release pull requests on Releases. The dashboard pages set both from each
-snapshot, and the other signed-in pages load them once.
+open pull requests (without releases and bots) on the Home item, the number of
+open release pull requests on Releases and the number of bot pull requests on
+Bots. The dashboard pages set all three from each snapshot, and the other
+signed-in pages load them once.
 
 ## Issues
 
@@ -715,17 +750,19 @@ The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
 and saved with your other filters, so a filter set on one page is still set on
 the other. The pull-request-only controls (CI status, the quick filters for
-failing, bot, ready and needs-review pull requests, Show drafts) are not on the
+failing, ready and needs-review pull requests, Show drafts) are not on the
 issues page.
 
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows is held behind an "N updates available" bar while you're scrolled
 below the top, a control in the list has focus, or live updates are paused;
-**Show updates**, or a change to a filter or the sort, applies it. At the top
-with nothing focused, changes just appear. A row whose own content changed
-updates where it stands, and a refresh with no change leaves every row alone.
-Sort works as it does for pull requests. The pause setting is shared with the
-pull request page.
+**Show updates**, or a change to a filter or the sort, applies it. The bar
+counts only issues the list would show: a change to one the filters or the
+hidden Dependency Dashboard keep out of sight asks for nothing, and neither does
+a change to pull requests. At the top with nothing focused, changes just appear.
+A row whose own content changed updates where it stands, and a refresh with no
+change leaves every row alone. Sort works as it does for pull requests. The
+pause setting is shared with the pull request page.
 
 ## Filters on a phone
 

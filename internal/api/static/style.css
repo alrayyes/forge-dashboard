@@ -2159,6 +2159,31 @@ button.ci-pill:hover {
   color: var(--warning);
 }
 
+/* "Why?" under a read-only row (#735): closed until asked. */
+.rate-limit-why {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.rate-limit-why summary {
+  cursor: pointer;
+  display: inline-block;
+  min-height: 24px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.rate-limit-why p {
+  margin: 4px 0;
+}
+
+.rate-limit-why a {
+  /* The banner's background is tinted red, where the accent colour falls
+     short of 4.5:1. */
+  color: var(--ink);
+  text-decoration: underline;
+}
+
 /* "What still works" under a read-only banner (#755): closed until asked. */
 .rate-limit-still-works {
   font-size: 13px;

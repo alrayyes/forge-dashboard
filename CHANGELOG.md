@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.151.0](https://github.com/alrayyes/forge-dashboard/compare/v0.150.0...v0.151.0) (2026-10-11)
+
+
+### Features
+
+* **web:** a Bots page for Dependabot and Renovate pull requests, off the pull request page ([#1200](https://github.com/alrayyes/forge-dashboard/issues/1200)) ([fcb9073](https://github.com/alrayyes/forge-dashboard/commit/fcb9073f3cbcf7021f4577acb652b3240205aa2f))
+
+## [0.150.0](https://github.com/alrayyes/forge-dashboard/compare/v0.149.1...v0.150.0) (2026-10-11)
+
+
+### Features
+
+* **web:** the dashboard's own 404 and 500 pages ([#1182](https://github.com/alrayyes/forge-dashboard/issues/1182)) ([a1d6af4](https://github.com/alrayyes/forge-dashboard/commit/a1d6af45b270988efb5673485dbbfb6d9bec3147))
+
+## [0.149.1](https://github.com/alrayyes/forge-dashboard/compare/v0.149.0...v0.149.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **github:** look up linear history on the pull request's base branch ([#1186](https://github.com/alrayyes/forge-dashboard/issues/1186)) ([707e125](https://github.com/alrayyes/forge-dashboard/commit/707e125511d344880b7feeb9e639dbb99069ada0))
+
+## [0.149.0](https://github.com/alrayyes/forge-dashboard/compare/v0.148.0...v0.149.0) (2026-10-11)
+
+
+### Features
+
+* **api:** queue, list and cancel a safe action for a rate-limited forge (2/3) ([#1180](https://github.com/alrayyes/forge-dashboard/issues/1180)) ([f7f736a](https://github.com/alrayyes/forge-dashboard/commit/f7f736a4ff84fe782f3ce90dcf6678569cb64bb3))
+
+## [0.148.0](https://github.com/alrayyes/forge-dashboard/compare/v0.147.3...v0.148.0) (2026-10-11)
+
+
+### Features
+
+* **web:** a failure line for a network failure clears itself after ten seconds ([#1207](https://github.com/alrayyes/forge-dashboard/issues/1207)) ([fc82163](https://github.com/alrayyes/forge-dashboard/commit/fc821631a6a6731d1b0dc9f942859bdaeee4c4c4)), closes [#1206](https://github.com/alrayyes/forge-dashboard/issues/1206)
+
+## [0.147.3](https://github.com/alrayyes/forge-dashboard/compare/v0.147.2...v0.147.3) (2026-10-11)
+
+
+### Bug Fixes
+
+* **web:** count only the issues the list shows in the updates bar ([#1202](https://github.com/alrayyes/forge-dashboard/issues/1202)) ([ab3806e](https://github.com/alrayyes/forge-dashboard/commit/ab3806ecb56fd1e3796307ad28720f2596c1a7cc))
+
+## [0.147.2](https://github.com/alrayyes/forge-dashboard/compare/v0.147.1...v0.147.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **api:** wait for the first refresh before answering a dashboard read ([#1197](https://github.com/alrayyes/forge-dashboard/issues/1197)) ([f2aa4ec](https://github.com/alrayyes/forge-dashboard/commit/f2aa4ecf18346ff3a83ebbc906e70a5efc8938ea)), closes [#1194](https://github.com/alrayyes/forge-dashboard/issues/1194)
+
 ## [0.147.1](https://github.com/alrayyes/forge-dashboard/compare/v0.147.0...v0.147.1) (2026-10-11)
 
 

@@ -153,6 +153,9 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/pull-requests/rerun-checks", auth.RequireAuth(deps.AuthStore)(handlePullRequestRerunChecks(deps)))
 	mux.Handle("POST /api/pull-requests/dependabot-action", auth.RequireAuth(deps.AuthStore)(handlePullRequestDependabotAction(deps)))
 	mux.Handle("POST /api/pull-requests/renovate-rebase", auth.RequireAuth(deps.AuthStore)(handlePullRequestRenovateRebase(deps)))
+	mux.Handle("GET /api/queued-actions", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsList(deps)))
+	mux.Handle("POST /api/queued-actions", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsCreate(deps)))
+	mux.Handle("DELETE /api/queued-actions/{id}", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsCancel(deps)))
 	mux.Handle("GET /api/pull-requests/checks", auth.RequireAuth(deps.AuthStore)(handlePullRequestChecks(deps)))
 
 	mux.Handle("GET /api/sharing", auth.RequireAuth(deps.AuthStore)(handleSharingGet(deps)))
@@ -209,6 +212,8 @@ func NewMux(deps Deps) http.Handler {
 	// changelog's address until #1108, which redirected it; the redirect is
 	// gone now that the name means this page.
 	mux.Handle("GET /releases.html", requireAuthPage(deps.AuthStore, privateFiles))
+	// Dependabot and Renovate's pull requests, on their own page (#1192).
+	mux.Handle("GET /bots.html", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /", publicFiles)
 	// An unknown API path is JSON, never the page for people (#1175).
 	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, _ *http.Request) {
