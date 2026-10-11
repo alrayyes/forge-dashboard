@@ -856,7 +856,7 @@ test.describe('pull request merge button', () => {
       await expect(reasons).toHaveCSS('opacity', '1');
     });
 
-    test('a mergeable PR on a forge with an exhausted rate-limit budget shows a locked Merge button', async ({
+    test('a mergeable PR on a forge with an exhausted rate-limit budget draws no Merge button (#755)', async ({
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
@@ -875,11 +875,13 @@ test.describe('pull request merge button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', { name: 'Merge', exact: true });
-      await expect(button).toHaveAttribute('aria-disabled', 'true');
+      await expect(row.getByText('A pull request')).toBeVisible();
+      await expect(
+        row.getByRole('button', { name: 'Merge', exact: true }),
+      ).toHaveCount(0);
       await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-      await expect(button).toHaveAccessibleDescription(
-        /GitHub API rate limit reached\. Actions resume at/,
+      await expect(page.locator('#rate-limit-banner')).toContainText(
+        'GitHub is rate limited. Read-only until',
       );
     });
 
