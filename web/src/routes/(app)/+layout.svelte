@@ -6,6 +6,7 @@
   import Footer from "#lib/Footer.svelte";
   import { issueCount } from "#lib/issue-count.svelte.js";
   import {
+    botCount,
     pullRequestCount,
     releaseCount,
     setPullRequestCounts,
@@ -95,6 +96,14 @@
       : `${releaseCount.value} Releases open`,
   );
 
+  // Dependabot and Renovate's pull requests, beside Releases.
+  const botsLabel = $derived(
+    botCount.value === null ? "Bots" : `Bots, ${botCount.value} open`,
+  );
+  const botsTabLabel = $derived(
+    botCount.value === null ? "Bots" : `${botCount.value} Bots open`,
+  );
+
   function signOut() {
     fetch("/api/auth/logout", { method: "POST" }).finally(() => {
       window.location.href = "/login.html";
@@ -146,7 +155,8 @@
       !isPublicRoute() &&
       !isCurrentRoute("/") &&
       !isCurrentRoute("/issues") &&
-      !isCurrentRoute("/releases")
+      !isCurrentRoute("/releases") &&
+      !isCurrentRoute("/bots")
     ) {
       fetch("/api/dashboard", { headers: { Accept: "application/json" } })
         .then((res) => (res.ok ? res.json() : null))
@@ -279,6 +289,37 @@
           >{#if releaseCount.value !== null}<span
               class="nav-badge"
               aria-hidden="true">{releaseCount.value}</span
+            >{/if}
+        </a>
+        <a
+          class="theme-toggle nav-with-badge"
+          href="/bots.html"
+          aria-label={botsLabel}
+          title="Bots"
+          aria-current={isCurrentRoute("/bots") ? "page" : undefined}
+          style="text-decoration:none;"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><path d="M12 8V4H8" /><rect
+              width="16"
+              height="12"
+              x="4"
+              y="8"
+              rx="2"
+            /><path d="M2 14h2" /><path d="M20 14h2" /><path
+              d="M15 13v2"
+            /><path d="M9 13v2" /></svg
+          >{#if botCount.value !== null}<span
+              class="nav-badge"
+              aria-hidden="true">{botCount.value}</span
             >{/if}
         </a>
         <a
@@ -482,6 +523,35 @@
         >{releaseCount.value}</span
       >{/if}
     <span class="bottom-nav-label">Releases</span>
+  </a>
+  <a
+    class="bottom-nav-link nav-with-badge"
+    href="/bots.html"
+    aria-label={botsTabLabel}
+    aria-current={isCurrentRoute("/bots") ? "page" : undefined}
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      ><path d="M12 8V4H8" /><rect
+        width="16"
+        height="12"
+        x="4"
+        y="8"
+        rx="2"
+      /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path
+        d="M9 13v2"
+      /></svg
+    >{#if botCount.value !== null}<span class="nav-badge" aria-hidden="true"
+        >{botCount.value}</span
+      >{/if}
+    <span class="bottom-nav-label">Bots</span>
   </a>
   <a
     class="bottom-nav-link"

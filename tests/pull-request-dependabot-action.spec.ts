@@ -99,6 +99,8 @@ async function openMoreActions(row: Locator) {
 test.describe('pull request Dependabot rebase/recreate buttons', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    await page.goto('/bots.html');
     await mockSettings(page);
   });
 

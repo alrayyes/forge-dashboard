@@ -130,6 +130,8 @@ for (const b of bots) {
     test.beforeEach(async ({ page, request, baseURL }) => {
       current = { ...b.pr };
       await registerAndSignIn(page, request, baseURL);
+      // Bot pull requests are on the Bots page, not the main list (#1192).
+      await page.goto('/bots.html');
       await page.addInitScript(() => {
         const w = window as unknown as {
           __skew: number;
@@ -474,6 +476,8 @@ test.describe('bot rebase pickup with another row still queued', () => {
     baseURL,
   }) => {
     await registerAndSignIn(page, request, baseURL);
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    await page.goto('/bots.html');
     await page.addInitScript(() => {
       const w = window as unknown as {
         __streams: EventSource[];
