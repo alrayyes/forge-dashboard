@@ -2,14 +2,15 @@ package forgejo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
 
-	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
@@ -57,18 +58,34 @@ func (c *Client) ReadMainBranch(ctx context.Context, repo dashboard.RepoRef) (da
 	return row, nil
 }
 
-// branchRuns is every Actions run on the newest commit that has one on repo's
-// default branch, newest run first. The branch is asked for and checked again
-// here, since an instance that ignores the filter would hand back every branch.
-func (c *Client) branchRuns(ctx context.Context, repo dashboard.RepoRef) ([]*gitea.ActionWorkflowRun, error) {
-	c.setContext(ctx)
+// branchRun is one entry of Forgejo's Actions runs list, decoded by hand: the
+// SDK's ActionWorkflowRun expects GitHub's field names (head_sha, head_branch,
+// started_at), none of which Forgejo sends, so every run came back with an
+// empty commit and branch and the whole history folded into one verdict
+// (#1264). Forgejo's names are recorded in testdata/actions_runs_master.json.
+type branchRun struct {
+	ID         int64     `json:"id"`
+	Title      string    `json:"title"`
+	WorkflowID string    `json:"workflow_id"`
+	Ref        string    `json:"prettyref"` // the branch, "#N" for a pull request
+	Event      string    `json:"event"`
+	CommitSHA  string    `json:"commit_sha"`
+	Status     string    `json:"status"`
+	StartedAt  time.Time `json:"started"`
+	StoppedAt  time.Time `json:"stopped"`
+	HTMLURL    string    `json:"html_url"`
+	Trigger    *struct {
+		Login string `json:"login"`
+	} `json:"trigger_user"`
+}
 
+// branchRuns is every Actions run on the newest commit that has one on repo's
+// default branch, newest run first. Forgejo ignores the branch filter, so the
+// branch is checked here, and pull request runs, whose ref is "#N", never match.
+func (c *Client) branchRuns(ctx context.Context, repo dashboard.RepoRef) ([]*branchRun, error) {
 	path := fmt.Sprintf("/repos/%s/%s/actions/runs", repo.Owner, repo.Name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
-	list, resp, err := c.sdk.ListRepoActionRuns(repo.Owner, repo.Name, gitea.ListRepoActionRunsOptions{
-		PageSize: pageLimit,
-		Branch:   repo.DefaultBranch,
-	})
+	body, resp, err := c.rawRequest(ctx, http.MethodGet, fmt.Sprintf("%s?page=1&limit=%d&branch=%s", path, pageLimit, url.QueryEscape(repo.DefaultBranch)), nil)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			// An instance too old for /actions/runs, or one with Actions off.
@@ -79,29 +96,35 @@ func (c *Client) branchRuns(ctx context.Context, repo dashboard.RepoRef) ([]*git
 
 		return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
-	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
-	var runs []*gitea.ActionWorkflowRun
+	var list struct {
+		WorkflowRuns []*branchRun `json:"workflow_runs"`
+	}
+	if err := json.Unmarshal(body, &list); err != nil {
+		return nil, fmt.Errorf("forgejo: unmarshal action runs response: %w", err)
+	}
+
+	var runs []*branchRun
 	for _, r := range list.WorkflowRuns {
-		if r.HeadBranch == "" || r.HeadBranch == repo.DefaultBranch {
+		if r.Ref == repo.DefaultBranch && !strings.HasPrefix(r.Event, "pull_request") {
 			runs = append(runs, r)
 		}
 	}
-	slices.SortFunc(runs, func(a, b *gitea.ActionWorkflowRun) int { return int(b.ID - a.ID) })
+	slices.SortFunc(runs, func(a, b *branchRun) int { return int(b.ID - a.ID) })
 	if len(runs) == 0 {
 		return nil, nil
 	}
 
-	sha := runs[0].HeadSha
+	sha := runs[0].CommitSHA
 
-	return slices.DeleteFunc(runs, func(r *gitea.ActionWorkflowRun) bool { return r.HeadSha != sha }), nil
+	return slices.DeleteFunc(runs, func(r *branchRun) bool { return r.CommitSHA != sha }), nil
 }
 
 // mainBranchStatus folds the runs of one commit into one status. A real failure
 // wins over a run still going; runs that were only cancelled count as failed
 // when nothing is left running to replace them, the rule a pull request's
 // rollup follows (#722).
-func mainBranchStatus(runs []*gitea.ActionWorkflowRun) dashboard.MainBranchStatus {
+func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 	var failed, cancelled, running bool
 	for _, r := range runs {
 		switch checkStateFromWorkflowStatus(r.Status) {
@@ -127,22 +150,22 @@ func mainBranchStatus(runs []*gitea.ActionWorkflowRun) dashboard.MainBranchStatu
 
 // failedRuns is the runs that broke the commit: the ones that failed, or, when
 // the only trouble is cancelled runs, those.
-func failedRuns(runs []*gitea.ActionWorkflowRun) []*gitea.ActionWorkflowRun {
-	failed := slices.DeleteFunc(slices.Clone(runs), func(r *gitea.ActionWorkflowRun) bool {
+func failedRuns(runs []*branchRun) []*branchRun {
+	failed := slices.DeleteFunc(slices.Clone(runs), func(r *branchRun) bool {
 		return checkStateFromWorkflowStatus(r.Status) != dashboard.CheckFailure
 	})
 	if len(failed) > 0 {
 		return failed
 	}
 
-	return slices.DeleteFunc(slices.Clone(runs), func(r *gitea.ActionWorkflowRun) bool {
+	return slices.DeleteFunc(slices.Clone(runs), func(r *branchRun) bool {
 		return checkStateFromWorkflowStatus(r.Status) != dashboard.CheckCancelled
 	})
 }
 
 // failingJobNames names the failed jobs of each run, or the run's workflow file
 // when its jobs can't be read or none shows as failed.
-func (c *Client) failingJobNames(ctx context.Context, repo dashboard.RepoRef, runs []*gitea.ActionWorkflowRun) []string {
+func (c *Client) failingJobNames(ctx context.Context, repo dashboard.RepoRef, runs []*branchRun) []string {
 	names := []string{}
 	for _, run := range runs {
 		var failing []string
@@ -157,7 +180,7 @@ func (c *Client) failingJobNames(ctx context.Context, repo dashboard.RepoRef, ru
 			}
 		}
 		if len(failing) == 0 {
-			workflow, _, _ := strings.Cut(run.Path, "@")
+			workflow, _, _ := strings.Cut(run.WorkflowID, "@")
 			failing = []string{workflow}
 		}
 		names = append(names, failing...)
@@ -169,16 +192,16 @@ func (c *Client) failingJobNames(ctx context.Context, repo dashboard.RepoRef, ru
 // branchCommit names the commit the runs are on, from the commit itself. A
 // commit that can't be read falls back to the newest run's title and actor,
 // which says less but still names it.
-func (c *Client) branchCommit(ctx context.Context, repo dashboard.RepoRef, run *gitea.ActionWorkflowRun) *dashboard.MainBranchCommit {
-	commit := &dashboard.MainBranchCommit{SHA: dashboard.ShortSHA(run.HeadSha), Subject: run.DisplayTitle}
-	if run.Actor != nil {
-		commit.Author = run.Actor.UserName
+func (c *Client) branchCommit(ctx context.Context, repo dashboard.RepoRef, run *branchRun) *dashboard.MainBranchCommit {
+	commit := &dashboard.MainBranchCommit{SHA: dashboard.ShortSHA(run.CommitSHA), Subject: run.Title}
+	if run.Trigger != nil {
+		commit.Author = run.Trigger.Login
 	}
 
 	c.setContext(ctx)
-	path := fmt.Sprintf("/repos/%s/%s/git/commits/%s", repo.Owner, repo.Name, run.HeadSha)
+	path := fmt.Sprintf("/repos/%s/%s/git/commits/%s", repo.Owner, repo.Name, run.CommitSHA)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
-	got, resp, err := c.sdk.GetSingleCommit(repo.Owner, repo.Name, run.HeadSha)
+	got, resp, err := c.sdk.GetSingleCommit(repo.Owner, repo.Name, run.CommitSHA)
 	if err != nil || got == nil || got.RepoCommit == nil {
 		slog.Debug("read default-branch commit failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "error", err)
 
@@ -205,17 +228,17 @@ func (c *Client) branchCommit(ctx context.Context, repo dashboard.RepoRef, run *
 
 // runTimes is when the last run finished and how long the commit's pipeline
 // took, from the first start to that finish. Nil when no run has both times.
-func runTimes(runs []*gitea.ActionWorkflowRun) (finished *time.Time, seconds *int) {
+func runTimes(runs []*branchRun) (finished *time.Time, seconds *int) {
 	var first, last time.Time
 	for _, r := range runs {
-		if r.StartedAt.IsZero() || r.CompletedAt.IsZero() {
+		if r.StartedAt.IsZero() || r.StoppedAt.IsZero() {
 			continue
 		}
 		if first.IsZero() || r.StartedAt.Before(first) {
 			first = r.StartedAt
 		}
-		if r.CompletedAt.After(last) {
-			last = r.CompletedAt
+		if r.StoppedAt.After(last) {
+			last = r.StoppedAt
 		}
 	}
 	if last.IsZero() {
