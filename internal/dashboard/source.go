@@ -9,8 +9,8 @@ import (
 // Result is what one forge contributes to a Snapshot. Health.Reachable is
 // false only for a fetch that failed outright (couldn't list repositories
 // at all); a single repository's own fetch failing is logged and skipped by
-// the Source, not surfaced here — a good forge with one broken repo still
-// reports Reachable: true.
+// the Source and named in FailedRepos — a good forge with one broken repo
+// still reports Reachable: true.
 type Result struct {
 	Health       ForgeHealth
 	PullRequests []PullRequest
@@ -20,6 +20,18 @@ type Result struct {
 	// and a repo with zero open pull requests/issues would otherwise
 	// never appear in PullRequests/Issues' own Repo fields either.
 	Repos []Repo
+	// FailedRepos names the repos whose pull requests or issues could not be
+	// fetched this time while the forge itself answered. Their rows are
+	// missing from PullRequests and Issues, which says nothing about whether
+	// they are gone, so the aggregator keeps the last ones it had (#1194).
+	FailedRepos []FailedRepo
+}
+
+// FailedRepo is one repo a Source could not fully fetch, and which parts.
+type FailedRepo struct {
+	FullName     string
+	PullRequests bool
+	Issues       bool
 }
 
 // Source is one forge's half of the aggregate. github.Source and
