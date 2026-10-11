@@ -68,6 +68,13 @@ type dashboardResponse struct {
 // this is not the backend's REFRESH_INTERVAL.
 const clientReadInterval = 30 * time.Second
 
+// firstLoadWait is how long a read waits for an Aggregator's first refresh
+// before answering with whatever the snapshot holds. A fresh process or a
+// settings save leaves the snapshot empty until then, and an empty answer
+// reads as "no pull requests" (#1194). Past it a slow forge shows its
+// ForgeHealth rather than keeping the page waiting.
+const firstLoadWait = 15 * time.Second
+
 // issueView is an issue as the API serves it: the snapshot's own fields plus
 // whether it is a bot's housekeeping issue, decided here so every client
 // agrees (#980).
@@ -439,6 +446,7 @@ var (
 func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, ownerUsername string, includeDrafts bool) (dashboardResponse, error) {
 	if ownerUsername == "" || ownerUsername == requester.Username {
 		warmUpAggregator(ctx, deps, requester.ID, requester.Username)
+		deps.Manager.WaitFirstRefresh(ctx, requester.ID, firstLoadWait)
 
 		return buildDashboardResponse(ctx, deps, requester.ID, deps.Manager.Get(requester.ID), includeDrafts), nil
 	}
@@ -461,6 +469,7 @@ func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, o
 	}
 
 	warmUpAggregator(ctx, deps, owner.ID, owner.Username)
+	deps.Manager.WaitFirstRefresh(ctx, owner.ID, firstLoadWait)
 
 	return buildDashboardResponse(ctx, deps, owner.ID, deps.Manager.Get(owner.ID), includeDrafts).withoutQueue(), nil
 }
