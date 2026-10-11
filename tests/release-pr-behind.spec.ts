@@ -87,7 +87,8 @@ test.describe('a behind release-please pull request (#1104)', () => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    // Release pull requests live on the Releases page.
+    await page.goto('/releases.html');
 
     const row = page.locator('#pr-rows .row').first();
     const update = row.getByRole('button', { name: 'Update branch' });
