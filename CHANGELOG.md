@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.157.0](https://github.com/alrayyes/forge-dashboard/compare/v0.156.0...v0.157.0) (2026-10-11)
+
+
+### Features
+
+* **web:** an unreachable forge goes read-only, with one banner and one Retry ([#1203](https://github.com/alrayyes/forge-dashboard/issues/1203)) ([f9fa37b](https://github.com/alrayyes/forge-dashboard/commit/f9fa37b704096c8db87faf717dba4895e32de267)), closes [#1199](https://github.com/alrayyes/forge-dashboard/issues/1199)
+
 ## [0.156.0](https://github.com/alrayyes/forge-dashboard/compare/v0.155.0...v0.156.0) (2026-10-11)
 
 
