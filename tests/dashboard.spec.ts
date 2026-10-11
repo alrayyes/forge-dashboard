@@ -349,8 +349,7 @@ test.describe('dashboard page', () => {
 
       const banner = page.locator('#rate-limit-banner');
       await expect(banner).toBeVisible();
-      await expect(banner).toContainText('Rate limit exceeded');
-      await expect(banner).toContainText('GitHub REST');
+      await expect(banner).toContainText('GitHub is rate limited');
       await expect(banner).toContainText(/resets in 1m \d+s/);
 
       function totalSeconds(text: string | null) {
@@ -370,7 +369,7 @@ test.describe('dashboard page', () => {
       }).toPass({ timeout: 3000 });
     });
 
-    test('reports each exhausted budget separately when both REST and GraphQL are out', async ({
+    test('says it once per forge when both REST and GraphQL are out (#755)', async ({
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
@@ -398,9 +397,8 @@ test.describe('dashboard page', () => {
       await page.reload();
 
       const banner = page.locator('#rate-limit-banner');
-      await expect(banner.locator('.rate-limit-banner-row')).toHaveCount(2);
-      await expect(banner).toContainText('GitHub GraphQL');
-      await expect(banner).toContainText('GitHub REST');
+      await expect(banner.locator('.rate-limit-banner-row')).toHaveCount(1);
+      await expect(banner).toContainText('GitHub is rate limited');
     });
 
     test('clears once a fresh snapshot reports the budget recovered', async ({
@@ -549,9 +547,7 @@ test.describe('dashboard page', () => {
 
       const banner = page.locator('#rate-limit-banner');
       await expect(banner.locator('.rate-limit-banner-row')).toHaveCount(2);
-      await expect(banner).toContainText(
-        'Rate limit exceeded — GitHub GraphQL',
-      );
+      await expect(banner).toContainText("GitHub's GraphQL budget is spent");
       await expect(banner).toContainText(
         'Rate limit running low — GitHub REST',
       );

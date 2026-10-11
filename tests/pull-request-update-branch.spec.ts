@@ -800,7 +800,7 @@ test.describe('pull request update-branch button', () => {
       await expect(row).not.toContainText(/unreachable/i);
     });
 
-    test('a behind PR on a forge with an exhausted rate-limit budget shows a locked Update branch button', async ({
+    test('a behind PR on a forge with an exhausted rate-limit budget draws no Update branch button (#755)', async ({
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
@@ -819,14 +819,12 @@ test.describe('pull request update-branch button', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      const button = row.getByRole('button', {
-        name: 'Update branch',
-        exact: true,
-      });
-      await expect(button).toHaveAttribute('aria-disabled', 'true');
+      await expect(
+        row.getByRole('button', { name: 'Update branch', exact: true }),
+      ).toHaveCount(0);
       await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-      await expect(button).toHaveAccessibleDescription(
-        /GitHub API rate limit reached\. Actions resume at/,
+      await expect(page.locator('#rate-limit-banner')).toContainText(
+        'GitHub is rate limited. Read-only until',
       );
     });
 
