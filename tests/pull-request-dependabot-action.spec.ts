@@ -238,8 +238,8 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       'aria-live',
       'polite',
     );
-    await expect(row.locator('.row-feedback')).toContainText(
-      'will pick this up shortly',
+    await expect(row.locator('.wait-chip-label')).toHaveText(
+      'Rebase requested',
     );
     await expect(page.locator('#status-banner')).toHaveCount(0);
   });

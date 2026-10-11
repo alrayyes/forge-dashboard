@@ -11,8 +11,9 @@ import { registerViaInvite } from './register-helper';
 // #707: after a Dependabot or Renovate rebase request the row says the
 // request went out, that the bot picks it up in its own time, and when it
 // has. The wait is on the bot, not on the dashboard's own refresh, so the
-// copy says so; the "Requested Ns ago" ticker stays out of the announced
-// text the same way the refresh countdown does (#714).
+// copy says so; the "45s ago" ticker stays out of the announced text the
+// same way the refresh countdown does (#714). Since #1229 the row says it
+// with its waiting chip.
 //
 // The server owns the request (#808): each pull request in a snapshot
 // carries `botRequest`, and the page only draws it. These tests play the
@@ -103,8 +104,7 @@ const bots = [
     pr: makePR(),
     endpoint: '**/api/pull-requests/dependabot-action',
     button: 'Dependabot: Rebase',
-    requested: 'Dependabot will pick this up shortly.',
-    detail: 'This can take a few minutes, no need to click again.',
+    tip: 'Dependabot acts on its own schedule, usually within a few minutes. No need to ask again.',
   },
   {
     bot: 'Renovate',
@@ -112,14 +112,14 @@ const bots = [
     pr: makePR({ author: 'renovate[bot]' }),
     endpoint: '**/api/pull-requests/renovate-rebase',
     button: 'Renovate: Rebase',
-    requested: 'Renovate will pick this up shortly.',
-    detail:
-      'The rebase label is set. This can take a few minutes, no need to click again.',
+    tip: 'Renovate acts on its own schedule, usually within a few minutes. The rebase label is set. No need to ask again.',
   },
 ];
 
 const row = (page: Page) => page.locator('#pr-rows .row').first();
 const line = (page: Page) => row(page).locator('.row-feedback');
+const chip = (page: Page) => row(page).locator('.wait-chip');
+const label = (page: Page) => chip(page).locator('.wait-chip-label');
 
 for (const b of bots) {
   test.describe(`bot rebase pickup: ${b.bot}`, () => {
@@ -208,22 +208,25 @@ for (const b of bots) {
       await expect(row(page).getByText('Out of date')).toBeVisible();
       await request(page);
 
-      await expect(line(page)).toContainText(b.requested);
-      await expect(line(page)).toContainText(b.detail);
-      await expect(line(page)).toContainText(/Requested \d+s ago/);
-      // No banner: the row line carries the message.
+      await expect(label(page)).toHaveText('Rebase requested');
+      await expect(chip(page).locator('.wait-chip-detail')).toContainText(
+        b.bot,
+      );
+      await expect(chip(page).locator('.wait-chip-tip')).toHaveText(b.tip);
+      await expect(chip(page).locator('.feedback-requested')).toHaveText(
+        /\d+s ago/,
+      );
+      // No banner: the chip carries the message.
       await expect(page.locator('#status-banner')).toHaveCount(0);
     });
 
-    test('Requested Ns ago keeps ticking and is not read out', async ({
-      page,
-    }) => {
+    test('the age keeps ticking and is not read out', async ({ page }) => {
       await request(page);
-      const ago = line(page).locator('.feedback-requested');
+      const ago = chip(page).locator('.feedback-requested');
       await expect(ago).toHaveAttribute('aria-hidden', 'true');
-      await expect(ago).toHaveText('Requested 0s ago');
+      await expect(ago).toHaveText('0s ago');
       await skew(page, 7_000);
-      await expect(ago).toHaveText('Requested 7s ago');
+      await expect(ago).toHaveText('7s ago');
 
       const live = page.locator('#feedback-live');
       await expect(live).not.toContainText(/\d+s ago/);
@@ -231,7 +234,7 @@ for (const b of bots) {
     });
 
     // #808: the request lives on the server, so a reload mid-wait still
-    // shows it, and the "Requested Ns ago" clock counts from when it was
+    // shows it, and the age on the chip counts from when it was
     // asked, not from when the page loaded.
     test('a reload mid-wait still shows the request', async ({ page }) => {
       await request(page);
@@ -240,8 +243,8 @@ for (const b of bots) {
       await expect(
         row(page).getByRole('button', { name: 'Rebase requested' }),
       ).toBeDisabled();
-      await expect(line(page)).toContainText(b.requested);
-      await expect(line(page)).toContainText(b.detail);
+      await expect(label(page)).toHaveText('Rebase requested');
+      await expect(chip(page).locator('.wait-chip-tip')).toHaveText(b.tip);
     });
 
     test('a request seen only in the snapshot counts its age from requestedAt', async ({
@@ -252,10 +255,12 @@ for (const b of bots) {
         botRequest: botRequest(b.id, 'queued', 90_000),
       };
       await page.reload();
-      await expect(line(page)).toContainText(/Requested 1m ago/);
+      await expect(chip(page).locator('.feedback-requested')).toHaveText(
+        '1m ago',
+      );
     });
 
-    test('a request that is rebasing in the snapshot shows Rebasing… after a reload', async ({
+    test('a request that is rebasing in the snapshot shows Rebasing after a reload', async ({
       page,
     }) => {
       current = {
@@ -264,10 +269,10 @@ for (const b of bots) {
         botRequest: botRequest(b.id, 'rebasing'),
       };
       await page.reload();
-      await expect(row(page).locator('.merge-pill.rebasing')).toHaveText(
-        'Rebasing…',
+      await expect(label(page)).toHaveText('Rebasing');
+      await expect(chip(page).locator('.wait-chip-tip')).toContainText(
+        `${b.bot} picked this up`,
       );
-      await expect(line(page)).toContainText(`${b.bot} picked this up`);
     });
 
     test('expired in the snapshot shows the timed-out line and a toast, once', async ({
@@ -280,6 +285,7 @@ for (const b of bots) {
       };
       await push(page, current);
 
+      await expect(chip(page)).toHaveCount(0);
       await expect(line(page)).toContainText('Timed out');
       await expect(
         line(page).getByRole('button', {
@@ -300,13 +306,13 @@ for (const b of bots) {
       await expect(toasts).toHaveCount(1);
     });
 
-    test('the requested line survives a stream push that still shows it queued', async ({
+    test('the chip survives a stream push that still shows it queued', async ({
       page,
     }) => {
       await request(page);
       await push(page, current);
       await page.waitForTimeout(500);
-      await expect(line(page)).toContainText(b.requested);
+      await expect(label(page)).toHaveText('Rebase requested');
       await expect(
         row(page).getByRole('button', { name: 'Rebase requested' }),
       ).toBeDisabled();
@@ -356,8 +362,7 @@ for (const b of bots) {
 
       release();
       await page.waitForTimeout(800);
-      await expect(row(page).locator('.merge-pill.rebasing')).toHaveCount(0);
-      await expect(line(page)).toContainText(b.requested);
+      await expect(label(page)).toHaveText('Rebase requested');
 
       // A refresh that starts after the click and shows the bot acted.
       current = {
@@ -366,12 +371,10 @@ for (const b of bots) {
         botRequest: botRequest(b.id, 'rebasing'),
       };
       await page.locator('#force-refresh-button').click();
-      await expect(row(page).locator('.merge-pill.rebasing')).toHaveText(
-        'Rebasing…',
-      );
+      await expect(label(page)).toHaveText('Rebasing');
     });
 
-    test('once the bot has rebased it the row says Rebasing… until CI restarts', async ({
+    test('once the bot has rebased it the chip says Rebasing until CI restarts', async ({
       page,
     }) => {
       await request(page);
@@ -383,11 +386,11 @@ for (const b of bots) {
       };
       await push(page, current);
 
-      const pill = row(page).locator('.merge-pill.rebasing');
-      await expect(pill).toHaveText('Rebasing…');
+      await expect(label(page)).toHaveText('Rebasing');
       await expect(row(page).getByText('Out of date')).toHaveCount(0);
-      await expect(line(page)).toContainText(`${b.bot} picked this up`);
-      await expect(line(page)).not.toContainText(/Requested \d+s ago/);
+      await expect(chip(page).locator('.wait-chip-tip')).toContainText(
+        `${b.bot} picked this up`,
+      );
       await expect(page.locator('#feedback-live')).toContainText(
         `${b.bot} picked up the rebase`,
       );
@@ -395,14 +398,16 @@ for (const b of bots) {
       // CI restarts: the server drops the request, and so does the row.
       current = { ...current, ci: 'pending', botRequest: undefined };
       await push(page, current);
-      await expect(row(page).locator('.merge-pill.rebasing')).toHaveCount(0);
+      await expect(label(page)).toHaveText('Settled');
       await expect(line(page)).toHaveCount(0);
       await expect(
         page.locator('#feedback-toasts .feedback-toast').first(),
       ).toContainText(`${b.bot} rebase finished.`);
+      // Settled goes by itself, and the row has only its normal actions.
+      await expect(chip(page)).toHaveCount(0, { timeout: 10_000 });
     });
 
-    test('a request the server drops (a repo whose CI never restarts) clears Rebasing…', async ({
+    test('a request the server drops (a repo whose CI never restarts) clears Rebasing', async ({
       page,
     }) => {
       await request(page);
@@ -412,15 +417,16 @@ for (const b of bots) {
         botRequest: botRequest(b.id, 'rebasing'),
       };
       await push(page, current);
-      await expect(row(page).locator('.merge-pill.rebasing')).toBeVisible();
+      await expect(label(page)).toHaveText('Rebasing');
 
       current = { ...current, botRequest: undefined };
       await push(page, current);
-      await expect(row(page).locator('.merge-pill.rebasing')).toHaveCount(0);
+      await expect(label(page)).toHaveText('Settled');
+      await expect(chip(page)).toHaveCount(0, { timeout: 10_000 });
       await expect(line(page)).toHaveCount(0);
     });
 
-    test('a CI run already under way at pickup needs no Rebasing… step', async ({
+    test('a CI run already under way at pickup needs no Rebasing step', async ({
       page,
     }) => {
       await request(page);
@@ -431,7 +437,9 @@ for (const b of bots) {
         botRequest: undefined,
       };
       await push(page, current);
-      await expect(row(page).locator('.merge-pill.rebasing')).toHaveCount(0);
+      await expect(
+        chip(page).getByText('Rebasing', { exact: true }),
+      ).toHaveCount(0);
       await expect(
         page.locator('#feedback-toasts .feedback-toast').first(),
       ).toContainText(`${b.bot} rebase finished.`);
@@ -447,7 +455,7 @@ for (const b of bots) {
         expect(results.violations).toEqual([]);
       };
       await request(page);
-      await expect(line(page)).toContainText(b.requested);
+      await expect(label(page)).toHaveText('Rebase requested');
       await scan();
 
       current = {
@@ -456,11 +464,11 @@ for (const b of bots) {
         botRequest: botRequest(b.id, 'rebasing'),
       };
       await push(page, current);
-      // Words, not just a tint: the state is in the text of both.
-      await expect(row(page).locator('.merge-pill.rebasing')).toHaveText(
-        'Rebasing…',
+      // Words and an icon, not just a tint: the state is in the text of both.
+      await expect(label(page)).toHaveText('Rebasing');
+      await expect(chip(page).locator('.wait-chip-tip')).toContainText(
+        'picked this up',
       );
-      await expect(line(page)).toContainText('picked this up');
       await scan();
     });
   });
@@ -545,9 +553,7 @@ test.describe('bot rebase pickup with another row still queued', () => {
         stream.onmessage?.(new MessageEvent('message', { data: payload }));
     }, data);
 
-    await expect(rowFor(42).locator('.merge-pill.rebasing')).toHaveText(
-      'Rebasing…',
-    );
+    await expect(rowFor(42).locator('.wait-chip-label')).toHaveText('Rebasing');
     await expect(rowFor(42).getByText('Out of date')).toHaveCount(0);
     // The other row is untouched, still where it was.
     await expect(rowFor(43).getByText('Out of date')).toBeVisible();

@@ -41,6 +41,12 @@
     createFeedbackStore,
   } from "#lib/feedback.js";
   import { mountFeedbackUI } from "#lib/feedback-ui.js";
+  import {
+    autoMergeChip,
+    buildWaitChip,
+    requestedAnnouncement,
+    type WaitKind,
+  } from "#lib/wait-chip.js";
   import type { RevealOutcome } from "#lib/feedback-ui.js";
   import {
     budgetText,
@@ -265,6 +271,12 @@
       // is read again from the server before the action is offered anew.
       onTransientFailureCleared: () => {
         refreshDashboardNow().catch(() => {});
+      },
+      // A wait that has run two minutes: read the row again (#1229).
+      onCheckAgain: () => {
+        refreshDashboardNow().catch((err: Error) => {
+          showError(`Could not refresh: ${err.message}`);
+        });
       },
     });
     function actionRef(item: PullRequestItem): ActionRef {
@@ -627,21 +639,6 @@
       return pill;
     }
 
-    // #707: a bot rebase the bot has picked up. The Out of date pill is
-    // already gone (the pull request isn't behind any more); this one
-    // stays until CI shows as restarted, so the row doesn't go quiet in
-    // between. Words, not just a tint.
-    function rebasingPill(item: PullRequestItem): HTMLElement | null {
-      const rebasing =
-        dependabotActionState[`${prKey(item)}:rebase`]?.phase === "rebasing" ||
-        renovateRebaseState[prKey(item)]?.phase === "rebasing";
-      if (!rebasing) return null;
-      const pill = el("span", "merge-pill rebasing");
-      pill.appendChild(el("span", "dot"));
-      pill.appendChild(document.createTextNode("Rebasing…"));
-      return pill;
-    }
-
     // Silent unless auto-merge is genuinely enabled — autoMergeEnabled
     // is `null` for a forge that can't report this at all (Forgejo,
     // today), which must never render as "not enabled": strict ===
@@ -661,15 +658,36 @@
       return pill;
     }
 
-    // Why an armed Forgejo pull request hasn't merged yet, as text led by
-    // the state, so it never rests on colour alone.
+    // An armed Forgejo pull request that has stopped needs a person, so it
+    // reads as a line led by the state, never by colour alone. One that is
+    // only waiting is the row's waiting chip instead (#1229).
     function autoMergeStatusLine(pr: PullRequestItem): HTMLElement | null {
-      if (pr.forge !== "forgejo" || !pr.autoMerge) return null;
-      const lead = pr.autoMerge.state === "stopped" ? "Stopped" : "Waiting";
+      if (pr.forge !== "forgejo" || pr.autoMerge?.state !== "stopped")
+        return null;
       const line = el("span", `auto-merge-status ${pr.autoMerge.state}`);
-      line.appendChild(el("strong", "", `${lead}: `));
+      line.appendChild(el("strong", "", "Stopped: "));
       line.appendChild(document.createTextNode(pr.autoMerge.message));
       return line;
+    }
+
+    // The chip for an armed Forgejo auto-merge that is waiting, with the
+    // button that turns it off inside it. null when there is nothing to wait
+    // for, or the row is settled.
+    function autoMergeWaitChip(pr: PullRequestItem): HTMLElement | null {
+      if (pr.forge !== "forgejo" || !pr.autoMerge) return null;
+      const chip = autoMergeChip({
+        state: pr.autoMerge.state,
+        code: pr.autoMerge.code,
+        message: pr.autoMerge.message,
+        draft: pr.draft,
+      });
+      if (!chip) return null;
+      const disarm = isSettled(pr) ? null : cancelAutoMergeCell(pr, true);
+      return buildWaitChip(chip, {
+        source: "auto-merge",
+        subject: `${pr.repo}#${pr.number}`,
+        button: disarm ?? undefined,
+      });
     }
 
     // ---- stacked pull requests (#861) ----
@@ -814,6 +832,12 @@
         // grid-template-columns unchanged regardless of how many of
         // them this particular row has anything to say.
         const statusCell = el("div", "status-cell");
+        // The action area's reserved slot: the waiting chip lives here, so
+        // it comes and goes without moving the row (#1229).
+        const waitSlot = el("div", "wait-slot");
+        const autoMergeWait = autoMergeWaitChip(pr);
+        if (autoMergeWait) waitSlot.appendChild(autoMergeWait);
+        statusCell.appendChild(waitSlot);
         const mergeAction = mergeActionCell(pr);
         statusCell.appendChild(
           ciPill(
@@ -826,8 +850,6 @@
         if (conflictPill) statusCell.appendChild(conflictPill);
         const outOfDatePill = behindPill(pr);
         if (outOfDatePill) statusCell.appendChild(outOfDatePill);
-        const rebasing = rebasingPill(pr);
-        if (rebasing) statusCell.appendChild(rebasing);
         const mergePill = autoMergePill(pr);
         if (mergePill) statusCell.appendChild(mergePill);
         const mergeStatusLine = autoMergeStatusLine(pr);
@@ -836,7 +858,10 @@
         // Found already merged or closed: the badge replaces Merge, and
         // nothing else on the row has anything left to do.
         const settledRow = isSettled(pr);
-        const cancelAutoMerge = settledRow ? null : cancelAutoMergeCell(pr);
+        // The chip holds Disarm while auto-merge is waiting; a stopped one
+        // keeps its Cancel button here.
+        const cancelAutoMerge =
+          settledRow || autoMergeWait ? null : cancelAutoMergeCell(pr);
         if (cancelAutoMerge) statusCell.appendChild(cancelAutoMerge);
         const updateBranchAction = settledRow
           ? null
@@ -1256,6 +1281,7 @@
         actionKey: fkey,
         ref: actionRef(item),
         label: "Merge",
+        kind: "merge",
         phase: "working",
         inline: "Merging…",
         message: "Merging…",
@@ -1498,6 +1524,7 @@
         actionKey: fkey,
         ref: actionRef(item),
         label: "Enable auto-merge",
+        kind: "enable-auto-merge",
         phase: "working",
         inline: "Enabling auto-merge…",
         message: "Enabling auto-merge…",
@@ -1620,6 +1647,7 @@
         actionKey: fkey,
         ref: actionRef(item),
         label: "Cancel auto-merge",
+        kind: "cancel-auto-merge",
         phase: "working",
         inline: "Cancelling auto-merge…",
         message: "Cancelling auto-merge…",
@@ -1673,15 +1701,30 @@
         });
     }
 
-    function cancelAutoMergeCell(item: PullRequestItem): HTMLElement | null {
+    function cancelAutoMergeCell(
+      item: PullRequestItem,
+      inChip = false,
+    ): HTMLElement | null {
       if (!findAction(item, "cancel_auto_merge")) return null;
 
       const requesting =
         cancelAutoMergeState[prKey(item)]?.phase === "requesting";
+      // In the waiting chip it says Disarm, the chip's own word for it.
       const button = buttonEl(
-        "row-action",
-        requesting ? "Cancelling…" : "Cancel auto-merge",
+        inChip ? "row-action wait-chip-action" : "row-action",
+        inChip
+          ? requesting
+            ? "Disarming…"
+            : "Disarm"
+          : requesting
+            ? "Cancelling…"
+            : "Cancel auto-merge",
       );
+      if (inChip)
+        button.setAttribute(
+          "aria-label",
+          requesting ? "Disarming auto-merge" : "Disarm auto-merge",
+        );
       button.type = "button";
       button.disabled = requesting;
       button.addEventListener("click", () => {
@@ -1907,6 +1950,7 @@
         actionKey: fkey,
         ref: actionRef(item),
         label: "Close",
+        kind: "close",
         phase: "working",
         inline: "Closing…",
         message: "Closing…",
@@ -2087,8 +2131,9 @@
         actionKey: fkey,
         ref: actionRef(item),
         label: "Update branch",
+        kind: "update-branch",
         phase: "queued",
-        inline: "Queued",
+        inline: "Branch update requested",
         message: "Branch update requested.",
         retry: () => doUpdateBranch(item, buttonEl("row-action")),
       });
@@ -2127,7 +2172,7 @@
           confirmRequest(updateBranchState, key);
           feedback.update(fkey, {
             toast: true,
-            announce: "Branch update requested. Awaiting the next refresh.",
+            announce: requestedAnnouncement("update-branch"),
           });
           return fetch(withDrafts("/api/dashboard/refresh"), {
             method: "POST",
@@ -2251,8 +2296,9 @@
         actionKey: fkey,
         ref: actionRef(item),
         label: DEPENDABOT_ACTION_LABELS[action],
+        kind: action === "rebase" ? "bot-rebase" : "bot-recreate",
         phase: "queued",
-        inline: "Waiting for Dependabot",
+        inline: `Dependabot ${action} requested`,
         message: `Dependabot ${action} requested.`,
         bot: action === "rebase" ? botLineInfo("Dependabot") : undefined,
         retry: () => doDependabotAction(item, action, buttonEl("row-action")),
@@ -2299,10 +2345,10 @@
           confirmRequest(dependabotActionState, key);
           feedback.update(fkey, {
             toast: true,
-            announce:
-              action === "rebase"
-                ? "Dependabot rebase requested. It will pick this up shortly."
-                : `Dependabot ${action} requested. Awaiting the next refresh.`,
+            announce: requestedAnnouncement(
+              action === "rebase" ? "bot-rebase" : "bot-recreate",
+              "Dependabot",
+            ),
           });
           closeMenuKeepingFocus(prKey(item));
         })
@@ -2819,8 +2865,9 @@
         actionKey: fkey,
         ref: actionRef(item),
         label: "Renovate: Rebase",
+        kind: "bot-rebase",
         phase: "queued",
-        inline: "Waiting for Renovate",
+        inline: "Renovate rebase requested",
         message: "Renovate rebase requested.",
         bot: botLineInfo("Renovate"),
         retry: () => doRenovateRebase(item, buttonEl("row-action")),
@@ -2835,7 +2882,7 @@
         feedback.update(fkey, {
           toast: true,
           ...(alreadyTicked && { message: "Rebase requested." }),
-          announce: "Renovate rebase requested. It will pick this up shortly.",
+          announce: requestedAnnouncement("bot-rebase", "Renovate"),
         });
         closeMenuKeepingFocus(prKey(item));
       };
@@ -5027,7 +5074,10 @@
           const action = server.action;
           return {
             label: DEPENDABOT_ACTION_LABELS[action],
-            inline: "Waiting for Dependabot",
+            kind: (action === "rebase"
+              ? "bot-rebase"
+              : "bot-recreate") as WaitKind,
+            inline: "Rebase requested",
             message: `Dependabot ${action} requested.`,
             bot:
               action === "rebase"
@@ -5048,7 +5098,8 @@
         pickedUpMessage: "Renovate picked up the rebase.",
         restoredFeedback: (pr: PullRequestItem, request: SyncedRequest) => ({
           label: "Renovate: Rebase",
-          inline: "Waiting for Renovate",
+          kind: "bot-rebase" as WaitKind,
+          inline: "Rebase requested",
           message: `Renovate ${(request.request as ServerBotRequest).action} requested.`,
           bot:
             (request.request as ServerBotRequest).action === "rebase"
@@ -5072,7 +5123,8 @@
         pickedUpMessage: "",
         restoredFeedback: (pr: PullRequestItem) => ({
           label: "Update branch",
-          inline: "Queued",
+          kind: "update-branch" as WaitKind,
+          inline: "Branch update requested",
           message: "Branch update requested.",
           bot: undefined,
           retry: () => doUpdateBranch(pr, buttonEl("row-action")),
@@ -5164,7 +5216,7 @@
               phase: "rebasing",
               inline: "Rebasing…",
               message: kind.pickedUpMessage,
-              announce: `${kind.pickedUpMessage} Waiting for CI to restart.`,
+              announce: kind.pickedUpMessage,
             });
           }
         }
@@ -5219,7 +5271,7 @@
     function queuedCountdownText(): string {
       const seconds = Math.max(0, Math.ceil((nextPollAt - Date.now()) / 1000));
       // The snapshot is late, not lost: say so instead of "0s".
-      return seconds === 0 ? " Refreshing…" : ` (next refresh in ${seconds}s)`;
+      return seconds === 0 ? "Refreshing…" : `Next refresh in ${seconds}s`;
     }
 
     // ---- force-refresh: retry right now instead of waiting out the

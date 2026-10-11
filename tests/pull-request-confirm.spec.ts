@@ -409,7 +409,7 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await page.reload();
 
     const row = rowOf(page, 0);
-    await mergeButton(row).dblclick();
+    await mergeButton(row).click();
     await expect(confirmMerge(row)).toBeVisible();
     await page.waitForTimeout(700);
     await confirmMerge(row).click();

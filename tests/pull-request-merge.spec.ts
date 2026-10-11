@@ -444,7 +444,7 @@ test.describe('pull request merge button', () => {
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
     // The row says what is happening, and a toast reports the result.
-    await expect(row.locator('.row-feedback')).toContainText('Merging…');
+    await expect(row.locator('.wait-chip-label')).toHaveText('Merging');
     await expect(page.locator('#feedback-live')).toHaveAttribute(
       'aria-live',
       'polite',

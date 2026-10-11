@@ -93,6 +93,7 @@ function snapshot(pr: MockPR) {
 
 const row = (page: Page) => page.locator('#pr-rows .row').first();
 const line = (page: Page) => row(page).locator('.row-feedback');
+const chip = (page: Page) => row(page).locator('.wait-chip-label');
 
 test.describe('update branch request from the server', () => {
   // What the mocked dashboard currently answers with: a test changes it to
@@ -154,7 +155,9 @@ test.describe('update branch request from the server', () => {
     );
   }
 
-  test('a reload mid-wait still shows Queued', async ({ page }) => {
+  test('a reload mid-wait still shows the Updating branch chip', async ({
+    page,
+  }) => {
     await click(page);
     await page.reload();
 
@@ -164,7 +167,7 @@ test.describe('update branch request from the server', () => {
     await expect(
       row(page).getByRole('button', { name: 'Update branch' }),
     ).toHaveCount(0);
-    await expect(line(page)).toContainText('Queued');
+    await expect(chip(page)).toHaveText('Updating branch');
   });
 
   test('a request seen only in the snapshot starts the row state', async ({
@@ -176,7 +179,7 @@ test.describe('update branch request from the server', () => {
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
     ).toBeDisabled();
-    await expect(line(page)).toContainText('Queued');
+    await expect(chip(page)).toHaveText('Updating branch');
   });
 
   test('a queued record on the next snapshot keeps the row Queued', async ({
@@ -250,6 +253,11 @@ test.describe('update branch request from the server', () => {
       updateRequest: updateRequest('expired', 5 * 60_000),
     };
     await push(page, current);
+    // The toasts sit over the row's corner; clear them like a user would.
+    const dismiss = page.getByRole('button', {
+      name: /^Dismiss notification/,
+    });
+    while ((await dismiss.count()) > 0) await dismiss.first().click();
     await line(page).getByRole('button', { name: 'Retry' }).click();
 
     await expect(
@@ -360,7 +368,7 @@ test.describe('update branch request from the server', () => {
     await expect(page.locator('#feedback-toasts')).not.toContainText(
       'Branch updated.',
     );
-    await expect(line(page)).toContainText('Queued');
+    await expect(chip(page)).toHaveText('Updating branch');
 
     // A refresh that starts after the click and shows the branch caught up.
     current = { ...current, behind: false, updateRequest: undefined };

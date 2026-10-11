@@ -17,6 +17,15 @@ import {
   PHASE_LABELS,
   type Toast,
 } from './feedback';
+import {
+  buildWaitChip,
+  type Chip,
+  SETTLED_MS,
+  settledChip,
+  settlesOnRow,
+  stalledAnnouncement,
+  waitChip,
+} from './wait-chip';
 
 // How long a success toast stays before it dismisses itself.
 export const TOAST_LIFETIME_MS = 6000;
@@ -40,6 +49,9 @@ export type FeedbackUIOptions = {
   // A transient failure line has cleared itself. Whether the write landed is
   // unknown, so the page reads the row again from the server (#1206).
   onTransientFailureCleared?: (entry: ActivityEntry) => void;
+  // Check again on a chip that has waited too long: read the row from the
+  // server now (#1229).
+  onCheckAgain?: () => void;
 };
 
 function node(tag: string, className = '', text = ''): HTMLElement {
@@ -156,6 +168,7 @@ export function mountFeedbackUI(
       c.textContent = options.countdownText();
     }
     tickRequested();
+    tickWaits();
   }
 
   // ---- bot rebase requests (#707) ----
@@ -165,16 +178,7 @@ export function mountFeedbackUI(
 
   function agoText(entry: ActivityEntry): string {
     const seconds = Math.floor(waitedMs(entry) / 1000);
-    return `Requested ${seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m`} ago`;
-  }
-
-  function botLine(entry: ActivityEntry, bot: BotRequest): string {
-    if (entry.phase === 'rebasing')
-      return `${bot.bot} picked this up and is rebasing. Waiting for CI to restart.`;
-    if (bot.acknowledged)
-      return `${bot.bot} acknowledged your rebase. Waiting for it to push the rebased commit.`;
-    const how = bot.trigger === 'label' ? ' The rebase label is set.' : '';
-    return `${bot.bot} will pick this up shortly.${how} This can take a few minutes, no need to click again.`;
+    return `${seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m`} ago`;
   }
 
   function tickRequested() {
@@ -188,13 +192,108 @@ export function mountFeedbackUI(
     }
   }
 
+  // ---- waiting chips (#1229) ----
+  function chipFor(entry: ActivityEntry): Chip | null {
+    if (!entry.kind || entry.inlineCleared) return null;
+    if (entry.phase === 'done') {
+      // The wait ended well: Settled for a moment, then the row's normal
+      // actions. A merge or a close takes the row off the board instead.
+      if (!settlesOnRow(entry.kind)) return null;
+      if (Date.now() - entry.updatedAt >= SETTLED_MS) return null;
+      return settledChip(entry.message);
+    }
+    if (
+      entry.phase !== 'working' &&
+      entry.phase !== 'queued' &&
+      entry.phase !== 'rebasing'
+    )
+      return null;
+    return waitChip({
+      kind: entry.kind,
+      phase: entry.phase,
+      bot: entry.bot?.bot,
+      acknowledged: entry.bot?.acknowledged,
+      trigger: entry.bot?.trigger,
+      sinceChangeMs: Math.max(0, Date.now() - entry.updatedAt),
+    });
+  }
+
+  // The one entry whose chip the row shows: the newest.
+  function waitFor(key: string): { entry: ActivityEntry; chip: Chip } | null {
+    for (const entry of store.entriesFor(key)) {
+      const chip = chipFor(entry);
+      if (chip) return { entry, chip };
+    }
+    return null;
+  }
+
+  // Said once when a wait turns into Still waiting; the id leaves the set
+  // when it stops being one, so a later stall is said again.
+  const stalledSaid = new Set<number>();
+
+  function tickWaits() {
+    const stalledNow = new Set<number>();
+    let cleared = false;
+    for (const entry of store.entries()) {
+      if (!entry.kind) continue;
+      if (entry.phase === 'done') {
+        // Settled has run its course: the chip goes without a word.
+        if (
+          settlesOnRow(entry.kind) &&
+          !entry.inlineCleared &&
+          !chipFor(entry)
+        ) {
+          store.clearInline(entry.id);
+          cleared = true;
+        }
+        continue;
+      }
+      if (chipFor(entry)?.state !== 'stalled') continue;
+      stalledNow.add(entry.id);
+      if (stalledSaid.has(entry.id)) continue;
+      stalledSaid.add(entry.id);
+      store.announce(
+        `${refText(entry.ref)}: ${stalledAnnouncement(entry.kind, entry.bot?.bot)}`,
+      );
+    }
+    for (const id of Array.from(stalledSaid))
+      if (!stalledNow.has(id)) stalledSaid.delete(id);
+    // A chip's state depends on the clock, so the rows are looked at again.
+    // clearInline has already done that for the one it cleared.
+    if (!cleared) syncRows();
+  }
+
+  function checkAgainButton(entry: ActivityEntry): HTMLElement {
+    const b = button(
+      'row-action wait-chip-action',
+      'Check again',
+      `Check again for ${refText(entry.ref)}`,
+    );
+    b.addEventListener('click', () => options.onCheckAgain?.());
+    return b;
+  }
+
+  function drawChip(entry: ActivityEntry, chip: Chip): HTMLElement {
+    let ago: HTMLElement | undefined;
+    if (chip.showAgo) {
+      ago = node('span', 'feedback-requested', agoText(entry));
+      ago.setAttribute('aria-hidden', 'true');
+      ago.dataset.entryId = String(entry.id);
+    }
+    return buildWaitChip(chip, {
+      source: 'feedback',
+      subject: refText(entry.ref),
+      ago,
+      countdown: chip.countdown ? countdownNode() : undefined,
+      button:
+        chip.action === 'check-again' ? checkAgainButton(entry) : undefined,
+    });
+  }
+
   // ---- inline status line ----
+  // Only a failure or a timeout reads as a line now; a wait is a chip.
   function lineText(entry: ActivityEntry): string {
-    if (entry.bot && (entry.phase === 'queued' || entry.phase === 'rebasing'))
-      return botLine(entry, entry.bot);
     switch (entry.phase) {
-      case 'queued':
-        return `${entry.inline}. Awaiting the next refresh.`;
       case 'failed':
         return `Failed: ${entry.inline}`;
       case 'expired':
@@ -204,12 +303,16 @@ export function mountFeedbackUI(
     }
   }
 
-  // A successful finish has nothing left to say on the row: it shows up as
-  // a toast and in Activity.
+  // A failure or a timeout is a line below the row. A wait is a chip, and a
+  // successful finish has nothing left to say on the row: it shows up as a
+  // toast and in Activity.
   function inlineEntries(key: string): ActivityEntry[] {
     return store
       .entriesFor(key)
-      .filter((e) => e.phase !== 'done' && !e.inlineCleared);
+      .filter(
+        (e) =>
+          (e.phase === 'failed' || e.phase === 'expired') && !e.inlineCleared,
+      );
   }
 
   // ---- transient failure lines (#1206) ----
@@ -290,12 +393,14 @@ export function mountFeedbackUI(
   }
 
   function signature(key: string): string {
-    return inlineEntries(key)
-      .map(
-        (e) =>
-          `${e.id}|${e.phase}|${e.inline}|${e.bot?.acknowledged ?? ''}|${e.commentUrl ?? ''}`,
-      )
+    const lines = inlineEntries(key)
+      .map((e) => `${e.id}|${e.phase}|${e.inline}|${e.commentUrl ?? ''}`)
       .join(';');
+    const wait = waitFor(key);
+    const chip = wait
+      ? `${wait.entry.id}|${wait.entry.phase}|${wait.chip.state}|${wait.entry.bot?.acknowledged ?? ''}`
+      : '';
+    return `${lines}#${chip}`;
   }
 
   function buildInline(key: string): HTMLElement | null {
@@ -305,27 +410,7 @@ export function mountFeedbackUI(
     for (const entry of entries) {
       const line = node('div', 'row-feedback-line');
       line.dataset.phase = entry.phase;
-      if (entry.phase === 'queued' && entry.bot?.acknowledged) {
-        line.dataset.acknowledged = 'true';
-        // The words carry the meaning; the thumbs-up only echoes
-        // Dependabot's own reaction.
-        const icon = node('span', 'feedback-ack-icon', '👍');
-        icon.setAttribute('aria-hidden', 'true');
-        line.appendChild(icon);
-      }
       line.appendChild(node('span', 'row-feedback-text', lineText(entry)));
-      const bot = entry.bot;
-      if (bot && entry.phase === 'queued') {
-        line.appendChild(document.createTextNode(' '));
-        const ago = node('span', 'feedback-requested', agoText(entry));
-        ago.setAttribute('aria-hidden', 'true');
-        ago.dataset.entryId = String(entry.id);
-        line.appendChild(ago);
-      }
-      if (entry.phase === 'queued') {
-        line.appendChild(document.createTextNode(' '));
-        line.appendChild(countdownNode());
-      }
       if (
         (entry.phase === 'failed' || entry.phase === 'expired') &&
         entry.canRetry &&
@@ -381,6 +466,28 @@ export function mountFeedbackUI(
     row.querySelector(':scope > .row-feedback')?.remove();
     const inline = buildInline(key);
     if (inline) row.appendChild(inline);
+    decorateChip(row, key);
+  }
+
+  // The chip goes in the status cell's reserved slot, so it never moves the
+  // row. An armed auto-merge's own chip is in the slot already; an action in
+  // flight on the row outranks it while it lasts.
+  function decorateChip(row: HTMLElement, key: string) {
+    const slot = row.querySelector<HTMLElement>('.status-cell > .wait-slot');
+    if (!slot) return;
+    slot
+      .querySelectorAll(':scope > .wait-chip[data-source="feedback"]')
+      .forEach((chip) => {
+        chip.remove();
+      });
+    const wait = waitFor(key);
+    if (wait) slot.appendChild(drawChip(wait.entry, wait.chip));
+    for (const own of Array.from(
+      slot.querySelectorAll<HTMLElement>(
+        ':scope > .wait-chip[data-source="auto-merge"]',
+      ),
+    ))
+      own.hidden = wait !== null;
   }
 
   function syncRows() {

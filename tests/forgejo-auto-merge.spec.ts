@@ -136,7 +136,11 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await mockDashboard(
       page,
       snapshot(
-        armed({ state: 'waiting', message: 'Waiting for checks to finish.' }),
+        armed({
+          state: 'waiting',
+          code: 'checks_pending',
+          message: 'Waiting for checks to finish.',
+        }),
       ),
     );
     await page.reload();
@@ -145,9 +149,15 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     const pill = row.locator('.merge-pill.auto-merge');
     await expect(pill).toContainText('Auto-merge on');
     await expect(pill).toContainText('Managed by Forge Dashboard');
-    await expect(row.getByText('Waiting for checks to finish.')).toBeVisible();
+    // The waiting chip says it in a word, the server's sentence is its hint,
+    // and Disarm is inside it (#1229).
+    const chip = row.locator('.wait-chip');
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Waiting for CI');
+    await expect(chip.locator('.wait-chip-tip')).toHaveText(
+      'Waiting for checks to finish.',
+    );
     await expect(
-      row.getByRole('button', { name: 'Cancel auto-merge' }),
+      chip.getByRole('button', { name: 'Disarm auto-merge' }),
     ).toBeVisible();
   });
 
@@ -173,13 +183,17 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await expect(row.locator('.auto-merge-status')).toContainText('Stopped');
   });
 
-  test('Cancel auto-merge posts for that pull request and the pill goes', async ({
+  test('Disarm posts for that pull request and the pill goes', async ({
     page,
   }) => {
     await mockDashboard(
       page,
       snapshot(
-        armed({ state: 'waiting', message: 'Waiting for checks to finish.' }),
+        armed({
+          state: 'waiting',
+          code: 'checks_pending',
+          message: 'Waiting for checks to finish.',
+        }),
       ),
     );
     let posted: unknown = null;
@@ -200,7 +214,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'Cancel auto-merge' }).click();
+    await row.getByRole('button', { name: 'Disarm auto-merge' }).click();
 
     await expect(row.locator('.merge-pill.auto-merge')).toHaveCount(0);
     expect(posted).toEqual({
