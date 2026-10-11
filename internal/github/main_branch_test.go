@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -235,4 +236,73 @@ func TestAppClient_Fetch_ReadsEachRepoDefaultBranch(t *testing.T) {
 	assert.Equal(t, dashboard.MainBranchPassed, result.MainBranches[0].Status)
 	assert.Equal(t, "alrayyes/a", result.MainBranches[0].FullName)
 	assert.Contains(t, query, "defaultBranchRef")
+}
+
+// TestFetch_MainBranch_SkipsCommitsNoCheckRanOn pins #1265. washy-washy-pdf's
+// release job pushes "chore(release): 2.6.2 [skip ci]" to main, so the newest
+// commit has no check suites and no rollup, while the commit before it
+// (322ca56) carries the 11 Actions check runs. The row reads the newest commit
+// that a check ran on.
+func TestFetch_MainBranch_SkipsCommitsNoCheckRanOn(t *testing.T) {
+	t.Parallel()
+
+	checked := map[string]any{
+		"oid": "322ca560e61ef0378ee010d60c6c71df9aff2650", "abbreviatedOid": "322ca56",
+		"messageHeadline": "perf: count pages without pdf-lib (#131)",
+		"url":             "https://github.com/alrayyes/washy-washy-pdf/commit/322ca56",
+		"committedDate":   "2026-10-09T09:00:00Z",
+		"author":          map[string]any{"name": "Ryan Kes", "user": map[string]any{"login": "alrayyes"}},
+		"statusCheckRollup": rollupOf("SUCCESS", map[string]int{"SUCCESS": 8, "SKIPPED": 3},
+			checkRun("check", "SUCCESS", "2026-10-09T09:01:00Z", "2026-10-09T09:03:00Z")),
+	}
+	skipCI := map[string]any{
+		"oid": "d77a71648ce53adf4e77dc02ce7c434f55538953", "abbreviatedOid": "d77a716",
+		"messageHeadline": "chore(release): 2.6.2 [skip ci]",
+		"url":             "https://github.com/alrayyes/washy-washy-pdf/commit/d77a716",
+		"committedDate":   "2026-10-09T09:10:00Z", "statusCheckRollup": nil,
+	}
+
+	var queries []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		query := readGraphQLRequest(t, r).Query
+		queries = append(queries, query)
+		rate := map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"}
+		if strings.Contains(query, "history(") {
+			writeJSON(t, w, map[string]any{"data": map[string]any{"rateLimit": rate, "m0": map[string]any{
+				"defaultBranchRef": map[string]any{"target": map[string]any{
+					"history": map[string]any{"nodes": []map[string]any{skipCI, checked}},
+				}},
+			}}})
+
+			return
+		}
+		head := branchRef(nil)
+		head["target"] = skipCI
+		writeJSON(t, w, map[string]any{"data": map[string]any{
+			"rateLimit": rate,
+			"viewer": map[string]any{"repositories": map[string]any{
+				"pageInfo": map[string]any{"hasNextPage": false},
+				"nodes": []map[string]any{{
+					"name": "washy-washy-pdf", "url": "https://github.com/alrayyes/washy-washy-pdf", "viewerPermission": "WRITE",
+					"owner":            map[string]any{"login": "alrayyes"},
+					"pullRequests":     map[string]any{"nodes": []map[string]any{}},
+					"issues":           map[string]any{"nodes": []map[string]any{}},
+					"defaultBranchRef": head,
+				}},
+			}},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.MainBranches, 1)
+	row := result.MainBranches[0]
+	assert.Equal(t, dashboard.MainBranchPassed, row.Status)
+	require.NotNil(t, row.Commit)
+	assert.Equal(t, "322ca56", row.Commit.SHA, "the commit the checks ran on")
+	assert.Equal(t, "perf: count pages without pdf-lib (#131)", row.Commit.Subject)
+	assert.Len(t, queries, 2, "one extra query, only for the repo whose newest commit has no checks")
 }
