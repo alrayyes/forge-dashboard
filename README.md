@@ -68,7 +68,11 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   plain text) over 1 KiB are sent compressed with brotli or gzip when the client
   accepts it, with `Vary: Accept-Encoding`. Compression covers the static
   files only, not the API and not its event streams. A reverse proxy in front
-  needs no cache or compression rules of its own.
+  needs no cache or compression rules of its own. A path no page matches
+  answers the app's own `404.html` with a real 404, a handler that panics
+  answers `500.html` with a 500 (the stack goes to the log, never the page),
+  and an unknown `/api/` path stays a JSON error. Errors the proxy makes
+  itself (502, 503, 504) need its own static pages.
 - **Read-only against both forges, with one caveat.** Nothing here writes
   back to GitHub or Forgejo — it aggregates and displays, and every row
   links out to the real thing. The caveat: checking whether a repo's
