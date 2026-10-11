@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.152.1](https://github.com/alrayyes/forge-dashboard/compare/v0.152.0...v0.152.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **web:** give the error page's Try again link a valid href ([#1222](https://github.com/alrayyes/forge-dashboard/issues/1222)) ([3f3df09](https://github.com/alrayyes/forge-dashboard/commit/3f3df0935ee6c87ac95fe238af2bae96b7023cf0)), closes [#1175](https://github.com/alrayyes/forge-dashboard/issues/1175)
+
 ## [0.152.0](https://github.com/alrayyes/forge-dashboard/compare/v0.151.0...v0.152.0) (2026-10-11)
 
 
