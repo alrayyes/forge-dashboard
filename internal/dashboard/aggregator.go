@@ -382,8 +382,20 @@ func readyToMerge(pr PullRequest) bool {
 func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 	results := make([]Result, len(a.sources))
 
+	a.mu.RLock()
+	earlier := a.snap
+	a.mu.RUnlock()
+
 	var wg sync.WaitGroup
 	for i, src := range a.sources {
+		if health, ok := exhaustedHealth(earlier, src.Forge()); ok {
+			// No budget left until the reset: a call would only fail, and
+			// the attempt itself counts against the forge (#755). Keep the
+			// last rows and the exhausted budget, so the banner holds.
+			results[i] = carryOver(Result{Health: health}, earlier, src.Forge())
+
+			continue
+		}
 		wg.Add(1)
 		go func(i int, src Source) {
 			defer wg.Done()
@@ -393,6 +405,24 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 	wg.Wait()
 
 	return results
+}
+
+// exhaustedHealth returns forge's health from snap when one of its budgets is
+// spent and its reset is still ahead, so a fetch before then cannot work.
+func exhaustedHealth(snap Snapshot, forge Forge) (ForgeHealth, bool) {
+	now := time.Now()
+	for _, h := range snap.Forges {
+		if h.Forge != forge {
+			continue
+		}
+		for _, rl := range [2]*RateLimit{h.RateLimitGraphQL, h.RateLimitREST} {
+			if rl != nil && rl.Limit > 0 && rl.Remaining == 0 && rl.ResetsAt.After(now) {
+				return h, true
+			}
+		}
+	}
+
+	return ForgeHealth{}, false
 }
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
@@ -612,7 +642,9 @@ func NextRefreshDelay(snap Snapshot, interval time.Duration) time.Duration {
 	now := time.Now()
 	for _, f := range snap.Forges {
 		for _, rl := range [2]*RateLimit{f.RateLimitGraphQL, f.RateLimitREST} {
-			if !criticallyLow(rl) {
+			// A spent budget is skipped by fetchSources, so waiting out its
+			// reset would only slow the other forge down.
+			if !criticallyLow(rl) || rl.Remaining == 0 {
 				continue
 			}
 			untilReset := min(rl.ResetsAt.Sub(now)+backoffBuffer, maxBackoff)
