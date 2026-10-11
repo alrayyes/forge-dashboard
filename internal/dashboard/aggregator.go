@@ -64,6 +64,10 @@ type Aggregator struct {
 	// every source answered or reported itself unreachable. Readiness
 	// (Manager.FirstRefreshComplete) reads it; it never flips back.
 	firstRefreshed atomic.Bool
+	// firstRefreshedCh is closed with it, for a reader that would rather wait
+	// than answer from the empty snapshot (WaitFirstRefresh).
+	firstRefreshedCh   chan struct{}
+	firstRefreshedOnce sync.Once
 
 	// lastGood is when each forge last fetched successfully, so a failed
 	// refresh can carry its data over and say how old it is (#922). Guarded
@@ -107,6 +111,8 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		updateRequests: make(map[string]*updateEntry),
 		now:            time.Now,
 		lastGood:       make(map[Forge]time.Time),
+
+		firstRefreshedCh: make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -197,6 +203,19 @@ func (a *Aggregator) withoutSettled(prs []PullRequest, forge Forge, repo string)
 // snapshot. A forge that failed still counts: done means "tried", not
 // "succeeded".
 func (a *Aggregator) FirstRefreshDone() bool { return a.firstRefreshed.Load() }
+
+// WaitFirstRefresh blocks until the first refresh has completed, ctx is done or
+// max passes, whichever comes first. A snapshot read before that is the empty
+// one, which a page shows as "no pull requests" until the fetch lands (#1194).
+func (a *Aggregator) WaitFirstRefresh(ctx context.Context, limit time.Duration) {
+	timer := time.NewTimer(limit)
+	defer timer.Stop()
+	select {
+	case <-a.firstRefreshedCh:
+	case <-ctx.Done():
+	case <-timer.C:
+	}
+}
 
 // Subscribe returns a channel that receives the new Snapshot after every
 // completed Refresh, and a function to stop receiving them. The channel is
@@ -465,6 +484,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		forge := a.sources[i].Forge()
 		if r.Health.Reachable {
 			goodAt[forge] = snap.GeneratedAt
+			r = keepFailedRepos(r, earlier, forge)
 		} else if at, ok := goodAt[forge]; ok {
 			// A failed fetch carries no data. Showing none would drop every
 			// row of this forge until the next good refresh (#922), so show
@@ -497,6 +517,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.lastGood = goodAt
 	a.mu.Unlock()
 	a.firstRefreshed.Store(true)
+	a.firstRefreshedOnce.Do(func() { close(a.firstRefreshedCh) })
 
 	logRateLimitTransitions(previous.Forges, snap.Forges)
 
@@ -688,6 +709,47 @@ func carryOver(res Result, earlier Snapshot, forge Forge) Result {
 	res.Repos = slices.DeleteFunc(slices.Clone(earlier.Repos), func(r Repo) bool { return r.Forge != forge })
 
 	return res
+}
+
+// keepFailedRepos puts back what the forge had for each repo it answered but
+// could not fully fetch. A list that failed is not an empty one, and
+// dropping it blanked the repo's rows until the next good fetch (#1194). The
+// repo says since when its rows are the old ones. A part that did fetch keeps
+// the forge's own answer.
+func keepFailedRepos(res Result, earlier Snapshot, forge Forge) Result {
+	res.Repos = slices.Clone(res.Repos)
+	for _, failed := range res.FailedRepos {
+		key := repoKey{forge, failed.FullName}
+		if failed.PullRequests {
+			res.PullRequests = append(res.PullRequests, slices.DeleteFunc(slices.Clone(earlier.PullRequests), func(pr PullRequest) bool {
+				return (repoKey{pr.Forge, pr.Repo}) != key
+			})...)
+		}
+		if failed.Issues {
+			res.Issues = append(res.Issues, slices.DeleteFunc(slices.Clone(earlier.Issues), func(i Issue) bool {
+				return (repoKey{i.Forge, i.Repo}) != key
+			})...)
+		}
+		markRepoStale(res.Repos, earlier, key)
+	}
+
+	return res
+}
+
+// markRepoStale sets StaleSince on key's repo in repos: when its rows were
+// last fetched, which is the earlier snapshot unless that was stale already.
+func markRepoStale(repos []Repo, earlier Snapshot, key repoKey) {
+	since := earlier.GeneratedAt
+	for _, r := range earlier.Repos {
+		if (repoKey{r.Forge, r.FullName}) == key && r.StaleSince != nil {
+			since = *r.StaleSince
+		}
+	}
+	for i := range repos {
+		if (repoKey{repos[i].Forge, repos[i].FullName}) == key {
+			repos[i].StaleSince = &since
+		}
+	}
 }
 
 // repoKey names one repository on one forge.

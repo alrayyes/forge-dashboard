@@ -216,6 +216,20 @@ func (m *Manager) Get(userID []byte) Snapshot {
 	return entry.agg.Get()
 }
 
+// WaitFirstRefresh holds until userID's Aggregator has finished its first
+// refresh, for up to limit, so a read right after a restart or a settings save
+// gets the board and not the empty snapshot that precedes it. It returns at
+// once for a user with no Aggregator, or one that has refreshed already.
+func (m *Manager) WaitFirstRefresh(ctx context.Context, userID []byte, limit time.Duration) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if ok {
+		entry.agg.WaitFirstRefresh(ctx, limit)
+	}
+}
+
 // FindPullRequest returns the pull request userID's board holds for
 // forge/repo/number. False when it isn't there, which says nothing against
 // the pull request: the board may just not have caught up with it yet.
