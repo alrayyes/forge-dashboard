@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.150.0](https://github.com/alrayyes/forge-dashboard/compare/v0.149.1...v0.150.0) (2026-10-11)
+
+
+### Features
+
+* **web:** the dashboard's own 404 and 500 pages ([#1182](https://github.com/alrayyes/forge-dashboard/issues/1182)) ([a1d6af4](https://github.com/alrayyes/forge-dashboard/commit/a1d6af45b270988efb5673485dbbfb6d9bec3147))
+
 ## [0.149.1](https://github.com/alrayyes/forge-dashboard/compare/v0.149.0...v0.149.1) (2026-10-11)
 
 
