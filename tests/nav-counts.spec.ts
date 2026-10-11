@@ -86,9 +86,9 @@ test.describe('nav counts and the pull request page without releases', () => {
     await mockDashboard(page, SNAPSHOT);
     await page.goto('/');
 
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     await expect(page.locator('#pr-rows')).not.toContainText('release 0.74.2');
-    await expect(page.locator('#stat-prs')).toHaveText('3');
+    await expect(page.locator('#stat-prs')).toHaveText('2');
   });
 
   test('Home shows the pull request count and Releases the release count', async ({
@@ -97,7 +97,7 @@ test.describe('nav counts and the pull request page without releases', () => {
     await mockDashboard(page, SNAPSHOT, 4);
     await page.goto('/');
 
-    await expect(badge(page, 'header', '/')).toHaveText('3');
+    await expect(badge(page, 'header', '/')).toHaveText('2');
     await expect(badge(page, 'header', '/releases.html')).toHaveText('2');
     await expect(badge(page, 'header', '/issues.html')).toHaveText('4');
   });
@@ -108,7 +108,7 @@ test.describe('nav counts and the pull request page without releases', () => {
     await mockDashboard(page, SNAPSHOT);
     for (const path of ['/releases.html', '/settings.html', '/insights.html']) {
       await page.goto(path);
-      await expect(badge(page, 'header', '/')).toHaveText('3');
+      await expect(badge(page, 'header', '/')).toHaveText('2');
       await expect(badge(page, 'header', '/releases.html')).toHaveText('2');
     }
   });
@@ -120,11 +120,11 @@ test.describe('nav counts and the pull request page without releases', () => {
     await mockDashboard(page, SNAPSHOT);
     await page.goto('/');
 
-    await expect(badge(page, '.bottom-nav', '/')).toHaveText('3');
+    await expect(badge(page, '.bottom-nav', '/')).toHaveText('2');
     await expect(badge(page, '.bottom-nav', '/releases.html')).toHaveText('2');
     await expect(
       page.locator('.bottom-nav').getByRole('link', { name: /Home/ }),
-    ).toHaveAccessibleName(/3.*Home/);
+    ).toHaveAccessibleName(/2.*Home/);
     await expect(
       page.locator('.bottom-nav').getByRole('link', { name: /Releases/ }),
     ).toHaveAccessibleName(/2.*Releases/);

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Something went wrong — Forge Board</title>
+		<link rel="stylesheet" href="/style.css" />
+	</head>
+	<body>
+		<!-- The fallback for an error the app can't render itself (a failure in
+		     the root layout, say). Static and generic on purpose: it shows the
+		     status and nothing about the cause (#1175). -->
+		<main style="max-width: 720px; margin: 0 auto; padding: 56px 16px">
+			<p style="font-family: ui-monospace, monospace; font-size: 13px">Error %sveltekit.status%</p>
+			<h1>Something went wrong on our side</h1>
+			<p>The dashboard hit an unexpected problem. Trying again often works.</p>
+			<p><a href="/">Back to pull requests</a></p>
+		</main>
+	</body>
+</html>

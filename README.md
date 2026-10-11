@@ -416,10 +416,16 @@ since a fine-grained token can lack one permission and have the rest. The lock
 lasts as long as the failure line that explains it: dismiss the line and the
 action is free again, with no reload. A failure line stays on its row however
 many refreshes arrive, and goes when you dismiss it, act on the row again, or
-the row leaves the board. A 429 on a click the snapshot hadn't foreseen still
-greys that one action out with its reason until the next snapshot. The header
-shows each forge's remaining budget and reset time as text. Which
-locks offer Retry follows the refusal's `code` (`rate_limited` and `permission`
+the row leaves the board. The exception is a failure that passes by itself, one
+where the request never got an answer (it says "Couldn't reach the server") or a
+forge answered 502, 503 or 504. That line clears itself after ten seconds, holds
+while you hover it or have focus in it, and when it clears the row is read again
+from the server, since the write may have landed before the connection dropped.
+Nothing is announced when it clears, the failure stays in Activity, and an error
+toast waits for you as before. A 429 on a click the snapshot hadn't foreseen
+still greys that one action out with its reason until the next snapshot. The
+header shows each forge's remaining budget and reset time as text. Which locks
+offer Retry follows the refusal's `code` (`rate_limited` and `permission`
 don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
 so the page holds no threshold of its own.
@@ -688,6 +694,22 @@ required when a pattern matches its job name or its workflow-file
 context; it is never marked advisory. If nothing is known for any check,
 the panel stays the flat list.
 
+## Error pages
+
+The dashboard has its own error pages, built with the rest of the web app as
+`404.html` ("Page not found") and `500.html` ("Something went wrong on our
+side"). The Go server sends the first for an address nothing matches and the
+second for a crash, each with its real status code. Asking for either file by
+name gets the 404, never a 200. Each page says what happened in plain words and
+gives a way back: a primary link to the pull requests and a short list of the
+other pages. The 500 page also has a `Try again` link to the same address. They
+show nothing about the server, with no stack trace, path, host or version, and
+follow the light or dark theme. They run no script, so the app's router can't
+swap one for the page whose address it was sent at. Inside the app,
+`+error.svelte` renders the same page for an error the router meets, and
+`handleError` keeps the message generic. `src/error.html` is the static fallback
+for an error the app can't render itself.
+
 ## Releases
 
 Release pull requests have their own page, `/releases.html`, reached from the
@@ -701,10 +723,21 @@ that is behind its base branch gets Update branch and a line saying
 release-please won't update it until a releasable change lands. With no release
 pull requests open the page says nothing is waiting to ship.
 
+## Bots
+
+Dependabot and Renovate pull requests have their own page, `/bots.html`,
+reached from the **Bots** item in the navigation. Like Releases, it is the pull
+request board over the pull requests the server marks `kind: dependency`, with
+the same filters, rows and actions as the main page. The main pull request page
+lists none of them, so it has no quick filter for bots. A filter saved before
+that change is ignored. With no bot pull requests open the page says there is
+nothing to review.
+
 The navigation shows how many are waiting, as it does for Issues: the number of
-open pull requests (without releases) on the Home item and the number of open
-release pull requests on Releases. The dashboard pages set both from each
-snapshot, and the other signed-in pages load them once.
+open pull requests (without releases and bots) on the Home item, the number of
+open release pull requests on Releases and the number of bot pull requests on
+Bots. The dashboard pages set all three from each snapshot, and the other
+signed-in pages load them once.
 
 ## Issues
 
@@ -719,7 +752,7 @@ The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
 and saved with your other filters, so a filter set on one page is still set on
 the other. The pull-request-only controls (CI status, the quick filters for
-failing, bot, ready and needs-review pull requests, Show drafts) are not on the
+failing, ready and needs-review pull requests, Show drafts) are not on the
 issues page.
 
 The issue list holds still while you read it. A refresh that would add, remove
