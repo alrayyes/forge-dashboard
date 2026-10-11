@@ -64,6 +64,11 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 // The Close button wherever it sits: direct on a lone-action row, or inside
 // More actions.
 async function closeButton(page: Page): Promise<Locator> {
+  // Wait for the row to have rendered one or the other before looking.
+  await row(page)
+    .getByRole('button', { name: /^(More actions|Close pull request)$/ })
+    .first()
+    .waitFor();
   const more = row(page).getByRole('button', { name: 'More actions' });
   if ((await more.count()) > 0) await more.click();
   return row(page).getByRole('button', {
