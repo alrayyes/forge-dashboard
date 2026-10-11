@@ -90,6 +90,9 @@ const badge = (page: Page, nav: 'header' | '.bottom-nav', link: string) =>
 test.describe('Bots page (#1192)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('lists only dependency pull requests, from both bots', async ({
