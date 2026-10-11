@@ -50,6 +50,8 @@ CHANGELOG.md
 /internal/api/static/privacy.html
 /internal/api/static/disclaimer.html
 /internal/api/static/changelog.html
+/internal/api/static/404.html
+/internal/api/static/500.html
 /internal/api/static/releases.html
 /internal/api/static/login.html
 /internal/api/static/admin.html
