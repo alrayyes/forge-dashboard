@@ -28,6 +28,8 @@ type RepoRef struct {
 	URL string
 	// CanManageWebhooks — see Repo.CanManageWebhooks.
 	CanManageWebhooks bool
+	// DefaultBranch is the repo's default branch, "" when the forge says none.
+	DefaultBranch string
 }
 
 // ForgeClient is what a forge-specific client (internal/github,
@@ -103,9 +105,17 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 	for i, r := range results {
 		result.PullRequests = append(result.PullRequests, r.prs...)
 		result.Issues = append(result.Issues, r.issues...)
-		if r.prsFailed || r.issuesFailed {
+		if r.branch != nil {
+			branch := *r.branch
+			branch.Forge, branch.FullName, branch.URL = s.forge, repos[i].FullName, repos[i].URL
+			if branch.FailingJobs == nil {
+				branch.FailingJobs = []string{}
+			}
+			result.MainBranches = append(result.MainBranches, branch)
+		}
+		if r.prsFailed || r.issuesFailed || r.branchFailed {
 			result.FailedRepos = append(result.FailedRepos, FailedRepo{
-				FullName: repos[i].FullName, PullRequests: r.prsFailed, Issues: r.issuesFailed,
+				FullName: repos[i].FullName, PullRequests: r.prsFailed, Issues: r.issuesFailed, MainBranch: r.branchFailed,
 			})
 		}
 	}
@@ -139,6 +149,10 @@ type repoResult struct {
 	// prsFailed and issuesFailed mean the list is missing, not empty.
 	prsFailed    bool
 	issuesFailed bool
+	// branch is the default branch's CI, nil when the client can't read it or
+	// the read failed (branchFailed).
+	branch       *MainBranch
+	branchFailed bool
 }
 
 // fetchRepos fetches every repo, at most maxConcurrency at a time, and answers
@@ -185,7 +199,18 @@ func (s *GenericSource) fetchRepo(ctx context.Context, repo RepoRef) repoResult 
 		}
 	}
 
-	return repoResult{prs: prs, issues: issues, hasWebhook: hasWebhook, prsFailed: prsFailed, issuesFailed: issuesFailed}
+	res := repoResult{prs: prs, issues: issues, hasWebhook: hasWebhook, prsFailed: prsFailed, issuesFailed: issuesFailed}
+	if reader, ok := s.client.(MainBranchReader); ok {
+		branch, err := reader.ReadMainBranch(ctx, repo)
+		if err != nil {
+			slog.Warn("read default branch failed", "forge", s.forge, "repo", repo.FullName, "error", err)
+			res.branchFailed = true
+		} else {
+			res.branch = &branch
+		}
+	}
+
+	return res
 }
 
 // EnsureWebhook implements WebhookManager at the Source level by

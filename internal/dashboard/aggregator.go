@@ -351,7 +351,7 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 	a.mu.Lock()
 	current := a.snap
 
-	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, GeneratedAt: time.Now().UTC()}
+	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: current.MainBranches, GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
 		if pr.Forge == forge && pr.Repo == fullName {
 			continue
@@ -497,6 +497,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		snap.PullRequests = append(snap.PullRequests, r.PullRequests...)
 		snap.Issues = append(snap.Issues, r.Issues...)
 		snap.Repos = append(snap.Repos, r.Repos...)
+		snap.MainBranches = append(snap.MainBranches, r.MainBranches...)
 	}
 	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
 	reachable := make(map[Forge]bool, len(snap.Forges))
@@ -701,12 +702,17 @@ func NextRefreshDelay(snap Snapshot, interval time.Duration) time.Duration {
 	return delay
 }
 
-// carryOver returns res with the pull requests, issues and repos forge had in
-// earlier, for a refresh where its fetch failed and returned none.
+// carryOver returns res with the pull requests, issues, repos and default
+// branches forge had in earlier, for a refresh where its fetch failed and
+// returned none. The default-branch rows are marked stale (#1224).
 func carryOver(res Result, earlier Snapshot, forge Forge) Result {
 	res.PullRequests = slices.DeleteFunc(slices.Clone(earlier.PullRequests), func(pr PullRequest) bool { return pr.Forge != forge })
 	res.Issues = slices.DeleteFunc(slices.Clone(earlier.Issues), func(i Issue) bool { return i.Forge != forge })
 	res.Repos = slices.DeleteFunc(slices.Clone(earlier.Repos), func(r Repo) bool { return r.Forge != forge })
+	res.MainBranches = markMainBranchesStale(
+		slices.DeleteFunc(slices.Clone(earlier.MainBranches), func(b MainBranch) bool { return b.Forge != forge }),
+		earlier.GeneratedAt,
+	)
 
 	return res
 }
@@ -729,6 +735,11 @@ func keepFailedRepos(res Result, earlier Snapshot, forge Forge) Result {
 			res.Issues = append(res.Issues, slices.DeleteFunc(slices.Clone(earlier.Issues), func(i Issue) bool {
 				return (repoKey{i.Forge, i.Repo}) != key
 			})...)
+		}
+		if failed.MainBranch {
+			res.MainBranches = append(res.MainBranches, markMainBranchesStale(slices.DeleteFunc(slices.Clone(earlier.MainBranches), func(b MainBranch) bool {
+				return (repoKey{b.Forge, b.FullName}) != key
+			}), earlier.GeneratedAt)...)
 		}
 		markRepoStale(res.Repos, earlier, key)
 	}
