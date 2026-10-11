@@ -74,6 +74,9 @@ const rows = (page: Page) => page.locator('#pr-rows > .row');
 test.describe('Conflicts quick filter (#1215)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('lists only the conflicting pull requests, a draft that conflicts included', async ({
