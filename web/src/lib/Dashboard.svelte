@@ -2622,10 +2622,26 @@
         return false;
       }
       const userAsked = latestIssuesAsked || shownIssues.length === 0;
-      const diff = Filters.diffItems(shownIssues, latestIssues);
+      // The bar counts what the list would show: a change to an issue the
+      // filters or the hidden-by-default housekeeping flag keep off screen
+      // moves nothing, so it asks for nothing (#1198).
+      const onList = (items: IssueItem[]) =>
+        items.filter((item) =>
+          Filters.matchesFilters(
+            item,
+            false,
+            sharedState.shared,
+            sharedState.issue,
+          ),
+        );
+      const diff = Filters.diffItems(onList(shownIssues), onList(latestIssues));
       const structural = diff.added + diff.removed + diff.moved;
 
       if (structural === 0 && diff.changed.length === 0) {
+        // Nothing on screen differs, but the rows off screen may. Keep them
+        // current so a filter change later shows fresh data, without drawing.
+        shownIssues = latestIssues;
+        issueBoard.replaceItems(shownIssues);
         latestIssues = null;
         showUpdatesBar(0);
 
