@@ -776,7 +776,12 @@ The navigation shows how many are waiting, as it does for Issues: the number of
 open pull requests (without releases and bots) on the Home item, the number of
 open release pull requests on Releases and the number of bot pull requests on
 Bots. The dashboard pages set all three from each snapshot, and the other
-signed-in pages load them once.
+signed-in pages load them once. A page with nothing to show leaves the
+navigation: the Issues, Releases and Bots links are not in the header or the
+phone's tab bar while their count is 0. Home always shows. A count that isn't
+known yet is not 0, so the links stay until the first snapshot says otherwise,
+and the page you are on keeps its own link until you leave it. The page still
+opens when typed into the address bar, and says it is empty.
 
 ## Main branches
 
