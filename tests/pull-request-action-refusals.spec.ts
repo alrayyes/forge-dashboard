@@ -225,6 +225,9 @@ for (const d of drivers) {
         `pr-refusal-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
         'PR Refusal User',
       );
+      // Bot pull requests are on the Bots page, not the main list (#1192).
+      if (d.name === 'Dependabot: Rebase' || d.name === 'Renovate: Rebase')
+        await page.goto('/bots.html');
     });
 
     async function start(page: Page) {

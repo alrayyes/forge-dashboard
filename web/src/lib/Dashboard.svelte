@@ -1,10 +1,16 @@
 <script lang="ts">
-  // The dashboard is three pages sharing one script: pull requests at "/",
-  // issues at "/issues" (#827) and release pull requests at "/releases"
-  // (#1107). Each view renders only its own board and controls; every id the
-  // script looks up that the other view lacks is already null-guarded. The
-  // releases view is the pull request board over release pull requests only.
-  let { view }: { view: "pulls" | "issues" | "releases" } = $props();
+  // The dashboard is four pages sharing one script: pull requests at "/",
+  // issues at "/issues" (#827), release pull requests at "/releases" (#1107)
+  // and Dependabot and Renovate's at "/bots" (#1192). Each view renders only
+  // its own board and controls; every id the script looks up that the other
+  // view lacks is already null-guarded. The releases and bots views are the
+  // pull request board over one kind of pull request.
+  let { view }: { view: "pulls" | "issues" | "releases" | "bots" } = $props();
+  // The kind of pull request a view lists, or null for the pull request page,
+  // which lists the rest.
+  const viewKind = $derived(
+    view === "releases" ? "release" : view === "bots" ? "dependency" : null,
+  );
   const pullsView = $derived(view !== "issues");
 
   import { onMount } from "svelte";
@@ -5454,8 +5460,10 @@
       // shows none of them and the Releases board only them. The server says
       // which are which (#716). The nav counts both from the full list.
       setPullRequestCounts(data.pullRequests);
-      const prs = (data.pullRequests || []).filter(
-        (p) => (p.kind === "release") === (view === "releases"),
+      const prs = (data.pullRequests || []).filter((p) =>
+        viewKind
+          ? p.kind === viewKind
+          : p.kind !== "release" && p.kind !== "dependency",
       );
       hiddenDrafts = data.hiddenDrafts ?? 0;
       syncDraftsToggle();
@@ -5652,7 +5660,9 @@
       ? "Issues — Forge Board"
       : view === "releases"
         ? "Releases — Forge Board"
-        : "Forge Board"}</title
+        : view === "bots"
+          ? "Bots — Forge Board"
+          : "Forge Board"}</title
   >
   <meta
     name="description"
@@ -5660,7 +5670,9 @@
       ? "Open issues across your GitHub and Forgejo repositories, in one list."
       : view === "releases"
         ? "Release pull requests waiting to ship across your GitHub and Forgejo repositories, with Merge and Update branch on each."
-        : "Open pull requests across your GitHub and Forgejo repositories, with the actions you can take on each."}
+        : view === "bots"
+          ? "Dependabot and Renovate pull requests across your GitHub and Forgejo repositories, with the actions you can take on each."
+          : "Open pull requests across your GitHub and Forgejo repositories, with the actions you can take on each."}
   />
 </svelte:head>
 
@@ -5753,7 +5765,11 @@
       <div class="stat">
         <div class="n" id="stat-prs">&ndash;</div>
         <div class="label">
-          {view === "releases" ? "Release pull requests" : "Open pull requests"}
+          {view === "releases"
+            ? "Release pull requests"
+            : view === "bots"
+              ? "Bot pull requests"
+              : "Open pull requests"}
         </div>
       </div>
       <button
@@ -5810,12 +5826,6 @@
           class="quick-pill"
           data-pill="failing"
           aria-pressed="false">Failing CI</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="bots"
-          aria-pressed="false">Bot PRs</button
         >
         <button
           type="button"
@@ -6031,7 +6041,13 @@
   {#if pullsView}
     <section class="board" aria-label="Open pull requests">
       <div class="board-head">
-        <h2>{view === "releases" ? "Releases" : "Pull requests"}</h2>
+        <h2>
+          {view === "releases"
+            ? "Releases"
+            : view === "bots"
+              ? "Bots"
+              : "Pull requests"}
+        </h2>
         <div class="board-head-controls">
           <select
             class="col-filter"
@@ -6052,7 +6068,9 @@
       <p class="empty-state" id="pr-empty" hidden>
         {view === "releases"
           ? "No release pull requests are open. Nothing is waiting to ship."
-          : "No open pull requests."}
+          : view === "bots"
+            ? "No bot pull requests are open. Nothing to review."
+            : "No open pull requests."}
       </p>
       <p class="no-results" id="pr-no-results" hidden>
         No pull requests match these filters.
