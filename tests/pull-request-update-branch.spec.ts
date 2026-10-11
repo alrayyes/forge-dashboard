@@ -702,7 +702,8 @@ test.describe('pull request update-branch button', () => {
         page,
         makePR({ labels: [{ name: 'autorelease: pending', color: 'fbca04' }] }),
       );
-      await page.reload();
+      // Release pull requests are on the Releases page, not the main list.
+      await page.goto('/releases.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(
@@ -721,7 +722,7 @@ test.describe('pull request update-branch button', () => {
           labels: [{ name: 'autorelease: pending', color: 'fbca04' }],
         }),
       );
-      await page.reload();
+      await page.goto('/releases.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(row).toContainText('Conflicts need fixing by hand');

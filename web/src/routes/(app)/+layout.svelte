@@ -5,6 +5,11 @@
   import { loadTimezone } from "#lib/time.svelte.js";
   import Footer from "#lib/Footer.svelte";
   import { issueCount } from "#lib/issue-count.svelte.js";
+  import {
+    pullRequestCount,
+    releaseCount,
+    setPullRequestCounts,
+  } from "#lib/pull-request-counts.svelte.js";
 
   let { children } = $props();
 
@@ -66,6 +71,30 @@
     issueCount.value === null ? "Issues" : `${issueCount.value} Issues open`,
   );
 
+  // Home is the pull request page and Releases the release pull requests.
+  // Same shape as Issues: the header icon says it in words for assistive
+  // tech, and the tab's name starts with the number it shows (WCAG 2.5.3).
+  const homeLabel = $derived(
+    pullRequestCount.value === null
+      ? "Home"
+      : `Home, ${pullRequestCount.value} pull requests open`,
+  );
+  const homeTabLabel = $derived(
+    pullRequestCount.value === null
+      ? "Home"
+      : `${pullRequestCount.value} Home, pull requests open`,
+  );
+  const releasesLabel = $derived(
+    releaseCount.value === null
+      ? "Releases"
+      : `Releases, ${releaseCount.value} open`,
+  );
+  const releasesTabLabel = $derived(
+    releaseCount.value === null
+      ? "Releases"
+      : `${releaseCount.value} Releases open`,
+  );
+
   function signOut() {
     fetch("/api/auth/logout", { method: "POST" }).finally(() => {
       window.location.href = "/login.html";
@@ -111,19 +140,30 @@
         /* a transient failure here isn't worth blocking the page over */
       });
 
-    // The dashboard views set the issue count from their own snapshots.
-    // Every other signed-in page asks once, so the badge is there too.
+    // The dashboard views set the counts from their own snapshots. Every
+    // other signed-in page asks once, so the badges are there too.
     if (
       !isPublicRoute() &&
       !isCurrentRoute("/") &&
-      !isCurrentRoute("/issues")
+      !isCurrentRoute("/issues") &&
+      !isCurrentRoute("/releases")
     ) {
       fetch("/api/dashboard", { headers: { Accept: "application/json" } })
         .then((res) => (res.ok ? res.json() : null))
-        .then((data: { openIssueCount?: number } | null) => {
-          if (data && typeof data.openIssueCount === "number")
-            issueCount.value = data.openIssueCount;
-        })
+        .then(
+          (
+            data: {
+              openIssueCount?: number;
+              pullRequests?: { kind?: string }[];
+            } | null,
+          ) => {
+            if (!data) return;
+            if (typeof data.openIssueCount === "number")
+              issueCount.value = data.openIssueCount;
+            if (Array.isArray(data.pullRequests))
+              setPullRequestCounts(data.pullRequests);
+          },
+        )
         .catch(() => {
           /* no badge is better than a wrong one */
         });
@@ -165,9 +205,9 @@
       >
       <nav class="app-nav" aria-label="Main">
         <a
-          class="theme-toggle"
+          class="theme-toggle nav-with-badge"
           href="/"
-          aria-label="Home"
+          aria-label={homeLabel}
           title="Home"
           aria-current={isCurrentRoute("/") ? "page" : undefined}
           style="text-decoration:none;"
@@ -184,7 +224,10 @@
             ><path
               d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"
             /></svg
-          >
+          >{#if pullRequestCount.value !== null}<span
+              class="nav-badge"
+              aria-hidden="true">{pullRequestCount.value}</span
+            >{/if}
         </a>
         <a
           class="theme-toggle nav-with-badge"
@@ -214,9 +257,9 @@
             >{/if}
         </a>
         <a
-          class="theme-toggle"
+          class="theme-toggle nav-with-badge"
           href="/releases.html"
-          aria-label="Releases"
+          aria-label={releasesLabel}
           title="Releases"
           aria-current={isCurrentRoute("/releases") ? "page" : undefined}
           style="text-decoration:none;"
@@ -231,9 +274,12 @@
             stroke-linecap="round"
             stroke-linejoin="round"
             ><path
-              d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.427 0 0 0 0-3.42z"
+              d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
             /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
-          >
+          >{#if releaseCount.value !== null}<span
+              class="nav-badge"
+              aria-hidden="true">{releaseCount.value}</span
+            >{/if}
         </a>
         <a
           class="theme-toggle"
@@ -370,9 +416,9 @@
 -->
 <nav class="bottom-nav" aria-label="Mobile navigation">
   <a
-    class="bottom-nav-link"
+    class="bottom-nav-link nav-with-badge"
     href="/"
-    aria-label="Home"
+    aria-label={homeTabLabel}
     aria-current={isCurrentRoute("/") ? "page" : undefined}
   >
     <svg
@@ -387,7 +433,10 @@
       ><path
         d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"
       /></svg
-    >
+    >{#if pullRequestCount.value !== null}<span
+        class="nav-badge"
+        aria-hidden="true">{pullRequestCount.value}</span
+      >{/if}
     <span class="bottom-nav-label">Home</span>
   </a>
   <a
@@ -412,9 +461,9 @@
     <span class="bottom-nav-label">Issues</span>
   </a>
   <a
-    class="bottom-nav-link"
+    class="bottom-nav-link nav-with-badge"
     href="/releases.html"
-    aria-label="Releases"
+    aria-label={releasesTabLabel}
     aria-current={isCurrentRoute("/releases") ? "page" : undefined}
   >
     <svg
@@ -427,9 +476,11 @@
       stroke-linecap="round"
       stroke-linejoin="round"
       ><path
-        d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.427 0 0 0 0-3.42z"
+        d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
       /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
-    >
+    >{#if releaseCount.value !== null}<span class="nav-badge" aria-hidden="true"
+        >{releaseCount.value}</span
+      >{/if}
     <span class="bottom-nav-label">Releases</span>
   </a>
   <a
