@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.147.2](https://github.com/alrayyes/forge-dashboard/compare/v0.147.1...v0.147.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **api:** wait for the first refresh before answering a dashboard read ([#1197](https://github.com/alrayyes/forge-dashboard/issues/1197)) ([f2aa4ec](https://github.com/alrayyes/forge-dashboard/commit/f2aa4ecf18346ff3a83ebbc906e70a5efc8938ea)), closes [#1194](https://github.com/alrayyes/forge-dashboard/issues/1194)
+
 ## [0.147.1](https://github.com/alrayyes/forge-dashboard/compare/v0.147.0...v0.147.1) (2026-10-11)
 
 
