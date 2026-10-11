@@ -1,7 +1,11 @@
 package github
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -59,21 +63,24 @@ const defaultBranchSelection = `
 
 // graphqlBranchRef is a repository's defaultBranchRef.
 type graphqlBranchRef struct {
-	Name   string `json:"name"`
-	Target struct {
-		OID             string    `json:"oid"`
-		AbbreviatedOID  string    `json:"abbreviatedOid"`
-		MessageHeadline string    `json:"messageHeadline"`
-		URL             string    `json:"url"`
-		CommittedDate   time.Time `json:"committedDate"`
-		Author          *struct {
-			Name string `json:"name"`
-			User *struct {
-				Login string `json:"login"`
-			} `json:"user"`
-		} `json:"author"`
-		StatusCheckRollup *statusCheckRollup `json:"statusCheckRollup"`
-	} `json:"target"`
+	Name   string        `json:"name"`
+	Target graphqlCommit `json:"target"`
+}
+
+// graphqlCommit is a commit with the CI that ran on it.
+type graphqlCommit struct {
+	OID             string    `json:"oid"`
+	AbbreviatedOID  string    `json:"abbreviatedOid"`
+	MessageHeadline string    `json:"messageHeadline"`
+	URL             string    `json:"url"`
+	CommittedDate   time.Time `json:"committedDate"`
+	Author          *struct {
+		Name string `json:"name"`
+		User *struct {
+			Login string `json:"login"`
+		} `json:"user"`
+	} `json:"author"`
+	StatusCheckRollup *statusCheckRollup `json:"statusCheckRollup"`
 }
 
 // branchContext is one check run or one legacy commit status.
@@ -236,4 +243,93 @@ func branchTimes(checks []branchContext) (finished *time.Time, seconds *int) {
 	d := max(int(last.Sub(first).Seconds()), 0)
 
 	return &last, &d
+}
+
+// checkedCommitsQuery builds one query that reads, for each repo, its newest
+// commits with the CI that ran on them. Used only for a repo whose newest
+// commit has no checks at all (#1265): a release bot's "[skip ci]" commit
+// leaves the branch with no rollup, though the commit before it has one.
+func checkedCommitsQuery(repos []branchRepo) (string, map[string]any) {
+	var q strings.Builder
+	vars := make(map[string]any, len(repos)*2)
+	q.WriteString("query(")
+	for i, r := range repos {
+		fmt.Fprintf(&q, "$owner%d: String!, $name%d: String!, ", i, i)
+		vars[fmt.Sprintf("owner%d", i)] = r.owner
+		vars[fmt.Sprintf("name%d", i)] = r.name
+	}
+	q.WriteString(") {\n")
+	for i := range repos {
+		fmt.Fprintf(&q, `  m%[1]d: repository(owner: $owner%[1]d, name: $name%[1]d) {
+    defaultBranchRef { target { ... on Commit { history(first: 10) { nodes {
+      oid abbreviatedOid messageHeadline url committedDate
+      author { name user { login } }
+      statusCheckRollup {
+        state
+        contexts(first: 50) {
+          checkRunCountsByState { state count }
+          statusContextCountsByState { state count }
+          nodes {
+            __typename
+            ... on CheckRun { name conclusion startedAt completedAt detailsUrl }
+            ... on StatusContext { context state targetUrl }
+          }
+        }
+      }
+    } } } } }
+  }
+`, i)
+	}
+	q.WriteString("}")
+
+	return q.String(), vars
+}
+
+// branchRepo names a repo whose default branch may need a deeper look.
+type branchRepo struct {
+	owner, name string
+	ref         *graphqlBranchRef
+}
+
+// withCheckedCommits moves each ref's target to the newest commit a check ran
+// on, for the repos whose newest commit has none. Any failure leaves the refs
+// as they were, so the row reads none rather than the poll failing.
+func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) {
+	var unchecked []branchRepo
+	for _, r := range tracked {
+		if ref := r.DefaultBranchRef; ref != nil && ref.Target.OID != "" && ref.Target.StatusCheckRollup == nil {
+			unchecked = append(unchecked, branchRepo{owner: r.Owner.Login, name: r.Name, ref: ref})
+		}
+	}
+	if len(unchecked) == 0 {
+		return
+	}
+	query, vars := checkedCommitsQuery(unchecked)
+	var resp map[string]struct {
+		DefaultBranchRef *struct {
+			Target struct {
+				History struct {
+					Nodes []graphqlCommit `json:"nodes"`
+				} `json:"history"`
+			} `json:"target"`
+		} `json:"defaultBranchRef"`
+	}
+	if err := c.graphqlDo(ctx, query, vars, &resp); err != nil {
+		slog.Warn("github checked-commit lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
+
+		return
+	}
+	for i, r := range unchecked {
+		repo, ok := resp[fmt.Sprintf("m%d", i)]
+		if !ok || repo.DefaultBranchRef == nil {
+			continue
+		}
+		for _, commit := range repo.DefaultBranchRef.Target.History.Nodes {
+			if commit.StatusCheckRollup != nil {
+				r.ref.Target = commit
+
+				break
+			}
+		}
+	}
 }
