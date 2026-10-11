@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.147.2](https://github.com/alrayyes/forge-dashboard/compare/v0.147.1...v0.147.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **api:** wait for the first refresh before answering a dashboard read ([#1197](https://github.com/alrayyes/forge-dashboard/issues/1197)) ([f2aa4ec](https://github.com/alrayyes/forge-dashboard/commit/f2aa4ecf18346ff3a83ebbc906e70a5efc8938ea)), closes [#1194](https://github.com/alrayyes/forge-dashboard/issues/1194)
+
+## [0.147.1](https://github.com/alrayyes/forge-dashboard/compare/v0.147.0...v0.147.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **dashboard:** keep a repo's rows when its fetch fails on a reachable forge ([#1196](https://github.com/alrayyes/forge-dashboard/issues/1196)) ([43e1cd5](https://github.com/alrayyes/forge-dashboard/commit/43e1cd5460a15fc05c684c4b3c567dcada143114)), closes [#1194](https://github.com/alrayyes/forge-dashboard/issues/1194)
+
 ## [0.147.0](https://github.com/alrayyes/forge-dashboard/compare/v0.146.0...v0.147.0) (2026-10-11)
 
 
