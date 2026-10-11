@@ -114,6 +114,51 @@ func repoFromPayload(body []byte) (owner, name, fullName string, ok bool) {
 	return r.Owner.Login, r.Name, r.FullName, true
 }
 
+// pullRequestEvent is a pull_request delivery's own account of what happened
+// to a pull request. GitHub and Forgejo share the shape.
+type pullRequestEvent struct {
+	Action      string `json:"action"`
+	PullRequest *struct {
+		Number int `json:"number"`
+	} `json:"pull_request"`
+}
+
+// pullRequestAction returns the action and number of the pull request a
+// delivery is about, or ok false for any other event. It reads the body
+// rather than the event header: the body is what the signature covers.
+func pullRequestAction(body []byte) (action string, number int, ok bool) {
+	var ev pullRequestEvent
+	if err := json.Unmarshal(body, &ev); err != nil || ev.PullRequest == nil || ev.PullRequest.Number == 0 {
+		return "", 0, false
+	}
+
+	return ev.Action, ev.PullRequest.Number, true
+}
+
+// settleFromDelivery applies what a signed pull_request delivery says about
+// the pull request's state before any fetch can: closed (merged or not) takes
+// it off the board, reopened lets the next fetch bring it back. The fetch that
+// follows is not trusted to agree yet. A forge's list can go on showing a pull
+// request as open for a while after it merged, and a failed fetch shows
+// nothing at all, either of which kept a merged pull request's Merge button on
+// the board (#966). Dropped by the aggregator once a fetch stops listing it.
+func settleFromDelivery(manager *dashboard.Manager, userID []byte, forge dashboard.Forge, body []byte) {
+	_, _, fullName, ok := repoFromPayload(body)
+	if !ok {
+		return
+	}
+	action, number, ok := pullRequestAction(body)
+	if !ok {
+		return
+	}
+	switch action {
+	case "closed":
+		manager.MarkSettled(userID, forge, fullName, number)
+	case "reopened":
+		manager.Unsettle(userID, forge, fullName, number)
+	}
+}
+
 // handleWebhook is what handleGitHubWebhook and handleForgejoWebhook
 // share: look up the user by the path token, verify the body against
 // their webhook secret using whatever signatureOf extracts from the
@@ -176,6 +221,7 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 		}
 
 		slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
+		settleFromDelivery(manager, userID, forge, body)
 		w.WriteHeader(http.StatusNoContent)
 		go triggerRefresh(appCtx, manager, userID, forge, delivery, body)
 	}
@@ -193,7 +239,12 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 // the scoped path couldn't be taken.
 func triggerRefresh(ctx context.Context, manager *dashboard.Manager, userID []byte, forge dashboard.Forge, delivery string, body []byte) {
 	if owner, name, fullName, ok := repoFromPayload(body); ok {
-		if manager.RefreshRepo(ctx, userID, forge, owner, name, fullName) {
+		// A failed fetch says which delivery and pull request it was for (#966).
+		attrs := []any{"delivery", delivery}
+		if _, number, isPR := pullRequestAction(body); isPR {
+			attrs = append(attrs, "pull_request", number)
+		}
+		if manager.RefreshRepo(ctx, userID, forge, owner, name, fullName, attrs...) {
 			slog.Info("webhook refresh dispatched", "forge", forge, "delivery", delivery, "repo", fullName, "scoped", true)
 
 			return
