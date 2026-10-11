@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.144.1](https://github.com/alrayyes/forge-dashboard/compare/v0.144.0...v0.144.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **api:** take a pull request off the board when its closed webhook arrives ([#1172](https://github.com/alrayyes/forge-dashboard/issues/1172)) ([e99b748](https://github.com/alrayyes/forge-dashboard/commit/e99b7483c64b3af1ca1669b152a82f5c3ed6507c))
+
 ## [0.144.0](https://github.com/alrayyes/forge-dashboard/compare/v0.143.2...v0.144.0) (2026-10-11)
 
 
