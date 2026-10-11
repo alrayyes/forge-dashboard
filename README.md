@@ -359,9 +359,12 @@ takes the pull request off the board at once, even if the forge goes on listing
 it as open for a few seconds; the server holds it back for up to two minutes.
 Update branch appears when the
 forge reports it's possible; it doesn't ask, since a merge from the base branch
-is easy to reverse and a merge itself isn't. On a pull request that's behind
-but also conflicts with its base, Update branch is locked with a note that the
-conflicts need fixing by hand, since the forge would refuse the update.
+is easy to reverse and a merge itself isn't. A GitHub pull request counts as
+behind whenever its base has commits it lacks, even in a repo that doesn't
+require branches to be up-to-date, and Merge stays allowed there. On a pull
+request that's behind but also conflicts with its base, Update branch is
+locked with a note that the conflicts need fixing by hand, since the forge
+would refuse the update.
 Close isn't a standalone row button: it lives in the "More actions" menu, in
 the danger tone, on every open pull request regardless of mergeability. A menu
 is for the overflow, so when Close is the row's only extra action it's drawn
