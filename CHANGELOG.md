@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.149.0](https://github.com/alrayyes/forge-dashboard/compare/v0.148.0...v0.149.0) (2026-10-11)
+
+
+### Features
+
+* **api:** queue, list and cancel a safe action for a rate-limited forge (2/3) ([#1180](https://github.com/alrayyes/forge-dashboard/issues/1180)) ([f7f736a](https://github.com/alrayyes/forge-dashboard/commit/f7f736a4ff84fe782f3ce90dcf6678569cb64bb3))
+
 ## [0.148.0](https://github.com/alrayyes/forge-dashboard/compare/v0.147.3...v0.148.0) (2026-10-11)
 
 
