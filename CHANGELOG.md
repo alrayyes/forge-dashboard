@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.149.1](https://github.com/alrayyes/forge-dashboard/compare/v0.149.0...v0.149.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **github:** look up linear history on the pull request's base branch ([#1186](https://github.com/alrayyes/forge-dashboard/issues/1186)) ([707e125](https://github.com/alrayyes/forge-dashboard/commit/707e125511d344880b7feeb9e639dbb99069ada0))
+
 ## [0.149.0](https://github.com/alrayyes/forge-dashboard/compare/v0.148.0...v0.149.0) (2026-10-11)
 
 
