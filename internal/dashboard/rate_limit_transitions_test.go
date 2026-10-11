@@ -55,7 +55,9 @@ func TestAggregator_Refresh_BudgetBecomesExhausted_LogsAWarning(t *testing.T) {
 func TestAggregator_Refresh_BudgetRecovers_LogsAnInfo(t *testing.T) {
 	logs := withCapturedLogs(t)
 
-	resetsAt := time.Now().Add(time.Hour).UTC()
+	// The forge is not called while spent, so recovery shows once the reset
+	// has passed (#755).
+	resetsAt := time.Now().Add(50 * time.Millisecond).UTC()
 	src := &fakeSource{result: dashboard.Result{
 		Health: dashboard.ForgeHealth{
 			Forge:         dashboard.ForgeGitHub,
@@ -66,6 +68,7 @@ func TestAggregator_Refresh_BudgetRecovers_LogsAnInfo(t *testing.T) {
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 	agg.Refresh(t.Context())
 
+	time.Sleep(80 * time.Millisecond)
 	src.result.Health.RateLimitREST = &dashboard.RateLimit{Limit: 5000, Remaining: 5000, ResetsAt: resetsAt.Add(time.Hour)}
 	agg.Refresh(t.Context())
 

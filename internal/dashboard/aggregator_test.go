@@ -300,7 +300,7 @@ func TestNextRefreshDelay(t *testing.T) {
 		t.Parallel()
 		snap := dashboard.Snapshot{Forges: []dashboard.ForgeHealth{{
 			Forge:         dashboard.ForgeGitHub,
-			RateLimitREST: &dashboard.RateLimit{Limit: 5000, Remaining: 0, ResetsAt: time.Now().Add(24 * time.Hour)},
+			RateLimitREST: &dashboard.RateLimit{Limit: 5000, Remaining: 1, ResetsAt: time.Now().Add(24 * time.Hour)},
 		}}}
 		got := dashboard.NextRefreshDelay(snap, interval)
 		assert.LessOrEqual(t, got, time.Hour)
