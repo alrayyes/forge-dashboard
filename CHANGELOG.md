@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.161.2](https://github.com/alrayyes/forge-dashboard/compare/v0.161.1...v0.161.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **api:** read Forgejo's own run fields so a passing main branch isn't shown as failed ([#1270](https://github.com/alrayyes/forge-dashboard/issues/1270)) ([9b11fa0](https://github.com/alrayyes/forge-dashboard/commit/9b11fa047d5dd443286b70f8b75c2f0a83668349)), closes [#1264](https://github.com/alrayyes/forge-dashboard/issues/1264)
+* **github:** read the newest commit a check ran on for the main branch row ([#1269](https://github.com/alrayyes/forge-dashboard/issues/1269)) ([e5452e0](https://github.com/alrayyes/forge-dashboard/commit/e5452e0764dcfc85b83aeaab0e885dce95436b2b)), closes [#1265](https://github.com/alrayyes/forge-dashboard/issues/1265)
+
+
+### Performance Improvements
+
+* **web:** serve style.css minified ([#1258](https://github.com/alrayyes/forge-dashboard/issues/1258)) ([8bc33a5](https://github.com/alrayyes/forge-dashboard/commit/8bc33a52c67a9d55f0927e203789abef481fdca3)), closes [#1135](https://github.com/alrayyes/forge-dashboard/issues/1135)
+
 ## [0.161.1](https://github.com/alrayyes/forge-dashboard/compare/v0.161.0...v0.161.1) (2026-10-11)
 
 
