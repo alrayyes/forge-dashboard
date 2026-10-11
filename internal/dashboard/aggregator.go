@@ -216,12 +216,19 @@ func (a *Aggregator) Subscribe() (<-chan Snapshot, func()) {
 }
 
 // notify delivers snap to every current subscriber without blocking — see
-// Subscribe's doc comment on why a full channel is skipped rather than
-// waited on.
+// Subscribe's doc comment on why a full channel is never waited on. A
+// subscriber that has not read the previous snapshot yet has it replaced:
+// what it needs is the newest state, and keeping the stale one instead left a
+// merged pull request on a stream client's board until the next refresh
+// (#966). subsMu serialises senders, so the send after the drain finds room.
 func (a *Aggregator) notify(snap Snapshot) {
 	a.subsMu.Lock()
 	defer a.subsMu.Unlock()
 	for ch := range a.subs {
+		select {
+		case <-ch:
+		default:
+		}
 		select {
 		case ch <- snap:
 		default:
