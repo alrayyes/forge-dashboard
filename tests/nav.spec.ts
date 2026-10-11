@@ -176,7 +176,7 @@ test.describe('mobile bottom tab bar', () => {
     await page.setViewportSize(MOBILE_VIEWPORT);
     await page.goto('/');
 
-    const homeTab = page.locator('.bottom-nav a[aria-label="Home"]');
+    const homeTab = page.locator('.bottom-nav a[href="/"]');
     await homeTab.focus();
     await expect(homeTab).toHaveCSS('outline-style', 'solid');
   });

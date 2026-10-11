@@ -100,9 +100,14 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 			result.Health.RateLimitREST = &limit
 		}
 	}
-	for _, r := range results {
+	for i, r := range results {
 		result.PullRequests = append(result.PullRequests, r.prs...)
 		result.Issues = append(result.Issues, r.issues...)
+		if r.prsFailed || r.issuesFailed {
+			result.FailedRepos = append(result.FailedRepos, FailedRepo{
+				FullName: repos[i].FullName, PullRequests: r.prsFailed, Issues: r.issuesFailed,
+			})
+		}
 	}
 
 	return result
@@ -131,6 +136,9 @@ type repoResult struct {
 	prs        []PullRequest
 	issues     []Issue
 	hasWebhook bool
+	// prsFailed and issuesFailed mean the list is missing, not empty.
+	prsFailed    bool
+	issuesFailed bool
 }
 
 // fetchRepos fetches every repo, at most maxConcurrency at a time, and answers
@@ -157,16 +165,18 @@ func (s *GenericSource) fetchRepos(ctx context.Context, repos []RepoRef) []repoR
 
 // fetchRepo fetches one repo's open pull requests and issues and, if the
 // client can say, whether it has a webhook. Each failure is logged and leaves
-// that part empty.
+// that part empty, flagged as failed so the empty list isn't read as an answer.
 func (s *GenericSource) fetchRepo(ctx context.Context, repo RepoRef) repoResult {
 	prs, err := s.client.ListOpenPullRequests(ctx, repo.Owner, repo.Name, repo.FullName)
 	if err != nil {
 		slog.Warn("list pull requests failed", "forge", s.forge, "repo", repo.FullName, "error", err)
 	}
+	prsFailed := err != nil
 	issues, err := s.client.ListOpenIssues(ctx, repo.Owner, repo.Name, repo.FullName)
 	if err != nil {
 		slog.Warn("list issues failed", "forge", s.forge, "repo", repo.FullName, "error", err)
 	}
+	issuesFailed := err != nil
 	var hasWebhook bool
 	if checker, ok := s.client.(WebhookChecker); ok {
 		hasWebhook, err = checker.HasWebhook(ctx, repo.Owner, repo.Name)
@@ -175,7 +185,7 @@ func (s *GenericSource) fetchRepo(ctx context.Context, repo RepoRef) repoResult 
 		}
 	}
 
-	return repoResult{prs: prs, issues: issues, hasWebhook: hasWebhook}
+	return repoResult{prs: prs, issues: issues, hasWebhook: hasWebhook, prsFailed: prsFailed, issuesFailed: issuesFailed}
 }
 
 // EnsureWebhook implements WebhookManager at the Source level by
