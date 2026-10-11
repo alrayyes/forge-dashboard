@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.154.0](https://github.com/alrayyes/forge-dashboard/compare/v0.153.0...v0.154.0) (2026-10-11)
+
+
+### Features
+
+* **web:** a Conflicts quick filter for pull requests with a merge conflict ([#1219](https://github.com/alrayyes/forge-dashboard/issues/1219)) ([a263cfe](https://github.com/alrayyes/forge-dashboard/commit/a263cfec5518f17e332de2c631ebaf4cde7a3d76)), closes [#1215](https://github.com/alrayyes/forge-dashboard/issues/1215)
+
 ## [0.153.0](https://github.com/alrayyes/forge-dashboard/compare/v0.152.1...v0.153.0) (2026-10-11)
 
 
