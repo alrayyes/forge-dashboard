@@ -42,7 +42,6 @@ export interface FilterableItem {
 // The pull-request-only quick filter pills (#678). Stored as pr.quick.
 export const QUICK_FILTERS = [
   'failing',
-  'bots',
   'ready',
   'needs-review',
   'review-requested',
@@ -57,10 +56,6 @@ export function matchesQuickFilter(
   switch (quick) {
     case 'failing':
       return item.ci === 'failure';
-    case 'bots':
-      // The server says what kind of pull request this is (#716); the page
-      // holds no rule for who counts as a bot.
-      return item.kind !== undefined && item.kind !== 'regular';
     case 'ready':
       return item.readyToMerge === true;
     case 'needs-review':
@@ -80,7 +75,13 @@ export function matchesQuickFilter(
 // The pill that's active for a state: a quick filter wins, then a forge,
 // else "all". Exactly one pill is ever active.
 export function activePill(state: SharedFilterState): string {
-  if (state.pr.quick) return state.pr.quick;
+  // A pill saved before it was removed (Bot PRs, #1192) no longer matches
+  // anything, so it doesn't count as active either.
+  if (
+    state.pr.quick &&
+    (QUICK_FILTERS as readonly string[]).includes(state.pr.quick)
+  )
+    return state.pr.quick;
   if (state.shared.forge) return state.shared.forge;
   return 'all';
 }

@@ -2356,10 +2356,9 @@ test.describe('dashboard page', () => {
         pr({ number: 1, mergeStatus: 'conflicting' }),
         pr({ number: 2, autoMergeEnabled: true }),
         pr({ number: 3, mergeStatus: 'blocked' }),
-        pr({ number: 4, author: 'dependabot', behind: true }),
       ]);
       await page.reload();
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(4);
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -2378,7 +2377,8 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       await mockDashboard(page, [pr({ author: 'dependabot', behind: true })]);
-      await page.reload();
+      // Bot pull requests are on the Bots page (#1192).
+      await page.goto('/bots.html');
 
       const pill = page.locator('#pr-rows .merge-pill.behind');
       await expect(pill).toHaveCount(1);
@@ -2391,7 +2391,8 @@ test.describe('dashboard page', () => {
       await mockDashboard(page, [
         pr({ author: 'renovate[bot]', behind: true }),
       ]);
-      await page.reload();
+      // Bot pull requests are on the Bots page (#1192).
+      await page.goto('/bots.html');
 
       const pill = page.locator('#pr-rows .merge-pill.behind');
       await expect(pill).toHaveCount(1);
@@ -2419,7 +2420,8 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       await mockDashboard(page, [pr({ author: 'dependabot', behind: false })]);
-      await page.reload();
+      // Bot pull requests are on the Bots page (#1192).
+      await page.goto('/bots.html');
 
       await expect(page.locator('.merge-pill.behind')).toHaveCount(0);
     });
@@ -2434,7 +2436,8 @@ test.describe('dashboard page', () => {
       await mockDashboard(page, [
         pr({ author: 'dependabot', behind: true, empty: true }),
       ]);
-      await page.reload();
+      // Bot pull requests are on the Bots page (#1192).
+      await page.goto('/bots.html');
 
       await expect(page.locator('.merge-pill.behind')).toHaveCount(0);
     });
@@ -3335,8 +3338,9 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       review: { decision: 'none', approvals: 0, requestedReviewers: 1 },
     }),
   ];
-  // The release-please pull request (5) is on the Releases page, not here.
-  const LISTED = PRS.length - 1;
+  // The Dependabot and Renovate pull requests (3, 4) are on the Bots page and
+  // the release-please one (5) on the Releases page, not here.
+  const LISTED = PRS.length - 3;
   const ISSUES = [
     {
       forge: 'github',
@@ -3388,11 +3392,10 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       'GitHub',
       'Forgejo',
       'Failing CI',
-      'Bot PRs',
+      'Conflicts',
       'Ready to Merge',
       'Needs Review',
       'Review requested from me',
-      'Conflicts',
     ]);
     await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
     await expect(group.locator('[aria-pressed="true"]')).toHaveCount(1);
@@ -3413,9 +3416,8 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     page,
   }) => {
     await pill(page, 'Ready to Merge').click();
-    await expect(rowTitles(page)).toHaveCount(2);
+    await expect(rowTitles(page)).toHaveCount(1);
     await expect(rowTitles(page).nth(0)).toContainText('Plain ready');
-    await expect(rowTitles(page).nth(1)).toContainText('Bump dep');
   });
 
   // Review state comes from /api/dashboard's review object (#683). Needs
@@ -3457,13 +3459,12 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('Bot PRs keeps dependabot and renovate pull requests, and release-please has its own page', async ({
+  test('there is no Bot PRs filter, and bot and release pull requests are not listed', async ({
     page,
   }) => {
-    await pill(page, 'Bot PRs').click();
-    await expect(rowTitles(page)).toHaveCount(2);
-    await expect(page.locator('#pr-rows')).toContainText('Bump dep');
-    await expect(page.locator('#pr-rows')).toContainText('Renovate bump');
+    await expect(pill(page, 'Bot PRs')).toHaveCount(0);
+    await expect(page.locator('#pr-rows')).not.toContainText('Bump dep');
+    await expect(page.locator('#pr-rows')).not.toContainText('Renovate bump');
     await expect(page.locator('#pr-rows')).not.toContainText('Release 1.0');
   });
 
@@ -3500,8 +3501,8 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   });
 
   test('the active pill survives a reload', async ({ page }) => {
-    await pill(page, 'Bot PRs').click();
-    await expect(rowTitles(page)).toHaveCount(2);
+    await pill(page, 'Failing CI').click();
+    await expect(rowTitles(page)).toHaveCount(1);
     // The click sets the cookie at once and saves to the server in the
     // background. A reload before the save lands loads an older server copy
     // (#900), so wait for it like the other persistence tests do.
@@ -3510,10 +3511,13 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
         const resp = await page.request.get('/api/settings/filter-state');
         return (await resp.json())?.pr?.quick;
       })
-      .toBe('bots');
+      .toBe('failing');
     await page.reload();
-    await expect(pill(page, 'Bot PRs')).toHaveAttribute('aria-pressed', 'true');
-    await expect(rowTitles(page)).toHaveCount(2);
+    await expect(pill(page, 'Failing CI')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(rowTitles(page)).toHaveCount(1);
   });
 
   test('"/" focuses the title search, but types a slash once an input has focus', async ({
