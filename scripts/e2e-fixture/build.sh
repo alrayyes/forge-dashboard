@@ -22,7 +22,7 @@ GIT=(git -c user.name="Ryan Kes" -c user.email="ryan@andthensome.nl")
 git checkout -q -B seed origin/main
 sed -i 's/sleep 600/sleep 3300/; s/timeout-minutes: 15/timeout-minutes: 60/' .github/workflows/ci.yml
 "${GIT[@]}" commit -qam "ci: keep a slow check pending for fifty-five minutes"
-BASES=(base/clean base/open base/req-check base/req-check-admin base/strict base/review base/linear base/convo base/merged)
+BASES=(base/clean base/open base/req-check base/req-check-admin base/strict base/review base/linear base/convo base/merged base/methods base/methods-linear)
 for b in "${BASES[@]}"; do git push -q -f origin "seed:refs/heads/$b"; done
 
 # pr NAME BASE REQUIRED OPTIONAL [draft] [FILE=CONTENT]
@@ -63,8 +63,16 @@ pr conversation-unresolved    base/convo          pass pass
 pr linear-history             base/linear         pass pass
 
 # Behind: strict protection makes it BEHIND; without it GitHub still says clean.
+# The dashboard's auto-update bot brings any behind branch up to date in a repo
+# it watches, whatever the UI hides, unless the pull request carries the label
+# release-please uses: it leaves those alone. Both get it, or they'd be current
+# before the test looks.
+gh label create "autorelease: pending" -R "$REPO" --color ededed >/dev/null 2>&1 || true
 pr behind-strict              base/strict         pass pass
 pr behind-not-strict          base/open           pass pass
+for b in behind-strict behind-not-strict; do
+  gh pr edit -R "$REPO" "head/$b" --add-label "autorelease: pending" >/dev/null
+done
 
 # Conflicting: head and base both change conflict.txt.
 git checkout -q -B head/conflict-seed origin/base/open
@@ -121,6 +129,10 @@ prot base/review <<'J'
 {"required_status_checks":null,"enforce_admins":false,"required_pull_request_reviews":{"required_approving_review_count":1},"restrictions":null}
 J
 prot base/linear <<'J'
+{"required_status_checks":null,"enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null,"required_linear_history":true}
+J
+# The merge-method tests open and merge pull requests of their own on these two.
+prot base/methods-linear <<'J'
 {"required_status_checks":null,"enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null,"required_linear_history":true}
 J
 prot base/convo <<'J'
