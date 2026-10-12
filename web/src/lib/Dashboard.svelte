@@ -24,6 +24,7 @@
     type ActionCode,
     type ActionRequestError,
     interpretActionFailure,
+    failureDetails,
     NETWORK_FAILURE,
     readActionFailure,
     type SettledState,
@@ -37,6 +38,7 @@
   } from "#lib/confirm-arm.js";
   import {
     type ActionRef,
+    type FailureDetails,
     type BotRequest,
     createFeedbackStore,
   } from "#lib/feedback.js";
@@ -326,12 +328,24 @@
     }
     // A failed action: the row gets a Failed line (with Retry unless the
     // failure locked the button), and an error toast that stays.
+    // The action's context for a Copy payload. The action is the first part
+    // of its feedback key ("merge", "renovate", "cancel-auto-merge", …).
+    function detailsContext(item: PullRequestItem, fkey: string) {
+      return {
+        action: fkey.split(":")[0],
+        forge: item.forge,
+        repo: item.repo,
+        number: item.number,
+      };
+    }
+
     function failAction(
       actionKey: string,
       what: string,
       reason: string,
       canRetry: boolean,
       transient = false,
+      details?: FailureDetails,
     ) {
       const message = `Couldn't ${what}: ${reason}`;
       feedback.update(actionKey, {
@@ -344,6 +358,8 @@
         // A failure that passes by itself clears its row line after a few
         // seconds (#1206).
         transient,
+        // What Copy holds: the server's whole answer (#1323).
+        details,
       });
     }
     const CI_LABELS: Record<string, string> = {
@@ -1280,6 +1296,8 @@
       setState: (next: ActionState) => void,
       retryable?: ReadonlySet<ActionCode>,
     ) {
+      // The raw answer for Copy, made once for whichever line this ends in.
+      const details = failureDetails(err, detailsContext(item, fkey));
       const outcome = interpretActionFailure(
         err,
         (resetsAt) =>
@@ -1313,10 +1331,17 @@
           code: outcome.code,
           fkey,
         });
-        failAction(fkey, what, outcome.reason, false);
+        failAction(fkey, what, outcome.reason, false, false, details);
       } else {
         setState({ phase: "idle" });
-        failAction(fkey, what, outcome.reason, true, outcome.transient);
+        failAction(
+          fkey,
+          what,
+          outcome.reason,
+          true,
+          outcome.transient,
+          details,
+        );
       }
       renderPRBoard();
     }
@@ -1436,11 +1461,25 @@
                 } else {
                   renderPRBoard();
                 }
-                failAction(fkey, "merge", NETWORK_FAILURE, true, true);
+                failAction(
+                  fkey,
+                  "merge",
+                  NETWORK_FAILURE,
+                  true,
+                  true,
+                  failureDetails(err, detailsContext(item, fkey)),
+                );
               })
               .catch(() => {
                 mergeState[key] = { phase: "idle" };
-                failAction(fkey, "merge", NETWORK_FAILURE, true, true);
+                failAction(
+                  fkey,
+                  "merge",
+                  NETWORK_FAILURE,
+                  true,
+                  true,
+                  failureDetails(err, detailsContext(item, fkey)),
+                );
                 renderPRBoard();
               });
             return;

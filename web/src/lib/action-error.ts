@@ -5,7 +5,7 @@
 // action (Merge, Close, Update branch, Enable auto-merge, the Dependabot and
 // Renovate rebases) renders its failures through here.
 
-import type { ActionRef, FeedbackStore } from './feedback';
+import type { ActionRef, FailureDetails, FeedbackStore } from './feedback';
 import { PERMISSION_REASON } from './rate-limit';
 
 export type ActionCode =
@@ -36,7 +36,13 @@ export type ActionFailure = {
 // A failed request, carrying the server's answer when there was one. A
 // request that never got a response has no status and no code: that is the
 // ambiguous-outcome case (#447), which callers handle separately.
-export type ActionRequestError = Error & { status?: number; code?: ActionCode };
+export type ActionRequestError = Error & {
+  status?: number;
+  code?: ActionCode;
+  // The response body as it arrived: the parsed JSON, or the text when it
+  // wasn't JSON. Only Copy reads it (#1323); the row never shows it.
+  raw?: unknown;
+};
 
 export type SettledState = 'merged' | 'closed';
 
@@ -83,6 +89,20 @@ export function isTransientFailure(err: ActionRequestError): boolean {
   return err.status === 502 || err.status === 503 || err.status === 504;
 }
 
+// What Copy holds for a failure (#1323): the status and the body as received,
+// or the browser's own error when nothing came back, with the action's
+// context and when it happened.
+export function failureDetails(
+  err: ActionRequestError,
+  context: { action: string; forge: string; repo: string; number: number },
+  now: Date = new Date(),
+): FailureDetails {
+  const base = { ...context, at: now.toISOString() };
+  if (err.status === undefined)
+    return { status: null, networkError: err.message, ...base };
+  return { status: err.status, response: err.raw ?? null, ...base };
+}
+
 // What the row and the toast may say for a failure. Only the server's own
 // `message` qualifies, and only if it reads as a sentence: the raw `error`
 // string (internal prefixes, API paths, a swagger URL, JSON) stays in the
@@ -111,8 +131,11 @@ export async function readActionFailure(
   res: Response,
 ): Promise<ActionRequestError> {
   let body: Record<string, unknown> | null = null;
+  let raw: unknown;
   try {
-    body = await res.json();
+    raw = await res.text();
+    body = JSON.parse(raw as string);
+    raw = body;
   } catch {
     body = null;
   }
@@ -125,6 +148,7 @@ export async function readActionFailure(
   const err: ActionRequestError = new Error(text);
   err.status = res.status;
   err.code = code;
+  err.raw = raw;
   (err as Error & { resetsAt?: string }).resetsAt =
     typeof body?.resetsAt === 'string' ? body.resetsAt : undefined;
   return err;
