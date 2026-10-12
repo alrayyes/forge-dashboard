@@ -84,6 +84,10 @@ type Client struct {
 	hooksDeniedRepo map[string]time.Time
 	hooksDenialTTL  time.Duration
 
+	// requiredChecks backs the "required check hasn't reported yet" rule
+	// (#1311).
+	requiredChecks requiredChecks
+
 	// appAuthenticated is true for a Client built via NewAppClient — an
 	// installation token minted and silently refreshed by the Transport
 	// httpClient itself was built with (#620), not a string this Client
@@ -1945,6 +1949,17 @@ func (c *Client) fetchTokenRepos(ctx context.Context, since *time.Time) ([]graph
 	return repos, rateLimit, nil
 }
 
+// repoFrom maps a GraphQL repository onto the dashboard's repo row.
+func repoFrom(fullName string, r graphqlRepo, hasWebhook bool) dashboard.Repo {
+	return dashboard.Repo{
+		Forge:             dashboard.ForgeGitHub,
+		FullName:          fullName,
+		URL:               r.URL,
+		HasWebhook:        hasWebhook,
+		CanManageWebhooks: canManageWebhooks(r.ViewerPermission),
+	}
+}
+
 // trackedRepos keeps the repos the dashboard follows: not archived, not a
 // fork, and ones the credential can write to.
 func trackedRepos(repos []graphqlRepo) []graphqlRepo {
@@ -2002,18 +2017,14 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	}}
 	c.withCheckedCommits(ctx, tracked)
 	var behindChecks []behindCheck
+	var unreported []missingRequiredCheck
 	for _, r := range tracked {
 		fullName := r.Owner.Login + "/" + r.Name
-		result.Repos = append(result.Repos, dashboard.Repo{
-			Forge:             dashboard.ForgeGitHub,
-			FullName:          fullName,
-			URL:               r.URL,
-			HasWebhook:        hasWebhook[fullName],
-			CanManageWebhooks: canManageWebhooks(r.ViewerPermission),
-		})
+		result.Repos = append(result.Repos, repoFrom(fullName, r, hasWebhook[fullName]))
 
 		for _, p := range r.PullRequests.Nodes {
 			result.PullRequests = append(result.PullRequests, mapPullRequest(fullName, p))
+			unreported = appendUnreported(unreported, result.PullRequests, r.Owner.Login, r.Name, p)
 			if ambiguousMergeState(p.MergeStateStatus) {
 				behindChecks = append(behindChecks, behindCheck{
 					prIndex: len(result.PullRequests) - 1,
@@ -2028,6 +2039,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		result.MainBranches = append(result.MainBranches, mainBranchFrom(fullName, r.URL, r.DefaultBranchRef))
 	}
 	c.resolveAmbiguousBehind(ctx, result.PullRequests, behindChecks)
+	c.settleUnreportedRequiredChecks(ctx, result.PullRequests, unreported)
 
 	return result
 }
@@ -2405,8 +2417,10 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 
 	prs := make([]dashboard.PullRequest, 0, len(resp.Repository.PullRequests.Nodes))
 	var behindChecks []behindCheck
+	var unreported []missingRequiredCheck
 	for _, p := range resp.Repository.PullRequests.Nodes {
 		prs = append(prs, mapPullRequest(fullName, p))
+		unreported = appendUnreported(unreported, prs, owner, name, p)
 		if ambiguousMergeState(p.MergeStateStatus) {
 			behindChecks = append(behindChecks, behindCheck{
 				prIndex: len(prs) - 1,
@@ -2418,6 +2432,7 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 		}
 	}
 	c.resolveAmbiguousBehind(ctx, prs, behindChecks)
+	c.settleUnreportedRequiredChecks(ctx, prs, unreported)
 	issues := make([]dashboard.Issue, 0, len(resp.Repository.Issues.Nodes))
 	for _, i := range resp.Repository.Issues.Nodes {
 		issues = append(issues, mapIssue(fullName, i))
