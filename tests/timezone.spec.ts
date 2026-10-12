@@ -69,7 +69,7 @@ function mockExhausted(page: Page, resetsAt: string) {
 async function showResetOnDashboard(page: Page, resetsAt: string) {
   await page.clock.setFixedTime(NOW);
   await mockExhausted(page, resetsAt);
-  await page.goto('/');
+  await page.goto('/pull-requests.html');
 }
 
 const header = (page: Page) => page.locator('#forge-health');

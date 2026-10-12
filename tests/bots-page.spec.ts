@@ -134,7 +134,7 @@ test.describe('Bots page (#1192)', () => {
     page,
   }) => {
     await mockDashboard(page, SNAPSHOT);
-    await page.goto('/');
+    await page.goto('/pull-requests.html');
 
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     await expect(page.locator('#stat-prs')).toHaveText('2');
@@ -146,12 +146,12 @@ test.describe('Bots page (#1192)', () => {
     ).toHaveCount(0);
   });
 
-  test('the nav counts each: Home without bots, Bots on its own, in header and tab bar', async ({
+  test('the nav counts each: Pull requests without bots, Bots on its own, in header and tab bar', async ({
     page,
   }) => {
     await mockDashboard(page, SNAPSHOT);
-    await page.goto('/');
-    await expect(badge(page, 'header', '/')).toHaveText('2');
+    await page.goto('/pull-requests.html');
+    await expect(badge(page, 'header', '/pull-requests.html')).toHaveText('2');
     await expect(badge(page, 'header', '/releases.html')).toHaveText('1');
     await expect(badge(page, 'header', '/bots.html')).toHaveText('4');
 

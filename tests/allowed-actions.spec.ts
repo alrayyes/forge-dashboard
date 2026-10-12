@@ -70,7 +70,9 @@ async function open(page: Page, pr: Record<string, unknown>) {
   );
   // Dependabot and Renovate pull requests are on the Bots page (#1192).
   await page.goto(
-    /^(dependabot|renovate)/.test(String(pr.author)) ? '/bots.html' : '/',
+    /^(dependabot|renovate)/.test(String(pr.author))
+      ? '/bots.html'
+      : '/pull-requests.html',
   );
   await expect(page.locator('#pr-rows .row')).toHaveCount(1);
   return page.locator('#pr-rows .row').first();

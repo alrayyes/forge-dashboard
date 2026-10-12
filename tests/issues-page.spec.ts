@@ -215,7 +215,7 @@ test.describe('issues page (#827)', () => {
           os.map((o) => (o as HTMLOptionElement).value).filter(Boolean),
         );
 
-    await page.goto('/');
+    await page.goto('/pull-requests.html');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     expect(await values('#shared-repo-select')).toEqual([
       'github:alrayyes/pr-only',
@@ -250,7 +250,7 @@ test.describe('issues page (#827)', () => {
     ['desktop', { width: 1280, height: 800 }],
     ['phone', { width: 390, height: 844 }],
   ] as const) {
-    for (const path of ['/', '/issues.html']) {
+    for (const path of ['/pull-requests.html', '/issues.html']) {
       test(`${path} has no axe violations at ${name} width`, async ({
         page,
       }) => {

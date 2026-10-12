@@ -150,7 +150,8 @@ test.describe('confirm step: leaving it', () => {
     await mergeButton(rowOf(page, 0)).click();
     await expect(confirmMerge(rowOf(page, 0))).toBeVisible();
 
-    await page.locator('h1').first().click();
+    // Not the h1: it is the brand link, and that now leaves the page (#1279).
+    await page.locator('body').click({ position: { x: 2, y: 600 } });
 
     await expect(confirmMerge(rowOf(page, 0))).toHaveCount(0);
     await expect(mergeButton(rowOf(page, 0))).toBeVisible();
@@ -243,7 +244,8 @@ test.describe('confirm step: leaving it', () => {
 
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
-    await page.locator('h1').first().click();
+    // Not the h1: it is the brand link, and that now leaves the page (#1279).
+    await page.locator('body').click({ position: { x: 2, y: 600 } });
 
     await expect(
       row.getByRole('button', { name: 'Confirm close pull request?' }),

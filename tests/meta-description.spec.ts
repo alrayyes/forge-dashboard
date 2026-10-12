@@ -13,6 +13,7 @@ const PUBLIC_PAGES = [
 ];
 const SIGNED_IN_PAGES = [
   '/',
+  '/pull-requests.html',
   '/issues.html',
   '/insights.html',
   '/webhooks.html',
