@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.164.0](https://github.com/alrayyes/forge-dashboard/compare/v0.163.0...v0.164.0) (2026-10-12)
+
+
+### Features
+
+* **web:** open on Branches and move pull requests to /pull-requests.html ([#1287](https://github.com/alrayyes/forge-dashboard/issues/1287)) ([229a424](https://github.com/alrayyes/forge-dashboard/commit/229a424890cda7c00a52eab433424b761b3102d3)), closes [#1279](https://github.com/alrayyes/forge-dashboard/issues/1279)
+
 ## [0.163.0](https://github.com/alrayyes/forge-dashboard/compare/v0.162.2...v0.163.0) (2026-10-12)
 
 
