@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.172.1](https://github.com/alrayyes/forge-dashboard/compare/v0.172.0...v0.172.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **web:** say which Dependabot command a copied failure was ([#1342](https://github.com/alrayyes/forge-dashboard/issues/1342)) ([c4c0bde](https://github.com/alrayyes/forge-dashboard/commit/c4c0bdeec2f6c4ccae23ae431f4427e269b042da)), closes [#1323](https://github.com/alrayyes/forge-dashboard/issues/1323)
+
 ## [0.172.0](https://github.com/alrayyes/forge-dashboard/compare/v0.171.0...v0.172.0) (2026-10-12)
 
 
