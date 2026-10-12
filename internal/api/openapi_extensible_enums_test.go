@@ -21,7 +21,7 @@ var (
 	}
 	knownBlockedCodes = []string{
 		"already_up_to_date", "conflict", "not_mergeable", "checks_pending",
-		"checks_failing", "behind", "blocked_by_protection", "stacked",
+		"checks_failing", "behind", "blocked_by_protection", "stacked", "already_requested",
 	}
 )
 
@@ -114,6 +114,7 @@ func TestAllowedActions_OnlyEmitsValuesTheSpecListsAsKnown(t *testing.T) {
 		options(func(pr *dashboard.PullRequest, v bool) { pr.Behind = v }, false, true),
 		options(func(pr *dashboard.PullRequest, v bool) { pr.Draft = v }, false, true),
 		options(func(pr *dashboard.PullRequest, v bool) { pr.Empty = v }, false, true),
+		options(func(pr *dashboard.PullRequest, v bool) { pr.RenovateRebaseRequested = v }, false, true),
 		options(func(pr *dashboard.PullRequest, v *dashboard.StackRef) { pr.StackedOn = v }, nil, &dashboard.StackRef{Number: 1}),
 		options(func(pr *dashboard.PullRequest, v *bool) { pr.AutoMergeEnabled = v }, tri...),
 		options(func(pr *dashboard.PullRequest, v *bool) { pr.AutoMergeAllowed = v }, tri...),

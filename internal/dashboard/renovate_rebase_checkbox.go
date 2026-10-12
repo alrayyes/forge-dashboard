@@ -31,6 +31,15 @@ const (
 // `- [ ] <!-- rebase-check -->If you want to rebase/retry this PR, ...`.
 var rebaseCheckRe = regexp.MustCompile(`\[([ xX])\](\s*<!-- rebase-check -->)`)
 
+// RebaseCheckboxOf says what body holds for the rebase-check box, without
+// changing it. A snapshot uses it to tell that a rebase is already requested
+// (#1349), whether it was asked for here or on the forge.
+func RebaseCheckboxOf(body string) RebaseCheckbox {
+	_, state := TickRebaseCheckbox(body)
+
+	return state
+}
+
 // TickRebaseCheckbox checks Renovate's rebase-check box in body. It returns
 // the new body, changed in that one character only, and what the body held
 // before. A body with the box already checked or missing comes back as is.

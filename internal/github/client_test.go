@@ -3813,3 +3813,136 @@ func TestDisableAutoMerge_GraphQLError_IsReturned(t *testing.T) {
 
 	require.Error(t, client.DisableAutoMerge(t.Context(), "alrayyes", "a", 5))
 }
+
+// The same, from the description in the GraphQL list (#1349).
+func TestFetch_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		body string
+		want bool
+	}{
+		"ticked":   {"- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box", true},
+		"unticked": {"- [ ] <!-- rebase-check -->If you want to rebase/retry this PR, check this box", false},
+		"no box":   {"A person's description", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			node := pullRequestNode("CLEAN")
+			prs := node["pullRequests"].(map[string]any)["nodes"].([]map[string]any)
+			prs[0]["body"] = tc.body
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, reposQueryFixture(node))
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+			require.Len(t, result.PullRequests, 1)
+			assert.Equal(t, tc.want, result.PullRequests[0].RenovateRebaseRequested)
+		})
+	}
+}
+
+// The query asks for the description, since that is where the box is.
+func TestFetch_TheQueryAsksForThePullRequestBody(t *testing.T) {
+	t.Parallel()
+
+	var query string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		if q := readGraphQLRequest(t, r).Query; strings.Contains(q, "pullRequests(states: OPEN") {
+			query = q
+		}
+		writeJSON(t, w, reposQueryFixture(pullRequestNode("CLEAN")))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	assert.Regexp(t, `(?m)^\s+body\s*$`, query)
+}
+
+// The box is read on every path that lists pull requests, not only the full
+// fetch (#1349): a webhook's single-repo refresh would otherwise turn the
+// blocked button back into a live one.
+func TestFetchRepo_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
+	t.Parallel()
+
+	var query string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		if q := readGraphQLRequest(t, r).Query; strings.Contains(q, "pullRequests(") {
+			query = q
+		}
+		node := pullRequestNode("CLEAN")["pullRequests"].(map[string]any)["nodes"].([]map[string]any)[0]
+		node["body"] = "- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box"
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"pullRequests": map[string]any{"nodes": []map[string]any{node}},
+					"issues":       map[string]any{"nodes": []map[string]any{}},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	prs, _, err := github.NewClient("test-token", "", srv.URL).FetchRepo(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+	assert.True(t, prs[0].RenovateRebaseRequested)
+	assert.Regexp(t, `(?m)^\s+body\s*$`, query, "the single-repo query has to ask for the description")
+}
+
+// The unauthenticated REST list reads the description's box too (#1349).
+func TestFetch_NoToken_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/a", "name": "a", "owner": map[string]string{"login": "alrayyes"}},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{
+				"number": 12, "title": "Update dependency foo", "html_url": "https://github.com/alrayyes/a/pull/12",
+				"user":       map[string]string{"login": "renovate[bot]"},
+				"body":       "- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box",
+				"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+				"head": map[string]string{"sha": "cafef00d"},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]string{}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("", "alrayyes", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.True(t, result.PullRequests[0].RenovateRebaseRequested)
+}
