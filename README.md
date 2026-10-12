@@ -826,8 +826,8 @@ leave it. The page still opens when typed into the address bar, and says it is e
 
 The CI status of every tracked repository's default branch is the first thing
 you see: it's the index page, `/`, reached from the **Branches** item, the first
-one in the navigation. The menu runs Branches, Pull requests, Issues, then the
-rest. The item has no count badge, so it always shows. The page reads
+one in the navigation. The menu runs Branches, Pull requests, Releases, Bots, Issues,
+then the rest. The item has no count badge, so it always shows. The page reads
 `GET /api/main-branches`, so a broken main shows up without opening each repo.
 The pull request list is at `/pull-requests.html`. The page used to live at
 `/main-branches.html`, which now redirects to `/`.
@@ -883,8 +883,10 @@ with the time it was last fetched, and so does a forge whose rate-limit budget
 is spent (the refresh skips it until the reset). A repo whose read failed while
 its forge answered keeps its own earlier row the same way. A repo with no
 pipeline on its newest commit, an empty repo, or a Forgejo instance without
-Actions shows `none`. The snapshot updates on each full refresh, not on a
-webhook delivery.
+Actions shows `none`. The snapshot updates on each full refresh, and a webhook
+delivery for a repo (a finished check, say) re-reads that repo's default branch
+at once, so a rerun that passed turns its row green without the next poll. If
+that read fails, the row keeps its earlier state.
 
 ## Issues
 
@@ -956,6 +958,25 @@ Draft pull requests are left out by default. The **Show drafts** toggle in the
 filter bar, off to start with, brings them back, marked "Draft", and its muted
 "N hidden" count says how many are left out. The choice is saved like the other
 filters and goes with every dashboard request, refresh and the live stream.
+
+## Hiding one pull request
+
+A pull request you can't or won't act on yet can be hidden. **More actions** on
+its row has **Hide this pull request**, and **Hide for 7 days** under it. It
+leaves the list, the stat tiles, the quick-filter counts and Insights at once,
+with no confirm step, since it is reversible. Nothing is sent to the forge.
+
+A status message says "Hid PR #123 ‘title’." with an **Undo** button. It stays
+until the next message, and the same restore is in the list below, so it isn't
+lost to a timeout. Once anything is hidden, a **Hidden (N)** button by the list
+header opens that list: repo, number, title, "Hidden until you restore it" or
+"Back in 6 days", and a **Restore** button on each. With none hidden, neither
+shows.
+
+A hide for days ends by itself. A hide is forgotten once the pull request is no
+longer open, while its forge answers. A forge that is rate limited or
+unreachable draws no controls on its rows, so Hide is absent there too until it
+answers again.
 
 ## Webhooks
 
@@ -1202,8 +1223,11 @@ below, with no redirect, so an old bookmark or a browser that cached the earlier
 
 `api/openapi.yaml` is the contract: `GET /healthz` for liveness, `GET /readyz`
 for readiness,
-`GET /api/dashboard` for the signed-in user's aggregated snapshot (or,
-with `?owner=<username>`, one shared with them), `GET /api/main-branches` for
+`GET /api/dashboard` for the aggregated snapshot of the signed-in user (or,
+with `?owner=<username>`, one shared with them; `?includeHidden=true` lists the
+pull requests the user hid, marked `hidden`, and `hiddenPullRequests` counts
+them), `POST /api/pull-requests/hide` and `/unhide` to hide one pull request
+(until restored, or for `days`) and bring it back, `GET /api/main-branches` for
 the CI status of every default branch, `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the
 `PUT` response never echoes a token back, only whether one is now set

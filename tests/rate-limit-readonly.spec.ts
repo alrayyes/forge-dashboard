@@ -241,6 +241,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'More actions' }).click();
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge', exact: true }),
     ).toHaveCount(0);

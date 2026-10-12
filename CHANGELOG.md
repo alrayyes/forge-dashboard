@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.170.0](https://github.com/alrayyes/forge-dashboard/compare/v0.169.1...v0.170.0) (2026-10-12)
+
+
+### Features
+
+* **web:** order the menu Branches, Pull requests, Releases, Bots, Issues ([#1322](https://github.com/alrayyes/forge-dashboard/issues/1322)) ([b46e5f3](https://github.com/alrayyes/forge-dashboard/commit/b46e5f30cf81669e4f591d47d92b8a8be83737d3)), closes [#1321](https://github.com/alrayyes/forge-dashboard/issues/1321)
+
+## [0.169.1](https://github.com/alrayyes/forge-dashboard/compare/v0.169.0...v0.169.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **branches:** re-read a repo's default branch on its webhook delivery ([#1317](https://github.com/alrayyes/forge-dashboard/issues/1317)) ([529bb8b](https://github.com/alrayyes/forge-dashboard/commit/529bb8bad733579f0fbb3932e07ee2994bbf9682))
+
+## [0.169.0](https://github.com/alrayyes/forge-dashboard/compare/v0.168.0...v0.169.0) (2026-10-12)
+
+
+### Features
+
+* **web:** hide one pull request from More actions, with Undo and a Hidden list ([#1319](https://github.com/alrayyes/forge-dashboard/issues/1319)) ([a66c060](https://github.com/alrayyes/forge-dashboard/commit/a66c060511083e5580945f6c0b38273e9996d1ab)), closes [#841](https://github.com/alrayyes/forge-dashboard/issues/841)
+
+## [0.168.0](https://github.com/alrayyes/forge-dashboard/compare/v0.167.1...v0.168.0) (2026-10-12)
+
+
+### Features
+
+* **api:** hide one pull request, with a count and an includeHidden view ([#1312](https://github.com/alrayyes/forge-dashboard/issues/1312)) ([5b9eea7](https://github.com/alrayyes/forge-dashboard/commit/5b9eea7a69218b8adbf67feea44ded69d9a362d6))
+
 ## [0.167.1](https://github.com/alrayyes/forge-dashboard/compare/v0.167.0...v0.167.1) (2026-10-12)
 
 

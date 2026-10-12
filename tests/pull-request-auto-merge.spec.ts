@@ -88,13 +88,18 @@ async function openMoreActions(row: Locator) {
 // for a row with nothing else to offer. What these tests pin is that the
 // menu holds Close and nothing more.
 async function expectMenuHoldsOnlyClose(row: Locator) {
-  // A lone action is drawn directly, with no menu around it (#1139).
-  await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-    0,
-  );
-  await expect(
-    row.getByRole('button', { name: 'Close pull request', exact: true }),
-  ).toBeVisible();
+  // Close is not alone any more: every row also offers Hide (#841), so it
+  // sits in a menu with the two Hide items and nothing else.
+  await row.getByRole('button', { name: 'More actions' }).click();
+  const names = await row
+    .locator('.row-actions-popover')
+    .getByRole('button')
+    .allTextContents();
+  expect(names.map((n) => n.trim())).toEqual([
+    'Close pull request',
+    'Hide this pull request',
+    'Hide for 7 days',
+  ]);
 }
 
 test.describe('pull request Enable auto-merge action', () => {

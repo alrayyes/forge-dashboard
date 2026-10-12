@@ -51,7 +51,7 @@ func newMCPHandler(deps Deps) http.Handler {
 				return nil, dashboardResponse{}, errNoAuthenticatedUser
 			}
 
-			resp, err := resolveDashboardFor(ctx, deps, u, input.Owner, false)
+			resp, err := resolveDashboardFor(ctx, deps, u, input.Owner, boardView{})
 			if err != nil {
 				return nil, dashboardResponse{}, err
 			}

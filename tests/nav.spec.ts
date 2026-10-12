@@ -22,12 +22,15 @@ async function registerAndSignIn(
   await registerViaInvite(page, request, baseURL, username, 'Nav Test User');
 }
 
-// In menu order: Branches, Pull requests, Issues, then the rest (#1279).
+// In menu order: Branches, Pull requests, Releases, Bots, Issues, then the
+// rest (#1279, #1321).
 // `tab` is what the bottom bar's accessible name contains, since its visible
 // word for Pull requests is the shorter "PRs".
 const NAV_PAGES = [
   { path: '/', label: 'Branches', tab: 'Branches' },
   { path: '/pull-requests.html', label: 'Pull requests', tab: 'PRs' },
+  { path: '/releases.html', label: 'Releases', tab: 'Releases' },
+  { path: '/bots.html', label: 'Bots', tab: 'Bots' },
   { path: '/issues.html', label: 'Issues', tab: 'Issues' },
   { path: '/insights.html', label: 'Insights', tab: 'Insights' },
   { path: '/webhooks.html', label: 'Webhooks', tab: 'Webhooks' },
@@ -82,20 +85,93 @@ test.describe('persistent top nav', () => {
     });
   }
 
-  test('the menu runs Branches, Pull requests, Issues, in that order (#1279)', async ({
+  // With something on every page, so no link is left out (#1228): a regular
+  // pull request, a release, a bot's and an issue.
+  async function serveEveryPage(page: Page) {
+    const pr = (number: number, kind: string) => ({
+      forge: 'github',
+      repo: 'alrayyes/forge-dashboard',
+      number,
+      title: `Pull request ${number}`,
+      url: `https://example.com/${number}`,
+      author: 'claude',
+      draft: false,
+      ci: 'success',
+      labels: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mergeStatus: 'mergeable',
+      kind,
+    });
+    await page.route('**/api/dashboard/stream*', (r) => r.abort());
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [
+            pr(1, 'regular'),
+            pr(2, 'release'),
+            pr(3, 'dependency'),
+          ],
+          issues: [],
+          openIssueCount: 1,
+        }),
+      }),
+    );
+  }
+
+  // The order the user asked for (#1321): Branches, Pull requests, Releases,
+  // Bots, then Issues, and the rest after them.
+  const MENU_ORDER = [
+    'Branches',
+    'Pull requests',
+    'Releases',
+    'Bots',
+    'Issues',
+    'Insights',
+    'Webhooks',
+    'Settings',
+  ];
+
+  test('the header menu runs Branches, Pull requests, Releases, Bots, Issues (#1321)', async ({
     page,
-    request,
   }) => {
-    // Issues only shows once there is one, so check the two always-there
-    // links against Insights, which follows Issues.
-    await page.goto('/');
+    await serveEveryPage(page);
+    await page.goto('/settings.html');
+    await expect(page.locator('.app-nav a[href="/issues.html"]')).toBeVisible();
+
     const names = await page
-      .locator('.app-nav a')
+      .locator('.app-nav a[aria-label]')
       .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
-    expect(names[0]).toMatch(/^Branches/);
-    expect(names[1]).toMatch(/^Pull requests/);
-    expect(names.findIndex((n) => /^Insights/.test(n))).toBeGreaterThan(1);
-    void request;
+
+    expect(names.map((n) => n.split(',')[0])).toEqual(MENU_ORDER);
+  });
+
+  test('the phone tab bar runs in the same order (#1321)', async ({ page }) => {
+    await serveEveryPage(page);
+    await page.setViewportSize(MOBILE_VIEWPORT);
+    await page.goto('/settings.html');
+    await expect(
+      page.locator('.bottom-nav a[href="/issues.html"]'),
+    ).toBeVisible();
+
+    const hrefs = await page
+      .locator('.bottom-nav a')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+
+    expect(hrefs).toEqual([
+      '/',
+      '/pull-requests.html',
+      '/releases.html',
+      '/bots.html',
+      '/issues.html',
+      '/insights.html',
+      '/webhooks.html',
+      '/settings.html',
+    ]);
   });
 
   test('/main-branches.html still works: it sends you to the Branches page (#1279)', async ({
