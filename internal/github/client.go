@@ -1949,8 +1949,6 @@ func (c *Client) fetchTokenRepos(ctx context.Context, since *time.Time) ([]graph
 	return repos, rateLimit, nil
 }
 
-// trackedRepos keeps the repos the dashboard follows: not archived, not a
-// fork, and ones the credential can write to.
 // repoFrom maps a GraphQL repository onto the dashboard's repo row.
 func repoFrom(fullName string, r graphqlRepo, hasWebhook bool) dashboard.Repo {
 	return dashboard.Repo{
@@ -1962,6 +1960,8 @@ func repoFrom(fullName string, r graphqlRepo, hasWebhook bool) dashboard.Repo {
 	}
 }
 
+// trackedRepos keeps the repos the dashboard follows: not archived, not a
+// fork, and ones the credential can write to.
 func trackedRepos(repos []graphqlRepo) []graphqlRepo {
 	tracked := make([]graphqlRepo, 0, len(repos))
 	for _, r := range repos {

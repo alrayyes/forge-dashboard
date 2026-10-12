@@ -88,9 +88,12 @@ func (c *Client) settleUnreportedRequiredChecks(ctx context.Context, prs []dashb
 }
 
 // hasUnreportedRequired reports whether the head commit lacks a required
-// context, and whether that could be told at all.
+// context, and whether the answer can be trusted for good. A missing context
+// is missing whatever else failed to load, but "nothing missing" holds only
+// when both places that can require a check (branch protection and rulesets)
+// answered, since the one that didn't might name another.
 func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequiredCheck) (missing, known bool) {
-	required := c.requiredContextNames(ctx, cand)
+	required, answered := c.requiredContextNames(ctx, cand)
 	if len(required) == 0 {
 		return false, false
 	}
@@ -106,7 +109,7 @@ func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequired
 		}
 	}
 
-	return false, true
+	return false, answered
 }
 
 // reportedContexts is every context the head commit has reported: check runs
@@ -118,44 +121,63 @@ func (c *Client) reportedContexts(ctx context.Context, owner, name, sha string) 
 	reported := map[string]bool{}
 
 	runsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
-	slog.Debug("github request", "method", http.MethodGet, "url", runsPath)
-	runs, runsResp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{PerPage: perPage})
-	if err != nil {
-		return nil, asClientError(c.restError(ctx, http.MethodGet, runsPath, err))
-	}
-	c.recordRESTSuccess(ctx, http.MethodGet, runsPath, runsResp)
-	for _, r := range runs.CheckRuns {
-		reported[r.GetName()] = true
+	runOpts := &ghsdk.ListCheckRunsOptions{}
+	runOpts.PerPage = perPage
+	for opts := runOpts; ; {
+		slog.Debug("github request", "method", http.MethodGet, "url", runsPath, "page", opts.Page)
+		runs, resp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, opts)
+		if err != nil {
+			return nil, asClientError(c.restError(ctx, http.MethodGet, runsPath, err))
+		}
+		c.recordRESTSuccess(ctx, http.MethodGet, runsPath, resp)
+		for _, r := range runs.CheckRuns {
+			reported[r.GetName()] = true
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
 
 	statusPath := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
-	slog.Debug("github request", "method", http.MethodGet, "url", statusPath)
-	combined, statusResp, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, nil)
-	if err != nil {
-		return nil, asClientError(c.restError(ctx, http.MethodGet, statusPath, err))
-	}
-	c.recordRESTSuccess(ctx, http.MethodGet, statusPath, statusResp)
-	for _, s := range combined.Statuses {
-		reported[s.GetContext()] = true
+	for opts := (&ghsdk.ListOptions{PerPage: perPage}); ; {
+		slog.Debug("github request", "method", http.MethodGet, "url", statusPath, "page", opts.Page)
+		combined, resp, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, opts)
+		if err != nil {
+			return nil, asClientError(c.restError(ctx, http.MethodGet, statusPath, err))
+		}
+		c.recordRESTSuccess(ctx, http.MethodGet, statusPath, resp)
+		for _, s := range combined.Statuses {
+			reported[s.GetContext()] = true
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
 
 	return reported, nil
 }
 
 // requiredContextNames is the base branch's required contexts, from branch
-// protection and active rulesets. Nothing readable (no admin scope) is none,
-// which leaves the rollup's answer alone.
-func (c *Client) requiredContextNames(ctx context.Context, cand missingRequiredCheck) map[string]bool {
+// protection and active rulesets, and whether both lookups answered. A partial
+// set is used for this poll but not cached, so the next poll asks again; a
+// set that nothing could read (no admin scope) is empty and leaves the
+// combined status's answer alone.
+func (c *Client) requiredContextNames(ctx context.Context, cand missingRequiredCheck) (names map[string]bool, answered bool) {
 	key := cand.owner + "/" + cand.name + "@" + cand.base
-	if names, ok := c.requiredChecks.cachedContexts(key); ok {
-		return names
+	if cached, ok := c.requiredChecks.cachedContexts(key); ok {
+		return cached, true
 	}
-	names := map[string]bool{}
-	c.protectionContexts(ctx, cand.owner, cand.name, cand.base, names)
-	c.rulesetContexts(ctx, cand.owner, cand.name, cand.base, names)
-	c.requiredChecks.storeContexts(key, names)
+	names = map[string]bool{}
+	protKnown := c.protectionContexts(ctx, cand.owner, cand.name, cand.base, names)
+	rulesKnown := c.rulesetContexts(ctx, cand.owner, cand.name, cand.base, names)
+	answered = protKnown && rulesKnown
+	if answered {
+		c.requiredChecks.storeContexts(key, names)
+	}
 
-	return names
+	return names, answered
 }
 
 func (r *requiredChecks) isComplete(sha string) bool {
