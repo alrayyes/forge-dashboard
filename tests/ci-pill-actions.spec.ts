@@ -129,9 +129,10 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
     ).toHaveCount(0);
   });
 
-  test('a lone extra action is shown directly, with no More actions menu', async ({
-    page,
-  }) => {
+  // Every row offers Hide (#841), so Close is no longer alone: it sits in
+  // More actions with the two Hide items. The rule that one action alone is
+  // drawn directly still holds for a row with no Hide, such as a settled one.
+  test('Close sits in More actions beside the Hide items', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await mockDashboard(
       page,
@@ -139,9 +140,10 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
     );
     await page.reload();
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-      0,
-    );
+    await row.getByRole('button', { name: 'More actions' }).click();
+    await expect(
+      row.getByRole('button', { name: 'Hide this pull request' }),
+    ).toBeVisible();
     await row
       .getByRole('button', { name: 'Close pull request', exact: true })
       .click();

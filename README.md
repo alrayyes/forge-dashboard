@@ -953,6 +953,25 @@ filter bar, off to start with, brings them back, marked "Draft", and its muted
 "N hidden" count says how many are left out. The choice is saved like the other
 filters and goes with every dashboard request, refresh and the live stream.
 
+## Hiding one pull request
+
+A pull request you can't or won't act on yet can be hidden. **More actions** on
+its row has **Hide this pull request**, and **Hide for 7 days** under it. It
+leaves the list, the stat tiles, the quick-filter counts and Insights at once,
+with no confirm step, since it is reversible. Nothing is sent to the forge.
+
+A status message says "Hid PR #123 ‘title’." with an **Undo** button. It stays
+until the next message, and the same restore is in the list below, so it isn't
+lost to a timeout. Once anything is hidden, a **Hidden (N)** button by the list
+header opens that list: repo, number, title, "Hidden until you restore it" or
+"Back in 6 days", and a **Restore** button on each. With none hidden, neither
+shows.
+
+A hide for days ends by itself. A hide is forgotten once the pull request is no
+longer open, while its forge answers. A forge that is rate limited or
+unreachable draws no controls on its rows, so Hide is absent there too until it
+answers again.
+
 ## Webhooks
 
 Optional. Without one, the dashboard still refreshes on its own schedule
