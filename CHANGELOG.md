@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.175.1](https://github.com/alrayyes/forge-dashboard/compare/v0.175.0...v0.175.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **api:** let Renovate: Rebase through to a Forgejo pull request ([#1350](https://github.com/alrayyes/forge-dashboard/issues/1350)) ([79b71e5](https://github.com/alrayyes/forge-dashboard/commit/79b71e596df4154ece2a5dc2c7ec68f0af7edd70))
+
 ## [0.175.0](https://github.com/alrayyes/forge-dashboard/compare/v0.174.0...v0.175.0) (2026-10-12)
 
 
