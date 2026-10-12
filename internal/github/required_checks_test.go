@@ -170,6 +170,7 @@ func TestFetch_RequiredStatusContextNotYetReported_IsPending(t *testing.T) {
 // express: protection that fails, and check runs spread over two pages.
 type partialRequiredServer struct {
 	protectionFails atomic.Bool
+	protectionCalls *atomic.Int32
 	protection      []string
 	rulesets        []string
 	pages           [][]string
@@ -209,6 +210,9 @@ func (p *partialRequiredServer) start(t *testing.T) *httptest.Server {
 		}})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
+		if p.protectionCalls != nil {
+			p.protectionCalls.Add(1)
+		}
 		if p.protectionFails.Load() {
 			http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
 
@@ -268,6 +272,7 @@ func TestFetch_RequiredLookupThatFailed_NeverMarksACommitComplete(t *testing.T) 
 	assert.Equal(t, dashboard.CISuccess, first.PullRequests[0].CI, "all the known required checks reported")
 
 	srvData.protectionFails.Store(false)
+	client.ExpirePartialRequiredContexts()
 	second := client.Fetch(t.Context())
 
 	require.Len(t, second.PullRequests, 1)
@@ -286,4 +291,23 @@ func TestFetch_RequiredCheckOnTheSecondPageOfRuns_CountsAsReported(t *testing.T)
 
 	require.Len(t, result.PullRequests, 1)
 	assert.Equal(t, dashboard.CISuccess, result.PullRequests[0].CI)
+}
+
+// Branch protection that can't be read (no admin scope) must not be asked
+// again on every poll for every blocked pull request: a partial answer is
+// remembered briefly, just never as a reason to call a commit complete.
+func TestFetch_UnreadableProtection_IsNotAskedAgainOnTheNextPoll(t *testing.T) {
+	t.Parallel()
+
+	var protectionCalls atomic.Int32
+	srvData := &partialRequiredServer{protection: []string{"check"}, rulesets: []string{"check"}, pages: [][]string{{"check"}}}
+	srvData.protectionFails.Store(true)
+	srvData.protectionCalls = &protectionCalls
+	srv := srvData.start(t)
+	client := github.NewClient("test-token", "", srv.URL)
+
+	client.Fetch(t.Context())
+	client.Fetch(t.Context())
+
+	assert.EqualValues(t, 1, protectionCalls.Load())
 }

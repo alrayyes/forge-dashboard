@@ -17,6 +17,12 @@ import (
 // them on every poll.
 const requiredContextsTTL = 5 * time.Minute
 
+// partialContextsTTL is how long a set a failed lookup left partial is reused.
+// Short, so a lookup that was only flaky is retried soon; long enough that a
+// repo whose protection can't be read (no admin scope) isn't asked about for
+// every blocked pull request on every poll.
+const partialContextsTTL = time.Minute
+
 // requiredChecks remembers what the "required check hasn't reported yet" rule
 // has learned (#1311), so a refresh doesn't repeat the same lookups.
 type requiredChecks struct {
@@ -29,8 +35,11 @@ type requiredChecks struct {
 }
 
 type requiredContexts struct {
-	names   map[string]bool
-	fetched time.Time
+	names map[string]bool
+	// answered is false when a lookup failed, so names may be partial. Such a
+	// set is reused only briefly, and never decides a commit is complete.
+	answered bool
+	fetched  time.Time
 }
 
 // missingRequiredCheck is one pull request whose rollup says SUCCESS while
@@ -161,21 +170,19 @@ func (c *Client) reportedContexts(ctx context.Context, owner, name, sha string) 
 
 // requiredContextNames is the base branch's required contexts, from branch
 // protection and active rulesets, and whether both lookups answered. A partial
-// set is used for this poll but not cached, so the next poll asks again; a
-// set that nothing could read (no admin scope) is empty and leaves the
-// combined status's answer alone.
+// set is cached too, but only for partialContextsTTL, and answered stays false
+// so it never marks a commit complete; a set that nothing could read (no admin
+// scope) is empty and leaves the combined status's answer alone.
 func (c *Client) requiredContextNames(ctx context.Context, cand missingRequiredCheck) (names map[string]bool, answered bool) {
 	key := cand.owner + "/" + cand.name + "@" + cand.base
-	if cached, ok := c.requiredChecks.cachedContexts(key); ok {
-		return cached, true
+	if cached, answered, ok := c.requiredChecks.cachedContexts(key); ok {
+		return cached, answered
 	}
 	names = map[string]bool{}
 	protKnown := c.protectionContexts(ctx, cand.owner, cand.name, cand.base, names)
 	rulesKnown := c.rulesetContexts(ctx, cand.owner, cand.name, cand.base, names)
 	answered = protKnown && rulesKnown
-	if answered {
-		c.requiredChecks.storeContexts(key, names)
-	}
+	c.requiredChecks.storeContexts(key, names, answered)
 
 	return names, answered
 }
@@ -197,22 +204,29 @@ func (r *requiredChecks) markComplete(sha string) {
 	r.complete[sha] = struct{}{}
 }
 
-func (r *requiredChecks) cachedContexts(key string) (map[string]bool, bool) {
+func (r *requiredChecks) cachedContexts(key string) (names map[string]bool, answered, ok bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	entry, ok := r.contexts[key]
-	if !ok || time.Since(entry.fetched) > requiredContextsTTL {
-		return nil, false
+	entry, found := r.contexts[key]
+	if !found {
+		return nil, false, false
+	}
+	ttl := requiredContextsTTL
+	if !entry.answered {
+		ttl = partialContextsTTL
+	}
+	if time.Since(entry.fetched) > ttl {
+		return nil, false, false
 	}
 
-	return entry.names, true
+	return entry.names, entry.answered, true
 }
 
-func (r *requiredChecks) storeContexts(key string, names map[string]bool) {
+func (r *requiredChecks) storeContexts(key string, names map[string]bool, answered bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.contexts == nil {
 		r.contexts = map[string]requiredContexts{}
 	}
-	r.contexts[key] = requiredContexts{names: names, fetched: time.Now()}
+	r.contexts[key] = requiredContexts{names: names, answered: answered, fetched: time.Now()}
 }
