@@ -8,9 +8,8 @@ import (
 	"sync"
 	"time"
 
-	ghsdk "github.com/google/go-github/v75/github"
-
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	ghsdk "github.com/google/go-github/v75/github"
 )
 
 // requiredContextsTTL is how long a branch's required contexts are reused.
