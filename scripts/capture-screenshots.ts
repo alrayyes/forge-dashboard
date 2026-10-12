@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Regenerates docs/screenshots/<page>-{light,dark}.png for the dashboard,
-// issues, insights, webhooks, settings, admin and login pages (the footer
-// pages are left out) against a real
+// Regenerates docs/screenshots/<page>-{light,dark}.png for every page in the
+// menu (branches, pull requests, issues, releases, bots, insights, webhooks,
+// settings, admin) and the login page (the footer pages are left out) against a real
 // build of the binary, run by the release workflow's screenshots job —
 // not a Playwright *test* (playwright.config.js only looks in tests/),
 // so the main e2e suite never picks this up.
@@ -80,7 +80,60 @@ const SNAPSHOT = {
       createdAt: daysAgo(1),
       updatedAt: daysAgo(1),
     },
+    {
+      forge: 'github',
+      repo: 'alrayyes/forge-dashboard',
+      number: 143,
+      title: 'chore(main): release 0.9.0',
+      url: 'https://github.com/alrayyes/forge-dashboard/pull/143',
+      author: 'release-please[bot]',
+      ci: 'success',
+      kind: 'release',
+      labels: [{ name: 'autorelease: pending', color: 'ededed' }],
+      createdAt: daysAgo(0.5),
+      updatedAt: daysAgo(0.2),
+    },
+    {
+      forge: 'forgejo',
+      repo: 'sandbox/vps-docker',
+      number: 60,
+      title: 'chore(main): release 1.4.2',
+      url: 'https://git.example.com/sandbox/vps-docker/pulls/60',
+      author: 'release-please[bot]',
+      ci: 'pending',
+      kind: 'release',
+      labels: [],
+      createdAt: daysAgo(0.3),
+      updatedAt: daysAgo(0.1),
+    },
+    {
+      forge: 'github',
+      repo: 'example-org/api-gateway',
+      number: 88,
+      title: 'chore(deps): update dependency vite to v8.1.0',
+      url: 'https://github.com/example-org/api-gateway/pull/88',
+      author: 'renovate[bot]',
+      ci: 'success',
+      kind: 'dependency',
+      labels: [{ name: 'dependencies', color: '0366d6' }],
+      createdAt: daysAgo(1.2),
+      updatedAt: daysAgo(1.2),
+    },
+    {
+      forge: 'github',
+      repo: 'example-org/docs-site',
+      number: 41,
+      title: 'Bump astro from 5.2.0 to 5.3.1',
+      url: 'https://github.com/example-org/docs-site/pull/41',
+      author: 'dependabot[bot]',
+      ci: 'failure',
+      kind: 'dependency',
+      labels: [{ name: 'dependencies', color: '0366d6' }],
+      createdAt: daysAgo(2.4),
+      updatedAt: daysAgo(2.4),
+    },
   ],
+  openIssueCount: 3,
   issues: [
     {
       forge: 'github',
@@ -116,6 +169,61 @@ const SNAPSHOT = {
       updatedAt: daysAgo(6),
     },
   ],
+};
+
+// The Branches page reads its own endpoint, GET /api/main-branches.
+function mainBranch(
+  forge: 'github' | 'forgejo',
+  fullName: string,
+  status: 'failed' | 'running' | 'passed' | 'none',
+  branch = 'main',
+) {
+  const noCommit = status === 'none';
+  const minutes = (n: number) =>
+    new Date(Date.now() - n * 60_000).toISOString();
+  return {
+    forge,
+    fullName,
+    url: `https://example.com/${fullName}`,
+    branch,
+    status,
+    commit: noCommit
+      ? null
+      : {
+          sha: 'd98f3c2',
+          subject: `fix: handle an empty response in ${fullName.split('/')[1]}`,
+          author: 'demo-user',
+          committedAt: minutes(45),
+        },
+    failingJobs: status === 'failed' ? ['lint', 'e2e-playwright'] : [],
+    finishedAt: status === 'running' || noCommit ? null : minutes(12),
+    durationSeconds: status === 'running' || noCommit ? null : 252,
+    runUrl: `https://example.com/${fullName}/actions/runs/1`,
+    stale: false,
+    staleSince: null,
+  };
+}
+
+const MAIN_BRANCH_ROWS = [
+  mainBranch('github', 'example-org/api-gateway', 'failed'),
+  mainBranch('forgejo', 'sandbox/dotfiles', 'failed', 'master'),
+  mainBranch('github', 'alrayyes/forge-dashboard', 'running'),
+  mainBranch('github', 'example-org/wiki', 'passed'),
+  mainBranch('github', 'example-org/docs-site', 'passed'),
+  mainBranch('forgejo', 'sandbox/vps-docker', 'passed'),
+  mainBranch('forgejo', 'sandbox/scratch', 'none', 'master'),
+];
+
+const MAIN_BRANCHES = {
+  generatedAt: new Date().toISOString(),
+  counts: {
+    failed: 2,
+    running: 1,
+    passed: 3,
+    none: 1,
+    total: MAIN_BRANCH_ROWS.length,
+  },
+  branches: MAIN_BRANCH_ROWS,
 };
 
 // Fixture repos for the webhooks page (/api/dashboard's `repos` list).
@@ -160,9 +268,21 @@ const REPOS = [
 
 // One entry per page. `ready` only matches once the page shows real
 // content, so a spinner or an error state is never shot.
+// In menu order, which is the order the README lists them in.
 const PAGES = [
-  { name: 'dashboard', url: '/', ready: '#stat-prs:not(:text("–"))' },
+  {
+    name: 'branches',
+    url: '/',
+    ready: '[data-testid="main-branch-row"]',
+  },
+  {
+    name: 'pull-requests',
+    url: '/pull-requests.html',
+    ready: '#stat-prs:not(:text("–"))',
+  },
   { name: 'issues', url: '/issues.html', ready: 'a[href*="issues/145"]' },
+  { name: 'releases', url: '/releases.html', ready: '#pr-rows .row' },
+  { name: 'bots', url: '/bots.html', ready: '#pr-rows .row' },
   { name: 'insights', url: '/insights.html', ready: '.insights-header h1' },
   { name: 'webhooks', url: '/webhooks.html', ready: '#webhooks-rows tr' },
   { name: 'settings', url: '/settings.html', ready: 'h1' },
@@ -212,6 +332,13 @@ async function main() {
   // The live stream is aborted so nothing replaces the fixture after the
   // page loads.
   await page.route('**/api/dashboard/stream', (route) => route.abort());
+  await page.route('**/api/main-branches', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MAIN_BRANCHES),
+    }),
+  );
   await page.route('**/api/dashboard*', (route) =>
     route.fulfill({
       status: 200,

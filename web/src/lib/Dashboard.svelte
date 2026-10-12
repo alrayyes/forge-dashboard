@@ -1945,6 +1945,15 @@
       (e) => {
         const armKey = confirmArm.armedKey();
         if (!armKey || inArmedGroup(e.target)) return;
+        // The second click of a double-click on Merge or Close lands where
+        // the row has just shifted to: the CI pill, say. It isn't a decision
+        // to leave, so it neither disarms nor reaches what it landed on
+        // (#1286).
+        if (confirmArm.guardActive(armKey) && e.detail !== 1) {
+          e.stopPropagation();
+          e.preventDefault();
+          return;
+        }
         setTimeout(() => confirmArm.disarm("outside", armKey), 0);
       },
       true,
@@ -5037,6 +5046,8 @@
       }
     }
 
+    const GITHUB_STATUS_PAGE = "https://www.githubstatus.com/";
+
     function renderUnreachableBanner() {
       const existing = document.getElementById("unreachable-banner");
       const readOnlyByLimit = new Set(
@@ -5079,6 +5090,23 @@
         );
         text.appendChild(document.createTextNode(` ${unreachableCause(f)}`));
         row.appendChild(text);
+        // GitHub's own status page says whether the fault is theirs. A
+        // Forgejo instance is self-hosted, so it has none to link (#1301).
+        if (f.forge === "github") {
+          const status = el(
+            "a",
+            "unreachable-banner-retry unreachable-banner-link",
+            "GitHub status",
+          ) as HTMLAnchorElement;
+          status.href = GITHUB_STATUS_PAGE;
+          status.target = "_blank";
+          status.rel = "noopener noreferrer";
+          status.setAttribute(
+            "aria-label",
+            "GitHub status (opens in a new tab)",
+          );
+          row.appendChild(status);
+        }
         const retry = buttonEl("unreachable-banner-retry", "Retry");
         retry.type = "button";
         retry.addEventListener("click", () => forceRefreshButton?.click());

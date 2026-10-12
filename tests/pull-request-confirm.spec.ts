@@ -390,6 +390,10 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await expect(confirmMerge(row)).toBeVisible();
     await page.waitForTimeout(200);
     expect(calls).toEqual([]);
+    // The confirm group shifts the row, and the second click lands on the CI
+    // pill beside it (#1286): it must neither disarm the row nor open the
+    // pipeline.
+    await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 
   test('a double-click on Close arms but does not close', async ({ page }) => {
