@@ -4219,6 +4219,57 @@ components:
           type: string
           format: date-time
 
+    NavCount:
+      type: object
+      required: [total, failed]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: How many items the page lists.
+        failed:
+          type: integer
+          minimum: 0
+          description: |
+            How many of them fail: a pull request whose CI is failing, or a
+            default branch whose pipeline is. An item with no pipeline counts
+            in `total` only.
+
+    NavIssueCount:
+      type: object
+      required: [total]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: |
+            How many open issues are real work, the same number as
+            `openIssueCount`. Issues have no failing state, so there is no
+            `failed`.
+
+    NavCounts:
+      type: object
+      description: |
+        The numbers behind the navigation badges (#1315), counted from the
+        same lists the response carries, so they match each page: pull
+        requests after ignored repos and drafts are left out, split by `kind`
+        (release pull requests under `releases`, Dependabot and Renovate
+        under `bots`, the rest under `pullRequests`). Always present, with
+        zeros when there is nothing. A client hides a page's whole nav item at
+        zero total, and its red failed number at zero failed.
+      required: [branches, pullRequests, issues, releases, bots]
+      properties:
+        branches:
+          $ref: "#/components/schemas/NavCount"
+        pullRequests:
+          $ref: "#/components/schemas/NavCount"
+        issues:
+          $ref: "#/components/schemas/NavIssueCount"
+        releases:
+          $ref: "#/components/schemas/NavCount"
+        bots:
+          $ref: "#/components/schemas/NavCount"
+
     Dashboard:
       type: object
       required:
@@ -4228,6 +4279,7 @@ components:
           pullRequests,
           issues,
           openIssueCount,
+          navCounts,
           repos,
           hiddenDrafts,
           autoMerged,
@@ -4260,6 +4312,8 @@ components:
           description: |
             How many of `issues` are real work: all of them except the
             `housekeeping` ones. What the Issues badge shows.
+        navCounts:
+          $ref: "#/components/schemas/NavCounts"
         generatedAt:
           type: string
           format: date-time
