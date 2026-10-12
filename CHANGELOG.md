@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.165.0](https://github.com/alrayyes/forge-dashboard/compare/v0.164.0...v0.165.0) (2026-10-12)
+
+
+### Features
+
+* **web:** link GitHub's status page from the unreachable banner ([#1302](https://github.com/alrayyes/forge-dashboard/issues/1302)) ([fc5b954](https://github.com/alrayyes/forge-dashboard/commit/fc5b954f51482790e99d9b0c6064756c7ac9e881)), closes [#1301](https://github.com/alrayyes/forge-dashboard/issues/1301)
+
+
+### Bug Fixes
+
+* **web:** the second click of a double-click on Merge no longer disarms the row ([#1300](https://github.com/alrayyes/forge-dashboard/issues/1300)) ([af89231](https://github.com/alrayyes/forge-dashboard/commit/af89231680150104067505eb27822c8e54653737)), closes [#1286](https://github.com/alrayyes/forge-dashboard/issues/1286)
+
 ## [0.164.0](https://github.com/alrayyes/forge-dashboard/compare/v0.163.0...v0.164.0) (2026-10-12)
 
 
