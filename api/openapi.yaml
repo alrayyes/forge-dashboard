@@ -1354,6 +1354,84 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
+  /api/pull-requests/hide:
+    post:
+      operationId: hidePullRequest
+      summary: Hide one pull request from the signed-in user's dashboard
+      description: |
+        Reversible, not destructive, like ignoring a repo: nothing is sent to
+        the forge. A hidden pull request leaves `pullRequests` in
+        GET /api/dashboard and everything counted from it, and is counted in
+        `hiddenPullRequests` instead. It stays listed for
+        `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
+
+        With `days`, the hide ends by itself that many days from now. Without
+        it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+        A repeat call replaces the earlier choice (hide until restored, then
+        hide for 7 days, ends with the 7 days). The server forgets the record
+        once the pull request is no longer open, so the list never grows
+        without end. The pull request need not be on the board yet: hiding
+        one the user can't see is still a 204.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestHideRequest"
+      responses:
+        "204":
+          description: The pull request is hidden (or already was).
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", `number` wasn't positive, or `days` was outside
+            1 to 365.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/pull-requests/unhide:
+    post:
+      operationId: unhidePullRequest
+      summary: Bring a hidden pull request back onto the signed-in user's dashboard
+      description: |
+        The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+        pull request that isn't hidden is a 204 too.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestActionRequest"
+      responses:
+        "204":
+          description: The pull request is no longer hidden.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", or `number` wasn't positive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/pull-requests/update-branch:
     post:
       operationId: updatePullRequestBranch
@@ -2265,6 +2343,7 @@ paths:
             type: string
           description: A username that has shared their dashboard with the caller. Defaults to the caller's own.
         - $ref: "#/components/parameters/QueryIncludeDrafts"
+        - $ref: "#/components/parameters/QueryIncludeHidden"
       security: [{ bearerAuth: [] }]
       responses:
         "200":
@@ -2317,6 +2396,7 @@ paths:
       tags: [dashboard]
       parameters:
         - $ref: "#/components/parameters/QueryIncludeDrafts"
+        - $ref: "#/components/parameters/QueryIncludeHidden"
       security: [{ bearerAuth: [] }]
       responses:
         "200":
@@ -2369,6 +2449,7 @@ paths:
       tags: [dashboard]
       parameters:
         - $ref: "#/components/parameters/QueryIncludeDrafts"
+        - $ref: "#/components/parameters/QueryIncludeHidden"
       security: [{ bearerAuth: [] }]
       responses:
         "200":
@@ -2644,6 +2725,21 @@ components:
       required: true
       schema:
         type: string
+
+    QueryIncludeHidden:
+      name: includeHidden
+      in: query
+      required: false
+      description: |
+        Whether pull requests the user hid (`POST /api/pull-requests/hide`)
+        are in `pullRequests`, marked `hidden: true`. Defaults to `false`: a
+        hidden pull request is left out and counted in the response's
+        `hiddenPullRequests`. A client lists the hidden ones, to offer a
+        Restore, by asking with `true`. The stream and the refresh endpoint
+        take the same parameter.
+      schema:
+        type: boolean
+        default: false
 
     QueryIncludeDrafts:
       name: includeDrafts
@@ -3412,6 +3508,30 @@ components:
           maximum: 2147483647
           description: Matching a PullRequest.number from GET /api/dashboard.
 
+    PullRequestHideRequest:
+      type: object
+      required: [forge, fullName, number]
+      description: |
+        Which pull request to hide, and for how long. Without `days` it stays
+        hidden until it is restored.
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          maxLength: 255
+          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+        number:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Matching a PullRequest.number from GET /api/dashboard.
+        days:
+          type: integer
+          minimum: 1
+          maximum: 365
+          description: Hide for this many days, then show it again on its own.
+
     PullRequestDependabotActionRequest:
       type: object
       required: [forge, fullName, number, action]
@@ -3888,6 +4008,18 @@ components:
             flight can still stop an offered action.
         autoMerge:
           $ref: "#/components/schemas/AutoMergeStatus"
+        hidden:
+          type: boolean
+          description: |
+            True on a pull request the user hid. Only present when the request
+            set `includeHidden=true`: without it a hidden pull request isn't
+            in the list at all.
+        hiddenUntil:
+          type: string
+          format: date-time
+          description: |
+            When a hide for a number of days ends. Absent for a pull request
+            hidden until it is restored, and for one that isn't hidden.
 
         readyToMerge:
           type: boolean
@@ -4335,6 +4467,14 @@ components:
             a client can render "N hidden" without a special case. Drafts
             in a repo the account ignores aren't counted, since none of
             that repo's pull requests show.
+        hiddenPullRequests:
+          type: integer
+          minimum: 0
+          description: |
+            How many pull requests the user hid that are still open and not
+            expired. Always present, so a client can render "Hidden (N)"
+            without a special case. With `includeHidden=true` they are in
+            `pullRequests`, marked `hidden`, and this still counts them.
         forges:
           type: array
           items:
