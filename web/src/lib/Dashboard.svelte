@@ -259,6 +259,11 @@
   // state" for the same principle applied to a goroutine instead of a
   // browser tab.
   function initDashboard() {
+    // Set once the page is torn down. A client-side move from Releases to Home
+    // destroys this component, but the code below finds its elements by id, so
+    // anything still running would draw this view's pull requests onto the
+    // next page (#1259).
+    let destroyed = false;
     // How long to wait between reads of the snapshot. The server says so in
     // every snapshot (readIntervalSeconds, #809), so the page keeps no
     // interval of its own; this is only the wait before the first answer
@@ -5287,7 +5292,7 @@
       scheduleRateLimitReset();
     }
 
-    setInterval(() => {
+    const tickTimer = setInterval(() => {
       tickRefreshedAt();
       feedbackUI.tick();
       for (const el of document.querySelectorAll<HTMLElement>(".queued-resets"))
@@ -5298,6 +5303,7 @@
     }, 1000);
 
     function showError(message: string) {
+      if (destroyed) return;
       document.getElementById("error-banner")?.remove();
       const banner = el("div", "error-banner", message);
       banner.id = "error-banner";
@@ -5763,6 +5769,7 @@
       userAsked = false,
       startedSeq?: number,
     ) {
+      if (destroyed) return;
       // A refresh answer can land after a pushed snapshot that is newer than
       // it, and would put back what the push already moved on from, such as
       // a request drawn as queued again after it expired (#1124). An equal
@@ -6008,8 +6015,13 @@
     });
 
     return () => {
+      destroyed = true;
       stopTimezone();
       document.removeEventListener("keydown", onSlashShortcut);
+      clearTimeout(pollTimer);
+      clearInterval(tickTimer);
+      window.clearTimeout(rateLimitResetTimer);
+      eventSource?.close();
     };
   }
 </script>

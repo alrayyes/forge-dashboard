@@ -269,6 +269,30 @@ test.describe('Main branches page (#1224)', () => {
     ).toHaveCount(0);
   });
 
+  test('the repo and View run links open in a new tab and say so (#1266)', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await page.goto('/main-branches.html');
+    const failed = rows(page).first();
+
+    for (const link of [
+      failed.locator('a.mb-repo'),
+      failed.getByRole('link', { name: /View run/ }),
+    ]) {
+      await expect(link).toHaveAttribute('target', '_blank');
+      await expect(link).toHaveAttribute('rel', /noopener/);
+      await expect(link).toHaveAccessibleName(/opens in a new tab/);
+    }
+    // The name still carries the words on screen (WCAG 2.5.3).
+    await expect(failed.locator('a.mb-repo')).toHaveAccessibleName(
+      /acme\/ingress-controller/,
+    );
+    await expect(
+      failed.getByRole('link', { name: /View run/ }),
+    ).toHaveAccessibleName(/^View run/);
+  });
+
   test('a repo with no pipeline says no run was found and has no commit to show', async ({
     page,
   }) => {

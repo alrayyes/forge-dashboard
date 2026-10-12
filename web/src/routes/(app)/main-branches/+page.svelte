@@ -561,7 +561,14 @@
                     </svg>
                     {STATUS_LABEL[b.status]}
                   </span>
-                  <a class="mb-repo" href={b.url}>{b.fullName}</a>
+                  <a
+                    class="mb-repo"
+                    href={b.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="{b.fullName} (opens in a new tab)"
+                    >{b.fullName}</a
+                  >
                   <span class="mb-chip mb-forge"
                     >{FORGE_LABEL[b.forge] ?? b.forge}</span
                   >
@@ -587,7 +594,10 @@
                   <a
                     class="mb-action"
                     href={b.runUrl}
-                    aria-label="View run for {b.fullName}">View run</a
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="View run for {b.fullName} (opens in a new tab)"
+                    >View run</a
                   >
                   {#if b.status === "failed" && b.failingJobs.length > 0}
                     <button
