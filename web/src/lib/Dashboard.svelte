@@ -453,32 +453,11 @@
       return button.getAttribute("aria-disabled") === "true";
     }
 
-    // Used by each board's own small count next to its heading — the
-    // full phrase reads fine at that size. The top stat tile below gets
-    // its own, more compact treatment: shownCountText would wrap a 26px
-    // bold number onto two lines.
+    // The one line that says how many rows show: the total when nothing is
+    // filtered, "Showing 1 of 2" when a filter narrows it (#1325). The nav
+    // icons carry the totals, so the page has no tiles repeating them.
     function shownCountText(shown: number, total: number): string {
-      return shown === total ? `${total} open` : `${shown} of ${total} shown`;
-    }
-
-    // idPrefix ('pr'/'issue') -> the top stat tile for that entity type.
-    const STAT_TILE_IDS: Record<string, string> = {
-      pr: "stat-prs",
-      issue: "stat-issues",
-    };
-
-    // The stat tile's headline number is the filtered count — what's
-    // actually visible in the board below it right now — with a small
-    // muted "/ total" only when a filter is actually narrowing it, so an
-    // unfiltered tile looks exactly as it always has.
-    function renderStatTile(tileId: string, shown: number, total: number) {
-      const tile = document.getElementById(tileId);
-      if (!tile) return;
-      tile.innerHTML = "";
-      tile.appendChild(document.createTextNode(String(shown)));
-      if (shown !== total) {
-        tile.appendChild(el("span", "n-total", ` / ${total}`));
-      }
+      return shown === total ? `${total} open` : `Showing ${shown} of ${total}`;
     }
 
     // ---- row rendering ----
@@ -4230,22 +4209,6 @@
       renderBoth();
     }
 
-    // Clicking the "CI failing" stat tile jumps to the
-    // pull requests board filtered to that status. Status has no
-    // equivalent on the issues board, so this only ever re-renders the
-    // Pull Requests board.
-    function handleStatusClick(status: string) {
-      const next = prBoard.toggleStatus?.(status);
-      const select = document.querySelector<HTMLSelectElement>(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
-      );
-      if (select && next !== undefined) select.value = next;
-      const section = document.querySelector(
-        'section[aria-label="Open pull requests"]',
-      );
-      section?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-
     // ---- board state + render ----
     // Each board (pull requests, issues) owns its own items, pagination,
     // and — for the one field with no equivalent on the other entity
@@ -4262,7 +4225,6 @@
       replaceItems: (items: (PullRequestItem | IssueItem)[]) => void;
       render: () => void;
       resetPage: () => void;
-      toggleStatus?: (value: string) => string;
       // Show row (#723): the item with this key, if the board holds it, and
       // a move to the page it sits on under the current filters.
       find: (key: string) => (PullRequestItem | IssueItem) | undefined;
@@ -4516,11 +4478,6 @@
             visible.length,
             state.items.length,
           );
-        renderStatTile(
-          STAT_TILE_IDS[idPrefix],
-          visible.length,
-          state.items.length,
-        );
         // Every state change this app makes ends in a render() on one
         // or both boards (directly, or via renderBoth()) —
         // updateClearFiltersButton is declared later in this same
@@ -4613,17 +4570,6 @@
           render();
           return page;
         },
-        toggleStatus: isPR
-          ? (value: string) => {
-              onUserChange?.();
-              const next = extraState.status === value ? "" : value;
-              extraState.status = next;
-              state.page = 1;
-              Filters.saveState(sharedState);
-              render();
-              return next;
-            }
-          : undefined,
       };
     }
 
@@ -4702,11 +4648,6 @@
       ?.addEventListener("close", () => {
         setTimeout(reconcilePRs, 0);
       });
-
-    const statFailingTile = document.getElementById("stat-failing-tile");
-    statFailingTile?.addEventListener("click", () => {
-      handleStatusClick("failure");
-    });
 
     // The shared bar's own controls (forge, group-by, repo, title,
     // author, label, created, updated) apply to both boards at once — a
@@ -5223,8 +5164,8 @@
     // triggers) until the forge's own reset window passes — that's
     // already surfaced per-row via proactiveActionLockReason, but easy to
     // miss buried in a board below the fold. This mirrors it at the top
-    // of the page, with the same critical prominence as the "CI failing"
-    // stat tile, so it's visible at a glance.
+    // of the page, with the same critical prominence as the nav's red failed
+    // count, so it's visible at a glance.
     // One row per forge that went read-only (#755), and one per budget that is
     // merely running low.
     type RateLimitAlert =
@@ -5375,9 +5316,14 @@
         row.appendChild(retry);
         banner.appendChild(row);
       }
+      // Above the filter bar, the first thing on the page after the
+      // connection line (#1325: the stat tiles used to be the anchor).
       document
-        .querySelector(".stats")
-        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
+        .querySelector(".filter-bar")
+        ?.parentElement?.insertBefore(
+          banner,
+          document.querySelector(".filter-bar"),
+        );
     }
 
     // Same rounding/format as Insights' own countdown (#361) — kept as a
@@ -5447,9 +5393,14 @@
       }
       if (rateLimitAlerts.some((a) => a.kind === "readonly"))
         banner.appendChild(stillWorksDisclosure());
+      // Above the filter bar, the first thing on the page after the
+      // connection line (#1325: the stat tiles used to be the anchor).
       document
-        .querySelector(".stats")
-        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
+        .querySelector(".filter-bar")
+        ?.parentElement?.insertBefore(
+          banner,
+          document.querySelector(".filter-bar"),
+        );
     }
 
     // Say what is off, not just that something is. Which actions need which
@@ -5602,9 +5553,14 @@
       // before, despite being the one place a failed write to a forge
       // surfaces.
       banner.setAttribute("role", "alert");
+      // Above the filter bar, the first thing on the page after the
+      // connection line (#1325: the stat tiles used to be the anchor).
       document
-        .querySelector(".stats")
-        ?.parentElement?.insertBefore(banner, document.querySelector(".stats"));
+        .querySelector(".filter-bar")
+        ?.parentElement?.insertBefore(
+          banner,
+          document.querySelector(".filter-bar"),
+        );
     }
 
     function clearError() {
@@ -6145,10 +6101,6 @@
         sharedControlsRestored = true;
         syncSharedControlsToState();
       }
-      // Each board's own render() sets its stat tile's text too (the
-      // same filtered-vs-total wording its own count already uses), so
-      // the tile never disagrees with the board sitting right below it.
-      //
       // #212, #710: ingestPRs compares this against what the board shows
       // and either updates rows in place or holds the change behind the
       // updates bar — see reconcilePRs.
@@ -6160,22 +6112,6 @@
       if (botChanged.size > 0) keepFocusAcross(renderPRBoard);
       if (view === "issues") ingestIssues(issues, userAsked);
       else issueBoard.setItems(issues);
-
-      const failingCount = prs.filter((p) => p.ci === "failure").length;
-      const statFailing = document.getElementById("stat-failing");
-      if (statFailing) statFailing.textContent = String(failingCount);
-      // Red only once there's actually something failing — zero is
-      // good news, not a tile that reads as an alarm nobody needs to
-      // act on — and green, not just neutral, since zero failing is
-      // itself the positive signal a CI status tile exists to show.
-      statFailingTile?.classList.toggle("critical", failingCount > 0);
-      statFailingTile?.classList.toggle("ok", failingCount === 0);
-      const statRepos = document.getElementById("stat-repos");
-      if (statRepos) {
-        statRepos.textContent = String(
-          (data.forges || []).reduce((sum, f) => sum + (f.repoCount || 0), 0),
-        );
-      }
     }
 
     // Reused by refresh() below and by the WebMCP tool further down --
@@ -6428,42 +6364,6 @@
       >
     </button>
   </div>
-  <div class="stats">
-    {#if pullsView}
-      <div class="stat">
-        <div class="n" id="stat-prs">&ndash;</div>
-        <div class="label">
-          {view === "releases"
-            ? "Release pull requests"
-            : view === "bots"
-              ? "Bot pull requests"
-              : "Open pull requests"}
-        </div>
-      </div>
-      <button
-        type="button"
-        class="stat"
-        id="stat-failing-tile"
-        aria-describedby="stat-failing-hint"
-      >
-        <div class="n" id="stat-failing">&ndash;</div>
-        <div class="label">CI failing</div>
-        <span class="sr-only" id="stat-failing-hint"
-          >Filters pull requests by CI status.</span
-        >
-      </button>
-    {:else}
-      <div class="stat">
-        <div class="n" id="stat-issues">&ndash;</div>
-        <div class="label">Open issues</div>
-      </div>
-    {/if}
-    <div class="stat">
-      <div class="n" id="stat-repos">&ndash;</div>
-      <div class="label">Repos tracked</div>
-    </div>
-  </div>
-
   <div
     class="filter-bar"
     role="search"
