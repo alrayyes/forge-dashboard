@@ -333,9 +333,15 @@
     // failure locked the button), and an error toast that stays.
     // The action's context for a Copy payload. The action is the first part
     // of its feedback key ("merge", "renovate", "cancel-auto-merge", …).
-    function detailsContext(item: PullRequestItem, fkey: string) {
+    // A caller whose key doesn't say which command it was (Dependabot's
+    // Rebase and Recreate share one) names it.
+    function detailsContext(
+      item: PullRequestItem,
+      fkey: string,
+      actionName?: string,
+    ) {
       return {
-        action: fkey.split(":")[0],
+        action: actionName ?? fkey.split(":")[0],
         forge: item.forge,
         repo: item.repo,
         number: item.number,
@@ -1298,9 +1304,13 @@
       what: string,
       setState: (next: ActionState) => void,
       retryable?: ReadonlySet<ActionCode>,
+      actionName?: string,
     ) {
       // The raw answer for Copy, made once for whichever line this ends in.
-      const details = failureDetails(err, detailsContext(item, fkey));
+      const details = failureDetails(
+        err,
+        detailsContext(item, fkey, actionName),
+      );
       const outcome = interpretActionFailure(
         err,
         (resetsAt) =>
@@ -2466,6 +2476,8 @@
             (next) => {
               dependabotActionState[key] = next;
             },
+            undefined,
+            `dependabot-${action}`,
           );
         });
     }
