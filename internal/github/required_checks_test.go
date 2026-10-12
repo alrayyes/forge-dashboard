@@ -18,7 +18,7 @@ import (
 // the contexts in required while the head has only reported the runs named in
 // reported (alrayyes/scaffold-deb-package#25: five required, one reported).
 // It counts the check-run lookups so a test can assert on caching.
-func unreportedChecksServer(t *testing.T, mergeState string, required, reported []string, lookups *atomic.Int32) *httptest.Server {
+func unreportedChecksServer(t *testing.T, mergeState string, required, reported []string, lookups *atomic.Int32, statuses ...string) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
@@ -68,6 +68,14 @@ func unreportedChecksServer(t *testing.T, mergeState string, required, reported 
 			runs = append(runs, map[string]any{"name": name, "status": "completed", "conclusion": "success"})
 		}
 		writeJSON(t, w, map[string]any{"total_count": len(runs), "check_runs": runs})
+	})
+
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		list := make([]map[string]any, 0, len(statuses))
+		for _, name := range statuses {
+			list = append(list, map[string]any{"context": name, "state": "success"})
+		}
+		writeJSON(t, w, map[string]any{"state": "success", "statuses": list})
 	})
 
 	srv := httptest.NewServer(mux)
@@ -128,4 +136,32 @@ func TestFetch_CompleteRequiredChecks_AreNotLookedUpAgainForTheSameCommit(t *tes
 	client.Fetch(t.Context())
 
 	assert.EqualValues(t, 1, lookups.Load(), "a commit whose required checks all reported can't regress")
+}
+
+// A required commit status (codecov/patch, a third-party CI) reports beside
+// the Actions runs. It is a reported context, not a missing one.
+func TestFetch_RequiredStatusContextBesideCheckRuns_CountsAsReported(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	srv := unreportedChecksServer(t, "BLOCKED",
+		[]string{"check", "codecov/patch"}, []string{"check"}, &lookups, "codecov/patch")
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CISuccess, result.PullRequests[0].CI)
+}
+
+func TestFetch_RequiredStatusContextNotYetReported_IsPending(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	srv := unreportedChecksServer(t, "BLOCKED",
+		[]string{"check", "codecov/patch"}, []string{"check"}, &lookups)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CIPending, result.PullRequests[0].CI)
 }

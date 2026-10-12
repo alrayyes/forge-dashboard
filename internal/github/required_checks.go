@@ -2,9 +2,13 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
+
+	ghsdk "github.com/google/go-github/v75/github"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
@@ -91,15 +95,11 @@ func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequired
 	if len(required) == 0 {
 		return false, false
 	}
-	checks, err := c.listChecksForSHA(ctx, cand.owner, cand.name, cand.headOid)
+	reported, err := c.reportedContexts(ctx, cand.owner, cand.name, cand.headOid)
 	if err != nil {
 		slog.Warn("github required-check lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
 
 		return false, false
-	}
-	reported := make(map[string]bool, len(checks))
-	for _, chk := range checks {
-		reported[chk.Name] = true
 	}
 	for name := range required {
 		if !reported[name] {
@@ -108,6 +108,39 @@ func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequired
 	}
 
 	return false, true
+}
+
+// reportedContexts is every context the head commit has reported: check runs
+// and commit statuses both. A required context can be either (an Actions job,
+// or codecov/patch beside it), and listChecksForSHA reads statuses only when
+// there are no check runs at all, which is right for a list of jobs but would
+// call a reported status missing here.
+func (c *Client) reportedContexts(ctx context.Context, owner, name, sha string) (map[string]bool, error) {
+	reported := map[string]bool{}
+
+	runsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
+	slog.Debug("github request", "method", http.MethodGet, "url", runsPath)
+	runs, runsResp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{PerPage: perPage})
+	if err != nil {
+		return nil, asClientError(c.restError(ctx, http.MethodGet, runsPath, err))
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, runsPath, runsResp)
+	for _, r := range runs.CheckRuns {
+		reported[r.GetName()] = true
+	}
+
+	statusPath := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
+	slog.Debug("github request", "method", http.MethodGet, "url", statusPath)
+	combined, statusResp, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, nil)
+	if err != nil {
+		return nil, asClientError(c.restError(ctx, http.MethodGet, statusPath, err))
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, statusPath, statusResp)
+	for _, s := range combined.Statuses {
+		reported[s.GetContext()] = true
+	}
+
+	return reported, nil
 }
 
 // requiredContextNames is the base branch's required contexts, from branch
