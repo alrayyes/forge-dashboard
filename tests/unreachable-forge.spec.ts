@@ -136,6 +136,65 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     await expect(banner.getByRole('button', { name: 'Retry' })).toHaveCount(1);
   });
 
+  // #1301: GitHub's own status page says whether the fault is theirs.
+  test('the GitHub row links GitHub’s status page, in a new tab', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [down()], [makePR(1)]);
+    await page.reload();
+
+    const link = page
+      .locator('#unreachable-banner')
+      .getByRole('link', { name: /^GitHub status/ });
+    await expect(link).toHaveCount(1);
+    await expect(link).toHaveAttribute('href', 'https://www.githubstatus.com/');
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(link).toHaveAccessibleName(
+      'GitHub status (opens in a new tab)',
+    );
+    const box = await link.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+  });
+
+  test('Forgejo has no status page, so its row has no status link', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [down({ forge: 'forgejo' }), up('github')],
+      [makePR(1)],
+    );
+    await page.reload();
+
+    await expect(page.locator('#unreachable-banner')).toContainText(
+      'Forgejo is unreachable',
+    );
+    await expect(
+      page.locator('#unreachable-banner').getByRole('link'),
+    ).toHaveCount(0);
+  });
+
+  test('with both down, only the GitHub row has the status link', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [down(), down({ forge: 'forgejo' })],
+      [makePR(1)],
+    );
+    await page.reload();
+
+    const rows = page.locator('.unreachable-banner-row');
+    await expect(rows).toHaveCount(2);
+    await expect(
+      rows.filter({ hasText: 'GitHub is unreachable' }).getByRole('link'),
+    ).toHaveCount(1);
+    await expect(
+      rows.filter({ hasText: 'Forgejo is unreachable' }).getByRole('link'),
+    ).toHaveCount(0);
+  });
+
   test('Retry forces a refresh, and when the forge answers the controls return with a toast and the banner clears', async ({
     page,
   }) => {

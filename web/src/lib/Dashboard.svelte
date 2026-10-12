@@ -5046,6 +5046,8 @@
       }
     }
 
+    const GITHUB_STATUS_PAGE = "https://www.githubstatus.com/";
+
     function renderUnreachableBanner() {
       const existing = document.getElementById("unreachable-banner");
       const readOnlyByLimit = new Set(
@@ -5088,6 +5090,23 @@
         );
         text.appendChild(document.createTextNode(` ${unreachableCause(f)}`));
         row.appendChild(text);
+        // GitHub's own status page says whether the fault is theirs. A
+        // Forgejo instance is self-hosted, so it has none to link (#1301).
+        if (f.forge === "github") {
+          const status = el(
+            "a",
+            "unreachable-banner-retry unreachable-banner-link",
+            "GitHub status",
+          ) as HTMLAnchorElement;
+          status.href = GITHUB_STATUS_PAGE;
+          status.target = "_blank";
+          status.rel = "noopener noreferrer";
+          status.setAttribute(
+            "aria-label",
+            "GitHub status (opens in a new tab)",
+          );
+          row.appendChild(status);
+        }
         const retry = buttonEl("unreachable-banner-retry", "Retry");
         retry.type = "button";
         retry.addEventListener("click", () => forceRefreshButton?.click());
