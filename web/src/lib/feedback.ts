@@ -7,6 +7,20 @@ import type { WaitKind } from './wait-chip';
 
 export type ActionRef = { key: string; repo: string; number: number };
 
+// What Copy puts on the clipboard for a failed action (#1323): the server's
+// answer as it came, which the row never shows, with the action's context.
+// `status` is null and `networkError` set when no answer arrived at all.
+export type FailureDetails = {
+  status: number | null;
+  response?: unknown;
+  networkError?: string;
+  action: string;
+  forge: string;
+  repo: string;
+  number: number;
+  at: string;
+};
+
 export type FeedbackPhase =
   | 'working'
   | 'queued'
@@ -61,6 +75,8 @@ export type ActivityEntry = {
   transient?: boolean;
   // The row line has cleared itself. The entry stays in Activity.
   inlineCleared?: boolean;
+  // The raw answer behind a failure, for Copy (#1323).
+  details?: FailureDetails;
 };
 
 export type ToastKind = 'success' | 'error';
@@ -75,6 +91,7 @@ export type Toast = {
   kind: ToastKind;
   message: string;
   retry?: () => void;
+  details?: FailureDetails;
 };
 
 export type StartInput = {
@@ -105,6 +122,7 @@ export type UpdateInput = {
   retryLabel?: string;
   commentUrl?: string;
   transient?: boolean;
+  details?: FailureDetails;
 };
 
 export type NoticeInput = {
@@ -235,6 +253,7 @@ export function createFeedbackStore(
         kind,
         message: entry.message,
         retry: kind === 'error' && entry.canRetry ? entry.retry : undefined,
+        details: kind === 'error' ? entry.details : undefined,
       },
       ...toasts,
     ];
@@ -296,6 +315,7 @@ export function createFeedbackStore(
       if (patch.retryLabel !== undefined) entry.retryLabel = patch.retryLabel;
       if (patch.commentUrl !== undefined) entry.commentUrl = patch.commentUrl;
       if (patch.transient !== undefined) entry.transient = patch.transient;
+      if (patch.details !== undefined) entry.details = patch.details;
       if (patch.acknowledged !== undefined && entry.bot)
         entry.bot = { ...entry.bot, acknowledged: patch.acknowledged };
       entry.updatedAt = now();
