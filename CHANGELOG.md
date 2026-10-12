@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.170.0](https://github.com/alrayyes/forge-dashboard/compare/v0.169.1...v0.170.0) (2026-10-12)
+
+
+### Features
+
+* **web:** order the menu Branches, Pull requests, Releases, Bots, Issues ([#1322](https://github.com/alrayyes/forge-dashboard/issues/1322)) ([b46e5f3](https://github.com/alrayyes/forge-dashboard/commit/b46e5f30cf81669e4f591d47d92b8a8be83737d3)), closes [#1321](https://github.com/alrayyes/forge-dashboard/issues/1321)
+
 ## [0.169.1](https://github.com/alrayyes/forge-dashboard/compare/v0.169.0...v0.169.1) (2026-10-12)
 
 
