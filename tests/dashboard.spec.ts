@@ -80,7 +80,7 @@ test.describe('dashboard page', () => {
     page,
   }) => {
     await expect(page.locator('h1')).toHaveText('Forge Board');
-    await expect(page.locator('#stat-prs')).not.toHaveText('–');
+    await expect(page.locator('#pr-count')).not.toHaveText('–');
     // Issues have their own page (#827).
     await expect(page.locator('.board')).toHaveCount(1);
   });
@@ -580,7 +580,7 @@ test.describe('dashboard page', () => {
   });
 
   test('has no axe-core violations at desktop width', async ({ page }) => {
-    await expect(page.locator('#stat-prs')).not.toHaveText('–');
+    await expect(page.locator('#pr-count')).not.toHaveText('–');
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -594,7 +594,7 @@ test.describe('dashboard page', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload();
-    await expect(page.locator('#stat-prs')).not.toHaveText('–');
+    await expect(page.locator('#pr-count')).not.toHaveText('–');
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -915,17 +915,16 @@ test.describe('dashboard page', () => {
     await page.reload();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
-    // Unfiltered: just the total, same as before this behavior existed.
-    await expect(page.locator('#stat-prs')).toHaveText('2');
+    // Unfiltered: just the total.
+    await expect(page.locator('#pr-count')).toHaveText('2 open');
 
     await selectForge(page, 'forgejo');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-    // Filtered: the shown count out front, the total trailing it — not
-    // silently still "2", which is what made this confusing before.
-    await expect(page.locator('#stat-prs')).toHaveText('1 / 2');
+    // Filtered: the one line says how many of how many, not silently still "2".
+    await expect(page.locator('#pr-count')).toHaveText('Showing 1 of 2');
 
     await selectForge(page, '');
-    await expect(page.locator('#stat-prs')).toHaveText('2');
+    await expect(page.locator('#pr-count')).toHaveText('2 open');
   });
 
   test.describe('theme and filters persist across a reload', () => {
@@ -2024,27 +2023,24 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     });
 
-    test('clicking the "CI failing" stat tile filters to failing pull requests, and clicking it again clears the filter', async ({
+    // The "CI failing" tile that used to do this is gone (#1325): the Failing
+    // CI pill filters the same way, and All clears it.
+    test('clicking the Failing CI pill filters to failing pull requests, and All clears the filter', async ({
       page,
     }) => {
-      await page.click('#stat-failing-tile');
+      const failing = page.locator(
+        '.quick-pills .quick-pill[data-pill="failing"]',
+      );
+      await failing.click();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText(
         'A failing PR',
       );
-      await expect(
-        page.locator(
-          'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
-        ),
-      ).toHaveValue('failure');
+      await expect(failing).toHaveAttribute('aria-pressed', 'true');
 
-      await page.click('#stat-failing-tile');
+      await page.locator('.quick-pills .quick-pill[data-pill="all"]').click();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-      await expect(
-        page.locator(
-          'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
-        ),
-      ).toHaveValue('');
+      await expect(failing).toHaveAttribute('aria-pressed', 'false');
     });
 
     test('clicking anywhere else in a row still opens the pull request, same as before the row stopped being one big <a>', async ({
@@ -2072,13 +2068,6 @@ test.describe('dashboard page', () => {
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
       expect(results.violations).toEqual([]);
-    });
-
-    test('the "CI failing" tile is styled as a warning once something is actually failing', async ({
-      page,
-    }) => {
-      // The beforeEach here has one failing PR.
-      await expect(page.locator('#stat-failing-tile')).toHaveClass(/critical/);
     });
   });
 
@@ -2153,68 +2142,6 @@ test.describe('dashboard page', () => {
       const row = page.locator('#pr-rows .row').first();
       await expect(row.locator('.ci-pill')).toContainText('Failing');
     });
-  });
-
-  test('the "CI failing" tile is not styled as a warning when the count is zero', async ({
-    page,
-  }) => {
-    // Real bug reported live: the tile carried a static "critical" class
-    // in the markup, so "0 failing" read as an alarm — red for good news.
-    await page.route('**/api/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-          pullRequests: [],
-          issues: [],
-        }),
-      }),
-    );
-    await page.reload();
-
-    await expect(page.locator('#stat-failing')).toHaveText('0');
-    await expect(page.locator('#stat-failing-tile')).not.toHaveClass(
-      /critical/,
-    );
-  });
-
-  test('the "CI failing" tile reads as good news, in a themed color, when the count is zero', async ({
-    page,
-  }) => {
-    // Real bug reported live: "CI failing" is the one stat tile that's a
-    // real <button> (the other three are plain <div>s), and a <button>
-    // doesn't inherit text color from the page the way a div does — with
-    // no explicit color set, it fell back to the browser's native
-    // ButtonText system color, black regardless of theme, once the
-    // "critical" class stopped overriding it at zero. Only visible in
-    // dark mode, where black-on-dark-surface is barely readable; light
-    // mode's own default ink is dark too, so this passed unnoticed there.
-    await page.route('**/api/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-          pullRequests: [],
-          issues: [],
-        }),
-      }),
-    );
-    await setTheme(page, 'dark');
-    await page.reload();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-
-    await expect(page.locator('#stat-failing')).toHaveText('0');
-    await expect(page.locator('#stat-failing-tile')).toHaveClass(/\bok\b/);
-    const color = await page
-      .locator('#stat-failing')
-      .evaluate((el) => getComputedStyle(el).color);
-    // --good in dark mode (style.css) — not black, and not the same as
-    // an ordinary stat's default ink color either.
-    expect(color).toBe('rgb(56, 201, 138)');
   });
 
   test.describe('merge status and auto-merge pills', () => {
@@ -2460,7 +2387,7 @@ test.describe('dashboard page', () => {
         }),
       );
       await page.reload();
-      await expect(page.locator('#stat-prs')).toHaveText('0');
+      await expect(page.locator('#pr-count')).toHaveText('0 open');
 
       let refreshCalled = false;
       await page.route('**/api/dashboard/refresh', (route) => {
@@ -2492,7 +2419,7 @@ test.describe('dashboard page', () => {
 
       await page.click('#force-refresh-button');
       expect(refreshCalled).toBe(true);
-      await expect(page.locator('#stat-prs')).toHaveText('1');
+      await expect(page.locator('#pr-count')).toHaveText('1 open');
       await expect(page.locator('#pr-rows > .row')).toContainText('A fresh PR');
     });
 
@@ -2958,7 +2885,7 @@ test.describe('dashboard page', () => {
       // The default-on Hide Dependency Dashboard filter is already
       // narrowing the board, so the count reads "shown of total" rather
       // than the raw total — same as any other active filter.
-      await expect(page.locator('#issue-count')).toHaveText('1 of 2 shown');
+      await expect(page.locator('#issue-count')).toHaveText('Showing 1 of 2');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
     });
 

@@ -15,7 +15,6 @@
     type MainBranchFilter,
     saveFilter,
     STATUS_LABEL,
-    summaryLine,
     type StatusPill,
     type ForgeFilter,
   } from "#lib/main-branches.js";
@@ -430,9 +429,6 @@
 <div class="mb-wrap">
   <div class="mb-header">
     <h1>Main branches</h1>
-    {#if data}
-      <p class="mb-summary" id="mb-summary">{summaryLine(data.counts)}</p>
-    {/if}
   </div>
 
   {#if loading}
