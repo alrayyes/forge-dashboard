@@ -12,15 +12,16 @@ tab bar.
 ### Requirement: Mobile bottom tab bar
 
 On a narrow viewport, the signed-in shell SHALL provide a bottom tab bar
-giving one-tap access to Home, Insights, Webhooks, and Settings, so
+giving one-tap access to Branches, Pull requests, Insights, Webhooks, and
+Settings, so
 primary navigation never wraps or crowds the header.
 
 #### Scenario: Bottom tab bar shown at mobile width
 
 - **WHEN** a signed-in user views any `(app)` page at a viewport narrow
   enough to trigger the mobile layout
-- **THEN** a bottom tab bar with Home, Insights, Webhooks, and Settings
-  tabs is visible, and the header no longer wraps its nav links onto a
+- **THEN** a bottom tab bar with Branches, Pull requests, Insights, Webhooks, and
+  Settings tabs is visible, and the header no longer wraps its nav links onto a
   second line
 
 ### Requirement: Current page indication
@@ -30,8 +31,8 @@ whichever is showing — SHALL indicate the current page at any time.
 
 #### Scenario: Active tab matches the current route
 
-- **WHEN** the current page is one of Home, Insights, Webhooks, or
-  Settings
+- **WHEN** the current page is one of Branches, Pull requests, Insights,
+  Webhooks, or Settings
 - **THEN** the corresponding navigation control carries the current-page
   indicator (`aria-current="page"` and its visual state), and no other
   control does

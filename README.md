@@ -796,23 +796,25 @@ that change is ignored. With no bot pull requests open the page says there is
 nothing to review.
 
 The navigation shows how many are waiting, as it does for Issues: the number of
-open pull requests (without releases and bots) on the Home item, the number of
-open release pull requests on Releases and the number of bot pull requests on
-Bots. The dashboard pages set all three from each snapshot, and the other
-signed-in pages load them once. A page with nothing to show leaves the
+open pull requests (without releases and bots) on the Pull requests item, the
+number of open release pull requests on Releases and the number of bot pull
+requests on Bots. The dashboard pages set all three from each snapshot, and
+the other signed-in pages load them once. A page with nothing to show leaves the
 navigation: the Issues, Releases and Bots links are not in the header or the
-phone's tab bar while their count is 0. Home always shows. A count that isn't
-known yet is not 0, so the links stay until the first snapshot says otherwise,
-and the page you are on keeps its own link until you leave it. The page still
-opens when typed into the address bar, and says it is empty.
+phone's tab bar while their count is 0. Branches and Pull requests always
+show. A count that isn't known yet is not 0, so the links stay until the first
+snapshot says otherwise, and the page you are on keeps its own link until you
+leave it. The page still opens when typed into the address bar, and says it is empty.
 
 ## Main branches
 
-The CI status of every tracked repository's default branch is on one page,
-`/main-branches.html`, reached from the **Main branches** item in the
-navigation (labelled **Main** in the phone's bottom tab bar). The item has no
-count badge, so it always shows. The page reads `GET /api/main-branches`, so
-a broken main shows up without opening each repo.
+The CI status of every tracked repository's default branch is the first thing
+you see: it's the index page, `/`, reached from the **Branches** item, the first
+one in the navigation. The menu runs Branches, Pull requests, Issues, then the
+rest. The item has no count badge, so it always shows. The page reads
+`GET /api/main-branches`, so a broken main shows up without opening each repo.
+The pull request list is at `/pull-requests.html`. The page used to live at
+`/main-branches.html`, which now redirects to `/`.
 
 A line at the top counts the rows by status. Each row shows the status as an
 icon and a word (Failed, Running, Passed or No pipeline), the repo, the

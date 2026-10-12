@@ -22,19 +22,28 @@ async function registerAndSignIn(
   await registerViaInvite(page, request, baseURL, username, 'Nav Test User');
 }
 
+// In menu order: Branches, Pull requests, Issues, then the rest (#1279).
+// `tab` is what the bottom bar's accessible name contains, since its visible
+// word for Pull requests is the shorter "PRs".
 const NAV_PAGES = [
-  { path: '/', label: 'Home' },
-  { path: '/issues.html', label: 'Issues' },
-  { path: '/insights.html', label: 'Insights' },
-  { path: '/main-branches.html', label: 'Main branches' },
-  { path: '/webhooks.html', label: 'Webhooks' },
-  { path: '/settings.html', label: 'Settings' },
+  { path: '/', label: 'Branches', tab: 'Branches' },
+  { path: '/pull-requests.html', label: 'Pull requests', tab: 'PRs' },
+  { path: '/issues.html', label: 'Issues', tab: 'Issues' },
+  { path: '/insights.html', label: 'Insights', tab: 'Insights' },
+  { path: '/webhooks.html', label: 'Webhooks', tab: 'Webhooks' },
+  { path: '/settings.html', label: 'Settings', tab: 'Settings' },
 ];
 
 // Issues, Releases and Bots leave the navigation while their count is 0
-// (#1228), and a new user has nothing, so here only these four are always
+// (#1228), and a new user has nothing, so here only these five are always
 // there; the page you are on keeps its own link.
-const ALWAYS_THERE = ['Home', 'Insights', 'Webhooks', 'Settings'];
+const ALWAYS_THERE = [
+  'Branches',
+  'Pull requests',
+  'Insights',
+  'Webhooks',
+  'Settings',
+];
 const linksOn = (label: string) =>
   NAV_PAGES.filter((p) => ALWAYS_THERE.includes(p.label) || p.label === label);
 
@@ -73,7 +82,33 @@ test.describe('persistent top nav', () => {
     });
   }
 
-  test('no page still has a "back to X" link — Home in the nav replaced it', async ({
+  test('the menu runs Branches, Pull requests, Issues, in that order (#1279)', async ({
+    page,
+    request,
+  }) => {
+    // Issues only shows once there is one, so check the two always-there
+    // links against Insights, which follows Issues.
+    await page.goto('/');
+    const names = await page
+      .locator('.app-nav a')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
+    expect(names[0]).toMatch(/^Branches/);
+    expect(names[1]).toMatch(/^Pull requests/);
+    expect(names.findIndex((n) => /^Insights/.test(n))).toBeGreaterThan(1);
+    void request;
+  });
+
+  test('/main-branches.html still works: it sends you to the Branches page (#1279)', async ({
+    page,
+  }) => {
+    await page.goto('/main-branches.html');
+    await expect(page).toHaveURL(/\/$/);
+    await expect(
+      page.locator('.app-nav a[aria-label^="Branches"]'),
+    ).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('no page still has a "back to X" link — the nav replaced it', async ({
     page,
   }) => {
     for (const { path } of NAV_PAGES) {
@@ -122,7 +157,7 @@ test.describe('mobile bottom tab bar', () => {
     await registerAndSignIn(page, request, baseURL);
   });
 
-  for (const { path, label } of NAV_PAGES) {
+  for (const { path, label, tab } of NAV_PAGES) {
     test(`on ${path} at mobile width, the bottom tab bar shows every tab and only ${label} is current`, async ({
       page,
     }) => {
@@ -131,7 +166,7 @@ test.describe('mobile bottom tab bar', () => {
 
       for (const other of linksOn(label)) {
         await expect(
-          page.locator(`.bottom-nav a[aria-label*="${other.label}"]`),
+          page.locator(`.bottom-nav a[aria-label*="${other.tab}"]`),
         ).toBeVisible();
       }
       await expect(
@@ -139,12 +174,12 @@ test.describe('mobile bottom tab bar', () => {
       ).toHaveCount(0);
 
       await expect(
-        page.locator(`.bottom-nav a[aria-label*="${label}"]`),
+        page.locator(`.bottom-nav a[aria-label*="${tab}"]`),
       ).toHaveAttribute('aria-current', 'page');
       for (const other of linksOn(label)) {
         if (other.label === label) continue;
         await expect(
-          page.locator(`.bottom-nav a[aria-label*="${other.label}"]`),
+          page.locator(`.bottom-nav a[aria-label*="${other.tab}"]`),
         ).not.toHaveAttribute('aria-current', /.*/);
       }
 

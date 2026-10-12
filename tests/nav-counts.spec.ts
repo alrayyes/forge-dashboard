@@ -9,7 +9,7 @@ import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // The nav shows how many are waiting, like Issues does: pull requests on the
-// Home item, release pull requests on Releases. Release pull requests are not
+// Pull requests item, release pull requests on Releases. Release pull requests are not
 // on the pull request page at all; they live on the Releases page.
 
 async function registerAndSignIn(
@@ -87,20 +87,20 @@ test.describe('nav counts and the pull request page without releases', () => {
     page,
   }) => {
     await mockDashboard(page, SNAPSHOT);
-    await page.goto('/');
+    await page.goto('/pull-requests.html');
 
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     await expect(page.locator('#pr-rows')).not.toContainText('release 0.74.2');
     await expect(page.locator('#stat-prs')).toHaveText('2');
   });
 
-  test('Home shows the pull request count and Releases the release count', async ({
+  test('Pull requests shows the count and Releases the release count', async ({
     page,
   }) => {
     await mockDashboard(page, SNAPSHOT, 4);
-    await page.goto('/');
+    await page.goto('/pull-requests.html');
 
-    await expect(badge(page, 'header', '/')).toHaveText('2');
+    await expect(badge(page, 'header', '/pull-requests.html')).toHaveText('2');
     await expect(badge(page, 'header', '/releases.html')).toHaveText('2');
     await expect(badge(page, 'header', '/issues.html')).toHaveText('4');
   });
@@ -111,7 +111,9 @@ test.describe('nav counts and the pull request page without releases', () => {
     await mockDashboard(page, SNAPSHOT);
     for (const path of ['/releases.html', '/settings.html', '/insights.html']) {
       await page.goto(path);
-      await expect(badge(page, 'header', '/')).toHaveText('2');
+      await expect(badge(page, 'header', '/pull-requests.html')).toHaveText(
+        '2',
+      );
       await expect(badge(page, 'header', '/releases.html')).toHaveText('2');
     }
   });
@@ -121,13 +123,15 @@ test.describe('nav counts and the pull request page without releases', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboard(page, SNAPSHOT);
-    await page.goto('/');
+    await page.goto('/pull-requests.html');
 
-    await expect(badge(page, '.bottom-nav', '/')).toHaveText('2');
+    await expect(badge(page, '.bottom-nav', '/pull-requests.html')).toHaveText(
+      '2',
+    );
     await expect(badge(page, '.bottom-nav', '/releases.html')).toHaveText('2');
     await expect(
-      page.locator('.bottom-nav').getByRole('link', { name: /Home/ }),
-    ).toHaveAccessibleName(/2.*Home/);
+      page.locator('.bottom-nav').getByRole('link', { name: /PRs/ }),
+    ).toHaveAccessibleName(/2.*PRs/);
     await expect(
       page.locator('.bottom-nav').getByRole('link', { name: /Releases/ }),
     ).toHaveAccessibleName(/2.*Releases/);
@@ -145,8 +149,8 @@ test.describe('nav counts and the pull request page without releases', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR(1)]);
-    await page.goto('/');
-    await expect(badge(page, 'header', '/')).toHaveText('1');
+    await page.goto('/pull-requests.html');
+    await expect(badge(page, 'header', '/pull-requests.html')).toHaveText('1');
     await expect(
       page.locator('header nav a[href="/releases.html"]'),
     ).toHaveCount(0);

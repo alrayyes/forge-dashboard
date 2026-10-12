@@ -88,7 +88,7 @@ test.describe('self-hosted fonts on the dashboard (#797)', () => {
       'Fonts Test User',
     );
     const hosts = recordHosts(page);
-    await page.goto('/');
+    await page.goto('/pull-requests.html');
     await loadedFaces(page);
 
     expect([...hosts]).toEqual([new URL(baseURL ?? '').host]);

@@ -7,9 +7,9 @@ import {
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
-// #1259: a page opened at /releases.html is a hard load, and its Home link
-// ("/") is then a client-side navigation. The Releases board was destroyed
-// but its poll kept running, and drew release pull requests onto Home.
+// #1259: a page opened at /releases.html is a hard load, and its Pull requests link
+// ("/pull-requests.html") is then a client-side navigation. The Releases board was destroyed
+// but its poll kept running, and drew release pull requests onto the pull request page.
 
 async function registerAndSignIn(
   page: Page,
@@ -77,7 +77,9 @@ test('the pull request page stays free of release pull requests after leaving Re
   await page.goto('/releases.html');
   await expect(page.locator('#pr-rows')).toContainText('release 0.74.2');
 
-  await page.locator('header a.nav-with-badge[href="/"]').click();
+  await page
+    .locator('header a.nav-with-badge[href="/pull-requests.html"]')
+    .click();
   await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   const pollsOnArrival = polls;
 

@@ -50,7 +50,7 @@ test.describe('refresh follows the server (#809)', () => {
       });
     });
     await page.clock.install({ time: new Date() });
-    await page.goto('/');
+    await page.goto('/pull-requests.html');
     await expect.poll(() => reads).toBeGreaterThan(0);
     await page.waitForTimeout(500);
     // Time stands still from here, so only fastForward moves it.
@@ -134,7 +134,7 @@ test.describe('refresh follows the server (#809)', () => {
         body: JSON.stringify(snapshot({ readIntervalSeconds: 30 })),
       }),
     );
-    await page.goto('/');
+    await page.goto('/pull-requests.html');
     const button = page.locator('#force-refresh-button');
     await button.click();
     await expect(button).toBeEnabled();

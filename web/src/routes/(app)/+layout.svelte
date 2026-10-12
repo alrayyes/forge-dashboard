@@ -72,18 +72,19 @@
     issueCount.value === null ? "Issues" : `${issueCount.value} Issues open`,
   );
 
-  // Home is the pull request page and Releases the release pull requests.
-  // Same shape as Issues: the header icon says it in words for assistive
-  // tech, and the tab's name starts with the number it shows (WCAG 2.5.3).
-  const homeLabel = $derived(
+  // Pull requests, and Releases for the release pull requests. Same shape as
+  // Issues: the header icon says it in words for assistive tech, and the tab's
+  // name starts with the number it shows (WCAG 2.5.3). The tab's visible word
+  // is the shorter "PRs", so its name says that.
+  const pullsLabel = $derived(
     pullRequestCount.value === null
-      ? "Home"
-      : `Home, ${pullRequestCount.value} pull requests open`,
+      ? "Pull requests"
+      : `Pull requests, ${pullRequestCount.value} open`,
   );
-  const homeTabLabel = $derived(
+  const pullsTabLabel = $derived(
     pullRequestCount.value === null
-      ? "Home"
-      : `${pullRequestCount.value} Home, pull requests open`,
+      ? "PRs"
+      : `${pullRequestCount.value} PRs open`,
   );
   const releasesLabel = $derived(
     releaseCount.value === null
@@ -107,7 +108,7 @@
   // A page with nothing to show leaves the navigation (#1228). A count that
   // isn't known yet (null) is not zero, so a link doesn't blink in as the first
   // snapshot arrives, and the page you are on keeps its own link until you
-  // leave it. Home always shows.
+  // leave it. Branches and Pull requests always show.
   const showIssues = $derived(
     issueCount.value !== 0 || isCurrentRoute("/issues"),
   );
@@ -165,7 +166,7 @@
     // other signed-in page asks once, so the badges are there too.
     if (
       !isPublicRoute() &&
-      !isCurrentRoute("/") &&
+      !isCurrentRoute("/pull-requests") &&
       !isCurrentRoute("/issues") &&
       !isCurrentRoute("/releases") &&
       !isCurrentRoute("/bots")
@@ -227,10 +228,10 @@
       >
       <nav class="app-nav" aria-label="Main">
         <a
-          class="theme-toggle nav-with-badge"
+          class="theme-toggle"
           href="/"
-          aria-label={homeLabel}
-          title="Home"
+          aria-label="Branches"
+          title="Branches"
           aria-current={isCurrentRoute("/") ? "page" : undefined}
           style="text-decoration:none;"
         >
@@ -243,9 +244,31 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            ><path
-              d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"
-            /></svg
+            ><rect width="8" height="8" x="3" y="3" rx="2" /><path
+              d="M7 11v4a2 2 0 0 0 2 2h4"
+            /><rect width="8" height="8" x="13" y="13" rx="2" /></svg
+          >
+        </a>
+        <a
+          class="theme-toggle nav-with-badge"
+          href="/pull-requests.html"
+          aria-label={pullsLabel}
+          title="Pull requests"
+          aria-current={isCurrentRoute("/pull-requests") ? "page" : undefined}
+          style="text-decoration:none;"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
+              d="M13 6h3a2 2 0 0 1 2 2v7"
+            /><line x1="6" x2="6" y1="9" y2="21" /></svg
           >{#if pullRequestCount.value !== null}<span
               class="nav-badge"
               aria-hidden="true">{pullRequestCount.value}</span
@@ -340,32 +363,6 @@
               >{/if}
           </a>
         {/if}
-        <a
-          class="theme-toggle"
-          href="/main-branches.html"
-          aria-label="Main branches"
-          title="Main branches"
-          aria-current={isCurrentRoute("/main-branches") ? "page" : undefined}
-          style="text-decoration:none;"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><line x1="6" x2="6" y1="3" y2="15" /><circle
-              cx="18"
-              cy="6"
-              r="3"
-            /><circle cx="6" cy="18" r="3" /><path
-              d="M18 9a9 9 0 0 1-9 9"
-            /></svg
-          >
-        </a>
         <a
           class="theme-toggle"
           href="/insights.html"
@@ -501,9 +498,9 @@
 -->
 <nav class="bottom-nav" aria-label="Mobile navigation">
   <a
-    class="bottom-nav-link nav-with-badge"
+    class="bottom-nav-link"
     href="/"
-    aria-label={homeTabLabel}
+    aria-label="Branches"
     aria-current={isCurrentRoute("/") ? "page" : undefined}
   >
     <svg
@@ -515,14 +512,39 @@
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
-      ><path
-        d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"
-      /></svg
+      ><rect width="8" height="8" x="3" y="3" rx="2" /><rect
+        width="8"
+        height="8"
+        x="13"
+        y="13"
+        rx="2"
+      /><path d="M7 11v4a2 2 0 0 0 2 2h4" /></svg
+    >
+    <span class="bottom-nav-label">Branches</span>
+  </a>
+  <a
+    class="bottom-nav-link nav-with-badge"
+    href="/pull-requests.html"
+    aria-label={pullsTabLabel}
+    aria-current={isCurrentRoute("/pull-requests") ? "page" : undefined}
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      ><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
+        d="M13 6h3a2 2 0 0 1 2 2v7"
+      /><line x1="6" x2="6" y1="9" y2="21" /></svg
     >{#if pullRequestCount.value !== null}<span
         class="nav-badge"
         aria-hidden="true">{pullRequestCount.value}</span
       >{/if}
-    <span class="bottom-nav-label">Home</span>
+    <span class="bottom-nav-label">PRs</span>
   </a>
   {#if showIssues}
     <a
@@ -604,29 +626,6 @@
       <span class="bottom-nav-label">Bots</span>
     </a>
   {/if}
-  <a
-    class="bottom-nav-link"
-    href="/main-branches.html"
-    aria-label="Main branches"
-    aria-current={isCurrentRoute("/main-branches") ? "page" : undefined}
-  >
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      ><line x1="6" x2="6" y1="3" y2="15" /><circle
-        cx="18"
-        cy="6"
-        r="3"
-      /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg
-    >
-    <span class="bottom-nav-label">Main</span>
-  </a>
   <a
     class="bottom-nav-link"
     href="/insights.html"
