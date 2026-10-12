@@ -514,23 +514,26 @@ func TestListOpenIssues_UsesTypeIssuesFilter(t *testing.T) {
 }
 
 // TestListOpenPullRequests_MapsMergeableToMergeStatus asserts the
-// deliberately coarse mapping: false becomes MergeBlocked, never
-// MergeConflicting — Forgejo computes this field via a background queue
-// that upstream issues (go-gitea/gitea#22578, #25849) show can lag or get
-// stuck stale, so this service can't confidently call it a real conflict.
-// See design.md's Decisions in
-// openspec/changes/archive/*/show-pr-merge-status. AutoMergeEnabled is
-// always nil: the SDK has no read capability for that at all.
+// mapping: false on a pull request whose base has moved past its merge
+// base is a conflict (a conflict needs the base to have moved), and false
+// on one that hasn't stays MergeBlocked — Forgejo computes this field via
+// a background queue that upstream issues (go-gitea/gitea#22578, #25849)
+// show can lag or get stuck stale. AutoMergeEnabled is always nil: the SDK
+// has no read capability for that at all.
 func TestListOpenPullRequests_MapsMergeableToMergeStatus(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name      string
 		mergeable bool
+		baseSHA   string
+		mergeBase string
 		want      dashboard.MergeStatus
 	}{
-		{"mergeable true maps to Mergeable", true, dashboard.MergeMergeable},
-		{"mergeable false maps to Blocked, not Conflicting", false, dashboard.MergeBlocked},
+		{"mergeable true maps to Mergeable", true, "aaa", "bbb", dashboard.MergeMergeable},
+		{"mergeable false on a moved base maps to Conflicting", false, "aaa", "bbb", dashboard.MergeConflicting},
+		{"mergeable false on an unmoved base stays Blocked", false, "aaa", "aaa", dashboard.MergeBlocked},
+		{"mergeable false with no merge base stays Blocked", false, "aaa", "", dashboard.MergeBlocked},
 	}
 
 	for _, tc := range cases {
@@ -549,8 +552,10 @@ func TestListOpenPullRequests_MapsMergeableToMergeStatus(t *testing.T) {
 						"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
 						"draft": false, "user": map[string]string{"login": "ryankes"},
 						"labels": []map[string]string{}, "mergeable": tc.mergeable,
+						"merge_base": tc.mergeBase,
 						"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
 						"head": map[string]string{"sha": "cafef00d"},
+						"base": map[string]string{"sha": tc.baseSHA},
 					},
 				})
 			})

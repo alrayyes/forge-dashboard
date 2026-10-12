@@ -630,19 +630,21 @@ func posterLogin(u *gitea.User) string {
 	return u.UserName
 }
 
-// mergeStatusFromMergeable deliberately maps false to MergeBlocked, not
-// MergeConflicting: Forgejo computes this field via a background queue
-// and multiple upstream Gitea issues (go-gitea/gitea#22578, #25849) show
-// it can lag or get stuck stale, so a false here isn't confident enough
-// to assert a real conflict, only that something is stopping the merge.
-// See design.md's Decisions in
-// openspec/changes/archive/*/show-pr-merge-status.
-func mergeStatusFromMergeable(mergeable bool) dashboard.MergeStatus {
-	if mergeable {
+// mergeStatusOf maps Forgejo's mergeable flag to a merge status. False is a
+// conflict only when the base has also moved past the merge base (isBehind):
+// a conflict can't exist otherwise. Forgejo computes the flag via a
+// background queue that can lag or stick stale (go-gitea/gitea#22578,
+// #25849), so false on a pull request that hasn't fallen behind stays
+// MergeBlocked, only that something is stopping the merge.
+func mergeStatusOf(p *gitea.PullRequest) dashboard.MergeStatus {
+	switch {
+	case p.Mergeable:
 		return dashboard.MergeMergeable
+	case isBehind(p):
+		return dashboard.MergeConflicting
+	default:
+		return dashboard.MergeBlocked
 	}
-
-	return dashboard.MergeBlocked
 }
 
 // isBehind reports whether p's base branch has moved since p's own
@@ -818,7 +820,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		CreatedAt:               created,
 		UpdatedAt:               updated,
 		CI:                      ci,
-		MergeStatus:             mergeStatusFromMergeable(p.Mergeable),
+		MergeStatus:             mergeStatusOf(p),
 		Behind:                  isBehind(p),
 		HeadSHA:                 sha,
 		BaseBranch:              branchRef(p.Base),
