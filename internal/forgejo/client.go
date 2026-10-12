@@ -825,6 +825,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		HeadSHA:                 sha,
 		BaseBranch:              branchRef(p.Base),
 		HeadBranch:              branchRef(p.Head),
+		RenovateRebaseRequested: dashboard.RebaseCheckboxOf(p.Body) == dashboard.RebaseCheckboxTicked,
 		CrossRepository:         p.Head != nil && p.Base != nil && p.Head.RepoID != p.Base.RepoID,
 		RequestedReviewerLogins: requestedLogins(p),
 		Empty:                   isEmpty(p),

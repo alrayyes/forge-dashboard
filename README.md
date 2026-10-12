@@ -643,6 +643,13 @@ push, or the pull request leaving), the chip reads `Settled`, then goes, and a
 toast says it finished. When the server marks it `expired` (ten minutes with no
 sign of the bot), the row says it timed out, with an error toast and a Retry.
 
+While Renovate's rebase checkbox is ticked, a rebase is already waiting for
+Renovate, so `Renovate: Rebase` is shown disabled, with "A Renovate rebase is
+already requested on this pull request." beside it. The server reads the box
+from the pull request description in the same list call (no extra request), so
+it holds whether the box was ticked here or on the forge. Renovate clears the
+box once it has rebased, and the next snapshot offers the action again.
+
 Dependabot tells you it got a command by reacting to the comment with a
 thumbs-up, and it can then take several minutes to push. The server looks for
 that reaction on each refresh while a Dependabot `rebase` is waiting, and the
