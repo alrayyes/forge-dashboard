@@ -32,14 +32,76 @@ async function mismatches(page: Page): Promise<string[]> {
       const bare = el.cloneNode(true) as HTMLElement;
       for (const pills of bare.querySelectorAll('.nav-pills')) pills.remove();
       const visible = squash(bare.textContent ?? '').toLowerCase();
-      if (!visible) continue;
       const name = squash(el.getAttribute('aria-label') ?? '').toLowerCase();
+      // What the pills show must be in the name too, as numbers: an icon with
+      // only pills (the header's) would otherwise pass unchecked.
+      for (const pill of el.querySelectorAll('.nav-total, .nav-failed')) {
+        const number = squash(pill.textContent ?? '');
+        if (!new RegExp(`(^|\\D)${number}(\\D|$)`).test(name))
+          found.push(`pill "${number}" is not in "${name}"`);
+      }
+      if (!visible) continue;
       if (!name.includes(visible))
         found.push(`"${visible}" is not in "${name}"`);
     }
     return found;
   });
 }
+
+test.describe('the check itself (#1315)', () => {
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerViaInvite(
+      page,
+      request,
+      baseURL,
+      `label-check-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+      'Label Check',
+    );
+  });
+
+  // An icon-only header link has nothing but pills on screen, so the check
+  // must still read them against the name.
+  test('flags an icon link whose name leaves out its numbers', async ({
+    page,
+  }) => {
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a href="#" aria-label="Branches"><svg width="10" height="10"></svg><span class="nav-pills"><span class="nav-total">12</span><span class="nav-failed">3</span></span></a>',
+      );
+    });
+
+    expect(await mismatches(page)).toEqual([
+      'pill "12" is not in "branches"',
+      'pill "3" is not in "branches"',
+    ]);
+  });
+
+  test('passes an icon link whose name says them', async ({ page }) => {
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a href="#" aria-label="Branches, 12 total, 3 failing"><svg width="10" height="10"></svg><span class="nav-pills"><span class="nav-total">12</span><span class="nav-failed">3</span></span></a>',
+      );
+    });
+
+    const added = (await mismatches(page)).filter((m) => m.includes('"12"'));
+    expect(added).toEqual([]);
+  });
+
+  test('a longer number is not taken for a shorter one', async ({ page }) => {
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a href="#" aria-label="Pull requests, 128 total"><span class="nav-pills"><span class="nav-total">12</span></span></a>',
+      );
+    });
+
+    expect(await mismatches(page)).toEqual([
+      'pill "12" is not in "pull requests, 128 total"',
+    ]);
+  });
+});
 
 test.describe('visible text is part of the accessible name (#1135)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
