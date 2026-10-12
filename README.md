@@ -921,6 +921,14 @@ default. The badge is set from each snapshot on the dashboard and issues
 pages, and loaded once on the other signed-in pages. The pull request page no
 longer lists issues.
 
+`GET /api/dashboard` and its stream carry `navCounts`, the numbers behind every
+navigation badge: for Branches, Pull requests, Releases and Bots a `total` and
+a `failed` (failing CI, or a failing default-branch pipeline), and for Issues a
+`total` only. They count what each page shows when it opens. Pull requests
+leave out ignored repos, drafts and hidden ones, even while Show drafts or Show
+hidden is on. Branches counts every tracked default branch, as its page lists
+them. They are always present, zero when nothing is there.
+
 The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
 and saved with your other filters, so a filter set on one page is still set on

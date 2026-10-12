@@ -46,8 +46,11 @@ type dashboardResponse struct {
 	Issues       []issueView             `json:"issues"`
 	// OpenIssueCount is how many of Issues are real work, without the
 	// housekeeping ones (#980).
-	OpenIssueCount int          `json:"openIssueCount"`
-	Repos          []repoStatus `json:"repos"`
+	OpenIssueCount int `json:"openIssueCount"`
+	// NavCounts is each nav badge's total and failed number (#1315), counted
+	// from the lists above so they always agree with the pages.
+	NavCounts navCounts    `json:"navCounts"`
+	Repos     []repoStatus `json:"repos"`
 	// HiddenDrafts is how many draft pull requests PullRequests leaves out
 	// (#791). Always serialized, and zero when the request included drafts.
 	HiddenDrafts int `json:"hiddenDrafts"`
@@ -233,6 +236,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap 
 		PullRequests:   pullRequests,
 		Issues:         issues,
 		OpenIssueCount: openIssues,
+		NavCounts:      buildNavCounts(pullRequests, openIssues, snap.MainBranches),
 		Repos:          board.repoStatuses(snap.Repos),
 		HiddenDrafts:   hiddenDrafts,
 
