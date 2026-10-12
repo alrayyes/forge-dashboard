@@ -9,6 +9,7 @@
 // needs action (an error, a timeout) auto-dismisses, and a success toast
 // pauses while hovered or focused.
 
+import { copyButton } from './copy-details';
 import {
   type ActivityEntry,
   type BotRequest,
@@ -441,6 +442,13 @@ export function mountFeedbackUI(
           line.appendChild(open);
         }
       }
+      if (
+        entry.details &&
+        (entry.phase === 'failed' || entry.phase === 'expired')
+      )
+        line.appendChild(
+          copyButton(entry.details, 'row-action row-feedback-copy'),
+        );
       if (entry.phase === 'failed' || entry.phase === 'expired') {
         const dismiss = button(
           'row-action row-feedback-dismiss',
@@ -556,6 +564,8 @@ export function mountFeedbackUI(
       });
       foot.appendChild(retry);
     }
+    if (toast.kind === 'error' && toast.details)
+      foot.appendChild(copyButton(toast.details, 'feedback-link'));
     if (foot.childNodes.length > 0) item.appendChild(foot);
 
     if (toast.kind === 'success') {
