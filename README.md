@@ -664,9 +664,12 @@ requested` keeps `Dependabot: Recreate`, which is still a different outcome.
 Both buttons come back once the bot has acted.
 
 A Dependabot or Renovate pull request gets no Update branch button: each
-has its own `Rebase` action instead (below). GitHub's Renovate App is
-recognised by its slug. A Forgejo or GitLab instance names its Renovate
-account itself, so list it in Settings under `Renovate logins`
+has its own `Rebase` action instead (below). A pull request counts as
+Renovate's when its author is GitHub's Renovate App (`renovate`,
+`renovate[bot]`), is an account named `renovatebot`, or when its head branch
+starts with `renovate/`, Renovate's default prefix, whoever the author is. A
+Forgejo or GitLab instance can name its Renovate account anything, so if
+neither default catches it, list it in Settings under `Renovate logins`
 (`renovateAuthors` in the API). Until you do, that account's pull requests
 look like a person's. A release-please pull request
 does get one, because release-please has no `rebase` command. It only

@@ -49,8 +49,18 @@ func isDependabotPR(pr PullRequest) bool {
 // App: Renovate runs there as an ordinary account with whatever name the
 // instance gave it, so the user lists those logins in Settings (#1062) and
 // they arrive here as authors. Forge logins aren't case sensitive.
+//
+// Two defaults need no setting (#1271): "renovatebot", the account name
+// Renovate's self-hosted docs use, and a head branch under "renovate/", the
+// prefix Renovate's branches carry whoever the author is. The branch rule
+// covers an account named something else. Settings stays the way to name an
+// account neither default catches.
 func isRenovatePR(pr PullRequest, authors []string) bool {
-	if pr.Author == "renovate" || pr.Author == "renovate[bot]" {
+	if strings.EqualFold(pr.Author, "renovatebot") || pr.Author == "renovate" || pr.Author == "renovate[bot]" {
+		return true
+	}
+
+	if strings.HasPrefix(pr.HeadBranch, "renovate/") {
 		return true
 	}
 
