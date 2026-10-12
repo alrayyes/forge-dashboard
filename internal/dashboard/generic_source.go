@@ -334,6 +334,53 @@ func (s *GenericSource) ListChecks(ctx context.Context, owner, name string, numb
 	return checks, nil
 }
 
+// AddLabel implements PullRequestLabeler at the Source level by delegating to
+// the underlying client, the same "Source unwraps to its ForgeClient" shape
+// ClosePullRequest and ListChecks use. #1347: internal/forgejo.Client labels a
+// pull request, but this was never forwarded, so Renovate: Rebase answered
+// "forgejo doesn't support labeling pull requests" on every Forgejo pull
+// request.
+func (s *GenericSource) AddLabel(ctx context.Context, owner, name string, number int, label string) error {
+	labeler, ok := s.client.(PullRequestLabeler)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't label pull requests: %w", s.forge, errUnsupportedByClient)
+	}
+	if err := labeler.AddLabel(ctx, owner, name, number, label); err != nil {
+		return fmt.Errorf("dashboard: add label: %w", err)
+	}
+
+	return nil
+}
+
+// PullRequestBody implements PullRequestBodyEditor at the Source level, the
+// same shape as AddLabel. Renovate's rebase checkbox lives in the body, so
+// without this the checkbox path was never taken on Forgejo either (#1347).
+func (s *GenericSource) PullRequestBody(ctx context.Context, owner, name string, number int) (string, error) {
+	editor, ok := s.client.(PullRequestBodyEditor)
+	if !ok {
+		return "", fmt.Errorf("dashboard: %s's client can't read pull request descriptions: %w", s.forge, errUnsupportedByClient)
+	}
+	body, err := editor.PullRequestBody(ctx, owner, name, number)
+	if err != nil {
+		return "", fmt.Errorf("dashboard: read pull request description: %w", err)
+	}
+
+	return body, nil
+}
+
+// SetPullRequestBody implements the other half of PullRequestBodyEditor.
+func (s *GenericSource) SetPullRequestBody(ctx context.Context, owner, name string, number int, body string) error {
+	editor, ok := s.client.(PullRequestBodyEditor)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't edit pull request descriptions: %w", s.forge, errUnsupportedByClient)
+	}
+	if err := editor.SetPullRequestBody(ctx, owner, name, number, body); err != nil {
+		return fmt.Errorf("dashboard: edit pull request description: %w", err)
+	}
+
+	return nil
+}
+
 // FetchRepo implements RepoRefresher: the same per-repo calls Fetch
 // already makes for every tracked repo, but for just the one a caller
 // (a webhook delivery) already knows the identity of — no ListRepos
