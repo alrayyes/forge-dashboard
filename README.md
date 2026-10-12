@@ -832,8 +832,8 @@ leave it. The page still opens when typed into the address bar, and says it is e
 
 The CI status of every tracked repository's default branch is the first thing
 you see: it's the index page, `/`, reached from the **Branches** item, the first
-one in the navigation. The menu runs Branches, Pull requests, Issues, then the
-rest. The item has no count badge, so it always shows. The page reads
+one in the navigation. The menu runs Branches, Pull requests, Releases, Bots, Issues,
+then the rest. The item has no count badge, so it always shows. The page reads
 `GET /api/main-branches`, so a broken main shows up without opening each repo.
 The pull request list is at `/pull-requests.html`. The page used to live at
 `/main-branches.html`, which now redirects to `/`.
