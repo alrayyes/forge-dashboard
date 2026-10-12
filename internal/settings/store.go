@@ -143,7 +143,7 @@ func (s *Store) Init(ctx context.Context) error {
 		armed_at TIMESTAMP NOT NULL,
 		PRIMARY KEY (user_id, forge, repo_full_name, number)
 	);
-	` + queuedActionsSchema
+	` + hiddenPullRequestsSchema + queuedActionsSchema
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("settings: create schema: %w", err)
 	}
@@ -458,6 +458,9 @@ func (s *Store) Delete(ctx context.Context, userID []byte) error {
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM auto_merge_intents WHERE user_id = ?`, encodedID); err != nil {
 		return fmt.Errorf("settings: delete auto-merge intents: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM hidden_pull_requests WHERE user_id = ?`, encodedID); err != nil {
+		return fmt.Errorf("settings: delete hidden pull requests: %w", err)
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM queued_actions WHERE user_id = ?`, encodedID); err != nil {
 		return fmt.Errorf("settings: delete queued actions: %w", err)
