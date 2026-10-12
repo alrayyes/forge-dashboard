@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.171.0](https://github.com/alrayyes/forge-dashboard/compare/v0.170.0...v0.171.0) (2026-10-12)
+
+
+### Features
+
+* **web:** a Copy button on a failed action copies the server's whole answer ([#1326](https://github.com/alrayyes/forge-dashboard/issues/1326)) ([582da78](https://github.com/alrayyes/forge-dashboard/commit/582da78fd263701076c850fc9e5fb062acf71446))
+
 ## [0.170.0](https://github.com/alrayyes/forge-dashboard/compare/v0.169.1...v0.170.0) (2026-10-12)
 
 
