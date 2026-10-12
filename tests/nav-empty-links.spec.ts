@@ -6,6 +6,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { navCountsFor } from './nav-counts-helper';
 import { registerViaInvite } from './register-helper';
 
 // #1228: the Issues, Releases and Bots links are in the navigation only
@@ -72,6 +73,7 @@ function mockDashboard(
           pullRequests: state.pullRequests,
           issues: [],
           openIssueCount: state.openIssueCount,
+          navCounts: navCountsFor(state.pullRequests, state.openIssueCount),
         }),
       });
     },
@@ -101,7 +103,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await expect(header(page, '/pull-requests.html')).toBeVisible();
     // Counts are known once the pull request badge has its number.
     await expect(
-      header(page, '/pull-requests.html').locator('.nav-badge'),
+      header(page, '/pull-requests.html').locator('.nav-total'),
     ).toHaveText('1');
 
     for (const href of LINKS) {
@@ -159,7 +161,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
 
     release();
     await expect(
-      header(page, '/pull-requests.html').locator('.nav-badge'),
+      header(page, '/pull-requests.html').locator('.nav-total'),
     ).toHaveText('1');
     for (const href of LINKS) await expect(header(page, href)).toHaveCount(0);
   });
@@ -170,7 +172,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await mockDashboard(page, { pullRequests: [makePR(1)], openIssueCount: 0 });
     await page.goto('/releases.html');
     await expect(
-      header(page, '/pull-requests.html').locator('.nav-badge'),
+      header(page, '/pull-requests.html').locator('.nav-total'),
     ).toHaveText('1');
     await expect(header(page, '/releases.html')).toHaveAttribute(
       'aria-current',
@@ -180,7 +182,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
 
     await page.goto('/settings.html');
     await expect(
-      header(page, '/pull-requests.html').locator('.nav-badge'),
+      header(page, '/pull-requests.html').locator('.nav-total'),
     ).toHaveText('1');
     await expect(header(page, '/releases.html')).toHaveCount(0);
   });
@@ -192,7 +194,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await mockDashboard(page, state);
     await page.goto('/pull-requests.html');
     await expect(
-      header(page, '/pull-requests.html').locator('.nav-badge'),
+      header(page, '/pull-requests.html').locator('.nav-total'),
     ).toHaveText('1');
     await expect(header(page, '/releases.html')).toHaveCount(0);
 
@@ -221,7 +223,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await mockDashboard(page, state);
     await page.goto('/settings.html');
     await expect(
-      header(page, '/pull-requests.html').locator('.nav-badge'),
+      header(page, '/pull-requests.html').locator('.nav-total'),
     ).toHaveText('1');
     expect(
       (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,

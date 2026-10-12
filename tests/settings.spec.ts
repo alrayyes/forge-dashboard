@@ -26,7 +26,29 @@ test.describe('settings page', () => {
   // #1135: Lighthouse fails the page when under 60% of its text is 12px or
   // larger, and settings was at 43%. Nothing visible may be under 12px.
   test('no visible text on the page is under 12px', async ({ page }) => {
+    // With counts on the nav, so the pills (11px, on a phone 10px) are in the
+    // page the check reads, and the exemption below is what lets them pass.
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [],
+          navCounts: {
+            branches: { total: 12, failed: 3 },
+            pullRequests: { total: 27, failed: 5 },
+            issues: { total: 9 },
+            releases: { total: 2, failed: 0 },
+            bots: { total: 14, failed: 1 },
+          },
+        }),
+      }),
+    );
     await page.goto('/settings.html');
+    await expect(page.locator('.app-nav .nav-pills').first()).toBeVisible();
     await expect(page.locator('#settings-form')).toBeVisible();
 
     const small = await page.evaluate(() => {
@@ -38,8 +60,9 @@ test.describe('settings page', () => {
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         const el = node.parentElement;
         if (!el || !node.textContent?.trim()) continue;
-        // The header's count bubble is one digit in a small circle, not text.
-        if (el.closest('script, style, [hidden], .nav-badge')) continue;
+        // The nav's count pills are numbers in a small pill (aria-hidden: the
+        // link's name says them), not running text.
+        if (el.closest('script, style, [hidden], .nav-pills')) continue;
         if (!el.checkVisibility()) continue;
         const style = getComputedStyle(el);
         if (parseFloat(style.fontSize) < 12)

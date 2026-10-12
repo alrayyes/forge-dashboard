@@ -6,6 +6,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { navCountsFor } from './nav-counts-helper';
 import { registerViaInvite } from './register-helper';
 
 // The nav shows how many are waiting, like Issues does: pull requests on the
@@ -59,6 +60,7 @@ function mockDashboard(page: Page, pullRequests: unknown[], issues = 0) {
         pullRequests,
         issues: [],
         openIssueCount: issues,
+        navCounts: navCountsFor(pullRequests, issues),
       }),
     }),
   );
@@ -73,7 +75,7 @@ const SNAPSHOT = [
 ];
 
 const badge = (page: Page, nav: 'header' | '.bottom-nav', link: string) =>
-  page.locator(nav).locator(`a[href="${link}"] .nav-badge`);
+  page.locator(nav).locator(`a[href="${link}"] .nav-total`);
 
 test.describe('nav counts and the pull request page without releases', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
