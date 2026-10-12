@@ -131,6 +131,12 @@ read-only access to your own dashboard, from Settings).
 
 ## Authentication
 
+Forge Dashboard is an internal tool, not a public site, so it keeps out of
+search engines. Every response carries `X-Robots-Tag: noindex, nofollow`, the
+HTML shell has a matching `<meta name="robots">` tag, and `robots.txt` allows
+crawling on purpose: a crawler that can't fetch a page never reads its
+`noindex`. The real barrier is the passkey login below.
+
 The first visit registers a passkey and becomes the instance's admin;
 every registration after that needs an invite link the admin generates —
 no password anywhere, and no separate account system. `POST
