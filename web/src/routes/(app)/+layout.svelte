@@ -120,6 +120,13 @@
     // visitors, who have none (#1261).
     const NAV_COUNTS_POLL_MS = 30_000;
     let navCountsTimer: number | undefined;
+    // Set on unmount, so a session answer that arrives after it starts nothing.
+    let gone = false;
+    // A tab shown again reads at once instead of waiting out the interval.
+    const onVisible = () => {
+      if (!document.hidden && navCountsTimer !== undefined) loadNavCounts();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     function loadNavCounts() {
       if (
@@ -159,6 +166,7 @@
         if (!session) return;
         displayName = session.displayName;
         isAdmin = session.isAdmin;
+        if (gone) return;
         loadNavCounts();
         navCountsTimer = window.setInterval(() => {
           // A hidden tab has nobody to show it to.
@@ -169,7 +177,11 @@
         /* a transient failure here isn't worth blocking the page over */
       });
 
-    return () => window.clearInterval(navCountsTimer);
+    return () => {
+      gone = true;
+      window.clearInterval(navCountsTimer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   });
 </script>
 

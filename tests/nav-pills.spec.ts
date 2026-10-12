@@ -244,6 +244,49 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     await expect(header(page, '/').locator('.nav-failed')).toHaveText('5');
   });
 
+  // A hidden tab has nobody to show the numbers to, so it does not ask; and a
+  // tab that becomes visible again asks at once instead of waiting out the
+  // interval.
+  test('a hidden tab does not poll, and showing it again reads at once', async ({
+    page,
+  }) => {
+    const state = { counts: MIXED };
+    let reads = 0;
+    await page.clock.install();
+    await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
+    await page.route('**/api/dashboard*', (route: Route) => {
+      reads += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snapshot(state.counts)),
+      });
+    });
+    await page.goto('/settings.html');
+    await expect(header(page, '/').locator('.nav-failed')).toHaveText('3');
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', {
+        configurable: true,
+        get: () => true,
+      });
+    });
+    const before = reads;
+
+    await page.clock.runFor(95_000);
+    expect(reads).toBe(before);
+
+    state.counts = { ...MIXED, branches: { total: 12, failed: 0 } };
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', {
+        configurable: true,
+        get: () => false,
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await expect(header(page, '/').locator('.nav-failed')).toHaveCount(0);
+  });
+
   test('a page that loads its own snapshot does not poll the counts a second time', async ({
     page,
   }) => {
