@@ -65,6 +65,21 @@ func TestGenericSource_AddLabel_DelegatesToClient(t *testing.T) {
 	assert.Equal(t, []string{"alrayyes/scaffold-python-cli#77 rebase"}, client.labeled)
 }
 
+// The forge's own error comes back as it is, with nothing prefixed: the API
+// shows its sentence to the person, and a "dashboard:" prefix would send it
+// to the generic "gave no reason" line.
+func TestGenericSource_AddLabel_ReturnsTheClientsErrorUnchanged(t *testing.T) {
+	t.Parallel()
+
+	want := errors.New("forgejo: add label: 422 label does not exist")
+	client := &fakeLabelerClient{labelErr: want}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	err := source.AddLabel(t.Context(), "alrayyes", "a", 1, "rebase")
+
+	assert.Equal(t, want, err)
+}
+
 func TestGenericSource_AddLabel_PropagatesClientError(t *testing.T) {
 	t.Parallel()
 
@@ -83,7 +98,7 @@ func TestGenericSource_AddLabel_ClientWithoutSupport_ReturnsError(t *testing.T) 
 
 	err := source.AddLabel(t.Context(), "alrayyes", "a", 1, "rebase")
 
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "not supported by this client")
 }
 
 func TestGenericSource_PullRequestBody_DelegatesToClient(t *testing.T) {
@@ -116,7 +131,7 @@ func TestGenericSource_PullRequestBody_ClientWithoutSupport_ReturnsError(t *test
 
 	_, err := source.PullRequestBody(t.Context(), "alrayyes", "a", 1)
 
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "not supported by this client")
 }
 
 func TestGenericSource_SetPullRequestBody_DelegatesToClient(t *testing.T) {
@@ -149,7 +164,7 @@ func TestGenericSource_SetPullRequestBody_ClientWithoutSupport_ReturnsError(t *t
 
 	err := source.SetPullRequestBody(t.Context(), "alrayyes", "a", 1, "new body")
 
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "not supported by this client")
 }
 
 // The whole request through a real GenericSource, as the handler makes it.

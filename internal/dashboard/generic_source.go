@@ -345,11 +345,10 @@ func (s *GenericSource) AddLabel(ctx context.Context, owner, name string, number
 	if !ok {
 		return fmt.Errorf("dashboard: %s's client can't label pull requests: %w", s.forge, errUnsupportedByClient)
 	}
-	if err := labeler.AddLabel(ctx, owner, name, number, label); err != nil {
-		return fmt.Errorf("dashboard: add label: %w", err)
-	}
 
-	return nil
+	// Not wrapped: the handler shows the forge's own sentence for a refusal,
+	// and a "dashboard:" prefix is what makes it fall back to the generic one.
+	return labeler.AddLabel(ctx, owner, name, number, label) //nolint:wrapcheck // see above
 }
 
 // PullRequestBody implements PullRequestBodyEditor at the Source level, the
@@ -360,12 +359,9 @@ func (s *GenericSource) PullRequestBody(ctx context.Context, owner, name string,
 	if !ok {
 		return "", fmt.Errorf("dashboard: %s's client can't read pull request descriptions: %w", s.forge, errUnsupportedByClient)
 	}
-	body, err := editor.PullRequestBody(ctx, owner, name, number)
-	if err != nil {
-		return "", fmt.Errorf("dashboard: read pull request description: %w", err)
-	}
 
-	return body, nil
+	// Not wrapped, for the same reason as AddLabel.
+	return editor.PullRequestBody(ctx, owner, name, number) //nolint:wrapcheck // see above
 }
 
 // SetPullRequestBody implements the other half of PullRequestBodyEditor.
@@ -374,11 +370,8 @@ func (s *GenericSource) SetPullRequestBody(ctx context.Context, owner, name stri
 	if !ok {
 		return fmt.Errorf("dashboard: %s's client can't edit pull request descriptions: %w", s.forge, errUnsupportedByClient)
 	}
-	if err := editor.SetPullRequestBody(ctx, owner, name, number, body); err != nil {
-		return fmt.Errorf("dashboard: edit pull request description: %w", err)
-	}
 
-	return nil
+	return editor.SetPullRequestBody(ctx, owner, name, number, body) //nolint:wrapcheck // as AddLabel
 }
 
 // FetchRepo implements RepoRefresher: the same per-repo calls Fetch
