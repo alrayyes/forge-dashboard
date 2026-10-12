@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The dashboard is four pages sharing one script: pull requests at "/",
+  // The dashboard is four pages sharing one script: pull requests at "/pull-requests",
   // issues at "/issues" (#827), release pull requests at "/releases" (#1107)
   // and Dependabot and Renovate's at "/bots" (#1192). Each view renders only
   // its own board and controls; every id the script looks up that the other
@@ -6034,7 +6034,7 @@
         ? "Releases — Forge Board"
         : view === "bots"
           ? "Bots — Forge Board"
-          : "Forge Board"}</title
+          : "Pull requests — Forge Board"}</title
   >
   <meta
     name="description"

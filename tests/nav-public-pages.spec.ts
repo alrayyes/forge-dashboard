@@ -75,7 +75,7 @@ for (const path of ['/changelog.html', '/disclaimer.html', '/privacy.html']) {
       await mockDashboard(page, [makePR(1, 'regular')], 0);
       await page.goto(path);
 
-      await expect(header(page, '/')).toContainText('1');
+      await expect(header(page, '/pull-requests.html')).toContainText('1');
       await expect(header(page, '/issues.html')).toHaveCount(0);
       await expect(header(page, '/releases.html')).toHaveCount(0);
       await expect(header(page, '/bots.html')).toHaveCount(0);

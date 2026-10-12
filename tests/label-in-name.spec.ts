@@ -79,7 +79,7 @@ test.describe('visible text is part of the accessible name (#1135)', () => {
     );
   });
 
-  for (const path of ['/', '/issues.html']) {
+  for (const path of ['/pull-requests.html', '/issues.html']) {
     test(`${path} has no label that leaves out its visible text`, async ({
       page,
     }) => {

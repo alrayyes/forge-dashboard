@@ -67,6 +67,10 @@ async function registerViaInvite(
   }
   await submit.click();
   await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
+  // Signing in lands on the Branches page (#1279). Most specs were written
+  // against the pull request list, which used to be that landing page, and
+  // mock or reload it straight after registering, so they start there.
+  await page.goto('/pull-requests.html');
 }
 
 export { registerViaInvite };

@@ -10,7 +10,7 @@ import { registerViaInvite } from './register-helper';
 
 // #1228: the Issues, Releases and Bots links are in the navigation only
 // while they have something to show. A count of null (not loaded yet) is not
-// zero, the page you are on keeps its link, and Home always shows.
+// zero, the page you are on keeps its link, and Pull requests always show.
 
 async function registerAndSignIn(
   page: Page,
@@ -93,14 +93,16 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
-  test('with nothing to show, the three links are gone from the header and the tab bar, and Home stays', async ({
+  test('with nothing to show, the three links are gone from the header and the tab bar, and Pull requests stays', async ({
     page,
   }) => {
     await mockDashboard(page, { pullRequests: [makePR(1)], openIssueCount: 0 });
     await page.goto('/settings.html');
-    await expect(header(page, '/')).toBeVisible();
-    // Counts are known once Home's badge has its number.
-    await expect(header(page, '/').locator('.nav-badge')).toHaveText('1');
+    await expect(header(page, '/pull-requests.html')).toBeVisible();
+    // Counts are known once the pull request badge has its number.
+    await expect(
+      header(page, '/pull-requests.html').locator('.nav-badge'),
+    ).toHaveText('1');
 
     for (const href of LINKS) {
       await expect(header(page, href)).toHaveCount(0);
@@ -156,7 +158,9 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     for (const href of LINKS) await expect(header(page, href)).toHaveCount(1);
 
     release();
-    await expect(header(page, '/').locator('.nav-badge')).toHaveText('1');
+    await expect(
+      header(page, '/pull-requests.html').locator('.nav-badge'),
+    ).toHaveText('1');
     for (const href of LINKS) await expect(header(page, href)).toHaveCount(0);
   });
 
@@ -165,7 +169,9 @@ test.describe('empty pages leave the navigation (#1228)', () => {
   }) => {
     await mockDashboard(page, { pullRequests: [makePR(1)], openIssueCount: 0 });
     await page.goto('/releases.html');
-    await expect(header(page, '/').locator('.nav-badge')).toHaveText('1');
+    await expect(
+      header(page, '/pull-requests.html').locator('.nav-badge'),
+    ).toHaveText('1');
     await expect(header(page, '/releases.html')).toHaveAttribute(
       'aria-current',
       'page',
@@ -173,7 +179,9 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await expect(page.locator('#pr-empty')).toBeVisible();
 
     await page.goto('/settings.html');
-    await expect(header(page, '/').locator('.nav-badge')).toHaveText('1');
+    await expect(
+      header(page, '/pull-requests.html').locator('.nav-badge'),
+    ).toHaveText('1');
     await expect(header(page, '/releases.html')).toHaveCount(0);
   });
 
@@ -182,8 +190,10 @@ test.describe('empty pages leave the navigation (#1228)', () => {
   }) => {
     const state: Snapshot = { pullRequests: [makePR(1)], openIssueCount: 0 };
     await mockDashboard(page, state);
-    await page.goto('/');
-    await expect(header(page, '/').locator('.nav-badge')).toHaveText('1');
+    await page.goto('/pull-requests.html');
+    await expect(
+      header(page, '/pull-requests.html').locator('.nav-badge'),
+    ).toHaveText('1');
     await expect(header(page, '/releases.html')).toHaveCount(0);
 
     state.pullRequests = [makePR(1), release];
@@ -210,7 +220,9 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     const state: Snapshot = { pullRequests: [makePR(1)], openIssueCount: 0 };
     await mockDashboard(page, state);
     await page.goto('/settings.html');
-    await expect(header(page, '/').locator('.nav-badge')).toHaveText('1');
+    await expect(
+      header(page, '/pull-requests.html').locator('.nav-badge'),
+    ).toHaveText('1');
     expect(
       (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
     ).toEqual([]);

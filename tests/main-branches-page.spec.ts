@@ -96,23 +96,23 @@ const pill = (page: Page, name: RegExp | string) =>
 
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
-test.describe('Main branches page (#1224)', () => {
+test.describe('Main branches page (#1224, #1279)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
   });
 
-  test('the nav links to it without a count, in the header and the phone tab bar', async ({
+  test('the nav links to it, first, without a count, in the header and the phone tab bar', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
-    await page.goto('/main-branches.html');
-    const header = page.locator('.app-nav a[href="/main-branches.html"]');
-    await expect(header).toHaveAttribute('aria-label', 'Main branches');
+    await page.goto('/');
+    const header = page.locator('.app-nav a[href="/"]');
+    await expect(header).toHaveAttribute('aria-label', 'Branches');
     await expect(header).toHaveAttribute('aria-current', 'page');
     await expect(header.locator('.nav-badge')).toHaveCount(0);
 
     await page.setViewportSize({ width: 390, height: 844 });
-    const tab = page.locator('.bottom-nav a[href="/main-branches.html"]');
+    const tab = page.locator('.bottom-nav a[href="/"]');
     await expect(tab).toBeVisible();
     await expect(tab).toHaveAttribute('aria-current', 'page');
     // Every tab still fits inside the bar.
@@ -130,7 +130,7 @@ test.describe('Main branches page (#1224)', () => {
   test('is hidden from a signed-out visitor', async ({ browser, baseURL }) => {
     const context = await browser.newContext({ baseURL });
     const anon = await context.newPage();
-    await anon.goto('/main-branches.html');
+    await anon.goto('/');
     await expect(anon).toHaveURL(/login\.html/);
     await context.close();
   });
@@ -139,7 +139,7 @@ test.describe('Main branches page (#1224)', () => {
     page,
   }) => {
     await mock(page, snapshot(MIXED));
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     await expect(
       page.getByRole('heading', { name: 'Main branches', level: 1 }),
     ).toHaveText('Main branches');
@@ -185,7 +185,7 @@ test.describe('Main branches page (#1224)', () => {
     page,
   }) => {
     await mock(page, snapshot(MIXED));
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     await pill(page, /^Failing 2$/).click();
     await expect(pill(page, /^Failing 2$/)).toHaveAttribute(
       'aria-pressed',
@@ -218,7 +218,7 @@ test.describe('Main branches page (#1224)', () => {
     page,
   }) => {
     await mock(page, snapshot(MIXED));
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     await pill(page, /^Forgejo 2$/).click();
     await expect(rows(page)).toHaveCount(2);
     await pill(page, /^Failing \d/).click();
@@ -242,7 +242,7 @@ test.describe('Main branches page (#1224)', () => {
     page,
   }) => {
     await mock(page, snapshot(MIXED));
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     const failed = rows(page).first();
     const link = failed.getByRole('link', { name: /View run/ });
     await expect(link).toHaveAttribute(
@@ -273,7 +273,7 @@ test.describe('Main branches page (#1224)', () => {
     page,
   }) => {
     await mock(page, snapshot(MIXED));
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     const failed = rows(page).first();
 
     for (const link of [
@@ -300,7 +300,7 @@ test.describe('Main branches page (#1224)', () => {
       page,
       snapshot([row('infra/wiki', 'none', { forge: 'forgejo' })]),
     );
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     const only = rows(page).first();
     await expect(only.locator('.mb-status')).toContainText('No pipeline');
     await expect(only).toContainText('No run was found');
@@ -318,7 +318,7 @@ test.describe('Main branches page (#1224)', () => {
         row('infra/c', 'passed', { forge: 'forgejo' }),
       ]),
     );
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     await expect(page.locator('[data-testid="stale-banner"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="stale-banner"]')).toContainText(
       /last known status/i,
@@ -335,7 +335,7 @@ test.describe('Main branches page (#1224)', () => {
       page,
       snapshot([row('acme/a', 'passed'), row('infra/b', 'passed')]),
     );
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     await expect(page.locator('[data-testid="all-green"]')).toContainText(
       /every default branch is passing/i,
     );
@@ -346,7 +346,7 @@ test.describe('Main branches page (#1224)', () => {
     page,
   }) => {
     await mock(page, snapshot(MIXED));
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     await page.getByRole('searchbox', { name: /search/i }).fill('zzz-nothing');
     await expect(rows(page)).toHaveCount(0);
     await expect(page.locator('[data-testid="no-match"]')).toContainText(
@@ -363,7 +363,7 @@ test.describe('Main branches page (#1224)', () => {
     page,
   }) => {
     await mock(page, snapshot([]));
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     await expect(page.locator('[data-testid="no-repos"]')).toBeVisible();
   });
 
@@ -385,7 +385,7 @@ test.describe('Main branches page (#1224)', () => {
             body: JSON.stringify(snapshot(MIXED)),
           }),
     );
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     await expect(page.getByRole('alert')).toContainText(/couldn't load/i);
     fail = false;
     await page.getByRole('button', { name: /retry/i }).click();
@@ -397,7 +397,7 @@ test.describe('Main branches page (#1224)', () => {
   }) => {
     const stale = { stale: true, staleSince: minutesAgo(11) };
     await mock(page, snapshot([...MIXED, row('acme/stale', 'failed', stale)]));
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     await expect(rows(page)).toHaveCount(7);
     await rows(page)
       .first()
@@ -433,7 +433,7 @@ test.describe('Main branches page (#1224)', () => {
   }) => {
     await mock(page, snapshot(MIXED));
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/main-branches.html');
+    await page.goto('/');
     const failed = rows(page).first();
     await expect(failed).toBeVisible();
     for (const control of [

@@ -160,7 +160,7 @@ test.describe('Releases page (#1107)', () => {
     page,
   }) => {
     await mockDashboard(page, [release(10, '0.74.2')]);
-    await page.goto('/');
+    await page.goto('/pull-requests.html');
     const link = page.locator('header').getByRole('link', { name: 'Releases' });
     await link.click();
     await expect(page).toHaveURL(/\/releases\.html$/);

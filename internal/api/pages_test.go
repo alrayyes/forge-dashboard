@@ -23,7 +23,7 @@ func TestPages_RequireASession(t *testing.T) {
 		"/insights.html",
 		"/releases.html",
 		"/bots.html",
-		"/main-branches.html",
+		"/pull-requests.html",
 		"/settings.html",
 		"/webhooks.html",
 		"/admin.html",
@@ -39,4 +39,20 @@ func TestPages_RequireASession(t *testing.T) {
 			assert.Equal(t, "/login.html", resp.Header.Get("Location"))
 		})
 	}
+}
+
+// The branch page used to live at /main-branches.html and is the index now
+// (#1279); the old address sends a bookmark there.
+func TestMainBranchesPage_OldAddressRedirectsToTheIndex(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	resp, err := client.Get(srv.URL + "/main-branches.html")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
+	assert.Equal(t, "/", resp.Header.Get("Location"))
 }
