@@ -869,7 +869,7 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   });
 
-  test('the "Open pull requests" stat tile reflects the active filter, not just the raw total', async ({
+  test('the pull request count reflects the active filter, not just the raw total', async ({
     page,
   }) => {
     await page.route('**/api/dashboard*', (route) =>

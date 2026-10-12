@@ -138,7 +138,7 @@
       font-size: 22px;
       margin: 0 0 4px;
     }
-    .mb-summary {
+    .mb-loading {
       font-size: 13.5px;
       color: var(--ink-2);
       margin: 0 0 16px;
@@ -432,7 +432,7 @@
   </div>
 
   {#if loading}
-    <p class="mb-summary" role="status">Loading the main branches…</p>
+    <p class="mb-loading" role="status">Loading the main branches…</p>
   {:else if failed}
     <div class="mb-note" role="alert">
       <p>Couldn't load the main branches.</p>
