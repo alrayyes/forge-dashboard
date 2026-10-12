@@ -900,9 +900,10 @@ longer lists issues.
 `GET /api/dashboard` and its stream carry `navCounts`, the numbers behind every
 navigation badge: for Branches, Pull requests, Releases and Bots a `total` and
 a `failed` (failing CI, or a failing default-branch pipeline), and for Issues a
-`total` only. They count what each page shows when it opens, so ignored repos,
-drafts and hidden pull requests are left out even while Show drafts or Show
-hidden is on, and they are always present, zero when nothing is there.
+`total` only. They count what each page shows when it opens. Pull requests
+leave out ignored repos, drafts and hidden ones, even while Show drafts or Show
+hidden is on. Branches counts every tracked default branch, as its page lists
+them. They are always present, zero when nothing is there.
 
 The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
