@@ -31,6 +31,14 @@ func TestKindOf(t *testing.T) {
 		{"Renovate on Forgejo", dashboard.PullRequest{Forge: dashboard.ForgeForgejo, Author: "renovate"}, dashboard.KindDependency},
 		{"a release label beats a bot author", dashboard.PullRequest{Author: "dependabot[bot]", Labels: release}, dashboard.KindRelease},
 		{"an unrelated label changes nothing", dashboard.PullRequest{Author: "alice", Labels: []dashboard.Label{{Name: "bug"}}}, dashboard.KindRegular},
+		{"Renovate's Forgejo account, no setting changed", dashboard.PullRequest{Forge: dashboard.ForgeForgejo, Author: "renovatebot"}, dashboard.KindDependency},
+		{"Renovate's account in another case", dashboard.PullRequest{Author: "RenovateBot"}, dashboard.KindDependency},
+		{"a renovate/ branch, unknown author", dashboard.PullRequest{Author: "mend-bot", HeadBranch: "renovate/lodash-4.x"}, dashboard.KindDependency},
+		{"a renovate/ branch on GitHub", dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Author: "alice", HeadBranch: "renovate/configure"}, dashboard.KindDependency},
+		{"a human branch that merely mentions renovate", dashboard.PullRequest{Author: "alice", HeadBranch: "fix/renovate-config"}, dashboard.KindRegular},
+		{"a branch with renovate/ not at the start", dashboard.PullRequest{Author: "alice", HeadBranch: "feat/renovate/x"}, dashboard.KindRegular},
+		{"a release label beats a renovate/ branch", dashboard.PullRequest{Author: "alice", HeadBranch: "renovate/x", Labels: release}, dashboard.KindRelease},
+		{"a release label beats renovatebot", dashboard.PullRequest{Author: "renovatebot", Labels: release}, dashboard.KindRelease},
 		{"a lookalike author is a person", dashboard.PullRequest{Author: "dependabot-fan"}, dashboard.KindRegular},
 	}
 	for _, tc := range cases {
@@ -49,4 +57,20 @@ func TestKindOf_ConfiguredRenovateAuthorIsADependency(t *testing.T) {
 
 	assert.Equal(t, dashboard.KindRegular, dashboard.KindOf(pr, nil))
 	assert.Equal(t, dashboard.KindDependency, dashboard.KindOf(pr, []string{"mend-bot"}))
+}
+
+// The allowed actions share the one rule, so a renovate/ branch gets Renovate's
+// Rebase and no Update branch.
+func TestAllowedActions_RenovateBranchIsTreatedAsRenovate(t *testing.T) {
+	t.Parallel()
+
+	pr := dashboard.PullRequest{Forge: dashboard.ForgeForgejo, Author: "mend-bot", HeadBranch: "renovate/lodash-4.x", Behind: true}
+
+	names := []dashboard.ActionName{}
+	for _, a := range dashboard.AllowedActions(pr, nil) {
+		names = append(names, a.Action)
+	}
+
+	assert.Contains(t, names, dashboard.ActionRenovateRebase)
+	assert.NotContains(t, names, dashboard.ActionUpdateBranch)
 }
