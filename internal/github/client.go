@@ -806,6 +806,52 @@ func (c *Client) EnableAutoMerge(ctx context.Context, owner, name string, number
 	return nil
 }
 
+// pullRequestIDQuery fetches just a pull request's GraphQL node ID, which
+// disablePullRequestAutoMerge takes in place of owner/name/number.
+const pullRequestIDQuery = `
+query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      id
+    }
+  }
+}
+`
+
+// disablePullRequestAutoMergeMutation takes auto-merge back off a pull
+// request, the counterpart of enablePullRequestAutoMergeMutation.
+const disablePullRequestAutoMergeMutation = `
+mutation($id: ID!) {
+  disablePullRequestAutoMerge(input: {pullRequestId: $id}) {
+    clientMutationId
+  }
+}
+`
+
+type pullRequestIDResponse struct {
+	Repository struct {
+		PullRequest struct {
+			ID string `json:"id"`
+		} `json:"pullRequest"`
+	} `json:"repository"`
+}
+
+// DisableAutoMerge implements dashboard.PullRequestAutoMergeDisabler: turns
+// off owner/name#number's native auto-merge via GitHub's
+// disablePullRequestAutoMerge GraphQL mutation (#1293). Like EnableAutoMerge
+// it looks the node ID up first, since REST has no equivalent.
+func (c *Client) DisableAutoMerge(ctx context.Context, owner, name string, number int) error {
+	var lookup pullRequestIDResponse
+	if err := c.graphqlDo(ctx, pullRequestIDQuery, map[string]any{"owner": owner, "name": name, "number": number}, &lookup); err != nil {
+		return asClientError(err)
+	}
+	if err := c.graphqlDo(ctx, disablePullRequestAutoMergeMutation, map[string]any{"id": lookup.Repository.PullRequest.ID}, nil); err != nil {
+		return asClientError(err)
+	}
+
+	return nil
+}
+
 // UpdateBranch implements dashboard.BranchUpdater: merges owner/name#number's
 // base branch into its head branch. GitHub can schedule this as a
 // background job and answer 202 before it's actually done — go-github

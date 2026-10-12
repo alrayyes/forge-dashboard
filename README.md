@@ -570,17 +570,18 @@ states: `Rebase requested` and then `Rebasing` for a Dependabot or Renovate
 `rebase`, `Recreating` for a Dependabot recreate, `Updating branch`, `Merging`
 and `Closing` while the forge answers, `Arming` and `Disarming` for auto-merge,
 and `Waiting for CI` (or `Waiting for parent`, `Rate limited`, `Waiting for
-ready`, `Waiting for forge`, `Merging next`) for an armed Forgejo auto-merge,
-with `Disarm`. When a request ends well the chip reads `Settled` for four
-seconds and goes. A wait with no change for two minutes reads `Still waiting`
-with `Check again`, which reads the row from the server now. Each change is
-announced once through the polite live region, the ticking age and the refresh
-countdown are kept out of it, and nothing is announced when the chip clears.
-With reduced motion on, the spinner is a still icon. Icon and words carry every
-state, not colour. On a phone the chip fills the card's width without widening
-it, and its button is 44px high. The chip's wording lives in one place,
-`web/src/lib/wait-chip.ts`. A failure or a timeout is not a wait and stays a
-text line with Retry and Dismiss.
+ready`, `Waiting for forge`, `Merging next`) for an armed auto-merge on either
+forge, with `Disarm`. On GitHub, Disarm turns GitHub's own auto-merge off with
+`disablePullRequestAutoMerge`. When a request ends well the chip reads `Settled`
+for four seconds and goes. A wait with no change for two minutes reads `Still
+waiting` with `Check again`, which reads the row from the server now. Each
+change is announced once through the polite live region, the ticking age and the
+refresh countdown are kept out of it, and nothing is announced when the chip
+clears. With reduced motion on, the spinner is a still icon. Icon and words
+carry every state, not colour. On a phone the chip fills the card's width
+without widening it, and its button is 44px high. The chip's wording lives in
+one place, `web/src/lib/wait-chip.ts`. A failure or a timeout is not a wait and
+stays a text line with Retry and Dismiss.
 
 Update branch, `Dependabot: Rebase` and `Renovate: Rebase` only ask the forge or
 a bot to act, and the result shows up on a later refresh. Update branch turns

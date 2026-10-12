@@ -20,7 +20,14 @@ import (
 // so a test can tell a refusal made by the server from one made by the forge.
 type autoMergeCountingSource struct {
 	fakeConfiguredSource
-	enables atomic.Int32
+	enables  atomic.Int32
+	disables atomic.Int32
+}
+
+func (s *autoMergeCountingSource) DisableAutoMerge(context.Context, string, string, int) error {
+	s.disables.Add(1)
+
+	return nil
 }
 
 func (s *autoMergeCountingSource) EnableAutoMerge(context.Context, string, string, int) error {

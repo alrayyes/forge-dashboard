@@ -74,17 +74,34 @@ func armForgejoAutoMerge(w http.ResponseWriter, r *http.Request, deps Deps, t ac
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handlePullRequestAutoMergeCancel removes the intent armForgejoAutoMerge
-// stored. Forgejo only, and it never calls the forge: the intent lives here.
-// Idempotent.
+// handlePullRequestAutoMergeCancel takes auto-merge back off. On Forgejo it
+// removes the intent armForgejoAutoMerge stored and never calls the forge: the
+// intent lives here, and cancelling is idempotent. On GitHub it turns the
+// forge's own auto-merge off through dashboard.PullRequestAutoMergeDisabler
+// (#1293), and only for a pull request that is armed.
 func handlePullRequestAutoMergeCancel(deps Deps) http.HandlerFunc {
+	github := guardedAction[dashboard.PullRequestAutoMergeDisabler]{
+		allowed:     dashboard.ActionCancelAutoMerge,
+		refusal:     dashboard.PullRequestActionCancelAutoMerge,
+		unsupported: "doesn't support cancelling auto-merge on pull requests",
+		failure:     "pull request auto-merge cancel failed",
+		call: func(ctx context.Context, disabler dashboard.PullRequestAutoMergeDisabler, owner, name string, number int) error {
+			return disabler.DisableAutoMerge(ctx, owner, name, number)
+		},
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, ok := readActionTarget(w, r)
 		if !ok {
 			return
 		}
+		if t.req.Forge == string(dashboard.ForgeGitHub) {
+			serveGuardedAction(w, r, deps, github, t)
+
+			return
+		}
 		if t.req.Forge != string(dashboard.ForgeForgejo) {
-			writeJSON(w, http.StatusBadRequest, errorBody("only Forgejo auto-merge is cancelled from here"))
+			writeJSON(w, http.StatusBadRequest, errorBody("unknown forge"))
 
 			return
 		}
