@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.175.0](https://github.com/alrayyes/forge-dashboard/compare/v0.174.0...v0.175.0) (2026-10-12)
+
+
+### Features
+
+* block Renovate: Rebase while Renovate's rebase checkbox is ticked ([#1352](https://github.com/alrayyes/forge-dashboard/issues/1352)) ([30ddc85](https://github.com/alrayyes/forge-dashboard/commit/30ddc850e33511afcb3d00ea5bc34e7f5124aad3))
+
 ## [0.174.0](https://github.com/alrayyes/forge-dashboard/compare/v0.173.1...v0.174.0) (2026-10-12)
 
 
