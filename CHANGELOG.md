@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.169.0](https://github.com/alrayyes/forge-dashboard/compare/v0.168.0...v0.169.0) (2026-10-12)
+
+
+### Features
+
+* **web:** hide one pull request from More actions, with Undo and a Hidden list ([#1319](https://github.com/alrayyes/forge-dashboard/issues/1319)) ([a66c060](https://github.com/alrayyes/forge-dashboard/commit/a66c060511083e5580945f6c0b38273e9996d1ab)), closes [#841](https://github.com/alrayyes/forge-dashboard/issues/841)
+
 ## [0.168.0](https://github.com/alrayyes/forge-dashboard/compare/v0.167.1...v0.168.0) (2026-10-12)
 
 
