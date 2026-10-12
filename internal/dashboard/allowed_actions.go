@@ -51,9 +51,9 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	if autoMergeOffered(pr) {
 		out = append(out, ActionAvailability{Action: ActionAutoMerge})
 	}
-	// Only Forgejo's auto-merge is this app's to cancel. GitHub's belongs to
-	// GitHub.
-	if pr.Forge == ForgeForgejo && pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled {
+	// Armed on either forge: Forgejo's intent is this app's own, GitHub's is
+	// turned off with disablePullRequestAutoMerge (#1293).
+	if pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled {
 		out = append(out, ActionAvailability{Action: ActionCancelAutoMerge})
 	}
 	if pr.Forge == ForgeGitHub && isDependabotPR(pr) {

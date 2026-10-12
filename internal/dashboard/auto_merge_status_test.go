@@ -120,3 +120,33 @@ func TestAutoMerge_Merged_IsForgottenAfterTenMinutes(t *testing.T) {
 
 	assert.Empty(t, agg.AutoMergeReport().Merged)
 }
+
+// GitHub's auto-merge is GitHub's own (#1293): the words name GitHub, never
+// Forgejo, and a clean pull request is merged by GitHub, not by the next
+// refresh of this app.
+func TestAutoMergeStatusOf_GitHub_NamesGitHubNotForgejo(t *testing.T) {
+	t.Parallel()
+
+	for name, mutate := range map[string]func(*dashboard.PullRequest){
+		"conflict":   func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting },
+		"not clean":  func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown },
+		"all green":  nil,
+		"pending CI": func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			pr := amPR(func(p *dashboard.PullRequest) {
+				p.Forge = dashboard.ForgeGitHub
+				if mutate != nil {
+					mutate(p)
+				}
+			})
+
+			got := dashboard.AutoMergeStatusOf(pr, nil)
+
+			assert.NotContains(t, got.Message, "Forgejo")
+			assert.NotContains(t, got.Message, "next refresh")
+		})
+	}
+}

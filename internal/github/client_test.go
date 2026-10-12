@@ -3765,3 +3765,51 @@ func TestReadPullRequestState_ChangesWorkflowFiles(t *testing.T) {
 		})
 	}
 }
+
+// DisableAutoMerge looks the pull request's node ID up, then sends the
+// disablePullRequestAutoMerge mutation with it (#1293).
+func TestDisableAutoMerge_SendsTheMutationWithTheNodeID(t *testing.T) {
+	t.Parallel()
+
+	var mutationVars map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if strings.Contains(body.Query, "disablePullRequestAutoMerge") {
+			mutationVars = body.Variables
+			writeJSON(t, w, map[string]any{"data": map[string]any{"disablePullRequestAutoMerge": map[string]any{"clientMutationId": nil}}})
+
+			return
+		}
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{"pullRequest": map[string]any{"id": "PR_kwABC"}},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.DisableAutoMerge(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.NotNil(t, mutationVars)
+	assert.Equal(t, "PR_kwABC", mutationVars["id"])
+}
+
+func TestDisableAutoMerge_GraphQLError_IsReturned(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"errors": []map[string]any{{"message": "Resource not accessible by integration"}}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	require.Error(t, client.DisableAutoMerge(t.Context(), "alrayyes", "a", 5))
+}

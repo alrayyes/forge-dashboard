@@ -70,7 +70,7 @@ func TestAllowedActions(t *testing.T) {
 		{"passing CI on Forgejo has nothing to rerun", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CISuccess }), []string{"close", "merge"}},
 		{"blocked otherwise", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:blocked_by_protection"}},
 		{"merge status not known yet", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }), []string{"auto_merge", "close", "merge:not_mergeable"}},
-		{"auto-merge already on is not offered again", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"close", "merge:checks_pending"}},
+		{"auto-merge already on is not offered again, but can be cancelled", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"cancel_auto_merge", "close", "merge:checks_pending"}},
 		{"auto-merge refused by the forge for this PR", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeAllowed = new(false) }), []string{"close", "merge:checks_pending"}},
 		{"Forgejo with CI pending offers the app's own auto-merge", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIPending }), []string{"auto_merge", "close", "merge:checks_pending"}},
 		{"Forgejo that is already clean has nothing to wait for", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo }), []string{"close", "merge"}},
@@ -89,7 +89,7 @@ func TestAllowedActions(t *testing.T) {
 			p.MergeStatus = dashboard.MergeConflicting
 			p.AutoMergeEnabled = new(true)
 		}), []string{"cancel_auto_merge", "close", "merge:conflict"}},
-		{"GitHub armed has no cancel here", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"close", "merge:checks_pending"}},
+		{"GitHub armed offers cancelling too (#1293)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"cancel_auto_merge", "close", "merge:checks_pending"}},
 		{"Dependabot behind on GitHub gets its own rebase, not update branch", ghPR(func(p *dashboard.PullRequest) { p.Author = "dependabot[bot]"; p.Behind = true }), []string{"auto_merge", "close", "dependabot_rebase", "dependabot_recreate", "merge"}},
 		{"Dependabot on Forgejo gets no bot commands", ghPR(func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeForgejo

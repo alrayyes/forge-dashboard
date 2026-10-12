@@ -111,6 +111,15 @@ type PullRequestAutoMerger interface {
 	EnableAutoMerge(ctx context.Context, owner, name string, number int) error
 }
 
+// PullRequestAutoMergeDisabler is implemented by a ForgeClient (or, for
+// github.Client, a Source directly) that can take a pull request's own
+// native auto-merge back off: GitHub's disablePullRequestAutoMerge mutation
+// (#1293). Forgejo's auto-merge is this app's own intent and is cancelled
+// without calling the forge.
+type PullRequestAutoMergeDisabler interface {
+	DisableAutoMerge(ctx context.Context, owner, name string, number int) error
+}
+
 // PullRequestCloser is implemented by a ForgeClient (or, for github.Client,
 // a Source directly) that can close one of its own pull requests without
 // merging it — checked via a type assertion, the same optional-capability
