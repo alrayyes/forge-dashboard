@@ -29,7 +29,7 @@ check() {
 # Docs only: prose, nothing that builds or tests the app.
 check "prose" "README.md"
 check "prose" "docs/design/README.md"
-check "prose" "docs/screenshots/dashboard-dark.png"
+check "prose" "docs/screenshots/pull-requests-dark.png"
 check "prose" "styles/Vale/style.yml"
 check "api prose" "docs/api/index.html"
 

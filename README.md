@@ -11,15 +11,18 @@ every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. It has passwordless login,
 per-user tokens, sharing and an admin role.
 
-| Page                                                                                        | Light                                                          | Dark                                                         |
-| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
-| **Dashboard**. Open pull requests across both forges, with CI status, filters, and sorting. | ![Dashboard, light mode](docs/screenshots/dashboard-light.png) | ![Dashboard, dark mode](docs/screenshots/dashboard-dark.png) |
-| **Issues**. Open issues across both forges.                                                 | ![Issues, light mode](docs/screenshots/issues-light.png)       | ![Issues, dark mode](docs/screenshots/issues-dark.png)       |
-| **Insights**. Charts of CI state and the busiest repos.                                     | ![Insights, light mode](docs/screenshots/insights-light.png)   | ![Insights, dark mode](docs/screenshots/insights-dark.png)   |
-| **Webhooks**. Which tracked repos have a confirmed webhook, and a way to add one.           | ![Webhooks, light mode](docs/screenshots/webhooks-light.png)   | ![Webhooks, dark mode](docs/screenshots/webhooks-dark.png)   |
-| **Settings**. Theme, time zone, and dashboard sharing.                                      | ![Settings, light mode](docs/screenshots/settings-light.png)   | ![Settings, dark mode](docs/screenshots/settings-dark.png)   |
-| **Admin**. Users and invites, for the first registered user.                                | ![Admin, light mode](docs/screenshots/admin-light.png)         | ![Admin, dark mode](docs/screenshots/admin-dark.png)         |
-| **Login**. Passkey sign-in.                                                                 | ![Login, light mode](docs/screenshots/login-light.png)         | ![Login, dark mode](docs/screenshots/login-dark.png)         |
+| Page                                                                                            | Light                                                                  | Dark                                                                 |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **Branches**. The CI status of every default branch, failing first.                             | ![Branches, light mode](docs/screenshots/branches-light.png)           | ![Branches, dark mode](docs/screenshots/branches-dark.png)           |
+| **Pull requests**. Open pull requests across both forges, with CI status, filters, and sorting. | ![Pull requests, light mode](docs/screenshots/pull-requests-light.png) | ![Pull requests, dark mode](docs/screenshots/pull-requests-dark.png) |
+| **Issues**. Open issues across both forges.                                                     | ![Issues, light mode](docs/screenshots/issues-light.png)               | ![Issues, dark mode](docs/screenshots/issues-dark.png)               |
+| **Releases**. Release pull requests waiting to ship.                                            | ![Releases, light mode](docs/screenshots/releases-light.png)           | ![Releases, dark mode](docs/screenshots/releases-dark.png)           |
+| **Bots**. Dependabot and Renovate pull requests.                                                | ![Bots, light mode](docs/screenshots/bots-light.png)                   | ![Bots, dark mode](docs/screenshots/bots-dark.png)                   |
+| **Insights**. Charts of CI state and the busiest repos.                                         | ![Insights, light mode](docs/screenshots/insights-light.png)           | ![Insights, dark mode](docs/screenshots/insights-dark.png)           |
+| **Webhooks**. Which tracked repos have a confirmed webhook, and a way to add one.               | ![Webhooks, light mode](docs/screenshots/webhooks-light.png)           | ![Webhooks, dark mode](docs/screenshots/webhooks-dark.png)           |
+| **Settings**. Theme, time zone, and dashboard sharing.                                          | ![Settings, light mode](docs/screenshots/settings-light.png)           | ![Settings, dark mode](docs/screenshots/settings-dark.png)           |
+| **Admin**. Users and invites, for the first registered user.                                    | ![Admin, light mode](docs/screenshots/admin-light.png)                 | ![Admin, dark mode](docs/screenshots/admin-dark.png)                 |
+| **Login**. Passkey sign-in.                                                                     | ![Login, light mode](docs/screenshots/login-light.png)                 | ![Login, dark mode](docs/screenshots/login-dark.png)                 |
 
 Fixture data, not a real account's actual repositories. The release
 workflow regenerates every screenshot on each release (see
