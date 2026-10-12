@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.172.0](https://github.com/alrayyes/forge-dashboard/compare/v0.171.0...v0.172.0) (2026-10-12)
+
+
+### Features
+
+* **api:** serve each nav badge's total and failed count in the dashboard snapshot ([#1320](https://github.com/alrayyes/forge-dashboard/issues/1320)) ([2a7c2d4](https://github.com/alrayyes/forge-dashboard/commit/2a7c2d46e723aa89bd6ebfd716e6c3e3e90e05ee))
+
 ## [0.171.0](https://github.com/alrayyes/forge-dashboard/compare/v0.170.0...v0.171.0) (2026-10-12)
 
 
