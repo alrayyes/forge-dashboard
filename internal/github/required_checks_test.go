@@ -324,3 +324,28 @@ func TestFetch_UnreadableProtection_IsNotAskedAgainOnTheNextPoll(t *testing.T) {
 
 	assert.EqualValues(t, 1, protectionCalls.Load())
 }
+
+// A poll that hits the remembered partial answer must still treat it as
+// partial. Otherwise the cache hit marks the commit complete, and a protection
+// rule that starts answering later is never consulted for that commit.
+func TestFetch_PartialAnswerServedFromTheCache_StillNeverMarksACommitComplete(t *testing.T) {
+	t.Parallel()
+
+	srvData := &partialRequiredServer{protection: []string{"check", "codecov/patch"}, rulesets: []string{"check"}, pages: [][]string{{"check"}}}
+	srvData.protectionFails.Store(true)
+	srv := srvData.start(t)
+	client := github.NewClient("test-token", "", srv.URL)
+
+	client.Fetch(t.Context())
+	cached := client.Fetch(t.Context())
+	require.Len(t, cached.PullRequests, 1)
+	assert.Equal(t, dashboard.CISuccess, cached.PullRequests[0].CI, "the second poll is served from the cache")
+
+	srvData.protectionFails.Store(false)
+	client.ExpirePartialRequiredContexts()
+	third := client.Fetch(t.Context())
+
+	require.Len(t, third.PullRequests, 1)
+	assert.Equal(t, dashboard.CIPending, third.PullRequests[0].CI,
+		"the cache hit must not have marked the commit complete")
+}
