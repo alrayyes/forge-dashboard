@@ -5,7 +5,11 @@
 // action (Merge, Close, Update branch, Enable auto-merge, the Dependabot and
 // Renovate rebases) renders its failures through here.
 
-import type { ActionRef, FailureDetails, FeedbackStore } from './feedback';
+import { failureDetails } from './failure-details';
+import type { ActionRef, FeedbackStore } from './feedback';
+
+export { failureDetails, MAX_RAW_TEXT } from './failure-details';
+
 import { PERMISSION_REASON } from './rate-limit';
 
 export type ActionCode =
@@ -87,20 +91,6 @@ export const NETWORK_FAILURE = "Couldn't reach the server.";
 export function isTransientFailure(err: ActionRequestError): boolean {
   if (err.status === undefined) return true;
   return err.status === 502 || err.status === 503 || err.status === 504;
-}
-
-// What Copy holds for a failure (#1323): the status and the body as received,
-// or the browser's own error when nothing came back, with the action's
-// context and when it happened.
-export function failureDetails(
-  err: ActionRequestError,
-  context: { action: string; forge: string; repo: string; number: number },
-  now: Date = new Date(),
-): FailureDetails {
-  const base = { ...context, at: now.toISOString() };
-  if (err.status === undefined)
-    return { status: null, networkError: err.message, ...base };
-  return { status: err.status, response: err.raw ?? null, ...base };
 }
 
 // What the row and the toast may say for a failure. Only the server's own
