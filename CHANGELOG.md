@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.162.2](https://github.com/alrayyes/forge-dashboard/compare/v0.162.1...v0.162.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* **web:** count the nav on the pages open to visitors ([#1262](https://github.com/alrayyes/forge-dashboard/issues/1262)) ([5ff8589](https://github.com/alrayyes/forge-dashboard/commit/5ff8589a23e37e4ff8beacea1f74633b8091b67a))
+
 ## [0.162.1](https://github.com/alrayyes/forge-dashboard/compare/v0.162.0...v0.162.1) (2026-10-12)
 
 
