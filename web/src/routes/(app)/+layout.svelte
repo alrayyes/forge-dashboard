@@ -4,13 +4,10 @@
   import { syncThemeFromServer } from "#lib/theme.js";
   import { loadTimezone } from "#lib/time.svelte.js";
   import Footer from "#lib/Footer.svelte";
-  import { issueCount } from "#lib/issue-count.svelte.js";
-  import {
-    botCount,
-    pullRequestCount,
-    releaseCount,
-    setPullRequestCounts,
-  } from "#lib/pull-request-counts.svelte.js";
+  import { navCounts, setNavCounts } from "#lib/nav-counts.svelte.js";
+  import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
+  import { headerLabel, tabLabel } from "#lib/nav-labels.js";
+  import NavPills from "#lib/NavPills.svelte";
 
   let { children } = $props();
 
@@ -60,62 +57,40 @@
     return PUBLIC_ROUTES.some((route) => isCurrentRoute(route));
   }
 
-  // "Issues, 12 open" for assistive tech; the visible badge is aria-hidden so
-  // the number isn't read twice.
-  const issuesLabel = $derived(
-    issueCount.value === null ? "Issues" : `Issues, ${issueCount.value} open`,
-  );
-  // The bottom tab shows the count before the word ("12 Issues"), and a label
-  // has to contain the words on screen (WCAG 2.5.3, #1135), so it reads the
-  // same way round.
-  const issuesTabLabel = $derived(
-    issueCount.value === null ? "Issues" : `${issueCount.value} Issues open`,
-  );
+  // The numbers each item shows (#1315). The pills are aria-hidden, so each
+  // link's own name carries them: "Branches, 12 total, 3 failing" on the
+  // header icon, "12 Branches, 3 failing" on the tab, which shows its numbers
+  // before its word.
+  const branches = $derived(navCounts.value?.branches ?? null);
+  const pulls = $derived(navCounts.value?.pullRequests ?? null);
+  const issues = $derived(navCounts.value?.issues ?? null);
+  const releases = $derived(navCounts.value?.releases ?? null);
+  const bots = $derived(navCounts.value?.bots ?? null);
 
-  // Pull requests, and Releases for the release pull requests. Same shape as
-  // Issues: the header icon says it in words for assistive tech, and the tab's
-  // name starts with the number it shows (WCAG 2.5.3). The tab's visible word
-  // is the shorter "PRs", so its name says that.
-  const pullsLabel = $derived(
-    pullRequestCount.value === null
-      ? "Pull requests"
-      : `Pull requests, ${pullRequestCount.value} open`,
-  );
-  const pullsTabLabel = $derived(
-    pullRequestCount.value === null
-      ? "PRs"
-      : `${pullRequestCount.value} PRs open`,
-  );
-  const releasesLabel = $derived(
-    releaseCount.value === null
-      ? "Releases"
-      : `Releases, ${releaseCount.value} open`,
-  );
-  const releasesTabLabel = $derived(
-    releaseCount.value === null
-      ? "Releases"
-      : `${releaseCount.value} Releases open`,
-  );
-
-  // Dependabot and Renovate's pull requests, beside Releases.
-  const botsLabel = $derived(
-    botCount.value === null ? "Bots" : `Bots, ${botCount.value} open`,
-  );
-  const botsTabLabel = $derived(
-    botCount.value === null ? "Bots" : `${botCount.value} Bots open`,
-  );
+  const branchesLabel = $derived(headerLabel("Branches", branches));
+  const branchesTabLabel = $derived(tabLabel("Branches", branches));
+  const pullsLabel = $derived(headerLabel("Pull requests", pulls));
+  const pullsTabLabel = $derived(tabLabel("PRs", pulls));
+  const issuesLabel = $derived(headerLabel("Issues", issues));
+  const issuesTabLabel = $derived(tabLabel("Issues", issues));
+  const releasesLabel = $derived(headerLabel("Releases", releases));
+  const releasesTabLabel = $derived(tabLabel("Releases", releases));
+  const botsLabel = $derived(headerLabel("Bots", bots));
+  const botsTabLabel = $derived(tabLabel("Bots", bots));
 
   // A page with nothing to show leaves the navigation (#1228). A count that
   // isn't known yet (null) is not zero, so a link doesn't blink in as the first
   // snapshot arrives, and the page you are on keeps its own link until you
   // leave it. Branches and Pull requests always show.
   const showIssues = $derived(
-    issueCount.value !== 0 || isCurrentRoute("/issues"),
+    issues === null || issues.total !== 0 || isCurrentRoute("/issues"),
   );
   const showReleases = $derived(
-    releaseCount.value !== 0 || isCurrentRoute("/releases"),
+    releases === null || releases.total !== 0 || isCurrentRoute("/releases"),
   );
-  const showBots = $derived(botCount.value !== 0 || isCurrentRoute("/bots"));
+  const showBots = $derived(
+    bots === null || bots.total !== 0 || isCurrentRoute("/bots"),
+  );
 
   function signOut() {
     fetch("/api/auth/logout", { method: "POST" }).finally(() => {
@@ -150,20 +125,9 @@
       ) {
         fetch("/api/dashboard", { headers: { Accept: "application/json" } })
           .then((res) => (res.ok ? res.json() : null))
-          .then(
-            (
-              data: {
-                openIssueCount?: number;
-                pullRequests?: { kind?: string }[];
-              } | null,
-            ) => {
-              if (!data) return;
-              if (typeof data.openIssueCount === "number")
-                issueCount.value = data.openIssueCount;
-              if (Array.isArray(data.pullRequests))
-                setPullRequestCounts(data.pullRequests);
-            },
-          )
+          .then((data: { navCounts?: ServerNavCounts } | null) => {
+            if (data) setNavCounts(data.navCounts);
+          })
           .catch(() => {
             /* no badge is better than a wrong one */
           });
@@ -234,7 +198,7 @@
         <a
           class="theme-toggle"
           href="/"
-          aria-label="Branches"
+          aria-label={branchesLabel}
           title="Branches"
           aria-current={isCurrentRoute("/") ? "page" : undefined}
           style="text-decoration:none;"
@@ -252,9 +216,10 @@
               d="M7 11v4a2 2 0 0 0 2 2h4"
             /><rect width="8" height="8" x="13" y="13" rx="2" /></svg
           >
+          <NavPills count={branches} />
         </a>
         <a
-          class="theme-toggle nav-with-badge"
+          class="theme-toggle"
           href="/pull-requests.html"
           aria-label={pullsLabel}
           title="Pull requests"
@@ -273,14 +238,11 @@
             ><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
               d="M13 6h3a2 2 0 0 1 2 2v7"
             /><line x1="6" x2="6" y1="9" y2="21" /></svg
-          >{#if pullRequestCount.value !== null}<span
-              class="nav-badge"
-              aria-hidden="true">{pullRequestCount.value}</span
-            >{/if}
+          ><NavPills count={pulls} />
         </a>
         {#if showReleases}
           <a
-            class="theme-toggle nav-with-badge"
+            class="theme-toggle"
             href="/releases.html"
             aria-label={releasesLabel}
             title="Releases"
@@ -299,15 +261,12 @@
               ><path
                 d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
               /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
-            >{#if releaseCount.value !== null}<span
-                class="nav-badge"
-                aria-hidden="true">{releaseCount.value}</span
-              >{/if}
+            ><NavPills count={releases} />
           </a>
         {/if}
         {#if showBots}
           <a
-            class="theme-toggle nav-with-badge"
+            class="theme-toggle"
             href="/bots.html"
             aria-label={botsLabel}
             title="Bots"
@@ -332,15 +291,12 @@
               /><path d="M2 14h2" /><path d="M20 14h2" /><path
                 d="M15 13v2"
               /><path d="M9 13v2" /></svg
-            >{#if botCount.value !== null}<span
-                class="nav-badge"
-                aria-hidden="true">{botCount.value}</span
-              >{/if}
+            ><NavPills count={bots} />
           </a>
         {/if}
         {#if showIssues}
           <a
-            class="theme-toggle nav-with-badge"
+            class="theme-toggle"
             href="/issues.html"
             aria-label={issuesLabel}
             title="Issues"
@@ -361,10 +317,7 @@
                 cy="12"
                 r="1"
               /></svg
-            >{#if issueCount.value !== null}<span
-                class="nav-badge"
-                aria-hidden="true">{issueCount.value}</span
-              >{/if}
+            ><NavPills count={issues} />
           </a>
         {/if}
         <a
@@ -504,9 +457,10 @@
   <a
     class="bottom-nav-link"
     href="/"
-    aria-label="Branches"
+    aria-label={branchesTabLabel}
     aria-current={isCurrentRoute("/") ? "page" : undefined}
   >
+    <NavPills count={branches} stacked />
     <svg
       width="16"
       height="16"
@@ -527,11 +481,12 @@
     <span class="bottom-nav-label">Branches</span>
   </a>
   <a
-    class="bottom-nav-link nav-with-badge"
+    class="bottom-nav-link"
     href="/pull-requests.html"
     aria-label={pullsTabLabel}
     aria-current={isCurrentRoute("/pull-requests") ? "page" : undefined}
   >
+    <NavPills count={pulls} stacked />
     <svg
       width="16"
       height="16"
@@ -544,19 +499,17 @@
       ><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
         d="M13 6h3a2 2 0 0 1 2 2v7"
       /><line x1="6" x2="6" y1="9" y2="21" /></svg
-    >{#if pullRequestCount.value !== null}<span
-        class="nav-badge"
-        aria-hidden="true">{pullRequestCount.value}</span
-      >{/if}
+    >
     <span class="bottom-nav-label">PRs</span>
   </a>
   {#if showReleases}
     <a
-      class="bottom-nav-link nav-with-badge"
+      class="bottom-nav-link"
       href="/releases.html"
       aria-label={releasesTabLabel}
       aria-current={isCurrentRoute("/releases") ? "page" : undefined}
     >
+      <NavPills count={releases} stacked />
       <svg
         width="16"
         height="16"
@@ -569,20 +522,18 @@
         ><path
           d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
         /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
-      >{#if releaseCount.value !== null}<span
-          class="nav-badge"
-          aria-hidden="true">{releaseCount.value}</span
-        >{/if}
+      >
       <span class="bottom-nav-label">Releases</span>
     </a>
   {/if}
   {#if showBots}
     <a
-      class="bottom-nav-link nav-with-badge"
+      class="bottom-nav-link"
       href="/bots.html"
       aria-label={botsTabLabel}
       aria-current={isCurrentRoute("/bots") ? "page" : undefined}
     >
+      <NavPills count={bots} stacked />
       <svg
         width="16"
         height="16"
@@ -601,19 +552,18 @@
         /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path
           d="M9 13v2"
         /></svg
-      >{#if botCount.value !== null}<span class="nav-badge" aria-hidden="true"
-          >{botCount.value}</span
-        >{/if}
+      >
       <span class="bottom-nav-label">Bots</span>
     </a>
   {/if}
   {#if showIssues}
     <a
-      class="bottom-nav-link nav-with-badge"
+      class="bottom-nav-link"
       href="/issues.html"
       aria-label={issuesTabLabel}
       aria-current={isCurrentRoute("/issues") ? "page" : undefined}
     >
+      <NavPills count={issues} stacked />
       <svg
         width="16"
         height="16"
@@ -624,9 +574,7 @@
         stroke-linecap="round"
         stroke-linejoin="round"
         ><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" /></svg
-      >{#if issueCount.value !== null}<span class="nav-badge" aria-hidden="true"
-          >{issueCount.value}</span
-        >{/if}
+      >
       <span class="bottom-nav-label">Issues</span>
     </a>
   {/if}

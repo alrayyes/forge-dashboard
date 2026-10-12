@@ -26,7 +26,12 @@ async function mismatches(page: Page): Promise<string[]> {
       'a[aria-label], button[aria-label]',
     )) {
       if (!el.checkVisibility()) continue;
-      const visible = squash(el.innerText).toLowerCase();
+      // The nav's count pills are state, not label (#1315): the name carries
+      // their numbers in words ("27 PRs, 5 failing"), so the label to find
+      // in the name is what is left without them.
+      const bare = el.cloneNode(true) as HTMLElement;
+      for (const pills of bare.querySelectorAll('.nav-pills')) pills.remove();
+      const visible = squash(bare.textContent ?? '').toLowerCase();
       if (!visible) continue;
       const name = squash(el.getAttribute('aria-label') ?? '').toLowerCase();
       if (!name.includes(visible))
@@ -74,6 +79,13 @@ test.describe('visible text is part of the accessible name (#1135)', () => {
           ],
           issues: [issue(2), issue(3)],
           openIssueCount: 2,
+          navCounts: {
+            branches: { total: 0, failed: 0 },
+            pullRequests: { total: 1, failed: 1 },
+            issues: { total: 2 },
+            releases: { total: 0, failed: 0 },
+            bots: { total: 0, failed: 0 },
+          },
         }),
       }),
     );
@@ -85,7 +97,7 @@ test.describe('visible text is part of the accessible name (#1135)', () => {
     }) => {
       await page.goto(path);
       await expect(
-        page.locator('.bottom-nav a[href="/issues.html"] .nav-badge'),
+        page.locator('.bottom-nav a[href="/issues.html"] .nav-total'),
       ).toBeVisible();
       expect(await mismatches(page)).toEqual([]);
     });

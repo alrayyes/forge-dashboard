@@ -6,6 +6,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { navCountsFor } from './nav-counts-helper';
 import { registerViaInvite } from './register-helper';
 
 // The Bots page: Dependabot and Renovate pull requests (the server's
@@ -77,6 +78,7 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
         pullRequests,
         issues: [],
         openIssueCount: 0,
+        navCounts: navCountsFor(pullRequests, 0),
       }),
     }),
   );
@@ -85,7 +87,7 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 const badge = (page: Page, nav: 'header' | '.bottom-nav', link: string) =>
-  page.locator(nav).locator(`a[href="${link}"] .nav-badge`);
+  page.locator(nav).locator(`a[href="${link}"] .nav-total`);
 
 test.describe('Bots page (#1192)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
