@@ -297,6 +297,118 @@ test.describe('Copy error details on a failed action (#1323)', () => {
   });
 });
 
+// Rerun failed checks fails inside the pipeline panel, not on the row, so its
+// failure has its own line there (#1323, criterion 1).
+test.describe('Copy error details on a failed Rerun failed checks (#1323)', () => {
+  test.beforeEach(async ({ page, request, baseURL, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await registerAndSignIn(page, request, baseURL);
+  });
+
+  async function openPanel(page: Page) {
+    await page.route('**/api/pull-requests/checks*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+        }),
+      }),
+    );
+    const row = await open(
+      page,
+      makePR({
+        ci: 'failure',
+        allowedActions: [{ action: 'merge' }, { action: 'rerun_checks' }],
+      }),
+    );
+    await row.getByRole('button', { name: /Open pipeline/ }).click();
+    return page.getByRole('dialog', { name: 'Pipeline checks' });
+  }
+
+  test('the refusal shows its plain sentence with a Copy button beside it', async ({
+    page,
+  }) => {
+    await refuse(page, 'rerun-checks', 403, REFUSAL);
+    const dialog = await openPanel(page);
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+
+    await expect(dialog.locator('.pipeline-error')).toContainText(
+      'The forge refused this action and gave no reason.',
+    );
+    await expect(copyIn(dialog)).toBeVisible();
+  });
+
+  test('Copy holds the status, the body as received and the pull request', async ({
+    page,
+  }) => {
+    await refuse(page, 'rerun-checks', 403, REFUSAL);
+    const dialog = await openPanel(page);
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await copyIn(dialog).click();
+
+    expect(await readClipboard(page)).toMatchObject({
+      status: 403,
+      response: REFUSAL,
+      action: 'rerun-checks',
+      forge: 'forgejo',
+      repo: REPO,
+      number: 244,
+    });
+  });
+
+  test('a rerun that goes through has no Copy', async ({ page }) => {
+    await page.route('**/api/pull-requests/rerun-checks', (route: Route) =>
+      route.fulfill({ status: 204 }),
+    );
+    const dialog = await openPanel(page);
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+
+    await expect(dialog.getByText('Rerun queued')).toBeVisible();
+    await expect(copyIn(dialog)).toHaveCount(0);
+  });
+
+  test('trying again clears the earlier Copy', async ({ page }) => {
+    const answer = { fail: true };
+    await page.route('**/api/pull-requests/rerun-checks', (route: Route) =>
+      answer.fail
+        ? route.fulfill({
+            status: 403,
+            contentType: 'application/json',
+            body: JSON.stringify(REFUSAL),
+          })
+        : route.fulfill({ status: 204 }),
+    );
+    const dialog = await openPanel(page);
+    const rerun = dialog.getByRole('button', { name: 'Rerun failed checks' });
+    await rerun.click();
+    await expect(copyIn(dialog)).toBeVisible();
+
+    answer.fail = false;
+    await rerun.click();
+
+    await expect(dialog.getByText('Rerun queued')).toBeVisible();
+    await expect(copyIn(dialog)).toHaveCount(0);
+  });
+
+  test('has no axe-core violations with the failure showing', async ({
+    page,
+  }) => {
+    await refuse(page, 'rerun-checks', 403, REFUSAL);
+    const dialog = await openPanel(page);
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(copyIn(dialog)).toBeVisible();
+
+    expect(
+      (
+        await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze()
+      ).violations,
+    ).toEqual([]);
+  });
+});
+
 test.describe('Copy error details without a clipboard (#1323)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     // An insecure context or a refused permission: writeText rejects.

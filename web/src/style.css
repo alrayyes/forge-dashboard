@@ -3259,3 +3259,15 @@ footer a.mono:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* The rerun's failure sentence and its Copy (#1323), side by side in the
+   pipeline panel; the box for the details takes a full line below. */
+.pipeline-rerun-failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pipeline-rerun-failure[hidden] {
+  display: none;
+}

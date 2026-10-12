@@ -42,6 +42,7 @@
     type BotRequest,
     createFeedbackStore,
   } from "#lib/feedback.js";
+  import { copyButton } from "#lib/copy-details.js";
   import { mountFeedbackUI } from "#lib/feedback-ui.js";
   import {
     comesBack,
@@ -3620,11 +3621,24 @@
       const button = buttonEl("row-action", "Rerun failed checks");
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
+      // The failure sentence is the alert; Copy sits beside it, outside, so
+      // it is not announced again (#1323).
+      const failureBox = el("div", "pipeline-rerun-failure");
       const failure = el("p", "pipeline-error");
       failure.setAttribute("role", "alert");
+      failureBox.appendChild(failure);
+      failureBox.hidden = true;
+      const clearFailure = () => {
+        failureBox.hidden = true;
+        failure.textContent = "";
+        for (const extra of failureBox.querySelectorAll(
+          ".pipeline-rerun-copy, .feedback-details",
+        ))
+          extra.remove();
+      };
       button.addEventListener("click", () => {
         button.disabled = true;
-        failure.textContent = "";
+        clearFailure();
         status.textContent = "Queuing the rerun…";
         fetch("/api/pull-requests/rerun-checks", {
           method: "POST",
@@ -3655,10 +3669,22 @@
           .catch((err: ActionRequestError) => {
             status.textContent = "";
             failure.textContent = err.message;
+            failureBox.hidden = false;
+            failureBox.appendChild(
+              copyButton(
+                failureDetails(err, {
+                  action: "rerun-checks",
+                  forge: item.forge,
+                  repo: item.repo,
+                  number: item.number,
+                }),
+                "row-action pipeline-rerun-copy",
+              ),
+            );
             button.disabled = false;
           });
       });
-      wrap.append(button, status, failure);
+      wrap.append(button, status, failureBox);
       return wrap;
     }
 
