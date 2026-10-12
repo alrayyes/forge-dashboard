@@ -62,6 +62,15 @@ type RepoRefresher interface {
 	FetchRepo(ctx context.Context, owner, name, fullName string) (prs []PullRequest, issues []Issue, err error)
 }
 
+// MainBranchRefresher is implemented by a Source that can re-read one
+// repository's default branch (#1316). A webhook delivery for a finished check
+// names the repo, and without this the repo's Branches row only moves on the
+// next full poll, so a rerun that passed still reads as failed. Checked by type
+// assertion, like RepoRefresher.
+type MainBranchRefresher interface {
+	FetchMainBranch(ctx context.Context, owner, name, fullName string) (MainBranch, error)
+}
+
 // WebhookChecker is implemented by a ForgeClient (or, for github.Client,
 // a Source directly) that can report whether a repo already has a
 // webhook pointed at this app — checked via a type assertion, the same
