@@ -24,6 +24,7 @@
     type ActionCode,
     type ActionRequestError,
     interpretActionFailure,
+    failureDetails,
     NETWORK_FAILURE,
     readActionFailure,
     type SettledState,
@@ -37,9 +38,11 @@
   } from "#lib/confirm-arm.js";
   import {
     type ActionRef,
+    type FailureDetails,
     type BotRequest,
     createFeedbackStore,
   } from "#lib/feedback.js";
+  import { copyButton } from "#lib/copy-details.js";
   import { mountFeedbackUI } from "#lib/feedback-ui.js";
   import {
     comesBack,
@@ -326,12 +329,24 @@
     }
     // A failed action: the row gets a Failed line (with Retry unless the
     // failure locked the button), and an error toast that stays.
+    // The action's context for a Copy payload. The action is the first part
+    // of its feedback key ("merge", "renovate", "cancel-auto-merge", …).
+    function detailsContext(item: PullRequestItem, fkey: string) {
+      return {
+        action: fkey.split(":")[0],
+        forge: item.forge,
+        repo: item.repo,
+        number: item.number,
+      };
+    }
+
     function failAction(
       actionKey: string,
       what: string,
       reason: string,
       canRetry: boolean,
       transient = false,
+      details?: FailureDetails,
     ) {
       const message = `Couldn't ${what}: ${reason}`;
       feedback.update(actionKey, {
@@ -344,6 +359,8 @@
         // A failure that passes by itself clears its row line after a few
         // seconds (#1206).
         transient,
+        // What Copy holds: the server's whole answer (#1323).
+        details,
       });
     }
     const CI_LABELS: Record<string, string> = {
@@ -1280,6 +1297,8 @@
       setState: (next: ActionState) => void,
       retryable?: ReadonlySet<ActionCode>,
     ) {
+      // The raw answer for Copy, made once for whichever line this ends in.
+      const details = failureDetails(err, detailsContext(item, fkey));
       const outcome = interpretActionFailure(
         err,
         (resetsAt) =>
@@ -1313,10 +1332,17 @@
           code: outcome.code,
           fkey,
         });
-        failAction(fkey, what, outcome.reason, false);
+        failAction(fkey, what, outcome.reason, false, false, details);
       } else {
         setState({ phase: "idle" });
-        failAction(fkey, what, outcome.reason, true, outcome.transient);
+        failAction(
+          fkey,
+          what,
+          outcome.reason,
+          true,
+          outcome.transient,
+          details,
+        );
       }
       renderPRBoard();
     }
@@ -1436,11 +1462,25 @@
                 } else {
                   renderPRBoard();
                 }
-                failAction(fkey, "merge", NETWORK_FAILURE, true, true);
+                failAction(
+                  fkey,
+                  "merge",
+                  NETWORK_FAILURE,
+                  true,
+                  true,
+                  failureDetails(err, detailsContext(item, fkey)),
+                );
               })
               .catch(() => {
                 mergeState[key] = { phase: "idle" };
-                failAction(fkey, "merge", NETWORK_FAILURE, true, true);
+                failAction(
+                  fkey,
+                  "merge",
+                  NETWORK_FAILURE,
+                  true,
+                  true,
+                  failureDetails(err, detailsContext(item, fkey)),
+                );
                 renderPRBoard();
               });
             return;
@@ -3581,11 +3621,24 @@
       const button = buttonEl("row-action", "Rerun failed checks");
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
+      // The failure sentence is the alert; Copy sits beside it, outside, so
+      // it is not announced again (#1323).
+      const failureBox = el("div", "pipeline-rerun-failure");
       const failure = el("p", "pipeline-error");
       failure.setAttribute("role", "alert");
+      failureBox.appendChild(failure);
+      failureBox.hidden = true;
+      const clearFailure = () => {
+        failureBox.hidden = true;
+        failure.textContent = "";
+        for (const extra of failureBox.querySelectorAll(
+          ".pipeline-rerun-copy, .feedback-details",
+        ))
+          extra.remove();
+      };
       button.addEventListener("click", () => {
         button.disabled = true;
-        failure.textContent = "";
+        clearFailure();
         status.textContent = "Queuing the rerun…";
         fetch("/api/pull-requests/rerun-checks", {
           method: "POST",
@@ -3616,10 +3669,22 @@
           .catch((err: ActionRequestError) => {
             status.textContent = "";
             failure.textContent = err.message;
+            failureBox.hidden = false;
+            failureBox.appendChild(
+              copyButton(
+                failureDetails(err, {
+                  action: "rerun-checks",
+                  forge: item.forge,
+                  repo: item.repo,
+                  number: item.number,
+                }),
+                "row-action pipeline-rerun-copy",
+              ),
+            );
             button.disabled = false;
           });
       });
-      wrap.append(button, status, failure);
+      wrap.append(button, status, failureBox);
       return wrap;
     }
 
