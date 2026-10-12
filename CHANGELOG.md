@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.162.1](https://github.com/alrayyes/forge-dashboard/compare/v0.162.0...v0.162.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **forgejo:** report a conflicting pull request as conflicting, not blocked ([#1283](https://github.com/alrayyes/forge-dashboard/issues/1283)) ([d93ca2a](https://github.com/alrayyes/forge-dashboard/commit/d93ca2a63f9faca9f41981ef12073c7938d11403)), closes [#1281](https://github.com/alrayyes/forge-dashboard/issues/1281)
+
 ## [0.162.0](https://github.com/alrayyes/forge-dashboard/compare/v0.161.3...v0.162.0) (2026-10-11)
 
 
