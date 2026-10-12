@@ -427,7 +427,10 @@ A forge that can't be reached gets the same treatment. Its controls are not
 drawn either, and no row carries a Retry or a pointer to a status line. One
 banner that stays in view while you scroll, on a phone too, says "GitHub is
 unreachable. Showing the last data from 14:32.", gives the cause in plain words,
-and has the one Retry, which forces a refresh. When the forge answers again the
+and has the one Retry, which forces a refresh. GitHub's row also links to
+githubstatus.com in a new tab, so you can see whether GitHub is reporting an
+incident; a Forgejo instance is self-hosted and has no such page. When the forge
+answers again the
 controls return without a reload, with a polite "GitHub is reachable again,
 actions available" toast, and the banner clears. A row's own reason for Merge
 (stacked, waiting for CI) shows whenever its forge can be reached.

@@ -2222,6 +2222,12 @@ button.ci-pill:hover {
   cursor: pointer;
 }
 
+.unreachable-banner-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .unreachable-banner-retry:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
