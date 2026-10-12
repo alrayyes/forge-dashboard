@@ -1843,3 +1843,26 @@ func TestListOpenPullRequests_MapsTheHeadCommitSHA(t *testing.T) {
 	require.Len(t, prs, 1)
 	assert.Equal(t, "cafef00d", prs[0].HeadSHA)
 }
+
+// A Renovate pull request whose rebase box is ticked says so, read from the
+// description the list already carries (#1349), so no call is added.
+func TestListOpenPullRequests_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
+	t.Parallel()
+
+	ticked := reviewPR(1, false, "2026-09-02T00:00:00Z")
+	ticked["body"] = "- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box"
+	unticked := reviewPR(2, false, "2026-09-02T00:00:00Z")
+	unticked["body"] = "- [ ] <!-- rebase-check -->If you want to rebase/retry this PR, check this box"
+	none := reviewPR(3, false, "2026-09-02T00:00:00Z")
+	var calls atomic.Int32
+	srv := reviewPRServer(t, []map[string]any{ticked, unticked, none}, map[int][]map[string]any{1: {}, 2: {}, 3: {}}, &calls)
+	defer srv.Close()
+
+	prs, err := forgejo.NewClient(srv.URL, "test-token", "").ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 3)
+	assert.True(t, prs[0].RenovateRebaseRequested)
+	assert.False(t, prs[1].RenovateRebaseRequested)
+	assert.False(t, prs[2].RenovateRebaseRequested)
+}

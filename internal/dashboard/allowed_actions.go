@@ -60,7 +60,7 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 		out = append(out, ActionAvailability{Action: ActionDependabotRebase}, ActionAvailability{Action: ActionDependabotRecreate})
 	}
 	if isRenovatePR(pr, renovateAuthors) {
-		out = append(out, ActionAvailability{Action: ActionRenovateRebase})
+		out = append(out, renovateRebaseAvailability(pr))
 	}
 	// Failed checks can be rerun on either forge. The list only knows the CI
 	// is failing, not whether an Actions run is behind it, so a Forgejo pull
@@ -71,6 +71,23 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	}
 
 	return out
+}
+
+// renovateRebaseAvailability: while Renovate's rebase box is ticked, a rebase is
+// already waiting for it, so asking again is blocked with the reason (#1349).
+// Renovate clears the box once it has rebased, and the next snapshot offers the
+// action again. The box can be ticked here or on the forge; the snapshot reads
+// it from the description either way.
+func renovateRebaseAvailability(pr PullRequest) ActionAvailability {
+	if !pr.RenovateRebaseRequested {
+		return ActionAvailability{Action: ActionRenovateRebase}
+	}
+
+	return ActionAvailability{Action: ActionRenovateRebase, Blocked: &Blocked{
+		Code:    ActionAlreadyRequested,
+		Message: "A Renovate rebase is already requested on this pull request.",
+		Next:    "Renovate clears the box once it has rebased, and the rebase is offered again.",
+	}}
 }
 
 // mergeAvailability is Merge's rules in the order they apply. Merge is never

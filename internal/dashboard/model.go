@@ -197,6 +197,11 @@ type PullRequest struct {
 	// request is still reported behind, or wasn't behind to begin with.
 	// Empty when the forge didn't say.
 	HeadSHA string `json:"headSha"`
+	// RenovateRebaseRequested is true when Renovate's rebase checkbox in the
+	// description is ticked (#1349): a rebase is already waiting for Renovate.
+	// Read from the description the list carries, so it costs no call. Not
+	// sent to clients: AllowedActions turns it into a blocked renovate_rebase.
+	RenovateRebaseRequested bool `json:"-"`
 	// Empty reports whether merging this pull request would produce an
 	// empty commit — its content already landed on the base branch some
 	// other way (confirmed live: a mechanical version-bump PR whose branch

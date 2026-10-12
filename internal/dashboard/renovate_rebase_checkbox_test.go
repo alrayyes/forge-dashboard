@@ -50,3 +50,28 @@ func TestTickRebaseCheckbox_NoCheckbox(t *testing.T) {
 	assert.Equal(t, dashboard.RebaseCheckboxAbsent, state)
 	assert.Equal(t, body, got)
 }
+
+// RebaseCheckboxOf reads the box without changing the body, for a snapshot to
+// say a rebase is already requested (#1349).
+func TestRebaseCheckboxOf_ReadsTheStateWithoutTickingIt(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		body string
+		want dashboard.RebaseCheckbox
+	}{
+		"no box":   {"just a description", dashboard.RebaseCheckboxAbsent},
+		"empty":    {"", dashboard.RebaseCheckboxAbsent},
+		"unticked": {"- [ ] <!-- rebase-check -->If you want to rebase/retry this PR, check this box", dashboard.RebaseCheckboxUnticked},
+		"ticked":   {"- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box", dashboard.RebaseCheckboxTicked},
+		"capital":  {"- [X] <!-- rebase-check -->go", dashboard.RebaseCheckboxTicked},
+		"crlf":     {"a\r\n\r\n- [x] <!-- rebase-check -->go\r\n", dashboard.RebaseCheckboxTicked},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, dashboard.RebaseCheckboxOf(tc.body))
+		})
+	}
+}

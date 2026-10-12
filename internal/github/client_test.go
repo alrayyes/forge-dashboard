@@ -3813,3 +3813,56 @@ func TestDisableAutoMerge_GraphQLError_IsReturned(t *testing.T) {
 
 	require.Error(t, client.DisableAutoMerge(t.Context(), "alrayyes", "a", 5))
 }
+
+// The same, from the description in the GraphQL list (#1349).
+func TestFetch_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		body string
+		want bool
+	}{
+		"ticked":   {"- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box", true},
+		"unticked": {"- [ ] <!-- rebase-check -->If you want to rebase/retry this PR, check this box", false},
+		"no box":   {"A person's description", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			node := pullRequestNode("CLEAN")
+			prs := node["pullRequests"].(map[string]any)["nodes"].([]map[string]any)
+			prs[0]["body"] = tc.body
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, reposQueryFixture(node))
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+			require.Len(t, result.PullRequests, 1)
+			assert.Equal(t, tc.want, result.PullRequests[0].RenovateRebaseRequested)
+		})
+	}
+}
+
+// The query asks for the description, since that is where the box is.
+func TestFetch_TheQueryAsksForThePullRequestBody(t *testing.T) {
+	t.Parallel()
+
+	var query string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		if q := readGraphQLRequest(t, r).Query; strings.Contains(q, "pullRequests(states: OPEN") {
+			query = q
+		}
+		writeJSON(t, w, reposQueryFixture(pullRequestNode("CLEAN")))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	assert.Regexp(t, `(?m)^\s+body\s*$`, query)
+}

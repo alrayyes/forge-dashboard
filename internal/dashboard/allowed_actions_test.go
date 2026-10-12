@@ -6,6 +6,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // summary flattens a pull request's allowed actions to "action" for an
@@ -176,4 +177,52 @@ func TestAllowedActions_RenovateAuthorsComeFromSettings(t *testing.T) {
 	assert.Equal(t, []string{"auto_merge", "close", "merge", "renovate_rebase"}, summaryWith(behind, []string{"Mend-Bot"}),
 		"forge logins aren't case sensitive")
 	assert.Equal(t, []string{"auto_merge", "close", "merge", "update_branch"}, summaryWith(behind, []string{"someone-else"}))
+}
+
+// While Renovate's rebase box is ticked a rebase is already waiting for it, so
+// a second request is blocked with the reason, not offered (#1349).
+func TestAllowedActions_RenovateRebaseIsBlockedWhileItsBoxIsTicked(t *testing.T) {
+	t.Parallel()
+
+	pr := ghPR(func(p *dashboard.PullRequest) {
+		p.Author = "renovate[bot]"
+		p.RenovateRebaseRequested = true
+	})
+
+	var rebase *dashboard.ActionAvailability
+	for _, a := range dashboard.AllowedActions(pr, nil) {
+		if a.Action == dashboard.ActionRenovateRebase {
+			rebase = &a
+		}
+	}
+
+	require.NotNil(t, rebase, "still listed, so the row can say why")
+	require.NotNil(t, rebase.Blocked)
+	assert.Equal(t, dashboard.ActionAlreadyRequested, rebase.Blocked.Code)
+	assert.Contains(t, rebase.Blocked.Message, "already requested")
+}
+
+func TestAllowedActions_RenovateRebaseIsOfferedWhenItsBoxIsNotTicked(t *testing.T) {
+	t.Parallel()
+
+	pr := ghPR(func(p *dashboard.PullRequest) { p.Author = "renovate[bot]" })
+
+	for _, a := range dashboard.AllowedActions(pr, nil) {
+		if a.Action == dashboard.ActionRenovateRebase {
+			assert.Nil(t, a.Blocked)
+
+			return
+		}
+	}
+	t.Fatal("renovate_rebase was not offered")
+}
+
+func TestAllowedActions_ARebaseRequestOnAPersonsPullRequestOffersNothing(t *testing.T) {
+	t.Parallel()
+
+	pr := ghPR(func(p *dashboard.PullRequest) { p.RenovateRebaseRequested = true })
+
+	for _, a := range dashboard.AllowedActions(pr, nil) {
+		assert.NotEqual(t, dashboard.ActionRenovateRebase, a.Action)
+	}
 }

@@ -1276,9 +1276,11 @@ type graphqlPullRequest struct {
 	// HeadRefOid feeds resolveAmbiguousBehind's own compare(headRef:)
 	// call — see its doc comment and #495 for why mergeStateStatus alone
 	// isn't a reliable behind/not-behind signal.
-	HeadRefOid        string                   `json:"headRefOid"`
-	BaseRefName       string                   `json:"baseRefName"`
-	HeadRefName       string                   `json:"headRefName"`
+	HeadRefOid  string `json:"headRefOid"`
+	BaseRefName string `json:"baseRefName"`
+	HeadRefName string `json:"headRefName"`
+	// Body is only read for Renovate's rebase box (#1349), never sent on.
+	Body              string                   `json:"body"`
 	IsCrossRepository bool                     `json:"isCrossRepository"`
 	AutoMergeRequest  *graphqlAutoMergeRequest `json:"autoMergeRequest"`
 	// ViewerCanEnableAutoMerge is GitHub's own per-viewer answer to
@@ -1443,6 +1445,7 @@ query($cursor: String, $since: DateTime) {
             headRefOid
             baseRefName
             headRefName
+            body
             isCrossRepository
             additions
             deletions
@@ -2126,27 +2129,29 @@ func reviewFromGraphQL(p graphqlPullRequest) *dashboard.ReviewState {
 
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	return dashboard.PullRequest{
-		Forge:            dashboard.ForgeGitHub,
-		Repo:             fullName,
-		Number:           p.Number,
-		Title:            p.Title,
-		URL:              p.URL,
-		Author:           authorLogin(p.Author),
-		Draft:            p.IsDraft,
-		Labels:           labelsFromNodes(p.Labels.Nodes),
-		CreatedAt:        p.CreatedAt,
-		UpdatedAt:        p.UpdatedAt,
-		CI:               ciFromRollup(p.Commits.Nodes),
-		MergeStatus:      mergeStatusFromGraphQL(p.MergeStateStatus),
-		Behind:           p.MergeStateStatus == "BEHIND",
-		HeadSHA:          p.HeadRefOid,
-		BaseBranch:       p.BaseRefName,
-		HeadBranch:       p.HeadRefName,
-		CrossRepository:  p.IsCrossRepository,
-		Empty:            p.Additions == 0 && p.Deletions == 0 && p.ChangedFiles == 0,
-		AutoMergeEnabled: new(p.AutoMergeRequest != nil),
-		AutoMergeAllowed: p.ViewerCanEnableAutoMerge,
-		Review:           reviewFromGraphQL(p),
+		Forge:           dashboard.ForgeGitHub,
+		Repo:            fullName,
+		Number:          p.Number,
+		Title:           p.Title,
+		URL:             p.URL,
+		Author:          authorLogin(p.Author),
+		Draft:           p.IsDraft,
+		Labels:          labelsFromNodes(p.Labels.Nodes),
+		CreatedAt:       p.CreatedAt,
+		UpdatedAt:       p.UpdatedAt,
+		CI:              ciFromRollup(p.Commits.Nodes),
+		MergeStatus:     mergeStatusFromGraphQL(p.MergeStateStatus),
+		Behind:          p.MergeStateStatus == "BEHIND",
+		HeadSHA:         p.HeadRefOid,
+		BaseBranch:      p.BaseRefName,
+		HeadBranch:      p.HeadRefName,
+		CrossRepository: p.IsCrossRepository,
+
+		RenovateRebaseRequested: dashboard.RebaseCheckboxOf(p.Body) == dashboard.RebaseCheckboxTicked,
+		Empty:                   p.Additions == 0 && p.Deletions == 0 && p.ChangedFiles == 0,
+		AutoMergeEnabled:        new(p.AutoMergeRequest != nil),
+		AutoMergeAllowed:        p.ViewerCanEnableAutoMerge,
+		Review:                  reviewFromGraphQL(p),
 
 		RequestedReviewerLogins: requestedReviewerLoginsFromGraphQL(p),
 	}

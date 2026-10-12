@@ -3227,7 +3227,25 @@
     function renovateRebaseActionCell(
       item: PullRequestItem,
     ): HTMLElement | null {
-      if (!findAction(item, "renovate_rebase")) return null;
+      const offered = findAction(item, "renovate_rebase");
+      if (!offered) return null;
+
+      // Renovate's rebase box is ticked, here or on the forge, so one is
+      // already waiting: the server blocks a second and says why (#1349).
+      // Shown disabled with the reason in words; it clears on the next
+      // snapshot once Renovate has rebased.
+      if (offered.blocked) {
+        const why = [offered.blocked.message, offered.blocked.next]
+          .filter(Boolean)
+          .join(" ");
+
+        return lockedActionButton(
+          "Renovate: Rebase",
+          { reason: why, code: offered.blocked.code },
+          undefined,
+          offered.blocked.message,
+        );
+      }
 
       const key = prKey(item);
       const entry = renovateRebaseState[key] || { phase: "idle" };
