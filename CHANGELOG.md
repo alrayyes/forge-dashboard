@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.174.0](https://github.com/alrayyes/forge-dashboard/compare/v0.173.1...v0.174.0) (2026-10-12)
+
+
+### Features
+
+* **web:** drop the page summary tiles the nav badges now cover ([#1338](https://github.com/alrayyes/forge-dashboard/issues/1338)) ([0c94d7e](https://github.com/alrayyes/forge-dashboard/commit/0c94d7e866f213c0b6b470d3eea3cabe4d61e50c))
+
 ## [0.173.1](https://github.com/alrayyes/forge-dashboard/compare/v0.173.0...v0.173.1) (2026-10-12)
 
 
