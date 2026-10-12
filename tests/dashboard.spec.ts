@@ -1084,7 +1084,7 @@ test.describe('dashboard page', () => {
         }),
       );
       await page.route('**/api/dashboard/stream', (route) => route.abort());
-      await page.goto('/');
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
       // Forge is shared: picking one narrows the pull requests here...
@@ -1101,7 +1101,7 @@ test.describe('dashboard page', () => {
 
       // CI status has no equivalent on issues, so it stays scoped to the
       // pull requests page only.
-      await page.goto('/');
+      await page.goto('/pull-requests.html');
       await page.selectOption(
         'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
         'failure',
@@ -1118,7 +1118,7 @@ test.describe('dashboard page', () => {
       await page.goto('/issues.html');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
-      await page.goto('/');
+      await page.goto('/pull-requests.html');
       await expect(forgeRadio(page, 'github')).toHaveAttribute(
         'aria-pressed',
         'true',
@@ -2730,7 +2730,7 @@ test.describe('dashboard page', () => {
         }),
       );
       await page.route('**/api/dashboard/stream', (route) => route.abort());
-      await page.goto('/');
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
       await page.goto('/issues.html');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
@@ -2742,7 +2742,7 @@ test.describe('dashboard page', () => {
 
       // The label is shared state, so the pull request page is filtered
       // too (#827 split the two boards onto separate pages).
-      await page.goto('/');
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText(
         'A PR fixing a bug',
@@ -3005,7 +3005,7 @@ test.describe('dashboard page', () => {
           },
         ],
       });
-      await page.goto('/');
+      await page.goto('/pull-requests.html');
 
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(
@@ -3739,7 +3739,7 @@ test.describe('time cells say what they are (#1109)', () => {
   });
 
   for (const [name, path, rows] of [
-    ['pull request', '/', '#pr-rows'],
+    ['pull request', '/pull-requests.html', '#pr-rows'],
     ['issue', '/issues.html', '#issue-rows'],
   ]) {
     test(`each ${name} row captions its created and updated time`, async ({

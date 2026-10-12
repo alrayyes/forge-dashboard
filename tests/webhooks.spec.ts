@@ -120,7 +120,7 @@ test.describe('webhook-triggered live updates', () => {
     const webhookURL = await page.locator('#webhook-url-forgejo').inputValue();
     const secret = await page.locator('#webhook-secret').inputValue();
 
-    await page.goto('/');
+    await page.goto('/pull-requests.html');
 
     // A second, independent EventSource opened from inside the page —
     // rather than asserting on app.js's own rendering (already covered

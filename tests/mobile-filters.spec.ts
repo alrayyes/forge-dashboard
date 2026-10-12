@@ -87,7 +87,7 @@ async function open(page: Page, size: { width: number; height: number }) {
       body: JSON.stringify(snapshot()),
     }),
   );
-  await page.goto('/');
+  await page.goto('/pull-requests.html');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(5);
 }
 
