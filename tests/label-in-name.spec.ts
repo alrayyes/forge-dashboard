@@ -33,12 +33,21 @@ async function mismatches(page: Page): Promise<string[]> {
       for (const pills of bare.querySelectorAll('.nav-pills')) pills.remove();
       const visible = squash(bare.textContent ?? '').toLowerCase();
       const name = squash(el.getAttribute('aria-label') ?? '').toLowerCase();
-      // What the pills show must be in the name too, as numbers: an icon with
-      // only pills (the header's) would otherwise pass unchecked.
-      for (const pill of el.querySelectorAll('.nav-total, .nav-failed')) {
-        const number = squash(pill.textContent ?? '');
-        if (!new RegExp(`(^|\\D)${number}(\\D|$)`).test(name))
-          found.push(`pill "${number}" is not in "${name}"`);
+      // What the pills show must be in the name too, each next to its own
+      // word: "12 total" ("12 Branches" on a tab, which shows its numbers
+      // first) and "3 failing". An icon with only pills (the header's) would
+      // otherwise pass unchecked, and swapped numbers would pass a looser rule.
+      const total = el.querySelector('.nav-total');
+      if (total) {
+        const n = squash(total.textContent ?? '');
+        if (!new RegExp(`(^${n} |, ${n} total)`).test(name))
+          found.push(`total "${n}" is not in "${name}"`);
+      }
+      const failed = el.querySelector('.nav-failed');
+      if (failed) {
+        const n = squash(failed.textContent ?? '');
+        if (!new RegExp(`(^|, )${n} failing`).test(name))
+          found.push(`failed "${n}" is not in "${name}"`);
       }
       if (!visible) continue;
       if (!name.includes(visible))
@@ -72,8 +81,8 @@ test.describe('the check itself (#1315)', () => {
     });
 
     expect(await mismatches(page)).toEqual([
-      'pill "12" is not in "branches"',
-      'pill "3" is not in "branches"',
+      'total "12" is not in "branches"',
+      'failed "3" is not in "branches"',
     ]);
   });
 
@@ -85,8 +94,7 @@ test.describe('the check itself (#1315)', () => {
       );
     });
 
-    const added = (await mismatches(page)).filter((m) => m.includes('"12"'));
-    expect(added).toEqual([]);
+    expect(await mismatches(page)).toEqual([]);
   });
 
   test('a longer number is not taken for a shorter one', async ({ page }) => {
@@ -98,7 +106,21 @@ test.describe('the check itself (#1315)', () => {
     });
 
     expect(await mismatches(page)).toEqual([
-      'pill "12" is not in "pull requests, 128 total"',
+      'total "12" is not in "pull requests, 128 total"',
+    ]);
+  });
+
+  test('swapped numbers are caught', async ({ page }) => {
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a href="#" aria-label="Branches, 3 total, 12 failing"><span class="nav-pills"><span class="nav-total">12</span><span class="nav-failed">3</span></span></a>',
+      );
+    });
+
+    expect(await mismatches(page)).toEqual([
+      'total "12" is not in "branches, 3 total, 12 failing"',
+      'failed "3" is not in "branches, 3 total, 12 failing"',
     ]);
   });
 });

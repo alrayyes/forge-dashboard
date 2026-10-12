@@ -829,9 +829,10 @@ belong to another of the three) and how many have failing CI. Issues counts open
 issues, without Renovate's Dependency Dashboard, and has no failed count. The
 server works the numbers out from the same lists the pages show (`navCounts` on
 `/api/dashboard`), so a page agrees with its icon, and a hidden pull request is
-in neither. The dashboard pages set them from each snapshot and the other
-signed-in pages load them once, so a refresh or a webhook changes them without a
-reload.
+in neither. The dashboard pages set them from each snapshot. The other
+signed-in pages (Branches, Insights, Settings and the rest) load them and ask
+again every 30 seconds while the tab is visible, so a refresh or a webhook
+changes them without a reload.
 
 A zero is never drawn: a page with nothing in it has no total, and nothing
 failing means no red pill. A page with nothing to show leaves the navigation:

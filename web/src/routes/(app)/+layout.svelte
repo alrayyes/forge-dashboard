@@ -113,9 +113,14 @@
     loadTimezone();
 
     // The dashboard views set the counts from their own snapshots. Every
-    // other page asks once, so the badges are there too. Asked only once a
-    // session exists: the changelog, disclaimer and privacy pages are open to
+    // other page asks, so the badges are there too, and asks again every 30
+    // seconds (the server's own advice for a re-read) so a number that changes
+    // while the page is open changes here (#1315). Asked only once a session
+    // exists: the changelog, disclaimer and privacy pages are open to
     // visitors, who have none (#1261).
+    const NAV_COUNTS_POLL_MS = 30_000;
+    let navCountsTimer: number | undefined;
+
     function loadNavCounts() {
       if (
         !isCurrentRoute("/pull-requests") &&
@@ -155,10 +160,16 @@
         displayName = session.displayName;
         isAdmin = session.isAdmin;
         loadNavCounts();
+        navCountsTimer = window.setInterval(() => {
+          // A hidden tab has nobody to show it to.
+          if (!document.hidden) loadNavCounts();
+        }, NAV_COUNTS_POLL_MS);
       })
       .catch(() => {
         /* a transient failure here isn't worth blocking the page over */
       });
+
+    return () => window.clearInterval(navCountsTimer);
   });
 </script>
 

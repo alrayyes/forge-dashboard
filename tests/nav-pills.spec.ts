@@ -195,6 +195,79 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     await expect(header(page, '/').locator('.nav-failed')).toHaveCount(0);
   });
 
+  // The pages that load no snapshot of their own (Branches, Insights,
+  // Settings…) ask for the counts once, so they have to ask again or the
+  // numbers go stale while the page is open.
+  for (const path of ['/settings.html', '/insights.html']) {
+    test(`${path} keeps the numbers current without a reload`, async ({
+      page,
+    }) => {
+      const state = { counts: MIXED };
+      await page.clock.install();
+      await serve(page, state);
+      await page.goto(path);
+      await expect(header(page, '/').locator('.nav-failed')).toHaveText('3');
+
+      state.counts = { ...MIXED, branches: { total: 12, failed: 0 } };
+      await page.clock.runFor(31_000);
+
+      await expect(header(page, '/').locator('.nav-failed')).toHaveCount(0);
+      await expect(header(page, '/')).toHaveAccessibleName(
+        'Branches, 12 total',
+      );
+    });
+  }
+
+  test('the Branches page keeps the numbers current without a reload', async ({
+    page,
+  }) => {
+    const state = { counts: MIXED };
+    await page.clock.install();
+    await serve(page, state);
+    await page.route('**/api/main-branches', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          counts: { failed: 0, running: 0, passed: 0, none: 0, total: 0 },
+          branches: [],
+        }),
+      }),
+    );
+    await page.goto('/');
+    await expect(header(page, '/').locator('.nav-failed')).toHaveText('3');
+
+    state.counts = { ...MIXED, branches: { total: 12, failed: 5 } };
+    await page.clock.runFor(31_000);
+
+    await expect(header(page, '/').locator('.nav-failed')).toHaveText('5');
+  });
+
+  test('a page that loads its own snapshot does not poll the counts a second time', async ({
+    page,
+  }) => {
+    let reads = 0;
+    await page.clock.install();
+    await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
+    await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) => {
+      reads += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...snapshot(MIXED), readIntervalSeconds: 600 }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+    await expect(header(page, '/').locator('.nav-failed')).toHaveText('3');
+    const before = reads;
+
+    await page.clock.runFor(95_000);
+
+    // The page's own poll may read; the layout adds none of its own.
+    expect(reads - before).toBeLessThanOrEqual(0);
+  });
+
   test('a three-digit total with a failed count fits the bar without clipping', async ({
     page,
   }) => {
@@ -272,6 +345,35 @@ test.describe('nav counts on a phone (#1315)', () => {
       '27 PRs, 5 failing',
     );
     await expect(tab(page, '/issues.html')).toHaveAccessibleName('9 Issues');
+  });
+
+  test('with three digits and a failed count, no pill spills out of its tab', async ({
+    page,
+  }) => {
+    await serve(page, {
+      counts: {
+        branches: { total: 128, failed: 24 },
+        pullRequests: { total: 128, failed: 24 },
+        issues: { total: 128 },
+        releases: { total: 128, failed: 24 },
+        bots: { total: 128, failed: 24 },
+      },
+    });
+    await page.goto('/settings.html');
+    await expect(page.locator('.bottom-nav .nav-failed').first()).toBeVisible();
+
+    const spills = await page.$$eval('.bottom-nav a', (links) =>
+      links.flatMap((link) => {
+        const tab = link.getBoundingClientRect();
+        const box = link.querySelector('.nav-pills')?.getBoundingClientRect();
+        if (!box) return [];
+        return box.left < tab.left - 0.5 || box.right > tab.right + 0.5
+          ? [link.getAttribute('href') ?? '']
+          : [];
+      }),
+    );
+
+    expect(spills).toEqual([]);
   });
 
   test('every failed pill on the tab bar keeps its glyph', async ({ page }) => {
