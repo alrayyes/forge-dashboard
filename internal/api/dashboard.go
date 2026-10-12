@@ -51,6 +51,10 @@ type dashboardResponse struct {
 	// HiddenDrafts is how many draft pull requests PullRequests leaves out
 	// (#791). Always serialized, and zero when the request included drafts.
 	HiddenDrafts int `json:"hiddenDrafts"`
+	// HiddenPullRequests is how many pull requests the user hid that are still
+	// open and not expired (#841). Always serialized. With includeHidden they
+	// are in PullRequests, marked hidden, and still counted here.
+	HiddenPullRequests int `json:"hiddenPullRequests"`
 	// AutoMerged is what this app merged for the user in the last few
 	// minutes, so the page can say so once the pull request has left.
 	AutoMerged []autoMergedView `json:"autoMerged"`
@@ -107,6 +111,12 @@ type pullRequestView struct {
 	// Queued is the safe action this user queued on the pull request that is
 	// still waiting for the rate limit to reset, or null (#756).
 	Queued *dashboard.QueuedAction `json:"queued"`
+	// Hidden marks a pull request the user hid, in a response that asked for
+	// them with includeHidden (#841). Without that they aren't listed at all.
+	Hidden bool `json:"hidden,omitempty"`
+	// HiddenUntil is when a timed hide ends. Absent for one that lasts until
+	// the user restores it.
+	HiddenUntil *time.Time `json:"hiddenUntil,omitempty"`
 }
 
 // queuedActions is the user's queue, never nil: the contract promises an array.
@@ -178,6 +188,13 @@ func (b boardSettings) autoMergeStatus(pr dashboard.PullRequest) *dashboard.Auto
 	return &status
 }
 
+// boardView is what a request asks the board to include besides what it
+// shows by default: drafts (#791) and the pull requests the user hid (#841).
+type boardView struct {
+	includeDrafts bool
+	includeHidden bool
+}
+
 // buildDashboardResponse merges snap's tracked-repo list with userID's
 // recorded webhook deliveries and ignored repos. HasWebhook is an OR of
 // two signals: r's own live check (dashboard.WebhookChecker, against the
@@ -199,10 +216,15 @@ func (b boardSettings) autoMergeStatus(pr dashboard.PullRequest) *dashboard.Auto
 // can be merged or updated on one, and are counted in HiddenDrafts instead.
 // Ignored repos filter first, so HiddenDrafts counts only drafts in repos
 // whose other pull requests would show.
-func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap dashboard.Snapshot, includeDrafts bool) dashboardResponse {
+//
+// A pull request the user hid (#841) is left out unless view.includeHidden,
+// and counted in HiddenPullRequests. Hides come before drafts, so a hidden
+// draft is only in the hidden count.
+func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap dashboard.Snapshot, view boardView) dashboardResponse {
 	board := loadBoardSettings(ctx, deps.SettingsStore, userID)
 	board.autoMergeReport = deps.Manager.AutoMergeReport(userID)
-	pullRequests, hiddenDrafts := board.pullRequestViews(snap.PullRequests, includeDrafts)
+	board.forgetClosedHides(ctx, deps.SettingsStore, userID, snap)
+	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
 	issues, openIssues := board.issueViews(snap.Issues)
 
 	return dashboardResponse{
@@ -213,8 +235,10 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap 
 		OpenIssueCount: openIssues,
 		Repos:          board.repoStatuses(snap.Repos),
 		HiddenDrafts:   hiddenDrafts,
-		AutoMerged:     board.autoMerged(),
-		QueuedActions:  board.queuedActions(),
+
+		HiddenPullRequests: hiddenPullRequests,
+		AutoMerged:         board.autoMerged(),
+		QueuedActions:      board.queuedActions(),
 
 		ReadIntervalSeconds: int(clientReadInterval / time.Second),
 	}
@@ -229,7 +253,9 @@ type boardSettings struct {
 	autoMerge        map[string]struct{}
 	autoMergeReport  dashboard.AutoMergeReport
 	queued           []dashboard.QueuedAction
-	logins           map[dashboard.Forge]string
+	// hidden are the pull requests the user hid, keyed by settings.AutoMergeKey (#841).
+	hidden map[string]settings.HiddenPullRequest
+	logins map[dashboard.Forge]string
 	// renovateAuthors are the logins the user says are Renovate (#1062).
 	renovateAuthors []string
 }
@@ -266,6 +292,12 @@ func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte
 		autoMerge = nil
 	}
 
+	hidden, err := store.HiddenPullRequests(ctx, userID, time.Now())
+	if err != nil {
+		slog.Warn("could not load hidden pull requests for dashboard response", "error", err)
+		hidden = nil
+	}
+
 	// The signed-in user's own login on each forge, from Settings. A store
 	// failure degrades to "no login", so nothing is marked as requested.
 	logins := map[dashboard.Forge]string{}
@@ -276,7 +308,7 @@ func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte
 		logins[dashboard.ForgeForgejo] = creds.ForgejoUsername
 	}
 
-	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, autoMerge: autoMerge, queued: queued, logins: logins, renovateAuthors: renovateAuthors}
+	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, autoMerge: autoMerge, queued: queued, hidden: hidden, logins: logins, renovateAuthors: renovateAuthors}
 }
 
 // repoStatuses is the tracked-repo list with each repo's webhook coverage and
@@ -307,22 +339,29 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 	return out
 }
 
-// pullRequestViews leaves out the pull requests of ignored repos, then the
-// drafts unless includeDrafts, and says how many drafts that hid.
-func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDrafts bool) ([]pullRequestView, int) {
+// pullRequestViews leaves out the pull requests of ignored repos, then the ones
+// the user hid unless view.includeHidden, then the drafts unless
+// view.includeDrafts. It says how many it hid of each of the last two.
+func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardView) (views []pullRequestView, hiddenDrafts, hiddenPullRequests int) {
 	out := make([]pullRequestView, 0, len(prs))
-	hiddenDrafts := 0
 	for _, pr := range prs {
 		if b.ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)].PRs {
 			continue
 		}
-		if pr.Draft && !includeDrafts {
+		hide, isHidden := b.hidden[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)]
+		if isHidden {
+			hiddenPullRequests++
+			if !view.includeHidden {
+				continue
+			}
+		}
+		if pr.Draft && !view.includeDrafts && !isHidden {
 			hiddenDrafts++
 
 			continue
 		}
 		pr = withAutoMergeIntent(pr, b.autoMerge)
-		out = append(out, pullRequestView{
+		item := pullRequestView{
 			PullRequest:    pr,
 			Kind:           dashboard.KindOf(pr, b.renovateAuthors),
 			AllowedActions: b.allowedActions(pr),
@@ -332,10 +371,64 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, includeDraf
 			ReviewRequestedFromMe: dashboard.ReviewRequestedFrom(pr, b.logins[pr.Forge]),
 			AutoMerge:             b.autoMergeStatus(pr),
 			Queued:                b.waitingQueuedAction(pr),
-		})
+			Hidden:                isHidden,
+		}
+		if isHidden && !hide.Until.IsZero() {
+			until := hide.Until
+			item.HiddenUntil = &until
+		}
+		out = append(out, item)
 	}
 
-	return out, hiddenDrafts
+	return out, hiddenDrafts, hiddenPullRequests
+}
+
+// forgetClosedHides deletes the hides of pull requests that are no longer open
+// (#841), so the list can't grow without end, and drops them from b. A pull
+// request counts as closed only when its forge answered and its repo is still
+// tracked: an outage returns no pull requests, and that isn't a close. A
+// failure to delete is logged and leaves the record for the next snapshot.
+func (b *boardSettings) forgetClosedHides(ctx context.Context, store *settings.Store, userID []byte, snap dashboard.Snapshot) {
+	if len(b.hidden) == 0 {
+		return
+	}
+	open := make(map[string]struct{}, len(snap.PullRequests))
+	for _, pr := range snap.PullRequests {
+		open[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)] = struct{}{}
+	}
+	reachable := make(map[dashboard.Forge]bool, len(snap.Forges))
+	for _, f := range snap.Forges {
+		reachable[f.Forge] = f.Reachable
+	}
+	tracked := make(map[string]struct{}, len(snap.Repos))
+	for _, r := range snap.Repos {
+		tracked[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)] = struct{}{}
+	}
+
+	var gone []settings.HiddenPullRequest
+	for key, h := range b.hidden {
+		if _, isOpen := open[key]; isOpen {
+			continue
+		}
+		if !reachable[dashboard.Forge(h.Forge)] {
+			continue
+		}
+		if _, isTracked := tracked[settings.WebhookDeliveryKey(h.Forge, h.Repo)]; !isTracked {
+			continue
+		}
+		gone = append(gone, h)
+	}
+	if len(gone) == 0 {
+		return
+	}
+	if err := store.ForgetHiddenPullRequests(ctx, userID, gone); err != nil {
+		slog.Warn("could not forget hidden pull requests that closed", "error", err)
+
+		return
+	}
+	for _, h := range gone {
+		delete(b.hidden, settings.AutoMergeKey(h.Forge, h.Repo, h.Number))
+	}
 }
 
 // allowedActions is the pull request's actions, minus an offer to update its
@@ -394,10 +487,13 @@ func (b boardSettings) issueViews(issues []dashboard.Issue) ([]issueView, int) {
 	return out, open
 }
 
-// wantsDrafts reads includeDrafts from the query. Only "true" opts in, so a
-// missing or malformed value gets the default: drafts left out (#791).
-func wantsDrafts(r *http.Request) bool {
-	return r.URL.Query().Get("includeDrafts") == "true"
+// viewOf reads includeDrafts and includeHidden from the query. Only "true"
+// opts in, so a missing or malformed value gets the default: drafts (#791) and
+// hidden pull requests (#841) left out.
+func viewOf(r *http.Request) boardView {
+	q := r.URL.Query()
+
+	return boardView{includeDrafts: q.Get("includeDrafts") == "true", includeHidden: q.Get("includeHidden") == "true"}
 }
 
 // withRateLimitSeverity returns forges with each rate-limit budget graded as
@@ -443,12 +539,12 @@ var (
 // forge: Manager.Get reads whatever that user's background refresh last
 // assembled — empty, not an error, for a user who hasn't saved any
 // credentials in Settings yet.
-func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, ownerUsername string, includeDrafts bool) (dashboardResponse, error) {
+func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, ownerUsername string, view boardView) (dashboardResponse, error) {
 	if ownerUsername == "" || ownerUsername == requester.Username {
 		warmUpAggregator(ctx, deps, requester.ID, requester.Username)
 		deps.Manager.WaitFirstRefresh(ctx, requester.ID, firstLoadWait)
 
-		return buildDashboardResponse(ctx, deps, requester.ID, deps.Manager.Get(requester.ID), includeDrafts), nil
+		return buildDashboardResponse(ctx, deps, requester.ID, deps.Manager.Get(requester.ID), view), nil
 	}
 
 	owner, err := deps.AuthStore.GetUserByUsername(ctx, ownerUsername)
@@ -471,7 +567,7 @@ func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, o
 	warmUpAggregator(ctx, deps, owner.ID, owner.Username)
 	deps.Manager.WaitFirstRefresh(ctx, owner.ID, firstLoadWait)
 
-	return buildDashboardResponse(ctx, deps, owner.ID, deps.Manager.Get(owner.ID), includeDrafts).withoutQueue(), nil
+	return buildDashboardResponse(ctx, deps, owner.ID, deps.Manager.Get(owner.ID), view).withoutQueue(), nil
 }
 
 // handleDashboard answers the requested dashboard: the signed-in user's
@@ -489,7 +585,7 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		resp, err := resolveDashboardFor(r.Context(), deps, u, r.URL.Query().Get("owner"), wantsDrafts(r))
+		resp, err := resolveDashboardFor(r.Context(), deps, u, r.URL.Query().Get("owner"), viewOf(r))
 		if err != nil {
 			switch {
 			case errors.Is(err, errDashboardOwnerNotFound):
@@ -597,7 +693,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 			// a refusal would leave the row stale (#809).
 			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
 		}
-		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps, u.ID, deps.Manager.Get(u.ID), wantsDrafts(r)))
+		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps, u.ID, deps.Manager.Get(u.ID), viewOf(r)))
 	}
 }
 
@@ -644,7 +740,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 
 		// Read once: every event on this connection follows the choice it
 		// opened with, and a client that changes its mind reconnects.
-		includeDrafts := wantsDrafts(r)
+		view := viewOf(r)
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -653,7 +749,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		flusher.Flush()
 
 		streamSnapshots(r.Context(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
-			return buildDashboardResponse(r.Context(), deps, u.ID, snap, includeDrafts)
+			return buildDashboardResponse(r.Context(), deps, u.ID, snap, view)
 		})
 	}
 }
