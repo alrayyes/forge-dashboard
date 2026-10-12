@@ -337,10 +337,28 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 
 			return
 		}
-		a.mergeRepo(ctx, forge, fullName, seq, prs, issues)
+		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName))
 	})
 
 	return true
+}
+
+// fetchMainBranch re-reads fullName's default branch when the source can, or
+// returns nil, which leaves the row as it was. A failed read is logged and also
+// leaves it, so one flaky call never blanks the row.
+func (a *Aggregator) fetchMainBranch(ctx context.Context, src RepoRefresher, forge Forge, owner, name, fullName string) *MainBranch {
+	refresher, ok := src.(MainBranchRefresher)
+	if !ok {
+		return nil
+	}
+	branch, err := refresher.FetchMainBranch(ctx, owner, name, fullName)
+	if err != nil {
+		slog.Warn("scoped default branch refresh failed", "forge", forge, "repo", fullName, "error", err)
+
+		return nil
+	}
+
+	return &branch
 }
 
 // mergeRepo replaces forge/fullName's own entries in the current snapshot
@@ -350,13 +368,13 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 // scoped refreshes of different repos run side by side, and a read taken
 // before the lock was released let the later write drop the earlier one's
 // repo (#966).
-func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue) {
+func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue, branch *MainBranch) {
 	a.checkDependabotAcks(ctx)
 
 	a.mu.Lock()
 	current := a.snap
 
-	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: current.MainBranches, GeneratedAt: time.Now().UTC()}
+	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
 		if pr.Forge == forge && pr.Repo == fullName {
 			continue
@@ -388,6 +406,30 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 	a.notify(merged)
 	a.runAutoUpdateBranch(ctx, merged)
 	a.runAutoMerge(ctx, merged)
+}
+
+// withMainBranch is rows with forge/fullName's row replaced by branch, or rows
+// itself when branch is nil. It never edits rows in place: a reader may hold it.
+func withMainBranch(rows []MainBranch, forge Forge, fullName string, branch *MainBranch) []MainBranch {
+	if branch == nil {
+		return rows
+	}
+	out := make([]MainBranch, 0, len(rows)+1)
+	replaced := false
+	for _, r := range rows {
+		if r.Forge == forge && r.FullName == fullName {
+			out = append(out, *branch)
+			replaced = true
+
+			continue
+		}
+		out = append(out, r)
+	}
+	if !replaced {
+		out = append(out, *branch)
+	}
+
+	return out
 }
 
 // sortByRecency orders both slices most-recently-updated first, except

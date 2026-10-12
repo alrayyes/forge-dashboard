@@ -883,8 +883,10 @@ with the time it was last fetched, and so does a forge whose rate-limit budget
 is spent (the refresh skips it until the reset). A repo whose read failed while
 its forge answered keeps its own earlier row the same way. A repo with no
 pipeline on its newest commit, an empty repo, or a Forgejo instance without
-Actions shows `none`. The snapshot updates on each full refresh, not on a
-webhook delivery.
+Actions shows `none`. The snapshot updates on each full refresh, and a webhook
+delivery for a repo (a finished check, say) re-reads that repo's default branch
+at once, so a rerun that passed turns its row green without the next poll. If
+that read fails, the row keeps its earlier state.
 
 ## Issues
 

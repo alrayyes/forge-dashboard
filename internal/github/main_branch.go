@@ -333,3 +333,35 @@ func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) 
 		}
 	}
 }
+
+// mainBranchQuery reads one repository's default branch, the same selection
+// the account-wide query makes for every tracked repo.
+var mainBranchQuery = `query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    url` + defaultBranchSelection + `  }
+}`
+
+// FetchMainBranch implements dashboard.MainBranchRefresher (#1316): the
+// default-branch row of one repo, for a webhook delivery that finished a check.
+// Without it the row only moved on the full poll, so a rerun that passed still
+// read as failed.
+func (c *Client) FetchMainBranch(ctx context.Context, owner, name, fullName string) (dashboard.MainBranch, error) {
+	var resp struct {
+		Repository *struct {
+			URL              string            `json:"url"`
+			DefaultBranchRef *graphqlBranchRef `json:"defaultBranchRef"`
+		} `json:"repository"`
+	}
+	if err := c.graphqlDo(ctx, mainBranchQuery, map[string]any{"owner": owner, "name": name}, &resp); err != nil {
+		return dashboard.MainBranch{}, err
+	}
+	if resp.Repository == nil {
+		return dashboard.MainBranch{}, fmt.Errorf("github: graphql: repository %s not found: %w", fullName, errRepositoryNotFound)
+	}
+
+	repo := graphqlRepo{Name: name, DefaultBranchRef: resp.Repository.DefaultBranchRef}
+	repo.Owner.Login = owner
+	c.withCheckedCommits(ctx, []graphqlRepo{repo})
+
+	return mainBranchFrom(fullName, resp.Repository.URL, repo.DefaultBranchRef), nil
+}
