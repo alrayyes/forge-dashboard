@@ -485,6 +485,9 @@ test.describe('the waiting chip on a merge and a close', () => {
       await page.reload();
 
       const row = firstRow(page);
+      // Close sits in More actions, with the Hide items (#841).
+      if (s.endpoint === 'close')
+        await row.getByRole('button', { name: 'More actions' }).click();
       await row.getByRole('button', { name: s.button, exact: true }).click();
       const confirm = row.getByRole('button', { name: s.confirm });
       await expect(confirm).toBeVisible();

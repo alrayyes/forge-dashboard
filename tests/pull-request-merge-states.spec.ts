@@ -229,17 +229,16 @@ test.describe('Merge states on a pull request row', () => {
     });
   }
 
-  // A lone extra action is drawn directly (#1139).
-  test('ready: Close is drawn directly, with no More actions menu', async ({
+  // Close shares More actions with the Hide items now (#841); a lone extra
+  // action is still drawn directly (#1139), but every live row has Hide.
+  test('ready: Close is in More actions, beside the Hide items', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
     await page.reload();
 
     const row = rowOf(page);
-    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-      0,
-    );
+    await row.getByRole('button', { name: 'More actions' }).click();
     await expect(
       row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeVisible();
