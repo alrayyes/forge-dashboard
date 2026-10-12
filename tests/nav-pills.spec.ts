@@ -345,6 +345,40 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
   });
 });
 
+// Every other test here mocks /api/dashboard. This one asks the real server,
+// so the shape the nav reads is checked against the shape the server sends.
+test.describe('the real server serves what the nav reads (#1315)', () => {
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+  });
+
+  test('/api/dashboard carries navCounts in the shape the page reads', async ({
+    page,
+  }) => {
+    const res = await page.request.get('/api/dashboard');
+    const body = await res.json();
+
+    expect(res.ok()).toBe(true);
+    expect(body.navCounts).toEqual({
+      branches: { total: expect.any(Number), failed: expect.any(Number) },
+      pullRequests: { total: expect.any(Number), failed: expect.any(Number) },
+      issues: { total: expect.any(Number) },
+      releases: { total: expect.any(Number), failed: expect.any(Number) },
+      bots: { total: expect.any(Number), failed: expect.any(Number) },
+    });
+  });
+
+  test('a user with nothing tracked sees the always-there links and no pills', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html');
+
+    await expect(header(page, '/')).toBeVisible();
+    await expect(header(page, '/pull-requests.html')).toBeVisible();
+    await expect(page.locator('.app-nav .nav-pills')).toHaveCount(0);
+  });
+});
+
 test.describe('nav counts on a phone (#1315)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
