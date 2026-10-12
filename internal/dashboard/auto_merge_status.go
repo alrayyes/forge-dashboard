@@ -70,7 +70,7 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 
 	switch {
 	case pr.MergeStatus == MergeConflicting:
-		return status(AutoMergeStopped, ActionConflict, "Auto-merge stopped: merge conflict. Resolve it on Forgejo and it carries on.")
+		return status(AutoMergeStopped, ActionConflict, "Auto-merge stopped: merge conflict. Resolve it on "+forgeName(pr.Forge)+" and it carries on.")
 	case pr.CI == CIFailure:
 		return status(AutoMergeStopped, ActionChecksFailing, "Auto-merge stopped: a check failed. It carries on once checks pass.")
 	case pr.Empty:
@@ -84,10 +84,22 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 	case pr.CI == CIPending:
 		return status(AutoMergeWaiting, ActionChecksPending, "Auto-merge is waiting for checks to finish.")
 	case pr.MergeStatus != MergeMergeable:
-		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for Forgejo to say it can merge.")
+		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for "+forgeName(pr.Forge)+" to say it can merge.")
+	}
+
+	if pr.Forge == ForgeGitHub {
+		return status(AutoMergeWaiting, "", "Checks passed. GitHub merges it as soon as it can.")
 	}
 
 	return status(AutoMergeWaiting, "", "Checks passed. Auto-merge merges it on the next refresh.")
+}
+
+func forgeName(f Forge) string {
+	if f == ForgeGitHub {
+		return "GitHub"
+	}
+
+	return "Forgejo"
 }
 
 func lowerFirst(s string) string {

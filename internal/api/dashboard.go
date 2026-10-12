@@ -166,7 +166,7 @@ func (b boardSettings) autoMerged() []autoMergedView {
 // autoMergeStatus explains pr when the user armed auto-merge on it, nil
 // otherwise.
 func (b boardSettings) autoMergeStatus(pr dashboard.PullRequest) *dashboard.AutoMergeStatus {
-	if pr.AutoMergeEnabled == nil || !*pr.AutoMergeEnabled || pr.Forge != dashboard.ForgeForgejo {
+	if pr.AutoMergeEnabled == nil || !*pr.AutoMergeEnabled {
 		return nil
 	}
 	var failure *dashboard.AutoMergeFailure
