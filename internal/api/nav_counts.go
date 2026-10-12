@@ -26,14 +26,19 @@ type navCounts struct {
 	Bots         pageCount  `json:"bots"`
 }
 
-// buildNavCounts counts the same lists the response carries, so the numbers
-// match what each page shows: pull requests after ignored repos and drafts are
-// left out, split by kind, and issues without the housekeeping ones. A pull
+// buildNavCounts counts the pull requests the board shows by default, so the
+// numbers match what each page shows when it opens: ignored repos, drafts and
+// hidden pull requests are left out, split by kind, and issues without the
+// housekeeping ones. Show drafts and Show hidden change the list a request
+// gets, not the badge, so it doesn't jump when a toggle flips. A pull
 // request is failed when its CI is failing; a branch when its default-branch
 // pipeline is. One with no pipeline counts in the total only.
 func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []dashboard.MainBranch) navCounts {
 	var counts navCounts
 	for _, pr := range pullRequests {
+		if pr.Draft || pr.Hidden {
+			continue
+		}
 		page := &counts.PullRequests
 		switch pr.Kind {
 		case dashboard.KindRelease:

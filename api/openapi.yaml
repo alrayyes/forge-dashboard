@@ -4382,9 +4382,11 @@ components:
     NavCounts:
       type: object
       description: |
-        The numbers behind the navigation badges (#1315), counted from the
-        same lists the response carries, so they match each page: pull
-        requests after ignored repos and drafts are left out, split by `kind`
+        The numbers behind the navigation badges (#1315), counted from what the
+        board shows by default, so they match each page when it opens: ignored
+        repos, draft pull requests and hidden pull requests are left out
+        whatever `includeDrafts` and `includeHidden` ask for, so the badge
+        doesn't jump when a toggle flips. Split by `kind`
         (release pull requests under `releases`, Dependabot and Renovate
         under `bots`, the rest under `pullRequests`). Always present, with
         zeros when there is nothing. A client hides a page's whole nav item at
