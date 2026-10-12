@@ -220,7 +220,23 @@ func (p *partialRequiredServer) start(t *testing.T) *httptest.Server {
 		}
 		writeJSON(t, w, map[string]any{"strict": false, "contexts": p.protection})
 	})
-	mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", p.rulesetsHandler(t))
+	var base string
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", p.checkRunsHandler(t, &base))
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"state": "success", "statuses": []map[string]any{}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	base = srv.URL
+
+	return srv
+}
+
+func (p *partialRequiredServer) rulesetsHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, _ *http.Request) {
 		rules := []map[string]any{}
 		if len(p.rulesets) > 0 {
 			checks := make([]map[string]any, 0, len(p.rulesets))
@@ -230,30 +246,27 @@ func (p *partialRequiredServer) start(t *testing.T) *httptest.Server {
 			rules = append(rules, map[string]any{"type": "required_status_checks", "parameters": map[string]any{"required_status_checks": checks}})
 		}
 		writeJSON(t, w, rules)
-	})
-	var base string
-	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+// checkRunsHandler serves p.pages one per request, linking to the next page.
+func (p *partialRequiredServer) checkRunsHandler(t *testing.T, base *string) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
 		page := 1
 		if r.URL.Query().Get("page") == "2" {
 			page = 2
 		}
 		if page < len(p.pages) {
-			w.Header().Set("Link", `<`+base+`/repos/alrayyes/a/commits/cafef00d/check-runs?page=`+string(rune('0'+page+1))+`>; rel="next"`)
+			w.Header().Set("Link", `<`+*base+`/repos/alrayyes/a/commits/cafef00d/check-runs?page=`+string(rune('0'+page+1))+`>; rel="next"`)
 		}
 		runs := []map[string]any{}
 		for _, name := range p.pages[page-1] {
 			runs = append(runs, map[string]any{"name": name, "status": "completed", "conclusion": "success"})
 		}
 		writeJSON(t, w, map[string]any{"total_count": len(runs), "check_runs": runs})
-	})
-	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, map[string]any{"state": "success", "statuses": []map[string]any{}})
-	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	base = srv.URL
-
-	return srv
+	}
 }
 
 // A lookup that failed leaves the required set partial. The commit must not be
