@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.173.0](https://github.com/alrayyes/forge-dashboard/compare/v0.172.1...v0.173.0) (2026-10-12)
+
+
+### Features
+
+* **web:** every nav item shows its total and a red failed count ([#1327](https://github.com/alrayyes/forge-dashboard/issues/1327)) ([81619db](https://github.com/alrayyes/forge-dashboard/commit/81619dba2ad0821d2e32152c5cd8c477c7d62961))
+
 ## [0.172.1](https://github.com/alrayyes/forge-dashboard/compare/v0.172.0...v0.172.1) (2026-10-12)
 
 
