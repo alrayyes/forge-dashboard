@@ -124,6 +124,54 @@ test.describe('the pages start with the list (#1325)', () => {
   }
 });
 
+test.describe('the banners sit above the filter bar (#1325)', () => {
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+  });
+
+  // The stat tiles used to be the anchor the banners were inserted before.
+  test('the unreachable-forge banner comes before the filter bar', async ({
+    page,
+  }) => {
+    const answer = (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [
+            {
+              forge: 'github',
+              reachable: false,
+              repoCount: 1,
+              errorKind: 'unreachable',
+              staleSince: new Date(Date.now() - 5 * 60_000).toISOString(),
+            },
+          ],
+          pullRequests: [makePR(1)],
+          issues: [],
+          navCounts: navCountsFor([makePR(1)], 0),
+        }),
+      });
+    await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
+    await page.route('**/api/dashboard*', answer);
+    await page.route('**/api/dashboard/refresh*', answer);
+    await page.goto('/pull-requests.html');
+    await expect(page.locator('#unreachable-banner')).toBeVisible();
+
+    const before = await page.evaluate(() => {
+      const banner = document.querySelector('#unreachable-banner');
+      const bar = document.querySelector('.filter-bar');
+      if (!banner || !bar) return null;
+      return Boolean(
+        banner.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    expect(before).toBe(true);
+  });
+});
+
 test.describe('one line says how many are shown (#1325)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);

@@ -554,7 +554,7 @@
     }
     /* Exhausted reads as an alert, not just a colored bar — the same
        "more prominent than a subtle fill" treatment the dashboard's own
-       CI-failing stat tile gets, borrowed here since a fully drained
+       red failed pill in the nav gets, borrowed here since a fully drained
        budget is exactly as actionable as CI failing is. */
     .rate-limit-budget.rl-exhausted {
       background: var(--critical-bg);
@@ -744,8 +744,8 @@
   <div class="card">
     <h2>CI status</h2>
     <p class="hint">
-      The combined check result across every currently open pull request — the
-      same counts the dashboard's own tiles show, broken out by state.
+      The combined check result across every currently open pull request, broken
+      out by state.
     </p>
 
     {#if prItems.length === 0}

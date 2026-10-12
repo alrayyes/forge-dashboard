@@ -996,7 +996,7 @@ filters and goes with every dashboard request, refresh and the live stream.
 
 A pull request you can't or won't act on yet can be hidden. **More actions** on
 its row has **Hide this pull request**, and **Hide for 7 days** under it. It
-leaves the list, the stat tiles, the quick-filter counts and Insights at once,
+leaves the list, the quick-filter counts and Insights at once,
 with no confirm step, since it is reversible. Nothing is sent to the forge.
 
 A status message says "Hid PR #123 ‘title’." with an **Undo** button. It stays

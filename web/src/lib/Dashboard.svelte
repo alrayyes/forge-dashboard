@@ -4225,7 +4225,6 @@
       replaceItems: (items: (PullRequestItem | IssueItem)[]) => void;
       render: () => void;
       resetPage: () => void;
-      toggleStatus?: (value: string) => string;
       // Show row (#723): the item with this key, if the board holds it, and
       // a move to the page it sits on under the current filters.
       find: (key: string) => (PullRequestItem | IssueItem) | undefined;
@@ -4571,17 +4570,6 @@
           render();
           return page;
         },
-        toggleStatus: isPR
-          ? (value: string) => {
-              onUserChange?.();
-              const next = extraState.status === value ? "" : value;
-              extraState.status = next;
-              state.page = 1;
-              Filters.saveState(sharedState);
-              render();
-              return next;
-            }
-          : undefined,
       };
     }
 
@@ -5176,8 +5164,8 @@
     // triggers) until the forge's own reset window passes — that's
     // already surfaced per-row via proactiveActionLockReason, but easy to
     // miss buried in a board below the fold. This mirrors it at the top
-    // of the page, with the same critical prominence as the "CI failing"
-    // stat tile, so it's visible at a glance.
+    // of the page, with the same critical prominence as the nav's red failed
+    // count, so it's visible at a glance.
     // One row per forge that went read-only (#755), and one per budget that is
     // merely running low.
     type RateLimitAlert =
@@ -6113,10 +6101,6 @@
         sharedControlsRestored = true;
         syncSharedControlsToState();
       }
-      // Each board's own render() sets its stat tile's text too (the
-      // same filtered-vs-total wording its own count already uses), so
-      // the tile never disagrees with the board sitting right below it.
-      //
       // #212, #710: ingestPRs compares this against what the board shows
       // and either updates rows in place or holds the change behind the
       // updates bar — see reconcilePRs.
