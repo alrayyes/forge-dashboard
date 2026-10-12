@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.167.1](https://github.com/alrayyes/forge-dashboard/compare/v0.167.0...v0.167.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **api:** treat renovatebot and renovate/ branches as Renovate's without a setting ([#1272](https://github.com/alrayyes/forge-dashboard/issues/1272)) ([e1dc6df](https://github.com/alrayyes/forge-dashboard/commit/e1dc6df489a3c1aeadfba22d53d17da02443a3df))
+
 ## [0.167.0](https://github.com/alrayyes/forge-dashboard/compare/v0.166.0...v0.167.0) (2026-10-12)
 
 
