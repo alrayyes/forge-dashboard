@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.168.0](https://github.com/alrayyes/forge-dashboard/compare/v0.167.1...v0.168.0) (2026-10-12)
+
+
+### Features
+
+* **api:** hide one pull request, with a count and an includeHidden view ([#1312](https://github.com/alrayyes/forge-dashboard/issues/1312)) ([5b9eea7](https://github.com/alrayyes/forge-dashboard/commit/5b9eea7a69218b8adbf67feea44ded69d9a362d6))
+
 ## [0.167.1](https://github.com/alrayyes/forge-dashboard/compare/v0.167.0...v0.167.1) (2026-10-12)
 
 
