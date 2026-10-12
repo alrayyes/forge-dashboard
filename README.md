@@ -1193,7 +1193,7 @@ below, with no redirect, so an old bookmark or a browser that cached the earlier
 
 `api/openapi.yaml` is the contract: `GET /healthz` for liveness, `GET /readyz`
 for readiness,
-`GET /api/dashboard` for the signed-in user's aggregated snapshot (or,
+`GET /api/dashboard` for the aggregated snapshot of the signed-in user (or,
 with `?owner=<username>`, one shared with them; `?includeHidden=true` lists the
 pull requests the user hid, marked `hidden`, and `hiddenPullRequests` counts
 them), `POST /api/pull-requests/hide` and `/unhide` to hide one pull request
