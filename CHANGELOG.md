@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.173.1](https://github.com/alrayyes/forge-dashboard/compare/v0.173.0...v0.173.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **github:** keep CI pending while a required check hasn't reported ([#1313](https://github.com/alrayyes/forge-dashboard/issues/1313)) ([7935ec8](https://github.com/alrayyes/forge-dashboard/commit/7935ec80f84097ba1a9d76f0b4c96a68a5202a1f))
+
 ## [0.173.0](https://github.com/alrayyes/forge-dashboard/compare/v0.172.1...v0.173.0) (2026-10-12)
 
 
