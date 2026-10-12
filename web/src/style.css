@@ -3152,3 +3152,85 @@ footer a.mono:focus-visible {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   color: var(--ink);
 }
+
+/* Hiding one pull request (#841): a status message that stays until the next
+   one, a link to the hidden ones, and their list. Words carry the meaning;
+   targets are at least 30px tall like the row's own actions. */
+.hide-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  font-size: 13px;
+  color: var(--ink);
+}
+.hide-status[hidden] {
+  display: none;
+}
+.hide-status-undo,
+.hidden-prs-toggle,
+.hidden-prs-restore {
+  min-height: 30px;
+  padding: 4px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.hidden-prs-toggle {
+  color: var(--ink-2);
+  border-style: dashed;
+}
+.hidden-prs-toggle[hidden] {
+  display: none;
+}
+.hide-status-undo:focus-visible,
+.hidden-prs-toggle:focus-visible,
+.hidden-prs-restore:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.hidden-prs-panel {
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.hidden-prs-panel[hidden] {
+  display: none;
+}
+.hidden-prs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.hidden-prs-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+.hidden-prs-item + .hidden-prs-item {
+  border-top: 1px solid var(--border);
+}
+.hidden-prs-name {
+  flex: 1 1 260px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.hidden-prs-when {
+  color: var(--ink-2);
+  font-size: 12px;
+}

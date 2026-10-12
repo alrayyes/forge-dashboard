@@ -42,6 +42,14 @@
   } from "#lib/feedback.js";
   import { mountFeedbackUI } from "#lib/feedback-ui.js";
   import {
+    comesBack,
+    hideFailedMessage,
+    hidMessage,
+    nameOf,
+    restoredMessage,
+    restoreFailedMessage,
+  } from "#lib/hidden-pull-requests.js";
+  import {
     autoMergeChip,
     buildWaitChip,
     queuedChip,
@@ -123,6 +131,10 @@
     // Where this app's own auto-merge stands, present only on a Forgejo
     // pull request the signed-in user armed it on.
     autoMerge?: ServerAutoMergeStatus;
+    // Set on a pull request the user hid, in an answer that asked for the
+    // hidden ones (#841); hiddenUntil is when a timed hide ends.
+    hidden?: boolean;
+    hiddenUntil?: string;
   };
   // Matches components.schemas.AutoMergeStatus in api/openapi.yaml.
   type ServerAutoMergeStatus = {
@@ -204,6 +216,8 @@
     repos?: Filters.RepoRef[];
     // Drafts the API left out (#791). 0 when the request asked for them.
     hiddenDrafts?: number;
+    // Pull requests the user hid that are still open (#841).
+    hiddenPullRequests?: number;
     // What this app auto-merged in the last ten minutes (Forgejo).
     autoMerged?: ServerAutoMerged[];
     // The user's queued actions: waiting, and finished in the last 24 hours
@@ -941,7 +955,9 @@
                 renovateRebasePromoted ? null : renovateRebaseActionCell(pr),
                 closeActionCell(pr),
               ]
-        ).filter((cell): cell is HTMLElement => cell !== null);
+        )
+          .filter((cell): cell is HTMLElement => cell !== null)
+          .concat(settledRow ? [] : hideActionCells(pr));
         const moreActions = moreActionsCell(pr, secondaryActions);
         if (moreActions) statusCell.appendChild(moreActions);
         const queueCell = queueActionCell(pr);
@@ -2628,6 +2644,172 @@
       const shown = !draftsOn() && hiddenDrafts > 0;
       draftsHiddenCount.hidden = !shown;
       draftsHiddenCount.textContent = shown ? `${hiddenDrafts} hidden` : "";
+    }
+
+    // ---- hide one pull request (#841) ----
+    // The server hides it and counts what it hid; this page asks, says what
+    // happened in a status message that stays until the next one, and lists
+    // the hidden ones with a Restore. Hiding is reversible, so there is no
+    // confirm step.
+    const hideStatus = document.getElementById("hide-status");
+    const hiddenToggle = document.getElementById(
+      "hidden-prs-toggle",
+    ) as HTMLButtonElement | null;
+    const hiddenPanel = document.getElementById("hidden-prs-panel");
+    const hiddenList = document.getElementById("hidden-prs-list");
+    let hiddenPullRequests = 0;
+
+    function syncHiddenToggle() {
+      if (!hiddenToggle) return;
+      hiddenToggle.hidden = hiddenPullRequests === 0;
+      hiddenToggle.textContent = `Hidden (${hiddenPullRequests})`;
+      if (hiddenPullRequests === 0) setHiddenPanel(false);
+    }
+
+    function setHiddenPanel(open: boolean) {
+      if (!hiddenToggle || !hiddenPanel) return;
+      hiddenToggle.setAttribute("aria-expanded", String(open));
+      hiddenPanel.hidden = !open;
+      if (open) void loadHiddenList();
+    }
+
+    hiddenToggle?.addEventListener("click", () => {
+      setHiddenPanel(hiddenToggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    type HideRef = { forge: string; fullName: string; number: number };
+
+    function hideRefOf(item: PullRequestItem): HideRef {
+      return { forge: item.forge, fullName: item.repo, number: item.number };
+    }
+
+    function postHide(
+      path: "hide" | "unhide",
+      body: HideRef & { days?: number },
+    ): Promise<boolean> {
+      return fetch(`/api/pull-requests/${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(body),
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = "/login.html";
+            return false;
+          }
+          return res.status === 204;
+        })
+        .catch(() => false);
+    }
+
+    // The board asks the server again, so the row leaves or returns at once
+    // instead of waiting behind the updates bar.
+    function refreshBoard(): Promise<void> {
+      return fetch(withDrafts("/api/dashboard/refresh"), {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data) applySnapshot(data, true);
+        })
+        .catch(() => {});
+    }
+
+    // One message at a time, as a status for assistive tech. An Undo button
+    // rides along when there is something to undo; the Hidden list has the
+    // same restore, so nothing depends on reaching this in time.
+    function setHideStatus(text: string, undo?: () => void) {
+      if (!hideStatus) return;
+      hideStatus.replaceChildren(el("span", "hide-status-text", text));
+      if (undo) {
+        const button = buttonEl("hide-status-undo", "Undo");
+        button.type = "button";
+        button.addEventListener("click", undo);
+        hideStatus.appendChild(button);
+      }
+      hideStatus.hidden = false;
+    }
+
+    async function doHidePullRequest(item: PullRequestItem, days?: number) {
+      const ref = hideRefOf(item);
+      closeAllActionMenus();
+      if (!(await postHide("hide", days ? { ...ref, days } : ref))) {
+        setHideStatus(hideFailedMessage(item));
+        renderPRBoard();
+        return;
+      }
+      setHideStatus(hidMessage(item), () => void doRestore(item));
+      await refreshBoard();
+      // The row this was reached from is gone, so focus moves to the one
+      // thing left to act on, which is the Undo.
+      hideStatus?.querySelector<HTMLElement>("button")?.focus();
+      if (hiddenToggle?.getAttribute("aria-expanded") === "true")
+        void loadHiddenList();
+    }
+
+    async function doRestore(item: PullRequestItem) {
+      if (!(await postHide("unhide", hideRefOf(item)))) {
+        setHideStatus(restoreFailedMessage(item));
+        return;
+      }
+      setHideStatus(restoredMessage(item));
+      await refreshBoard();
+      if (hiddenToggle?.getAttribute("aria-expanded") === "true")
+        void loadHiddenList();
+    }
+
+    // A rate-limited or unreachable forge draws no controls on its rows (one
+    // banner says why), and hiding is no exception: the row stays as the
+    // read-only list it is until the forge answers.
+    function hideActionCells(item: PullRequestItem): HTMLElement[] {
+      if (readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge)))
+        return [];
+      const forever = buttonEl("row-action", "Hide this pull request");
+      forever.type = "button";
+      forever.addEventListener("click", () => void doHidePullRequest(item));
+      const week = buttonEl("row-action", "Hide for 7 days");
+      week.type = "button";
+      week.addEventListener("click", () => void doHidePullRequest(item, 7));
+      return [forever, week];
+    }
+
+    // The hidden ones come from the same endpoint, asked for with
+    // includeHidden, so there is no second list to keep in step.
+    async function loadHiddenList() {
+      if (!hiddenList) return;
+      const data: DashboardSnapshot | null = await fetch(
+        "/api/dashboard?includeHidden=true",
+        { headers: { Accept: "application/json" } },
+      )
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null);
+      if (!data) return;
+      const hidden = (data.pullRequests || []).filter((p) => p.hidden);
+      hiddenList.replaceChildren(
+        ...hidden.map((pr) => {
+          const item = el("li", "hidden-prs-item");
+          item.appendChild(
+            el(
+              "span",
+              "hidden-prs-name",
+              `${pr.repo} #${pr.number} ${pr.title}`,
+            ),
+          );
+          item.appendChild(
+            el("span", "hidden-prs-when", comesBack(pr.hiddenUntil)),
+          );
+          const restore = buttonEl("hidden-prs-restore", "Restore");
+          restore.type = "button";
+          restore.setAttribute("aria-label", `Restore ${nameOf(pr)}`);
+          restore.addEventListener("click", () => void doRestore(pr));
+          item.appendChild(restore);
+          return item;
+        }),
+      );
     }
 
     // The live region's text only changes when the count does, so a poll
@@ -5863,6 +6045,8 @@
       );
       hiddenDrafts = data.hiddenDrafts ?? 0;
       syncDraftsToggle();
+      hiddenPullRequests = data.hiddenPullRequests ?? 0;
+      syncHiddenToggle();
       // Only a snapshot that shows the request settled ends a queued bot
       // rebase or Update branch — not just any snapshot (#706, #982). Cleared before
       // anyRowActionInFlight is consulted below, so a resolved row
@@ -6472,8 +6656,27 @@
             <option value="pending">Running</option>
             <option value="none">No checks</option>
           </select>
+          <button
+            type="button"
+            class="hidden-prs-toggle"
+            id="hidden-prs-toggle"
+            aria-expanded="false"
+            aria-controls="hidden-prs-panel"
+            hidden>Hidden (0)</button
+          >
           <span class="count" id="pr-count">&ndash;</span>
         </div>
+      </div>
+
+      <p class="hide-status" id="hide-status" role="status" hidden></p>
+      <div
+        class="hidden-prs-panel"
+        id="hidden-prs-panel"
+        role="region"
+        aria-label="Hidden pull requests"
+        hidden
+      >
+        <ul class="hidden-prs-list" id="hidden-prs-list"></ul>
       </div>
 
       <div id="pr-rows"></div>
