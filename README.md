@@ -549,10 +549,19 @@ wait shows as one chip in the row's action area (below), and a failure gets a
 status line under the actions: "Failed" with the reason, a Retry button and a
 Dismiss button. Each pull request in flight has its own. A failure says one
 plain sentence: the server's own reason when it gave one, or "The forge refused
-this action and gave no reason." The raw error text stays in the server log.
-Retry shows only for a failure that can pass by itself, such as the forge not
-answering. The line clears when you dismiss it, when you start another action on
-the row, with "Clear finished", or when a refresh shows the pull request gone.
+this action and gave no reason." The raw error text stays in the server log, and
+off the row. A **Copy** button beside the failure (on the row and in its toast,
+and under a failed **Rerun failed checks** in the pipeline panel) copies what
+the server really answered, for pasting into a ticket or a chat: one JSON
+object with the HTTP status, the response body as it arrived (the raw `error`
+included), the action, the pull request's forge, repo and number, and the time.
+The button says "Copied" for two seconds. A failure with no answer at all
+copies the action's context and the browser's own error. Where the clipboard
+can't be written (an insecure page, a refused permission), the same text shows
+in a box to select. Retry shows only for a failure that can pass by itself, such
+as the forge not answering. The line clears when you dismiss it, when you start
+another action on the row, with "Clear finished", or when a refresh shows the
+pull request gone.
 
 A toast appears bottom-right when something completes or fails: up to three at a
 time, the newest on top, with the `owner/repo#N`, a one-line message, "Show row"

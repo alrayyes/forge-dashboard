@@ -5,7 +5,11 @@
 // action (Merge, Close, Update branch, Enable auto-merge, the Dependabot and
 // Renovate rebases) renders its failures through here.
 
+import { failureDetails } from './failure-details';
 import type { ActionRef, FeedbackStore } from './feedback';
+
+export { failureDetails, MAX_RAW_TEXT } from './failure-details';
+
 import { PERMISSION_REASON } from './rate-limit';
 
 export type ActionCode =
@@ -36,7 +40,13 @@ export type ActionFailure = {
 // A failed request, carrying the server's answer when there was one. A
 // request that never got a response has no status and no code: that is the
 // ambiguous-outcome case (#447), which callers handle separately.
-export type ActionRequestError = Error & { status?: number; code?: ActionCode };
+export type ActionRequestError = Error & {
+  status?: number;
+  code?: ActionCode;
+  // The response body as it arrived: the parsed JSON, or the text when it
+  // wasn't JSON. Only Copy reads it (#1323); the row never shows it.
+  raw?: unknown;
+};
 
 export type SettledState = 'merged' | 'closed';
 
@@ -111,8 +121,11 @@ export async function readActionFailure(
   res: Response,
 ): Promise<ActionRequestError> {
   let body: Record<string, unknown> | null = null;
+  let raw: unknown;
   try {
-    body = await res.json();
+    raw = await res.text();
+    body = JSON.parse(raw as string);
+    raw = body;
   } catch {
     body = null;
   }
@@ -125,6 +138,7 @@ export async function readActionFailure(
   const err: ActionRequestError = new Error(text);
   err.status = res.status;
   err.code = code;
+  err.raw = raw;
   (err as Error & { resetsAt?: string }).resetsAt =
     typeof body?.resetsAt === 'string' ? body.resetsAt : undefined;
   return err;
