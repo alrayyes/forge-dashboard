@@ -686,23 +686,23 @@
       return pill;
     }
 
-    // An armed Forgejo pull request that has stopped needs a person, so it
-    // reads as a line led by the state, never by colour alone. One that is
-    // only waiting is the row's waiting chip instead (#1229).
+    // An armed pull request that has stopped needs a person, so it reads as a
+    // line led by the state, never by colour alone. One that is only waiting
+    // is the row's waiting chip instead (#1229). Both forges send the status
+    // (GitHub since #1293).
     function autoMergeStatusLine(pr: PullRequestItem): HTMLElement | null {
-      if (pr.forge !== "forgejo" || pr.autoMerge?.state !== "stopped")
-        return null;
+      if (pr.autoMerge?.state !== "stopped") return null;
       const line = el("span", `auto-merge-status ${pr.autoMerge.state}`);
       line.appendChild(el("strong", "", "Stopped: "));
       line.appendChild(document.createTextNode(pr.autoMerge.message));
       return line;
     }
 
-    // The chip for an armed Forgejo auto-merge that is waiting, with the
-    // button that turns it off inside it. null when there is nothing to wait
-    // for, or the row is settled.
+    // The chip for an armed auto-merge that is waiting, with the button that
+    // turns it off inside it. null when there is nothing to wait for, or the
+    // row is settled.
     function autoMergeWaitChip(pr: PullRequestItem): HTMLElement | null {
-      if (pr.forge !== "forgejo" || !pr.autoMerge) return null;
+      if (!pr.autoMerge) return null;
       const chip = autoMergeChip({
         state: pr.autoMerge.state,
         code: pr.autoMerge.code,
@@ -1671,9 +1671,10 @@
       return button;
     }
 
-    // ---- cancel this app's auto-merge (Forgejo) ----
-    // The intent is stored here, so cancelling sends nothing to the forge
-    // and has nothing to confirm: arming it again is one click.
+    // ---- cancel an armed auto-merge ----
+    // On Forgejo the intent is stored here, so cancelling sends nothing to the
+    // forge; on GitHub the server turns off GitHub's own auto-merge. Either
+    // way there is nothing to confirm: arming it again is one click.
     const cancelAutoMergeState: Record<string, ActionState> = {};
 
     function doCancelAutoMerge(item: PullRequestItem) {

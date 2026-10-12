@@ -697,3 +697,135 @@ test.describe('the waiting chip on an action queued for a reset (#756)', () => {
     await expect.poll(() => deletes).toEqual(['q1']);
   });
 });
+
+// #1293: GitHub's own auto-merge reads like Forgejo's, with the same chip and
+// a Disarm that goes to GitHub through the same endpoint.
+test.describe('the waiting chip on GitHub auto-merge', () => {
+  const armed = (overrides: MockPR = {}) =>
+    makePR({
+      forge: 'github',
+      repo: 'alrayyes/forge-dashboard',
+      number: 9,
+      ci: 'pending',
+      mergeStatus: 'blocked',
+      autoMergeEnabled: true,
+      autoMerge: {
+        state: 'waiting',
+        code: 'checks_pending',
+        message: 'Auto-merge is on. GitHub merges it when the checks pass.',
+      },
+      allowedActions: [
+        { action: 'merge' },
+        { action: 'close' },
+        { action: 'cancel_auto_merge' },
+      ],
+      ...overrides,
+    });
+
+  async function open(page: Page, pr: MockPR) {
+    await page.route('**/api/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snapshot(pr)),
+      }),
+    );
+    await page.reload();
+  }
+
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+  });
+
+  test('an armed GitHub pull request reads Waiting for CI, with Disarm in the chip', async ({
+    page,
+  }) => {
+    await open(page, armed());
+    const chip = chipOf(page);
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Waiting for CI');
+    await expect(chip.locator('.wait-chip-tip')).toHaveText(
+      'Auto-merge is on. GitHub merges it when the checks pass.',
+    );
+    await expect(
+      chip.getByRole('button', { name: 'Disarm auto-merge' }),
+    ).toBeVisible();
+    await expect(firstRow(page).locator('.auto-merge-status')).toHaveCount(0);
+  });
+
+  test('Disarm posts for that GitHub pull request', async ({ page }) => {
+    let posted: unknown = null;
+    await page.route(
+      '**/api/pull-requests/auto-merge/cancel',
+      (route: Route) => {
+        posted = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      },
+    );
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          snapshot(
+            makePR({ forge: 'github', repo: 'alrayyes/forge-dashboard' }),
+          ),
+        ),
+      }),
+    );
+    await open(page, armed());
+    await chipOf(page)
+      .getByRole('button', { name: 'Disarm auto-merge' })
+      .click();
+    await expect
+      .poll(() => posted)
+      .toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 9,
+      });
+    await expect(chipOf(page)).toHaveCount(0);
+  });
+
+  test('a stopped GitHub auto-merge stays a text line with no chip', async ({
+    page,
+  }) => {
+    await open(
+      page,
+      armed({
+        autoMerge: {
+          state: 'stopped',
+          code: 'checks_failing',
+          message: 'Auto-merge is on, but a check failed.',
+        },
+      }),
+    );
+    await expect(chipOf(page)).toHaveCount(0);
+    await expect(firstRow(page).locator('.auto-merge-status')).toContainText(
+      'Stopped',
+    );
+  });
+
+  test('a GitHub pull request that is not armed has no chip', async ({
+    page,
+  }) => {
+    await open(
+      page,
+      makePR({ forge: 'github', repo: 'alrayyes/forge-dashboard' }),
+    );
+    await expect(chipOf(page)).toHaveCount(0);
+  });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`has no axe violations with the chip (${scheme})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await open(page, armed());
+      await expect(chipOf(page)).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+});
