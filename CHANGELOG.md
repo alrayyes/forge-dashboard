@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.167.0](https://github.com/alrayyes/forge-dashboard/compare/v0.166.0...v0.167.0) (2026-10-12)
+
+
+### Features
+
+* **web:** show the waiting chip and Disarm on armed GitHub pull requests ([#1307](https://github.com/alrayyes/forge-dashboard/issues/1307)) ([1e01253](https://github.com/alrayyes/forge-dashboard/commit/1e012531b65c42094ad3c35186eb4505c19b6c1a))
+
 ## [0.166.0](https://github.com/alrayyes/forge-dashboard/compare/v0.165.0...v0.166.0) (2026-10-12)
 
 
