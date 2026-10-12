@@ -101,7 +101,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await registerAndSignIn(page, request, baseURL);
   });
 
-  test('the nav links to it, first, without a count, in the header and the phone tab bar', async ({
+  test('the nav links to it, first, in the header and the phone tab bar', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
@@ -109,7 +109,6 @@ test.describe('Main branches page (#1224, #1279)', () => {
     const header = page.locator('.app-nav a[href="/"]');
     await expect(header).toHaveAttribute('aria-label', 'Branches');
     await expect(header).toHaveAttribute('aria-current', 'page');
-    await expect(header.locator('.nav-badge')).toHaveCount(0);
 
     await page.setViewportSize({ width: 390, height: 844 });
     const tab = page.locator('.bottom-nav a[href="/"]');

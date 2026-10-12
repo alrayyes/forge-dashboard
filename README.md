@@ -826,16 +826,31 @@ lists none of them, so it has no quick filter for bots. A filter saved before
 that change is ignored. With no bot pull requests open the page says there is
 nothing to review.
 
-The navigation shows how many are waiting, as it does for Issues: the number of
-open pull requests (without releases and bots) on the Pull requests item, the
-number of open release pull requests on Releases and the number of bot pull
-requests on Bots. The dashboard pages set all three from each snapshot, and
-the other signed-in pages load them once. A page with nothing to show leaves the
-navigation: the Issues, Releases and Bots links are not in the header or the
-phone's tab bar while their count is 0. Branches and Pull requests always
-show. A count that isn't known yet is not 0, so the links stay until the first
-snapshot says otherwise, and the page you are on keeps its own link until you
-leave it. The page still opens when typed into the address bar, and says it is empty.
+Every item in the navigation shows how many items its page lists, and how many
+of them are failing: a neutral **total** pill, then a red **failed** pill with a
+warning glyph, so red is never the only signal. Branches counts default
+branches and how many have a failed run (no pipeline isn't failed). Pull
+requests, Releases and Bots count their pull requests (without the ones that
+belong to another of the three) and how many have failing CI. Issues counts open
+issues, without Renovate's Dependency Dashboard, and has no failed count. The
+server works the numbers out from the same lists the pages show (`navCounts` on
+`/api/dashboard`), so a page agrees with its icon, and a hidden pull request is
+in neither. The dashboard pages set them from each snapshot. The other
+signed-in pages (Branches, Insights, Settings and the rest) load them and ask
+again every 30 seconds while the tab is visible, so a refresh or a webhook
+changes them without a reload.
+
+A zero is never drawn: a page with nothing in it has no total, and nothing
+failing means no red pill. A page with nothing to show leaves the navigation:
+the Releases, Bots and Issues links are not in the header or the phone's tab bar
+while their total is 0. Branches and Pull requests always show. A count that
+isn't known yet is not 0, so the links stay until the first snapshot says
+otherwise, and the page you are on keeps its own link until you leave it. The
+page still opens when typed into the address bar, and says it is empty.
+
+On a phone the numbers sit above each tab's icon. An item's accessible name says
+both in words: "Branches, 12 total, 3 failing" on the header icon, "12 Branches,
+3 failing" on the tab, which shows its numbers before its word.
 
 ## Main branches
 

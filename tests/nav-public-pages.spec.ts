@@ -6,6 +6,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { navCountsFor } from './nav-counts-helper';
 import { registerViaInvite } from './register-helper';
 
 // #1261: the changelog, disclaimer and privacy pages are open to visitors, so
@@ -55,6 +56,7 @@ function mockDashboard(
         pullRequests,
         issues: [],
         openIssueCount,
+        navCounts: navCountsFor(pullRequests, openIssueCount),
       }),
     }),
   );

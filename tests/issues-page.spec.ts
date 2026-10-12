@@ -6,6 +6,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { navCountsFor } from './nav-counts-helper';
 import { registerViaInvite } from './register-helper';
 
 // #827: issues have their own page, /issues.html, with a nav item and a
@@ -96,6 +97,13 @@ async function mockDashboard(
         issues,
         repos: [],
         hiddenDrafts: 0,
+        // The server leaves Renovate's Dependency Dashboard out of the count.
+        navCounts: navCountsFor(
+          pullRequests,
+          issues.filter(
+            (i) => (i as { title?: string }).title !== 'Dependency Dashboard',
+          ).length,
+        ),
       }),
     }),
   );
@@ -118,15 +126,15 @@ test.describe('issues page (#827)', () => {
     await mockDashboard(page);
 
     await expect(issuesLink(page)).toBeVisible();
-    await expect(issuesLink(page).locator('.nav-badge')).toHaveText('12');
+    await expect(issuesLink(page).locator('.nav-total')).toHaveText('12');
     await expect(issuesLink(page)).toHaveAttribute(
       'aria-label',
-      'Issues, 12 open',
+      'Issues, 12 total',
     );
 
     await issuesLink(page).click();
     await expect(page).toHaveURL(/\/issues\.html$/);
-    await expect(issuesLink(page).locator('.nav-badge')).toHaveText('12');
+    await expect(issuesLink(page).locator('.nav-total')).toHaveText('12');
     await expect(issuesLink(page)).toHaveAttribute('aria-current', 'page');
   });
 

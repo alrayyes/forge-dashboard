@@ -26,15 +26,104 @@ async function mismatches(page: Page): Promise<string[]> {
       'a[aria-label], button[aria-label]',
     )) {
       if (!el.checkVisibility()) continue;
-      const visible = squash(el.innerText).toLowerCase();
-      if (!visible) continue;
+      // The nav's count pills are state, not label (#1315): the name carries
+      // their numbers in words ("27 PRs, 5 failing"), so the label to find
+      // in the name is what is left without them.
+      const bare = el.cloneNode(true) as HTMLElement;
+      for (const pills of bare.querySelectorAll('.nav-pills')) pills.remove();
+      const visible = squash(bare.textContent ?? '').toLowerCase();
       const name = squash(el.getAttribute('aria-label') ?? '').toLowerCase();
+      // What the pills show must be in the name too, each next to its own
+      // word: "12 total" ("12 Branches" on a tab, which shows its numbers
+      // first) and "3 failing". An icon with only pills (the header's) would
+      // otherwise pass unchecked, and swapped numbers would pass a looser rule.
+      const total = el.querySelector('.nav-total');
+      if (total) {
+        const n = squash(total.textContent ?? '');
+        if (!new RegExp(`(^${n} |, ${n} total)`).test(name))
+          found.push(`total "${n}" is not in "${name}"`);
+      }
+      const failed = el.querySelector('.nav-failed');
+      if (failed) {
+        const n = squash(failed.textContent ?? '');
+        if (!new RegExp(`(^|, )${n} failing`).test(name))
+          found.push(`failed "${n}" is not in "${name}"`);
+      }
+      if (!visible) continue;
       if (!name.includes(visible))
         found.push(`"${visible}" is not in "${name}"`);
     }
     return found;
   });
 }
+
+test.describe('the check itself (#1315)', () => {
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerViaInvite(
+      page,
+      request,
+      baseURL,
+      `label-check-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+      'Label Check',
+    );
+  });
+
+  // An icon-only header link has nothing but pills on screen, so the check
+  // must still read them against the name.
+  test('flags an icon link whose name leaves out its numbers', async ({
+    page,
+  }) => {
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a href="#" aria-label="Branches"><svg width="10" height="10"></svg><span class="nav-pills"><span class="nav-total">12</span><span class="nav-failed">3</span></span></a>',
+      );
+    });
+
+    expect(await mismatches(page)).toEqual([
+      'total "12" is not in "branches"',
+      'failed "3" is not in "branches"',
+    ]);
+  });
+
+  test('passes an icon link whose name says them', async ({ page }) => {
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a href="#" aria-label="Branches, 12 total, 3 failing"><svg width="10" height="10"></svg><span class="nav-pills"><span class="nav-total">12</span><span class="nav-failed">3</span></span></a>',
+      );
+    });
+
+    expect(await mismatches(page)).toEqual([]);
+  });
+
+  test('a longer number is not taken for a shorter one', async ({ page }) => {
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a href="#" aria-label="Pull requests, 128 total"><span class="nav-pills"><span class="nav-total">12</span></span></a>',
+      );
+    });
+
+    expect(await mismatches(page)).toEqual([
+      'total "12" is not in "pull requests, 128 total"',
+    ]);
+  });
+
+  test('swapped numbers are caught', async ({ page }) => {
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a href="#" aria-label="Branches, 3 total, 12 failing"><span class="nav-pills"><span class="nav-total">12</span><span class="nav-failed">3</span></span></a>',
+      );
+    });
+
+    expect(await mismatches(page)).toEqual([
+      'total "12" is not in "branches, 3 total, 12 failing"',
+      'failed "3" is not in "branches, 3 total, 12 failing"',
+    ]);
+  });
+});
 
 test.describe('visible text is part of the accessible name (#1135)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
@@ -74,6 +163,13 @@ test.describe('visible text is part of the accessible name (#1135)', () => {
           ],
           issues: [issue(2), issue(3)],
           openIssueCount: 2,
+          navCounts: {
+            branches: { total: 0, failed: 0 },
+            pullRequests: { total: 1, failed: 1 },
+            issues: { total: 2 },
+            releases: { total: 0, failed: 0 },
+            bots: { total: 0, failed: 0 },
+          },
         }),
       }),
     );
@@ -85,7 +181,7 @@ test.describe('visible text is part of the accessible name (#1135)', () => {
     }) => {
       await page.goto(path);
       await expect(
-        page.locator('.bottom-nav a[href="/issues.html"] .nav-badge'),
+        page.locator('.bottom-nav a[href="/issues.html"] .nav-total'),
       ).toBeVisible();
       expect(await mismatches(page)).toEqual([]);
     });

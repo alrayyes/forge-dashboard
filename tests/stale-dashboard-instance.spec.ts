@@ -77,9 +77,7 @@ test('the pull request page stays free of release pull requests after leaving Re
   await page.goto('/releases.html');
   await expect(page.locator('#pr-rows')).toContainText('release 0.74.2');
 
-  await page
-    .locator('header a.nav-with-badge[href="/pull-requests.html"]')
-    .click();
+  await page.locator('header .app-nav a[href="/pull-requests.html"]').click();
   await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   const pollsOnArrival = polls;
 

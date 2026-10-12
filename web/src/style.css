@@ -428,7 +428,10 @@ header,
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* From the bottom, so every tab's icon and word line up whether or not it
+     has numbers above it (#1315). */
+  justify-content: flex-end;
+  min-width: 0;
   gap: 3px;
   /* min-height plus the row's own padding keeps every tab's touch target
      at least 44px tall, this account's craft convention for a control an
@@ -449,29 +452,82 @@ header,
   outline-offset: -2px;
 }
 
-/* The Issues item's count (#827). Text, aria-hidden: the link's own label
-   carries the number for assistive tech. */
-.nav-with-badge {
-  position: relative;
+/* What each nav item shows (#1315): a neutral total, then a red failed count
+   with a warning glyph. Both are text on their own pill, never colour alone,
+   and aria-hidden: the link's own name says the same in words. */
+.nav-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
-.nav-badge {
-  position: absolute;
-  top: -6px;
-  right: -8px;
-  min-width: 16px;
-  padding: 0 4px;
+.nav-total,
+.nav-failed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  box-sizing: border-box;
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 10px;
-  line-height: 16px;
+  font-size: 11px;
   font-weight: 600;
-  text-align: center;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.nav-total {
+  background: var(--surface-sunken);
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
+}
+.nav-failed {
+  background: var(--critical-bg);
+  color: var(--critical);
+  border: 1px solid var(--critical);
+}
+.nav-failed svg {
+  flex: none;
+}
+
+/* A header item with pills grows to fit them, a pill-shaped button instead of
+   the 30px circle the bare icon has. The label never wraps: it is the icon. */
+.app-nav .theme-toggle:has(.nav-pills) {
+  width: auto;
+  gap: 6px;
+  padding: 0 7px 0 9px;
+}
+
+/* On a phone the numbers sit above the icon, so the tab keeps its width. */
+.nav-pills.stacked {
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+  gap: 2px;
+}
+.nav-pills.stacked .nav-total,
+.nav-pills.stacked .nav-failed {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
 }
 
 .bottom-nav-label {
   font-size: 11px;
   font-weight: 500;
+}
+/* Eight tabs share a 360px bar: a little smaller, and the tab's own padding
+   gives its room to the word (#1315). */
+@media (max-width: 380px) {
+  .bottom-nav-link {
+    padding-inline: 1px;
+  }
+  .bottom-nav-label {
+    font-size: 10px;
+    letter-spacing: -0.01em;
+  }
 }
 
 /* Same active-tab treatment .theme-toggle[aria-current="page"] already

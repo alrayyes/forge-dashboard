@@ -15,8 +15,8 @@
 
   import { onMount } from "svelte";
   import * as Filters from "#lib/filters.js";
-  import { issueCount } from "#lib/issue-count.svelte.js";
-  import { setPullRequestCounts } from "#lib/pull-request-counts.svelte.js";
+  import { setNavCounts } from "#lib/nav-counts.svelte.js";
+  import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { findAction, type AllowedAction } from "#lib/allowed-actions.js";
   import * as Stacks from "#lib/stacks.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
@@ -216,6 +216,8 @@
     issues: IssueItem[];
     // How many issues are real work, from the server (#980).
     openIssueCount?: number;
+    // What each nav item shows: its page's total and failed count (#1315).
+    navCounts?: ServerNavCounts;
     repos?: Filters.RepoRef[];
     // Drafts the API left out (#791). 0 when the request asked for them.
     hiddenDrafts?: number;
@@ -6113,7 +6115,7 @@
       // Release pull requests have their own page: the pull request board
       // shows none of them and the Releases board only them. The server says
       // which are which (#716). The nav counts both from the full list.
-      setPullRequestCounts(data.pullRequests);
+      setNavCounts(data.navCounts);
       syncQueuedActions(data.queuedActions ?? []);
       const prs = (data.pullRequests || []).filter((p) =>
         viewKind
@@ -6130,7 +6132,6 @@
       // doesn't also hold the board back.
       const botChanged = syncServerRequests(prs, startedSeq);
       const issues = data.issues || [];
-      issueCount.value = data.openIssueCount ?? 0;
       allPRs = prs;
       allIssues = issues;
       reposByKey = new Map(
