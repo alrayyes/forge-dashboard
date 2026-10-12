@@ -91,13 +91,16 @@ test.describe('persistent top nav', () => {
     }
   });
 
+  // Signed in, as the describe's beforeEach has it: the layout counts here
+  // too (#1261), so a link with nothing behind it is left out (#1228), and
+  // no link is current since none of these pages is in the nav.
   for (const path of NO_SESSION_PAGES) {
-    test(`${path} renders the same nav even with no session, and marks nothing current`, async ({
+    test(`${path} renders the nav without the empty links, and marks nothing current`, async ({
       page,
     }) => {
       await page.goto(path);
 
-      for (const { label } of NAV_PAGES) {
+      for (const label of ALWAYS_THERE) {
         await expect(
           page.locator(`.app-nav a[aria-label^="${label}"]`),
         ).toBeVisible();
