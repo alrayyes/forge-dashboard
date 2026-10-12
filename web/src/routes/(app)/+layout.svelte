@@ -278,35 +278,6 @@
               aria-hidden="true">{pullRequestCount.value}</span
             >{/if}
         </a>
-        {#if showIssues}
-          <a
-            class="theme-toggle nav-with-badge"
-            href="/issues.html"
-            aria-label={issuesLabel}
-            title="Issues"
-            aria-current={isCurrentRoute("/issues") ? "page" : undefined}
-            style="text-decoration:none;"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              ><circle cx="12" cy="12" r="10" /><circle
-                cx="12"
-                cy="12"
-                r="1"
-              /></svg
-            >{#if issueCount.value !== null}<span
-                class="nav-badge"
-                aria-hidden="true">{issueCount.value}</span
-              >{/if}
-          </a>
-        {/if}
         {#if showReleases}
           <a
             class="theme-toggle nav-with-badge"
@@ -364,6 +335,35 @@
             >{#if botCount.value !== null}<span
                 class="nav-badge"
                 aria-hidden="true">{botCount.value}</span
+              >{/if}
+          </a>
+        {/if}
+        {#if showIssues}
+          <a
+            class="theme-toggle nav-with-badge"
+            href="/issues.html"
+            aria-label={issuesLabel}
+            title="Issues"
+            aria-current={isCurrentRoute("/issues") ? "page" : undefined}
+            style="text-decoration:none;"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><circle cx="12" cy="12" r="10" /><circle
+                cx="12"
+                cy="12"
+                r="1"
+              /></svg
+            >{#if issueCount.value !== null}<span
+                class="nav-badge"
+                aria-hidden="true">{issueCount.value}</span
               >{/if}
           </a>
         {/if}
@@ -550,29 +550,6 @@
       >{/if}
     <span class="bottom-nav-label">PRs</span>
   </a>
-  {#if showIssues}
-    <a
-      class="bottom-nav-link nav-with-badge"
-      href="/issues.html"
-      aria-label={issuesTabLabel}
-      aria-current={isCurrentRoute("/issues") ? "page" : undefined}
-    >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" /></svg
-      >{#if issueCount.value !== null}<span class="nav-badge" aria-hidden="true"
-          >{issueCount.value}</span
-        >{/if}
-      <span class="bottom-nav-label">Issues</span>
-    </a>
-  {/if}
   {#if showReleases}
     <a
       class="bottom-nav-link nav-with-badge"
@@ -628,6 +605,29 @@
           >{botCount.value}</span
         >{/if}
       <span class="bottom-nav-label">Bots</span>
+    </a>
+  {/if}
+  {#if showIssues}
+    <a
+      class="bottom-nav-link nav-with-badge"
+      href="/issues.html"
+      aria-label={issuesTabLabel}
+      aria-current={isCurrentRoute("/issues") ? "page" : undefined}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" /></svg
+      >{#if issueCount.value !== null}<span class="nav-badge" aria-hidden="true"
+          >{issueCount.value}</span
+        >{/if}
+      <span class="bottom-nav-label">Issues</span>
     </a>
   {/if}
   <a
