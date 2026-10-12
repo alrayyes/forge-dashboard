@@ -12,6 +12,10 @@ import (
 // client lacks an optional capability the caller asked for.
 var errUnsupportedByClient = errors.New("not supported by this client")
 
+// errRepoNotListed is why a scoped default-branch read had no repo to read: no
+// full poll has listed it yet (#1316).
+var errRepoNotListed = errors.New("not listed by a full poll yet")
+
 // DefaultMaxConcurrency bounds how many repositories a GenericSource fetches
 // at once. Generous enough to make quick work of a ~100-repo account
 // without opening that many sockets at once for no benefit.
@@ -58,6 +62,12 @@ type GenericSource struct {
 	forge          Forge
 	client         ForgeClient
 	maxConcurrency int
+
+	// refs is each repo the last full poll listed, by full name, so a scoped
+	// default-branch read (#1316) needs no ListRepos call to learn the
+	// repo's default branch and URL.
+	refsMu sync.Mutex
+	refs   map[string]RepoRef
 }
 
 // NewGenericSource returns a Source reporting as forge, driving client with
@@ -78,6 +88,7 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 		return s.unreachable(err)
 	}
 
+	s.rememberRepos(repos)
 	results := s.fetchRepos(ctx, repos)
 
 	result := Result{Health: ForgeHealth{Forge: s.forge, Reachable: true, RepoCount: len(repos)}}
@@ -338,4 +349,40 @@ func (s *GenericSource) FetchRepo(ctx context.Context, owner, name, fullName str
 	}
 
 	return prs, issues, nil
+}
+
+func (s *GenericSource) rememberRepos(repos []RepoRef) {
+	s.refsMu.Lock()
+	defer s.refsMu.Unlock()
+	s.refs = make(map[string]RepoRef, len(repos))
+	for _, r := range repos {
+		s.refs[r.FullName] = r
+	}
+}
+
+// FetchMainBranch implements MainBranchRefresher (#1316): the default-branch
+// row of one repo, read the way Fetch reads every repo's, for a webhook
+// delivery that finished a run. A repo no full poll has listed yet is an
+// error, so the aggregator keeps whatever row it has.
+func (s *GenericSource) FetchMainBranch(ctx context.Context, _, _, fullName string) (MainBranch, error) {
+	reader, ok := s.client.(MainBranchReader)
+	if !ok {
+		return MainBranch{}, fmt.Errorf("dashboard: %s default branch: %w", s.forge, errUnsupportedByClient)
+	}
+	s.refsMu.Lock()
+	repo, known := s.refs[fullName]
+	s.refsMu.Unlock()
+	if !known {
+		return MainBranch{}, fmt.Errorf("dashboard: %s: %w", fullName, errRepoNotListed)
+	}
+	branch, err := reader.ReadMainBranch(ctx, repo)
+	if err != nil {
+		return MainBranch{}, fmt.Errorf("dashboard: read default branch: %w", err)
+	}
+	branch.Forge, branch.FullName, branch.URL = s.forge, repo.FullName, repo.URL
+	if branch.FailingJobs == nil {
+		branch.FailingJobs = []string{}
+	}
+
+	return branch, nil
 }
