@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.163.0](https://github.com/alrayyes/forge-dashboard/compare/v0.162.2...v0.163.0) (2026-10-12)
+
+
+### Features
+
+* keep forge-dashboard out of search engines ([#1290](https://github.com/alrayyes/forge-dashboard/issues/1290)) ([8a72411](https://github.com/alrayyes/forge-dashboard/commit/8a72411b3f8551fe7983c3511d02b0982b19475b)), closes [#1285](https://github.com/alrayyes/forge-dashboard/issues/1285)
+
 ## [0.162.2](https://github.com/alrayyes/forge-dashboard/compare/v0.162.1...v0.162.2) (2026-10-12)
 
 
