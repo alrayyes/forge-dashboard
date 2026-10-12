@@ -3230,23 +3230,6 @@
       const offered = findAction(item, "renovate_rebase");
       if (!offered) return null;
 
-      // Renovate's rebase box is ticked, here or on the forge, so one is
-      // already waiting: the server blocks a second and says why (#1349).
-      // Shown disabled with the reason in words; it clears on the next
-      // snapshot once Renovate has rebased.
-      if (offered.blocked) {
-        const why = [offered.blocked.message, offered.blocked.next]
-          .filter(Boolean)
-          .join(" ");
-
-        return lockedActionButton(
-          "Renovate: Rebase",
-          { reason: why, code: offered.blocked.code },
-          undefined,
-          offered.blocked.message,
-        );
-      }
-
       const key = prKey(item);
       const entry = renovateRebaseState[key] || { phase: "idle" };
 
@@ -3261,6 +3244,22 @@
       }
 
       const queued = entry.phase === "queued" || entry.phase === "rebasing";
+
+      // Renovate's rebase box is ticked, here or on the forge, so one is
+      // already waiting: the server blocks a second and says why (#1349).
+      // Shown disabled, the reason first and what happens next under it, as
+      // Merge's is. A request made through this page has its own pending
+      // button below, which says the same in fewer words, so this is for the
+      // box someone ticked elsewhere. It clears on the next snapshot once
+      // Renovate has rebased.
+      if (offered.blocked && !queued)
+        return lockedActionButton(
+          "Renovate: Rebase",
+          { reason: offered.blocked.message, code: offered.blocked.code },
+          undefined,
+          offered.blocked.next ?? "",
+        );
+
       const button = buttonEl(
         "row-action",
         queued ? queuedBotLabel(true) : "Renovate: Rebase",

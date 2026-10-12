@@ -3866,3 +3866,37 @@ func TestFetch_TheQueryAsksForThePullRequestBody(t *testing.T) {
 
 	assert.Regexp(t, `(?m)^\s+body\s*$`, query)
 }
+
+// The box is read on every path that lists pull requests, not only the full
+// fetch (#1349): a webhook's single-repo refresh would otherwise turn the
+// blocked button back into a live one.
+func TestFetchRepo_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
+	t.Parallel()
+
+	var query string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		if q := readGraphQLRequest(t, r).Query; strings.Contains(q, "pullRequests(") {
+			query = q
+		}
+		node := pullRequestNode("CLEAN")["pullRequests"].(map[string]any)["nodes"].([]map[string]any)[0]
+		node["body"] = "- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box"
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"pullRequests": map[string]any{"nodes": []map[string]any{node}},
+					"issues":       map[string]any{"nodes": []map[string]any{}},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	prs, _, err := github.NewClient("test-token", "", srv.URL).FetchRepo(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+	assert.True(t, prs[0].RenovateRebaseRequested)
+	assert.Regexp(t, `(?m)^\s+body\s*$`, query, "the single-repo query has to ask for the description")
+}

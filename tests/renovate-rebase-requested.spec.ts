@@ -31,7 +31,10 @@ const BLOCKED = {
   },
 };
 
-function makePR(rebase: Record<string, unknown>) {
+function makePR(
+  rebase: Record<string, unknown>,
+  extra: Record<string, unknown> = {},
+) {
   return {
     forge: 'forgejo',
     repo: 'alrayyes/scaffold-python-cli',
@@ -47,18 +50,28 @@ function makePR(rebase: Record<string, unknown>) {
     updatedAt: new Date().toISOString(),
     mergeStatus: 'mergeable',
     allowedActions: [{ action: 'merge' }, { action: 'close' }, rebase],
+    ...extra,
   };
 }
 
-async function serve(page: Page, state: { rebase: Record<string, unknown> }) {
+type State = {
+  rebase: Record<string, unknown>;
+  extra?: Record<string, unknown>;
+};
+
+async function serve(
+  page: Page,
+  state: State,
+  forge: Record<string, unknown> = {},
+) {
   const answer = (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
-        pullRequests: [makePR(state.rebase)],
+        forges: [{ forge: 'forgejo', reachable: true, repoCount: 1, ...forge }],
+        pullRequests: [makePR(state.rebase, state.extra)],
         issues: [],
       }),
     });
@@ -93,6 +106,72 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
     );
   });
 
+  test('the reason is said once on screen, with what happens next under it', async ({
+    page,
+  }) => {
+    await serve(page, { rebase: BLOCKED });
+    const row = await open(page);
+
+    const text = await row.innerText();
+    expect(text.split('already requested')).toHaveLength(2);
+    await expect(row.locator('.row-action-note-reason')).toHaveText(
+      BLOCKED.blocked.message,
+    );
+    await expect(row.locator('.row-action-note-next')).toHaveText(
+      BLOCKED.blocked.next,
+    );
+  });
+
+  // A rebase asked for on this page has its own pending button; the blocked
+  // note is for a box ticked elsewhere, so the row does not say it twice.
+  test('a rebase asked for here shows the pending button, not the blocked note', async ({
+    page,
+  }) => {
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
+      route.fulfill({ status: 204 }),
+    );
+    const state: State = { rebase: { action: 'renovate_rebase' } };
+    await serve(page, state);
+    const row = await open(page);
+    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+
+    // The box is now ticked, so the next snapshot blocks a second request, and
+    // the server carries the request this page made as `botRequest`.
+    state.rebase = BLOCKED;
+    state.extra = {
+      botRequest: {
+        bot: 'renovate',
+        action: 'rebase',
+        phase: 'queued',
+        requestedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+      },
+    };
+    await page.locator('#force-refresh-button').click();
+    await row.getByRole('button', { name: 'More actions' }).click();
+
+    await expect(
+      row.getByRole('button', { name: /Rebase requested/ }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    await expect(row.locator('.row-action-note-reason')).toHaveCount(0);
+  });
+
+  test('a rate-limited forge draws no Renovate control, blocked or not', async ({
+    page,
+  }) => {
+    const resetsAt = new Date(Date.now() + 12 * 60_000).toISOString();
+    const spent = { limit: 5000, remaining: 0, resetsAt };
+    await serve(page, { rebase: BLOCKED }, { rateLimitREST: spent });
+    await page.goto('/bots.html');
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row).toBeVisible();
+
+    await expect(
+      row.getByRole('button', { name: 'Renovate: Rebase' }),
+    ).toHaveCount(0);
+    await expect(row.locator('.row-action-note-reason')).toHaveCount(0);
+  });
+
   test('clicking it sends nothing', async ({ page }) => {
     let posts = 0;
     await page.route('**/api/pull-requests/renovate-rebase', (route: Route) => {
@@ -117,15 +196,21 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
     await serve(page, { rebase: BLOCKED });
     const row = await open(page);
 
-    await expect(
-      row.getByRole('button', { name: 'Renovate: Rebase' }),
-    ).toHaveAccessibleDescription(/already requested/);
+    const button = row.getByRole('button', { name: 'Renovate: Rebase' });
+    await expect(button).toHaveAccessibleDescription(/already requested/);
+    // Said once: the description is the reason and the line under it.
+    const description = await button.evaluate(
+      (el) =>
+        document.getElementById(el.getAttribute('aria-describedby') ?? '')
+          ?.textContent,
+    );
+    expect(description?.split('already requested')).toHaveLength(2);
   });
 
   test('when the box is cleared the next snapshot offers the rebase again, without a reload', async ({
     page,
   }) => {
-    const state = { rebase: BLOCKED as Record<string, unknown> };
+    const state: State = { rebase: BLOCKED };
     await serve(page, state);
     const row = await open(page);
     await expect(

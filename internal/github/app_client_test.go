@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -294,4 +295,64 @@ func TestAppClient_CommentPullRequest_WithPersonalToken_PostsAsThePersonalToken(
 
 	require.NoError(t, err)
 	assert.Equal(t, "Bearer pat-value", commentAuth, "Dependabot only honours a user, so the comment must carry the personal token, not the App's")
+}
+
+// A GitHub App account sees the box too (#1349): its batched per-repo query is
+// a third selection of the same pull request fields.
+func TestAppClient_Fetch_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
+	t.Parallel()
+
+	var query string
+	mux := http.NewServeMux()
+	mux.HandleFunc(fmt.Sprintf("/app/installations/%d/access_tokens", testInstallationID), func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"token":      "installation-token-value",
+			"expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+		})
+	})
+	mux.HandleFunc("/installation/repositories", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"total_count": 1,
+			"repositories": []map[string]any{
+				{"name": "repo-one", "full_name": "alrayyes/repo-one", "html_url": "https://github.com/alrayyes/repo-one", "fork": false, "archived": false, "owner": map[string]any{"login": "alrayyes"}},
+			},
+		})
+	})
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		if q := readGraphQLRequest(t, r).Query; strings.Contains(q, "pullRequests(") {
+			query = q
+		}
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"rateLimit": map[string]any{"limit": 5000, "cost": 1, "remaining": 4999, "resetAt": "2026-09-14T16:00:00Z"},
+				"r0": map[string]any{
+					"pullRequests": map[string]any{
+						"nodes": []map[string]any{
+							{
+								"number": 7, "title": "Update dependency foo", "url": "https://github.com/alrayyes/repo-one/pull/7",
+								"isDraft": false, "author": map[string]any{"login": "renovate"},
+								"mergeStateStatus": "CLEAN", "headRefOid": "deadbeef",
+								"body":      "- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box",
+								"labels":    map[string]any{"nodes": []map[string]any{}},
+								"createdAt": "2026-09-20T10:00:00Z", "updatedAt": "2026-09-20T10:00:00Z",
+								"commits": map[string]any{"nodes": []map[string]any{}},
+							},
+						},
+					},
+					"issuesTotal": map[string]any{"totalCount": 0},
+					"issues":      map[string]any{"nodes": []map[string]any{}},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.True(t, result.PullRequests[0].RenovateRebaseRequested)
+	assert.Regexp(t, `(?m)^\s+body\s*$`, query, "the App query has to ask for the description")
 }

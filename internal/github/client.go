@@ -1548,6 +1548,7 @@ const appRepoFieldsTemplate = `
         headRefOid
         baseRefName
         headRefName
+        body
         isCrossRepository
         additions
         deletions
@@ -2326,6 +2327,7 @@ query($owner: String!, $name: String!) {
         headRefOid
         baseRefName
         headRefName
+        body
         isCrossRepository
         additions
         deletions
@@ -2662,6 +2664,7 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				HeadSHA:                 p.GetHead().GetSHA(),
 				BaseBranch:              p.GetBase().GetRef(),
 				HeadBranch:              p.GetHead().GetRef(),
+				RenovateRebaseRequested: dashboard.RebaseCheckboxOf(p.GetBody()) == dashboard.RebaseCheckboxTicked,
 				CrossRepository:         p.GetHead().GetRepo().GetFullName() != p.GetBase().GetRepo().GetFullName(),
 				RequestedReviewerLogins: restRequestedReviewerLogins(p.RequestedReviewers),
 				// Mergeable/MergeableState aren't populated by this List
