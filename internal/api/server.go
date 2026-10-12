@@ -223,7 +223,18 @@ func NewMux(deps Deps) http.Handler {
 		writeJSON(w, http.StatusNotFound, errorBody("not found"))
 	})
 
-	return accessLogMiddleware(recoverPanics(static, limitRequestBody(mux)))
+	return noIndex(accessLogMiddleware(recoverPanics(static, limitRequestBody(mux))))
+}
+
+// noIndex marks every response, page, script, JSON or error, as not for search
+// engines (#1285). This is an internal tool; login and the pages behind it are
+// the real barrier, and the header covers whatever slips through. robots.txt
+// stays allowing, since a crawler that can't fetch a page never reads this.
+func noIndex(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // maxRequestBodyBytes caps what any JSON endpoint reads (#1008). Every body
