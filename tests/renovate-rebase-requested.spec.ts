@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { rateLimit } from './severity-stand-in';
 
 // While Renovate's rebase checkbox is ticked a rebase is already waiting, so
 // the server blocks a second request and the row says so instead of offering
@@ -160,11 +161,22 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
     page,
   }) => {
     const resetsAt = new Date(Date.now() + 12 * 60_000).toISOString();
-    const spent = { limit: 5000, remaining: 0, resetsAt };
-    await serve(page, { rebase: BLOCKED }, { rateLimitREST: spent });
+    await serve(
+      page,
+      { rebase: BLOCKED },
+      { rateLimitREST: rateLimit(5000, 0, resetsAt) },
+    );
     await page.goto('/bots.html');
     const row = page.locator('#pr-rows .row').first();
     await expect(row).toBeVisible();
+    // The read-only controls are drawn, so a missing Renovate control is not
+    // just a row that had not rendered, and the menu holds nothing to open.
+    await expect(
+      row.getByRole('button', { name: /Open pipeline/ }),
+    ).toBeVisible();
+    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
+      0,
+    );
 
     await expect(
       row.getByRole('button', { name: 'Renovate: Rebase' }),

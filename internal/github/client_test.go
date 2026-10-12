@@ -3900,3 +3900,49 @@ func TestFetchRepo_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
 	assert.True(t, prs[0].RenovateRebaseRequested)
 	assert.Regexp(t, `(?m)^\s+body\s*$`, query, "the single-repo query has to ask for the description")
 }
+
+// The unauthenticated REST list reads the description's box too (#1349).
+func TestFetch_NoToken_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/a", "name": "a", "owner": map[string]string{"login": "alrayyes"}},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{
+				"number": 12, "title": "Update dependency foo", "html_url": "https://github.com/alrayyes/a/pull/12",
+				"user":       map[string]string{"login": "renovate[bot]"},
+				"body":       "- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box",
+				"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+				"head": map[string]string{"sha": "cafef00d"},
+			},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]string{}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("", "alrayyes", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.True(t, result.PullRequests[0].RenovateRebaseRequested)
+}
