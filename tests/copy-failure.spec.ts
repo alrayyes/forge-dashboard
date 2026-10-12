@@ -170,6 +170,44 @@ test.describe('Copy error details on a failed action (#1323)', () => {
     });
   }
 
+  // Dependabot's Rebase and Recreate share one feedback key, so the copied
+  // action has to say which of the two failed.
+  for (const verb of ['Rebase', 'Recreate'] as const) {
+    test(`Dependabot ${verb} copies which command it was`, async ({ page }) => {
+      await page.route(
+        '**/api/pull-requests/dependabot-action',
+        (route: Route) =>
+          route.fulfill({
+            status: 403,
+            contentType: 'application/json',
+            body: JSON.stringify(REFUSAL),
+          }),
+      );
+      const row = await open(
+        page,
+        makePR({
+          forge: 'github',
+          behind: false,
+          allowedActions: [
+            { action: 'merge' },
+            { action: 'dependabot_rebase' },
+            { action: 'dependabot_recreate' },
+          ],
+        }),
+      );
+      await row.getByRole('button', { name: 'More actions' }).click();
+      await row
+        .getByRole('button', { name: `Dependabot: ${verb}`, exact: true })
+        .click();
+      // The error toast covers the row at this size; its Copy is the same.
+      await copyIn(page.locator('#feedback-toasts .feedback-toast')).click();
+
+      expect((await readClipboard(page)).action).toBe(
+        `dependabot-${verb.toLowerCase()}`,
+      );
+    });
+  }
+
   test('the row keeps showing the plain sentence, never the raw text', async ({
     page,
   }) => {
@@ -369,7 +407,7 @@ test.describe('Copy error details on a failed Rerun failed checks (#1323)', () =
   });
 
   test('trying again clears the earlier Copy', async ({ page }) => {
-    const answer = { fail: true };
+    const answer: { fail: boolean } = { fail: true };
     await page.route('**/api/pull-requests/rerun-checks', (route: Route) =>
       answer.fail
         ? route.fulfill({
