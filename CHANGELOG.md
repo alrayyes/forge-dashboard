@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.166.0](https://github.com/alrayyes/forge-dashboard/compare/v0.165.0...v0.166.0) (2026-10-12)
+
+
+### Features
+
+* **github:** armed auto-merge gets a waiting status and can be cancelled ([#1296](https://github.com/alrayyes/forge-dashboard/issues/1296)) ([0ef4f0d](https://github.com/alrayyes/forge-dashboard/commit/0ef4f0dd20b40bb60738bd51a1d6230338ea46dd)), closes [#1293](https://github.com/alrayyes/forge-dashboard/issues/1293)
+
 ## [0.165.0](https://github.com/alrayyes/forge-dashboard/compare/v0.164.0...v0.165.0) (2026-10-12)
 
 
