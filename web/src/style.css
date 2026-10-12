@@ -551,78 +551,6 @@ header,
     transform: rotate(360deg);
   }
 }
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 22px;
-}
-
-.stat {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-  box-shadow: var(--shadow);
-}
-
-/* A couple of .stat tiles are real <button>s (clicking "CI failing"
-   jumps to the pull requests board filtered to it) — reset the button
-   defaults so they still read as the same plain stat card. */
-button.stat {
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  width: 100%;
-}
-button.stat:hover,
-button.stat:focus-visible {
-  border-color: var(--border-strong);
-}
-button.stat:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.stat .n {
-  /* Explicit, not inherited: #stat-failing-tile is the one .stat that's
-     a real <button>, and a <button> doesn't inherit text color from the
-     page the way a <div> does — with nothing set here it fell back to
-     the browser's native ButtonText system color once "critical" (below)
-     stopped overriding it, black regardless of theme. Only visible in
-     dark mode, where black-on-dark-surface reads as barely-there. */
-  color: var(--ink);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 26px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-
-/* The "/ total" trailing a filtered stat tile's own headline number —
-   deliberately smaller and muted rather than matching .n's own 26px bold,
-   so the filtered count everyone actually cares about right now still
-   reads as the number, not a compound phrase. */
-.stat .n .n-total {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--ink-3);
-}
-
-.stat .label {
-  font-size: 12px;
-  color: var(--ink-3);
-  margin-top: 4px;
-}
-.stat.critical .n {
-  color: var(--critical);
-}
-/* Zero failing is good news, not a neutral number — same "good" green
-   already used for a passing CI pill and a success status message. */
-.stat.ok .n {
-  color: var(--good);
-}
-
 section.board {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2214,9 +2142,8 @@ button.ci-pill:hover {
 }
 
 /* Prominent alert banner (#361) for an exhausted GitHub API budget — the
-   same critical, unmissable-at-the-top-of-the-page weight as the "CI
-   failing" stat tile (.stat.critical), rather than .error-banner's
-   quieter treatment, since this blocks real actions (merge, update
+   same critical, unmissable-at-the-top-of-the-page weight rather than
+   .error-banner's quieter treatment, since this blocks real actions (merge, update
    branch, Dependabot/Renovate triggers) silently until the reset window
    passes. */
 .rate-limit-banner {
@@ -2384,12 +2311,6 @@ footer a.mono:focus-visible {
   color: var(--ink);
 }
 
-@media (max-width: 860px) {
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (max-width: 760px) {
   .row {
     grid-template-columns: 1fr auto;
@@ -2453,9 +2374,6 @@ footer a.mono:focus-visible {
 }
 
 @media (max-width: 420px) {
-  .stats {
-    grid-template-columns: 1fr 1fr;
-  }
   header {
     padding-top: 20px;
   }

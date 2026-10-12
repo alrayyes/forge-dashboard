@@ -855,6 +855,13 @@ isn't known yet is not 0, so the links stay until the first snapshot says
 otherwise, and the page you are on keeps its own link until you leave it. The
 page still opens when typed into the address bar, and says it is empty.
 
+The pages start with their list, with no row of tiles repeating those numbers.
+One line near the list's heading says how many rows show: "12 open" with no
+filter, "Showing 1 of 12" when a filter narrows it. The Failing CI pill filters
+to failing pull requests, and All clears it. How many repositories are tracked
+is a quiet line under the Insights heading. A page with nothing open says so,
+even when its nav item is hidden.
+
 On a phone the numbers sit above each tab's icon. An item's accessible name says
 both in words: "Branches, 12 total, 3 failing" on the header icon, "12 Branches,
 3 failing" on the tab, which shows its numbers before its word.
@@ -864,12 +871,12 @@ both in words: "Branches, 12 total, 3 failing" on the header icon, "12 Branches,
 The CI status of every tracked repository's default branch is the first thing
 you see: it's the index page, `/`, reached from the **Branches** item, the first
 one in the navigation. The menu runs Branches, Pull requests, Releases, Bots, Issues,
-then the rest. The item has no count badge, so it always shows. The page reads
+then the rest. The item always shows. The page reads
 `GET /api/main-branches`, so a broken main shows up without opening each repo.
 The pull request list is at `/pull-requests.html`. The page used to live at
 `/main-branches.html`, which now redirects to `/`.
 
-A line at the top counts the rows by status. Each row shows the status as an
+Each row shows the status as an
 icon and a word (Failed, Running, Passed or No pipeline), the repo, the
 branch, the short SHA, subject and author of the newest commit, how long ago the
 run finished and how long it ran. A failed row names its failing jobs and
@@ -1002,7 +1009,7 @@ filters and goes with every dashboard request, refresh and the live stream.
 
 A pull request you can't or won't act on yet can be hidden. **More actions** on
 its row has **Hide this pull request**, and **Hide for 7 days** under it. It
-leaves the list, the stat tiles, the quick-filter counts and Insights at once,
+leaves the list, the quick-filter counts and Insights at once,
 with no confirm step, since it is reversible. Nothing is sent to the forge.
 
 A status message says "Hid PR #123 ‘title’." with an **Undo** button. It stays

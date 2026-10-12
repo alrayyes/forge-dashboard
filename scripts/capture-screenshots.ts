@@ -278,7 +278,7 @@ const PAGES = [
   {
     name: 'pull-requests',
     url: '/pull-requests.html',
-    ready: '#stat-prs:not(:text("–"))',
+    ready: '#pr-rows .row',
   },
   { name: 'issues', url: '/issues.html', ready: 'a[href*="issues/145"]' },
   { name: 'releases', url: '/releases.html', ready: '#pr-rows .row' },
