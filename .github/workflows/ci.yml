@@ -113,6 +113,13 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      # The embedded static files include the built style.css (#1258), which
+      # TestStatic_ServerWiring serves, so the web build runs first.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - run: bun run build:web
       - name: go test
         # -coverpkg=./..., not the default: without it, coverage only counts
         # each package's own tests, and a thin handler package under-reports
