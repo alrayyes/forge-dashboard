@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.169.1](https://github.com/alrayyes/forge-dashboard/compare/v0.169.0...v0.169.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **branches:** re-read a repo's default branch on its webhook delivery ([#1317](https://github.com/alrayyes/forge-dashboard/issues/1317)) ([529bb8b](https://github.com/alrayyes/forge-dashboard/commit/529bb8bad733579f0fbb3932e07ee2994bbf9682))
+
 ## [0.169.0](https://github.com/alrayyes/forge-dashboard/compare/v0.168.0...v0.169.0) (2026-10-12)
 
 
