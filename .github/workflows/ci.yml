@@ -204,6 +204,23 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      # codeberg.org's registry timed out and answered 5xx for minutes on end
+      # (#1328), so the test names Forgejo's own registry, data.forgejo.org,
+      # by the same digest. testcontainers pulls once with no retry, so the
+      # image is pulled here first, with retries, and found locally after.
+      - name: Pull the Forgejo image
+        run: |
+          image=$(grep -o 'data.forgejo.org/forgejo/forgejo:[^"]*' integration/forgejo_test.go | head -n1)
+          if [ -z "$image" ]; then
+            echo "no Forgejo image reference found in integration/forgejo_test.go" >&2
+            exit 1
+          fi
+          for attempt in 1 2 3 4 5; do
+            timeout 120 docker pull "$image" && exit 0
+            echo "pull attempt $attempt failed, retrying" >&2
+            sleep $((attempt * 15))
+          done
+          exit 1
       - run: go test -tags=integration ./integration/... -v
 
   # dependencies.md: pinning stops a version drifting, not a CVE existing in

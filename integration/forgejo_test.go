@@ -34,7 +34,7 @@ func startForgejo(t *testing.T) (baseURL string, container testcontainers.Contai
 	ctx := t.Context()
 
 	req := testcontainers.ContainerRequest{
-		Image:        "codeberg.org/forgejo/forgejo:10.0.3@sha256:99b6c15a1bc98e623103a83a04023662a93fd035dac4f0a856d781afa9d71095",
+		Image:        "data.forgejo.org/forgejo/forgejo:10.0.3@sha256:99b6c15a1bc98e623103a83a04023662a93fd035dac4f0a856d781afa9d71095",
 		ExposedPorts: []string{"3000/tcp"},
 		Env: map[string]string{
 			"FORGEJO__database__DB_TYPE":      "sqlite3",
