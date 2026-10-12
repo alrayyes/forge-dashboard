@@ -312,9 +312,10 @@ test.describe('rate-limited actions (#732)', () => {
     );
     await page.reload();
 
-    // Auto-merge is not drawn; Close, left alone in the row, is shown
-    // directly (#1139) and stays clickable.
+    // Auto-merge is not drawn; Close, in the menu with the Hide items (#841),
+    // stays clickable.
     const row = firstRow(page);
+    await row.getByRole('button', { name: 'More actions' }).click();
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
