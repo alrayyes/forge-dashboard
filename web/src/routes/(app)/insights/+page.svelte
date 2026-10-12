@@ -139,6 +139,15 @@
     forges: Forge[];
   }>({ pullRequests: [], issues: [], forges: [] });
 
+  // How many repositories the forges report, across both (#1325).
+  const trackedText = $derived.by(() => {
+    const repos = lastSnapshot.forges.reduce(
+      (sum, f) => sum + (f.repoCount || 0),
+      0,
+    );
+    return `${repos} ${repos === 1 ? "repository" : "repositories"} tracked`;
+  });
+
   const prItems = $derived(
     lastSnapshot.pullRequests.filter((item) =>
       Filters.matchesFilters(item, true, chartFilters(), undefined),
@@ -330,6 +339,13 @@
     .insights-header h1 {
       font-size: 19px;
       margin: 0;
+    }
+    /* The repo count the dashboard's tiles used to carry (#1325): quiet, since
+       it is context for the charts and not something to act on. */
+    .insights-tracked {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--ink-2);
     }
     .card {
       background: var(--surface);
@@ -538,7 +554,7 @@
     }
     /* Exhausted reads as an alert, not just a colored bar — the same
        "more prominent than a subtle fill" treatment the dashboard's own
-       CI-failing stat tile gets, borrowed here since a fully drained
+       red failed pill in the nav gets, borrowed here since a fully drained
        budget is exactly as actionable as CI failing is. */
     .rate-limit-budget.rl-exhausted {
       background: var(--critical-bg);
@@ -622,6 +638,7 @@
 <div class="insights-wrap">
   <div class="insights-header">
     <h1>Insights</h1>
+    <p class="insights-tracked" id="insights-tracked">{trackedText}</p>
   </div>
 
   <div class="card">
@@ -727,8 +744,8 @@
   <div class="card">
     <h2>CI status</h2>
     <p class="hint">
-      The combined check result across every currently open pull request — the
-      same counts the dashboard's own tiles show, broken out by state.
+      The combined check result across every currently open pull request, broken
+      out by state.
     </p>
 
     {#if prItems.length === 0}

@@ -151,9 +151,8 @@ test.describe('Main branches page (#1224, #1279)', () => {
       'acme/billing',
       'infra/wiki',
     ]);
-    await expect(page.locator('#mb-summary')).toHaveText(
-      '6 tracked: 2 failing, 1 running, 2 passing, 1 no pipeline',
-    );
+    // The nav and the pills carry the counts; no summary line repeats them.
+    await expect(page.locator('#mb-summary')).toHaveCount(0);
     await expect(pill(page, /^All 6$/)).toBeVisible();
     await expect(pill(page, /^Failing 2$/)).toBeVisible();
     await expect(pill(page, /^Passing 2$/)).toBeVisible();

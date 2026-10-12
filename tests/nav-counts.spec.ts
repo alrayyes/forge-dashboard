@@ -93,7 +93,7 @@ test.describe('nav counts and the pull request page without releases', () => {
 
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     await expect(page.locator('#pr-rows')).not.toContainText('release 0.74.2');
-    await expect(page.locator('#stat-prs')).toHaveText('2');
+    await expect(page.locator('#pr-count')).toHaveText('2 open');
   });
 
   test('Pull requests shows the count and Releases the release count', async ({

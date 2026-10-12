@@ -103,20 +103,6 @@ export function forgeCounts(branches: MainBranch[]) {
   };
 }
 
-// "6 tracked: 2 failing, 1 running, 2 passing, 1 no pipeline". Statuses with
-// nothing in them are left out so the line stays short.
-export function summaryLine(counts: MainBranchCounts): string {
-  const parts = [
-    counts.failed > 0 ? `${counts.failed} failing` : '',
-    counts.running > 0 ? `${counts.running} running` : '',
-    counts.passed > 0 ? `${counts.passed} passing` : '',
-    counts.none > 0 ? `${counts.none} no pipeline` : '',
-  ].filter(Boolean);
-  return parts.length > 0
-    ? `${counts.total} tracked: ${parts.join(', ')}`
-    : `${counts.total} tracked`;
-}
-
 // "12 min ago", "3 h ago", "2 d ago".
 export function ago(iso: string | null, now: number = Date.now()): string {
   if (!iso) return '';
