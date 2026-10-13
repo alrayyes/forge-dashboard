@@ -755,10 +755,17 @@ API's own per-check entries when a repo (or an older Forgejo instance)
 reports no Actions/Workflow runs at all for that commit.
 
 On GitHub, the pill stays pending while a check that branch protection or a
-ruleset requires hasn't started. GitHub's combined status only counts checks
-that exist, so a pull request with one of five required checks reported would
-read as passed. The server looks the required checks up only when the combined
-status says success and GitHub still blocks the pull request.
+ruleset requires hasn't finished. GitHub's combined status only counts checks
+that exist, and can read as passed for a moment after a push while the rest of
+the pipeline is still queued, so a pull request with one of five required
+checks reported would read as passed. A required check that is queued or
+running counts as not finished. The server looks the required checks up only
+when the combined status says success and GitHub still blocks the pull request.
+
+Just after a push, a response from GitHub can briefly show the new head beside
+the finished checks of the previous commit. The server reads the id of the
+commit the checks belong to, and when it isn't the head of the pull request the
+pill stays pending until they agree.
 
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with
@@ -873,6 +880,7 @@ you see: it's the index page, `/`, reached from the **Branches** item, the first
 one in the navigation. The menu runs Branches, Pull requests, Releases, Bots, Issues,
 then the rest. The item always shows. The page reads
 `GET /api/main-branches`, so a broken main shows up without opening each repo.
+A repo you ignore for pull requests is left out, here and in the badge.
 The pull request list is at `/pull-requests.html`. The page used to live at
 `/main-branches.html`, which now redirects to `/`.
 
@@ -946,8 +954,9 @@ navigation badge: for Branches, Pull requests, Releases and Bots a `total` and
 a `failed` (failing CI, or a failing default-branch pipeline), and for Issues a
 `total` only. They count what each page shows when it opens. Pull requests
 leave out ignored repos, drafts and hidden ones, even while Show drafts or Show
-hidden is on. Branches counts every tracked default branch, as its page lists
-them. They are always present, zero when nothing is there.
+hidden is on. Branches counts the default branches its page lists, which
+also leave out ignored repos. They are always present, zero when nothing is
+there.
 
 The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
