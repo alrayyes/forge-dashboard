@@ -12,6 +12,13 @@ import { registerViaInvite } from './register-helper';
 // (components.schemas.ActionError): a `code` and a short `message`. These
 // tests mock that response and check the row and toast render it. The
 // code decisions themselves are tested in Go (internal/dashboard).
+//
+// What Merge shares with every other action is not repeated here: it relies on
+// Close's full set in pull-request-action-refusals.spec.ts for already_closed,
+// permission, a refusal with no code, an earlier failure line clearing, and the
+// axe scan of a Merged row. A settled row is item-level, not action-level, so
+// that scan sees the same markup; if it ever becomes action-specific, scan it
+// here too (#1380).
 
 interface MockPR {
   forge: string;
@@ -159,53 +166,6 @@ test.describe('a refused merge explains itself from the server code', () => {
     );
   });
 
-  test('already_closed: the row reads Closed', async ({ page }) => {
-    const pr = makePR();
-    await mockBoard(page, [pr]);
-    await mockRefresh(page, [pr]);
-    await refuse(page, 409, {
-      error: 'x',
-      code: 'already_closed',
-      message: 'This pull request was closed without merging.',
-    });
-    await page.reload();
-
-    const row = await confirmMerge(page);
-
-    await expect(row.locator('.row-settled')).toHaveText('Closed');
-    await expect(page.locator('#feedback-toasts')).toContainText(
-      /already closed/i,
-    );
-  });
-
-  test('an earlier failure line on the row clears once the PR is found merged', async ({
-    page,
-  }) => {
-    const pr = makePR();
-    await mockBoard(page, [pr]);
-    await mockRefresh(page, [pr]);
-    await refuse(page, 502, {
-      error: 'github: PUT .../merge: EOF',
-      code: 'unknown',
-      message: 'EOF',
-    });
-    await page.reload();
-    const row = await confirmMerge(page);
-    await expect(row.locator('.row-feedback')).toContainText('Failed');
-
-    await page.unroute('**/api/pull-requests/merge');
-    await refuse(page, 409, {
-      error: 'x',
-      code: 'already_merged',
-      message: 'This pull request was already merged.',
-    });
-    await row.getByRole('button', { name: 'Merge' }).click();
-    await row.getByRole('button', { name: 'Confirm merge?' }).click();
-
-    await expect(row.locator('.row-settled')).toHaveText('Merged');
-    await expect(row.locator('.row-feedback')).toHaveCount(0);
-  });
-
   test('conflict: the server reason shows on the row and in an error toast', async ({
     page,
   }) => {
@@ -278,22 +238,6 @@ test.describe('a refused merge explains itself from the server code', () => {
     ).toBeVisible();
   });
 
-  test('permission: locks Merge and points to Settings', async ({ page }) => {
-    await mockBoard(page, [makePR()]);
-    await refuse(page, 403, {
-      error: 'github: PUT .../merge: Forbidden',
-      code: 'permission',
-      message: 'Missing permission — check your token in Settings.',
-    });
-    await page.reload();
-
-    const row = await confirmMerge(page);
-
-    await expect(
-      row.getByRole('button', { name: 'Merge', exact: true }),
-    ).toHaveAccessibleDescription(/token in Settings/);
-  });
-
   test('unknown: shows the forge text and keeps Merge clickable', async ({
     page,
   }) => {
@@ -311,53 +255,6 @@ test.describe('a refused merge explains itself from the server code', () => {
     const button = row.getByRole('button', { name: 'Merge', exact: true });
     await expect(button).toBeEnabled();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
-  test('a refusal with no code (an old backend, a proxy page) is treated as unknown and never says only "merge failed"', async ({
-    page,
-  }) => {
-    await mockBoard(page, [makePR()]);
-    await refuse(page, 409, {
-      error: 'github: PUT .../merge: Pull Request is not mergeable',
-    });
-    await page.reload();
-
-    const row = await confirmMerge(page);
-
-    // The raw error string stays in the server log (#752): the row says
-    // one plain sentence instead.
-    await expect(row.locator('.row-feedback')).toContainText(
-      'The forge refused this action and gave no reason.',
-    );
-    await expect(row.locator('.row-feedback')).not.toContainText(
-      'Pull Request is not mergeable',
-    );
-    await expect(
-      row.getByRole('button', { name: 'Merge', exact: true }),
-    ).toBeEnabled();
-  });
-
-  test('a Merged row has no axe-core violations', async ({ page }) => {
-    const pr = makePR();
-    await mockBoard(page, [pr]);
-    await mockRefresh(page, [pr]);
-    await refuse(page, 409, {
-      error: 'x',
-      code: 'already_merged',
-      message: 'This pull request was already merged.',
-    });
-    await page.reload();
-
-    const row = await confirmMerge(page);
-    await expect(row.locator('.row-settled')).toBeVisible();
-    await expect(
-      page.locator('#feedback-toasts .feedback-toast'),
-    ).toBeVisible();
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 
   test('a refused row has no axe-core violations', async ({ page }) => {
