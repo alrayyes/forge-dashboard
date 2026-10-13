@@ -449,67 +449,6 @@ test.describe('pull request close button', () => {
     await expect(button).toBeEnabled();
   });
 
-  test('a permission-denied failure locks the button with no Retry and points to Settings', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route: Route) =>
-      route.fulfill({
-        status: 403,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: PATCH .../pulls/42: Forbidden',
-          code: 'permission',
-          message: 'Missing permission — check your token in Settings.',
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-    await row
-      .getByRole('button', { name: 'Confirm close pull request?' })
-      .click();
-
-    // Confirming closes the menu; the lock is found by reopening it.
-    const button = await openClose(row);
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-    await expect(button).toHaveAccessibleDescription(/token in Settings/);
-  });
-
-  test('a rate-limited (429) failure locks the button with no Retry and says when it resets', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route: Route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-    await row
-      .getByRole('button', { name: 'Confirm close pull request?' })
-      .click();
-
-    // Confirming closes the menu; the lock is found by reopening it.
-    const button = await openClose(row);
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-    await expect(button).toHaveAccessibleDescription(/rate limit reached/i);
-  });
-
   // #770: opening the menu queues a frame that moves focus to the first
   // item. On a slow runner it fired after the user (or a test) had already
   // focused another item, and pulled focus off it.
@@ -610,9 +549,7 @@ test.describe('pull request close button', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('a locked Close button is reachable by keyboard and has no axe-core violations', async ({
-    page,
-  }) => {
+  test('a locked Close button is reachable by keyboard', async ({ page }) => {
     await mockDashboard(page, makePR());
     await page.route('**/api/pull-requests/close', (route: Route) =>
       route.fulfill({
@@ -639,10 +576,7 @@ test.describe('pull request close button', () => {
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await button.focus();
     await expect(button).toBeFocused();
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
+    // Axe scans this state (a rate-limited, locked Close) in
+    // pull-request-action-refusals.spec.ts (#1381, #1380).
   });
 });
