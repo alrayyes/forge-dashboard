@@ -1210,14 +1210,8 @@ type prCommitNode struct {
 // ciFromRollup maps GraphQL's own combined-status field — computed
 // server-side across both Actions check-runs and any legacy commit
 // status, the same fallback ciStatus used to do by hand against two REST
-// endpoints.
-//
-// GitHub updates a pull request's commit list in a background job after a push,
-// so one response can carry the new head, and a merge state worked out against
-// it, beside the previous commit's finished rollup. A rollup of a commit that
-// isn't the head says nothing about the head, so it reads pending until the
-// lists agree (#1311). Without both ids there is nothing to compare, and the
-// rollup stands.
+// endpoints. Whether the rollup belongs to the pull request's head is decided
+// by mapPullRequest (rollupIsOfAnotherCommit), not here.
 func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 	if len(commits) == 0 {
 		return dashboard.CINone
@@ -1227,9 +1221,16 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 }
 
 // rollupIsOfAnotherCommit reports whether the last commit, whose rollup is read,
-// is known not to be the head. It takes commits(last: 1) as the head commit, so
-// a pull request whose commits came back in another order would read pending
-// until a push. The debug line in mapPullRequest shows when that happens.
+// is known not to be the head. GitHub updates a pull request's commit list in a
+// background job after a push, so one response can carry the new head, and a
+// merge state worked out against it, beside the previous commit's finished
+// rollup. A rollup of a commit that isn't the head says nothing about the head,
+// so mapPullRequest reads it as pending until the lists agree (#1311). Without
+// both ids there is nothing to compare, and the rollup stands.
+//
+// It takes commits(last: 1) as the head commit, so a pull request whose commits
+// came back in another order would read pending until a push. The debug line in
+// mapPullRequest shows when that happens.
 func rollupIsOfAnotherCommit(commits []prCommitNode, headOid string) bool {
 	if len(commits) == 0 {
 		return false
