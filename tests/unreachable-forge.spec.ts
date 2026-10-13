@@ -6,20 +6,15 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #1199: a forge that can't be reached is treated like a spent rate limit
 // (#755): its mutating controls aren't drawn, one banner says so with a
 // single Retry, and the rows' own reasons are left alone.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `unreachable-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Unreachable User');
-}
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -91,8 +86,8 @@ const MUTATING = [
 ];
 
 test.describe('an unreachable forge goes read-only (#1199)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   test('its rows draw no mutating control, no per-row Retry and no pointer to a status line', async ({

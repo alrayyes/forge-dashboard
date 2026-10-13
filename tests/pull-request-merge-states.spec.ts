@@ -1,7 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { type APIRequestContext, expect, type Page } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #705: Merge is always on an open pull request's row. Clickable when the
 // forge says it can go, locked with a visible reason when it can't, and
@@ -21,21 +25,6 @@ interface MockPR {
   updatedAt: string;
   mergeStatus: string;
   [key: string]: unknown;
-}
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `pr-merge-states-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'PR Merge States Test User',
-  );
 }
 
 function makePR(overrides?: Partial<MockPR>): MockPR {
@@ -74,8 +63,8 @@ function mockDashboard(page: Page, pr: MockPR) {
 const rowOf = (page: Page) => page.locator('#pr-rows .row').first();
 
 test.describe('Merge states on a pull request row', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   test('pending CI: Merge is locked with a visible reason and what happens next', async ({

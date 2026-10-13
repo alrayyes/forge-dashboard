@@ -6,23 +6,12 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
 import { rateLimit } from './severity-stand-in';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `pr-update-branch-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'PR Update Branch Test User',
-  );
-}
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 interface MockLabel {
   name: string;
@@ -112,8 +101,8 @@ function mockDashboardCustom(page: Page, forges: MockForge[], prs: MockPR[]) {
 }
 
 test.describe('pull request update-branch button', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   test('a pull request reported as behind shows an Update branch button', async ({

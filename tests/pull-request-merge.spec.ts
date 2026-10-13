@@ -6,8 +6,12 @@ import {
   type Page,
 } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
 import { rateLimit } from './severity-stand-in';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 interface MockPR {
   forge: string;
@@ -35,21 +39,6 @@ interface MockForge {
     resetsAt: string;
     severity: string;
   };
-}
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `pr-merge-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'PR Merge Test User',
-  );
 }
 
 function makePR(overrides?: Partial<MockPR>): MockPR {
@@ -108,8 +97,8 @@ const mergeButton = (row: Locator) =>
   row.getByRole('button', { name: 'Merge', exact: true });
 
 test.describe('pull request merge button', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   test('a mergeable pull request shows a Merge button', async ({ page }) => {

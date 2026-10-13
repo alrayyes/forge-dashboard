@@ -5,21 +5,16 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #806: the banner reads each rate limit's `severity` from the server, and a
 // locked action offers Retry from the refusal's `code`, not from the words in
 // its message. The mocks below state `severity` and `code` so they disagree
 // with what the page used to work out itself.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `rate-limit-severity-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Severity');
-}
 
 const FUTURE = () => new Date(Date.now() + 20 * 60_000).toISOString();
 
@@ -47,8 +42,8 @@ async function open(
 }
 
 test.describe('rate limits follow the server (#806)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   test('severity exceeded shows the banner even when the numbers look healthy', async ({
