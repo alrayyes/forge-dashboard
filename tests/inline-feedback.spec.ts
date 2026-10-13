@@ -94,7 +94,7 @@ interface Mocks {
 async function setup(
   page: Page,
   prs: MockPR[],
-  opts: { delayMs?: number; failing?: number[] } = {},
+  opts: { delayMs?: number; failing?: number[]; fakeClock?: boolean } = {},
 ): Promise<Mocks> {
   const recorded = new Set<number>();
   const served = () =>
@@ -155,6 +155,9 @@ async function setup(
       return route.fulfill({ status: 202 });
     },
   );
+  // Installed before the reload so the page's timers run on the fake clock; a
+  // test then moves time with page.clock.runFor instead of sleeping (#1378).
+  if (opts.fakeClock) await page.clock.install();
   await page.reload();
   return mocks;
 }
@@ -232,38 +235,42 @@ test.describe('inline feedback, toasts and the activity panel', () => {
   test('a success toast dismisses itself after about 6 seconds, and holds while hovered', async ({
     page,
   }) => {
-    await setup(page, [makePR(1)]);
+    await setup(page, [makePR(1)], { fakeClock: true });
     await updateBranch(rowFor(page, 1));
     const toast = toasts(page).first();
     await expect(toast).toBeVisible();
     await toast.hover();
-    await page.waitForTimeout(7500);
+    await page.clock.runFor(7500);
     await expect(toast).toBeVisible();
 
     await page.mouse.move(5, 5);
-    await expect(toast).toBeHidden({ timeout: 9000 });
+    await page.clock.runFor(7000);
+    await expect(toast).toBeHidden();
   });
 
   test('a success toast holds while focus is inside it', async ({ page }) => {
-    await setup(page, [makePR(1)]);
+    await setup(page, [makePR(1)], { fakeClock: true });
     await updateBranch(rowFor(page, 1));
     const toast = toasts(page).first();
     await toast.getByRole('button', { name: 'Show row' }).focus();
     // Focus moved by Show row would scroll; this only focuses the link.
-    await page.waitForTimeout(7500);
+    await page.clock.runFor(7500);
     await expect(toast).toBeVisible();
   });
 
   test('an error toast stays until it is dismissed, and the row keeps a Failed line with Retry', async ({
     page,
   }) => {
-    const mocks = await setup(page, [makePR(3)], { failing: [3] });
+    const mocks = await setup(page, [makePR(3)], {
+      failing: [3],
+      fakeClock: true,
+    });
     await updateBranch(rowFor(page, 3));
 
     const toast = toasts(page).first();
     await expect(toast).toContainText('alrayyes/forge-dashboard#3');
     await expect(toast).toContainText('upstream broke');
-    await page.waitForTimeout(7500);
+    await page.clock.runFor(7500);
     await expect(toast).toBeVisible();
 
     const line = rowFor(page, 3).locator('.row-feedback');
@@ -472,7 +479,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
         });
       });
     });
-    await setup(page, [makePR(5)]);
+    await setup(page, [makePR(5)], { fakeClock: true });
     await expect(page.locator('#feedback-live')).toHaveAttribute(
       'aria-live',
       'polite',
@@ -485,7 +492,8 @@ test.describe('inline feedback, toasts and the activity panel', () => {
 
     await updateBranch(rowFor(page, 5));
     await expect(toasts(page)).toHaveCount(1);
-    await page.waitForTimeout(3500);
+    // Long enough for the countdown to tick, which must never be announced.
+    await page.clock.runFor(3500);
 
     const spoken = await page.evaluate(
       () => (window as unknown as { __live: string[] }).__live,
@@ -532,6 +540,8 @@ test.describe('inline feedback, toasts and the activity panel', () => {
       JSON.stringify(snapshot(mocks.served())),
     );
     await page.click('#force-refresh-button');
+    // The refresh has no visible signal to wait on, and the assertions below
+    // would pass on the state from before it, so this short real wait stays.
     await page.waitForTimeout(500);
 
     await expect(rowFor(page, 1).locator('.wait-chip-label')).toHaveText(
