@@ -216,8 +216,18 @@ function refuse(
 }
 
 // One scan per distinct state (rules/a11y.md), not one per action: the five
-// drivers render the same toast, row feedback and locked button, so the first
-// driver's scan covers the others (#1381).
+// drivers render the same toast and row feedback, so the first driver's scan
+// covers the others for those. The locked button sits in different markup per
+// driver (a menu item, a row button, a bot row), so every driver scans that
+// state once (#1381).
+// The first driver with a specific lock of each kind (Retry, or a disabled
+// button): the one whose scan stands for the rest of that kind.
+function firstOfItsLockKind(d: Driver): boolean {
+  return (
+    d === drivers.find((x) => x.specific && !!x.retryOnLock === !!d.retryOnLock)
+  );
+}
+
 async function axeClean(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -346,7 +356,7 @@ for (const d of drivers) {
       await expect(
         page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
       ).toBeVisible();
-      if (d === drivers[0]) await axeClean(page);
+      await axeClean(page);
     });
 
     test('permission: locks with no Retry and points to Settings', async ({
@@ -443,11 +453,7 @@ for (const d of drivers) {
           await expect(button).toHaveAccessibleDescription(specific.message);
         }
         // The Retry variant and the disabled-button variant are two states.
-        if (
-          d ===
-          drivers.find((x) => x.specific && !!x.retryOnLock === !!d.retryOnLock)
-        )
-          await axeClean(page);
+        if (firstOfItsLockKind(d)) await axeClean(page);
       });
     }
   });
