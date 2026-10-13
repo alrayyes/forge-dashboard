@@ -212,6 +212,56 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(rows(page).first()).toContainText('infra/wiki');
   });
 
+  test('the forge pill is the same badge the pull requests page uses (#1364)', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await page.goto('/');
+    try {
+      for (const theme of ['light', 'dark']) {
+        await setTheme(page, theme);
+        await page.reload();
+        await expect(rows(page)).toHaveCount(6);
+        for (const [forge, repo, label] of [
+          ['fj', 'infra/homelab', 'Forgejo'],
+          ['gh', 'acme/auth-service', 'GitHub'],
+        ]) {
+          const badge = rows(page)
+            .filter({ hasText: repo })
+            .locator(`.forge-badge.${forge}`);
+          await expect(badge).toHaveText(label);
+          // Resolve each token through a probe element so the comparison is
+          // against what the browser computes, in the theme under test.
+          const got = await badge.evaluate((el, f) => {
+            const probe = (
+              token: string,
+              prop: 'color' | 'backgroundColor',
+            ) => {
+              const d = document.createElement('div');
+              d.style[prop] = `var(${token})`;
+              document.body.appendChild(d);
+              const v = getComputedStyle(d)[prop];
+              d.remove();
+              return v;
+            };
+            const cs = getComputedStyle(el);
+            const dot = getComputedStyle(el.querySelector('.dot') as Element);
+            return {
+              bg: [cs.backgroundColor, probe(`--${f}-bg`, 'backgroundColor')],
+              fg: [cs.color, probe(`--${f}`, 'color')],
+              dot: [dot.backgroundColor, probe(`--${f}`, 'backgroundColor')],
+            };
+          }, forge);
+          expect(got.bg[0], `${theme} ${forge} background`).toBe(got.bg[1]);
+          expect(got.fg[0], `${theme} ${forge} text`).toBe(got.fg[1]);
+          expect(got.dot[0], `${theme} ${forge} dot`).toBe(got.dot[1]);
+        }
+      }
+    } finally {
+      await setTheme(page, 'light');
+    }
+  });
+
   test('the forge toggle and the search narrow the list further, and are remembered', async ({
     page,
   }) => {

@@ -6,6 +6,7 @@
     applyFilter,
     DEFAULT_FILTER,
     duration,
+    FORGE_CLASS,
     FORGE_LABEL,
     forgeCounts,
     isFiltered,
@@ -304,9 +305,6 @@
       background: var(--warning-bg);
       color: var(--warning);
     }
-    .mb-forge {
-      font-weight: 500;
-    }
     .mb-meta,
     .mb-when,
     .mb-failing,
@@ -565,8 +563,9 @@
                     aria-label="{b.fullName} (opens in a new tab)"
                     >{b.fullName}</a
                   >
-                  <span class="mb-chip mb-forge"
-                    >{FORGE_LABEL[b.forge] ?? b.forge}</span
+                  <span class="forge-badge {FORGE_CLASS[b.forge] ?? ''}"
+                    ><span class="dot"></span>{FORGE_LABEL[b.forge] ??
+                      b.forge}</span
                   >
                   {#if b.stale}<span class="mb-chip mb-stale">stale</span>{/if}
                 </div>
