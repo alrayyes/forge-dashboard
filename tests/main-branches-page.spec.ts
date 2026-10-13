@@ -217,32 +217,42 @@ test.describe('Main branches page (#1224, #1279)', () => {
   }) => {
     await mock(page, snapshot(MIXED));
     await page.goto('/');
-    const fj = rows(page)
-      .filter({ hasText: 'infra/homelab' })
-      .locator('.forge-badge.fj');
-    const gh = rows(page)
-      .filter({ hasText: 'acme/auth-service' })
-      .locator('.forge-badge.gh');
-    await expect(fj).toHaveText('Forgejo');
-    await expect(gh).toHaveText('GitHub');
-    const tokens = await page.evaluate(() => {
-      const s = getComputedStyle(document.documentElement);
-      return {
-        fj: s.getPropertyValue('--fj-bg').trim(),
-        gh: s.getPropertyValue('--gh-bg').trim(),
-      };
-    });
-    expect(tokens.fj).not.toBe('');
-    const bg = await fj.evaluate((e) => getComputedStyle(e).backgroundColor);
-    const probe = await page.evaluate((c) => {
-      const d = document.createElement('div');
-      d.style.color = c;
-      document.body.appendChild(d);
-      const v = getComputedStyle(d).color;
-      d.remove();
-      return v;
-    }, tokens.fj);
-    expect(bg).toBe(probe);
+    for (const theme of ['light', 'dark']) {
+      await setTheme(page, theme);
+      await page.reload();
+      await expect(rows(page)).toHaveCount(6);
+      for (const [forge, repo, label] of [
+        ['fj', 'infra/homelab', 'Forgejo'],
+        ['gh', 'acme/auth-service', 'GitHub'],
+      ]) {
+        const badge = rows(page)
+          .filter({ hasText: repo })
+          .locator(`.forge-badge.${forge}`);
+        await expect(badge).toHaveText(label);
+        // Resolve each token through a probe element so the comparison is
+        // against what the browser computes, in the theme under test.
+        const got = await badge.evaluate((el, f) => {
+          const probe = (token: string, prop: 'color' | 'backgroundColor') => {
+            const d = document.createElement('div');
+            d.style[prop] = `var(${token})`;
+            document.body.appendChild(d);
+            const v = getComputedStyle(d)[prop];
+            d.remove();
+            return v;
+          };
+          const cs = getComputedStyle(el);
+          const dot = getComputedStyle(el.querySelector('.dot') as Element);
+          return {
+            bg: [cs.backgroundColor, probe(`--${f}-bg`, 'backgroundColor')],
+            fg: [cs.color, probe(`--${f}`, 'color')],
+            dot: [dot.backgroundColor, probe(`--${f}`, 'backgroundColor')],
+          };
+        }, forge);
+        expect(got.bg[0], `${theme} ${forge} background`).toBe(got.bg[1]);
+        expect(got.fg[0], `${theme} ${forge} text`).toBe(got.fg[1]);
+        expect(got.dot[0], `${theme} ${forge} dot`).toBe(got.dot[1]);
+      }
+    }
   });
 
   test('the forge toggle and the search narrow the list further, and are remembered', async ({
