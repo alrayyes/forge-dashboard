@@ -1115,7 +1115,9 @@ Each pull request also counts its review comments, `reviewComments` in
 `/api/dashboard`, and the review threads still open, `unresolvedThreads`.
 Ordinary conversation comments aren't counted. GitHub reads both from the
 review threads in the pull request query, so it costs no request. It reads the
-first 100 threads, so a pull request with more reports fewer than it has.
+first 30 threads, so a pull request with more reports fewer than it has. The
+unauthenticated fallback has no thread data and reports 0 comments and a `null`
+`unresolvedThreads`.
 Forgejo's count is the sum of each review's comments from the reviews call that
 already feeds `review`, so a draft reports 0. Forgejo gives no resolved state
 without a request per review, so its `unresolvedThreads` is `null`: unknown, not

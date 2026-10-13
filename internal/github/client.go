@@ -1312,8 +1312,9 @@ type graphqlPullRequest struct {
 		} `json:"nodes"`
 	} `json:"latestReviews"`
 	// ReviewThreads feeds the review comment and open thread counts (#1335).
-	// Only the first 100 threads are read, so a pull request with more
-	// undercounts.
+	// Only the first 30 threads are read, so a pull request with more
+	// undercounts. Fewer than that keeps the query well under GitHub's 500,000
+	// node limit across 50 repositories of 50 pull requests each.
 	ReviewThreads *struct {
 		Nodes []struct {
 			IsResolved bool `json:"isResolved"`
@@ -1485,7 +1486,7 @@ query($cursor: String, $since: DateTime) {
                 state
               }
             }
-            reviewThreads(first: 100) {
+            reviewThreads(first: 30) {
               nodes {
                 isResolved
                 comments {
@@ -1592,7 +1593,7 @@ const appRepoFieldsTemplate = `
             state
           }
         }
-        reviewThreads(first: 100) {
+        reviewThreads(first: 30) {
           nodes {
             isResolved
             comments {
@@ -2400,7 +2401,7 @@ query($owner: String!, $name: String!) {
             state
           }
         }
-        reviewThreads(first: 100) {
+        reviewThreads(first: 30) {
           nodes {
             isResolved
             comments {
