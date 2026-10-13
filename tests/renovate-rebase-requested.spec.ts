@@ -1,27 +1,17 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
 import { rateLimit } from './severity-stand-in';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // While Renovate's rebase checkbox is ticked a rebase is already waiting, so
 // the server blocks a second request and the row says so instead of offering
 // a button that would only be refused (#1349).
 // https://github.com/alrayyes/forge-dashboard/issues/1349
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `rebase-req-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Rebase Requested');
-}
 
 const BLOCKED = {
   action: 'renovate_rebase',
@@ -90,8 +80,8 @@ const open = async (page: Page) => {
 };
 
 test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   test('the button is disabled and says a rebase is already requested', async ({
