@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.176.3](https://github.com/alrayyes/forge-dashboard/compare/v0.176.2...v0.176.3) (2026-10-13)
+
+
+### Bug Fixes
+
+* **github:** log when a rollup is of an earlier commit ([#1388](https://github.com/alrayyes/forge-dashboard/issues/1388)) ([39e03f1](https://github.com/alrayyes/forge-dashboard/commit/39e03f1719deb3b1905a0090c63c26c0c81a393f))
+* **github:** warn once per branch when the required checks can't be read ([#1389](https://github.com/alrayyes/forge-dashboard/issues/1389)) ([30104b9](https://github.com/alrayyes/forge-dashboard/commit/30104b9d5360f46c7e761d8e4f279a8a3c0acbf5))
+
 ## [0.176.2](https://github.com/alrayyes/forge-dashboard/compare/v0.176.1...v0.176.2) (2026-10-13)
 
 
