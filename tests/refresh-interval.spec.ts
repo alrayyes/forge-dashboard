@@ -141,6 +141,13 @@ test.describe('refresh follows the server (#809)', () => {
     const answered = page.waitForResponse('**/api/dashboard/refresh*');
     await button.click();
     await answered;
+    // A lock is applied a frame or two after the answer is parsed.
+    await page.evaluate(
+      () =>
+        new Promise((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(r)),
+        ),
+    );
     await expect(button).toBeEnabled();
   });
 });

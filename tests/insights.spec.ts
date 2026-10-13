@@ -164,6 +164,7 @@ test.describe('insights page', () => {
     await page.goto('/insights.html');
     await expect(page.locator('.insights-header h1')).toHaveText('Insights');
     await expect.poll(() => apiPaths.has('/api/dashboard')).toBe(true);
+    await page.waitForLoadState('networkidle');
     // The shared layout reads these for every page; any other endpoint here
     // would be a second data source the charts don't declare.
     const layout = new Set([

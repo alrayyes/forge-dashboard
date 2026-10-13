@@ -173,8 +173,12 @@ test.describe('dashboard sharing', () => {
 
     // Hidden before the page has loaded proves nothing: wait for the
     // dashboard read that decides it.
-    await page.goto('/pull-requests.html');
-    await page.waitForResponse((r) => r.url().includes('/api/dashboard'));
+    const read = page.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === '/api/dashboard' && r.status() === 200,
+    );
+    await page.reload();
+    await read;
     await expect(page.locator('.app-nav')).toBeVisible();
     await expect(page.locator('#dashboard-owner-select')).toBeHidden();
   });
