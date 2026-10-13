@@ -630,8 +630,7 @@ test.describe('pull request update-branch button', () => {
       const row = page.locator('#pr-rows .row').first();
       // Wait for the row: a count of zero proves nothing before it renders.
       await expect(row).toBeVisible();
-      // The row is a working one: its own rebase control is in the menu.
-      await row.getByRole('button', { name: 'More actions' }).click();
+      // The row is a working one: it offers its own rebase control.
       await expect(
         row.getByRole('button', { name: 'Dependabot: Rebase' }),
       ).toBeVisible();
@@ -650,8 +649,7 @@ test.describe('pull request update-branch button', () => {
       const row = page.locator('#pr-rows .row').first();
       // Wait for the row: a count of zero proves nothing before it renders.
       await expect(row).toBeVisible();
-      // The row is a working one: its own rebase control is in the menu.
-      await row.getByRole('button', { name: 'More actions' }).click();
+      // The row is a working one: it offers its own rebase control.
       await expect(
         row.getByRole('button', { name: 'Renovate: Rebase' }),
       ).toBeVisible();
