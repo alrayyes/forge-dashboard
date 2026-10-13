@@ -514,11 +514,7 @@ test.describe('pull request pipeline checks panel', () => {
       fullName: 'alrayyes/dotfiles',
       number: 42,
     });
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
+    // The 'Rerun queued' panel is scanned in the GitHub test above: same markup.
   });
 
   test('a refused rerun shows the reason in the panel and leaves the button to try again', async ({
@@ -764,9 +760,7 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(dialog).toBeHidden();
   });
 
-  test('the open panel is reachable by keyboard and has no axe-core violations', async ({
-    page,
-  }) => {
+  test('the open panel is reachable by keyboard', async ({ page }) => {
     await mockDashboard(page, 'github', makePR());
     await mockChecks(page, {
       checks: [
@@ -778,14 +772,18 @@ test.describe('pull request pipeline checks panel', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Open pipeline' }).click();
-    await expect(
-      page.getByRole('dialog', { name: 'Pipeline checks' }),
-    ).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog).toBeVisible();
 
+    // Axe scans the same list in the grouped-panel test; this one is about
+    // where focus goes: onto Close when the panel opens, then to the first
+    // check's link. Waiting for the first keeps Tab from racing it.
+    await expect(
+      dialog.getByRole('button', { name: 'Close pipeline checks' }),
+    ).toBeFocused();
+    const firstLink = dialog.getByRole('link', { name: 'View run: build' });
+    await expect(firstLink).toBeVisible();
     await page.keyboard.press('Tab');
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
+    await expect(firstLink).toBeFocused();
   });
 });
