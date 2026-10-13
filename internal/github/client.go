@@ -1201,6 +1201,8 @@ func (r *statusCheckRollup) settleFailedRollup() dashboard.CIStatus {
 
 type prCommitNode struct {
 	Commit struct {
+		// Oid says which commit the rollup is of (#1311).
+		Oid               string             `json:"oid"`
 		StatusCheckRollup *statusCheckRollup `json:"statusCheckRollup"`
 	} `json:"commit"`
 }
@@ -1209,9 +1211,19 @@ type prCommitNode struct {
 // server-side across both Actions check-runs and any legacy commit
 // status, the same fallback ciStatus used to do by hand against two REST
 // endpoints.
-func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
+//
+// GitHub updates a pull request's commit list in a background job after a push,
+// so one response can carry the new head, and a merge state worked out against
+// it, beside the previous commit's finished rollup. A rollup of a commit that
+// isn't the head says nothing about the head, so it reads pending until the
+// lists agree (#1311). Without both ids there is nothing to compare, and the
+// rollup stands.
+func ciFromRollup(commits []prCommitNode, headOid string) dashboard.CIStatus {
 	if len(commits) == 0 {
 		return dashboard.CINone
+	}
+	if oid := commits[0].Commit.Oid; oid != "" && headOid != "" && oid != headOid {
+		return dashboard.CIPending
 	}
 
 	return commits[0].Commit.StatusCheckRollup.ci()
@@ -1505,6 +1517,7 @@ query($cursor: String, $since: DateTime) {
             commits(last: 1) {
               nodes {
                 commit {
+                  oid
                   statusCheckRollup {
                     state
                     contexts(first: 1) {
@@ -1612,6 +1625,7 @@ const appRepoFieldsTemplate = `
         commits(last: 1) {
           nodes {
             commit {
+              oid
               statusCheckRollup {
                 state
                 contexts(first: 1) {
@@ -2199,7 +2213,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		Labels:          labelsFromNodes(p.Labels.Nodes),
 		CreatedAt:       p.CreatedAt,
 		UpdatedAt:       p.UpdatedAt,
-		CI:              ciFromRollup(p.Commits.Nodes),
+		CI:              ciFromRollup(p.Commits.Nodes, p.HeadRefOid),
 		MergeStatus:     mergeStatusFromGraphQL(p.MergeStateStatus),
 		Behind:          p.MergeStateStatus == "BEHIND",
 		HeadSHA:         p.HeadRefOid,
@@ -2420,6 +2434,7 @@ query($owner: String!, $name: String!) {
         commits(last: 1) {
           nodes {
             commit {
+              oid
               statusCheckRollup {
                 state
                 contexts(first: 1) {
