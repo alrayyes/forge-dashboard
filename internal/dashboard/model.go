@@ -192,6 +192,14 @@ type PullRequest struct {
 	// Always a list, empty when nobody was asked, so a client can range
 	// over it without a nil check.
 	RequestedReviewerLogins []string `json:"requestedReviewerLogins"`
+	// ReviewComments counts the review comments on the pull request, not
+	// ordinary conversation comments (#1335). 0 when there are none or the
+	// forge didn't say.
+	ReviewComments int `json:"reviewComments"`
+	// UnresolvedThreads is how many review threads are still open, or nil when
+	// the forge reports no resolved state (Forgejo), so a client shows the
+	// count without an "open" state rather than a false zero.
+	UnresolvedThreads *int `json:"unresolvedThreads"`
 	// HeadSHA is the commit the pull request's head branch points at (#759).
 	// A bot's rebase moves it, which shows the bot acted even when the pull
 	// request is still reported behind, or wasn't behind to begin with.

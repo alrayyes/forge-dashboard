@@ -1311,6 +1311,18 @@ type graphqlPullRequest struct {
 			State string `json:"state"`
 		} `json:"nodes"`
 	} `json:"latestReviews"`
+	// ReviewThreads feeds the review comment and open thread counts (#1335).
+	// Only the first 30 threads are read, so a pull request with more
+	// undercounts. Fewer than that keeps the query well under GitHub's 500,000
+	// node limit across 50 repositories of 50 pull requests each.
+	ReviewThreads *struct {
+		Nodes []struct {
+			IsResolved bool `json:"isResolved"`
+			Comments   struct {
+				TotalCount int `json:"totalCount"`
+			} `json:"comments"`
+		} `json:"nodes"`
+	} `json:"reviewThreads"`
 	// Additions, Deletions and ChangedFiles feed mapPullRequest's own
 	// Empty computation — GraphQL always returns these as plain (never
 	// null) Ints, unlike Forgejo's SDK.
@@ -1474,6 +1486,14 @@ query($cursor: String, $since: DateTime) {
                 state
               }
             }
+            reviewThreads(first: 30) {
+              nodes {
+                isResolved
+                comments {
+                  totalCount
+                }
+              }
+            }
             labels(first: 20) {
               nodes {
                 name
@@ -1571,6 +1591,14 @@ const appRepoFieldsTemplate = `
         latestReviews(first: 10) {
           nodes {
             state
+          }
+        }
+        reviewThreads(first: 30) {
+          nodes {
+            isResolved
+            comments {
+              totalCount
+            }
           }
         }
         labels(first: 20) {
@@ -2140,7 +2168,26 @@ func reviewFromGraphQL(p graphqlPullRequest) *dashboard.ReviewState {
 	return &dashboard.ReviewState{Decision: decision, Approvals: approvals, RequestedReviewers: requested}
 }
 
+// reviewThreadCounts is how many review comments the pull request has and how
+// many of its review threads are still open (#1335). Conversation comments
+// aren't threads and aren't counted.
+func reviewThreadCounts(p graphqlPullRequest) (comments, unresolved int) {
+	if p.ReviewThreads == nil {
+		return 0, 0
+	}
+	for _, thread := range p.ReviewThreads.Nodes {
+		comments += thread.Comments.TotalCount
+		if !thread.IsResolved {
+			unresolved++
+		}
+	}
+
+	return comments, unresolved
+}
+
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
+	comments, unresolved := reviewThreadCounts(p)
+
 	return dashboard.PullRequest{
 		Forge:           dashboard.ForgeGitHub,
 		Repo:            fullName,
@@ -2167,6 +2214,8 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		Review:                  reviewFromGraphQL(p),
 
 		RequestedReviewerLogins: requestedReviewerLoginsFromGraphQL(p),
+		ReviewComments:          comments,
+		UnresolvedThreads:       &unresolved,
 	}
 }
 
@@ -2350,6 +2399,14 @@ query($owner: String!, $name: String!) {
         latestReviews(first: 10) {
           nodes {
             state
+          }
+        }
+        reviewThreads(first: 30) {
+          nodes {
+            isResolved
+            comments {
+              totalCount
+            }
           }
         }
         labels(first: 20) {
