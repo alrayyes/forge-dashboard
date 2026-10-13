@@ -64,6 +64,9 @@ const rowOf = (page: Page) => page.locator('#pr-rows .row').first();
 
 test.describe('Merge states on a pull request row', () => {
   test.beforeEach(async ({ page }) => {
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
     await page.goto('/pull-requests.html');
   });
 
