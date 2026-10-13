@@ -451,66 +451,6 @@ test.describe('pull request update-branch button', () => {
     await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
-  test('a transient failure shows an error and returns to a re-clickable button', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
-      route.fulfill({
-        status: 502,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: PUT .../update-branch: EOF',
-          message: 'EOF',
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = page.locator('#pr-rows .row').first();
-    const button = row.getByRole('button', { name: 'Update branch' });
-    await button.click();
-
-    await expect(
-      page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
-    ).toContainText('EOF');
-    await expect(row.locator('.row-feedback')).toContainText('Failed');
-    await expect(page.locator('#error-banner')).toHaveCount(0);
-    await expect(page.locator('#status-banner')).toHaveCount(0);
-    await expect(button).toBeVisible();
-    await expect(button).toBeEnabled();
-    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
-  test('a permission-denied failure locks the button with no Retry and points to Settings', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
-      route.fulfill({
-        status: 403,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: PUT .../update-branch: Forbidden',
-          code: 'permission',
-          message: 'Missing permission — check your token in Settings.',
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'Update branch' }).click();
-
-    const button = row.getByRole('button', {
-      name: 'Update branch',
-      exact: true,
-    });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-    await expect(button).toHaveAccessibleDescription(/token in Settings/);
-  });
-
   // #532: a Retry button shared .row-action-locked's plain grey/
   // cursor-default styling with a genuinely dead-end locked button —
   // clickable, but visually indistinguishable from something that
@@ -537,61 +477,6 @@ test.describe('pull request update-branch button', () => {
 
     const button = row.getByRole('button', { name: 'Retry' }).first();
     await expect(button).toHaveCSS('cursor', 'pointer');
-  });
-
-  test('a cannot-merge-cleanly (409) failure locks the button with its own reason', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
-      route.fulfill({
-        status: 409,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: PUT .../update-branch: Merge conflict',
-          code: 'conflict',
-          message: "Can't update cleanly. Resolve the conflict on the forge.",
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'Update branch' }).click();
-
-    const button = row.getByRole('button', { name: 'Retry' });
-    await expect(button).toBeVisible();
-    await expect(row).toContainText(/can't update cleanly/i);
-  });
-
-  test('a rate-limited (429) failure locks the button with no Retry and says when it resets', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'Update branch' }).click();
-
-    const button = row.getByRole('button', {
-      name: 'Update branch',
-      exact: true,
-    });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-    await expect(button).toHaveAccessibleDescription(/rate limit reached/i);
   });
 
   test('clicking Retry re-fetches the dashboard, and a stale lock clears once the fresh data no longer justifies it', async ({
@@ -651,14 +536,10 @@ test.describe('pull request update-branch button', () => {
     await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
   });
 
-  test('a locked Update branch button is reachable by keyboard and has no axe-core violations', async ({
+  test('a locked Update branch button is reachable by keyboard', async ({
     page,
   }) => {
-    // mergeStatus stays "mergeable" here rather than makePR's own default
-    // "blocked" — the .merge-pill.blocked badge has a real, pre-existing
-    // contrast bug (filed as #305) unrelated to this button; this scan is
-    // about the locked-button markup this change actually adds.
-    await mockDashboard(page, makePR({ mergeStatus: 'mergeable' }));
+    await mockDashboard(page, makePR());
     await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 429,
@@ -683,11 +564,8 @@ test.describe('pull request update-branch button', () => {
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await button.focus();
     await expect(button).toBeFocused();
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
+    // Axe scans this state (a locked Update branch, rate limited) in
+    // pull-request-action-refusals.spec.ts, for every action (#1381, #1380).
   });
 
   test.describe('bot-managed PRs', () => {

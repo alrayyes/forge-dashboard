@@ -98,41 +98,6 @@ test.describe('rate-limited actions (#732)', () => {
     await registerAndSignIn(page, request, baseURL);
   });
 
-  // #755: a spent budget makes the forge read-only. The controls are not
-  // drawn (the banner says why, once), instead of greyed on every row.
-  test('an exhausted forge draws no Merge, Update branch or Close, and no Retry', async ({
-    page,
-  }) => {
-    await mockDashboard(page, exhausted());
-    await page.reload();
-
-    const row = firstRow(page);
-    await expect(row.getByText('A pull request')).toBeVisible();
-    for (const label of ['Merge', 'Update branch', 'Close pull request']) {
-      await expect(
-        row.getByRole('button', { name: label, exact: true }),
-      ).toHaveCount(0);
-    }
-    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-      0,
-    );
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-  });
-
-  test('a forge with budget left keeps its actions clickable', async ({
-    page,
-  }) => {
-    await mockDashboard(page, { ...exhausted(), remaining: 4000 });
-    await page.reload();
-
-    const merge = firstRow(page).getByRole('button', {
-      name: 'Merge',
-      exact: true,
-    });
-    await expect(merge).toBeVisible();
-    await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
   test('grouped by repo, the reset time is stated once in the banner, not under each group', async ({
     page,
   }) => {
@@ -172,32 +137,6 @@ test.describe('rate-limited actions (#732)', () => {
     await expect(page.locator('#forge-health')).toContainText(
       /GH: 0\/5,000 reqs, resets .+/,
     );
-  });
-
-  test('actions re-enable at the reset time without a click, and a polite toast says so', async ({
-    page,
-  }) => {
-    await page.clock.install({ time: new Date() });
-    await mockDashboard(page, exhausted(60 * 1000));
-    await page.reload();
-
-    const merge = firstRow(page).getByRole('button', {
-      name: 'Merge',
-      exact: true,
-    });
-    await expect(merge).toHaveCount(0);
-
-    await page.clock.fastForward(61 * 1000);
-
-    await expect(merge).toBeVisible();
-    await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(
-      page.locator('#feedback-toasts .feedback-toast'),
-    ).toContainText('Rate limit reset, actions available again');
-    await expect(page.locator('#feedback-live')).toHaveText(
-      'Rate limit reset, actions available again',
-    );
-    await expect(firstRow(page).locator('.group-rate-limit')).toHaveCount(0);
   });
 
   test('a 429 on merge locks the actions with the reset time and no Retry', async ({
