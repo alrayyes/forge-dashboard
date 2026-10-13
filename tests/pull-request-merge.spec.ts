@@ -93,6 +93,9 @@ const mergeButton = (row: Locator) =>
 
 test.describe('pull request merge button', () => {
   test.beforeEach(async ({ page }) => {
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
     await page.goto('/pull-requests.html');
   });
 
