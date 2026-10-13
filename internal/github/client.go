@@ -1222,11 +1222,24 @@ func ciFromRollup(commits []prCommitNode, headOid string) dashboard.CIStatus {
 	if len(commits) == 0 {
 		return dashboard.CINone
 	}
-	if oid := commits[0].Commit.Oid; oid != "" && headOid != "" && oid != headOid {
+	if rollupIsOfAnotherCommit(commits, headOid) {
 		return dashboard.CIPending
 	}
 
 	return commits[0].Commit.StatusCheckRollup.ci()
+}
+
+// rollupIsOfAnotherCommit reports whether the last commit, whose rollup is read,
+// is known not to be the head. It takes commits(last: 1) as the head commit, so
+// a pull request whose commits came back in another order would read pending
+// until a push. The debug line in mapPullRequest shows when that happens.
+func rollupIsOfAnotherCommit(commits []prCommitNode, headOid string) bool {
+	if len(commits) == 0 {
+		return false
+	}
+	oid := commits[0].Commit.Oid
+
+	return oid != "" && headOid != "" && oid != headOid
 }
 
 // ci is the rollup's combined result. A commit with no rollup (nil) has no
@@ -2201,6 +2214,10 @@ func reviewThreadCounts(p graphqlPullRequest) (comments, unresolved int) {
 
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	comments, unresolved := reviewThreadCounts(p)
+	if rollupIsOfAnotherCommit(p.Commits.Nodes, p.HeadRefOid) {
+		slog.Debug("github rollup is of an earlier commit, reading pending", "forge", dashboard.ForgeGitHub, "repo", fullName,
+			"number", p.Number, "head", p.HeadRefOid, "rollup_commit", p.Commits.Nodes[0].Commit.Oid)
+	}
 
 	return dashboard.PullRequest{
 		Forge:           dashboard.ForgeGitHub,
