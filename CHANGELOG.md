@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.176.1](https://github.com/alrayyes/forge-dashboard/compare/v0.176.0...v0.176.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **web:** colour the Main branches forge pill like the pull requests page ([#1365](https://github.com/alrayyes/forge-dashboard/issues/1365)) ([33fa2b9](https://github.com/alrayyes/forge-dashboard/commit/33fa2b96c33a401d8b1072058fc524326f1b1ba9))
+
 ## [0.176.0](https://github.com/alrayyes/forge-dashboard/compare/v0.175.2...v0.176.0) (2026-10-13)
 
 
