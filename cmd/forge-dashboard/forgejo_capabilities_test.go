@@ -1,6 +1,14 @@
 package main
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"maps"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -10,19 +18,125 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// capabilityGap reports an optional capability the Forgejo client has but the
-// Source the app registers for it lacks. The API asks the Source, not the
-// client, so a forwarder missing from GenericSource answers 400 "doesn't
-// support" in production while every API test passes against a fake Source
-// (#455, #564, #1347, #1351).
-func capabilityGap[T any](name string, client, source any) string {
-	_, clientHas := client.(T)
-	_, sourceHas := source.(T)
-	if clientHas && !sourceHas {
-		return name
+// optionalCapability is one optional interface the API asks a Source for.
+// githubOnly marks the ones that are GitHub-only by design, so the Forgejo
+// client has nothing to forward for them.
+type optionalCapability struct {
+	name       string
+	has        func(any) bool
+	githubOnly bool
+}
+
+func capabilityNamed[T any](name string, githubOnly bool) optionalCapability {
+	return optionalCapability{name: name, githubOnly: githubOnly, has: func(v any) bool {
+		_, ok := v.(T)
+
+		return ok
+	}}
+}
+
+// optionalCapabilities is every optional capability the API asks a Source for.
+// TestOptionalCapabilities_CoverEveryOneTheAPIAsksFor scans internal/api for
+// them, so a new one fails that test until it is added here, as forwarded or
+// as GitHub-only with its reason.
+var optionalCapabilities = []optionalCapability{
+	capabilityNamed[dashboard.WebhookManager]("WebhookManager", false),
+	capabilityNamed[dashboard.PullRequestMerger]("PullRequestMerger", false),
+	capabilityNamed[dashboard.PullRequestStateReader]("PullRequestStateReader", false),
+	capabilityNamed[dashboard.PullRequestCloser]("PullRequestCloser", false),
+	capabilityNamed[dashboard.ChecksRerunner]("ChecksRerunner", false),
+	capabilityNamed[dashboard.BranchUpdater]("BranchUpdater", false),
+	capabilityNamed[dashboard.PullRequestChecker]("PullRequestChecker", false),
+	capabilityNamed[dashboard.PullRequestLabeler]("PullRequestLabeler", false),
+	capabilityNamed[dashboard.PullRequestBodyEditor]("PullRequestBodyEditor", false),
+
+	// GitHub-only by design: Forgejo has no Dependabot, and its auto-merge is
+	// this app's own intent rather than a forge call.
+	capabilityNamed[dashboard.PullRequestCommenter]("PullRequestCommenter", true),
+	capabilityNamed[dashboard.PullRequestAutoMerger]("PullRequestAutoMerger", true),
+	capabilityNamed[dashboard.PullRequestAutoMergeDisabler]("PullRequestAutoMergeDisabler", true),
+}
+
+// capabilitiesTheAPIAsksFor is every dashboard.<Name> the non-test code in
+// internal/api uses as the type argument of capabilityOf or guardedAction, or
+// asserts a Source to.
+func capabilitiesTheAPIAsksFor(t *testing.T) []string {
+	t.Helper()
+
+	const apiDir = "../../internal/api"
+	entries, err := os.ReadDir(apiDir)
+	require.NoError(t, err)
+
+	fset := token.NewFileSet()
+	found := map[string]bool{}
+	parsed := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, filepath.Join(apiDir, entry.Name()), nil, 0)
+		require.NoError(t, err)
+		parsed++
+		collectDashboardTypes(file, found)
+	}
+	require.NotZero(t, parsed, "found no API source files to scan")
+
+	return slices.Sorted(maps.Keys(found))
+}
+
+// collectDashboardTypes adds to found the dashboard.<Name> types file passes to
+// capabilityOf or guardedAction as a type argument, or asserts a value to.
+func collectDashboardTypes(file *ast.File, found map[string]bool) {
+	add := func(e ast.Expr) {
+		if sel, ok := e.(*ast.SelectorExpr); ok {
+			if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "dashboard" {
+				found[sel.Sel.Name] = true
+			}
+		}
+	}
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.IndexExpr:
+			if fn, ok := node.X.(*ast.Ident); ok && (fn.Name == "capabilityOf" || fn.Name == "guardedAction") {
+				add(node.Index)
+			}
+		case *ast.TypeAssertExpr:
+			add(node.Type)
+		}
+
+		return true
+	})
+}
+
+// A capability the API starts asking a Source for has to be added to the list
+// above, or the parity test below never looks at it (#1363).
+func TestOptionalCapabilities_CoverEveryOneTheAPIAsksFor(t *testing.T) {
+	t.Parallel()
+
+	var known []string
+	for _, c := range optionalCapabilities {
+		known = append(known, c.name)
 	}
 
-	return ""
+	for _, asked := range capabilitiesTheAPIAsksFor(t) {
+		assert.Contains(t, known, asked, "the API asks a Source for dashboard.%s: add it to optionalCapabilities, as forwarded or as githubOnly", asked)
+	}
+}
+
+// capabilityGaps names each non-GitHub-only capability the Forgejo client has
+// but the Source the app registers for it lacks. The API asks the Source, not
+// the client, so a forwarder missing from GenericSource answers 400 "doesn't
+// support" in production while every API test passes against a fake Source
+// (#455, #564, #1347, #1351).
+func capabilityGaps(client, source any) []string {
+	var missing []string
+	for _, c := range optionalCapabilities {
+		if !c.githubOnly && c.has(client) && !c.has(source) {
+			missing = append(missing, c.name)
+		}
+	}
+
+	return missing
 }
 
 func TestForgejoSource_ExposesEveryCapabilityItsClientHas(t *testing.T) {
@@ -35,27 +149,18 @@ func TestForgejoSource_ExposesEveryCapabilityItsClientHas(t *testing.T) {
 	require.Equal(t, dashboard.ForgeForgejo, source.Forge())
 	client := forgejo.NewClient(creds.ForgejoURL, creds.ForgejoToken, "")
 
-	// Every optional capability the API or the aggregator asks a Source for,
-	// except the ones that are GitHub-only by design: Dependabot commands and
-	// GitHub auto-merge. A new one belongs here, so its missing forwarder fails
-	// this test and not a Forgejo user.
-	gaps := []string{
-		capabilityGap[dashboard.WebhookManager]("WebhookManager", client, source),
-		capabilityGap[dashboard.PullRequestMerger]("PullRequestMerger", client, source),
-		capabilityGap[dashboard.PullRequestStateReader]("PullRequestStateReader", client, source),
-		capabilityGap[dashboard.PullRequestCloser]("PullRequestCloser", client, source),
-		capabilityGap[dashboard.ChecksRerunner]("ChecksRerunner", client, source),
-		capabilityGap[dashboard.BranchUpdater]("BranchUpdater", client, source),
-		capabilityGap[dashboard.PullRequestChecker]("PullRequestChecker", client, source),
-		capabilityGap[dashboard.PullRequestLabeler]("PullRequestLabeler", client, source),
-		capabilityGap[dashboard.PullRequestBodyEditor]("PullRequestBodyEditor", client, source),
-	}
+	assert.Empty(t, capabilityGaps(client, source), "the Forgejo client has these capabilities but its Source doesn't forward them")
+}
 
-	var missing []string
-	for _, gap := range gaps {
-		if gap != "" {
-			missing = append(missing, gap)
+// An exclusion has to stay true: a capability marked GitHub-only that the
+// Forgejo client now implements is a forwarder nobody wrote.
+func TestOptionalCapabilities_GitHubOnlyOnesAreNotInTheForgejoClient(t *testing.T) {
+	t.Parallel()
+
+	client := forgejo.NewClient("https://forge.example", "t", "")
+	for _, c := range optionalCapabilities {
+		if c.githubOnly {
+			assert.False(t, c.has(client), "%s is marked GitHub-only but the Forgejo client implements it: forward it and unmark it", c.name)
 		}
 	}
-	assert.Empty(t, missing, "the Forgejo client has these capabilities but its Source doesn't forward them")
 }
