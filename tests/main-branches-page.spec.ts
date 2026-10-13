@@ -212,6 +212,39 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(rows(page).first()).toContainText('infra/wiki');
   });
 
+  test('the forge pill is the same badge the pull requests page uses (#1364)', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await page.goto('/');
+    const fj = rows(page)
+      .filter({ hasText: 'infra/homelab' })
+      .locator('.forge-badge.fj');
+    const gh = rows(page)
+      .filter({ hasText: 'acme/auth-service' })
+      .locator('.forge-badge.gh');
+    await expect(fj).toHaveText('Forgejo');
+    await expect(gh).toHaveText('GitHub');
+    const tokens = await page.evaluate(() => {
+      const s = getComputedStyle(document.documentElement);
+      return {
+        fj: s.getPropertyValue('--fj-bg').trim(),
+        gh: s.getPropertyValue('--gh-bg').trim(),
+      };
+    });
+    expect(tokens.fj).not.toBe('');
+    const bg = await fj.evaluate((e) => getComputedStyle(e).backgroundColor);
+    const probe = await page.evaluate((c) => {
+      const d = document.createElement('div');
+      d.style.color = c;
+      document.body.appendChild(d);
+      const v = getComputedStyle(d).color;
+      d.remove();
+      return v;
+    }, tokens.fj);
+    expect(bg).toBe(probe);
+  });
+
   test('the forge toggle and the search narrow the list further, and are remembered', async ({
     page,
   }) => {
