@@ -96,6 +96,8 @@ test.describe('pull request pipeline checks panel', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
+    // Wait for the row: a count of zero proves nothing before it renders.
+    await expect(row).toBeVisible();
     await expect(
       row.getByRole('button', { name: 'Open pipeline' }),
     ).toHaveCount(0);
