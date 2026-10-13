@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.176.0](https://github.com/alrayyes/forge-dashboard/compare/v0.175.2...v0.176.0) (2026-10-13)
+
+
+### Features
+
+* **api:** count review comments and unresolved threads on every pull request ([#1360](https://github.com/alrayyes/forge-dashboard/issues/1360)) ([373ef1f](https://github.com/alrayyes/forge-dashboard/commit/373ef1f3939dd441afebd109c0b40b97c9244cac))
+
 ## [0.175.2](https://github.com/alrayyes/forge-dashboard/compare/v0.175.1...v0.175.2) (2026-10-13)
 
 
