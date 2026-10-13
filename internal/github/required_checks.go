@@ -36,7 +36,8 @@ type requiredChecks struct {
 	contexts map[string]requiredContexts
 	// unreadable holds the branches already warned about, so a set that stays
 	// unreadable warns once and not on every cache period (#1387). A branch
-	// leaves it when its set is read in full again.
+	// leaves it when its set is read in full again. It lives with the client, so
+	// rebuilding the client (new settings, a restart) warns once more.
 	unreadable map[string]struct{}
 }
 

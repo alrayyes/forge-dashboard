@@ -200,10 +200,12 @@ func TestFetch_RequiredStatusContextNotYetReported_IsPending(t *testing.T) {
 // express: protection that fails, and check runs spread over two pages.
 type partialRequiredServer struct {
 	protectionFails atomic.Bool
-	protectionCalls *atomic.Int32
-	protection      []string
-	rulesets        []string
-	pages           [][]string
+	// protectionMissing answers GitHub's 404 for a branch with no classic rule.
+	protectionMissing atomic.Bool
+	protectionCalls   *atomic.Int32
+	protection        []string
+	rulesets          []string
+	pages             [][]string
 }
 
 func (p *partialRequiredServer) start(t *testing.T) *httptest.Server {
@@ -242,6 +244,11 @@ func (p *partialRequiredServer) start(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
 		if p.protectionCalls != nil {
 			p.protectionCalls.Add(1)
+		}
+		if p.protectionMissing.Load() {
+			http.Error(w, `{"message":"Branch not protected"}`, http.StatusNotFound)
+
+			return
 		}
 		if p.protectionFails.Load() {
 			http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)

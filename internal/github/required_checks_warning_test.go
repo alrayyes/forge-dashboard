@@ -105,3 +105,19 @@ func TestFetch_ReadableRepoRequiringNothing_DoesNotWarn(t *testing.T) {
 
 	assert.Zero(t, warnings.count())
 }
+
+// A branch with no protection rule answers a 404, which is an answer: nothing is
+// required, so there is nothing to warn about.
+func TestFetch_UnprotectedBranch_DoesNotWarn(t *testing.T) {
+	warnings := watchWarnings(t)
+	srvData := &partialRequiredServer{protection: []string{}, rulesets: []string{}, pages: [][]string{{}}}
+	srvData.protectionMissing.Store(true)
+	srv := srvData.start(t)
+	client := github.NewClient("test-token", "", srv.URL)
+
+	client.Fetch(t.Context())
+	client.ExpireRequiredContexts()
+	client.Fetch(t.Context())
+
+	assert.Zero(t, warnings.count())
+}
