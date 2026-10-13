@@ -374,6 +374,21 @@ func (s *GenericSource) SetPullRequestBody(ctx context.Context, owner, name stri
 	return editor.SetPullRequestBody(ctx, owner, name, number, body) //nolint:wrapcheck // as AddLabel
 }
 
+// RerunFailedChecks implements ChecksRerunner at the Source level, the same
+// shape as AddLabel. internal/forgejo.Client reruns, but this was never
+// forwarded, so Rerun failed checks answered 400 on every Forgejo pull request
+// (#1351).
+func (s *GenericSource) RerunFailedChecks(ctx context.Context, owner, name string, number int) error {
+	rerunner, ok := s.client.(ChecksRerunner)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't rerun checks: %w", s.forge, errUnsupportedByClient)
+	}
+
+	// Not wrapped, for the same reason as AddLabel: the forge's own sentence
+	// and its ClientError kind (409 for "no failed job") both have to survive.
+	return rerunner.RerunFailedChecks(ctx, owner, name, number) //nolint:wrapcheck // see above
+}
+
 // FetchRepo implements RepoRefresher: the same per-repo calls Fetch
 // already makes for every tracked repo, but for just the one a caller
 // (a webhook delivery) already knows the identity of — no ListRepos
