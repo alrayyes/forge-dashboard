@@ -130,12 +130,13 @@ test.describe('pull request close button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
-    ).toHaveCount(0);
+    // Wait for the row first: absent proves nothing before it has rendered.
     await expect(
       row.getByRole('button', { name: 'More actions' }),
     ).toBeVisible();
+    await expect(
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
+    ).toHaveCount(0);
   });
 
   test('a pull request that cannot be merged still offers Close in More actions', async ({
