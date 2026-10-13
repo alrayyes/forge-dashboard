@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.176.2](https://github.com/alrayyes/forge-dashboard/compare/v0.176.1...v0.176.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **api:** leave a repo ignored for pull requests off Branches and its badge ([#1372](https://github.com/alrayyes/forge-dashboard/issues/1372)) ([3623d98](https://github.com/alrayyes/forge-dashboard/commit/3623d98c0fc06ac1c5009b1cda17c559ff461665)), closes [#1337](https://github.com/alrayyes/forge-dashboard/issues/1337)
+* **github:** a queued or running required check keeps CI pending ([#1371](https://github.com/alrayyes/forge-dashboard/issues/1371)) ([8699b32](https://github.com/alrayyes/forge-dashboard/commit/8699b329c0833ecf507b39d70709f93ff7a072c4))
+* **github:** don't trust a rollup that belongs to an earlier commit ([#1377](https://github.com/alrayyes/forge-dashboard/issues/1377)) ([666a6d5](https://github.com/alrayyes/forge-dashboard/commit/666a6d578846879ba2286a46a19c6527d694a540))
+
 ## [0.176.1](https://github.com/alrayyes/forge-dashboard/compare/v0.176.0...v0.176.1) (2026-10-13)
 
 
