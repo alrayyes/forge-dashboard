@@ -310,9 +310,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
-    # Not sized from a CI run yet: raise or cut it from the slowest green shard
-    # (about 1.5x), never to hide a suite growing back toward the limit.
-    timeout-minutes: 15
+    # The slowest green shard took 5.5 minutes (the first run, four shards of 3.6
+    # to 5.5), so about 1.5x is 8; 10 leaves a little room. Re-size it from the
+    # slowest green run, never to hide a suite growing back toward the limit.
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -375,7 +376,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Took 5.3 minutes on its first run; about 1.5x is 8, so 10.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -428,7 +430,8 @@ jobs:
     needs: [changes, e2e-shard]
     if: ${{ !cancelled() && needs.changes.outputs.e2e == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # The merge took 37 seconds.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
