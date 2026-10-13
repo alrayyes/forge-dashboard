@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { type APIRequestContext, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 

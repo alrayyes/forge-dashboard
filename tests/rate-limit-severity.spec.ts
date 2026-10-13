@@ -1,9 +1,4 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 

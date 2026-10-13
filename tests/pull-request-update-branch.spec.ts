@@ -1,10 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
 import { rateLimit } from './severity-stand-in';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
@@ -717,6 +712,20 @@ test.describe('pull request update-branch button', () => {
         page,
         [{ forge: 'github', reachable: true, repoCount: 2 }],
         [first, second],
+      );
+      // The force refresh below answers the same board, so it never reaches the
+      // real server (which has nothing to refresh for this user).
+      await page.route('**/api/dashboard/refresh', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            pullRequests: [first, second],
+            issues: [],
+          }),
+        }),
       );
       await page.route('**/api/pull-requests/merge', (route: Route) =>
         route.fulfill({
