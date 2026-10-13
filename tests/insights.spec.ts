@@ -152,18 +152,30 @@ test.describe('insights page', () => {
     await expect(page.locator('.insights-header h1')).toHaveText('Insights');
   });
 
-  test('fetches /api/dashboard and nothing else, and needs a session like settings.html', async ({
+  test("reads its data from /api/dashboard alone, next to the layout's own settings calls", async ({
     page,
   }) => {
-    let dashboardCalls = 0;
-    await page.route('**/api/dashboard*', (route) => {
-      dashboardCalls++;
-      route.continue();
+    const apiPaths = new Set<string>();
+    page.on('request', (r) => {
+      const url = new URL(r.url());
+      if (url.pathname.startsWith('/api/')) apiPaths.add(url.pathname);
     });
 
     await page.goto('/insights.html');
     await expect(page.locator('.insights-header h1')).toHaveText('Insights');
-    await expect.poll(() => dashboardCalls).toBeGreaterThan(0);
+    await expect.poll(() => apiPaths.has('/api/dashboard')).toBe(true);
+    await page.waitForLoadState('networkidle');
+    // The shared layout reads these for every page; any other endpoint here
+    // would be a second data source the charts don't declare.
+    const layout = new Set([
+      '/api/dashboard',
+      '/api/auth/session',
+      '/api/version',
+      '/api/settings/theme',
+      '/api/settings/timezone',
+      '/api/settings/filter-state',
+    ]);
+    expect([...apiPaths].filter((p) => !layout.has(p))).toEqual([]);
   });
 
   test('charts the CI status mix across open pull requests, with a data table alongside', async ({
