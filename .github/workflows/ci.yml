@@ -303,10 +303,11 @@ jobs:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
-    # The suite takes 10 to 11.5 minutes depending on the runner, so 12 left
-    # no headroom and a slow runner timed out a green run. 20 still stops a
-    # hung job well before the 6-hour default.
-    timeout-minutes: 20
+    # The suite takes about 19 minutes on a normal runner (15 of them in
+    # Playwright, then Lighthouse), so 20 left no headroom and a green run was
+    # cancelled. 30 is about 1.6 times a normal run and still stops a hung job
+    # well before the 6-hour default.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
