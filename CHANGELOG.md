@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.175.2](https://github.com/alrayyes/forge-dashboard/compare/v0.175.1...v0.175.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **checks:** forward Rerun failed checks to the Forgejo client ([#1359](https://github.com/alrayyes/forge-dashboard/issues/1359)) ([40a0df6](https://github.com/alrayyes/forge-dashboard/commit/40a0df6c4e53e1b2d63d8247e0b8c2481064a51c)), closes [#1351](https://github.com/alrayyes/forge-dashboard/issues/1351)
+
 ## [0.175.1](https://github.com/alrayyes/forge-dashboard/compare/v0.175.0...v0.175.1) (2026-10-12)
 
 
