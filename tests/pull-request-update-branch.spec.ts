@@ -539,7 +539,7 @@ test.describe('pull request update-branch button', () => {
   test('a locked Update branch button is reachable by keyboard', async ({
     page,
   }) => {
-    await mockDashboard(page, makePR({ mergeStatus: 'mergeable' }));
+    await mockDashboard(page, makePR());
     await page.route('**/api/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 429,
