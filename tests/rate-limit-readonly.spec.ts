@@ -112,6 +112,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
       0,
     );
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: /Open pipeline/ }),
     ).toBeEnabled();
@@ -245,9 +246,13 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge', exact: true }),
     ).toHaveCount(0);
-    await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
-    ).toBeVisible();
+    const close = row.getByRole('button', {
+      name: 'Close pull request',
+      exact: true,
+    });
+    await expect(close).toBeVisible();
+    // A budget that isn't spent leaves its controls live, not greyed (#1380).
+    await expect(close).not.toHaveAttribute('aria-disabled', 'true');
     await expect(page.locator('#rate-limit-banner')).toContainText(
       /Enable auto-merge is unavailable until \d{1,2}:\d{2}/,
     );
@@ -293,14 +298,20 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await expect(
       row.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);
+    // Absent proves nothing before the page has rendered: wait for the
+    // banner, so the app's timer exists before the clock jumps.
+    await expect(page.locator('#rate-limit-banner')).toBeVisible();
     await page.clock.fastForward(61_000);
 
-    await expect(
-      row.getByRole('button', { name: 'Merge', exact: true }),
-    ).toBeVisible();
+    const merge = row.getByRole('button', { name: 'Merge', exact: true });
+    await expect(merge).toBeVisible();
+    await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
     await expect(
       page.locator('#feedback-toasts .feedback-toast'),
     ).toContainText('Rate limit reset, actions available again');
+    await expect(page.locator('#feedback-live')).toHaveText(
+      'Rate limit reset, actions available again',
+    );
     await expect(page.locator('#rate-limit-banner')).toHaveCount(0);
   });
 
