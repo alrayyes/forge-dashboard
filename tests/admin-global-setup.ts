@@ -12,6 +12,7 @@
 
 import path from 'node:path';
 import { chromium, type FullConfig } from '@playwright/test';
+import { SHARED_STORAGE_STATE_PATH, SHARED_USERNAME } from './shared-session';
 import { addVirtualAuthenticator } from './webauthn-helper';
 
 export const ADMIN_TEST_USERNAME = 'admin';
@@ -32,5 +33,27 @@ export default async function globalSetup(config: FullConfig) {
   await page.waitForURL(`${baseURL}/`, { timeout: 10000 });
 
   await context.storageState({ path: STORAGE_STATE_PATH });
+
+  // The shared ordinary user (shared-session.ts): invited by the admin just
+  // signed in, registered in a fresh context, its session saved for the specs
+  // that use it.
+  const inviteRes = await context.request.post(`${baseURL}/api/admin/invites`, {
+    data: { username: SHARED_USERNAME, displayName: 'Shared test user' },
+  });
+  if (!inviteRes.ok())
+    throw new Error(
+      `could not invite ${SHARED_USERNAME} (${inviteRes.status()}): ${await inviteRes.text()}`,
+    );
+  const invite = await inviteRes.json();
+  const sharedContext = await browser.newContext();
+  const sharedPage = await sharedContext.newPage();
+  await addVirtualAuthenticator(sharedPage);
+  await sharedPage.goto(
+    `${baseURL}/login.html?invite=${encodeURIComponent(invite.token)}&username=${encodeURIComponent(SHARED_USERNAME)}`,
+  );
+  await sharedPage.locator('#register-submit').click();
+  await sharedPage.waitForURL(`${baseURL}/`, { timeout: 10000 });
+  await sharedContext.storageState({ path: SHARED_STORAGE_STATE_PATH });
+
   await browser.close();
 }
