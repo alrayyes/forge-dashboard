@@ -401,6 +401,8 @@ for (const s of scenarios) {
       const first = await countdownSeconds(page);
       expect(first).toBeGreaterThan(0);
       expect(first).toBeLessThanOrEqual(30);
+      // Far enough from the poll that none fires while the clock runs below.
+      expect(first).toBeGreaterThan(5);
       await page.clock.runFor(2500);
       // The clock moved 2.5 s. The text only changes on the one-second tick, so
       // it fell by one to four seconds depending on where the tick fell: down,
