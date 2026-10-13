@@ -12,6 +12,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stalePRNode is one pull request whose head is headOid and whose last commit,
+// with its SUCCESS rollup, is commitOid (empty leaves the commit's id out).
+func stalePRNode(mergeState, headOid, commitOid string) map[string]any {
+	commit := map[string]any{"statusCheckRollup": rollupFixture("SUCCESS", map[string]int{"SUCCESS": 4}, nil)}
+	if commitOid != "" {
+		commit["oid"] = commitOid
+	}
+
+	return map[string]any{
+		"number": 860, "title": "push", "url": "https://github.com/alrayyes/a/pull/860",
+		"isDraft": false, "author": map[string]any{"login": "claude"},
+		"labels":    map[string]any{"nodes": []map[string]any{}},
+		"createdAt": "2026-10-13T12:00:00Z", "updatedAt": "2026-10-13T12:20:00Z",
+		"mergeStateStatus": mergeState, "headRefOid": headOid, "baseRefName": "main",
+		"commits": map[string]any{"nodes": []map[string]any{{"commit": commit}}},
+	}
+}
+
 // staleRollupServer serves one pull request whose head is headOid and whose
 // last commit, with its rollup, is commitOid (empty leaves the commit's id
 // out). GitHub updates a pull request's commit list in a background job after a
@@ -19,11 +37,6 @@ import (
 // beside the previous commit's SUCCESS (#1311).
 func staleRollupServer(t *testing.T, mergeState, headOid, commitOid string, queries *[]string) *httptest.Server {
 	t.Helper()
-
-	commit := map[string]any{"statusCheckRollup": rollupFixture("SUCCESS", map[string]int{"SUCCESS": 4}, nil)}
-	if commitOid != "" {
-		commit["oid"] = commitOid
-	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
@@ -39,16 +52,9 @@ func staleRollupServer(t *testing.T, mergeState, headOid, commitOid string, quer
 						"pageInfo": map[string]any{"hasNextPage": false},
 						"nodes": []map[string]any{{
 							"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "ADMIN",
-							"owner": map[string]any{"login": "alrayyes"},
-							"pullRequests": map[string]any{"nodes": []map[string]any{{
-								"number": 860, "title": "push", "url": "https://github.com/alrayyes/a/pull/860",
-								"isDraft": false, "author": map[string]any{"login": "claude"},
-								"labels":    map[string]any{"nodes": []map[string]any{}},
-								"createdAt": "2026-10-13T12:00:00Z", "updatedAt": "2026-10-13T12:20:00Z",
-								"mergeStateStatus": mergeState, "headRefOid": headOid, "baseRefName": "main",
-								"commits": map[string]any{"nodes": []map[string]any{{"commit": commit}}},
-							}}},
-							"issues": map[string]any{"nodes": []map[string]any{}},
+							"owner":        map[string]any{"login": "alrayyes"},
+							"pullRequests": map[string]any{"nodes": []map[string]any{stalePRNode(mergeState, headOid, commitOid)}},
+							"issues":       map[string]any{"nodes": []map[string]any{}},
 						}},
 					},
 				},
@@ -108,4 +114,35 @@ func TestFetch_AsksForTheCommitIdBesideTheRollup(t *testing.T) {
 	for _, q := range queries {
 		assert.Regexp(t, `commit \{\s*oid\s+statusCheckRollup`, q, "every query that reads the rollup reads the commit's id with it")
 	}
+}
+
+// A push webhook refreshes through FetchRepo's own query, the one most likely
+// to be read just after a push, so it has to read the commit id and use it.
+func TestFetchRepo_RollupOfAnEarlierCommit_IsPendingNotPassed(t *testing.T) {
+	t.Parallel()
+
+	var query string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		if q := readGraphQLRequest(t, r).Query; strings.Contains(q, "statusCheckRollup") {
+			query = q
+		}
+		writeJSON(t, w, map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"pullRequests": map[string]any{"nodes": []map[string]any{stalePRNode("BLOCKED", "newhead", "oldhead")}},
+					"issues":       map[string]any{"nodes": []map[string]any{}},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	prs, _, err := github.NewClient("test-token", "", srv.URL).FetchRepo(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+	assert.Equal(t, dashboard.CIPending, prs[0].CI)
+	assert.Regexp(t, `commit \{\s*oid\s+statusCheckRollup`, query)
 }
