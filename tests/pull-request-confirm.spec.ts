@@ -388,6 +388,8 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await mergeButton(row).dblclick();
 
     await expect(confirmMerge(row)).toBeVisible();
+    // Lets a request that the guard failed to stop reach the route; the test
+    // also fails on the visible state when the guard is removed (#1382).
     await page.waitForTimeout(200);
     expect(calls).toEqual([]);
     // The confirm group shifts the row, and the second click lands on the CI
@@ -407,6 +409,8 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await expect(
       row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeVisible();
+    // Lets a request that the guard failed to stop reach the route; the test
+    // also fails on the visible state when the guard is removed (#1382).
     await page.waitForTimeout(200);
     expect(calls).toEqual([]);
   });
@@ -438,6 +442,8 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await page.keyboard.press('Enter');
 
     await expect(confirmMerge(row)).toBeVisible();
+    // Lets a request that the guard failed to stop reach the route; the test
+    // also fails on the visible state when the guard is removed (#1382).
     await page.waitForTimeout(200);
     expect(calls).toEqual([]);
   });
