@@ -34,11 +34,6 @@ type requiredChecks struct {
 	complete map[string]struct{}
 	// contexts is each "owner/name@base" branch's required contexts.
 	contexts map[string]requiredContexts
-	// unreadable holds the branches already warned about, so a set that stays
-	// unreadable warns once and not on every cache period (#1387). A branch
-	// leaves it when its set is read in full again. It lives with the client, so
-	// rebuilding the client (new settings, a restart) warns once more.
-	unreadable map[string]struct{}
 }
 
 type requiredContexts struct {
@@ -220,45 +215,19 @@ func (c *Client) requiredContextNames(ctx context.Context, cand missingRequiredC
 	protKnown := c.protectionContexts(ctx, cand.owner, cand.name, cand.base, names)
 	rulesKnown := c.rulesetContexts(ctx, cand.owner, cand.name, cand.base, names)
 	answered = protKnown && rulesKnown
-	if !answered {
-		// Without the required contexts a rollup that reads SUCCESS beside a
-		// blocked merge is left standing. Warned once per branch until it can
-		// be read again. A repo that is readable and simply requires no checks
-		// is not worth a warning.
-		if c.requiredChecks.firstUnreadable(key) {
-			slog.Warn("github required checks unreadable; a pending required check can read as passed",
-				"forge", dashboard.ForgeGitHub, "repo", cand.owner+"/"+cand.name, "base", cand.base,
-				"protectionRead", protKnown, "rulesetsRead", rulesKnown, "contexts", len(names))
-		}
-	} else {
-		c.requiredChecks.readable(key)
+	// The store says whether this answer is the first unreadable one since the
+	// branch was last read in full, so the warning is decided under the same
+	// lock as the store: once until it can be read again (#1387). Without the
+	// required contexts a rollup that reads SUCCESS beside a blocked merge is
+	// left standing. A repo that is readable and simply requires no checks is
+	// not worth a warning.
+	if c.requiredChecks.storeContexts(key, names, answered) {
+		slog.Warn("github required checks unreadable; a pending required check can read as passed",
+			"forge", dashboard.ForgeGitHub, "repo", cand.owner+"/"+cand.name, "base", cand.base,
+			"protectionRead", protKnown, "rulesetsRead", rulesKnown, "contexts", len(names))
 	}
-	c.requiredChecks.storeContexts(key, names, answered)
 
 	return names, answered
-}
-
-// firstUnreadable records key as unreadable and reports whether this is the
-// first time since it was last readable.
-func (r *requiredChecks) firstUnreadable(key string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, warned := r.unreadable[key]; warned {
-		return false
-	}
-	if r.unreadable == nil {
-		r.unreadable = map[string]struct{}{}
-	}
-	r.unreadable[key] = struct{}{}
-
-	return true
-}
-
-// readable forgets key's unreadable mark, so the next failure warns again.
-func (r *requiredChecks) readable(key string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.unreadable, key)
 }
 
 func (r *requiredChecks) isComplete(sha string) bool {
@@ -296,11 +265,17 @@ func (r *requiredChecks) cachedContexts(key string) (names map[string]bool, answ
 	return entry.names, entry.answered, true
 }
 
-func (r *requiredChecks) storeContexts(key string, names map[string]bool, answered bool) {
+// storeContexts remembers a branch's required contexts and reports whether this
+// answer is unreadable and the previous one, if any, was not: the first
+// unreadable answer since the branch was last read in full.
+func (r *requiredChecks) storeContexts(key string, names map[string]bool, answered bool) (newlyUnreadable bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.contexts == nil {
 		r.contexts = map[string]requiredContexts{}
 	}
+	previous, had := r.contexts[key]
 	r.contexts[key] = requiredContexts{names: names, answered: answered, fetched: time.Now()}
+
+	return !answered && (!had || previous.answered)
 }

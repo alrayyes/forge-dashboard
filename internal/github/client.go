@@ -1218,12 +1218,9 @@ type prCommitNode struct {
 // isn't the head says nothing about the head, so it reads pending until the
 // lists agree (#1311). Without both ids there is nothing to compare, and the
 // rollup stands.
-func ciFromRollup(commits []prCommitNode, headOid string) dashboard.CIStatus {
+func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 	if len(commits) == 0 {
 		return dashboard.CINone
-	}
-	if rollupIsOfAnotherCommit(commits, headOid) {
-		return dashboard.CIPending
 	}
 
 	return commits[0].Commit.StatusCheckRollup.ci()
@@ -2214,9 +2211,11 @@ func reviewThreadCounts(p graphqlPullRequest) (comments, unresolved int) {
 
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	comments, unresolved := reviewThreadCounts(p)
+	ci := ciFromRollup(p.Commits.Nodes)
 	if rollupIsOfAnotherCommit(p.Commits.Nodes, p.HeadRefOid) {
 		slog.Debug("github rollup is of an earlier commit, reading pending", "forge", dashboard.ForgeGitHub, "repo", fullName,
 			"number", p.Number, "head", p.HeadRefOid, "rollup_commit", p.Commits.Nodes[0].Commit.Oid)
+		ci = dashboard.CIPending
 	}
 
 	return dashboard.PullRequest{
@@ -2230,7 +2229,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		Labels:          labelsFromNodes(p.Labels.Nodes),
 		CreatedAt:       p.CreatedAt,
 		UpdatedAt:       p.UpdatedAt,
-		CI:              ciFromRollup(p.Commits.Nodes, p.HeadRefOid),
+		CI:              ci,
 		MergeStatus:     mergeStatusFromGraphQL(p.MergeStateStatus),
 		Behind:          p.MergeStateStatus == "BEHIND",
 		HeadSHA:         p.HeadRefOid,
