@@ -12,6 +12,13 @@ import { registerViaInvite } from './register-helper';
 // (components.schemas.ActionError): a `code` and a short `message`. These
 // tests mock that response and check the row and toast render it. The
 // code decisions themselves are tested in Go (internal/dashboard).
+//
+// What Merge shares with every other action is not repeated here: it relies on
+// Close's full set in pull-request-action-refusals.spec.ts for already_closed,
+// permission, a refusal with no code, an earlier failure line clearing, and the
+// axe scan of a Merged row. A settled row is item-level, not action-level, so
+// that scan sees the same markup; if it ever becomes action-specific, scan it
+// here too (#1380).
 
 interface MockPR {
   forge: string;
