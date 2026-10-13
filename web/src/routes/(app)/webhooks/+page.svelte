@@ -5,6 +5,7 @@
     interpretActionFailure,
     readActionFailure,
   } from "#lib/action-error.js";
+  import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
   import { formatTime } from "#lib/time.svelte.js";
 
@@ -16,9 +17,7 @@
   };
   // Webhook management (list/create/edit a hook) is REST-only (#361) —
   // rateLimitGraphQL exists on the real ForgeHealth this page reads but
-  // is deliberately not modeled here at all, the same restraint that
-  // kept this page's own FORGE_LABELS local instead of reaching for the
-  // shared #lib/filters one.
+  // is deliberately not modeled here at all.
   type ForgeHealthEntry = { forge: string; rateLimitREST?: RateLimit };
   type Repo = {
     forge: string;
@@ -42,15 +41,6 @@
     issues: "Ignore issues",
     both: "Ignore both",
   };
-
-  // Kept local rather than importing #lib/filters (which the dashboard
-  // and Insights pages use) — it's a two-entry map, and duplicating that
-  // is cheaper than pulling in the whole filter module just for this.
-  const FORGE_LABELS: Record<string, string> = {
-    github: "GitHub",
-    forgejo: "Forgejo",
-  };
-  const FORGE_CLASSES: Record<string, string> = { github: "gh", forgejo: "fj" };
 
   const ERROR_HEADLINES: Record<number, string> = {
     400: "That repo name doesn't look right.",
