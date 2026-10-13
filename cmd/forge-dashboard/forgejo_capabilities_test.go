@@ -51,7 +51,11 @@ func TestForgejoSource_ExposesEveryCapabilityItsClientHas(t *testing.T) {
 		capabilityGap[dashboard.PullRequestBodyEditor]("PullRequestBodyEditor", client, source),
 	}
 
+	var missing []string
 	for _, gap := range gaps {
-		assert.Empty(t, gap, "the Forgejo client has this capability but its Source doesn't forward it")
+		if gap != "" {
+			missing = append(missing, gap)
+		}
 	}
+	assert.Empty(t, missing, "the Forgejo client has these capabilities but its Source doesn't forward them")
 }
