@@ -136,7 +136,11 @@ test.describe('refresh follows the server (#809)', () => {
     );
     await page.goto('/pull-requests.html');
     const button = page.locator('#force-refresh-button');
+    // Enabled before the answer arrives proves nothing: a lock from a
+    // Retry-After would only land once the response has.
+    const answered = page.waitForResponse('**/api/dashboard/refresh*');
     await button.click();
+    await answered;
     await expect(button).toBeEnabled();
   });
 });

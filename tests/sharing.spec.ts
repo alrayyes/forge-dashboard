@@ -59,7 +59,11 @@ test.describe('dashboard sharing', () => {
           viewerPage.locator('#dashboard-owner-select'),
         ).toBeVisible();
 
+        const refetch = viewerPage.waitForResponse((r) =>
+          r.url().includes(`/api/dashboard?owner=${ownerUsername}`),
+        );
         await viewerPage.selectOption('#dashboard-owner-select', ownerUsername);
+        expect((await refetch).status()).toBe(200);
         // Switching owners re-fetches /api/dashboard?owner=<ownerUsername> —
         // no data differs from the viewer's own empty dashboard in this
         // test (neither user has forge credentials configured), so the
@@ -167,6 +171,11 @@ test.describe('dashboard sharing', () => {
       'Nobody Shared With Me',
     );
 
+    // Hidden before the page has loaded proves nothing: wait for the
+    // dashboard read that decides it.
+    await page.goto('/pull-requests.html');
+    await page.waitForResponse((r) => r.url().includes('/api/dashboard'));
+    await expect(page.locator('.app-nav')).toBeVisible();
     await expect(page.locator('#dashboard-owner-select')).toBeHidden();
   });
 });
