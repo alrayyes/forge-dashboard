@@ -11,7 +11,7 @@
 // stop, which is exactly what "the first real registration" needs.
 
 import path from 'node:path';
-import { chromium, type FullConfig } from '@playwright/test';
+import { type Browser, chromium, type FullConfig } from '@playwright/test';
 import { SHARED_STORAGE_STATE_PATH, SHARED_USERNAME } from './shared-session';
 import { addVirtualAuthenticator } from './webauthn-helper';
 
@@ -21,6 +21,14 @@ export const STORAGE_STATE_PATH = path.join(__dirname, '.auth', 'admin.json');
 export default async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0].use.baseURL;
   const browser = await chromium.launch();
+  try {
+    await registerUsers(browser, baseURL);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function registerUsers(browser: Browser, baseURL: string | undefined) {
   const context = await browser.newContext();
   const page = await context.newPage();
 
@@ -51,9 +59,17 @@ export default async function globalSetup(config: FullConfig) {
   await sharedPage.goto(
     `${baseURL}/login.html?invite=${encodeURIComponent(invite.token)}&username=${encodeURIComponent(SHARED_USERNAME)}`,
   );
-  await sharedPage.locator('#register-submit').click();
+  // Under heavy host load the invite page has been seen not showing its form
+  // (#736); one fresh attempt, as register-helper.ts does, before failing the
+  // whole run.
+  const submit = sharedPage.locator('#register-submit');
+  try {
+    await submit.waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    await sharedPage.reload();
+    await submit.waitFor({ state: 'visible', timeout: 10000 });
+  }
+  await submit.click();
   await sharedPage.waitForURL(`${baseURL}/`, { timeout: 10000 });
   await sharedContext.storageState({ path: SHARED_STORAGE_STATE_PATH });
-
-  await browser.close();
 }
