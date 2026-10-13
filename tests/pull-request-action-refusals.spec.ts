@@ -513,6 +513,14 @@ test.describe('Enable auto-merge with a transient refusal', () => {
     await expect(row.locator('.row-feedback')).toContainText(
       'Try again once it settles',
     );
+    // The toast says it in words, never with the raw GraphQL text (#621).
+    const toast = page.locator(
+      '#feedback-toasts .feedback-toast[data-kind="error"]',
+    );
+    await expect(toast).toContainText(
+      'a non-required check is still running or has failed',
+    );
+    await expect(toast).not.toContainText('graphql');
     await openMoreActions(row);
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
@@ -541,6 +549,12 @@ test.describe('Enable auto-merge with a transient refusal', () => {
     await expect(row.locator('.row-feedback')).toContainText(
       'Use Merge instead',
     );
+    // The toast says it in words, never with the raw GraphQL text (#662).
+    const toast = page.locator(
+      '#feedback-toasts .feedback-toast[data-kind="error"]',
+    );
+    await expect(toast).toContainText('already ready to merge');
+    await expect(toast).not.toContainText('graphql');
     await openMoreActions(row);
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
