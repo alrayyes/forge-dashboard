@@ -408,6 +408,13 @@ for (const d of drivers) {
       await expect(button).toBeEnabled();
       await expect(button).not.toHaveAttribute('aria-disabled', 'true');
       await expect(page.locator('#feedback-toasts')).toContainText('EOF');
+      // An unlocked failure is an error toast, not a page banner (the update
+      // branch spec asserted this before its 502 test moved here, #1380).
+      await expect(
+        page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
+      ).toBeVisible();
+      await expect(page.locator('#error-banner')).toHaveCount(0);
+      await expect(page.locator('#status-banner')).toHaveCount(0);
       if (fullSet) await axeClean(page);
     });
 
