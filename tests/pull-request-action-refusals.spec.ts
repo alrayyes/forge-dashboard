@@ -220,12 +220,11 @@ function refuse(
 // covers the others for those. The locked button sits in different markup per
 // driver (a menu item, a row button, a bot row), so every driver scans that
 // state once (#1381).
-// The first driver with a specific lock of each kind (Retry, or a disabled
-// button): the one whose scan stands for the rest of that kind.
-function firstOfItsLockKind(d: Driver): boolean {
-  return (
-    d === drivers.find((x) => x.specific && !!x.retryOnLock === !!d.retryOnLock)
-  );
+// The one driver whose specific lock keeps a Retry button: that variant is a
+// state of its own. The disabled-button variant is the rate-limited state,
+// already scanned for every driver.
+function firstRetryLockDriver(d: Driver): boolean {
+  return d === drivers.find((x) => x.specific && x.retryOnLock);
 }
 
 async function axeClean(page: Page) {
@@ -253,7 +252,8 @@ for (const d of drivers) {
     // The whole set runs for one action: the classification is Go's
     // (internal/dashboard/action_refusal_test.go) and the rendering is shared,
     // so the other four get a smoke set that proves each action is wired to it:
-    // already merged, rate limited, and its specific lock (#1380).
+    // already merged, rate limited, unknown (the idle failure path) and its
+    // specific lock (#1380).
     const fullSet = d === drivers[0];
 
     async function start(page: Page) {
@@ -286,7 +286,7 @@ for (const d of drivers) {
       await expect(
         row.getByRole('button', { name: d.button, exact: true }),
       ).toHaveCount(0);
-      if (d === drivers[0]) await axeClean(page);
+      if (fullSet) await axeClean(page);
     });
 
     if (fullSet) {
@@ -387,29 +387,31 @@ for (const d of drivers) {
         await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
         await expect(button).toHaveAccessibleDescription(/token in Settings/);
       });
+    }
 
-      test('unknown: shows the forge text and keeps the action clickable', async ({
-        page,
-      }) => {
-        await start(page);
-        await refuse(page, d, 502, {
-          error: 'x: EOF',
-          code: 'unknown',
-          message: 'EOF',
-        });
-        await page.reload();
-        const row = page.locator('#pr-rows .row').first();
-
-        await d.act(row);
-
-        await expect(row.locator('.row-feedback')).toContainText('EOF');
-        const button = await d.find(row);
-        await expect(button).toBeEnabled();
-        await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-        await expect(page.locator('#feedback-toasts')).toContainText('EOF');
-        if (d === drivers[0]) await axeClean(page);
+    test('unknown: shows the forge text and keeps the action clickable', async ({
+      page,
+    }) => {
+      await start(page);
+      await refuse(page, d, 502, {
+        error: 'x: EOF',
+        code: 'unknown',
+        message: 'EOF',
       });
+      await page.reload();
+      const row = page.locator('#pr-rows .row').first();
 
+      await d.act(row);
+
+      await expect(row.locator('.row-feedback')).toContainText('EOF');
+      const button = await d.find(row);
+      await expect(button).toBeEnabled();
+      await expect(button).not.toHaveAttribute('aria-disabled', 'true');
+      await expect(page.locator('#feedback-toasts')).toContainText('EOF');
+      if (fullSet) await axeClean(page);
+    });
+
+    if (fullSet) {
       test('a refusal with no code is treated as unknown and never says only "failed"', async ({
         page,
       }) => {
@@ -462,8 +464,8 @@ for (const d of drivers) {
           await expect(button).toHaveAttribute('aria-disabled', 'true');
           await expect(button).toHaveAccessibleDescription(specific.message);
         }
-        // The Retry variant and the disabled-button variant are two states.
-        if (firstOfItsLockKind(d)) await axeClean(page);
+        // Only the Retry variant is a state the other scans don't reach.
+        if (firstRetryLockDriver(d)) await axeClean(page);
       });
     }
   });
