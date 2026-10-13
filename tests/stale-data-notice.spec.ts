@@ -1,24 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #933: a forge that failed its last refresh keeps its rows (backend #922) and
 // says when they are from, in plain text next to the forge.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `stale-data-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Stale Data');
-}
 
 async function open(page: Page, health: Record<string, unknown>) {
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
@@ -43,8 +33,8 @@ const MINUTES_AGO = (n: number) =>
   new Date(Date.now() - n * 60_000).toISOString();
 
 test.describe('stale data notice (#933)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   test('an unreachable forge with staleSince says how old its data is', async ({

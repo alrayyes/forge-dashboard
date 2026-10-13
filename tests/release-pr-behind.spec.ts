@@ -1,12 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #1104: a release-please pull request that falls behind in a repo with
 // auto-update-branch on. Auto-update skips it, and release-please only
@@ -16,15 +15,6 @@ import { registerViaInvite } from './register-helper';
 
 const NEXT =
   'Use Update branch. Auto-update skips release-please pull requests, and release-please only rewrites its branch for a new release.';
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `release-behind-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Release Behind');
-}
 
 const releasePR = {
   forge: 'github',
@@ -65,8 +55,8 @@ const snapshot = () =>
   });
 
 test.describe('a behind release-please pull request (#1104)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   test('offers Update branch, and Merge says why it is waiting', async ({

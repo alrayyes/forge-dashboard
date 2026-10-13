@@ -1,13 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-} from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
 import { rateLimit } from './severity-stand-in';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 interface MockPR {
   forge: string;
@@ -35,21 +34,6 @@ interface MockForge {
     resetsAt: string;
     severity: string;
   };
-}
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `pr-merge-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'PR Merge Test User',
-  );
 }
 
 function makePR(overrides?: Partial<MockPR>): MockPR {
@@ -108,8 +92,8 @@ const mergeButton = (row: Locator) =>
   row.getByRole('button', { name: 'Merge', exact: true });
 
 test.describe('pull request merge button', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   test('a mergeable pull request shows a Merge button', async ({ page }) => {
@@ -881,6 +865,20 @@ test.describe('pull request merge button', () => {
         page,
         [{ forge: 'github', reachable: true, repoCount: 2 }],
         [first, second],
+      );
+      // The force refresh below answers the same board, so it never reaches the
+      // real server (which has nothing to refresh for this user).
+      await page.route('**/api/dashboard/refresh', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            pullRequests: [first, second],
+            issues: [],
+          }),
+        }),
       );
       await page.route('**/api/pull-requests/merge', (route) =>
         route.fulfill({
