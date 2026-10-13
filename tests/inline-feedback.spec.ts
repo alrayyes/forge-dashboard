@@ -157,6 +157,8 @@ async function setup(
   );
   // Installed before the reload so the page's timers run on the fake clock; a
   // test then moves time with page.clock.runFor instead of sleeping (#1378).
+  // Don't combine this with a spec's own Date.now script (addInitScript): the
+  // order they install in would matter.
   if (opts.fakeClock) await page.clock.install();
   await page.reload();
   return mocks;
@@ -244,7 +246,10 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await expect(toast).toBeVisible();
 
     await page.mouse.move(5, 5);
-    await page.clock.runFor(7000);
+    // Still there after 4.5 s, so it doesn't vanish early, and gone by 7 s.
+    await page.clock.runFor(4500);
+    await expect(toast).toBeVisible();
+    await page.clock.runFor(2500);
     await expect(toast).toBeHidden();
   });
 
