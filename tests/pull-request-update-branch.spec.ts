@@ -97,14 +97,17 @@ function mockDashboardCustom(page: Page, forges: MockForge[], prs: MockPR[]) {
 
 test.describe('pull request update-branch button', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/pull-requests.html');
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('a pull request reported as behind shows an Update branch button', async ({
     page,
   }) => {
     await mockDashboard(page, makePR({ behind: true }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -120,7 +123,7 @@ test.describe('pull request update-branch button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ mergeStatus: 'unknown', behind: true }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -133,7 +136,7 @@ test.describe('pull request update-branch button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ behind: false }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -151,7 +154,7 @@ test.describe('pull request update-branch button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ behind: true, empty: true }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -170,7 +173,7 @@ test.describe('pull request update-branch button', () => {
       page,
       makePR({ mergeStatus: 'conflicting', behind: true }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
@@ -200,7 +203,7 @@ test.describe('pull request update-branch button', () => {
       page,
       makePR({ mergeStatus: 'conflicting', behind: false }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -218,7 +221,7 @@ test.describe('pull request update-branch button', () => {
       page,
       makePR({ mergeStatus: 'mergeable', behind: true }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
@@ -249,7 +252,7 @@ test.describe('pull request update-branch button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
@@ -288,7 +291,7 @@ test.describe('pull request update-branch button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
@@ -324,7 +327,7 @@ test.describe('pull request update-branch button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
@@ -370,7 +373,7 @@ test.describe('pull request update-branch button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     const refreshResponse = page.waitForResponse('**/api/dashboard/refresh');
@@ -417,7 +420,7 @@ test.describe('pull request update-branch button', () => {
         }),
       });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
@@ -454,7 +457,7 @@ test.describe('pull request update-branch button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
@@ -483,7 +486,7 @@ test.describe('pull request update-branch button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
@@ -536,7 +539,7 @@ test.describe('pull request update-branch button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
@@ -600,7 +603,7 @@ test.describe('pull request update-branch button', () => {
           labels: [{ name: 'autorelease: pending', color: 'fbca04' }],
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(
@@ -612,7 +615,7 @@ test.describe('pull request update-branch button', () => {
       page,
     }) => {
       await mockDashboard(page, makePR({ author: 'dependabot' }));
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(
@@ -624,7 +627,7 @@ test.describe('pull request update-branch button', () => {
       page,
     }) => {
       await mockDashboard(page, makePR({ author: 'renovate[bot]' }));
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(
@@ -634,7 +637,7 @@ test.describe('pull request update-branch button', () => {
 
     test('a non-bot-managed PR still shows Update branch', async ({ page }) => {
       await mockDashboard(page, makePR());
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(
@@ -652,7 +655,7 @@ test.describe('pull request update-branch button', () => {
         [{ forge: 'github', reachable: false, repoCount: 0 }],
         [makePR()],
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(
@@ -678,7 +681,7 @@ test.describe('pull request update-branch button', () => {
         ],
         [makePR()],
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(
@@ -738,7 +741,7 @@ test.describe('pull request update-branch button', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const rows = page.locator('#pr-rows .row');
       await rows.nth(0).getByRole('button', { name: 'Merge' }).click();

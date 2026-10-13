@@ -70,7 +70,10 @@ function mockChecks(page: Page, body: unknown, status = 200) {
 
 test.describe('pull request pipeline checks panel', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/pull-requests.html');
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   // #636: inline on the row itself, not behind "More actions" — a
@@ -80,7 +83,7 @@ test.describe('pull request pipeline checks panel', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -90,7 +93,7 @@ test.describe('pull request pipeline checks panel', () => {
 
   test('a pull request with no CI at all shows no button', async ({ page }) => {
     await mockDashboard(page, 'github', makePR({ ci: 'none' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -121,7 +124,7 @@ test.describe('pull request pipeline checks panel', () => {
       if (req.url().includes('/api/pull-requests/checks'))
         requestURL = req.url();
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Open pipeline' }).click();
@@ -169,7 +172,7 @@ test.describe('pull request pipeline checks panel', () => {
         },
       ],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Open pipeline' }).click();
@@ -206,7 +209,7 @@ test.describe('pull request pipeline checks panel', () => {
         },
       ],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Open pipeline' }).click();
@@ -229,7 +232,7 @@ test.describe('pull request pipeline checks panel', () => {
   }) => {
     await mockDashboard(page, 'github', makePR());
     await mockChecks(page, { checks: [] });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Open pipeline' }).click();
@@ -254,7 +257,7 @@ test.describe('pull request pipeline checks panel', () => {
         { name: 'docs', state: 'failure', url: '', required: false },
       ],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -290,7 +293,7 @@ test.describe('pull request pipeline checks panel', () => {
         { name: 'docs', state: 'failure', url: '', required: false },
       ],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -321,7 +324,7 @@ test.describe('pull request pipeline checks panel', () => {
         { name: 'test', state: 'failure', url: '' },
       ],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -345,7 +348,7 @@ test.describe('pull request pipeline checks panel', () => {
         { name: 'mystery', state: 'success', url: '' },
       ],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -379,7 +382,7 @@ test.describe('pull request pipeline checks panel', () => {
         { name: 'build', state: 'success', url: '', durationSeconds: 42 },
       ],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -418,7 +421,7 @@ test.describe('pull request pipeline checks panel', () => {
       posted = route.request().postDataJSON();
       await route.fulfill({ status: 204 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -473,7 +476,7 @@ test.describe('pull request pipeline checks panel', () => {
             },
       );
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -519,7 +522,7 @@ test.describe('pull request pipeline checks panel', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -548,7 +551,7 @@ test.describe('pull request pipeline checks panel', () => {
     await mockChecks(page, {
       checks: [{ name: 'test', state: 'failure', url: '' }],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -589,7 +592,7 @@ test.describe('pull request pipeline checks panel', () => {
         },
       ],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -631,7 +634,7 @@ test.describe('pull request pipeline checks panel', () => {
         },
       ],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await page
       .locator('#pr-rows .row')
@@ -694,7 +697,7 @@ test.describe('pull request pipeline checks panel', () => {
         }),
       });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Open pipeline' }).click();
@@ -713,7 +716,7 @@ test.describe('pull request pipeline checks panel', () => {
   }) => {
     await mockDashboard(page, 'github', makePR());
     await mockChecks(page, { checks: [] });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     // #636: View pipeline is a plain inline row button now, not a
@@ -734,7 +737,7 @@ test.describe('pull request pipeline checks panel', () => {
   test('the close button closes the panel', async ({ page }) => {
     await mockDashboard(page, 'github', makePR());
     await mockChecks(page, { checks: [] });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Open pipeline' }).click();
@@ -752,7 +755,7 @@ test.describe('pull request pipeline checks panel', () => {
         { name: 'test', state: 'failure', url: 'https://example.com/2' },
       ],
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Open pipeline' }).click();
