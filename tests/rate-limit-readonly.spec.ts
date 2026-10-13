@@ -294,6 +294,9 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await expect(
       row.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);
+    // Absent proves nothing before the page has rendered: wait for the
+    // banner, so the app's timer exists before the clock jumps.
+    await expect(page.locator('#rate-limit-banner')).toBeVisible();
     await page.clock.fastForward(61_000);
 
     await expect(
