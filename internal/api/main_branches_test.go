@@ -23,9 +23,8 @@ type mainBranchesBody struct {
 	} `json:"branches"`
 }
 
-// readMainBranches serves rows from a GitHub source and waits for the first
-// refresh that carries them.
-func readMainBranches(t *testing.T, rows []dashboard.MainBranch) mainBranchesBody {
+// newMainBranchesServer serves rows from a GitHub source for a signed-in user.
+func newMainBranchesServer(t *testing.T, rows []dashboard.MainBranch) (string, *http.Cookie) {
 	t.Helper()
 
 	const token = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
@@ -45,15 +44,74 @@ func readMainBranches(t *testing.T, rows []dashboard.MainBranch) mainBranchesBod
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
+	return srv.URL, cookie
+}
+
+// readMainBranchesFrom reads GET /api/main-branches until it lists want rows.
+func readMainBranchesFrom(t *testing.T, srvURL string, cookie *http.Cookie, want int) mainBranchesBody {
+	t.Helper()
+
 	var body mainBranchesBody
 	require.Eventually(t, func() bool {
-		_, got := record(t, http.MethodGet, srv.URL+"/api/main-branches", cookie)
+		_, got := record(t, http.MethodGet, srvURL+"/api/main-branches", cookie)
 		body = mainBranchesBody{}
 
-		return got.status == http.StatusOK && json.Unmarshal(got.body, &body) == nil && len(body.Branches) == len(rows)
+		return got.status == http.StatusOK && json.Unmarshal(got.body, &body) == nil && len(body.Branches) == want
 	}, 2*time.Second, 10*time.Millisecond)
 
 	return body
+}
+
+// readMainBranches serves rows from a GitHub source and waits for the first
+// refresh that carries them.
+func readMainBranches(t *testing.T, rows []dashboard.MainBranch) mainBranchesBody {
+	t.Helper()
+
+	srvURL, cookie := newMainBranchesServer(t, rows)
+
+	return readMainBranchesFrom(t, srvURL, cookie, len(rows))
+}
+
+// A repo ignored for pull requests leaves Branches, and its failing default
+// branch leaves the nav badge with it: the page and the badge follow the same
+// ignore list as the pull requests page (#1337).
+func TestMainBranches_LeaveOutARepoIgnoredForPullRequests(t *testing.T) {
+	t.Parallel()
+
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{
+		branchRow("acme/kept", dashboard.MainBranchPassed),
+		branchRow("acme/ignored", dashboard.MainBranchFailed),
+	})
+	readMainBranchesFrom(t, srvURL, cookie, 2)
+	resp := postRepoIgnoreAction(t, srvURL, cookie, "acme/ignored", true, false)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	body := readMainBranchesFrom(t, srvURL, cookie, 1)
+
+	require.Len(t, body.Branches, 1)
+	assert.Equal(t, "acme/kept", body.Branches[0].FullName)
+	assert.Equal(t, 1, body.Counts.Total)
+	assert.Equal(t, 0, body.Counts.Failed)
+	assert.Equal(t, map[string]any{"total": 1.0, "failed": 0.0}, navCount(t, fetchDashboard(t, srvURL, cookie), "branches"),
+		"the badge agrees with the page")
+}
+
+// Ignoring only a repo's issues leaves its branch alone: Branches follows the
+// pull request ignore, not the issue one.
+func TestMainBranches_KeepARepoIgnoredOnlyForIssues(t *testing.T) {
+	t.Parallel()
+
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{branchRow("acme/kept", dashboard.MainBranchFailed)})
+	readMainBranchesFrom(t, srvURL, cookie, 1)
+	resp := postRepoIgnoreAction(t, srvURL, cookie, "acme/kept", false, true)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	body := readMainBranchesFrom(t, srvURL, cookie, 1)
+
+	assert.Equal(t, 1, body.Counts.Failed)
+	assert.Equal(t, map[string]any{"total": 1.0, "failed": 1.0}, navCount(t, fetchDashboard(t, srvURL, cookie), "branches"))
 }
 
 func branchRow(repo string, status dashboard.MainBranchStatus) dashboard.MainBranch {
