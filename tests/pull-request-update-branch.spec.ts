@@ -96,6 +96,13 @@ function mockDashboardCustom(page: Page, forges: MockForge[], prs: MockPR[]) {
 }
 
 test.describe('pull request update-branch button', () => {
+  test.beforeEach(async ({ page }) => {
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  });
+
   test('a pull request reported as behind shows an Update branch button', async ({
     page,
   }) => {
