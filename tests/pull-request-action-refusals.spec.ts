@@ -215,6 +215,9 @@ function refuse(
   );
 }
 
+// One scan per distinct state (rules/a11y.md), not one per action: the five
+// drivers render the same toast, row feedback and locked button, so the first
+// driver's scan covers the others (#1381).
 async function axeClean(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -267,7 +270,7 @@ for (const d of drivers) {
       await expect(
         row.getByRole('button', { name: d.button, exact: true }),
       ).toHaveCount(0);
-      await axeClean(page);
+      if (d === drivers[0]) await axeClean(page);
     });
 
     test('already_closed: the row reads Closed', async ({ page }) => {
@@ -343,7 +346,7 @@ for (const d of drivers) {
       await expect(
         page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
       ).toBeVisible();
-      await axeClean(page);
+      if (d === drivers[0]) await axeClean(page);
     });
 
     test('permission: locks with no Retry and points to Settings', async ({
@@ -385,7 +388,7 @@ for (const d of drivers) {
       await expect(button).toBeEnabled();
       await expect(button).not.toHaveAttribute('aria-disabled', 'true');
       await expect(page.locator('#feedback-toasts')).toContainText('EOF');
-      await axeClean(page);
+      if (d === drivers[0]) await axeClean(page);
     });
 
     test('a refusal with no code is treated as unknown and never says only "failed"', async ({
@@ -439,7 +442,12 @@ for (const d of drivers) {
           await expect(button).toHaveAttribute('aria-disabled', 'true');
           await expect(button).toHaveAccessibleDescription(specific.message);
         }
-        await axeClean(page);
+        // The Retry variant and the disabled-button variant are two states.
+        if (
+          d ===
+          drivers.find((x) => x.specific && !!x.retryOnLock === !!d.retryOnLock)
+        )
+          await axeClean(page);
       });
     }
   });
