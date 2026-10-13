@@ -1,13 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
 import { rateLimit } from './severity-stand-in';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #756: while a forge is rate limited (read-only, #755), a behind pull
 // request can queue Update branch (or a bot rebase) to run at the reset. The
@@ -15,15 +14,6 @@ import { rateLimit } from './severity-stand-in';
 // offers the control, shows the queued line with Cancel, lists the item in
 // Activity, and says when it ran or why it didn't. Merge and Close are never
 // queueable.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `queued-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Queued User');
-}
 
 type Queued = {
   id: string;
@@ -137,8 +127,8 @@ const row = (page: Page) => page.locator('#pr-rows .row').first();
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('queue a safe action for the rate limit reset (#756)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   test('a behind pull request on a limited forge offers Queue for the reset, never Merge or Close', async ({
