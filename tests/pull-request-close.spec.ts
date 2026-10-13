@@ -1,28 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `pr-close-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'PR Close Test User',
-  );
-}
+// Every test mocks /api/dashboard and writes nothing per user, so they start
+// from the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 interface MockLabel {
   name: string;
@@ -136,8 +119,8 @@ async function releaseFrames(page: Page) {
 }
 
 test.describe('pull request close button', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/pull-requests.html');
   });
 
   // mergeStatus: 'blocked' throughout — Close is offered regardless of
