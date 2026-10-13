@@ -138,7 +138,7 @@ func TestOptionalCapabilities_CoverEveryOneTheAPIAsksFor(t *testing.T) {
 	}
 
 	for _, asked := range capabilitiesTheAPIAsksFor(t) {
-		assert.Contains(t, known, asked, "the API uses dashboard.%s: add it to optionalCapabilities, as forwarded or as githubOnly (a type that isn't a Source capability needs an exemption here instead)", asked)
+		assert.Contains(t, known, asked, "the API uses dashboard.%s: add it to optionalCapabilities, as forwarded or as githubOnly (if it isn't a Source capability, teach collectDashboardTypes to skip it)", asked)
 	}
 }
 
