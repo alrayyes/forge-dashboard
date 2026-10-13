@@ -195,13 +195,17 @@ for (const b of bots) {
       await page.evaluate(
         (data) => {
           const w = window as unknown as { __streams: EventSource[] };
+          // No stream means nothing was delivered, and a check that nothing
+          // changed would pass for that reason.
+          if (w.__streams.length === 0) throw new Error('no stream is open');
           for (const stream of w.__streams)
             stream.onmessage?.(new MessageEvent('message', { data }));
         },
         JSON.stringify(snapshot(pr)),
       );
-      // The handler ran inside evaluate(); two frames later it has rendered,
-      // so a check that something did not change looks at the finished page.
+      // The handler is synchronous, so it finished inside evaluate(). Two
+      // frames let layout settle, so a check that something did not change
+      // looks at the finished page.
       await page.evaluate(
         () =>
           new Promise((r) =>
