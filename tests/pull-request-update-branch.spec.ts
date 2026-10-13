@@ -180,9 +180,9 @@ test.describe('pull request update-branch button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
     const button = row.getByRole('button', { name: 'Update branch' });
     await expect(button).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText('Conflicts need fixing by hand');
 
@@ -630,6 +630,11 @@ test.describe('pull request update-branch button', () => {
       const row = page.locator('#pr-rows .row').first();
       // Wait for the row: a count of zero proves nothing before it renders.
       await expect(row).toBeVisible();
+      // The row is a working one: its own rebase control is in the menu.
+      await row.getByRole('button', { name: 'More actions' }).click();
+      await expect(
+        row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      ).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Update branch' }),
       ).toHaveCount(0);
@@ -645,6 +650,11 @@ test.describe('pull request update-branch button', () => {
       const row = page.locator('#pr-rows .row').first();
       // Wait for the row: a count of zero proves nothing before it renders.
       await expect(row).toBeVisible();
+      // The row is a working one: its own rebase control is in the menu.
+      await row.getByRole('button', { name: 'More actions' }).click();
+      await expect(
+        row.getByRole('button', { name: 'Renovate: Rebase' }),
+      ).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Update branch' }),
       ).toHaveCount(0);
