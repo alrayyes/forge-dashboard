@@ -112,6 +112,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
       0,
     );
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: /Open pipeline/ }),
     ).toBeEnabled();
@@ -301,6 +302,9 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await expect(
       page.locator('#feedback-toasts .feedback-toast'),
     ).toContainText('Rate limit reset, actions available again');
+    await expect(page.locator('#feedback-live')).toHaveText(
+      'Rate limit reset, actions available again',
+    );
     await expect(page.locator('#rate-limit-banner')).toHaveCount(0);
   });
 
