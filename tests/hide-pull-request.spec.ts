@@ -121,7 +121,7 @@ const rows = (page: Page) => page.locator('#pr-rows .row');
 async function open(
   page: Page,
   initial: Record<number, Hidden> = {},
-  fakeClock = false,
+  { fakeClock = false }: { fakeClock?: boolean } = {},
 ) {
   const server = standIn(page, initial);
   await server.install();
@@ -190,7 +190,7 @@ test.describe('hiding one pull request (#841)', () => {
   test('a status message says what was hidden and has a focusable Undo, and it does not go away', async ({
     page,
   }) => {
-    await open(page, {}, true);
+    await open(page, {}, { fakeClock: true });
     const row = await menuOf(page, 'Pull request 2');
     await row.getByRole('button', { name: 'Hide this pull request' }).click();
 
@@ -202,6 +202,8 @@ test.describe('hiding one pull request (#841)', () => {
     await expect(undo).toBeFocused();
 
     // Longer than a toast lives (6 s): this message is not a toast and stays.
+    // This moves page timers only: a removal driven by a CSS animation or by a
+    // server push would not be caught by it.
     await page.clock.runFor(10_000);
     await expect(status).toContainText('Hid PR #2');
   });
