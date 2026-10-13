@@ -302,6 +302,8 @@ for (const b of bots) {
 
       // The same expired record on the next snapshot says nothing new.
       await push(page, current);
+      // A negative check: no second toast follows, so there is nothing to wait
+      // on but a short real beat for the snapshot to be handled.
       await page.waitForTimeout(500);
       await expect(toasts).toHaveCount(1);
     });
@@ -311,6 +313,8 @@ for (const b of bots) {
     }) => {
       await request(page);
       await push(page, current);
+      // A negative check: the chip must still be there, so a short real beat
+      // lets the snapshot be handled before looking.
       await page.waitForTimeout(500);
       await expect(label(page)).toHaveText('Rebase requested');
       await expect(
@@ -361,6 +365,8 @@ for (const b of bots) {
       ).toBeDisabled();
 
       release();
+      // Real time on purpose: the held refresh completes in Node after release(),
+      // and the assertion below would pass on the state from before it.
       await page.waitForTimeout(800);
       await expect(label(page)).toHaveText('Rebase requested');
 
@@ -403,8 +409,11 @@ for (const b of bots) {
       await expect(
         page.locator('#feedback-toasts .feedback-toast').first(),
       ).toContainText(`${b.bot} rebase finished.`);
-      // Settled goes by itself, and the row has only its normal actions.
-      await expect(chip(page)).toHaveCount(0, { timeout: 10_000 });
+      // Settled goes by itself after SETTLED_MS, and the row has only its
+      // normal actions. The skew moves Date.now past that, so the next tick
+      // removes it, instead of the test waiting the real four seconds (#1378).
+      await skew(page, 5_000);
+      await expect(chip(page)).toHaveCount(0);
     });
 
     test('a request the server drops (a repo whose CI never restarts) clears Rebasing', async ({
@@ -422,7 +431,8 @@ for (const b of bots) {
       current = { ...current, botRequest: undefined };
       await push(page, current);
       await expect(label(page)).toHaveText('Settled');
-      await expect(chip(page)).toHaveCount(0, { timeout: 10_000 });
+      await skew(page, 5_000);
+      await expect(chip(page)).toHaveCount(0);
       await expect(line(page)).toHaveCount(0);
     });
 
