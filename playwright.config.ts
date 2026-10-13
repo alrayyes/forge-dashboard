@@ -5,11 +5,11 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8080',
   },
-  // CI also writes JUnit XML, which the pages job publishes next to the Go
-  // test results (rules/published-reports.md).
-  reporter: process.env.CI
-    ? [['list'], ['junit', { outputFile: 'e2e.xml' }]]
-    : 'list',
+  // CI runs the suite as shards, each writing a blob report. The final e2e job
+  // merges them into the JUnit XML the pages job publishes next to the Go test
+  // results (rules/published-reports.md): playwright merge-reports --reporter
+  // junit. A blob report also merges into an HTML report if one is ever wanted.
+  reporter: process.env.CI ? [['list'], ['blob']] : 'list',
   // Registers the very first user (who becomes admin) once, before any
   // test file runs — see the file's own header comment for why this
   // can't be a per-file beforeAll.
