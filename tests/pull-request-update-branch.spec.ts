@@ -132,6 +132,8 @@ test.describe('pull request update-branch button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
+    // Wait for the row: a count of zero proves nothing before it renders.
+    await expect(row).toBeVisible();
     await expect(
       row.getByRole('button', { name: 'Update branch' }),
     ).toHaveCount(0);
@@ -150,6 +152,8 @@ test.describe('pull request update-branch button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
+    // Wait for the row: a count of zero proves nothing before it renders.
+    await expect(row).toBeVisible();
     await expect(
       row.getByRole('button', { name: 'Update branch' }),
     ).toHaveCount(0);
@@ -199,6 +203,8 @@ test.describe('pull request update-branch button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
+    // Wait for the row: a count of zero proves nothing before it renders.
+    await expect(row).toBeVisible();
     await expect(
       row.getByRole('button', { name: 'Update branch' }),
     ).toHaveCount(0);
@@ -596,9 +602,12 @@ test.describe('pull request update-branch button', () => {
           labels: [{ name: 'autorelease: pending', color: 'fbca04' }],
         }),
       );
-      await page.goto('/pull-requests.html');
+      // This pull request is on the Releases page, not the main list.
+      await page.goto('/releases.html');
 
       const row = page.locator('#pr-rows .row').first();
+      // Wait for the row: a count of zero proves nothing before it renders.
+      await expect(row).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Update branch' }),
       ).toHaveCount(0);
@@ -608,9 +617,12 @@ test.describe('pull request update-branch button', () => {
       page,
     }) => {
       await mockDashboard(page, makePR({ author: 'dependabot' }));
-      await page.goto('/pull-requests.html');
+      // This pull request is on the Bots page, not the main list.
+      await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
+      // Wait for the row: a count of zero proves nothing before it renders.
+      await expect(row).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Update branch' }),
       ).toHaveCount(0);
@@ -620,9 +632,12 @@ test.describe('pull request update-branch button', () => {
       page,
     }) => {
       await mockDashboard(page, makePR({ author: 'renovate[bot]' }));
-      await page.goto('/pull-requests.html');
+      // This pull request is on the Bots page, not the main list.
+      await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
+      // Wait for the row: a count of zero proves nothing before it renders.
+      await expect(row).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Update branch' }),
       ).toHaveCount(0);
@@ -651,6 +666,8 @@ test.describe('pull request update-branch button', () => {
       await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
+      // Wait for the row: a count of zero proves nothing before it renders.
+      await expect(row).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Update branch', exact: true }),
       ).toHaveCount(0);
@@ -677,6 +694,8 @@ test.describe('pull request update-branch button', () => {
       await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
+      // Wait for the row: a count of zero proves nothing before it renders.
+      await expect(row).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Update branch', exact: true }),
       ).toHaveCount(0);
