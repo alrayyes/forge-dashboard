@@ -120,7 +120,10 @@ async function releaseFrames(page: Page) {
 
 test.describe('pull request close button', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/pull-requests.html');
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   // mergeStatus: 'blocked' throughout — Close is offered regardless of
@@ -131,22 +134,23 @@ test.describe('pull request close button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
-    ).toHaveCount(0);
+    // Wait for the row first: absent proves nothing before it has rendered.
     await expect(
       row.getByRole('button', { name: 'More actions' }),
     ).toBeVisible();
+    await expect(
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
+    ).toHaveCount(0);
   });
 
   test('a pull request that cannot be merged still offers Close in More actions', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(await openClose(row)).toBeVisible();
@@ -167,7 +171,7 @@ test.describe('pull request close button', () => {
       page,
       makePR({ mergeStatus: 'mergeable', empty: true }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(await openClose(row)).not.toHaveClass(/suggested/);
@@ -182,7 +186,7 @@ test.describe('pull request close button', () => {
       closeCalled = true;
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -198,7 +202,7 @@ test.describe('pull request close button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -217,7 +221,7 @@ test.describe('pull request close button', () => {
       closeCalled = true;
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -234,7 +238,7 @@ test.describe('pull request close button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -260,7 +264,7 @@ test.describe('pull request close button', () => {
       closeCalled = true;
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -302,7 +306,7 @@ test.describe('pull request close button', () => {
     // colour, not the real one.
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await mockDashboard(page, makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -338,7 +342,7 @@ test.describe('pull request close button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -362,7 +366,7 @@ test.describe('pull request close button', () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -398,7 +402,7 @@ test.describe('pull request close button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -429,7 +433,7 @@ test.describe('pull request close button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -457,7 +461,7 @@ test.describe('pull request close button', () => {
   }) => {
     await controlFrames(page);
     await mockDashboard(page, makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await holdFrames(page);
@@ -486,7 +490,7 @@ test.describe('pull request close button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
@@ -521,7 +525,7 @@ test.describe('pull request close button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await (await openClose(row)).click();
