@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -27,39 +28,42 @@ type optionalCapability struct {
 	githubOnly bool
 }
 
-func capabilityNamed[T any](name string, githubOnly bool) optionalCapability {
-	return optionalCapability{name: name, githubOnly: githubOnly, has: func(v any) bool {
+func capabilityNamed[T any](githubOnly bool) optionalCapability {
+	return optionalCapability{name: reflect.TypeFor[T]().Name(), githubOnly: githubOnly, has: func(v any) bool {
 		_, ok := v.(T)
 
 		return ok
 	}}
 }
 
-// optionalCapabilities is every optional capability the API asks a Source for.
+// optionalCapabilities is every optional capability the API (or the aggregator,
+// for the ones listed from there) asks a Source for.
 // TestOptionalCapabilities_CoverEveryOneTheAPIAsksFor scans internal/api for
 // them, so a new one fails that test until it is added here, as forwarded or
 // as GitHub-only with its reason.
 var optionalCapabilities = []optionalCapability{
-	capabilityNamed[dashboard.WebhookManager]("WebhookManager", false),
-	capabilityNamed[dashboard.PullRequestMerger]("PullRequestMerger", false),
-	capabilityNamed[dashboard.PullRequestStateReader]("PullRequestStateReader", false),
-	capabilityNamed[dashboard.PullRequestCloser]("PullRequestCloser", false),
-	capabilityNamed[dashboard.ChecksRerunner]("ChecksRerunner", false),
-	capabilityNamed[dashboard.BranchUpdater]("BranchUpdater", false),
-	capabilityNamed[dashboard.PullRequestChecker]("PullRequestChecker", false),
-	capabilityNamed[dashboard.PullRequestLabeler]("PullRequestLabeler", false),
-	capabilityNamed[dashboard.PullRequestBodyEditor]("PullRequestBodyEditor", false),
+	capabilityNamed[dashboard.WebhookManager](false),
+	capabilityNamed[dashboard.PullRequestMerger](false),
+	capabilityNamed[dashboard.PullRequestStateReader](false),
+	capabilityNamed[dashboard.PullRequestCloser](false),
+	capabilityNamed[dashboard.ChecksRerunner](false),
+	capabilityNamed[dashboard.BranchUpdater](false),
+	capabilityNamed[dashboard.PullRequestChecker](false),
+	capabilityNamed[dashboard.PullRequestLabeler](false),
+	capabilityNamed[dashboard.PullRequestBodyEditor](false),
 
 	// GitHub-only by design: Forgejo has no Dependabot, and its auto-merge is
 	// this app's own intent rather than a forge call.
-	capabilityNamed[dashboard.PullRequestCommenter]("PullRequestCommenter", true),
-	capabilityNamed[dashboard.PullRequestAutoMerger]("PullRequestAutoMerger", true),
-	capabilityNamed[dashboard.PullRequestAutoMergeDisabler]("PullRequestAutoMergeDisabler", true),
+	capabilityNamed[dashboard.PullRequestCommenter](true),
+	capabilityNamed[dashboard.PullRequestAutoMerger](true),
+	capabilityNamed[dashboard.PullRequestAutoMergeDisabler](true),
 }
 
 // capabilitiesTheAPIAsksFor is every dashboard.<Name> the non-test code in
-// internal/api uses as the type argument of capabilityOf or guardedAction, or
-// asserts a Source to.
+// internal/api uses as the type argument of capabilityOf or guardedAction,
+// asserts a value to, or names in a type switch. It reads the package by name,
+// so it doesn't see an import alias, a differently named helper, or an
+// assertion made in internal/dashboard (the aggregator's own).
 func capabilitiesTheAPIAsksFor(t *testing.T) []string {
 	t.Helper()
 
@@ -85,7 +89,9 @@ func capabilitiesTheAPIAsksFor(t *testing.T) []string {
 }
 
 // collectDashboardTypes adds to found the dashboard.<Name> types file passes to
-// capabilityOf or guardedAction as a type argument, or asserts a value to.
+// capabilityOf or guardedAction as a type argument, asserts a value to, or
+// names in a type switch. A plain value switch (case dashboard.ActionMerge) is
+// not a type, so only a TypeSwitchStmt's cases are read.
 func collectDashboardTypes(file *ast.File, found map[string]bool) {
 	add := func(e ast.Expr) {
 		if sel, ok := e.(*ast.SelectorExpr); ok {
@@ -102,10 +108,23 @@ func collectDashboardTypes(file *ast.File, found map[string]bool) {
 			}
 		case *ast.TypeAssertExpr:
 			add(node.Type)
+		case *ast.TypeSwitchStmt:
+			addTypeSwitchCases(node, add)
 		}
 
 		return true
 	})
+}
+
+// addTypeSwitchCases passes every type a type switch names to add.
+func addTypeSwitchCases(sw *ast.TypeSwitchStmt, add func(ast.Expr)) {
+	for _, stmt := range sw.Body.List {
+		if clause, ok := stmt.(*ast.CaseClause); ok {
+			for _, e := range clause.List {
+				add(e)
+			}
+		}
+	}
 }
 
 // A capability the API starts asking a Source for has to be added to the list
@@ -119,7 +138,7 @@ func TestOptionalCapabilities_CoverEveryOneTheAPIAsksFor(t *testing.T) {
 	}
 
 	for _, asked := range capabilitiesTheAPIAsksFor(t) {
-		assert.Contains(t, known, asked, "the API asks a Source for dashboard.%s: add it to optionalCapabilities, as forwarded or as githubOnly", asked)
+		assert.Contains(t, known, asked, "the API uses dashboard.%s: add it to optionalCapabilities, as forwarded or as githubOnly (a type that isn't a Source capability needs an exemption here instead)", asked)
 	}
 }
 
