@@ -82,9 +82,15 @@ test.describe('WebMCP get_dashboard tool', () => {
     baseURL,
   }) => {
     // No stub here -- this is the real, current-browser-default case.
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
     await registerAndSignIn(page, request, baseURL);
 
     await expect(page.locator('h1')).toHaveText('Forge Board');
+    expect(
+      errors,
+      'registering threw on a browser without modelContext',
+    ).toEqual([]);
   });
 
   test("get_dashboard's execute() fetches real data through the same /api/dashboard endpoint the page's own poll uses", async ({
