@@ -168,8 +168,8 @@ func (c *Client) addReportedRuns(ctx context.Context, owner, name, sha string, r
 			reported[r.GetName()] = true
 		}
 		if resp.NextPage == 0 {
-			for name := range unfinished {
-				delete(reported, name)
+			for n := range unfinished {
+				delete(reported, n)
 			}
 
 			return nil
@@ -215,11 +215,12 @@ func (c *Client) requiredContextNames(ctx context.Context, cand missingRequiredC
 	protKnown := c.protectionContexts(ctx, cand.owner, cand.name, cand.base, names)
 	rulesKnown := c.rulesetContexts(ctx, cand.owner, cand.name, cand.base, names)
 	answered = protKnown && rulesKnown
-	if !answered || len(names) == 0 {
+	if !answered {
 		// Without the required contexts a rollup that reads SUCCESS beside a
 		// blocked merge is left standing. Logged when the set is fetched, not
-		// on every pull request, so it is once per cache period.
-		slog.Warn("github required checks unreadable or empty; a pending required check can read as passed",
+		// on every pull request, so it is once per cache period. A repo that
+		// is readable and simply requires no checks is not worth a warning.
+		slog.Warn("github required checks unreadable; a pending required check can read as passed",
 			"forge", dashboard.ForgeGitHub, "repo", cand.owner+"/"+cand.name, "base", cand.base,
 			"protectionRead", protKnown, "rulesetsRead", rulesKnown, "contexts", len(names))
 	}
