@@ -220,12 +220,11 @@ function refuse(
 // covers the others for those. The locked button sits in different markup per
 // driver (a menu item, a row button, a bot row), so every driver scans that
 // state once (#1381).
-// The first driver with a specific lock of each kind (Retry, or a disabled
-// button): the one whose scan stands for the rest of that kind.
-function firstOfItsLockKind(d: Driver): boolean {
-  return (
-    d === drivers.find((x) => x.specific && !!x.retryOnLock === !!d.retryOnLock)
-  );
+// The one driver whose specific lock keeps a Retry button: that variant is a
+// state of its own. The disabled-button variant is the rate-limited state,
+// already scanned for every driver.
+function firstRetryLockDriver(d: Driver): boolean {
+  return d === drivers.find((x) => x.specific && x.retryOnLock);
 }
 
 async function axeClean(page: Page) {
@@ -249,6 +248,13 @@ for (const d of drivers) {
       if (d.name === 'Dependabot: Rebase' || d.name === 'Renovate: Rebase')
         await page.goto('/bots.html');
     });
+
+    // The whole set runs for one action: the classification is Go's
+    // (internal/dashboard/action_refusal_test.go) and the rendering is shared,
+    // so the other four get a smoke set that proves each action is wired to it:
+    // already merged, rate limited, unknown (the idle failure path) and its
+    // specific lock (#1380).
+    const fullSet = d === drivers[0];
 
     async function start(page: Page) {
       await mockBoard(page, [makePR(d.pr)]);
@@ -280,57 +286,59 @@ for (const d of drivers) {
       await expect(
         row.getByRole('button', { name: d.button, exact: true }),
       ).toHaveCount(0);
-      if (d === drivers[0]) await axeClean(page);
+      if (fullSet) await axeClean(page);
     });
 
-    test('already_closed: the row reads Closed', async ({ page }) => {
-      await start(page);
-      await refuse(page, d, 409, {
-        error: 'x',
-        code: 'already_closed',
-        message: 'This pull request was closed without merging.',
+    if (fullSet) {
+      test('already_closed: the row reads Closed', async ({ page }) => {
+        await start(page);
+        await refuse(page, d, 409, {
+          error: 'x',
+          code: 'already_closed',
+          message: 'This pull request was closed without merging.',
+        });
+        await page.reload();
+        const row = page.locator('#pr-rows .row').first();
+
+        await d.act(row);
+
+        await expect(row.locator('.row-settled')).toHaveText('Closed');
+        await expect(page.locator('#feedback-toasts')).toContainText(
+          /already closed/i,
+        );
       });
-      await page.reload();
-      const row = page.locator('#pr-rows .row').first();
 
-      await d.act(row);
+      test('an earlier failure line clears once the PR is found merged', async ({
+        page,
+      }) => {
+        await start(page);
+        await refuse(page, d, 502, {
+          error: 'x: EOF',
+          code: 'unknown',
+          message: 'EOF',
+        });
+        await page.reload();
+        const row = page.locator('#pr-rows .row').first();
+        await d.act(row);
+        await expect(row.locator('.row-feedback')).toContainText('EOF');
 
-      await expect(row.locator('.row-settled')).toHaveText('Closed');
-      await expect(page.locator('#feedback-toasts')).toContainText(
-        /already closed/i,
-      );
-    });
+        await page.unroute(d.endpoint);
+        await refuse(page, d, 409, {
+          error: 'x',
+          code: 'already_merged',
+          message: 'This pull request was already merged.',
+        });
+        await (await d.find(row)).click();
+        // Close asks again; the others act straight away.
+        const confirm = row.getByRole('button', {
+          name: 'Confirm close pull request?',
+        });
+        if (await confirm.isVisible()) await confirm.click();
 
-    test('an earlier failure line clears once the PR is found merged', async ({
-      page,
-    }) => {
-      await start(page);
-      await refuse(page, d, 502, {
-        error: 'x: EOF',
-        code: 'unknown',
-        message: 'EOF',
+        await expect(row.locator('.row-settled')).toHaveText('Merged');
+        await expect(row.locator('.row-feedback')).toHaveCount(0);
       });
-      await page.reload();
-      const row = page.locator('#pr-rows .row').first();
-      await d.act(row);
-      await expect(row.locator('.row-feedback')).toContainText('EOF');
-
-      await page.unroute(d.endpoint);
-      await refuse(page, d, 409, {
-        error: 'x',
-        code: 'already_merged',
-        message: 'This pull request was already merged.',
-      });
-      await (await d.find(row)).click();
-      // Close asks again; the others act straight away.
-      const confirm = row.getByRole('button', {
-        name: 'Confirm close pull request?',
-      });
-      if (await confirm.isVisible()) await confirm.click();
-
-      await expect(row.locator('.row-settled')).toHaveText('Merged');
-      await expect(row.locator('.row-feedback')).toHaveCount(0);
-    });
+    }
 
     test('rate_limited: locks with no Retry and says when it resets, from resetsAt', async ({
       page,
@@ -359,25 +367,27 @@ for (const d of drivers) {
       await axeClean(page);
     });
 
-    test('permission: locks with no Retry and points to Settings', async ({
-      page,
-    }) => {
-      await start(page);
-      await refuse(page, d, 403, {
-        error: 'github: Forbidden',
-        code: 'permission',
-        message: 'Missing permission — check your token in Settings.',
+    if (fullSet) {
+      test('permission: locks with no Retry and points to Settings', async ({
+        page,
+      }) => {
+        await start(page);
+        await refuse(page, d, 403, {
+          error: 'github: Forbidden',
+          code: 'permission',
+          message: 'Missing permission — check your token in Settings.',
+        });
+        await page.reload();
+        const row = page.locator('#pr-rows .row').first();
+
+        await d.act(row);
+
+        const button = await d.find(row);
+        await expect(button).toHaveAttribute('aria-disabled', 'true');
+        await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+        await expect(button).toHaveAccessibleDescription(/token in Settings/);
       });
-      await page.reload();
-      const row = page.locator('#pr-rows .row').first();
-
-      await d.act(row);
-
-      const button = await d.find(row);
-      await expect(button).toHaveAttribute('aria-disabled', 'true');
-      await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-      await expect(button).toHaveAccessibleDescription(/token in Settings/);
-    });
+    }
 
     test('unknown: shows the forge text and keeps the action clickable', async ({
       page,
@@ -398,28 +408,30 @@ for (const d of drivers) {
       await expect(button).toBeEnabled();
       await expect(button).not.toHaveAttribute('aria-disabled', 'true');
       await expect(page.locator('#feedback-toasts')).toContainText('EOF');
-      if (d === drivers[0]) await axeClean(page);
+      if (fullSet) await axeClean(page);
     });
 
-    test('a refusal with no code is treated as unknown and never says only "failed"', async ({
-      page,
-    }) => {
-      await start(page);
-      await refuse(page, d, 409, { error: 'x: something the forge said' });
-      await page.reload();
-      const row = page.locator('#pr-rows .row').first();
+    if (fullSet) {
+      test('a refusal with no code is treated as unknown and never says only "failed"', async ({
+        page,
+      }) => {
+        await start(page);
+        await refuse(page, d, 409, { error: 'x: something the forge said' });
+        await page.reload();
+        const row = page.locator('#pr-rows .row').first();
 
-      await d.act(row);
+        await d.act(row);
 
-      // The raw string stays in the server log (#752): one plain sentence.
-      await expect(row.locator('.row-feedback')).toContainText(
-        'The forge refused this action and gave no reason.',
-      );
-      await expect(row.locator('.row-feedback')).not.toContainText(
-        'something the forge said',
-      );
-      await expect(await d.find(row)).toBeEnabled();
-    });
+        // The raw string stays in the server log (#752): one plain sentence.
+        await expect(row.locator('.row-feedback')).toContainText(
+          'The forge refused this action and gave no reason.',
+        );
+        await expect(row.locator('.row-feedback')).not.toContainText(
+          'something the forge said',
+        );
+        await expect(await d.find(row)).toBeEnabled();
+      });
+    }
 
     if (d.specific) {
       const specific = d.specific;
@@ -452,8 +464,8 @@ for (const d of drivers) {
           await expect(button).toHaveAttribute('aria-disabled', 'true');
           await expect(button).toHaveAccessibleDescription(specific.message);
         }
-        // The Retry variant and the disabled-button variant are two states.
-        if (firstOfItsLockKind(d)) await axeClean(page);
+        // Only the Retry variant is a state the other scans don't reach.
+        if (firstRetryLockDriver(d)) await axeClean(page);
       });
     }
   });
