@@ -7,6 +7,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
 // mainBranchView is a default-branch row as the API serves it: the snapshot's
@@ -25,11 +26,20 @@ type mainBranchesResponse struct {
 	Branches    []mainBranchView           `json:"branches"`
 }
 
-// buildMainBranchesResponse orders snap's rows failed first and counts them. A
-// row is never left out, whatever its status: the client filters, and its pill
-// counts then always match what each pill lists.
-func buildMainBranchesResponse(snap dashboard.Snapshot) mainBranchesResponse {
-	rows := slices.Clone(snap.MainBranches)
+// mainBranchRows is snap's default branches without the repos the user ignored
+// for pull requests, so Branches and navCounts.branches follow the same ignore
+// list as the pull requests page (#1337). A repo ignored only for issues stays.
+func (b boardSettings) mainBranchRows(rows []dashboard.MainBranch) []dashboard.MainBranch {
+	return slices.DeleteFunc(slices.Clone(rows), func(r dashboard.MainBranch) bool {
+		return b.ignored[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)].PRs
+	})
+}
+
+// buildMainBranchesResponse orders the rows failed first and counts them. A
+// row the caller passes is never left out, whatever its status: the client
+// filters, and its pill counts then always match what each pill lists.
+func buildMainBranchesResponse(generatedAt time.Time, branches []dashboard.MainBranch) mainBranchesResponse {
+	rows := slices.Clone(branches)
 	dashboard.SortMainBranches(rows)
 
 	views := make([]mainBranchView, 0, len(rows))
@@ -41,7 +51,7 @@ func buildMainBranchesResponse(snap dashboard.Snapshot) mainBranchesResponse {
 	}
 
 	return mainBranchesResponse{
-		GeneratedAt: snap.GeneratedAt,
+		GeneratedAt: generatedAt,
 		Counts:      dashboard.CountMainBranches(rows),
 		Branches:    views,
 	}
@@ -64,6 +74,8 @@ func handleMainBranches(deps Deps) http.HandlerFunc {
 		warmUpAggregator(r.Context(), deps, u.ID, u.Username)
 		deps.Manager.WaitFirstRefresh(r.Context(), u.ID, firstLoadWait)
 
-		writeJSON(w, http.StatusOK, buildMainBranchesResponse(deps.Manager.Get(u.ID)))
+		snap := deps.Manager.Get(u.ID)
+		board := loadBoardSettings(r.Context(), deps.SettingsStore, u.ID)
+		writeJSON(w, http.StatusOK, buildMainBranchesResponse(snap.GeneratedAt, board.mainBranchRows(snap.MainBranches)))
 	}
 }

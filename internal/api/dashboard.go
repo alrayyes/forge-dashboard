@@ -236,7 +236,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap 
 		PullRequests:   pullRequests,
 		Issues:         issues,
 		OpenIssueCount: openIssues,
-		NavCounts:      buildNavCounts(pullRequests, openIssues, snap.MainBranches),
+		NavCounts:      buildNavCounts(pullRequests, openIssues, board.mainBranchRows(snap.MainBranches)),
 		Repos:          board.repoStatuses(snap.Repos),
 		HiddenDrafts:   hiddenDrafts,
 

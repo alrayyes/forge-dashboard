@@ -28,10 +28,11 @@ type navCounts struct {
 
 // buildNavCounts counts what each page shows when it opens. Pull requests leave
 // out ignored repos, drafts and hidden ones, and are split by kind; issues
-// leave out the housekeeping ones. Branches counts every tracked default
-// branch, ignored repos included, exactly as GET /api/main-branches lists them
-// (whether an ignored repo's branch should count is #1337). Show drafts and Show hidden change the list a request
-// gets, not the badge, so it doesn't jump when a toggle flips. A pull
+// leave out the housekeeping ones. Branches counts the default
+// branches it is given, which are the ones GET /api/main-branches lists: a repo
+// ignored for pull requests is left out of both (#1337). Show drafts and Show
+// hidden change the list a request gets, not the badge, so it doesn't jump
+// when a toggle flips. A pull
 // request is failed when its CI is failing; a branch when its default-branch
 // pipeline is. One with no pipeline counts in the total only.
 func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []dashboard.MainBranch) navCounts {
