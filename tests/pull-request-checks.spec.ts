@@ -69,6 +69,13 @@ function mockChecks(page: Page, body: unknown, status = 200) {
 }
 
 test.describe('pull request pipeline checks panel', () => {
+  test.beforeEach(async ({ page }) => {
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  });
+
   // #636: inline on the row itself, not behind "More actions" — a
   // read-only drill-down reached on nearly every row with CI configured,
   // not the rare, mutating kind of action that menu exists for.
