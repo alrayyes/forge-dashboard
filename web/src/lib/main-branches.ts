@@ -57,18 +57,6 @@ export const STATUS_LABEL: Record<MainBranchStatus, string> = {
   none: 'No pipeline',
 };
 
-export const FORGE_LABEL: Record<string, string> = {
-  github: 'GitHub',
-  forgejo: 'Forgejo',
-};
-
-// The .forge-badge modifier for each forge, so this page colours the pill the
-// way the pull requests page does (#1364).
-export const FORGE_CLASS: Record<string, string> = {
-  github: 'gh',
-  forgejo: 'fj',
-};
-
 export function isFiltered(filter: MainBranchFilter): boolean {
   return (
     filter.status !== 'all' || filter.forge !== 'all' || filter.query !== ''

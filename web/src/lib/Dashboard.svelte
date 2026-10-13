@@ -15,6 +15,7 @@
 
   import { onMount } from "svelte";
   import * as Filters from "#lib/filters.js";
+  import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { findAction, type AllowedAction } from "#lib/allowed-actions.js";
@@ -377,14 +378,9 @@
       pending: "Running",
       none: "No checks",
     };
-    const FORGE_LABELS = Filters.FORGE_LABELS;
     const FORGE_SHORT_LABELS: Record<string, string> = {
       github: "GH",
       forgejo: "FJ",
-    };
-    const FORGE_CLASSES: Record<string, string> = {
-      github: "gh",
-      forgejo: "fj",
     };
 
     let lastGeneratedAt: string | null = null;

@@ -99,10 +99,9 @@ export function setPill(state: SharedFilterState, pill: string): void {
     state.pr.quick = pill;
 }
 
-export const FORGE_LABELS: Record<string, string> = {
-  github: 'GitHub',
-  forgejo: 'Forgejo',
-};
+import { FORGE_LABELS } from './forges';
+
+export { FORGE_LABELS };
 // The slice of /api/dashboard's repos[] that a repo group header needs.
 export interface RepoRef {
   forge: string;
