@@ -34,6 +34,10 @@ type requiredChecks struct {
 	complete map[string]struct{}
 	// contexts is each "owner/name@base" branch's required contexts.
 	contexts map[string]requiredContexts
+	// unreadable holds the branches already warned about, so a set that stays
+	// unreadable warns once and not on every cache period (#1387). A branch
+	// leaves it when its set is read in full again.
+	unreadable map[string]struct{}
 }
 
 type requiredContexts struct {
@@ -217,16 +221,43 @@ func (c *Client) requiredContextNames(ctx context.Context, cand missingRequiredC
 	answered = protKnown && rulesKnown
 	if !answered {
 		// Without the required contexts a rollup that reads SUCCESS beside a
-		// blocked merge is left standing. Logged when the set is fetched, not
-		// on every pull request, so it is once per cache period. A repo that
-		// is readable and simply requires no checks is not worth a warning.
-		slog.Warn("github required checks unreadable; a pending required check can read as passed",
-			"forge", dashboard.ForgeGitHub, "repo", cand.owner+"/"+cand.name, "base", cand.base,
-			"protectionRead", protKnown, "rulesetsRead", rulesKnown, "contexts", len(names))
+		// blocked merge is left standing. Warned once per branch until it can
+		// be read again. A repo that is readable and simply requires no checks
+		// is not worth a warning.
+		if c.requiredChecks.firstUnreadable(key) {
+			slog.Warn("github required checks unreadable; a pending required check can read as passed",
+				"forge", dashboard.ForgeGitHub, "repo", cand.owner+"/"+cand.name, "base", cand.base,
+				"protectionRead", protKnown, "rulesetsRead", rulesKnown, "contexts", len(names))
+		}
+	} else {
+		c.requiredChecks.readable(key)
 	}
 	c.requiredChecks.storeContexts(key, names, answered)
 
 	return names, answered
+}
+
+// firstUnreadable records key as unreadable and reports whether this is the
+// first time since it was last readable.
+func (r *requiredChecks) firstUnreadable(key string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, warned := r.unreadable[key]; warned {
+		return false
+	}
+	if r.unreadable == nil {
+		r.unreadable = map[string]struct{}{}
+	}
+	r.unreadable[key] = struct{}{}
+
+	return true
+}
+
+// readable forgets key's unreadable mark, so the next failure warns again.
+func (r *requiredChecks) readable(key string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.unreadable, key)
 }
 
 func (r *requiredChecks) isComplete(sha string) bool {
