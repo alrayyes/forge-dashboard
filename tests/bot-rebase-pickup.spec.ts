@@ -200,6 +200,14 @@ for (const b of bots) {
         },
         JSON.stringify(snapshot(pr)),
       );
+      // The handler ran inside evaluate(); two frames later it has rendered,
+      // so a check that something did not change looks at the finished page.
+      await page.evaluate(
+        () =>
+          new Promise((r) =>
+            requestAnimationFrame(() => requestAnimationFrame(r)),
+          ),
+      );
     }
 
     test('a requested rebase shows a disabled button, what happens next and how long ago', async ({
@@ -302,9 +310,6 @@ for (const b of bots) {
 
       // The same expired record on the next snapshot says nothing new.
       await push(page, current);
-      // A negative check: no second toast follows, so there is nothing to wait
-      // on but a short real beat for the snapshot to be handled.
-      await page.waitForTimeout(500);
       await expect(toasts).toHaveCount(1);
     });
 
@@ -313,9 +318,6 @@ for (const b of bots) {
     }) => {
       await request(page);
       await push(page, current);
-      // A negative check: the chip must still be there, so a short real beat
-      // lets the snapshot be handled before looking.
-      await page.waitForTimeout(500);
       await expect(label(page)).toHaveText('Rebase requested');
       await expect(
         row(page).getByRole('button', { name: 'Rebase requested' }),
