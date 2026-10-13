@@ -359,7 +359,9 @@ jobs:
           name: blob-report-${{ matrix.shard }}
           path: blob-report
           retention-days: 3
-          if-no-files-found: ignore
+          # A shard that passes but wrote no report must not let the merge
+          # below pass on a partial one.
+          if-no-files-found: error
 
   # Lighthouse, not Playwright/axe-core again: performance, best-practices and
   # SEO budgets, none of which axe-core or any other check here covers.
@@ -440,7 +442,13 @@ jobs:
           pattern: blob-report-*
           merge-multiple: true
       - name: merge them into JUnit XML
-        run: PLAYWRIGHT_JUNIT_OUTPUT_FILE=e2e.xml bunx playwright merge-reports --reporter junit ./all-blob-reports
+        run: |
+          reports="$(find all-blob-reports -name '*.zip' | wc -l)"
+          if [ "$reports" -ne 4 ]; then
+            echo "expected 4 blob reports, found $reports"
+            exit 1
+          fi
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE=e2e.xml bunx playwright merge-reports --reporter junit ./all-blob-reports
       - name: upload the e2e JUnit report
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -540,7 +548,7 @@ jobs:
   # `needs:` only resolves within one workflow file, which is why this is a job
   # here rather than a separate workflow.
   pages:
-    needs: [api, test, e2e]
+    needs: [api, test, e2e, lighthouse]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

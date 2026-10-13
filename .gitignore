@@ -66,3 +66,4 @@ CHANGELOG.md
 # Built from CHANGELOG.md by scripts/changelog-json.ts (#813).
 /internal/api/static/changelog.json
 /web/static/changelog.json
+/blob-report/
