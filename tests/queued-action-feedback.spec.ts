@@ -219,7 +219,11 @@ for (const s of scenarios) {
       );
     });
 
-    async function prepare(page: Page, endpointStatus = 204) {
+    async function prepare(
+      page: Page,
+      endpointStatus = 204,
+      fakeClock = false,
+    ) {
       await mockDashboard(page, s.pr);
       let hits = 0;
       // Every snapshot after an accepted Update branch carries the server's
@@ -259,6 +263,10 @@ for (const s of scenarios) {
           body: JSON.stringify(snapshot(served())),
         }),
       );
+      // Installed before the reload so the page's timers run on the fake clock
+      // and a test moves time with runFor instead of sleeping (#1378). The
+      // mock's own 300 ms delay is Node-side real time and isn't affected.
+      if (fakeClock) await page.clock.install();
       await page.reload();
       const row = page.locator('#pr-rows .row').first();
       if (s.openMenu) await openMoreActions(row);
@@ -275,6 +283,8 @@ for (const s of scenarios) {
       const queued = row.getByRole('button', { name: s.queuedLabel });
       await expect(queued).toBeVisible();
       await expect(queued).toBeDisabled();
+      // A negative check: no second request follows. Nothing to wait on, and
+      // the request is a real network call to the mock.
       await page.waitForTimeout(500);
       expect(hits()).toBe(1);
     });
@@ -301,6 +311,8 @@ for (const s of scenarios) {
 
       // The mock holds the response 300ms; the handler re-renders after.
       await expect.poll(hits).toBe(1);
+      // Real time on purpose: the mock holds its response 300 ms in Node, and
+      // the assertions below would pass on the state from before the re-render.
       await page.waitForTimeout(800);
       if (s.openMenu) {
         // The menu closes on the re-render (an open one would hold the
@@ -319,6 +331,7 @@ for (const s of scenarios) {
 
       // Playwright refuses to click an aria-disabled button unless forced.
       await queuedButton().click({ force: true });
+      // A negative check: no second request follows the forced click.
       await page.waitForTimeout(500);
       expect(hits()).toBe(1);
 
@@ -349,7 +362,7 @@ for (const s of scenarios) {
 
     test('the countdown runs down to the real next poll', async ({ page }) => {
       test.skip(!s.awaitsRefresh, 'only Update branch waits on the refresh');
-      const { row } = await prepare(page);
+      const { row } = await prepare(page, 204, true);
       await row.getByRole('button', { name: s.button }).click();
       await expect(chip(page)).toContainText(COUNTDOWN);
 
@@ -357,7 +370,7 @@ for (const s of scenarios) {
       const first = await countdownSeconds(page);
       expect(first).toBeGreaterThan(0);
       expect(first).toBeLessThanOrEqual(30);
-      await page.waitForTimeout(2500);
+      await page.clock.runFor(2500);
       expect(await countdownSeconds(page)).toBeLessThan(first);
     });
 
@@ -379,7 +392,7 @@ for (const s of scenarios) {
     test('the countdown is outside the live region, so it does not chatter', async ({
       page,
     }) => {
-      const { row } = await prepare(page);
+      const { row } = await prepare(page, 204, true);
       await row.getByRole('button', { name: s.button }).click();
 
       const ticking = chip(page).locator(
@@ -392,7 +405,7 @@ for (const s of scenarios) {
       await expect(live).toHaveText(
         `alrayyes/forge-dashboard#42: ${s.announced}`,
       );
-      await page.waitForTimeout(2200);
+      await page.clock.runFor(2200);
       await expect(live).toHaveText(
         `alrayyes/forge-dashboard#42: ${s.announced}`,
       );
@@ -409,6 +422,8 @@ for (const s of scenarios) {
       // The mock holds the response for 300ms; the handler re-renders the
       // board (and Update branch force-refreshes) once it lands.
       await expect.poll(hits).toBe(1);
+      // Real time on purpose: the mock holds its response 300 ms in Node, and
+      // the assertions below would pass on the state from before the re-render.
       await page.waitForTimeout(800);
 
       const fresh = page.locator('#pr-rows .row').first();
@@ -442,12 +457,12 @@ for (const s of scenarios) {
           }
         };
       });
-      const { row } = await prepare(page);
+      const { row } = await prepare(page, 204, true);
       await row.getByRole('button', { name: s.button }).click();
       const line = chip(page).locator('.wait-chip-label');
       await expect(line).toHaveText(s.waiting);
 
-      await page.waitForTimeout(3200);
+      await page.clock.runFor(3200);
       await expect(line).toHaveText(s.waiting);
 
       // A snapshot that doesn't change this pull request's state. A bot
@@ -464,7 +479,7 @@ for (const s of scenarios) {
         },
         JSON.stringify(snapshot(same)),
       );
-      await page.waitForTimeout(1500);
+      await page.clock.runFor(1500);
       await expect(line).toHaveText(s.waiting);
       await expect(
         page.locator('#feedback-toasts .feedback-toast'),
@@ -581,7 +596,8 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
-    // The request is done, but nothing has refreshed yet.
+    // The request is done, but nothing has refreshed yet. A negative check, so
+    // there is no condition to wait on.
     await page.waitForTimeout(500);
     await expect(row.locator('.wait-chip-label')).toHaveText(
       'Rebase requested',
