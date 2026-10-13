@@ -226,6 +226,10 @@ for (const s of scenarios) {
     ) {
       await mockDashboard(page, s.pr);
       let hits = 0;
+      // How many of those responses the mock has sent, and how many force
+      // refreshes it has answered: what a test waits on instead of a sleep.
+      let responded = 0;
+      let refreshed = 0;
       // Every snapshot after an accepted Update branch carries the server's
       // record of it, until the branch is no longer behind (#982).
       let accepted = false;
@@ -243,26 +247,30 @@ for (const s of scenarios) {
         if (endpointStatus === 204 || endpointStatus === 202) accepted = true;
         // Slow enough that the assertions below run while still in flight.
         await new Promise((resolve) => setTimeout(resolve, 300));
-        if (endpointStatus === 204 || endpointStatus === 202)
-          return route.fulfill({ status: endpointStatus });
-        return route.fulfill({
-          status: endpointStatus,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            error: 'github: PUT /x: upstream broke',
-            message: 'upstream broke',
-          }),
-        });
+        if (endpointStatus === 204 || endpointStatus === 202) {
+          await route.fulfill({ status: endpointStatus });
+        } else {
+          await route.fulfill({
+            status: endpointStatus,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              error: 'github: PUT /x: upstream broke',
+              message: 'upstream broke',
+            }),
+          });
+        }
+        responded += 1;
       });
       // The Update branch handler force-refreshes; keep the PR behind so
       // the queued state has to hold across that refresh.
-      await page.route('**/api/dashboard/refresh', (route: Route) =>
-        route.fulfill({
+      await page.route('**/api/dashboard/refresh', async (route: Route) => {
+        await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify(snapshot(served())),
-        }),
-      );
+        });
+        refreshed += 1;
+      });
       // Installed before the reload so the page's timers run on the fake clock
       // and a test moves time with runFor instead of sleeping (#1378). The
       // mock's own 300 ms delay is Node-side real time and isn't affected.
@@ -270,7 +278,31 @@ for (const s of scenarios) {
       await page.reload();
       const row = page.locator('#pr-rows .row').first();
       if (s.openMenu) await openMoreActions(row);
-      return { row, hits: () => hits };
+      return {
+        row,
+        hits: () => hits,
+        responded: () => responded,
+        refreshed: () => refreshed,
+      };
+    }
+
+    // Waits until the mock has answered the request (and, for Update branch, the
+    // force refresh that follows it), then for the page to draw what that
+    // caused: two animation frames. Replaces a fixed sleep (#1378). Not for a
+    // test that installs the fake clock, which fakes animation frames too.
+    async function afterResponseLands(
+      page: Page,
+      mocks: { responded: () => number; refreshed: () => number },
+    ) {
+      await expect.poll(mocks.responded).toBe(1);
+      if (s.awaitsRefresh)
+        await expect.poll(mocks.refreshed).toBeGreaterThan(0);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
     }
 
     test('the button reads Queued… and is disabled right after the click, and only one request is sent', async ({
@@ -295,7 +327,8 @@ for (const s of scenarios) {
     test('the queued button is aria-disabled, keeps focus across the re-render, ignores clicks and passes axe', async ({
       page,
     }) => {
-      const { row, hits } = await prepare(page);
+      const mocks = await prepare(page);
+      const { row, hits } = mocks;
       const button = row.getByRole('button', { name: s.button });
       await button.focus();
       await button.press('Enter');
@@ -311,9 +344,7 @@ for (const s of scenarios) {
 
       // The mock holds the response 300ms; the handler re-renders after.
       await expect.poll(hits).toBe(1);
-      // Real time on purpose: the mock holds its response 300 ms in Node, and
-      // the assertions below would pass on the state from before the re-render.
-      await page.waitForTimeout(800);
+      await afterResponseLands(page, mocks);
       if (s.openMenu) {
         // The menu closes on the re-render (an open one would hold the
         // board back), so focus lands on its trigger, in the same row.
@@ -370,8 +401,15 @@ for (const s of scenarios) {
       const first = await countdownSeconds(page);
       expect(first).toBeGreaterThan(0);
       expect(first).toBeLessThanOrEqual(30);
+      // Far enough from the poll that none fires while the clock runs below.
+      expect(first).toBeGreaterThan(5);
       await page.clock.runFor(2500);
-      expect(await countdownSeconds(page)).toBeLessThan(first);
+      // The clock moved 2.5 s. The text only changes on the one-second tick, so
+      // it fell by one to four seconds depending on where the tick fell: down,
+      // and not by more than the clock moved.
+      const fell = first - (await countdownSeconds(page));
+      expect(fell).toBeGreaterThanOrEqual(1);
+      expect(fell).toBeLessThanOrEqual(4);
     });
 
     test('a toast confirms the request and Activity lists it as queued', async ({
@@ -417,14 +455,13 @@ for (const s of scenarios) {
     test('the queued state survives the re-render that follows the request completing', async ({
       page,
     }) => {
-      const { row, hits } = await prepare(page);
+      const mocks = await prepare(page);
+      const { row, hits } = mocks;
       await row.getByRole('button', { name: s.button }).click();
       // The mock holds the response for 300ms; the handler re-renders the
       // board (and Update branch force-refreshes) once it lands.
       await expect.poll(hits).toBe(1);
-      // Real time on purpose: the mock holds its response 300 ms in Node, and
-      // the assertions below would pass on the state from before the re-render.
-      await page.waitForTimeout(800);
+      await afterResponseLands(page, mocks);
 
       const fresh = page.locator('#pr-rows .row').first();
       if (s.openMenu) await openMoreActions(fresh);
