@@ -119,6 +119,13 @@ async function releaseFrames(page: Page) {
 }
 
 test.describe('pull request close button', () => {
+  test.beforeEach(async ({ page }) => {
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  });
+
   // mergeStatus: 'blocked' throughout — Close is offered regardless of
   // mergeability (a PR that can't be merged is often exactly the one that
   // needs closing), but since #705 only from "More actions": never as a
