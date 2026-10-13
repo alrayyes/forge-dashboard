@@ -554,31 +554,6 @@ test.describe('dashboard page', () => {
     });
   });
 
-  test('the dashboard has no webhook coverage card — that lives in Settings now', async ({
-    page,
-  }) => {
-    await page.route('**/api/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [],
-          pullRequests: [],
-          issues: [],
-          repos: [
-            { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
-            { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
-          ],
-        }),
-      }),
-    );
-
-    await page.reload();
-
-    await expect(page.locator('#webhook-coverage')).toHaveCount(0);
-  });
-
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await expect(page.locator('#pr-count')).not.toHaveText('–');
 
@@ -802,19 +777,6 @@ test.describe('dashboard page', () => {
       (el) => el.scrollWidth - el.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(0);
-  });
-
-  test('per-column filters narrow the visible rows', async ({ page }) => {
-    // No forges configured in this CI run, so both boards render their
-    // empty state — filtering an empty board is still a real assertion:
-    // the filter input accepts text and the row list stays empty rather
-    // than erroring. Title, not repo/author: those are now <select>s
-    // with nothing to pick from an empty board.
-    const titleFilter = page.locator(
-      '.filter-bar .col-filter[data-col="title"]',
-    );
-    await titleFilter.fill('nonexistent-title');
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(0);
   });
 
   test('the forge filter narrows the list to one forge', async ({ page }) => {

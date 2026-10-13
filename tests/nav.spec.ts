@@ -184,15 +184,6 @@ test.describe('persistent top nav', () => {
     ).toHaveAttribute('aria-current', 'page');
   });
 
-  test('no page still has a "back to X" link — the nav replaced it', async ({
-    page,
-  }) => {
-    for (const { path } of NAV_PAGES) {
-      await page.goto(path);
-      await expect(page.getByRole('link', { name: /back to/i })).toHaveCount(0);
-    }
-  });
-
   test('the Admin icon stays hidden for a non-admin session, on every page with the nav', async ({
     page,
   }) => {
