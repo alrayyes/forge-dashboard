@@ -760,6 +760,11 @@ that exist, so a pull request with one of five required checks reported would
 read as passed. The server looks the required checks up only when the combined
 status says success and GitHub still blocks the pull request.
 
+Just after a push, a response from GitHub can briefly show the new head beside
+the finished checks of the previous commit. The server reads the id of the
+commit the checks belong to, and when it isn't the head of the pull request the
+pill stays pending until they agree.
+
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with
 timestamps and colour codes removed, capped at 2,000 characters. Those cost up
