@@ -76,6 +76,8 @@ type Client struct {
 type cachedReview struct {
 	updatedAt time.Time
 	state     *dashboard.ReviewState
+	// comments is the sum of the reviews' inline comments (#1335).
+	comments int
 }
 
 // NewClient returns a Client against instanceURL (e.g.
@@ -680,9 +682,9 @@ func isEmpty(p *gitea.PullRequest) bool {
 // call is made only for non-draft PRs and cached against updated_at: a
 // steady-state refresh costs no extra requests, and each changed PR costs
 // one. A failed call returns nil (unknown) rather than guessing "none".
-func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.PullRequest) *dashboard.ReviewState {
+func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.PullRequest) (*dashboard.ReviewState, int) {
 	if p.Draft {
-		return nil
+		return nil, 0
 	}
 	var updated time.Time
 	if p.Updated != nil {
@@ -694,17 +696,21 @@ func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.P
 	hit, ok := c.reviews[key]
 	c.reviewsMu.Unlock()
 	if ok && hit.updatedAt.Equal(updated) {
-		return hit.state
+		return hit.state, hit.comments
 	}
 
 	reviews, err := c.listReviews(ctx, owner, name, p.Index)
 	if err != nil {
 		slog.Debug("forgejo reviews unavailable", "repo", owner+"/"+name, "pr", p.Index, "err", err)
 
-		return nil
+		return nil, 0
 	}
 
 	approvals, changes := countLatestReviews(reviews)
+	var comments int
+	for _, r := range reviews {
+		comments += r.CodeCommentsCount
+	}
 	requested := len(p.RequestedReviewers) + len(p.RequestedReviewersTeams)
 	state := &dashboard.ReviewState{
 		Decision:           dashboard.DeriveReviewDecision(approvals, changes, requested),
@@ -713,10 +719,10 @@ func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.P
 	}
 
 	c.reviewsMu.Lock()
-	c.reviews[key] = cachedReview{updatedAt: updated, state: state}
+	c.reviews[key] = cachedReview{updatedAt: updated, state: state, comments: comments}
 	c.reviewsMu.Unlock()
 
-	return state
+	return state, comments
 }
 
 // countLatestReviews counts approvals and change requests, taking each
@@ -808,6 +814,8 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		updated = *p.Updated
 	}
 
+	review, reviewComments := c.reviewState(ctx, owner, name, p)
+
 	return dashboard.PullRequest{
 		Forge:                   dashboard.ForgeForgejo,
 		Repo:                    repo,
@@ -836,7 +844,10 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		// state. nil here means "this forge can't say," not "not
 		// enabled."
 		AutoMergeEnabled: nil,
-		Review:           c.reviewState(ctx, owner, name, p),
+		Review:           review,
+		// Forgejo reports no resolved state on a review comment without a call
+		// per review, so unresolvedThreads stays nil (#1335).
+		ReviewComments: reviewComments,
 	}
 }
 

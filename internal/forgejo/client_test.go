@@ -1777,6 +1777,60 @@ func TestListOpenPullRequests_MapsTheRequestedReviewerLogins(t *testing.T) {
 	assert.Equal(t, []string{}, prs[2].RequestedReviewerLogins, "never null: an empty list")
 }
 
+// Forgejo counts review comments (the sum of each review's comments_count, from
+// the reviews call that is already made) but reports no resolved state on a
+// review, so unresolvedThreads is null: unknown, not zero (#1335).
+func TestListOpenPullRequests_CountsReviewCommentsAndLeavesThreadsUnknown(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	first := review("bob", "COMMENT", false, "2026-09-01T00:00:00Z")
+	first["comments_count"] = 3
+	second := review("amy", "REQUEST_CHANGES", false, "2026-09-02T00:00:00Z")
+	second["comments_count"] = 2
+	srv := reviewPRServer(t,
+		[]map[string]any{
+			reviewPR(1, false, "2026-09-02T00:00:00Z"),
+			reviewPR(2, false, "2026-09-02T00:00:00Z"),
+		},
+		map[int][]map[string]any{1: {first, second}, 2: {}},
+		&calls)
+	defer srv.Close()
+
+	prs, err := forgejo.NewClient(srv.URL, "test-token", "").ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 2)
+	assert.Equal(t, 5, prs[0].ReviewComments)
+	assert.Nil(t, prs[0].UnresolvedThreads)
+	assert.Equal(t, 0, prs[1].ReviewComments)
+	assert.Nil(t, prs[1].UnresolvedThreads)
+}
+
+// A cached review state still answers the count: a steady-state refresh makes no
+// extra call and doesn't lose the comments.
+func TestListOpenPullRequests_ReviewCommentsSurviveTheReviewCache(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	rv := review("bob", "COMMENT", false, "2026-09-01T00:00:00Z")
+	rv["comments_count"] = 4
+	srv := reviewPRServer(t,
+		[]map[string]any{reviewPR(1, false, "2026-09-02T00:00:00Z")},
+		map[int][]map[string]any{1: {rv}},
+		&calls)
+	defer srv.Close()
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	_, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+	require.NoError(t, err)
+	prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), calls.Load())
+	assert.Equal(t, 4, prs[0].ReviewComments)
+}
+
 // A pull request carries its base and head branch names and whether it comes
 // from another repository (#860).
 func TestListOpenPullRequests_MapsTheBranchesAndForkFlag(t *testing.T) {

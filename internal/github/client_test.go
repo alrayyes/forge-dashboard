@@ -3419,6 +3419,63 @@ func TestFetch_MapsTheRequestedReviewerLogins(t *testing.T) {
 	assert.Contains(t, seenQuery, "requestedReviewer")
 }
 
+// A pull request counts its review comments and how many review threads are
+// still unresolved (#1335), from the same query, so there is no extra call.
+func TestFetch_MapsReviewCommentsAndUnresolvedThreads(t *testing.T) {
+	t.Parallel()
+
+	node := pullRequestNode("CLEAN")
+	pr := node["pullRequests"].(map[string]any)["nodes"].([]map[string]any)[0]
+	pr["reviewThreads"] = map[string]any{
+		"totalCount": 3,
+		"nodes": []map[string]any{
+			{"isResolved": true, "comments": map[string]any{"totalCount": 4}},
+			{"isResolved": false, "comments": map[string]any{"totalCount": 2}},
+			{"isResolved": false, "comments": map[string]any{"totalCount": 1}},
+		},
+	}
+
+	var seenQuery string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		if q := readGraphQLRequest(t, r).Query; !strings.Contains(q, "compare(") {
+			seenQuery = q
+		}
+		writeJSON(t, w, reposQueryFixture(node))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	got := result.PullRequests[0]
+	assert.Equal(t, 7, got.ReviewComments)
+	require.NotNil(t, got.UnresolvedThreads)
+	assert.Equal(t, 2, *got.UnresolvedThreads)
+	assert.Contains(t, seenQuery, "reviewThreads")
+}
+
+// No review threads is zero comments and zero open threads, never null: GitHub
+// does report resolved state, so "none" is an answer.
+func TestFetch_NoReviewThreadsIsZeroNotUnknown(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, reposQueryFixture(pullRequestNode("CLEAN")))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, 0, result.PullRequests[0].ReviewComments)
+	require.NotNil(t, result.PullRequests[0].UnresolvedThreads)
+	assert.Equal(t, 0, *result.PullRequests[0].UnresolvedThreads)
+}
+
 // A pull request carries its base and head branch names and whether it comes
 // from a fork (#860), the raw facts a stack is worked out from.
 func TestFetch_MapsTheBranchesAndForkFlag(t *testing.T) {

@@ -3802,6 +3802,8 @@ components:
           stackedOn,
           stackChildren,
           requestedReviewerLogins,
+          reviewComments,
+          unresolvedThreads,
           reviewRequestedFromMe,
           empty,
           allowedActions,
@@ -3953,6 +3955,26 @@ components:
             Always present, and empty when nobody was asked. Costs no
             extra request: GitHub returns it with the reviewRequests count
             already queried, Forgejo with the pull request itself.
+        reviewComments:
+          type: integer
+          minimum: 0
+          description: |
+            How many review comments the pull request has (#1335). Ordinary
+            conversation comments are not counted. Always present, and 0 when
+            there are none. On GitHub it is read from the review threads in
+            the pull request query, first 100 threads; on Forgejo it is the sum
+            of each review's comment count, from the reviews call that already
+            feeds `review`, so a draft (which makes no such call) reports 0.
+        unresolvedThreads:
+          oneOf:
+            - type: "null"
+            - type: integer
+              minimum: 0
+          description: |
+            How many review threads are still open, or null when the forge
+            can't say. GitHub always reports it. Forgejo reports no resolved
+            state on a review without a call per review, so it is null there
+            and a client shows the comment count without an open state.
         reviewRequestedFromMe:
           type: boolean
           description: |
