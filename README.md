@@ -755,10 +755,12 @@ API's own per-check entries when a repo (or an older Forgejo instance)
 reports no Actions/Workflow runs at all for that commit.
 
 On GitHub, the pill stays pending while a check that branch protection or a
-ruleset requires hasn't started. GitHub's combined status only counts checks
-that exist, so a pull request with one of five required checks reported would
-read as passed. The server looks the required checks up only when the combined
-status says success and GitHub still blocks the pull request.
+ruleset requires hasn't finished. GitHub's combined status only counts checks
+that exist, and can read as passed for a moment after a push while the rest of
+the pipeline is still queued, so a pull request with one of five required
+checks reported would read as passed. A required check that is queued or
+running counts as not finished. The server looks the required checks up only
+when the combined status says success and GitHub still blocks the pull request.
 
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with

@@ -121,14 +121,29 @@ func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequired
 	return false, answered
 }
 
-// reportedContexts is every context the head commit has reported: check runs
-// and commit statuses both. A required context can be either (an Actions job,
+// reportedContexts is every context the head commit has reported a result for:
+// check runs and commit statuses both. A run that is queued or in progress, or
+// a status still pending, has not reported yet: GitHub's rollup can read SUCCESS
+// for a moment after a push while the required jobs are still waiting (#1311).
+// The list returns the latest run of each name, so a rerun is judged by its own
+// state. A required context can be either (an Actions job,
 // or codecov/patch beside it), and listChecksForSHA reads statuses only when
 // there are no check runs at all, which is right for a list of jobs but would
 // call a reported status missing here.
 func (c *Client) reportedContexts(ctx context.Context, owner, name, sha string) (map[string]bool, error) {
 	reported := map[string]bool{}
+	if err := c.addReportedRuns(ctx, owner, name, sha, reported); err != nil {
+		return nil, err
+	}
+	if err := c.addReportedStatuses(ctx, owner, name, sha, reported); err != nil {
+		return nil, err
+	}
 
+	return reported, nil
+}
+
+// addReportedRuns marks every completed check run of the commit as reported.
+func (c *Client) addReportedRuns(ctx context.Context, owner, name, sha string, reported map[string]bool) error {
 	runsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
 	runOpts := &ghsdk.ListCheckRunsOptions{}
 	runOpts.PerPage = perPage
@@ -136,36 +151,42 @@ func (c *Client) reportedContexts(ctx context.Context, owner, name, sha string) 
 		slog.Debug("github request", "method", http.MethodGet, "url", runsPath, "page", opts.Page)
 		runs, resp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, opts)
 		if err != nil {
-			return nil, asClientError(c.restError(ctx, http.MethodGet, runsPath, err))
+			return asClientError(c.restError(ctx, http.MethodGet, runsPath, err))
 		}
 		c.recordRESTSuccess(ctx, http.MethodGet, runsPath, resp)
 		for _, r := range runs.CheckRuns {
-			reported[r.GetName()] = true
+			if r.GetStatus() == "completed" {
+				reported[r.GetName()] = true
+			}
 		}
 		if resp.NextPage == 0 {
-			break
+			return nil
 		}
 		opts.Page = resp.NextPage
 	}
+}
 
+// addReportedStatuses marks every commit status that has left pending as
+// reported.
+func (c *Client) addReportedStatuses(ctx context.Context, owner, name, sha string, reported map[string]bool) error {
 	statusPath := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
 	for opts := (&ghsdk.ListOptions{PerPage: perPage}); ; {
 		slog.Debug("github request", "method", http.MethodGet, "url", statusPath, "page", opts.Page)
 		combined, resp, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, opts)
 		if err != nil {
-			return nil, asClientError(c.restError(ctx, http.MethodGet, statusPath, err))
+			return asClientError(c.restError(ctx, http.MethodGet, statusPath, err))
 		}
 		c.recordRESTSuccess(ctx, http.MethodGet, statusPath, resp)
 		for _, s := range combined.Statuses {
-			reported[s.GetContext()] = true
+			if s.GetState() != "pending" {
+				reported[s.GetContext()] = true
+			}
 		}
 		if resp.NextPage == 0 {
-			break
+			return nil
 		}
 		opts.Page = resp.NextPage
 	}
-
-	return reported, nil
 }
 
 // requiredContextNames is the base branch's required contexts, from branch
