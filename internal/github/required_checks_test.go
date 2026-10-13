@@ -21,6 +21,36 @@ import (
 func unreportedChecksServer(t *testing.T, mergeState string, required, reported []string, lookups *atomic.Int32, statuses ...string) *httptest.Server {
 	t.Helper()
 
+	runs := make([]map[string]any, 0, len(reported))
+	for _, name := range reported {
+		runs = append(runs, map[string]any{"name": name, "status": "completed", "conclusion": "success"})
+	}
+
+	return checksServerWithRuns(t, mergeState, required, runs, lookups, statuses...)
+}
+
+// unfinishedRun is a check run that exists but hasn't completed (queued or
+// in_progress), as a push leaves most of a pipeline for a while.
+func unfinishedRun(name, status string) map[string]any {
+	return map[string]any{"name": name, "status": status}
+}
+
+// completedRun is a check run that finished successfully.
+func completedRun(name string) map[string]any {
+	return map[string]any{"name": name, "status": "completed", "conclusion": "success"}
+}
+
+// checksServerWithRuns is unreportedChecksServer with the head commit's check
+// runs given as they are, so a run can be queued or in progress. A status is
+// "context" for a successful one, or "context=pending" for one still pending.
+// GitHub's rollup is SUCCESS: it can lag the runs right after a push.
+func checksServerWithRuns(t *testing.T, mergeState string, required []string, runs []map[string]any, lookups *atomic.Int32, statuses ...string) *httptest.Server {
+	t.Helper()
+	reported := make([]string, 0, len(runs))
+	for _, r := range runs {
+		reported = append(reported, r["name"].(string))
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		body := readGraphQLRequest(t, r)
@@ -63,17 +93,17 @@ func unreportedChecksServer(t *testing.T, mergeState string, required, reported 
 	})
 	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
 		lookups.Add(1)
-		runs := make([]map[string]any, 0, len(reported))
-		for _, name := range reported {
-			runs = append(runs, map[string]any{"name": name, "status": "completed", "conclusion": "success"})
-		}
 		writeJSON(t, w, map[string]any{"total_count": len(runs), "check_runs": runs})
 	})
 
 	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
 		list := make([]map[string]any, 0, len(statuses))
-		for _, name := range statuses {
-			list = append(list, map[string]any{"context": name, "state": "success"})
+		for _, status := range statuses {
+			name, state, _ := strings.Cut(status, "=")
+			if state == "" {
+				state = "success"
+			}
+			list = append(list, map[string]any{"context": name, "state": state})
 		}
 		writeJSON(t, w, map[string]any{"state": "success", "statuses": list})
 	})
@@ -348,4 +378,69 @@ func TestFetch_PartialAnswerServedFromTheCache_StillNeverMarksACommitComplete(t 
 	require.Len(t, third.PullRequests, 1)
 	assert.Equal(t, dashboard.CIPending, third.PullRequests[0].CI,
 		"the cache hit must not have marked the commit complete")
+}
+
+// GitHub's rollup can say SUCCESS for a moment after a push, counting only the
+// jobs that finished. A required check that is queued or running has not
+// reported a result, so the pull request is still pending (#1311).
+func TestFetch_RequiredCheckQueuedOrRunning_IsPending(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []string{"queued", "in_progress"} {
+		t.Run(status, func(t *testing.T) {
+			t.Parallel()
+
+			var lookups atomic.Int32
+			srv := checksServerWithRuns(t, "BLOCKED", []string{"check", "lint", "test"},
+				[]map[string]any{completedRun("check"), unfinishedRun("lint", status), unfinishedRun("test", "queued")}, &lookups)
+
+			result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+			require.Len(t, result.PullRequests, 1)
+			assert.Equal(t, dashboard.CIPending, result.PullRequests[0].CI,
+				"lint is %s, so it has not reported", status)
+		})
+	}
+}
+
+func TestFetch_UnfinishedRequiredCheck_IsNotRememberedAsComplete(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	srv := checksServerWithRuns(t, "BLOCKED", []string{"check", "lint"},
+		[]map[string]any{completedRun("check"), unfinishedRun("lint", "queued")}, &lookups)
+	client := github.NewClient("test-token", "", srv.URL)
+
+	client.Fetch(t.Context())
+	client.Fetch(t.Context())
+
+	assert.EqualValues(t, 2, lookups.Load(), "a commit still waiting on a required check is looked at again")
+}
+
+func TestFetch_RequiredStatusStillPending_IsPending(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	srv := checksServerWithRuns(t, "BLOCKED", []string{"build", "codecov/patch"},
+		[]map[string]any{completedRun("build")}, &lookups, "codecov/patch=pending")
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CIPending, result.PullRequests[0].CI)
+}
+
+// Two workflows can each have a job with the same name. The one that finished
+// must not hide the one still queued.
+func TestFetch_SameNamedRequiredRunStillQueued_IsPending(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	srv := checksServerWithRuns(t, "BLOCKED", []string{"check"},
+		[]map[string]any{completedRun("check"), unfinishedRun("check", "queued")}, &lookups)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CIPending, result.PullRequests[0].CI)
 }
