@@ -311,6 +311,8 @@ for (const s of scenarios) {
 
       // The mock holds the response 300ms; the handler re-renders after.
       await expect.poll(hits).toBe(1);
+      // Real time on purpose: the mock holds its response 300 ms in Node, and
+      // the assertions below would pass on the state from before the re-render.
       await page.waitForTimeout(800);
       if (s.openMenu) {
         // The menu closes on the re-render (an open one would hold the
@@ -329,6 +331,7 @@ for (const s of scenarios) {
 
       // Playwright refuses to click an aria-disabled button unless forced.
       await queuedButton().click({ force: true });
+      // A negative check: no second request follows the forced click.
       await page.waitForTimeout(500);
       expect(hits()).toBe(1);
 
@@ -419,6 +422,8 @@ for (const s of scenarios) {
       // The mock holds the response for 300ms; the handler re-renders the
       // board (and Update branch force-refreshes) once it lands.
       await expect.poll(hits).toBe(1);
+      // Real time on purpose: the mock holds its response 300 ms in Node, and
+      // the assertions below would pass on the state from before the re-render.
       await page.waitForTimeout(800);
 
       const fresh = page.locator('#pr-rows .row').first();
@@ -591,7 +596,8 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
-    // The request is done, but nothing has refreshed yet.
+    // The request is done, but nothing has refreshed yet. A negative check, so
+    // there is no condition to wait on.
     await page.waitForTimeout(500);
     await expect(row.locator('.wait-chip-label')).toHaveText(
       'Rebase requested',
