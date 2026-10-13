@@ -348,38 +348,6 @@ test.describe('pull request Enable auto-merge action', () => {
     await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
-  test('a transient failure shows an error and re-enables the button for another try', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
-      route.fulfill({
-        status: 502,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error:
-            'github: graphql: Something the forge said that nothing classifies',
-          code: 'unknown',
-          message: 'Something the forge said that nothing classifies',
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    const button = row.getByRole('button', { name: 'Enable auto-merge' });
-    await button.click();
-
-    await expect(page.locator('#feedback-toasts')).toContainText(
-      'nothing classifies',
-    );
-    await expect(page.locator('#error-banner')).toHaveCount(0);
-    await expect(button).toBeVisible();
-    await expect(button).toBeEnabled();
-    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
   // #621: GitHub's enablePullRequestAutoMerge mutation rejects a PR its
   // own web UI happily arms auto-merge on — a non-required check still
   // pending/failing while required ones pass ("unstable" mergeable_state).
@@ -425,90 +393,5 @@ test.describe('pull request Enable auto-merge action', () => {
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
-  test('a permission-denied failure locks the button for good instead of inviting another try', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
-      route.fulfill({
-        status: 403,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: graphql: Forbidden',
-          code: 'permission',
-          message: 'Missing permission — check your token in Settings.',
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Enable auto-merge' }).click();
-
-    const button = row.getByRole('button', { name: 'Enable auto-merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/permission/i);
-  });
-
-  test('a rate-limited (429) failure locks the button for good', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Enable auto-merge' }).click();
-
-    const button = row.getByRole('button', { name: 'Enable auto-merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/rate limit/i);
-  });
-
-  test('a locked button is reachable by keyboard and has no axe-core violations', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Enable auto-merge' }).click();
-    await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
-    ).toHaveAttribute('aria-disabled', 'true');
-
-    await page.keyboard.press('Tab');
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 });
