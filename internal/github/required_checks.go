@@ -28,7 +28,9 @@ const partialContextsTTL = time.Minute
 type requiredChecks struct {
 	mu sync.Mutex
 	// complete holds head commits whose required contexts have all reported.
-	// A commit's checks only move forward, so that answer never expires.
+	// A commit's checks mostly move forward, so the answer is kept. A rerun on
+	// the same commit adds a queued run it doesn't see; GitHub's own rollup goes
+	// PENDING for that, so this is best effort for the window where it lags.
 	complete map[string]struct{}
 	// contexts is each "owner/name@base" branch's required contexts.
 	contexts map[string]requiredContexts
@@ -142,8 +144,11 @@ func (c *Client) reportedContexts(ctx context.Context, owner, name, sha string) 
 	return reported, nil
 }
 
-// addReportedRuns marks every completed check run of the commit as reported.
+// addReportedRuns marks a check name as reported when every run of that name on
+// the commit has completed. Two workflows can have a job of the same name, and
+// the one still queued must not be hidden by the one that finished.
 func (c *Client) addReportedRuns(ctx context.Context, owner, name, sha string, reported map[string]bool) error {
+	unfinished := map[string]bool{}
 	runsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
 	runOpts := &ghsdk.ListCheckRunsOptions{}
 	runOpts.PerPage = perPage
@@ -155,11 +160,18 @@ func (c *Client) addReportedRuns(ctx context.Context, owner, name, sha string, r
 		}
 		c.recordRESTSuccess(ctx, http.MethodGet, runsPath, resp)
 		for _, r := range runs.CheckRuns {
-			if r.GetStatus() == "completed" {
-				reported[r.GetName()] = true
+			if r.GetStatus() != "completed" {
+				unfinished[r.GetName()] = true
+
+				continue
 			}
+			reported[r.GetName()] = true
 		}
 		if resp.NextPage == 0 {
+			for name := range unfinished {
+				delete(reported, name)
+			}
+
 			return nil
 		}
 		opts.Page = resp.NextPage
@@ -203,6 +215,14 @@ func (c *Client) requiredContextNames(ctx context.Context, cand missingRequiredC
 	protKnown := c.protectionContexts(ctx, cand.owner, cand.name, cand.base, names)
 	rulesKnown := c.rulesetContexts(ctx, cand.owner, cand.name, cand.base, names)
 	answered = protKnown && rulesKnown
+	if !answered || len(names) == 0 {
+		// Without the required contexts a rollup that reads SUCCESS beside a
+		// blocked merge is left standing. Logged when the set is fetched, not
+		// on every pull request, so it is once per cache period.
+		slog.Warn("github required checks unreadable or empty; a pending required check can read as passed",
+			"forge", dashboard.ForgeGitHub, "repo", cand.owner+"/"+cand.name, "base", cand.base,
+			"protectionRead", protKnown, "rulesetsRead", rulesKnown, "contexts", len(names))
+	}
 	c.requiredChecks.storeContexts(key, names, answered)
 
 	return names, answered

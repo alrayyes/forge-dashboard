@@ -421,8 +421,23 @@ func TestFetch_RequiredStatusStillPending_IsPending(t *testing.T) {
 	t.Parallel()
 
 	var lookups atomic.Int32
-	srv := checksServerWithRuns(t, "BLOCKED", []string{"check", "codecov/patch"},
-		[]map[string]any{completedRun("check")}, &lookups, "codecov/patch=pending")
+	srv := checksServerWithRuns(t, "BLOCKED", []string{"build", "codecov/patch"},
+		[]map[string]any{completedRun("build")}, &lookups, "codecov/patch=pending")
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CIPending, result.PullRequests[0].CI)
+}
+
+// Two workflows can each have a job with the same name. The one that finished
+// must not hide the one still queued.
+func TestFetch_SameNamedRequiredRunStillQueued_IsPending(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	srv := checksServerWithRuns(t, "BLOCKED", []string{"check"},
+		[]map[string]any{completedRun("check"), unfinishedRun("check", "queued")}, &lookups)
 
 	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
 
