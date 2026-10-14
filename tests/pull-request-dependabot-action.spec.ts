@@ -99,16 +99,20 @@ async function openMoreActions(row: Locator) {
 test.describe('pull request Dependabot rebase/recreate buttons', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
-    // Bot pull requests are on the Bots page, not the main list (#1192).
-    await page.goto('/bots.html');
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
     await mockSettings(page);
+    // Each test installs its dashboard mock, then loads the Bots page once:
+    // bot pull requests live there, not on the main list (#1192).
   });
 
   test('a Dependabot-authored GitHub pull request shows both buttons', async ({
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -124,7 +128,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR({ author: 'dependabot[bot]' }));
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -140,7 +144,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR({ author: 'claude' }));
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByRole('button', { name: /Dependabot:/ })).toHaveCount(
@@ -156,7 +160,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       'forgejo',
       makePR({ forge: 'forgejo', author: 'dependabot' }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByRole('button', { name: /Dependabot:/ })).toHaveCount(
@@ -176,18 +180,20 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         return route.fulfill({ status: 204 });
       },
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
-    expect(requestBody).toEqual({
-      forge: 'github',
-      fullName: 'alrayyes/forge-dashboard',
-      number: 42,
-      action: 'rebase',
-    });
+    await expect
+      .poll(() => requestBody)
+      .toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 42,
+        action: 'rebase',
+      });
   });
 
   test('clicking Recreate posts the exact recreate action', async ({
@@ -202,13 +208,13 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         return route.fulfill({ status: 204 });
       },
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Dependabot: Recreate' }).click();
 
-    expect(requestBody).toMatchObject({ action: 'recreate' });
+    await expect.poll(() => requestBody).toMatchObject({ action: 'recreate' });
   });
 
   test('shows a queued status while requesting, which holds until the next refresh', async ({
@@ -222,7 +228,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         return route.fulfill({ status: 204 });
       },
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -277,7 +283,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       }) => {
         await mockDashboard(page, 'github', makePR({ behind }));
         const release = await holdRequest(page);
-        await page.reload();
+        await page.goto('/bots.html');
 
         const row = page.locator('#pr-rows .row').first();
         await openMoreActions(row);
@@ -309,7 +315,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     test('Rebase queued keeps Recreate available', async ({ page }) => {
       await mockDashboard(page, 'github', makePR());
       const release = await holdRequest(page);
-      await page.reload();
+      await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
       await openMoreActions(row);
@@ -366,7 +372,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         '**/api/pull-requests/dependabot-action',
         (route: Route) => route.fulfill({ status: 204 }),
       );
-      await page.reload();
+      await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
       await openMoreActions(row);
@@ -421,7 +427,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -451,7 +457,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -489,7 +495,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         return route.fulfill({ status: 204 });
       },
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -523,7 +529,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -545,7 +551,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       page,
     }) => {
       await mockDashboard(page, 'github', makePR({ behind: true }));
-      await page.reload();
+      await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(
@@ -573,17 +579,19 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
           return route.fulfill({ status: 204 });
         },
       );
-      await page.reload();
+      await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
       await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
-      expect(requestBody).toEqual({
-        forge: 'github',
-        fullName: 'alrayyes/forge-dashboard',
-        number: 42,
-        action: 'rebase',
-      });
+      await expect
+        .poll(() => requestBody)
+        .toEqual({
+          forge: 'github',
+          fullName: 'alrayyes/forge-dashboard',
+          number: 42,
+          action: 'rebase',
+        });
     });
 
     // Mirrors updateBranchActionCell's own empty-pull-request exception
@@ -598,9 +606,10 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         'github',
         makePR({ behind: true, empty: true }),
       );
-      await page.reload();
+      await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
+      await expect(row).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Dependabot: Rebase' }),
       ).toHaveCount(0);
@@ -628,7 +637,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -676,7 +685,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         return route.fulfill({ status: 204 });
       },
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     const rebase = row.getByRole('button', { name: 'Dependabot: Rebase' });
