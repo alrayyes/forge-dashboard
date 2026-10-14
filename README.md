@@ -606,7 +606,12 @@ and `Closing` while the forge answers, `Arming` and `Disarming` for auto-merge,
 and `Waiting for CI` (or `Waiting for parent`, `Rate limited`, `Waiting for
 ready`, `Waiting for forge`, `Merging next`) for an armed auto-merge on either
 forge, with `Disarm`. On GitHub, Disarm turns GitHub's own auto-merge off with
-`disablePullRequestAutoMerge`. When a request ends well the chip reads `Settled`
+`disablePullRequestAutoMerge`. When a pull request goes empty, because its branch
+landed on the base some other way, the app cancels an armed auto-merge on it
+(GitHub's with the same mutation, Forgejo's by dropping its intent) and the
+row's `autoMerge` status says "Auto-merge was cancelled: there is nothing left
+to merge." for ten minutes. A pull request that is not empty, or not armed, is
+never touched. When a request ends well the chip reads `Settled`
 for four seconds and goes. A wait with no change for two minutes reads `Still
 waiting` with `Check again`, which reads the row from the server now. Each
 change is announced once through the polite live region, the ticking age and the
