@@ -452,43 +452,79 @@ header,
   outline-offset: -2px;
 }
 
-/* What each nav item shows (#1315): a neutral total, then a red failed count
-   with a warning glyph. Both are text on their own pill, never colour alone,
-   and aria-hidden: the link's own name says the same in words. */
+/* What each nav item shows (#1315, #1439): one pill, a neutral total, then
+   the counts above zero in triage order, failed, running, passed. Each count
+   has a glyph as well as a number, so colour is never alone, and the whole
+   pill is aria-hidden: the link's own name says the same in words. */
 .nav-pills {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-}
-.nav-total,
-.nav-failed {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 6px;
+  height: 20px;
   box-sizing: border-box;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
+  background: var(--surface-sunken);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
+}
+.nav-total,
+.nav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 100%;
+  padding: 0 6px;
+  box-sizing: border-box;
 }
 .nav-total {
-  background: var(--surface-sunken);
+  min-width: 18px;
   color: var(--ink);
-  border: 1px solid var(--border-strong);
+}
+/* The hairline between the total and the counts, only when there are some. */
+.nav-total:not(:last-child) {
+  border-right: 1px solid var(--border-strong);
+}
+.nav-count {
+  padding: 0 5px;
 }
 .nav-failed {
-  background: var(--critical-bg);
   color: var(--critical);
-  border: 1px solid var(--critical);
 }
-.nav-failed svg {
+.nav-running {
+  color: var(--warning);
+}
+.nav-passed {
+  color: var(--good);
+}
+.nav-count svg {
   flex: none;
+}
+/* A spinner, and under reduced motion a still clock (#1439). */
+.nav-running .glyph-clock {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nav-running .glyph-spin {
+    animation: nav-spin 1.1s linear infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-running .glyph-spin {
+    display: none;
+  }
+  .nav-running .glyph-clock {
+    display: block;
+  }
+}
+@keyframes nav-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* A header item with pills grows to fit them, a pill-shaped button instead of
@@ -499,19 +535,34 @@ header,
   padding: 0 7px 0 9px;
 }
 
-/* On a phone the numbers sit above the icon, so the tab keeps its width. */
+/* On a phone the numbers sit above the icon, so the tab keeps its width. The
+   total takes its own line and the counts wrap beneath it (#1439). */
 .nav-pills.stacked {
   flex-wrap: wrap;
   justify-content: center;
+  height: auto;
   max-width: 100%;
-  gap: 2px;
-}
-.nav-pills.stacked .nav-total,
-.nav-pills.stacked .nav-failed {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
+  border-radius: 8px;
   font-size: 10px;
+}
+.nav-pills.stacked .nav-total {
+  flex: 1 1 100%;
+  height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
+}
+.nav-pills.stacked .nav-total:not(:last-child) {
+  border-right: 0;
+  border-bottom: 1px solid var(--border-strong);
+}
+.nav-pills.stacked .nav-count {
+  height: 15px;
+  padding: 0 2px;
+  gap: 1px;
+}
+.nav-pills.stacked .nav-count svg {
+  width: 8px;
+  height: 8px;
 }
 
 .bottom-nav-label {
