@@ -537,9 +537,12 @@ export function offerPills(
   for (const button of pills) {
     const pill = button.dataset.pill ?? '';
     if (!pill || pill === 'all') continue;
-    const matches = button.classList.contains('forge-pill')
-      ? forgePool.some((item) => item.forge === pill)
-      : quickPool.some((item) => matchesQuickFilter(item, pill));
+    // The bar and the Filters sheet each have a copy, and only the bar's
+    // forge pills carry a class, so a pill is a quick one when it names one
+    // of the quick filters and a forge one otherwise.
+    const matches = (QUICK_FILTERS as readonly string[]).includes(pill)
+      ? quickPool.some((item) => matchesQuickFilter(item, pill))
+      : forgePool.some((item) => item.forge === pill);
     button.hidden = !(matches || pill === active);
   }
 }

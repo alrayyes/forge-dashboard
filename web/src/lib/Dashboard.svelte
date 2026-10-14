@@ -4270,14 +4270,6 @@
           Filters.ciChoices(sharedPoolExcluding("", "applyExceptStatus")),
           sharedState.pr.status,
         );
-      // A quick pill is offered only if clicking it would show something
-      // (#1427); the one active stays.
-      Filters.offerPills(
-        document.querySelectorAll<HTMLElement>(".quick-pill"),
-        forgePillPool(),
-        sharedPoolExcluding("forge", "applyExceptQuick"),
-        Filters.activePill(sharedState),
-      );
       updateGroupByOptions();
       if (staleRepo) sharedState.shared.repo = "";
       if (staleAuthor) sharedState.shared.author = "";
@@ -4294,6 +4286,15 @@
         staleStatus
       )
         Filters.saveState(sharedState);
+      // A quick pill is offered only if clicking it would show something
+      // (#1427); the one active stays. Worked out after the stale picks are
+      // cleared, since the pools are built from what is left.
+      Filters.offerPills(
+        document.querySelectorAll<HTMLElement>(".quick-pill"),
+        forgePillPool(),
+        sharedPoolExcluding("forge", "applyExceptQuick"),
+        Filters.activePill(sharedState),
+      );
     }
 
     // The same control can sit in the bar or in the Filters sheet (#828), so

@@ -170,6 +170,44 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     await expect(pill(page, 'Forgejo')).toBeHidden();
   });
 
+  test('the forge pills in the Filters sheet follow the same rule on a phone', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await open(page, '/pull-requests.html', [
+      pr(1, { ci: 'success' }),
+      pr(2, { ci: 'success' }),
+    ]);
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+
+    await page.getByRole('button', { name: /^Filters/ }).click();
+    const sheet = page.locator('dialog#filter-sheet');
+
+    await expect(sheet.getByRole('button', { name: 'GitHub' })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Forgejo' })).toBeHidden();
+  });
+
+  test('a pill that becomes useful once a pick clears is offered at once', async ({
+    page,
+  }) => {
+    await open(page, '/pull-requests.html', [
+      pr(1, { ci: 'failure', repo: 'alrayyes/app' }),
+      pr(2, { ci: 'success', forge: 'forgejo', repo: 'h/x' }),
+    ]);
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    await page.selectOption('#shared-repo-select', 'forgejo:h/x');
+    // The repo pick leaves only the passing Forgejo pull request.
+    await expect(pill(page, 'Failing CI')).toBeHidden();
+
+    await pill(page, 'GitHub').click();
+
+    // Choosing GitHub clears the Forgejo repo pick, so the failing GitHub pull
+    // request shows, and its pill is offered without another action.
+    await expect(page.locator('#shared-repo-select')).toHaveValue('');
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+    await expect(pill(page, 'Failing CI')).toBeVisible();
+  });
+
   test('has no axe-core violations with pills hidden', async ({ page }) => {
     await open(page, '/pull-requests.html', [pr(1, { ci: 'failure' })]);
     await expect(pill(page, 'Failing CI')).toBeVisible();

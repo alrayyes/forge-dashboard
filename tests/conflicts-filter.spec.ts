@@ -171,6 +171,7 @@ test.describe('Conflicts quick filter (#1215)', () => {
     ]);
     await page.reload();
 
+    await expect(pill(page, 'Conflicts')).toBeVisible();
     await expect(pill(page, 'Conflicts')).toHaveAttribute(
       'aria-pressed',
       'true',
