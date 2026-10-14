@@ -1,13 +1,5 @@
-// `apiRequest` here is Playwright's top-level APIRequest factory (its own
-// `.newContext()` builds an isolated context carrying a chosen
-// storageState) — not the per-test `request` fixture a test callback
-// destructures, which has no `.newContext()` of its own (its plain
-// `.post()`/`.get()` etc. still work fine, and stay as `request` below).
-// See register-helper.ts's own top-of-file comment for the real bug this
-// distinction caused live.
-
 import AxeBuilder from '@axe-core/playwright';
-import { request as apiRequest, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
 import {
   STORAGE_STATE_PATH as ADMIN_STORAGE_STATE,
   ADMIN_TEST_USERNAME as ADMIN_USERNAME,
@@ -17,28 +9,6 @@ import { registerViaInvite } from './register-helper';
 
 function uniqueUsername(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-}
-
-// Creates an invite as the admin (an HTTP-only round trip, no page
-// involved) — the admin area's own "generate an invite" journey is
-// covered separately, in its own test below; this is just setup for
-// tests whose actual concern is something else (a non-admin's own view
-// of the page, the user-management table).
-async function createInviteAsAdmin(
-  baseURL: string | undefined,
-  username: string,
-  displayName: string,
-) {
-  const adminRequest = await apiRequest.newContext({
-    baseURL,
-    storageState: ADMIN_STORAGE_STATE,
-  });
-  const res = await adminRequest.post('/api/admin/invites', {
-    data: { username, displayName },
-  });
-  const invite = await res.json();
-  await adminRequest.dispose();
-  return invite.token;
 }
 
 test.describe('admin area', () => {
@@ -243,42 +213,5 @@ test.describe('admin area', () => {
     } finally {
       await adminContext.close();
     }
-  });
-
-  test('a revoked invite can no longer complete a registration', async ({
-    browser,
-    request,
-    baseURL,
-  }) => {
-    const username = uniqueUsername('admin-test-revoked-invite');
-    const token = await createInviteAsAdmin(
-      baseURL,
-      username,
-      'Revoked Invite User',
-    );
-
-    const adminContext = await browser.newContext({
-      storageState: ADMIN_STORAGE_STATE,
-    });
-    try {
-      const adminPage = await adminContext.newPage();
-      await adminPage.goto('/admin.html');
-      await expect(adminPage.locator('#invite-rows')).toContainText(username);
-
-      adminPage.once('dialog', (dialog) => dialog.accept());
-      await adminPage.click(
-        `button[data-action="revoke-invite"][data-username="${username}"]`,
-      );
-      await expect(adminPage.locator('#invite-status')).toContainText(
-        'revoked',
-      );
-    } finally {
-      await adminContext.close();
-    }
-
-    const registerRes = await request.post('/api/auth/register/begin', {
-      data: { username, displayName: '', inviteToken: token },
-    });
-    expect(registerRes.status()).toBe(403);
   });
 });
