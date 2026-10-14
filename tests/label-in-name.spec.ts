@@ -49,6 +49,17 @@ async function mismatches(page: Page): Promise<string[]> {
         if (!new RegExp(`(^|, )${n} failing`).test(name))
           found.push(`failed "${n}" is not in "${name}"`);
       }
+      // Running and passed counts (#1439), each next to its own word.
+      for (const [selector, word] of [
+        ['.nav-running', 'running'],
+        ['.nav-passed', 'passing'],
+      ] as const) {
+        const count = el.querySelector(selector);
+        if (!count) continue;
+        const n = squash(count.textContent ?? '');
+        if (!new RegExp(`(^|, )${n} ${word}`).test(name))
+          found.push(`${word} "${n}" is not in "${name}"`);
+      }
       if (!visible) continue;
       if (!name.includes(visible))
         found.push(`"${visible}" is not in "${name}"`);
@@ -107,6 +118,22 @@ test.describe('the check itself (#1315)', () => {
 
     expect(await mismatches(page)).toEqual([
       'total "12" is not in "pull requests, 128 total"',
+    ]);
+  });
+
+  test('a running or passing count missing from the name is caught (#1439)', async ({
+    page,
+  }) => {
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a href="#" aria-label="Pull requests, 15 total, 2 failing"><span class="nav-pills"><span class="nav-total">15</span><span class="nav-count nav-failed">2</span><span class="nav-count nav-running">3</span><span class="nav-count nav-passed">10</span></span></a>',
+      );
+    });
+
+    expect(await mismatches(page)).toEqual([
+      'running "3" is not in "pull requests, 15 total, 2 failing"',
+      'passing "10" is not in "pull requests, 15 total, 2 failing"',
     ]);
   });
 

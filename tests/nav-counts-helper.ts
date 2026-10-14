@@ -3,9 +3,13 @@
 // those lists builds the same numbers here so the nav has something to show.
 type Mock = { kind?: string; ci?: string };
 
+// A page with CI counts how many are running (pending), failing and passing
+// (#1439); a pull request with no checks is in the total only.
 const pair = (list: Mock[]) => ({
   total: list.length,
+  running: list.filter((p) => p.ci === 'pending').length,
   failed: list.filter((p) => p.ci === 'failure').length,
+  passed: list.filter((p) => p.ci === 'success').length,
 });
 
 export function navCountsFor(
