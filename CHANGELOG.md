@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.178.0](https://github.com/alrayyes/forge-dashboard/compare/v0.177.0...v0.178.0) (2026-10-14)
+
+
+### Features
+
+* **web:** hide the Pull requests link when there are none ([#1416](https://github.com/alrayyes/forge-dashboard/issues/1416)) ([cb2b446](https://github.com/alrayyes/forge-dashboard/commit/cb2b446efe2ecc576c4517318c4c4dc98d873f0b))
+
 ## [0.177.0](https://github.com/alrayyes/forge-dashboard/compare/v0.176.3...v0.177.0) (2026-10-14)
 
 
