@@ -1,6 +1,7 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { settle } from './settle-helper';
 
 // #809: the page used to hard-code a 30s poll and a 5s force-refresh lock,
 // mirroring the server's config. The server now says how often to read
@@ -52,12 +53,14 @@ test.describe('refresh follows the server (#809)', () => {
     await page.clock.install({ time: new Date() });
     await page.goto('/pull-requests.html');
     await expect.poll(() => reads).toBeGreaterThan(0);
-    await page.waitForTimeout(500);
+    await settle(page);
     // Time stands still from here, so only fastForward moves it.
     await page.clock.pauseAt(new Date(Date.now() + 1_000));
     const base = reads;
 
     await page.clock.fastForward(15_000);
+    // Real time: the clock is paused, so frames don't tick, and an absence
+    // can only be seen by giving a stray read time to reach the route.
     await page.waitForTimeout(200);
     expect(reads).toBe(base);
 

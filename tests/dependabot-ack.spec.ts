@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { settle } from './settle-helper';
 
 // #1082: Dependabot reacts to an `@dependabot rebase` comment with a
 // thumbs-up to say it got the command. The server looks for that reaction and
@@ -206,7 +207,7 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
       if (live) live.textContent = '';
     });
     await push(page, current);
-    await page.waitForTimeout(500);
+    await settle(page);
     await expect(page.locator('#feedback-live')).toHaveText('');
   });
 

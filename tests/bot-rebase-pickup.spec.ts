@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { settle } from './settle-helper';
 
 // #707: after a Dependabot or Renovate rebase request the row says the
 // request went out, that the bot picks it up in its own time, and when it
@@ -370,10 +371,10 @@ for (const b of bots) {
         row(page).getByRole('button', { name: 'Rebase requested' }),
       ).toBeDisabled();
 
+      const answered = page.waitForResponse('**/api/dashboard/refresh');
       release();
-      // Real time on purpose: the held refresh completes in Node after release(),
-      // and the assertion below would pass on the state from before it.
-      await page.waitForTimeout(800);
+      await answered;
+      await settle(page);
       await expect(label(page)).toHaveText('Rebase requested');
 
       // A refresh that starts after the click and shows the bot acted.

@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { settle } from './settle-helper';
 
 // #827, #718: the issues page holds its list steady during a refresh. A
 // snapshot that would add, remove or move rows is held behind an "N updates
@@ -265,7 +266,7 @@ test.describe('steady issues refresh (#827, #718)', () => {
 
     await push(page, BASE);
     await push(page, BASE);
-    await page.waitForTimeout(300);
+    await settle(page);
 
     expect(await tags(page)).toEqual(BASE.map((_, i) => i));
     await expect(bar(page)).toHaveText('');
