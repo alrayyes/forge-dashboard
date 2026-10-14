@@ -53,6 +53,9 @@ function snapshot(prs: Record<string, unknown>[]) {
 }
 
 async function open(page: Page, prs: Record<string, unknown>[]) {
+  // Installed before the reload so the page's timers run on the fake clock; the
+  // tests move time with page.clock.runFor instead of sleeping (#1378).
+  await page.clock.install();
   await page.addInitScript(() => {
     const w = window as unknown as {
       __streams: EventSource[];
@@ -145,7 +148,8 @@ test.describe('a failure line stays until dismissed (#918)', () => {
     ];
     for (const prs of updates) {
       await push(page, prs);
-      await page.waitForTimeout(250);
+      // A quarter second on the page's own timers: nothing may clear the line.
+      await page.clock.runFor(250);
       await expect(line).toBeVisible();
       await expect(line).toContainText('Missing permission');
     }
@@ -168,9 +172,9 @@ test.describe('a failure line stays until dismissed (#918)', () => {
 
     // The row stays on screen (rows don't move until asked), so its line must too.
     await push(page, [pr(603)]);
-    await page.waitForTimeout(300);
+    await page.clock.runFor(300);
     await push(page, both);
-    await page.waitForTimeout(300);
+    await page.clock.runFor(300);
 
     await expect(rowFor(page, 613)).toHaveCount(1);
     await expect(line).toBeVisible();
@@ -187,7 +191,7 @@ test.describe('a failure line stays until dismissed (#918)', () => {
       .click();
     await expect(rowFor(page, 613).locator('.row-feedback-line')).toBeVisible();
     await push(page, both);
-    await page.waitForTimeout(300);
+    await page.clock.runFor(300);
 
     // #613's own Update branch stays locked, with its reason.
     const refused = rowFor(page, 613).getByRole('button', {
@@ -236,7 +240,7 @@ test.describe('a failure line stays until dismissed (#918)', () => {
     await expect(line).toBeVisible();
     await push(page, both);
     await push(page, [pr(613, { ci: 'pending' }), pr(603)]);
-    await page.waitForTimeout(300);
+    await page.clock.runFor(300);
     await expect(line).toBeVisible();
 
     expect(
