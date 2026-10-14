@@ -144,21 +144,46 @@
     );
   }
 
+  function matchesForge(r: Repo): boolean {
+    return !filterForge || r.forge === filterForge;
+  }
+  function matchesName(r: Repo): boolean {
+    return (
+      !filterRepo || r.fullName.toLowerCase().includes(filterRepo.toLowerCase())
+    );
+  }
+  function matchesStatus(r: Repo): boolean {
+    if (filterStatus === "confirmed") return r.hasWebhook;
+    if (filterStatus === "pending") return !r.hasWebhook;
+    return true;
+  }
+
   const filteredRepos = $derived(
-    repos.filter((r) => {
-      if (r.ignored) return false;
-      if (filterForge && r.forge !== filterForge) return false;
-      if (
-        filterRepo &&
-        !r.fullName.toLowerCase().includes(filterRepo.toLowerCase())
-      ) {
-        return false;
-      }
-      if (filterStatus === "confirmed" && !r.hasWebhook) return false;
-      if (filterStatus === "pending" && r.hasWebhook) return false;
-      return true;
-    }),
+    repos.filter(
+      (r) =>
+        !r.ignored && matchesForge(r) && matchesName(r) && matchesStatus(r),
+    ),
   );
+
+  // A filter offers only choices that exist in the results (#1427): the forges
+  // and statuses of the repos every other filter lets through. What is picked
+  // stays in the list even when nothing matches it, so it can be seen and
+  // cleared.
+  const forgeChoices = $derived.by(() => {
+    const found = new Set<string>(filterForge ? [filterForge] : []);
+    for (const r of repos) {
+      if (!r.ignored && matchesName(r) && matchesStatus(r)) found.add(r.forge);
+    }
+    return found;
+  });
+  const statusChoices = $derived.by(() => {
+    const found = new Set<string>(filterStatus ? [filterStatus] : []);
+    for (const r of repos) {
+      if (!r.ignored && matchesForge(r) && matchesName(r))
+        found.add(r.hasWebhook ? "confirmed" : "pending");
+    }
+    return found;
+  });
 
   function sortValue(repo: Repo, key: string): string | number {
     if (key === "hasWebhook") return repo.hasWebhook ? 1 : 0;
@@ -828,36 +853,40 @@
             />
             <span>All</span>
           </label>
-          <label>
-            <input
-              type="radio"
-              name="webhooks-forge"
-              class="webhooks-filter"
-              data-filter="forge"
-              value="github"
-              checked={filterForge === "github"}
-              onchange={() => {
-                filterForge = "github";
-                onFilterChange();
-              }}
-            />
-            <span>GitHub</span>
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="webhooks-forge"
-              class="webhooks-filter"
-              data-filter="forge"
-              value="forgejo"
-              checked={filterForge === "forgejo"}
-              onchange={() => {
-                filterForge = "forgejo";
-                onFilterChange();
-              }}
-            />
-            <span>Forgejo</span>
-          </label>
+          {#if forgeChoices.has("github")}
+            <label>
+              <input
+                type="radio"
+                name="webhooks-forge"
+                class="webhooks-filter"
+                data-filter="forge"
+                value="github"
+                checked={filterForge === "github"}
+                onchange={() => {
+                  filterForge = "github";
+                  onFilterChange();
+                }}
+              />
+              <span>GitHub</span>
+            </label>
+          {/if}
+          {#if forgeChoices.has("forgejo")}
+            <label>
+              <input
+                type="radio"
+                name="webhooks-forge"
+                class="webhooks-filter"
+                data-filter="forge"
+                value="forgejo"
+                checked={filterForge === "forgejo"}
+                onchange={() => {
+                  filterForge = "forgejo";
+                  onFilterChange();
+                }}
+              />
+              <span>Forgejo</span>
+            </label>
+          {/if}
         </fieldset>
         <input
           class="col-filter webhooks-filter"
@@ -879,8 +908,12 @@
           onchange={onFilterChange}
         >
           <option value="">All statuses</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="pending">Not yet</option>
+          {#if statusChoices.has("confirmed")}
+            <option value="confirmed">Confirmed</option>
+          {/if}
+          {#if statusChoices.has("pending")}
+            <option value="pending">Not yet</option>
+          {/if}
         </select>
       </div>
 
