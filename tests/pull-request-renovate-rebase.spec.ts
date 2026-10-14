@@ -155,12 +155,19 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR({ author: 'claude' }));
-    await page.goto('/bots.html');
+    // A human-authored pull request is listed on the main page; the Bots
+    // page never renders it, so a count of 0 there would prove nothing.
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(
-      row.getByRole('button', { name: 'Renovate: Rebase' }),
-    ).toHaveCount(0);
+    await expect(row).toBeVisible();
+    const rebase = row.getByRole('button', { name: 'Renovate: Rebase' });
+    await expect(rebase).toHaveCount(0);
+    const more = row.getByRole('button', { name: 'More actions' });
+    if ((await more.count()) > 0) {
+      await more.click();
+      await expect(rebase).toHaveCount(0);
+    }
   });
 
   test('clicking calls the API immediately, with no confirm step', async ({
