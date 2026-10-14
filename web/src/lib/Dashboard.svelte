@@ -114,6 +114,9 @@
     draft: boolean;
     ci: string;
     mergeStatus: string;
+    // GitHub holds this pull request's workflow runs until someone approves
+    // them (#1280). The server decides; the page only says so.
+    awaitingWorkflowApproval?: boolean;
     autoMergeEnabled: boolean | null;
     behind: boolean;
     empty: boolean;
@@ -603,8 +606,10 @@
       showsMergeButton: boolean,
     ): HTMLElement {
       const status = item.ci;
-      const label =
-        status === "success" && !showsMergeButton
+      const awaiting = item.awaitingWorkflowApproval === true;
+      const label = awaiting
+        ? "Waiting for workflow approval"
+        : status === "success" && !showsMergeButton
           ? "Passed"
           : CI_LABELS[status] || status;
       // No CI, no pipeline to open: a plain badge (#1139).
@@ -616,7 +621,7 @@
       }
       const pill = document.createElement("button");
       pill.type = "button";
-      pill.className = `ci-pill ${status}`;
+      pill.className = `ci-pill ${status}${awaiting ? " awaiting" : ""}`;
       // Given a stable id: openPipelineDialog's "close" handler refocuses
       // it by this id once a later render has rebuilt the row.
       pill.id = `pipeline-trigger-${domSafeId(prKey(item))}`;
@@ -628,6 +633,25 @@
         openPipelineDialog(item);
       });
       return pill;
+    }
+
+    // A link out to the checks page, where GitHub's own button approves the
+    // held runs (#1280). Nothing here approves anything.
+    function approveOnGithubLink(item: PullRequestItem): HTMLElement | null {
+      if (item.awaitingWorkflowApproval !== true) return null;
+      const link = el(
+        "a",
+        "approve-link",
+        "Approve on GitHub",
+      ) as HTMLAnchorElement;
+      link.href = `${item.url.replace(/\/+$/, "")}/checks`;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.setAttribute(
+        "aria-label",
+        "Approve on GitHub (opens the checks page in a new tab)",
+      );
+      return link;
     }
 
     const MERGE_STATUS_LABELS: Record<string, string> = {
@@ -963,6 +987,8 @@
               !mergeAction.classList.contains("row-action-locked"),
           ),
         );
+        const approveLink = approveOnGithubLink(pr);
+        if (approveLink) statusCell.appendChild(approveLink);
         const conflictPill = mergeStatusPill(pr.mergeStatus, pr.ci);
         if (conflictPill) statusCell.appendChild(conflictPill);
         const outOfDatePill = behindPill(pr);
