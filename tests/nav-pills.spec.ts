@@ -359,12 +359,19 @@ test.describe('the real server serves what the nav reads (#1315)', () => {
     const body = await res.json();
 
     expect(res.ok()).toBe(true);
+    // The pull request pages also count running and passed (#1439).
+    const pullRequestPage = {
+      total: expect.any(Number),
+      running: expect.any(Number),
+      failed: expect.any(Number),
+      passed: expect.any(Number),
+    };
     expect(body.navCounts).toEqual({
       branches: { total: expect.any(Number), failed: expect.any(Number) },
-      pullRequests: { total: expect.any(Number), failed: expect.any(Number) },
+      pullRequests: pullRequestPage,
       issues: { total: expect.any(Number) },
-      releases: { total: expect.any(Number), failed: expect.any(Number) },
-      bots: { total: expect.any(Number), failed: expect.any(Number) },
+      releases: pullRequestPage,
+      bots: pullRequestPage,
     });
   });
 
