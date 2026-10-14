@@ -2730,6 +2730,11 @@ footer a.mono:focus-visible {
   color: var(--ink-2);
   cursor: pointer;
 }
+/* A pill nothing would match isn't offered (#1427). */
+.quick-pills .quick-pill[hidden],
+.filter-sheet .quick-pill[hidden] {
+  display: none;
+}
 .quick-pill[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);

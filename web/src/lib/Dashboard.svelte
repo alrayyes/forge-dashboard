@@ -4138,7 +4138,11 @@
     // else has nothing to show.
     function sharedPoolExcluding(
       excludeKey: Filters.PoolKey,
-      board: "ignore" | "apply" | "applyExceptStatus" = "ignore",
+      board:
+        | "ignore"
+        | "apply"
+        | "applyExceptStatus"
+        | "applyExceptQuick" = "ignore",
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -4157,9 +4161,24 @@
             ? {
                 ...sharedState.pr,
                 ...(board === "applyExceptStatus" ? { status: "" } : {}),
+                ...(board === "applyExceptQuick" ? { quick: "" } : {}),
               }
             : undefined
           : sharedState.issue,
+      );
+    }
+
+    // The items a forge pill is worth clicking for (#1427): choosing a forge
+    // clears the repo, author, label and age picks that no longer match, so
+    // only the title (which stays) and the board's own CI filter narrow it.
+    function forgePillPool(): FilterableItem[] {
+      const items: FilterableItem[] = pullsView ? allPRs : allIssues;
+      return Filters.optionPool(
+        items,
+        pullsView,
+        { title: sharedState.shared.title ?? "" },
+        "",
+        pullsView ? { ...sharedState.pr, quick: "" } : sharedState.issue,
       );
     }
 
@@ -4251,6 +4270,14 @@
           Filters.ciChoices(sharedPoolExcluding("", "applyExceptStatus")),
           sharedState.pr.status,
         );
+      // A quick pill is offered only if clicking it would show something
+      // (#1427); the one active stays.
+      Filters.offerPills(
+        document.querySelectorAll<HTMLElement>(".quick-pill"),
+        forgePillPool(),
+        sharedPoolExcluding("forge", "applyExceptQuick"),
+        Filters.activePill(sharedState),
+      );
       updateGroupByOptions();
       if (staleRepo) sharedState.shared.repo = "";
       if (staleAuthor) sharedState.shared.author = "";

@@ -113,7 +113,8 @@ test.describe('Conflicts quick filter (#1215)', () => {
     await mockDashboard(page, MIXED);
     await page.reload();
     await pill(page, 'Conflicts').click();
-    await pill(page, 'Failing CI').click();
+    // Another pill (the forge ones count as pills too) replaces it.
+    await pill(page, 'GitHub').click();
     await expect(pill(page, 'Conflicts')).toHaveAttribute(
       'aria-pressed',
       'false',
@@ -146,18 +147,49 @@ test.describe('Conflicts quick filter (#1215)', () => {
     await expect(rows(page)).toHaveCount(2);
   });
 
-  test('with no conflicting pull request the list says nothing matches', async ({
+  test('when the conflicts clear while the pill is active, the pill stays and the list says nothing matches', async ({
     page,
   }) => {
+    await mockDashboard(page, MIXED);
+    await page.reload();
+    await pill(page, 'Conflicts').click();
+    await expect(rows(page)).toHaveCount(2);
+    // The click saves in the background; wait for it before the data changes.
+    await expect
+      .poll(async () => {
+        const resp = await page.request.get('/api/settings/filter-state');
+        return (await resp.json())?.pr?.quick;
+      })
+      .toBe('conflicting');
+
+    // Nothing conflicts any more. The pill isn't offered to pick, but the
+    // active one stays (#1427), so it can be seen and cleared.
+    await page.unroute('**/api/dashboard*');
     await mockDashboard(page, [
       makePR(2),
       makePR(3, { mergeStatus: 'unknown' }),
     ]);
     await page.reload();
-    await pill(page, 'Conflicts').click();
 
+    await expect(pill(page, 'Conflicts')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     await expect(rows(page)).toHaveCount(0);
     await expect(page.locator('#pr-no-results')).toBeVisible();
+    await pill(page, 'All').click();
+    await expect(rows(page)).toHaveCount(2);
+  });
+
+  test('a pill nothing matches is not offered', async ({ page }) => {
+    await mockDashboard(page, [
+      makePR(2),
+      makePR(3, { mergeStatus: 'unknown' }),
+    ]);
+    await page.reload();
+
+    await expect(pill(page, 'Conflicts')).toBeHidden();
+    await expect(pill(page, 'All')).toBeVisible();
   });
 
   test('has no axe-core violations with the pill active', async ({ page }) => {

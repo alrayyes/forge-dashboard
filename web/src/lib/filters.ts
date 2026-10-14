@@ -520,6 +520,30 @@ export function offerForges(
   }
 }
 
+// Shows a quick pill only when clicking it would show something, or it is the
+// active one, so it can be seen and cleared (#1427). A forge pill matches the
+// items on that forge, any other pill its own rule. "All" always stays.
+// Choosing a forge clears the repo, author, label and age picks it leaves
+// nothing for, so the forge pills count the items those picks would not hide
+// (forgePool); a quick pill keeps them, so it counts what they leave
+// (quickPool). Both leave out the pills themselves, since choosing one
+// replaces the one that was active.
+export function offerPills(
+  pills: Iterable<HTMLElement>,
+  forgePool: FilterableItem[],
+  quickPool: FilterableItem[],
+  active: string,
+): void {
+  for (const button of pills) {
+    const pill = button.dataset.pill ?? '';
+    if (!pill || pill === 'all') continue;
+    const matches = button.classList.contains('forge-pill')
+      ? forgePool.some((item) => item.forge === pill)
+      : quickPool.some((item) => matchesQuickFilter(item, pill));
+    button.hidden = !(matches || pill === active);
+  }
+}
+
 // Title is the one column that's genuinely open-ended free text — the
 // datalist only adds suggestions from what's on screen, it doesn't
 // restrict what can still be typed and substring-matched.
