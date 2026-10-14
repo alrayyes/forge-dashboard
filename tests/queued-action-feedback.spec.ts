@@ -159,6 +159,10 @@ interface Scenario {
   // What the live region says, once.
   announced: string;
   failure: string;
+  // Update branch runs every test below. The bot scenarios run only the
+  // button label, the endpoint and the failure: the rest is the same code
+  // path with different strings (#1380).
+  full: boolean;
 }
 
 const scenarios: Scenario[] = [
@@ -174,6 +178,7 @@ const scenarios: Scenario[] = [
     toast: 'Branch update requested.',
     announced: 'Branch update requested.',
     failure: "Couldn't update the branch: upstream broke",
+    full: true,
   },
   {
     name: 'Dependabot rebase',
@@ -187,6 +192,7 @@ const scenarios: Scenario[] = [
     toast: 'Dependabot rebase requested.',
     announced: 'Dependabot rebase requested.',
     failure: "Couldn't ask Dependabot to rebase: upstream broke",
+    full: false,
   },
   {
     name: 'Renovate rebase',
@@ -200,6 +206,7 @@ const scenarios: Scenario[] = [
     toast: 'Renovate rebase requested.',
     announced: 'Renovate rebase requested.',
     failure: "Couldn't ask Renovate to rebase: upstream broke",
+    full: false,
   },
 ];
 
@@ -305,10 +312,11 @@ for (const s of scenarios) {
       );
     }
 
-    test('the button reads Queued… and is disabled right after the click, and only one request is sent', async ({
+    test('the button reads Queued… and is disabled right after the click, only one request is sent, and a menu closes with focus on its trigger', async ({
       page,
     }) => {
-      const { row, hits } = await prepare(page);
+      const mocks = await prepare(page);
+      const { row, hits } = mocks;
       const button = row.getByRole('button', { name: s.button });
       await button.click();
 
@@ -319,58 +327,62 @@ for (const s of scenarios) {
       // the request is a real network call to the mock.
       await page.waitForTimeout(500);
       expect(hits()).toBe(1);
-    });
 
-    // #690: a native `disabled` button drops focus, so a keyboard or
-    // screen reader user loses their place. The queued button is
-    // aria-disabled instead: still focusable, ignores clicks.
-    test('the queued button is aria-disabled, keeps focus across the re-render, ignores clicks and passes axe', async ({
-      page,
-    }) => {
-      const mocks = await prepare(page);
-      const { row, hits } = mocks;
-      const button = row.getByRole('button', { name: s.button });
-      await button.focus();
-      await button.press('Enter');
-
-      const queuedButton = () =>
-        page
-          .locator('#pr-rows .row')
-          .first()
-          .getByRole('button', { name: s.queuedLabel });
-      await expect(queuedButton()).toHaveAttribute('aria-disabled', 'true');
-      await expect(queuedButton()).not.toHaveAttribute('disabled', /.*/);
-      await expect(queuedButton()).toBeFocused();
-
-      // The mock holds the response 300ms; the handler re-renders after.
-      await expect.poll(hits).toBe(1);
-      await afterResponseLands(page, mocks);
+      // #690: a bot action sits in the More actions menu. Once the request
+      // is answered the board re-renders, the menu closes and focus lands on
+      // its trigger in the same row. Only the bot scenarios have a menu, and
+      // the full-only test below can't prove it for them.
       if (s.openMenu) {
-        // The menu closes on the re-render (an open one would hold the
-        // board back), so focus lands on its trigger, in the same row.
+        await afterResponseLands(page, mocks);
         await expect(
           page
             .locator('#pr-rows .row')
             .first()
             .getByRole('button', { name: 'More actions' }),
         ).toBeFocused();
-        await openMoreActions(page.locator('#pr-rows .row').first());
-      } else {
-        await expect(queuedButton()).toBeFocused();
       }
-      await expect(queuedButton()).toHaveAttribute('aria-disabled', 'true');
-
-      // Playwright refuses to click an aria-disabled button unless forced.
-      await queuedButton().click({ force: true });
-      // A negative check: no second request follows the forced click.
-      await page.waitForTimeout(500);
-      expect(hits()).toBe(1);
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
     });
+
+    if (s.full) {
+      // #690: a native `disabled` button drops focus, so a keyboard or
+      // screen reader user loses their place. The queued button is
+      // aria-disabled instead: still focusable, ignores clicks.
+      test('the queued button is aria-disabled, keeps focus across the re-render, ignores clicks and passes axe', async ({
+        page,
+      }) => {
+        const mocks = await prepare(page);
+        const { row, hits } = mocks;
+        const button = row.getByRole('button', { name: s.button });
+        await button.focus();
+        await button.press('Enter');
+
+        const queuedButton = () =>
+          page
+            .locator('#pr-rows .row')
+            .first()
+            .getByRole('button', { name: s.queuedLabel });
+        await expect(queuedButton()).toHaveAttribute('aria-disabled', 'true');
+        await expect(queuedButton()).not.toHaveAttribute('disabled', /.*/);
+        await expect(queuedButton()).toBeFocused();
+
+        // The mock holds the response 300ms; the handler re-renders after.
+        await expect.poll(hits).toBe(1);
+        await afterResponseLands(page, mocks);
+        await expect(queuedButton()).toBeFocused();
+        await expect(queuedButton()).toHaveAttribute('aria-disabled', 'true');
+
+        // Playwright refuses to click an aria-disabled button unless forced.
+        await queuedButton().click({ force: true });
+        // A negative check: no second request follows the forced click.
+        await page.waitForTimeout(500);
+        expect(hits()).toBe(1);
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
 
     // Update branch waits on the dashboard's own refresh, so its chip counts
     // down to it. A bot rebase waits on the bot, so its chip counts the age.
@@ -391,165 +403,160 @@ for (const s of scenarios) {
       await expect(inline(page)).toHaveCount(0);
     });
 
-    test('the countdown runs down to the real next poll', async ({ page }) => {
-      test.skip(!s.awaitsRefresh, 'only Update branch waits on the refresh');
-      const { row } = await prepare(page, 204, true);
-      await row.getByRole('button', { name: s.button }).click();
-      await expect(chip(page)).toContainText(COUNTDOWN);
+    if (s.full) {
+      test('the countdown runs down to the real next poll', async ({
+        page,
+      }) => {
+        const { row } = await prepare(page, 204, true);
+        await row.getByRole('button', { name: s.button }).click();
+        await expect(chip(page)).toContainText(COUNTDOWN);
 
-      // Derived from the 30s poll cadence, never a hard-coded number.
-      const first = await countdownSeconds(page);
-      expect(first).toBeGreaterThan(0);
-      expect(first).toBeLessThanOrEqual(30);
-      // Far enough from the poll that none fires while the clock runs below.
-      expect(first).toBeGreaterThan(5);
-      await page.clock.runFor(2500);
-      // The clock moved 2.5 s. The text only changes on the one-second tick, so
-      // it fell by one to four seconds depending on where the tick fell: down,
-      // and not by more than the clock moved.
-      const fell = first - (await countdownSeconds(page));
-      expect(fell).toBeGreaterThanOrEqual(1);
-      expect(fell).toBeLessThanOrEqual(4);
-    });
-
-    test('a toast confirms the request and Activity lists it as queued', async ({
-      page,
-    }) => {
-      const { row } = await prepare(page);
-      await row.getByRole('button', { name: s.button }).click();
-
-      const toast = page.locator('#feedback-toasts .feedback-toast').first();
-      await expect(toast).toContainText('alrayyes/forge-dashboard#42');
-      await expect(toast).toContainText(s.toast);
-      await page.locator('#activity-toggle').click();
-      const item = page.locator('#activity-panel .activity-item').first();
-      await expect(item).toContainText('Queued');
-      await expect(item).toContainText(s.toast);
-    });
-
-    test('the countdown is outside the live region, so it does not chatter', async ({
-      page,
-    }) => {
-      const { row } = await prepare(page, 204, true);
-      await row.getByRole('button', { name: s.button }).click();
-
-      const ticking = chip(page).locator(
-        s.awaitsRefresh ? '.feedback-countdown' : '.feedback-requested',
-      );
-      await expect(ticking).toHaveAttribute('aria-hidden', 'true');
-      // The announced text is stable: said once, no digits that change
-      // each second.
-      const live = page.locator('#feedback-live');
-      await expect(live).toHaveText(
-        `alrayyes/forge-dashboard#42: ${s.announced}`,
-      );
-      await page.clock.runFor(2200);
-      await expect(live).toHaveText(
-        `alrayyes/forge-dashboard#42: ${s.announced}`,
-      );
-      await expect(live).not.toContainText(/\d+s/);
-      await expect(live.locator('.feedback-countdown')).toHaveCount(0);
-      await expect(live.locator('.feedback-requested')).toHaveCount(0);
-    });
-
-    test('the queued state survives the re-render that follows the request completing', async ({
-      page,
-    }) => {
-      const mocks = await prepare(page);
-      const { row, hits } = mocks;
-      await row.getByRole('button', { name: s.button }).click();
-      // The mock holds the response for 300ms; the handler re-renders the
-      // board (and Update branch force-refreshes) once it lands.
-      await expect.poll(hits).toBe(1);
-      await afterResponseLands(page, mocks);
-
-      const fresh = page.locator('#pr-rows .row').first();
-      if (s.openMenu) await openMoreActions(fresh);
-      await expect(
-        fresh.getByRole('button', { name: s.queuedLabel }),
-      ).toBeDisabled();
-      await expect(chip(page).locator('.wait-chip-label')).toHaveText(
-        s.waiting,
-      );
-    });
-
-    // #706: the banner used to vanish about a second after the click,
-    // because any snapshot (the live stream pushes one constantly)
-    // cleared a queued bot rebase. It has to hold until a snapshot that
-    // actually reflects the action lands.
-    test('the chip survives well past a second and an unrelated stream push', async ({
-      page,
-    }) => {
-      await page.addInitScript(() => {
-        const w = window as unknown as {
-          __streams: EventSource[];
-          EventSource: typeof EventSource;
-        };
-        w.__streams = [];
-        const Real = w.EventSource;
-        w.EventSource = class extends Real {
-          constructor(url: string | URL, init?: EventSourceInit) {
-            super(url, init);
-            w.__streams.push(this);
-          }
-        };
+        // Derived from the 30s poll cadence, never a hard-coded number.
+        const first = await countdownSeconds(page);
+        expect(first).toBeGreaterThan(0);
+        expect(first).toBeLessThanOrEqual(30);
+        // Far enough from the poll that none fires while the clock runs below.
+        expect(first).toBeGreaterThan(5);
+        await page.clock.runFor(2500);
+        // The clock moved 2.5 s. The text only changes on the one-second tick, so
+        // it fell by one to four seconds depending on where the tick fell: down,
+        // and not by more than the clock moved.
+        const fell = first - (await countdownSeconds(page));
+        expect(fell).toBeGreaterThanOrEqual(1);
+        expect(fell).toBeLessThanOrEqual(4);
       });
-      const { row } = await prepare(page, 204, true);
-      await row.getByRole('button', { name: s.button }).click();
-      const line = chip(page).locator('.wait-chip-label');
-      await expect(line).toHaveText(s.waiting);
 
-      await page.clock.runFor(3200);
-      await expect(line).toHaveText(s.waiting);
+      test('a toast confirms the request and Activity lists it as queued', async ({
+        page,
+      }) => {
+        const { row } = await prepare(page);
+        await row.getByRole('button', { name: s.button }).click();
 
-      // A snapshot that doesn't change this pull request's state. A bot
-      // request is still on the pull request, as the server keeps it.
-      const bot = s.name.split(' ')[0].toLowerCase();
-      const same = s.awaitsRefresh
-        ? withUpdateRequest(s.pr)
-        : { ...s.pr, botRequest: botRequestFor(bot, 'queued') };
-      await page.evaluate(
-        (data) => {
-          const w = window as unknown as { __streams: EventSource[] };
-          for (const stream of w.__streams)
-            stream.onmessage?.(new MessageEvent('message', { data }));
-        },
-        JSON.stringify(snapshot(same)),
-      );
-      await page.clock.runFor(1500);
-      await expect(line).toHaveText(s.waiting);
-      await expect(
-        page.locator('#feedback-toasts .feedback-toast'),
-      ).toHaveCount(1);
-      const fresh = page.locator('#pr-rows .row').first();
-      if (s.openMenu) await openMoreActions(fresh);
-      await expect(
-        fresh.getByRole('button', { name: s.queuedLabel }),
-      ).toBeDisabled();
-    });
-
-    test('the row says Refreshing… rather than vanishing when the countdown hits zero', async ({
-      page,
-    }) => {
-      test.skip(!s.awaitsRefresh, 'only Update branch waits on the refresh');
-      await page.addInitScript(() => {
-        const w = window as unknown as { __skew: number };
-        w.__skew = 0;
-        const real = Date.now.bind(Date);
-        Date.now = () => real() + w.__skew;
+        const toast = page.locator('#feedback-toasts .feedback-toast').first();
+        await expect(toast).toContainText('alrayyes/forge-dashboard#42');
+        await expect(toast).toContainText(s.toast);
+        await page.locator('#activity-toggle').click();
+        const item = page.locator('#activity-panel .activity-item').first();
+        await expect(item).toContainText('Queued');
+        await expect(item).toContainText(s.toast);
       });
-      const { row } = await prepare(page);
-      await row.getByRole('button', { name: s.button }).click();
-      const line = chip(page);
-      await expect(line).toContainText(COUNTDOWN);
 
-      await page.evaluate(() => {
-        (window as unknown as { __skew: number }).__skew = 60_000;
+      test('the countdown is outside the live region, so it does not chatter', async ({
+        page,
+      }) => {
+        const { row } = await prepare(page, 204, true);
+        await row.getByRole('button', { name: s.button }).click();
+
+        const ticking = chip(page).locator('.feedback-countdown');
+        await expect(ticking).toHaveAttribute('aria-hidden', 'true');
+        // The announced text is stable: said once, no digits that change
+        // each second.
+        const live = page.locator('#feedback-live');
+        await expect(live).toHaveText(
+          `alrayyes/forge-dashboard#42: ${s.announced}`,
+        );
+        await page.clock.runFor(2200);
+        await expect(live).toHaveText(
+          `alrayyes/forge-dashboard#42: ${s.announced}`,
+        );
+        await expect(live).not.toContainText(/\d+s/);
+        await expect(live.locator('.feedback-countdown')).toHaveCount(0);
+        await expect(live.locator('.feedback-requested')).toHaveCount(0);
       });
-      await expect(line).toContainText('Refreshing…');
-      await expect(line).toContainText(s.waiting);
-      await expect(line).not.toContainText(COUNTDOWN);
-    });
+
+      test('the queued state survives the re-render that follows the request completing', async ({
+        page,
+      }) => {
+        const mocks = await prepare(page);
+        const { row, hits } = mocks;
+        await row.getByRole('button', { name: s.button }).click();
+        // The mock holds the response for 300ms; the handler re-renders the
+        // board (and Update branch force-refreshes) once it lands.
+        await expect.poll(hits).toBe(1);
+        await afterResponseLands(page, mocks);
+
+        const fresh = page.locator('#pr-rows .row').first();
+        await expect(
+          fresh.getByRole('button', { name: s.queuedLabel }),
+        ).toBeDisabled();
+        await expect(chip(page).locator('.wait-chip-label')).toHaveText(
+          s.waiting,
+        );
+      });
+
+      // #706: the banner used to vanish about a second after the click,
+      // because any snapshot (the live stream pushes one constantly)
+      // cleared a queued bot rebase. It has to hold until a snapshot that
+      // actually reflects the action lands.
+      test('the chip survives well past a second and an unrelated stream push', async ({
+        page,
+      }) => {
+        await page.addInitScript(() => {
+          const w = window as unknown as {
+            __streams: EventSource[];
+            EventSource: typeof EventSource;
+          };
+          w.__streams = [];
+          const Real = w.EventSource;
+          w.EventSource = class extends Real {
+            constructor(url: string | URL, init?: EventSourceInit) {
+              super(url, init);
+              w.__streams.push(this);
+            }
+          };
+        });
+        const { row } = await prepare(page, 204, true);
+        await row.getByRole('button', { name: s.button }).click();
+        const line = chip(page).locator('.wait-chip-label');
+        await expect(line).toHaveText(s.waiting);
+
+        await page.clock.runFor(3200);
+        await expect(line).toHaveText(s.waiting);
+
+        // A snapshot that doesn't change this pull request's state. A bot
+        // request is still on the pull request, as the server keeps it.
+        const same = withUpdateRequest(s.pr);
+        await page.evaluate(
+          (data) => {
+            const w = window as unknown as { __streams: EventSource[] };
+            for (const stream of w.__streams)
+              stream.onmessage?.(new MessageEvent('message', { data }));
+          },
+          JSON.stringify(snapshot(same)),
+        );
+        await page.clock.runFor(1500);
+        await expect(line).toHaveText(s.waiting);
+        await expect(
+          page.locator('#feedback-toasts .feedback-toast'),
+        ).toHaveCount(1);
+        const fresh = page.locator('#pr-rows .row').first();
+        await expect(
+          fresh.getByRole('button', { name: s.queuedLabel }),
+        ).toBeDisabled();
+      });
+
+      test('the row says Refreshing… rather than vanishing when the countdown hits zero', async ({
+        page,
+      }) => {
+        await page.addInitScript(() => {
+          const w = window as unknown as { __skew: number };
+          w.__skew = 0;
+          const real = Date.now.bind(Date);
+          Date.now = () => real() + w.__skew;
+        });
+        const { row } = await prepare(page);
+        await row.getByRole('button', { name: s.button }).click();
+        const line = chip(page);
+        await expect(line).toContainText(COUNTDOWN);
+
+        await page.evaluate(() => {
+          (window as unknown as { __skew: number }).__skew = 60_000;
+        });
+        await expect(line).toContainText('Refreshing…');
+        await expect(line).toContainText(s.waiting);
+        await expect(line).not.toContainText(COUNTDOWN);
+      });
+    }
 
     test('a failure re-enables the button, fails the row line and raises an error toast', async ({
       page,
@@ -575,19 +582,21 @@ for (const s of scenarios) {
       await expect(row.getByRole('button', { name: s.button })).toBeEnabled();
     });
 
-    test('has no axe violations while queued', async ({ page }) => {
-      const { row } = await prepare(page);
-      await row.getByRole('button', { name: s.button }).click();
-      await expect(chip(page).locator('.wait-chip-label')).toHaveText(
-        s.waiting,
-      );
-      await page.locator('#activity-toggle').click();
+    if (s.full) {
+      test('has no axe violations while queued', async ({ page }) => {
+        const { row } = await prepare(page);
+        await row.getByRole('button', { name: s.button }).click();
+        await expect(chip(page).locator('.wait-chip-label')).toHaveText(
+          s.waiting,
+        );
+        await page.locator('#activity-toggle').click();
 
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
   });
 }
 
