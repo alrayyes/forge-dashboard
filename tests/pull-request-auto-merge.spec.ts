@@ -90,7 +90,8 @@ test.describe('pull request Enable auto-merge action', () => {
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await page.goto('/pull-requests.html');
+    // Each test installs its mocks, then loads the page once. A goto here would
+    // load it before they exist.
   });
 
   test('a GitHub pull request with checks still pending shows the button — this is the case auto-merge exists for', async ({
@@ -100,7 +101,7 @@ test.describe('pull request Enable auto-merge action', () => {
       page,
       makePR({ mergeStatus: 'blocked', ci: 'pending' }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -115,7 +116,7 @@ test.describe('pull request Enable auto-merge action', () => {
     // The pipeline-analytics#367 shape: a stacked PR on an unprotected
     // base, where GitHub reports viewerCanEnableAutoMerge false.
     await mockDashboard(page, makePR({ autoMergeAllowed: false }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByText('A pull request')).toBeVisible();
@@ -134,7 +135,7 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ autoMergeAllowed: true }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -147,7 +148,7 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ forge: 'forgejo' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -160,7 +161,7 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ autoMergeEnabled: true }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.locator('.merge-pill.auto-merge')).toBeVisible();
@@ -177,7 +178,7 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ mergeStatus: 'conflicting' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expectMenuHoldsOnlyClose(row);
@@ -193,9 +194,12 @@ test.describe('pull request Enable auto-merge action', () => {
       page,
       makePR({ mergeStatus: 'mergeable', ci: 'success', behind: false }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
+    await expect(
+      row.getByRole('button', { name: 'More actions' }),
+    ).toBeVisible();
     await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
@@ -222,17 +226,19 @@ test.describe('pull request Enable auto-merge action', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Enable auto-merge' }).click();
 
-    expect(requestBody).toEqual({
-      forge: 'github',
-      fullName: 'alrayyes/forge-dashboard',
-      number: 42,
-    });
+    await expect
+      .poll(() => requestBody)
+      .toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 42,
+      });
   });
 
   test('the Auto-merge pill appears once enabled, without a page reload', async ({
@@ -254,9 +260,12 @@ test.describe('pull request Enable auto-merge action', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
+    await expect(
+      row.getByRole('button', { name: 'More actions' }),
+    ).toBeVisible();
     await expect(row.locator('.merge-pill.auto-merge')).toHaveCount(0);
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Enable auto-merge' }).click();
@@ -287,7 +296,7 @@ test.describe('pull request Enable auto-merge action', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
