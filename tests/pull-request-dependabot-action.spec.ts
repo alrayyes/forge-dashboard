@@ -144,9 +144,13 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR({ author: 'claude' }));
-    await page.goto('/bots.html');
+    // A human-authored pull request is listed on the main page; the Bots page
+    // never renders it, so a count of 0 there would prove nothing.
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
+    await expect(row).toBeVisible();
+    await openMoreActions(row);
     await expect(row.getByRole('button', { name: /Dependabot:/ })).toHaveCount(
       0,
     );
@@ -162,7 +166,11 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     );
     await page.goto('/bots.html');
 
+    // The row renders (its kind comes from the author alone); open the menu the
+    // buttons would be in before counting them.
     const row = page.locator('#pr-rows .row').first();
+    await expect(row).toBeVisible();
+    await openMoreActions(row);
     await expect(row.getByRole('button', { name: /Dependabot:/ })).toHaveCount(
       0,
     );
