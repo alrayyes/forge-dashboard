@@ -461,7 +461,9 @@ connection dropped. Nothing is announced when it clears, the failure stays in
 Activity, and an error toast waits for you as before. A 429 on a click the
 snapshot hadn't foreseen still greys that one action out with its reason until
 the next snapshot. The header shows each forge's remaining budget and reset time
-as text. Which locks offer Retry follows the refusal's `code` (`rate_limited`
+as text, one line per budget and labelled ("GH GraphQL", "GH REST"), since
+GitHub keeps the two apart. A remaining count above its limit shows how many are
+left and no ratio. Which locks offer Retry follows the refusal's `code` (`rate_limited`
 and `permission`
 don't), not the words in its message. The banner at the top of the page follows
 each budget's `severity` (`ok`, `low` or `exceeded`), which the server grades,
