@@ -20,7 +20,8 @@
     "lint:prose": "./scripts/lint-prose.sh",
     "prepare": "lefthook install",
     "test:e2e": "playwright test",
-    "test:lighthouse": "lhci autorun"
+    "test:lighthouse": "lhci autorun",
+    "test:unit": "bun test web/src"
   },
   "browserslist": [
     "last 2 Chrome versions",
