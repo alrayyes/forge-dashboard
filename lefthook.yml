@@ -173,6 +173,11 @@ pre-push:
     - name: sort-package-json
       run: bun run lint:pkg
 
+    # The unit tests under web/src, which run in milliseconds and in the CI
+    # js job. Plain bun test, no browser and no server.
+    - name: unit
+      run: bun run test:unit
+
     # Every other linter here runs at commit, at push and in CI. Vale ran at
     # commit and then nothing until CI, because its invocation lived in the
     # workflow as a block of bash with nothing a hook could reuse. It is a
