@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Regenerates docs/screenshots/<page>-{light,dark}.png for every page in the
 // menu (branches, pull requests, issues, releases, bots, insights, webhooks,
-// settings, admin) and the login page (the footer pages are left out) against a real
+// settings, admin), the pipeline checks panel and the login page (the footer
+// pages are left out) against a real
 // build of the binary, run by the release workflow's screenshots job —
 // not a Playwright *test* (playwright.config.js only looks in tests/),
 // so the main e2e suite never picks this up.
@@ -266,6 +267,67 @@ const REPOS = [
   },
 ];
 
+// The pipeline checks panel of pull request #139 (its CI pill): one check
+// in every state the panel shows, a required failure with its failed step and
+// log excerpt, and one that is advisory. Fictional job names and URLs (#251).
+const CHECKS = {
+  checks: [
+    {
+      name: 'test',
+      state: 'failure',
+      url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/1',
+      required: true,
+      durationSeconds: 94,
+      failedStep: 'Run go test ./...',
+      excerpt: [
+        '--- FAIL: TestStore_ConcurrentWriters (0.41s)',
+        '    store_test.go:88: database is locked (SQLITE_BUSY)',
+        'FAIL',
+        'FAIL\tgithub.com/alrayyes/forge-dashboard/internal/store\t0.45s',
+      ].join('\n'),
+    },
+    {
+      name: 'lint',
+      state: 'success',
+      url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/2',
+      required: true,
+      durationSeconds: 41,
+    },
+    {
+      name: 'build',
+      state: 'success',
+      url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/3',
+      required: true,
+      durationSeconds: 128,
+    },
+    {
+      name: 'e2e (shard 1/4)',
+      state: 'running',
+      url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/4',
+      required: true,
+    },
+    {
+      name: 'e2e (shard 2/4)',
+      state: 'queued',
+      url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/5',
+      required: true,
+    },
+    {
+      name: 'lighthouse',
+      state: 'cancelled',
+      url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/6',
+      required: false,
+      durationSeconds: 12,
+    },
+    {
+      name: 'auto-merge',
+      state: 'skipped',
+      url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/7',
+      required: false,
+    },
+  ],
+};
+
 // One entry per page. `ready` only matches once the page shows real
 // content, so a spinner or an error state is never shot.
 // In menu order, which is the order the README lists them in.
@@ -290,6 +352,25 @@ const PAGES = [
 ];
 
 const THEMES = ['light', 'dark'] as const;
+
+// Opens the pipeline checks panel from the failing fixture pull request's CI
+// pill and shoots it. The panel is a dialog, so the page alone never shows it.
+async function shootPipelineChecks(
+  page: import('@playwright/test').Page,
+  theme: (typeof THEMES)[number],
+) {
+  const row = page.locator('#pr-rows .row', { hasText: '#139' }).first();
+  await row.getByRole('button', { name: 'Open pipeline' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+  await dialog.waitFor();
+  await dialog.locator('.pipeline-check').first().waitFor();
+  await page.waitForLoadState('networkidle');
+  await page.screenshot({
+    path: path.join(OUT_DIR, `pipeline-checks-${theme}.png`),
+  });
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+}
 
 async function main() {
   const browser = await chromium.launch();
@@ -346,6 +427,13 @@ async function main() {
       body: JSON.stringify({ ...SNAPSHOT, repos: REPOS }),
     }),
   );
+  await page.route('**/api/pull-requests/checks*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(CHECKS),
+    }),
+  );
 
   for (const theme of THEMES) {
     // #352: theme is a Settings-only control now, not a header toggle —
@@ -371,6 +459,7 @@ async function main() {
       await page.screenshot({
         path: path.join(OUT_DIR, `${name}-${theme}.png`),
       });
+      if (name === 'pull-requests') await shootPipelineChecks(page, theme);
     }
   }
   await context.close();
