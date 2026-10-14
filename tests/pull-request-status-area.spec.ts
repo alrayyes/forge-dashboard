@@ -1,27 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1375: one dedicated place on the row for what a pull request is waiting on
 // or blocked by. The server's `status` fills it; an empty pull request offers
 // Close only, with the reason in that place. The loose note beside a locked
 // Merge is gone.
 // https://github.com/alrayyes/forge-dashboard/issues/1375
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `status-area-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Status Area');
-}
 
 function pr(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -77,9 +63,8 @@ const row = (page: Page, title: string) =>
   });
 
 test.describe('the status area on a pull request row (#1375)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   test('an empty pull request offers Close and no Merge, and says why in words', async ({
     page,

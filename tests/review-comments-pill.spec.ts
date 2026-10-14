@@ -1,12 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1335: every pull request row says how many review comments it has and how
 // many review threads are still open. The server counts them (`reviewComments`,
@@ -14,15 +9,6 @@ import { registerViaInvite } from './register-helper';
 // and a forge that can't say which threads are open (`unresolvedThreads`
 // null, Forgejo) shows the count without the amber state.
 // https://github.com/alrayyes/forge-dashboard/issues/1335
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `review-pill-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Review Pill');
-}
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -96,9 +82,8 @@ const shown = (page: Page, title: string) =>
   pill(page, title).locator('.review-pill-text');
 
 test.describe('the review comments pill (#1335)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   test('draws nothing at zero comments, and nothing when the server sends no count', async ({
     page,
