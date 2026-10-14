@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { settle } from './settle-helper';
 
 // #828: on a phone the filters take a small part of the screen. Closed, the
 // bar is one search row and one scrolling row of quick filters, with the
@@ -247,7 +248,7 @@ for (const size of [
         for (const stream of w.__streams)
           stream.onmessage?.(new MessageEvent('message', { data }));
       }, JSON.stringify(snapshot()));
-      await page.waitForTimeout(400);
+      await settle(page);
 
       await expect(sheet(page)).toBeVisible();
       await expect(sheet(page).getByLabel('Filter by repo')).toHaveValue(
