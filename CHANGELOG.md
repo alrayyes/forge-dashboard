@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.181.2](https://github.com/alrayyes/forge-dashboard/compare/v0.181.1...v0.181.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* **web:** offer a quick pill only when clicking it would show something ([#1440](https://github.com/alrayyes/forge-dashboard/issues/1440)) ([f866069](https://github.com/alrayyes/forge-dashboard/commit/f86606922415b9bb06f5ddb07d5768c12b5715a2))
+
 ## [0.181.1](https://github.com/alrayyes/forge-dashboard/compare/v0.181.0...v0.181.1) (2026-10-14)
 
 
