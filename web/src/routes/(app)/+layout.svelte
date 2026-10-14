@@ -81,7 +81,10 @@
   // A page with nothing to show leaves the navigation (#1228). A count that
   // isn't known yet (null) is not zero, so a link doesn't blink in as the first
   // snapshot arrives, and the page you are on keeps its own link until you
-  // leave it. Branches and Pull requests always show.
+  // leave it. Branches always shows.
+  const showPulls = $derived(
+    pulls === null || pulls.total !== 0 || isCurrentRoute("/pull-requests"),
+  );
   const showIssues = $derived(
     issues === null || issues.total !== 0 || isCurrentRoute("/issues"),
   );
@@ -241,28 +244,37 @@
           >
           <NavPills count={branches} />
         </a>
-        <a
-          class="theme-toggle"
-          href="/pull-requests.html"
-          aria-label={pullsLabel}
-          title="Pull requests"
-          aria-current={isCurrentRoute("/pull-requests") ? "page" : undefined}
-          style="text-decoration:none;"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
-              d="M13 6h3a2 2 0 0 1 2 2v7"
-            /><line x1="6" x2="6" y1="9" y2="21" /></svg
-          ><NavPills count={pulls} />
-        </a>
+        {#if showPulls}
+          <a
+            class="theme-toggle"
+            href="/pull-requests.html"
+            aria-label={pullsLabel}
+            title="Pull requests"
+            aria-current={isCurrentRoute("/pull-requests") ? "page" : undefined}
+            style="text-decoration:none;"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><circle cx="18" cy="18" r="3" /><circle
+                cx="6"
+                cy="6"
+                r="3"
+              /><path d="M13 6h3a2 2 0 0 1 2 2v7" /><line
+                x1="6"
+                x2="6"
+                y1="9"
+                y2="21"
+              /></svg
+            ><NavPills count={pulls} />
+          </a>
+        {/if}
         {#if showReleases}
           <a
             class="theme-toggle"
@@ -503,28 +515,30 @@
     >
     <span class="bottom-nav-label">Branches</span>
   </a>
-  <a
-    class="bottom-nav-link"
-    href="/pull-requests.html"
-    aria-label={pullsTabLabel}
-    aria-current={isCurrentRoute("/pull-requests") ? "page" : undefined}
-  >
-    <NavPills count={pulls} stacked />
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      ><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
-        d="M13 6h3a2 2 0 0 1 2 2v7"
-      /><line x1="6" x2="6" y1="9" y2="21" /></svg
+  {#if showPulls}
+    <a
+      class="bottom-nav-link"
+      href="/pull-requests.html"
+      aria-label={pullsTabLabel}
+      aria-current={isCurrentRoute("/pull-requests") ? "page" : undefined}
     >
-    <span class="bottom-nav-label">PRs</span>
-  </a>
+      <NavPills count={pulls} stacked />
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
+          d="M13 6h3a2 2 0 0 1 2 2v7"
+        /><line x1="6" x2="6" y1="9" y2="21" /></svg
+      >
+      <span class="bottom-nav-label">PRs</span>
+    </a>
+  {/if}
   {#if showReleases}
     <a
       class="bottom-nav-link"
