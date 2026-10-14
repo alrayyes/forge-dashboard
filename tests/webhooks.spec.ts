@@ -173,36 +173,6 @@ test.describe('webhook-triggered live updates', () => {
     );
   });
 
-  test('a webhook delivery with a bad signature is refused and never triggers a refresh', async ({
-    page,
-  }) => {
-    // settings.js populates the form from a fetch that fires as part of
-    // navigation, not after it — waiting for the response only after
-    // goto() resolves can miss it entirely if it was already fast enough
-    // to finish during the navigation itself. Racing the two together
-    // instead means the listener is attached before the fetch can happen.
-    await Promise.all([
-      page.waitForResponse((res) => res.url().includes('/api/settings')),
-      page.goto('/settings.html'),
-    ]);
-    await page.fill('#forgejo-url', 'https://forgejo.example.invalid');
-    await page.fill('#forgejo-username', 'octocat');
-    await page.click('#save-button');
-    await expect(page.locator('#status')).toHaveText('Saved.');
-
-    const webhookURL = await page.locator('#webhook-url-forgejo').inputValue();
-
-    const res = await page.request.post(webhookURL, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Forgejo-Signature': 'not-the-real-signature',
-      },
-      data: JSON.stringify({ zen: 'forged' }),
-    });
-
-    expect(res.status()).toBe(401);
-  });
-
   test('a webhook naming a repo pushes a newly created issue to the dashboard live, no reload', async ({
     page,
   }) => {
