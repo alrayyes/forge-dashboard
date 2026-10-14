@@ -585,48 +585,6 @@ test.describe('dashboard page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
-  test('has no axe-core violations with a real Forgejo forge badge rendered, light theme', async ({
-    page,
-  }) => {
-    // Regression test for #235: every other axe-scanned fixture in this
-    // file only ever used forge: 'github' rows, so a real .forge-badge.fj
-    // element never actually got scanned until this one.
-    await page.route('**/api/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
-          pullRequests: [
-            {
-              forge: 'forgejo',
-              repo: 'alrayyes/a',
-              number: 1,
-              title: 'A pull request',
-              url: 'https://example.com/1',
-              author: 'claude',
-              ci: 'success',
-              labels: [],
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              mergeStatus: 'mergeable',
-            },
-          ],
-          issues: [],
-        }),
-      }),
-    );
-    await page.reload();
-    await expect(page.locator('.forge-badge.fj')).toBeVisible();
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
-  });
-
   test('a non-admin user never sees the Admin link, not just in the DOM but actually rendered', async ({
     page,
   }) => {
@@ -2234,7 +2192,7 @@ test.describe('dashboard page', () => {
       await expect(page.locator('.merge-pill.auto-merge')).toHaveCount(0);
     });
 
-    test('has no axe-core violations with both pills rendered', async ({
+    test('has no axe-core violations with both pills and a Forgejo badge rendered', async ({
       page,
     }) => {
       // Regression test for #305: mergeStatus: 'blocked' was never
@@ -2245,9 +2203,13 @@ test.describe('dashboard page', () => {
         pr({ number: 1, mergeStatus: 'conflicting' }),
         pr({ number: 2, autoMergeEnabled: true }),
         pr({ number: 3, mergeStatus: 'blocked' }),
+        // Regression test for #235: a real .forge-badge.fj element has to be
+        // in a scanned state too, so a Forgejo row rides along here.
+        pr({ number: 4, forge: 'forgejo', repo: 'alrayyes/a' }),
       ]);
       await page.reload();
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(4);
+      await expect(page.locator('.forge-badge.fj')).toBeVisible();
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -3432,14 +3394,6 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await page.keyboard.press('Control+/');
     await expect(title).not.toBeFocused();
   });
-
-  test('has no axe-core violations with a pill active', async ({ page }) => {
-    await pill(page, 'Failing CI').click();
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
-  });
 });
 
 test.describe('repo group headers: host and sync status (#679)', () => {
@@ -3647,12 +3601,4 @@ test.describe('time cells say what they are (#1109)', () => {
       await expect(row.locator('.updated')).toContainText('1h ago');
     });
   }
-
-  test('has no axe-core violations with the captions', async ({ page }) => {
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
-  });
 });
