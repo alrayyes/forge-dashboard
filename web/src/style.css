@@ -1254,6 +1254,37 @@ button.ci-pill:hover {
   background: var(--neutral);
 }
 
+/* Waiting for workflow approval (#1280): held, not broken, so the warning
+   pair rather than critical. The words carry it, not the colour. */
+.ci-pill.awaiting {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.ci-pill.awaiting .dot {
+  background: var(--warning);
+}
+.approve-link {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: underline;
+  white-space: nowrap;
+}
+.approve-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+@media (max-width: 760px) {
+  .approve-link {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ci-pill.pending .dot {
     animation: none;
