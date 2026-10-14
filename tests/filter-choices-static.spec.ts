@@ -113,6 +113,64 @@ test.describe('CI status and age choices on the pull request page (#1427)', () =
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
   });
 
+  test('picking Created refreshes the CI choices to what is left', async ({
+    page,
+  }) => {
+    await open(page, '/pull-requests.html', [
+      pr(1, { ci: 'success', createdAt: ago(0.5), updatedAt: ago(0.5) }),
+      pr(2, { ci: 'failure', createdAt: ago(48) }),
+      pr(3, { ci: 'pending', createdAt: ago(72) }),
+    ]);
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+    expect(await values(page, STATUS)).toEqual([
+      '',
+      'success',
+      'failure',
+      'pending',
+    ]);
+
+    await page.selectOption(CREATED, '60');
+
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+    expect(await values(page, STATUS)).toEqual(['', 'success']);
+  });
+
+  test('picking a CI state leaves only the age ranges that state is in', async ({
+    page,
+  }) => {
+    await open(page, '/pull-requests.html', [
+      pr(1, { ci: 'success', createdAt: ago(48) }),
+      pr(2, { ci: 'failure', createdAt: ago(0.5) }),
+    ]);
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    expect(await values(page, CREATED)).toEqual([
+      '',
+      '60',
+      '1440',
+      '10080',
+      '43200',
+    ]);
+
+    await page.selectOption(STATUS, 'success');
+
+    // Only the failing pull request is under an hour old, so it isn't offered.
+    expect(await values(page, CREATED)).toEqual(['', '10080', '43200']);
+  });
+
+  test('a quick pill narrows the age ranges too', async ({ page }) => {
+    await open(page, '/pull-requests.html', [
+      pr(1, { ci: 'success', createdAt: ago(0.5) }),
+      pr(2, { ci: 'failure', createdAt: ago(48) }),
+    ]);
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    expect(await values(page, CREATED)).toContain('60');
+
+    await page.getByRole('button', { name: 'Failing CI' }).click();
+
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+    expect(await values(page, CREATED)).toEqual(['', '10080', '43200']);
+  });
+
   test('has no axe-core violations with the narrowed choices', async ({
     page,
   }) => {
@@ -144,6 +202,64 @@ test.describe('forge buttons on Insights (#1427)', () => {
     await open(page, '/insights.html', [pr(1)]);
     await expect(forgeLabel(page, 'github')).toBeVisible();
     await expect(forgeLabel(page, 'forgejo')).toBeHidden();
+  });
+
+  test('picking a repo narrows the forge buttons to the forge it is on', async ({
+    page,
+  }) => {
+    await open(page, '/insights.html', [
+      pr(1),
+      pr(2, { forge: 'forgejo', repo: 'ryan/infra' }),
+    ]);
+    await expect(forgeLabel(page, 'forgejo')).toBeVisible();
+
+    await page.selectOption('#shared-repo-select', 'github:alrayyes/app');
+
+    await expect(forgeLabel(page, 'github')).toBeVisible();
+    await expect(forgeLabel(page, 'forgejo')).toBeHidden();
+  });
+
+  test('a forge you picked stays offered after a reload that finds nothing on it', async ({
+    page,
+  }) => {
+    await open(page, '/insights.html', [
+      pr(1),
+      pr(2, { forge: 'forgejo', repo: 'ryan/infra' }),
+    ]);
+    // The saved pick has to reach the server before the page reloads.
+    const saved = page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/settings/filter-state') &&
+        r.request().method() !== 'GET',
+    );
+    await forgeLabel(page, 'forgejo').click();
+    await expect(
+      page.locator('.filter-bar input[value="forgejo"]'),
+    ).toBeChecked();
+    await saved;
+    await page.unroute('**/api/dashboard*');
+    await page.route('**/api/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [pr(1)],
+          issues: [],
+          openIssueCount: 0,
+          repos: [],
+          hiddenDrafts: 0,
+        }),
+      }),
+    );
+    await page.reload();
+
+    await expect(forgeLabel(page, 'github')).toBeVisible();
+    await expect(forgeLabel(page, 'forgejo')).toBeVisible();
+    await expect(
+      page.locator('.filter-bar input[value="forgejo"]'),
+    ).toBeChecked();
   });
 
   test('both are offered when both forges have pull requests', async ({

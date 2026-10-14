@@ -229,6 +229,7 @@
       Filters.offerForges(
         filterBarEl,
         new Set(optionPool("forge").map((item) => item.forge)),
+        sharedState.shared.forge ?? "",
       );
     if (staleRepo) sharedState.shared.repo = "";
     if (staleAuthor) sharedState.shared.author = "";
@@ -271,7 +272,14 @@
               ? c.value
               : c.value.trim().toLowerCase();
           sharedState.shared[col] = value;
-          if (col === "forge") updateSharedFilterOptions();
+          // Each pick narrows what the others can offer (#1427).
+          if (
+            col === "forge" ||
+            col === "repo" ||
+            col === "author" ||
+            col === "label"
+          )
+            updateSharedFilterOptions();
           Filters.saveState(sharedState, col);
         };
         c.addEventListener("input", apply);

@@ -489,7 +489,10 @@ const AGE_RANGES: Choice[] = [
 ];
 
 // The Created or Updated ranges some item falls in (#1427). A range counts
-// minutes the way matchesFilters does, so an offered range always matches.
+// minutes the way matchesFilters does, so at the same instant an offered range
+// always matches. Between two snapshots an item can age out of a range it
+// was counted in (minutesAgo rounds to the minute); the next snapshot clears
+// it. An invalid date gives NaN, which no range counts.
 export function ageChoices(
   items: FilterableItem[],
   field: 'createdAt' | 'updatedAt',
@@ -500,14 +503,20 @@ export function ageChoices(
 }
 
 // Shows a forge button only when some result is on that forge, or it is the
-// one picked, so it can be seen and cleared (#1427). "All" always stays.
-export function offerForges(scope: ParentNode, present: Set<string>): void {
+// one picked, so it can be seen and cleared (#1427). "All" always stays. The
+// pick comes from the saved filter state, not from which radio is checked:
+// on a page load the radios are restored after the choices are built.
+export function offerForges(
+  scope: ParentNode,
+  present: Set<string>,
+  picked: string,
+): void {
   for (const input of scope.querySelectorAll<HTMLInputElement>(
     'input[type="radio"][data-col="forge"]',
   )) {
     const label = input.closest('label');
     if (!label || !input.value) continue;
-    label.hidden = !(present.has(input.value) || input.checked);
+    label.hidden = !(present.has(input.value) || input.value === picked);
   }
 }
 
