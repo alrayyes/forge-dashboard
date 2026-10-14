@@ -1255,6 +1255,37 @@ button.ci-pill:hover {
   outline-offset: 2px;
 }
 
+/* What a pull request is waiting on or blocked by, in one place on the row
+   (#1375): an icon and words, on a line of its own above the actions. */
+.status-area {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--neutral-bg);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-align: left;
+}
+.status-area svg {
+  flex: none;
+  margin-top: 2px;
+}
+.status-area-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.status-area-message {
+  color: var(--ink);
+  font-weight: 500;
+}
+
 /* Plain badges, not buttons like .ci-pill — there's no filter dimension
    for these, just a fact about the row, so no cursor:pointer and no
    focus-visible ring to imply an interaction that isn't there. */
