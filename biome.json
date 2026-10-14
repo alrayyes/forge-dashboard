@@ -12,7 +12,8 @@
       "!**/*.html",
       "!**/*.svg",
       "!**/*.svelte",
-      "!.claude/worktrees"
+      "!.claude/worktrees",
+      "!tests/generated"
     ]
   },
   "formatter": {
