@@ -300,6 +300,7 @@ func TestFetch_RollupAwaitingWorkflowApproval(t *testing.T) {
 	}{
 		{"an action_required run", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 3}, nil), true},
 		{"action_required beside a real failure", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 1, "FAILURE": 1}, nil), true},
+		{"action_required beside running runs", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 1, "IN_PROGRESS": 2}, nil), true},
 		{"a real failure only", rollupFixture("FAILURE", map[string]int{"FAILURE": 1}, nil), false},
 		{"a zero count", rollupFixture("SUCCESS", map[string]int{"ACTION_REQUIRED": 0, "SUCCESS": 4}, nil), false},
 		{"no rollup", nil, false},

@@ -14,8 +14,8 @@ import (
 
 // stalePRNode is one pull request whose head is headOid and whose last commit,
 // with its SUCCESS rollup, is commitOid (empty leaves the commit's id out).
-func stalePRNode(mergeState, headOid, commitOid string) map[string]any {
-	commit := map[string]any{"statusCheckRollup": rollupFixture("SUCCESS", map[string]int{"SUCCESS": 4}, nil)}
+func stalePRNode(mergeState, headOid, commitOid string, rollup map[string]any) map[string]any {
+	commit := map[string]any{"statusCheckRollup": rollup}
 	if commitOid != "" {
 		commit["oid"] = commitOid
 	}
@@ -38,6 +38,13 @@ func stalePRNode(mergeState, headOid, commitOid string) map[string]any {
 func staleRollupServer(t *testing.T, mergeState, headOid, commitOid string, queries *[]string) *httptest.Server {
 	t.Helper()
 
+	return staleRollupServerWith(t, rollupFixture("SUCCESS", map[string]int{"SUCCESS": 4}, nil), mergeState, headOid, commitOid, queries)
+}
+
+// staleRollupServerWith is staleRollupServer with the commit's rollup given.
+func staleRollupServerWith(t *testing.T, rollup map[string]any, mergeState, headOid, commitOid string, queries *[]string) *httptest.Server {
+	t.Helper()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		body := readGraphQLRequest(t, r)
@@ -53,7 +60,7 @@ func staleRollupServer(t *testing.T, mergeState, headOid, commitOid string, quer
 						"nodes": []map[string]any{{
 							"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "ADMIN",
 							"owner":        map[string]any{"login": "alrayyes"},
-							"pullRequests": map[string]any{"nodes": []map[string]any{stalePRNode(mergeState, headOid, commitOid)}},
+							"pullRequests": map[string]any{"nodes": []map[string]any{stalePRNode(mergeState, headOid, commitOid, rollup)}},
 							"issues":       map[string]any{"nodes": []map[string]any{}},
 						}},
 					},
@@ -130,7 +137,7 @@ func TestFetchRepo_RollupOfAnEarlierCommit_IsPendingNotPassed(t *testing.T) {
 		writeJSON(t, w, map[string]any{
 			"data": map[string]any{
 				"repository": map[string]any{
-					"pullRequests": map[string]any{"nodes": []map[string]any{stalePRNode("BLOCKED", "newhead", "oldhead")}},
+					"pullRequests": map[string]any{"nodes": []map[string]any{stalePRNode("BLOCKED", "newhead", "oldhead", rollupFixture("SUCCESS", map[string]int{"SUCCESS": 4}, nil))}},
 					"issues":       map[string]any{"nodes": []map[string]any{}},
 				},
 			},
@@ -145,4 +152,17 @@ func TestFetchRepo_RollupOfAnEarlierCommit_IsPendingNotPassed(t *testing.T) {
 	require.Len(t, prs, 1)
 	assert.Equal(t, dashboard.CIPending, prs[0].CI)
 	assert.Regexp(t, `commit \{\s*oid\s+statusCheckRollup`, query)
+}
+
+func TestFetch_RollupOfAnEarlierCommit_DoesNotFlagAwaitingApproval(t *testing.T) {
+	t.Parallel()
+
+	held := rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 2}, nil)
+	srv := staleRollupServerWith(t, held, "BLOCKED", "newhead", "oldhead", nil)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.False(t, result.PullRequests[0].AwaitingWorkflowApproval,
+		"the held runs belong to oldhead, so they say nothing about newhead")
 }

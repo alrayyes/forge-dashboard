@@ -2236,10 +2236,12 @@ func reviewThreadCounts(p graphqlPullRequest) (comments, unresolved int) {
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	comments, unresolved := reviewThreadCounts(p)
 	ci := ciFromRollup(p.Commits.Nodes)
+	awaitingApproval := awaitingApprovalOf(p.Commits.Nodes)
 	if rollupIsOfAnotherCommit(p.Commits.Nodes, p.HeadRefOid) {
 		slog.Debug("github rollup is of an earlier commit, reading pending", "forge", dashboard.ForgeGitHub, "repo", fullName,
 			"number", p.Number, "head", p.HeadRefOid, "rollup_commit", p.Commits.Nodes[0].Commit.Oid)
 		ci = dashboard.CIPending
+		awaitingApproval = false
 	}
 
 	return dashboard.PullRequest{
@@ -2256,7 +2258,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		CI:          ci,
 		MergeStatus: mergeStatusFromGraphQL(p.MergeStateStatus),
 
-		AwaitingWorkflowApproval: awaitingApprovalOf(p.Commits.Nodes),
+		AwaitingWorkflowApproval: awaitingApproval,
 		Behind:                   p.MergeStateStatus == "BEHIND",
 		HeadSHA:                  p.HeadRefOid,
 		BaseBranch:               p.BaseRefName,
