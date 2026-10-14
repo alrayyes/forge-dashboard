@@ -179,10 +179,17 @@ func (b boardSettings) autoMerged() []autoMergedView {
 	return out
 }
 
-// autoMergeStatus explains pr when the user armed auto-merge on it, nil
-// otherwise.
+// autoMergeStatus explains pr when the user armed auto-merge on it, or when
+// the app has just cancelled it for them; nil otherwise.
 func (b boardSettings) autoMergeStatus(pr dashboard.PullRequest) *dashboard.AutoMergeStatus {
 	if pr.AutoMergeEnabled == nil || !*pr.AutoMergeEnabled {
+		// Not armed now. If the app just cancelled it because the pull request
+		// went empty, say so for a few minutes, so the row doesn't go quiet
+		// without a reason (#1375).
+		if c, ok := b.autoMergeReport.Cancelled[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)]; ok {
+			return &dashboard.AutoMergeStatus{State: dashboard.AutoMergeStopped, Code: c.Refusal.Code, Message: c.Refusal.Message}
+		}
+
 		return nil
 	}
 	var failure *dashboard.AutoMergeFailure
