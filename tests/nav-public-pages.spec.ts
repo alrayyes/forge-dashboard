@@ -1,26 +1,16 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
 import { navCountsFor } from './nav-counts-helper';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// Every signed-in test mocks /api/dashboard and writes nothing per user, so
+// they start from the shared session (#1379). The signed-out one clears it.
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #1261: the changelog, disclaimer and privacy pages are open to visitors, so
 // the layout never asked them for the nav counts. A signed-in user there saw
 // every link, with no numbers.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `nav-public-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Nav Public');
-}
 
 function makePR(number: number, kind: string) {
   return {
@@ -67,10 +57,6 @@ const header = (page: Page, href: string) =>
 
 for (const path of ['/changelog.html', '/disclaimer.html', '/privacy.html']) {
   test.describe(path, () => {
-    test.beforeEach(async ({ page, request, baseURL }) => {
-      await registerAndSignIn(page, request, baseURL);
-    });
-
     test('a signed-in user gets the same nav as elsewhere: empty links hidden', async ({
       page,
     }) => {
@@ -106,16 +92,20 @@ for (const path of ['/changelog.html', '/disclaimer.html', '/privacy.html']) {
   });
 }
 
-test('signed out, the changelog asks for no counts and still renders', async ({
-  page,
-}) => {
-  let asked = false;
-  await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route) => {
-    asked = true;
-    return route.abort();
-  });
-  await page.goto('/changelog.html');
+test.describe('signed out', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
 
-  await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
-  expect(asked).toBe(false);
+  test('signed out, the changelog asks for no counts and still renders', async ({
+    page,
+  }) => {
+    let asked = false;
+    await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route) => {
+      asked = true;
+      return route.abort();
+    });
+    await page.goto('/changelog.html');
+
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+    expect(asked).toBe(false);
+  });
 });

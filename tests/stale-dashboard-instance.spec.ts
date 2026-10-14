@@ -1,24 +1,14 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1259: a page opened at /releases.html is a hard load, and its Pull requests link
 // ("/pull-requests.html") is then a client-side navigation. The Releases board was destroyed
 // but its poll kept running, and drew release pull requests onto the pull request page.
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `stale-instance-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Stale Instance');
-}
+// The test mocks /api/dashboard and writes nothing per user, so it starts from
+// the shared session instead of registering a user (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -52,10 +42,7 @@ const SNAPSHOT = [
 
 test('the pull request page stays free of release pull requests after leaving Releases', async ({
   page,
-  request,
-  baseURL,
 }) => {
-  await registerAndSignIn(page, request, baseURL);
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   let polls = 0;
   await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) => {
