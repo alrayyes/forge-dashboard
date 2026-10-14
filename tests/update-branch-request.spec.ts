@@ -155,6 +155,18 @@ test.describe('update branch request from the server', () => {
     );
   }
 
+  // The page has handled everything already delivered to it: a rendered
+  // frame later, a handler that was going to change the row has done so.
+  // This is a render flush, not a delay.
+  async function settle(page: Page) {
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+  }
+
   test('a reload mid-wait still shows the Updating branch chip', async ({
     page,
   }) => {
@@ -187,7 +199,7 @@ test.describe('update branch request from the server', () => {
   }) => {
     await click(page);
     await push(page, current);
-    await page.waitForTimeout(500);
+    await settle(page);
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
     ).toBeDisabled();
@@ -239,7 +251,7 @@ test.describe('update branch request from the server', () => {
 
     // The same expired record on the next snapshot says nothing new.
     await push(page, current);
-    await page.waitForTimeout(500);
+    await settle(page);
     await expect(toasts).toHaveCount(1);
     await expect(
       row(page).getByRole('button', { name: 'Update branch' }),
@@ -299,8 +311,10 @@ test.describe('update branch request from the server', () => {
     await push(page, current);
     await expect(line(page)).toContainText('Timed out');
 
+    const answered = page.waitForResponse('**/api/dashboard/refresh');
     release();
-    await page.waitForTimeout(800);
+    await answered;
+    await settle(page);
     await expect(line(page)).toContainText('Timed out');
     await expect(
       line(page).getByRole('button', { name: 'Retry' }),
@@ -363,8 +377,10 @@ test.describe('update branch request from the server', () => {
       row(page).getByRole('button', { name: 'Queued…' }),
     ).toBeDisabled();
 
+    const answered = page.waitForResponse('**/api/dashboard/refresh');
     release();
-    await page.waitForTimeout(800);
+    await answered;
+    await settle(page);
     await expect(page.locator('#feedback-toasts')).not.toContainText(
       'Branch updated.',
     );
