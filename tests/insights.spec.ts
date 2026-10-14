@@ -255,30 +255,6 @@ test.describe('insights page', () => {
   });
 
   test.describe('busiest repos', () => {
-    test('ranks repos by open pull request count, each row labeled with the repo name and count', async ({
-      page,
-    }) => {
-      await mockDashboard(page, {
-        pullRequests: [
-          ...prsForRepo('alrayyes/one', 3),
-          ...prsForRepo('alrayyes/two', 1),
-          ...prsForRepo('alrayyes/three', 2),
-        ],
-      });
-
-      await page.goto('/insights.html');
-
-      const rows = page.locator('#repo-pr-ranking .rank-row');
-      await expect(rows).toHaveCount(3);
-      // Ranked highest count first.
-      await expect(rows.nth(0)).toContainText('alrayyes/one');
-      await expect(rows.nth(0).locator('.rank-count')).toHaveText('3');
-      await expect(rows.nth(1)).toContainText('alrayyes/three');
-      await expect(rows.nth(1).locator('.rank-count')).toHaveText('2');
-      await expect(rows.nth(2)).toContainText('alrayyes/two');
-      await expect(rows.nth(2).locator('.rank-count')).toHaveText('1');
-    });
-
     test('ranks issues separately from pull requests, not conflated into one number', async ({
       page,
     }) => {
@@ -332,52 +308,6 @@ test.describe('insights page', () => {
   });
 
   test.describe('pull request age', () => {
-    test('buckets open pull requests by age, each bar directly labeled with its count', async ({
-      page,
-    }) => {
-      await mockDashboard(page, {
-        pullRequests: [
-          pr('success', { number: 1, createdAt: hoursAgo(2) }), // <1 day
-          pr('success', { number: 2, createdAt: hoursAgo(48) }), // 1-3 days
-          pr('success', { number: 3, createdAt: hoursAgo(48) }), // 1-3 days
-          pr('success', { number: 4, createdAt: hoursAgo(24 * 5) }), // 3-7 days
-          pr('success', { number: 5, createdAt: hoursAgo(24 * 15) }), // 7-30 days
-        ],
-      });
-
-      await page.goto('/insights.html');
-
-      await expect(
-        page.locator('[data-age-bucket="lt1"] .age-count'),
-      ).toHaveText('1');
-      await expect(
-        page.locator('[data-age-bucket="1to3"] .age-count'),
-      ).toHaveText('2');
-      await expect(
-        page.locator('[data-age-bucket="3to7"] .age-count'),
-      ).toHaveText('1');
-      await expect(
-        page.locator('[data-age-bucket="7to30"] .age-count'),
-      ).toHaveText('1');
-      await expect(
-        page.locator('[data-age-bucket="30plus"] .age-count'),
-      ).toHaveText('0');
-    });
-
-    test('a pull request older than every named bucket falls into the final 30+ days bucket, not dropped', async ({
-      page,
-    }) => {
-      await mockDashboard(page, {
-        pullRequests: [pr('success', { createdAt: hoursAgo(24 * 400) })],
-      });
-
-      await page.goto('/insights.html');
-
-      await expect(
-        page.locator('[data-age-bucket="30plus"] .age-count'),
-      ).toHaveText('1');
-    });
-
     test('shows an explicit empty state with no open pull requests', async ({
       page,
     }) => {
@@ -425,22 +355,6 @@ test.describe('insights page', () => {
       ).toHaveText('0');
       await expect(
         prChart.locator('[data-age-bucket="7to30"] .age-count'),
-      ).toHaveText('1');
-    });
-
-    test('an issue older than every named bucket falls into the final 30+ days bucket, not dropped', async ({
-      page,
-    }) => {
-      await mockDashboard(page, {
-        issues: [issue({ createdAt: hoursAgo(24 * 400) })],
-      });
-
-      await page.goto('/insights.html');
-
-      await expect(
-        page
-          .locator('#issue-age-chart')
-          .locator('[data-age-bucket="30plus"] .age-count'),
       ).toHaveText('1');
     });
 

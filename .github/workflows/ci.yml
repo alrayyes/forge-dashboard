@@ -633,6 +633,8 @@ jobs:
         run: bun run lint:js
       - name: package.json order
         run: bun run lint:pkg
+      - name: unit tests
+        run: bun run test:unit
 
   # rules/dependencies.md: bun audit on every push, the way govulncheck covers
   # Go. scripts/audit.sh holds the dated ignores and the one registry retry.
