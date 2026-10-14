@@ -11,7 +11,8 @@ import { registerViaInvite } from './register-helper';
 
 // #1228: the Issues, Releases and Bots links are in the navigation only
 // while they have something to show. A count of null (not loaded yet) is not
-// zero, the page you are on keeps its link, and Pull requests always show.
+// zero and the page you are on keeps its link. Pull requests follow the same
+// rule (#1415); Branches always shows.
 
 async function registerAndSignIn(
   page: Page,
@@ -86,6 +87,7 @@ const tab = (page: Page, href: string) =>
   page.locator(`.bottom-nav a[href="${href}"]`);
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const LINKS = ['/issues.html', '/releases.html', '/bots.html'];
+const PULLS = '/pull-requests.html';
 
 test.describe('empty pages leave the navigation (#1228)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
@@ -95,7 +97,22 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
-  test('with nothing to show, the three links are gone from the header and the tab bar, and Pull requests stays', async ({
+  test('with nothing to show, the Pull requests link is gone too, from the header and the tab bar (#1415)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, { pullRequests: [], openIssueCount: 0 });
+    await page.goto('/settings.html');
+    // Not loaded counts keep the link, so its going is the sign they arrived.
+    await expect(header(page, PULLS)).toHaveCount(0);
+    await expect(tab(page, PULLS)).toHaveCount(0);
+    for (const href of LINKS) await expect(header(page, href)).toHaveCount(0);
+    for (const href of ['/', '/insights.html', '/settings.html']) {
+      await expect(header(page, href)).toHaveCount(1);
+      await expect(tab(page, href)).toHaveCount(1);
+    }
+  });
+
+  test('with nothing to show, the three links are gone from the header and the tab bar, and Pull requests stays while it has one', async ({
     page,
   }) => {
     await mockDashboard(page, { pullRequests: [makePR(1)], openIssueCount: 0 });
@@ -153,17 +170,16 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     });
     await mockDashboard(
       page,
-      { pullRequests: [makePR(1)], openIssueCount: 0 },
+      { pullRequests: [], openIssueCount: 0 },
       { gate },
     );
     await page.goto('/settings.html');
-    for (const href of LINKS) await expect(header(page, href)).toHaveCount(1);
+    for (const href of [PULLS, ...LINKS])
+      await expect(header(page, href)).toHaveCount(1);
 
     release();
-    await expect(
-      header(page, '/pull-requests.html').locator('.nav-total'),
-    ).toHaveText('1');
-    for (const href of LINKS) await expect(header(page, href)).toHaveCount(0);
+    for (const href of [PULLS, ...LINKS])
+      await expect(header(page, href)).toHaveCount(0);
   });
 
   test('the page you are on keeps its link at zero, marked current, and loses it when you leave', async ({
@@ -187,6 +203,19 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await expect(header(page, '/releases.html')).toHaveCount(0);
   });
 
+  test('the Pull requests page keeps its link at zero, marked current, and loses it when you leave (#1415)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, { pullRequests: [], openIssueCount: 0 });
+    await page.goto('/pull-requests.html');
+    await expect(header(page, PULLS)).toHaveAttribute('aria-current', 'page');
+    await expect(tab(page, PULLS)).toHaveAttribute('aria-current', 'page');
+    await expect(header(page, '/releases.html')).toHaveCount(0);
+
+    await page.goto('/settings.html');
+    await expect(header(page, PULLS)).toHaveCount(0);
+  });
+
   test('a count that rises brings its link in without a reload', async ({
     page,
   }) => {
@@ -203,6 +232,20 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await expect(header(page, '/releases.html')).toBeVisible();
   });
 
+  test('the Pull requests link comes back without a reload when a pull request opens (#1415)', async ({
+    page,
+  }) => {
+    const state: Snapshot = { pullRequests: [], openIssueCount: 0 };
+    await mockDashboard(page, state);
+    await page.goto('/settings.html');
+    await expect(header(page, PULLS)).toHaveCount(0);
+
+    state.pullRequests = [makePR(1)];
+    await page.goto('/insights.html');
+    await expect(header(page, PULLS)).toBeVisible();
+    await expect(tab(page, PULLS)).toHaveCount(1);
+  });
+
   test('a page typed into the address bar with a count of zero still opens with its own empty state', async ({
     page,
   }) => {
@@ -213,18 +256,28 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     );
     await page.goto('/issues.html');
     await expect(page.locator('#issue-empty')).toBeVisible();
+    await mockDashboard(page, { pullRequests: [], openIssueCount: 0 });
+    await page.goto('/pull-requests.html');
+    await expect(page.locator('#pr-empty')).toContainText(
+      'No open pull requests.',
+    );
   });
 
   test('has no axe-core violations with and without the links, and the tab bar fits at 390px', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
+    await mockDashboard(page, { pullRequests: [], openIssueCount: 0 });
+    await page.goto('/settings.html');
+    await expect(header(page, PULLS)).toHaveCount(0);
+    expect(
+      (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
+    ).toEqual([]);
+
     const state: Snapshot = { pullRequests: [makePR(1)], openIssueCount: 0 };
     await mockDashboard(page, state);
     await page.goto('/settings.html');
-    await expect(
-      header(page, '/pull-requests.html').locator('.nav-total'),
-    ).toHaveText('1');
+    await expect(header(page, PULLS).locator('.nav-total')).toHaveText('1');
     expect(
       (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
     ).toEqual([]);

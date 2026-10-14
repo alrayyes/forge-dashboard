@@ -856,8 +856,8 @@ changes them without a reload.
 
 A zero is never drawn: a page with nothing in it has no total, and nothing
 failing means no red pill. A page with nothing to show leaves the navigation:
-the Releases, Bots and Issues links are not in the header or the phone's tab bar
-while their total is 0. Branches and Pull requests always show. A count that
+the Pull requests, Releases, Bots and Issues links are not in the header or the
+phone's tab bar while their total is 0. Branches always shows. A count that
 isn't known yet is not 0, so the links stay until the first snapshot says
 otherwise, and the page you are on keeps its own link until you leave it. The
 page still opens when typed into the address bar, and says it is empty.
