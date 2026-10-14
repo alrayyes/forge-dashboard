@@ -147,10 +147,9 @@
   function matchesForge(r: Repo): boolean {
     return !filterForge || r.forge === filterForge;
   }
+  const nameNeedle = $derived(filterRepo.toLowerCase());
   function matchesName(r: Repo): boolean {
-    return (
-      !filterRepo || r.fullName.toLowerCase().includes(filterRepo.toLowerCase())
-    );
+    return !nameNeedle || r.fullName.toLowerCase().includes(nameNeedle);
   }
   function matchesStatus(r: Repo): boolean {
     if (filterStatus === "confirmed") return r.hasWebhook;

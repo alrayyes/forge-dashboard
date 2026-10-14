@@ -124,6 +124,28 @@ test.describe('webhooks filter choices (#1427)', () => {
     await expect(forgeRadio(page, 'forgejo')).toHaveCount(0);
   });
 
+  test('a status you picked stays visible when the other filters leave it nothing, so you can clear it', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+      { forge: 'forgejo', fullName: 'ryan/b', hasWebhook: false },
+    ]);
+    await page.goto('/webhooks.html');
+    await page.selectOption('#webhooks-status-filter', 'pending');
+
+    // Only a confirmed repo matches "alrayyes", but Not yet stays, selected.
+    await page.locator('#webhooks-repo-filter').fill('alrayyes');
+    await expect(page.locator('#webhooks-no-results')).toBeVisible();
+    await expect(page.locator('#webhooks-status-filter')).toHaveValue(
+      'pending',
+    );
+    expect(await statusValues(page)).toEqual(['', 'confirmed', 'pending']);
+
+    await page.selectOption('#webhooks-status-filter', '');
+    await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+  });
+
   test('has no axe-core violations with a single forge', async ({ page }) => {
     await mockDashboard(page, [
       { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
