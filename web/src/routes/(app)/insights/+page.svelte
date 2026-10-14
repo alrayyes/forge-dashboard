@@ -176,7 +176,7 @@
   // What the charts can show, for the filters' own choices (#1427): the pull
   // requests and issues that every other shared filter lets through, and the
   // issues without the Dependency Dashboard while it is hidden.
-  function optionPool(excludeKey: "" | "repo" | "author" | "label") {
+  function optionPool(excludeKey: Filters.PoolKey) {
     const shared = chartFilters();
     return [
       ...Filters.optionPool(
@@ -224,6 +224,12 @@
       ),
       sharedState.shared.label,
     );
+    // A forge button is offered only when something here is on that forge.
+    if (filterBarEl)
+      Filters.offerForges(
+        filterBarEl,
+        new Set(optionPool("forge").map((item) => item.forge)),
+      );
     if (staleRepo) sharedState.shared.repo = "";
     if (staleAuthor) sharedState.shared.author = "";
     if (staleLabel) sharedState.shared.label = "";

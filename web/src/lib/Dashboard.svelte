@@ -4135,7 +4135,7 @@
     // a bot's housekeeping issue is in, since a repo with nothing else has
     // nothing to show (#1427).
     function sharedPoolExcluding(
-      excludeKey: "" | "repo" | "author" | "label",
+      excludeKey: Filters.PoolKey,
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -4212,12 +4212,56 @@
         ),
         sharedState.shared.label,
       );
+      // The fixed choices offer only what the results have too (#1427): the
+      // age ranges something falls in, and the CI states pull requests are in.
+      const staleCreated = populateEvery(
+        'select[data-col="created"]',
+        Filters.ageChoices(sharedPoolExcluding("created"), "createdAt"),
+        sharedState.shared.created,
+      );
+      const staleUpdated = populateEvery(
+        'select[data-col="updated"]',
+        Filters.ageChoices(sharedPoolExcluding("updated"), "updatedAt"),
+        sharedState.shared.updated,
+      );
+      const staleStatus =
+        pullsView &&
+        populateEvery(
+          'select[data-col="status"]',
+          Filters.ciChoices(sharedPoolExcluding("")),
+          sharedState.pr.status,
+        );
       updateGroupByOptions();
       if (staleRepo) sharedState.shared.repo = "";
       if (staleAuthor) sharedState.shared.author = "";
       if (staleLabel) sharedState.shared.label = "";
-      if (staleRepo || staleAuthor || staleLabel)
+      if (staleCreated) sharedState.shared.created = "";
+      if (staleUpdated) sharedState.shared.updated = "";
+      if (staleStatus) sharedState.pr.status = "";
+      if (
+        staleRepo ||
+        staleAuthor ||
+        staleLabel ||
+        staleCreated ||
+        staleUpdated ||
+        staleStatus
+      )
         Filters.saveState(sharedState);
+    }
+
+    // The same control can sit in the bar or in the Filters sheet (#828), so
+    // every match gets the choices. True if the pick was stale in any of them.
+    function populateEvery(
+      selector: string,
+      choices: Filters.Choice[],
+      previous: string,
+    ): boolean {
+      let stale = false;
+      for (const select of document.querySelectorAll<HTMLSelectElement>(
+        selector,
+      ))
+        if (Filters.populateChoices(select, choices, previous)) stale = true;
+      return stale;
     }
 
     // Restores the shared bar's controls to match the filters just
