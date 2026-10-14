@@ -1,6 +1,6 @@
-import { type APIRequestContext, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #797: the fonts are served by the app itself. No page waits on, or sends
 // a visitor's address to, a third-party host just to render text.
@@ -52,22 +52,13 @@ test.describe('self-hosted fonts (#797)', () => {
 });
 
 test.describe('self-hosted fonts on the dashboard (#797)', () => {
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
   test('the dashboard requests no other host either', async ({
     page,
-    request,
     baseURL,
-  }: {
-    page: Page;
-    request: APIRequestContext;
-    baseURL?: string;
   }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `fonts-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Fonts Test User',
-    );
     const hosts = recordHosts(page);
     await page.goto('/pull-requests.html');
     await loadedFaces(page);
