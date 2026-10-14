@@ -39,6 +39,8 @@
   --warning-bg: #faf0da;
   --neutral: #7d8a9a;
   --neutral-bg: #eef1f5;
+  --queued: #1d5fa8;
+  --queued-bg: #e4eefa;
 
   /* The pipeline-checks drawer's own ::backdrop — its own token rather
      than reusing --shadow (a small, soft drop-shadow, not a whole-page
@@ -89,6 +91,8 @@
     --warning-bg: #362a10;
     --neutral: #8592a3;
     --neutral-bg: #1a212b;
+    --queued: #7db4f5;
+    --queued-bg: #14263d;
 
     --backdrop: rgba(0, 0, 0, 0.6);
 
@@ -121,6 +125,8 @@
   --warning-bg: #362a10;
   --neutral: #8592a3;
   --neutral-bg: #1a212b;
+  --queued: #7db4f5;
+  --queued-bg: #14263d;
 
   --backdrop: rgba(0, 0, 0, 0.6);
 
@@ -2655,44 +2661,62 @@ footer a.mono:focus-visible {
   border-radius: 50%;
   flex: none;
 }
+.pipeline-check-status .check-glyph {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .pipeline-check-status.success {
   background: var(--good-bg);
   color: var(--good);
-}
-.pipeline-check-status.success .dot {
-  background: var(--good);
 }
 .pipeline-check-status.failure,
 .pipeline-check-status.timed_out {
   background: var(--critical-bg);
   color: var(--critical);
 }
-.pipeline-check-status.failure .dot,
-.pipeline-check-status.timed_out .dot {
-  background: var(--critical);
-}
 .pipeline-check-status.running {
   background: var(--warning-bg);
   color: var(--warning);
 }
-.pipeline-check-status.running .dot {
-  background: var(--warning);
-  animation: pulse-amber 1.6s infinite;
+/* Running carries both glyphs: the spinning arc, and a still clock for
+   prefers-reduced-motion. Amber stays Running's colour; Queued is blue. */
+.pipeline-check-status .check-glyph-clock {
+  display: none;
 }
-.pipeline-check-status.queued,
-.pipeline-check-status.cancelled,
-.pipeline-check-status.skipped {
+.pipeline-check-status .check-glyph-arc {
+  animation: check-spin 1.2s linear infinite;
+}
+.pipeline-check-status.queued {
+  background: var(--queued-bg);
+  color: var(--queued);
+}
+.pipeline-check-status.cancelled {
   background: var(--neutral-bg);
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
-.pipeline-check-status.queued .dot,
-.pipeline-check-status.cancelled .dot,
-.pipeline-check-status.skipped .dot {
-  background: var(--neutral);
+/* Skipped is the quietest state: no run is expected, nothing to act on. */
+.pipeline-check-status.skipped {
+  background: transparent;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+@keyframes check-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pipeline-check-status.running .dot {
-    animation: none;
+  .pipeline-check-status .check-glyph-arc {
+    display: none;
+  }
+  .pipeline-check-status .check-glyph-clock {
+    display: block;
   }
 }
 .pipeline-check-name {
