@@ -115,10 +115,15 @@ const slotOf = (page: Page) => firstRow(page).locator('.wait-slot');
 async function size(locator: Locator) {
   // A snapshot can rebuild the row between finding it and measuring it, so
   // wait for a box rather than measuring once.
-  await expect.poll(() => locator.boundingBox()).not.toBeNull();
-  const box = await locator.boundingBox();
-  if (!box) throw new Error('no box');
-  return { width: box.width, height: box.height };
+  let size = { width: 0, height: 0 };
+  await expect
+    .poll(async () => {
+      const box = await locator.boundingBox();
+      if (box) size = { width: box.width, height: box.height };
+      return box !== null;
+    })
+    .toBe(true);
+  return size;
 }
 
 // What must not move when a chip comes or goes: the row, and the area the
