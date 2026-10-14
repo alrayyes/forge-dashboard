@@ -173,10 +173,27 @@
   const prAgeHistogram = $derived.by(() => bucketAges(prItems));
   const issueAgeHistogram = $derived.by(() => bucketAges(issueItems));
 
-  function forgeScopedItems(): FilterableItem[] {
-    const items = [...lastSnapshot.pullRequests, ...lastSnapshot.issues];
-    if (!sharedState.shared.forge) return items;
-    return items.filter((item) => item.forge === sharedState.shared.forge);
+  // What the charts can show, for the filters' own choices (#1427): the pull
+  // requests and issues that every other shared filter lets through, and the
+  // issues without the Dependency Dashboard while it is hidden.
+  function optionPool(excludeKey: "" | "repo" | "author" | "label") {
+    const shared = chartFilters();
+    return [
+      ...Filters.optionPool(
+        lastSnapshot.pullRequests,
+        false,
+        shared,
+        excludeKey,
+        undefined,
+      ),
+      ...Filters.optionPool(
+        lastSnapshot.issues,
+        false,
+        shared,
+        excludeKey,
+        sharedState.issue,
+      ),
+    ];
   }
 
   let sharedRepoSelect: HTMLSelectElement | undefined = $state();
@@ -186,25 +203,24 @@
   let filterBarEl: HTMLDivElement | undefined = $state();
 
   function updateSharedFilterOptions() {
-    const scoped = forgeScopedItems();
     const staleRepo = Filters.populateRepoSelect(
       sharedRepoSelect ?? null,
-      scoped,
+      optionPool("repo"),
     );
     const staleAuthor = Filters.populateSelect(
       sharedAuthorSelect ?? null,
-      Filters.distinctValues((item) => item.author, scoped),
+      Filters.distinctValues((item) => item.author, optionPool("author")),
       sharedState.shared.author,
     );
     Filters.populateDatalist(
       sharedTitleDatalist ?? null,
-      Filters.distinctValues((item) => item.title, scoped),
+      Filters.distinctValues((item) => item.title, optionPool("")),
     );
     const staleLabel = Filters.populateSelect(
       sharedLabelSelect ?? null,
       Filters.distinctValues(
         (item) => (item.labels || []).map((l) => l.name),
-        scoped,
+        optionPool("label"),
       ),
       sharedState.shared.label,
     );
@@ -266,6 +282,8 @@
       ? "1"
       : "";
     Filters.saveState(sharedState);
+    // What the Dependency Dashboard hides is not worth choosing from (#1427).
+    updateSharedFilterOptions();
   }
 
   onMount(() => {
