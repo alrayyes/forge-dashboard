@@ -135,7 +135,7 @@ test.describe('rate-limited actions (#732)', () => {
     await page.reload();
 
     await expect(page.locator('#forge-health')).toContainText(
-      /GH: 0\/5,000 reqs, resets .+/,
+      /GH REST: 0\/5,000 reqs, resets .+/,
     );
   });
 
