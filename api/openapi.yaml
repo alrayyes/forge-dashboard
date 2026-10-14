@@ -4534,8 +4534,8 @@ components:
         (release pull requests under `releases`, Dependabot and Renovate
         under `bots`, the rest under `pullRequests`). Always present, with
         zeros when there is nothing. A client hides a page's whole nav item at
-        zero total, and a state's number at zero. Pull request pages also carry
-        `running` and `passed` (#1439).
+        zero total, and a state's number at zero. Every page except Issues also
+        carries `running` and `passed` (#1439, #1458).
       required: [branches, pullRequests, issues, releases, bots]
       properties:
         branches:
