@@ -117,6 +117,10 @@
     autoMergeEnabled: boolean | null;
     behind: boolean;
     empty: boolean;
+    // Why this pull request is waiting or can't be merged, in one place
+    // (#1375): null when nothing holds it back. The server sends it on every
+    // pull request; the page only shows it.
+    status?: { code: string; message: string; next?: string } | null;
     // Review comments on the pull request, and how many review threads are
     // still open, or null where the forge can't say (#1335). Optional so a
     // server that predates them draws nothing.
@@ -973,6 +977,9 @@
         // Found already merged or closed: the badge replaces Merge, and
         // nothing else on the row has anything left to do.
         const settledRow = isSettled(pr);
+        // What it is waiting on, in its own place above the actions (#1375).
+        const statusAreaEl = settledRow ? null : statusArea(pr);
+        if (statusAreaEl) statusCell.appendChild(statusAreaEl);
         // The chip holds Disarm while auto-merge is waiting; a stopped one
         // keeps its Cancel button here.
         const cancelAutoMerge =
@@ -1112,6 +1119,9 @@
       lock: string | LockInfo,
       requestedRetry: (() => void) | undefined = undefined,
       visibleNote: string | undefined = undefined,
+      // The element that already says why, on the row (#1375): the button is
+      // described by it, and prints no note or tooltip of its own.
+      describedBy: string | undefined = undefined,
     ): HTMLElement {
       const reasonText = typeof lock === "string" ? lock : lock.reason;
       const code = typeof lock === "string" ? undefined : lock.code;
@@ -1126,7 +1136,8 @@
       const wrap = el("span", "row-action-locked");
       const button = buttonEl("row-action", onRetry ? "Retry" : label);
       button.type = "button";
-      const reasonId = `action-locked-reason-${actionLockReasonCounter++}`;
+      const reasonId =
+        describedBy ?? `action-locked-reason-${actionLockReasonCounter++}`;
       button.setAttribute("aria-describedby", reasonId);
       if (onRetry) {
         button.addEventListener("click", onRetry);
@@ -1134,6 +1145,7 @@
         button.setAttribute("aria-disabled", "true");
       }
       wrap.appendChild(button);
+      if (describedBy) return wrap;
       if (visibleNote !== undefined) {
         // The reason is the point of this button (Merge waiting on CI,
         // #705), so it's printed beside it instead of floating as a
@@ -1548,6 +1560,51 @@
         });
     }
 
+    // The one place on a row that says what the pull request is waiting on or
+    // blocked by (#1375). Text and an icon, never colour alone. A locked Merge
+    // is described by it, so it is read without hovering.
+    function statusAreaId(item: PullRequestItem): string {
+      return `status-area-${domSafeId(prKey(item))}`;
+    }
+
+    function statusArea(item: PullRequestItem): HTMLElement | null {
+      const status = item.status;
+      if (!status) return null;
+      const area = el("div", "status-area");
+      area.id = statusAreaId(item);
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("width", "14");
+      svg.setAttribute("height", "14");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-width", "2");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+      svg.setAttribute("aria-hidden", "true");
+      const circle = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "circle",
+      );
+      circle.setAttribute("cx", "12");
+      circle.setAttribute("cy", "12");
+      circle.setAttribute("r", "10");
+      const mark = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      mark.setAttribute("d", "M12 16v-4M12 8h.01");
+      svg.appendChild(circle);
+      svg.appendChild(mark);
+      area.appendChild(svg);
+      const text = el("span", "status-area-text");
+      text.appendChild(el("span", "status-area-message", status.message));
+      if (status.next)
+        text.appendChild(el("span", "status-area-next", status.next));
+      area.appendChild(text);
+      return area;
+    }
+
     // Always rendered for an open pull request (#705): clickable when
     // mergeNotReady has nothing to say, locked with a visible reason
     // otherwise. First click only arms a confirm step
@@ -1574,13 +1631,19 @@
         readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
       )
         return null;
-      if (merge.blocked)
+      if (merge.blocked) {
+        // The status block on the row already says why, and describes the
+        // button; without one (it is always sent for a blocked Merge) the
+        // reason is printed beside it as before.
+        const described = item.status ? statusAreaId(item) : undefined;
         return lockedActionButton(
           "Merge",
           merge.blocked.message,
           undefined,
-          merge.blocked.next,
+          described ? undefined : merge.blocked.next,
+          described,
         );
+      }
 
       const key = prKey(item);
       const entry = mergeState[key] || { phase: "idle" };
