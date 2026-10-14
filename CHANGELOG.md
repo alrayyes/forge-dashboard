@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.180.0](https://github.com/alrayyes/forge-dashboard/compare/v0.179.0...v0.180.0) (2026-10-14)
+
+
+### Features
+
+* **api:** an empty pull request offers Close only, with its reason in status ([#1426](https://github.com/alrayyes/forge-dashboard/issues/1426)) ([a387e2f](https://github.com/alrayyes/forge-dashboard/commit/a387e2f43f0d1a3d56d4f4a510002da0f20f35f5))
+
+
+### Bug Fixes
+
+* **web:** offer only the repos, authors and labels a page can show ([#1429](https://github.com/alrayyes/forge-dashboard/issues/1429)) ([dfea2a2](https://github.com/alrayyes/forge-dashboard/commit/dfea2a295bc7769b8bc7c2ba149e19ecd7e9039a))
+
 ## [0.179.0](https://github.com/alrayyes/forge-dashboard/compare/v0.178.0...v0.179.0) (2026-10-14)
 
 
