@@ -158,6 +158,26 @@ test.describe('Branches pills offer only what would show something (#1427)', () 
     await expect(pill(page, /^Forgejo/)).toBeHidden();
   });
 
+  test('the forge pills follow the status pill', async ({ page }) => {
+    await open(MIXED);
+    await serve(page);
+    await page.goto('/');
+    await expect(page.getByTestId('main-branch-row')).toHaveCount(6);
+    await expect(pill(page, /^Forgejo/)).toBeVisible();
+
+    await pill(page, /^Passing/).click();
+
+    // Both passing branches are on GitHub, so Forgejo would show nothing.
+    await expect(page.getByTestId('main-branch-row')).toHaveCount(2);
+    await expect(pill(page, /^Forgejo/)).toBeHidden();
+    await expect(pill(page, /^GitHub/)).toBeVisible();
+
+    await pill(page, /^Failing/).click();
+    // One failing branch on each forge.
+    await expect(pill(page, /^Forgejo/)).toBeVisible();
+    await expect(pill(page, /^GitHub/)).toBeVisible();
+  });
+
   test('the active pill stays offered after a reload that finds nothing for it', async ({
     page,
   }) => {

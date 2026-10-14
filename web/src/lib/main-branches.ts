@@ -109,6 +109,8 @@ export function offeredForges(
   filter: MainBranchFilter,
 ): Set<ForgeFilter> {
   const offered = new Set<ForgeFilter>(['all', filter.forge]);
+  // The API only sends github or forgejo. Another forge would be counted
+  // under All forges but get no pill of its own.
   for (const b of applyFilter(branches, { ...filter, forge: 'all' }))
     offered.add(b.forge as ForgeFilter);
   return offered;
