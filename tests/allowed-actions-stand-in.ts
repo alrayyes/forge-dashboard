@@ -37,6 +37,7 @@ export type StandInPR = {
   status?: StandInStatus | null;
   kind?: string;
   stackedOn?: { number?: number } | null;
+  headBranch?: string;
 };
 
 // What the server says holds a pull request back (#1375): the same shape as
@@ -62,15 +63,26 @@ export type Fixture = {
 // table. A raw field the table has no value for is an error, not a guess:
 // regenerate the table with a wider axis instead.
 export function outputFor(fixture: Fixture, pr: StandInPR) {
-  const login = (pr.author ?? '').toLowerCase();
+  // Inputs that change the server's answer but are not axes of the table. A
+  // mock that has one states its own allowedActions, status and kind.
+  if ((pr.headBranch ?? '').startsWith('renovate/'))
+    throw new Error(
+      'allowed-actions fixture: a renovate/ head branch is not an axis; state allowedActions, status and kind in the mock',
+    );
+  if (pr.stackedOn && pr.stackedOn.number === undefined)
+    throw new Error(
+      'allowed-actions fixture: stackedOn needs a number to name the parent',
+    );
+  // The same author rules as bot_pr.go: the GitHub App's two spellings are
+  // exact, and "renovatebot" is the one name matched without case.
   const named: Record<string, string> = {
     forge: pr.forge,
     author:
-      login === 'dependabot' || login === 'dependabot[bot]'
+      pr.author === 'dependabot' || pr.author === 'dependabot[bot]'
         ? 'dependabot'
-        : login === 'renovate' ||
-            login === 'renovate[bot]' ||
-            login === 'renovatebot'
+        : pr.author === 'renovate' ||
+            pr.author === 'renovate[bot]' ||
+            (pr.author ?? '').toLowerCase() === 'renovatebot'
           ? 'renovate'
           : 'person',
     release: (pr.labels ?? []).some((l) => l.name.startsWith('autorelease:'))
