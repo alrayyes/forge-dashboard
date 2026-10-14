@@ -333,6 +333,14 @@ own. Only
 live state is the page's: a rate-limited or unreachable forge, a missing token,
 an action already in flight.
 
+Each pull request also carries `status`: the one reason it is waiting on
+something or can't be merged (a check still running, a conflict, a draft, a
+parent it is stacked on), with the same `code`, `message` and `next` as a
+blocked action. It is null when nothing holds the pull request back. An empty
+pull request, whose branch is already on the target, offers `close` and no
+`merge` or `auto_merge`, since nothing can unlock Merge; its `status` says there
+is nothing to merge.
+
 A pull request stacked on another open one shows a chip with its place and what
 it waits for: "Stack 2 of 3 · waits for #840", or "Stack 1 of 3 · merges first"
 for the bottom. The members sit together in position order, at the slot of the
@@ -948,6 +956,12 @@ issues without Renovate's Dependency Dashboard, which the page hides by
 default. The badge is set from each snapshot on the dashboard and issues
 pages, and loaded once on the other signed-in pages. The pull request page no
 longer lists issues.
+
+The repo, author and label choices on the pull request, release, bot and issue
+pages and on Insights come from what the page can show: the items every other
+filter lets through, and without the Dependency Dashboard while it is hidden. A
+repo whose only issue is that one isn't offered until **Hide Dependency
+Dashboard** is unchecked. Hiding it again clears a repo picked on that basis.
 
 `GET /api/dashboard` and its stream carry `navCounts`, the numbers behind every
 navigation badge: for Branches, Pull requests, Releases and Bots a `total` and

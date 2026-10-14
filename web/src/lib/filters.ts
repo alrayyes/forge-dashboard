@@ -363,6 +363,25 @@ export function failingFilters(
   return failing;
 }
 
+// The items a filter's own choices are built from (#1427): what the page can
+// show, so a choice never leads to an empty list. That is the page's items
+// that every shared filter except excludeKey lets through (leaving the
+// filter's own selection out, or a picked value would hide its siblings), and
+// that the page's own default hiding lets through too. extra is that
+// hiding: hideDependencyDashboard on the Issues page, so a repo whose only
+// issue is Renovate's Dependency Dashboard isn't offered while it's hidden.
+export function optionPool(
+  items: FilterableItem[],
+  isPR: boolean,
+  shared: Record<string, string>,
+  excludeKey: '' | 'repo' | 'author' | 'label',
+  extra?: Record<string, string>,
+): FilterableItem[] {
+  const scoped = { ...shared };
+  if (excludeKey) scoped[excludeKey] = '';
+  return items.filter((item) => matchesFilters(item, isPR, scoped, extra));
+}
+
 // What a filter key is called on the page.
 export const FILTER_NAMES: Record<string, string> = {
   forge: 'Forge',
