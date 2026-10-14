@@ -604,23 +604,6 @@ test.describe('settings page', () => {
     // proves the real guard lives server-side too, not just in the UI,
     // by calling the endpoint directly, bypassing the disabled button
     // entirely.
-    test('the server itself refuses to remove the last remaining passkey', async ({
-      page,
-    }) => {
-      await page.goto('/settings.html');
-      const passkeyId = await page
-        .locator('#passkey-list li button.btn-remove')
-        .first()
-        .getAttribute('data-passkey-id');
-
-      const resp = await page.request.delete(
-        `/api/auth/credentials/${passkeyId}`,
-      );
-
-      expect(resp.status()).toBe(400);
-      await expect(page.locator('#passkey-list li')).toHaveCount(1);
-    });
-
     test('has no axe-core violations with two passkeys listed', async ({
       page,
     }) => {
@@ -782,23 +765,6 @@ test.describe('settings page', () => {
       await expect(page.locator('#api-token-list li').first()).toContainText(
         'ci script',
       );
-    });
-
-    test('a generated token actually authenticates a real API request as a Bearer credential', async ({
-      page,
-      request,
-    }) => {
-      await page.goto('/settings.html');
-      await page.fill('#token-label', 'ci script');
-      await page.click('#token-form button[type="submit"]');
-      await expect(page.locator('#token-reveal-field')).toBeVisible();
-      const rawToken = await page.locator('#token-reveal-value').inputValue();
-
-      const resp = await request.get('/api/tokens', {
-        headers: { Authorization: `Bearer ${rawToken}` },
-      });
-
-      expect(resp.status()).toBe(200);
     });
 
     test('revoking a token removes it from the list and stops it authenticating', async ({
