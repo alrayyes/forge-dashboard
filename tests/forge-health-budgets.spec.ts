@@ -70,7 +70,9 @@ test.describe('the budget text under the forge pill (#1433)', () => {
       /^GH REST: 4,800\/5,000 reqs, resets .+/,
     );
     // The banner and the pill now describe the same budget.
-    await expect(page.locator('#rate-limit-banner')).toContainText('GraphQL');
+    await expect(page.locator('#rate-limit-banner')).toContainText(
+      /GraphQL budget is spent/,
+    );
   });
 
   test('a forge with one budget still says which one it is', async ({
@@ -81,6 +83,39 @@ test.describe('the budget text under the forge pill (#1433)', () => {
     await expect(budgets(page)).toHaveCount(1);
     await expect(budgets(page)).toContainText(/^GH REST: 4,800\/5,000 reqs/);
     await expect(page.locator('#forge-health')).not.toContainText(/GH: /);
+  });
+
+  test('a Forgejo forge labels its budget with its own short name', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [
+            {
+              forge: 'forgejo',
+              reachable: true,
+              repoCount: 1,
+              rateLimitREST: rateLimit(1000, 900, inMinutes(40)),
+            },
+          ],
+          pullRequests: [],
+          issues: [],
+          repos: [],
+          hiddenDrafts: 0,
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+
+    await expect(budgets(page)).toHaveCount(1);
+    await expect(budgets(page)).toContainText(/^FJ REST: 900\/1,000 reqs/);
   });
 
   test('a remaining count above its limit is never shown against that limit', async ({
