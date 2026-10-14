@@ -893,6 +893,10 @@ select.col-filter {
   position: relative;
   display: inline-flex;
 }
+/* A forge nothing is on isn't offered (#1427). */
+.forge-segmented label[hidden] {
+  display: none;
+}
 /* Covers the whole label rather than shrinking to 1x1px — a near-zero
    size is its own trap for hit-testing (confirmed live: the containing
    <fieldset> ended up as the actual click target instead of the input)

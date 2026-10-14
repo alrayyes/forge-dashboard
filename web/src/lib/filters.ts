@@ -370,11 +370,20 @@ export function failingFilters(
 // that the page's own default hiding lets through too. extra is that
 // hiding: hideDependencyDashboard on the Issues page, so a repo whose only
 // issue is Renovate's Dependency Dashboard isn't offered while it's hidden.
+export type PoolKey =
+  | ''
+  | 'repo'
+  | 'author'
+  | 'label'
+  | 'forge'
+  | 'created'
+  | 'updated';
+
 export function optionPool(
   items: FilterableItem[],
   isPR: boolean,
   shared: Record<string, string>,
-  excludeKey: '' | 'repo' | 'author' | 'label',
+  excludeKey: PoolKey,
   extra?: Record<string, string>,
 ): FilterableItem[] {
   const scoped = { ...shared };
@@ -413,6 +422,34 @@ export function distinctValues(
   return [...seen].sort();
 }
 
+export interface Choice {
+  value: string;
+  label: string;
+}
+
+// populateSelect for options whose label isn't their value (CI status, the
+// age ranges). Same contract: true when previous was stale and got cleared.
+export function populateChoices(
+  select: HTMLSelectElement | null,
+  choices: Choice[],
+  previous: string,
+): boolean {
+  if (!select) return false;
+  while (select.options.length > 1) select.remove(1);
+  for (const c of choices) {
+    const option = document.createElement('option');
+    option.value = c.value;
+    option.textContent = c.label;
+    select.appendChild(option);
+  }
+  if (choices.some((c) => c.value === previous)) {
+    select.value = previous;
+    return false;
+  }
+  select.value = '';
+  return Boolean(previous);
+}
+
 // Rebuilds select's options (after its fixed first "All ..." option,
 // written once in the HTML) from values, keeping previous selected if
 // it's still among them. Returns true when previous was stale and got
@@ -425,20 +462,62 @@ export function populateSelect(
   values: string[],
   previous: string,
 ): boolean {
-  if (!select) return false;
-  while (select.options.length > 1) select.remove(1);
-  for (const v of values) {
-    const option = document.createElement('option');
-    option.value = v;
-    option.textContent = v;
-    select.appendChild(option);
+  return populateChoices(
+    select,
+    values.map((v) => ({ value: v, label: v })),
+    previous,
+  );
+}
+
+const CI_CHOICES: Choice[] = [
+  { value: 'success', label: 'Passing' },
+  { value: 'failure', label: 'Failing' },
+  { value: 'pending', label: 'Running' },
+  { value: 'none', label: 'No checks' },
+];
+
+// The CI states some item is in, in the order the select lists them (#1427).
+export function ciChoices(items: FilterableItem[]): Choice[] {
+  return CI_CHOICES.filter((c) => items.some((i) => i.ci === c.value));
+}
+
+const AGE_RANGES: Choice[] = [
+  { value: '60', label: '< 1 hour' },
+  { value: '1440', label: '< 24 hours' },
+  { value: '10080', label: '< 7 days' },
+  { value: '43200', label: '< 30 days' },
+];
+
+// The Created or Updated ranges some item falls in (#1427). A range counts
+// minutes the way matchesFilters does, so at the same instant an offered range
+// always matches. Between two snapshots an item can age out of a range it
+// was counted in (minutesAgo rounds to the minute); the next snapshot clears
+// it. An invalid date gives NaN, which no range counts.
+export function ageChoices(
+  items: FilterableItem[],
+  field: 'createdAt' | 'updatedAt',
+): Choice[] {
+  return AGE_RANGES.filter((r) =>
+    items.some((i) => minutesAgo(i[field]) <= Number(r.value)),
+  );
+}
+
+// Shows a forge button only when some result is on that forge, or it is the
+// one picked, so it can be seen and cleared (#1427). "All" always stays. The
+// pick comes from the saved filter state, not from which radio is checked:
+// on a page load the radios are restored after the choices are built.
+export function offerForges(
+  scope: ParentNode,
+  present: Set<string>,
+  picked: string,
+): void {
+  for (const input of scope.querySelectorAll<HTMLInputElement>(
+    'input[type="radio"][data-col="forge"]',
+  )) {
+    const label = input.closest('label');
+    if (!label || !input.value) continue;
+    label.hidden = !(present.has(input.value) || input.value === picked);
   }
-  if (values.includes(previous)) {
-    select.value = previous;
-    return false;
-  }
-  select.value = '';
-  return Boolean(previous);
 }
 
 // Title is the one column that's genuinely open-ended free text — the
