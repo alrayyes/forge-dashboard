@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.183.0](https://github.com/alrayyes/forge-dashboard/compare/v0.182.0...v0.183.0) (2026-10-14)
+
+
+### Features
+
+* **web:** show failing, running and passing in the nav pill ([#1445](https://github.com/alrayyes/forge-dashboard/issues/1445)) ([c1dbdba](https://github.com/alrayyes/forge-dashboard/commit/c1dbdba2ebabc71efe596e532568026930076232)), closes [#1439](https://github.com/alrayyes/forge-dashboard/issues/1439)
+
 ## [0.182.0](https://github.com/alrayyes/forge-dashboard/compare/v0.181.2...v0.182.0) (2026-10-14)
 
 
