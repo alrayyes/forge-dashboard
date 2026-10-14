@@ -2,18 +2,12 @@ package api
 
 import "github.com/alrayyes/forge-dashboard/internal/dashboard"
 
-// pageCount is one nav item's numbers: how many items its page lists, and how
-// many of those fail. Matches components.schemas.NavCount.
+// pageCount is one nav item's numbers (#1315, #1439, #1458): how many items its
+// page lists, and how many of those have checks running, failing and passed. An
+// item with no checks counts in Total only, so the four need not add up. Matches
+// components.schemas.NavCount (Branches) and NavPullRequestCount (the pull
+// request pages), which have the same four fields.
 type pageCount struct {
-	Total  int `json:"total"`
-	Failed int `json:"failed"`
-}
-
-// pullRequestCount is a pull request page's numbers (#1439): how many it lists
-// and how many of those have checks running, failing and passed. A pull request
-// with no checks counts in Total only, so the four need not add up. Matches
-// components.schemas.NavPullRequestCount.
-type pullRequestCount struct {
 	Total   int `json:"total"`
 	Running int `json:"running"`
 	Failed  int `json:"failed"`
@@ -30,11 +24,11 @@ type issueCount struct {
 // of the snapshot it already has, and the stream keeps the numbers live.
 // Matches components.schemas.NavCounts.
 type navCounts struct {
-	Branches     pageCount        `json:"branches"`
-	PullRequests pullRequestCount `json:"pullRequests"`
-	Issues       issueCount       `json:"issues"`
-	Releases     pullRequestCount `json:"releases"`
-	Bots         pullRequestCount `json:"bots"`
+	Branches     pageCount  `json:"branches"`
+	PullRequests pageCount  `json:"pullRequests"`
+	Issues       issueCount `json:"issues"`
+	Releases     pageCount  `json:"releases"`
+	Bots         pageCount  `json:"bots"`
 }
 
 // buildNavCounts counts what each page shows when it opens. Pull requests leave
@@ -45,8 +39,8 @@ type navCounts struct {
 // hidden change the list a request gets, not the badge, so it doesn't jump
 // when a toggle flips. A pull
 // request is running when its CI is pending, failed when it is failing and
-// passed when it succeeded; a branch is failed when its default-branch
-// pipeline is. One with no pipeline counts in the total only.
+// passed when it succeeded; a branch is running, failed or passed with its
+// default-branch pipeline. One with no pipeline counts in the total only.
 func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []dashboard.MainBranch) navCounts {
 	var counts navCounts
 	for _, pr := range pullRequests {
@@ -72,7 +66,10 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []d
 	}
 	counts.Issues.Total = openIssues
 	branchCounts := dashboard.CountMainBranches(branches)
-	counts.Branches = pageCount{Total: branchCounts.Total, Failed: branchCounts.Failed}
+	counts.Branches = pageCount{
+		Total: branchCounts.Total, Running: branchCounts.Running,
+		Failed: branchCounts.Failed, Passed: branchCounts.Passed,
+	}
 
 	return counts
 }
