@@ -3120,7 +3120,7 @@ footer a.mono:focus-visible {
   text-decoration: underline;
 }
 
-/* The header's budget text, e.g. "GH: 0/5,000 reqs, resets 14:32". */
+/* The header's budget text, e.g. "GH REST: 0/5,000 reqs, resets 14:32". */
 .forge-health-budget {
   font-family: "IBM Plex Mono", monospace;
   font-variant-numeric: tabular-nums;

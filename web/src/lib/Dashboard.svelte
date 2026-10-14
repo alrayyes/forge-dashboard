@@ -5333,12 +5333,20 @@
         }
         // The remaining budget and when it comes back, as text (#732). Kept
         // out of the live region: the numbers change on every poll.
-        const budget = f.rateLimitREST;
-        if (budget) {
+        // Each budget the forge has, labelled, so this never describes a
+        // different one from the banner (#1433).
+        for (const [kind, budget] of [
+          ["GraphQL", f.rateLimitGraphQL],
+          ["REST", f.rateLimitREST],
+        ] as const) {
+          if (!budget) continue;
           const text = el(
             "span",
             "forge-health-budget",
-            budgetText(FORGE_SHORT_LABELS[f.forge] || f.forge, budget),
+            budgetText(
+              `${FORGE_SHORT_LABELS[f.forge] || f.forge} ${kind}`,
+              budget,
+            ),
           );
           text.setAttribute("aria-live", "off");
           item.appendChild(text);
