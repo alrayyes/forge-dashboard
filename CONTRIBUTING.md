@@ -137,6 +137,23 @@ fails until the table is regenerated with `UPDATE_FIXTURES=1 go test
 whose raw fields the table has no value for fails loudly: widen the axis in
 `allowed_actions_fixture_test.go`.
 
+## Unit tests
+
+A rule that needs no browser is tested without one. `web/src/lib/*.test.ts`
+runs under `bun test` (`bun run test:unit`): about 10 ms for a module, no
+server, no Chromium. Today that's `insights.ts`, the age buckets and repo
+ranking behind the Insights page. Move a rule here when it is a pure function
+of its inputs, and keep the Playwright journey only for what the page does with
+the answer.
+
+Two things to know. Unit tests live under `web/src`, not `tests/`, because
+Playwright picks up any `tests/*.test.ts` and a bare `bun test` fails on
+Playwright specs. And `bun test` has no Svelte compiler, so it can't load a
+`.svelte.ts` rune module (`$state is not defined`) or render a component. When a
+test first needs one, add Vitest with `vite-plugin-svelte` for those files; the
+options and measurements are on
+[#1383](https://github.com/alrayyes/forge-dashboard/issues/1383).
+
 ## How it fits together
 
 - `api/openapi.yaml` is the contract — handwritten and reviewed as the
