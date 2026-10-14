@@ -126,11 +126,16 @@ linked issue.
 
 Specs import `test` from `tests/fixtures.ts`, not from `@playwright/test`. It
 is Playwright's own `test` with one addition: mocked snapshots whose pull
-requests don't state `allowedActions` get them filled in by a stand-in for the
-server's rules (`tests/allowed-actions-stand-in.ts`). A spec that wants to say
-exactly what the server answered sets `allowedActions` itself, as
-`tests/allowed-actions.spec.ts` does. The stand-in is a port of
-`internal/dashboard/allowed_actions.go`, so change both together.
+requests don't state `allowedActions`, `status` or `kind` get them filled in
+from a table the Go rules generate (`tests/allowed-actions-stand-in.ts` looks
+a mocked pull request up in `tests/generated/allowed-actions.json`). A spec that
+wants to say exactly what the server answered sets `allowedActions` itself, as
+`tests/allowed-actions.spec.ts` does. When `internal/dashboard/allowed_actions.go`,
+`pull_request_status.go` or `bot_pr.go` changes, `go test ./internal/dashboard`
+fails until the table is regenerated with `UPDATE_FIXTURES=1 go test
+./internal/dashboard -run TestAllowedActionsFixture`; commit the result. A mock
+whose raw fields the table has no value for fails loudly: widen the axis in
+`allowed_actions_fixture_test.go`.
 
 ## How it fits together
 

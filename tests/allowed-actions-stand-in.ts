@@ -1,20 +1,26 @@
-// A stand-in for the server's `allowedActions` on mocked snapshots (#805).
+// A stand-in for the server's `allowedActions`, `status` and `kind` on mocked
+// snapshots (#805, #1375).
 //
 // The real server works out which actions each pull request offers
-// (internal/dashboard/allowed_actions.go) and puts them on every pull
-// request. Most specs here mock /api/dashboard with hand-written pull
-// requests that carry only raw fields, so this fills in `allowedActions` on
-// any mocked pull request that doesn't state its own. It is a test double,
-// not the page's logic: the page holds no copy of these rules, and a mock
-// that sets `allowedActions` itself (tests/allowed-actions.spec.ts) is left
-// alone, which is how a spec says exactly what the server answered.
+// (internal/dashboard/allowed_actions.go), why it is held back
+// (pull_request_status.go) and what kind it is (bot_pr.go) and puts them on
+// every pull request. Most specs here mock /api/dashboard with hand-written
+// pull requests that carry only raw fields, so this fills them in on any
+// mocked pull request that doesn't state its own. A mock that sets
+// `allowedActions` itself (tests/allowed-actions.spec.ts) is left alone, which
+// is how a spec says exactly what the server answered.
 //
-// This is a port of the Go rules and has to follow them. When
-// allowed_actions.go changes, change this too.
+// There is no port of the rules here (#1437). The answers come from
+// tests/generated/allowed-actions.json, which a Go test builds by running the
+// real functions over every combination of the inputs they read, and fails on
+// when the rules change and the file isn't regenerated. All this file does is
+// name which combination a mocked pull request is, from its raw fields.
 //
-// allowedActionsFor is pure and refers to nothing outside itself, so the
-// same source runs in the browser (fixtures.ts passes it to the installer)
-// and in a spec's own Node-side snapshot builder.
+// outputFor is pure and refers to nothing outside itself, so the same source
+// runs in the browser (fixtures.ts passes it to the installer) and in a spec's
+// own Node-side snapshot builder.
+
+import fixture from './generated/allowed-actions.json';
 
 export type StandInPR = {
   forge: string;
@@ -30,6 +36,7 @@ export type StandInPR = {
   allowedActions?: unknown;
   status?: StandInStatus | null;
   kind?: string;
+  stackedOn?: { number?: number } | null;
 };
 
 // What the server says holds a pull request back (#1375): the same shape as
@@ -41,147 +48,84 @@ export type StandInEntry = {
   blocked?: { code: string; message: string; next?: string };
 };
 
+export type Fixture = {
+  axes: { name: string; values: string[] }[];
+  outputs: {
+    allowedActions: StandInEntry[];
+    status: StandInStatus | null;
+    kind: string;
+  }[];
+  table: number[];
+};
+
+// The server's answer for one mocked pull request, looked up in the generated
+// table. A raw field the table has no value for is an error, not a guess:
+// regenerate the table with a wider axis instead.
+export function outputFor(fixture: Fixture, pr: StandInPR) {
+  const login = (pr.author ?? '').toLowerCase();
+  const named: Record<string, string> = {
+    forge: pr.forge,
+    author:
+      login === 'dependabot' || login === 'dependabot[bot]'
+        ? 'dependabot'
+        : login === 'renovate' ||
+            login === 'renovate[bot]' ||
+            login === 'renovatebot'
+          ? 'renovate'
+          : 'person',
+    release: (pr.labels ?? []).some((l) => l.name.startsWith('autorelease:'))
+      ? 'yes'
+      : 'no',
+    empty: pr.empty ? 'yes' : 'no',
+    behind: pr.behind ? 'yes' : 'no',
+    draft: pr.draft ? 'yes' : 'no',
+    ci: pr.ci ?? 'none',
+    mergeStatus: pr.mergeStatus ?? 'unknown',
+    autoMergeEnabled: pr.autoMergeEnabled === true ? 'on' : 'off',
+    autoMergeAllowed: pr.autoMergeAllowed === false ? 'no' : 'yes',
+    stacked: pr.stackedOn ? 'yes' : 'no',
+  };
+  let index = 0;
+  for (const axis of fixture.axes) {
+    const at = axis.values.indexOf(named[axis.name]);
+    if (at < 0)
+      throw new Error(
+        `allowed-actions fixture has no ${axis.name} value "${named[axis.name]}" (has ${axis.values.join(', ')})`,
+      );
+    index = index * axis.values.length + at;
+  }
+  const output = fixture.outputs[fixture.table[index]];
+  // The one message that names another pull request carries the generator's
+  // placeholder number; say the mocked parent's instead.
+  const parent = pr.stackedOn?.number;
+  return parent === undefined
+    ? output
+    : JSON.parse(JSON.stringify(output).split('#999999999').join(`#${parent}`));
+}
+
+const fixtureData = fixture as Fixture;
+
 export function allowedActionsFor(pr: StandInPR): StandInEntry[] {
-  const isDependabot =
-    pr.author === 'dependabot' || pr.author === 'dependabot[bot]';
-  const isRenovate = pr.author === 'renovate' || pr.author === 'renovate[bot]';
-  const isReleasePlease = (pr.labels ?? []).some((l) =>
-    l.name.startsWith('autorelease:'),
-  );
-
-  const blockedMerge = (
-    code: string,
-    message: string,
-    next?: string,
-  ): StandInEntry => ({
-    action: 'merge',
-    blocked: next ? { code, message, next } : { code, message },
-  });
-
-  function merge(): StandInEntry {
-    if (pr.empty)
-      return blockedMerge(
-        'already_up_to_date',
-        'Already up to date with the target branch — merging would be empty.',
-      );
-    if (pr.mergeStatus === 'conflicting')
-      return blockedMerge(
-        'conflict',
-        'Merge conflict',
-        'Resolve it on the forge to unlock Merge',
-      );
-    if (pr.draft && pr.mergeStatus !== 'mergeable')
-      return blockedMerge(
-        'not_mergeable',
-        'Draft pull request',
-        'Mark it ready for review to unlock Merge',
-      );
-    if (pr.ci === 'pending')
-      return blockedMerge(
-        'checks_pending',
-        'Waiting for CI to finish',
-        'Merge unlocks automatically',
-      );
-    if (pr.behind && pr.mergeStatus !== 'mergeable')
-      return blockedMerge(
-        'behind',
-        'Behind the base branch',
-        'Bring it up to date to unlock Merge',
-      );
-    if (pr.mergeStatus === 'blocked' && pr.ci === 'failure')
-      return blockedMerge(
-        'checks_failing',
-        'Blocked, CI is failing',
-        'Fix the failing check to unlock Merge',
-      );
-    if (pr.mergeStatus === 'blocked')
-      return blockedMerge(
-        'blocked_by_protection',
-        'Blocked by the forge',
-        'A required check or review is missing',
-      );
-    if (pr.mergeStatus !== 'mergeable')
-      return blockedMerge(
-        'not_mergeable',
-        'Merge status not known yet',
-        'Merge unlocks once the forge reports it',
-      );
-    return { action: 'merge' };
-  }
-
-  function updateBranch(): StandInEntry | null {
-    if (!pr.behind || pr.empty) return null;
-    if ((isDependabot || isRenovate) && !isReleasePlease) return null;
-    if (pr.mergeStatus === 'conflicting')
-      return {
-        action: 'update_branch',
-        blocked: {
-          code: 'conflict',
-          message: 'Conflicts need fixing by hand — resolve them on the forge.',
-        },
-      };
-    return { action: 'update_branch' };
-  }
-
-  function autoMergeOffered(): boolean {
-    if (pr.forge !== 'github' && pr.forge !== 'forgejo') return false;
-    if (pr.forge === 'forgejo' && pr.draft) return false;
-    if (pr.autoMergeEnabled === true) return false;
-    if (pr.autoMergeAllowed === false) return false;
-    if (pr.empty || pr.mergeStatus === 'conflicting') return false;
-    if (pr.mergeStatus === 'mergeable' && pr.ci === 'success' && !pr.behind)
-      return false;
-    return true;
-  }
-
-  // An empty pull request can't become mergeable by waiting, so it has no
-  // Merge at all; its status says why (#1375).
-  const out: StandInEntry[] = pr.empty
-    ? [{ action: 'close' }]
-    : [merge(), { action: 'close' }];
-  const ub = updateBranch();
-  if (ub) out.push(ub);
-  if (autoMergeOffered()) out.push({ action: 'auto_merge' });
-  // Only Forgejo's auto-merge is this app's to cancel. GitHub's belongs to
-  // GitHub.
-  if (pr.forge === 'forgejo' && pr.autoMergeEnabled === true)
-    out.push({ action: 'cancel_auto_merge' });
-  if (pr.forge === 'github' && isDependabot)
-    out.push(
-      { action: 'dependabot_rebase' },
-      { action: 'dependabot_recreate' },
-    );
-  if (isRenovate) out.push({ action: 'renovate_rebase' });
-  // Failed checks can be rerun on either forge. The list only knows the CI
-  // is failing; a Forgejo pull request on an external CI offers it and the
-  // rerun answers that there is nothing to rerun.
-  if (pr.ci === 'failure') out.push({ action: 'rerun_checks' });
-  return out;
+  return structuredClone(outputFor(fixtureData, pr).allowedActions);
 }
 
 // The server's `status` for a pull request (internal/dashboard
 // PullRequestStatus, #1375): why it is waiting or can't be merged, or null.
-// An empty one has no Merge to carry the reason, so it is stated here; any
-// other repeats Merge's blocked reason. A port of the Go rule.
-export function statusFor(
-  pr: StandInPR,
-  actions: StandInEntry[],
-): StandInStatus | null {
-  if (pr.empty)
-    return {
-      code: 'already_up_to_date',
-      message: 'Nothing to merge: the branch is already on the target branch.',
-      next: 'Close it. There is nothing left to land.',
-    };
-  const merge = actions.find((a) => a.action === 'merge' && a.blocked);
-  return merge?.blocked ? { ...merge.blocked } : null;
+export function statusFor(pr: StandInPR): StandInStatus | null {
+  return structuredClone(outputFor(fixtureData, pr).status);
 }
 
-// Runs in the browser. Self-contained apart from the rule functions it is
-// handed, because it's sent over as source text.
+export function kindFor(pr: StandInPR): string {
+  return outputFor(fixtureData, pr).kind;
+}
+
+export { fixtureData as allowedActionsFixture };
+
+// Runs in the browser. Self-contained apart from the table and the lookup it
+// is handed, because it's sent over as source text.
 export function installAllowedActionsStandIn(
-  allowedFor: (pr: StandInPR) => StandInEntry[],
-  statusOf: (pr: StandInPR, actions: StandInEntry[]) => StandInStatus | null,
+  table: Fixture,
+  lookup: (fixture: Fixture, pr: StandInPR) => ReturnType<typeof outputFor>,
 ) {
   function enrich<T>(data: T): T {
     const snapshot = data as unknown as {
@@ -196,27 +140,17 @@ export function installAllowedActionsStandIn(
       snapshot.readIntervalSeconds = 30;
     if (snapshot && Array.isArray(snapshot.pullRequests))
       for (const pr of snapshot.pullRequests) {
-        if (pr.allowedActions === undefined) pr.allowedActions = allowedFor(pr);
+        // Looked up only for what the mock leaves out, so a mock that states
+        // all three is never held to the table's axes.
+        const answer = () => lookup(table, pr);
+        if (pr.allowedActions === undefined)
+          pr.allowedActions = structuredClone(answer().allowedActions);
         // The server always sends a status: null when nothing holds the pull
         // request back. A mock that states its own is left alone.
         if (pr.status === undefined)
-          pr.status = statusOf(pr, pr.allowedActions as StandInEntry[]);
-        // The server's kind for a pull request (internal/dashboard KindOf,
-        // #716): a release label wins, then a bot author, else regular. A
-        // mock that states its own kind is left alone.
-        if (pr.kind === undefined)
-          pr.kind = (pr.labels ?? []).some((l) =>
-            l.name.startsWith('autorelease:'),
-          )
-            ? 'release'
-            : [
-                  'dependabot',
-                  'dependabot[bot]',
-                  'renovate',
-                  'renovate[bot]',
-                ].includes(pr.author ?? '')
-              ? 'dependency'
-              : 'regular';
+          pr.status = structuredClone(answer().status);
+        // A mock that states its own kind is left alone.
+        if (pr.kind === undefined) pr.kind = answer().kind;
       }
     // The server flags a bot's housekeeping issue and counts the rest
     // (#980). A mocked issue that states its own flag is left alone.
