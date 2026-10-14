@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.181.0](https://github.com/alrayyes/forge-dashboard/compare/v0.180.2...v0.181.0) (2026-10-14)
+
+
+### Features
+
+* **web:** show what a pull request is waiting on in one place on its row ([#1436](https://github.com/alrayyes/forge-dashboard/issues/1436)) ([267ac19](https://github.com/alrayyes/forge-dashboard/commit/267ac19ecf3c1fdf6e3754eba5e71af14223d299))
+
 ## [0.180.2](https://github.com/alrayyes/forge-dashboard/compare/v0.180.1...v0.180.2) (2026-10-14)
 
 
