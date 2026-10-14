@@ -4205,7 +4205,8 @@
         | "ignore"
         | "apply"
         | "applyExceptStatus"
-        | "applyExceptQuick" = "ignore",
+        | "applyExceptQuick"
+        | "applyExceptAutoMerge" = "ignore",
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -4225,6 +4226,7 @@
                 ...sharedState.pr,
                 ...(board === "applyExceptStatus" ? { status: "" } : {}),
                 ...(board === "applyExceptQuick" ? { quick: "" } : {}),
+                ...(board === "applyExceptAutoMerge" ? { autoMerge: "" } : {}),
               }
             : undefined
           : sharedState.issue,
@@ -4352,6 +4354,12 @@
       // A quick pill is offered only if clicking it would show something
       // (#1427); the one active stays. Worked out after the stale picks are
       // cleared, since the pools are built from what is left.
+      if (pullsView)
+        Filters.offerAutoMerge(
+          document.querySelectorAll<HTMLElement>(".am-group"),
+          sharedPoolExcluding("", "applyExceptAutoMerge"),
+          sharedState.pr.autoMerge ?? "",
+        );
       Filters.offerPills(
         document.querySelectorAll<HTMLElement>(".quick-pill"),
         forgePillPool(),
@@ -4389,6 +4397,7 @@
 
     function syncSharedControlsToState() {
       syncQuickPills();
+      syncAutoMerge();
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
         .forEach((c) => {
@@ -4978,6 +4987,31 @@
     }
     syncQuickPills();
 
+    // ---- auto-merge segment (#1455) ----
+    // On and Off filter on what the forge says; the choice is the pull request
+    // board's own (sharedState.pr), so it combines with a quick pill.
+    const amButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".am-group [data-am]"),
+    );
+    function syncAutoMerge() {
+      const picked = sharedState.pr.autoMerge || "any";
+      for (const b of amButtons)
+        b.setAttribute("aria-pressed", String(b.dataset.am === picked));
+    }
+    for (const b of amButtons) {
+      b.addEventListener("click", () => {
+        const value = b.dataset.am ?? "any";
+        if (value === "any") delete sharedState.pr.autoMerge;
+        else sharedState.pr.autoMerge = value;
+        prBoard.resetPage();
+        updateSharedFilterOptions();
+        Filters.saveState(sharedState);
+        syncAutoMerge();
+        renderBoth();
+      });
+    }
+    syncAutoMerge();
+
     // "/" focuses the title search, as on GitHub — only when nothing
     // editable has focus and no modifier is held, so typing a slash into
     // a field, or a browser/OS shortcut, is untouched.
@@ -5035,6 +5069,7 @@
         Object.keys(sharedState.shared).every((k) => !sharedState.shared[k]) &&
         !sharedState.pr.status &&
         !sharedState.pr.quick &&
+        !sharedState.pr.autoMerge &&
         sharedState.issue.hideDependencyDashboard === "1"
       );
     }
@@ -5142,6 +5177,14 @@
         chips.push({
           label: `CI ${selectText("status", sharedState.pr.status)}`,
           clear: () => clearSelect("status"),
+        });
+      if (pullsView && sharedState.pr.autoMerge)
+        chips.push({
+          label: `Auto-merge ${sharedState.pr.autoMerge}`,
+          clear: () =>
+            document
+              .querySelector<HTMLButtonElement>('.am-group [data-am="any"]')
+              ?.click(),
         });
       if (pullsView && draftsOn())
         chips.push({
@@ -5283,6 +5326,7 @@
         delete sharedState.issue[k];
       sharedState.issue.hideDependencyDashboard = "1";
       syncQuickPills();
+      syncAutoMerge();
 
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
@@ -6661,6 +6705,18 @@
         <button
           type="button"
           class="quick-pill"
+          data-pill="running"
+          aria-pressed="false">Running CI</button
+        >
+        <button
+          type="button"
+          class="quick-pill"
+          data-pill="passing"
+          aria-pressed="false">Passing CI</button
+        >
+        <button
+          type="button"
+          class="quick-pill"
           data-pill="conflicting"
           aria-pressed="false">Conflicts</button
         >
@@ -6684,6 +6740,24 @@
         >
       {/if}
     </div>
+    {#if pullsView}
+      <div class="am-group" role="group" aria-label="Auto-merge">
+        <span class="am-label" aria-hidden="true">Auto-merge</span>
+        <button type="button" data-am="any" aria-pressed="true">Any</button>
+        <button
+          type="button"
+          data-am="on"
+          aria-label="Auto-merge on"
+          aria-pressed="false">On</button
+        >
+        <button
+          type="button"
+          data-am="off"
+          aria-label="Auto-merge off"
+          aria-pressed="false">Off</button
+        >
+      </div>
+    {/if}
     <!-- Phones (#828): this row stays when the rest of the controls fold
          into the Filters sheet. Everywhere else it just flows. -->
     <div class="filter-bar-top">
@@ -6739,6 +6813,22 @@
         >
       </div>
       {#if pullsView}
+        <div class="am-group sheet-only" role="group" aria-label="Auto-merge">
+          <span class="am-label" aria-hidden="true">Auto-merge</span>
+          <button type="button" data-am="any" aria-pressed="true">Any</button>
+          <button
+            type="button"
+            data-am="on"
+            aria-label="Auto-merge on"
+            aria-pressed="false">On</button
+          >
+          <button
+            type="button"
+            data-am="off"
+            aria-label="Auto-merge off"
+            aria-pressed="false">Off</button
+          >
+        </div>
         <button
           type="button"
           class="drafts-toggle"
