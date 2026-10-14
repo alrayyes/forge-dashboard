@@ -4129,10 +4129,11 @@
     // selected value could exclude itself from its own option list.
     // excludeKey === "" scopes by all four (forge/repo/author/label),
     // which is what the Title datalist wants: free text has no "own
-    // selection" to exclude itself from. Board-owned fields (PR status,
-    // hideDependencyDashboard) stay out of this by design — matchesFilters
-    // is called with isPR: false and extra: undefined, which short-circuits
-    // both of those checks to false regardless of isPR.
+    // selection" to exclude itself from. The pull request board's own
+    // fields (CI status, quick pills) stay out of this by design: isPR is
+    // false, which skips both checks. The Issues page's default hiding of
+    // a bot's housekeeping issue is in, since a repo with nothing else has
+    // nothing to show (#1427).
     function sharedPoolExcluding(
       excludeKey: "" | "repo" | "author" | "label",
     ): FilterableItem[] {
@@ -4140,10 +4141,14 @@
       // only on the other page would be an option that matches no row
       // here (#1071).
       const items: FilterableItem[] = pullsView ? allPRs : allIssues;
-      const shared: Record<string, string> = { ...sharedState.shared };
-      if (excludeKey) shared[excludeKey] = "";
-      return items.filter((item) =>
-        Filters.matchesFilters(item, false, shared, undefined),
+      // The Issues page hides a bot's housekeeping issue by default, so a
+      // repo that has nothing else isn't a choice while it's hidden (#1427).
+      return Filters.optionPool(
+        items,
+        false,
+        sharedState.shared,
+        excludeKey,
+        pullsView ? undefined : sharedState.issue,
       );
     }
 
@@ -4613,6 +4618,9 @@
             hideDependencyDashboardCheckbox.checked ? "1" : "";
           state.page = 1;
           Filters.saveState(sharedState);
+          // What it hides or shows changes which repos, authors and labels
+          // are worth choosing (#1427).
+          updateSharedFilterOptions();
           render();
         });
       }
