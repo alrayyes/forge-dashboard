@@ -1385,7 +1385,11 @@ test.describe('webhooks page', () => {
     test('the forge filter shows only the pill, not native radio circles', async ({
       page,
     }) => {
-      await mockDashboard(page, repos);
+      // Both forges, since a forge with no repo isn't offered (#1427).
+      await mockDashboard(page, [
+        ...repos,
+        { forge: 'forgejo', fullName: 'ryan/infra', hasWebhook: true },
+      ]);
       await page.goto('/webhooks.html');
 
       const radios = page.locator('.forge-segmented input[type="radio"]');

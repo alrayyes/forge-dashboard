@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.180.1](https://github.com/alrayyes/forge-dashboard/compare/v0.180.0...v0.180.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **web:** offer only the CI states, age ranges and forges the results have ([#1431](https://github.com/alrayyes/forge-dashboard/issues/1431)) ([2024f47](https://github.com/alrayyes/forge-dashboard/commit/2024f47f6270d1bafc0ae3d89dae1a29540e3c89))
+
 ## [0.180.0](https://github.com/alrayyes/forge-dashboard/compare/v0.179.0...v0.180.0) (2026-10-14)
 
 
