@@ -8,6 +8,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { settle } from './settle-helper';
 
 // #714: per-pull-request action feedback lives on the row (an inline
 // status line), in a bottom-right toast stack, and in an Activity panel.
@@ -544,10 +545,10 @@ test.describe('inline feedback, toasts and the activity panel', () => {
       },
       JSON.stringify(snapshot(mocks.served())),
     );
+    const answered = page.waitForResponse('**/api/dashboard/refresh');
     await page.click('#force-refresh-button');
-    // The refresh has no visible signal to wait on, and the assertions below
-    // would pass on the state from before it, so this short real wait stays.
-    await page.waitForTimeout(500);
+    await answered;
+    await settle(page);
 
     await expect(rowFor(page, 1).locator('.wait-chip-label')).toHaveText(
       'Updating branch',

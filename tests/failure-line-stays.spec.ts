@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { settle } from './settle-helper';
 
 // #918: a failed action's line stays on its row until it is dismissed or the
 // row is acted on again, however many snapshots arrive, and a permission
@@ -145,7 +146,7 @@ test.describe('a failure line stays until dismissed (#918)', () => {
     ];
     for (const prs of updates) {
       await push(page, prs);
-      await page.waitForTimeout(250);
+      await settle(page);
       await expect(line).toBeVisible();
       await expect(line).toContainText('Missing permission');
     }
@@ -168,9 +169,9 @@ test.describe('a failure line stays until dismissed (#918)', () => {
 
     // The row stays on screen (rows don't move until asked), so its line must too.
     await push(page, [pr(603)]);
-    await page.waitForTimeout(300);
+    await settle(page);
     await push(page, both);
-    await page.waitForTimeout(300);
+    await settle(page);
 
     await expect(rowFor(page, 613)).toHaveCount(1);
     await expect(line).toBeVisible();
@@ -187,7 +188,7 @@ test.describe('a failure line stays until dismissed (#918)', () => {
       .click();
     await expect(rowFor(page, 613).locator('.row-feedback-line')).toBeVisible();
     await push(page, both);
-    await page.waitForTimeout(300);
+    await settle(page);
 
     // #613's own Update branch stays locked, with its reason.
     const refused = rowFor(page, 613).getByRole('button', {
@@ -236,7 +237,7 @@ test.describe('a failure line stays until dismissed (#918)', () => {
     await expect(line).toBeVisible();
     await push(page, both);
     await push(page, [pr(613, { ci: 'pending' }), pr(603)]);
-    await page.waitForTimeout(300);
+    await settle(page);
     await expect(line).toBeVisible();
 
     expect(

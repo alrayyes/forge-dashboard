@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
+import { settle } from './settle-helper';
 import { rateLimit } from './severity-stand-in';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -187,7 +188,7 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
     await row
       .getByRole('button', { name: 'Renovate: Rebase' })
       .click({ force: true });
-    await page.waitForTimeout(300);
+    await settle(page);
 
     expect(posts).toBe(0);
   });
