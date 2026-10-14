@@ -848,6 +848,13 @@ that is behind its base branch gets Update branch and a line saying
 release-please won't update it until a releasable change lands. With no release
 pull requests open the page says nothing is waiting to ship.
 
+The quick filter pills above the list include **Failing CI**, **Running CI**
+and **Passing CI**, each offered only when it would show something. Next to
+them an **Auto-merge** control has Any, On and Off. On shows only pull requests
+that have auto-merge armed, Off only those without. It combines with a pill, so
+Failing CI with Auto-merge On finds armed pull requests whose checks have since
+failed.
+
 ## Bots
 
 Dependabot and Renovate pull requests have their own page, `/bots.html`,
