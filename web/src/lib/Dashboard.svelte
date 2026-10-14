@@ -117,6 +117,11 @@
     autoMergeEnabled: boolean | null;
     behind: boolean;
     empty: boolean;
+    // Review comments on the pull request, and how many review threads are
+    // still open, or null where the forge can't say (#1335). Optional so a
+    // server that predates them draws nothing.
+    reviewComments?: number;
+    unresolvedThreads?: number | null;
     // What the server offers on this pull request (#805).
     allowedActions?: AllowedAction[];
     // The action queued on this pull request that is still waiting for its
@@ -681,6 +686,68 @@
       return pill;
     }
 
+    // The review activity pill (#1335): how many review comments there are
+    // and, where the forge can say, how many threads are still open. Nothing
+    // at zero. The words are in the accessible name, the numbers on screen,
+    // and the open state is a dot and "open" as well as amber. It links to
+    // the files-and-review view on the forge.
+    function reviewPill(item: PullRequestItem): HTMLElement | null {
+      const comments = item.reviewComments ?? 0;
+      if (comments <= 0) return null;
+      const open = item.unresolvedThreads ?? 0;
+      const plural = (n: number, word: string) =>
+        `${n} ${word}${n === 1 ? "" : "s"}`;
+      const pill = el(
+        "a",
+        open > 0 ? "review-pill open" : "review-pill",
+      ) as HTMLAnchorElement;
+      pill.href = `${item.url}/files`;
+      pill.target = "_blank";
+      pill.rel = "noopener noreferrer";
+      pill.appendChild(reviewIcon());
+      if (open > 0) pill.appendChild(el("span", "dot"));
+      const shown = el(
+        "span",
+        "review-pill-text",
+        open > 0 ? `${comments} · ${open} open` : `${comments}`,
+      );
+      shown.setAttribute("aria-hidden", "true");
+      pill.appendChild(shown);
+      pill.appendChild(
+        el(
+          "span",
+          "sr-only",
+          open > 0
+            ? `${plural(comments, "review comment")}, ${plural(open, "unresolved thread")}`
+            : plural(comments, "review comment"),
+        ),
+      );
+      return pill;
+    }
+
+    function reviewIcon(): SVGElement {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("width", "12");
+      svg.setAttribute("height", "12");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-width", "2");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      path.setAttribute(
+        "d",
+        "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+      );
+      svg.appendChild(path);
+      return svg;
+    }
+
     // Silent unless auto-merge is genuinely enabled — autoMergeEnabled
     // is `null` for a forge that can't report this at all (Forgejo,
     // today), which must never render as "not enabled": strict ===
@@ -896,6 +963,8 @@
         if (conflictPill) statusCell.appendChild(conflictPill);
         const outOfDatePill = behindPill(pr);
         if (outOfDatePill) statusCell.appendChild(outOfDatePill);
+        const reviewActivity = reviewPill(pr);
+        if (reviewActivity) statusCell.appendChild(reviewActivity);
         const mergePill = autoMergePill(pr);
         if (mergePill) statusCell.appendChild(mergePill);
         const mergeStatusLine = autoMergeStatusLine(pr);
