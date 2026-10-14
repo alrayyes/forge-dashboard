@@ -99,16 +99,20 @@ async function openMoreActions(row: Locator) {
 test.describe('pull request Renovate rebase button', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
-    // Bot pull requests are on the Bots page, not the main list (#1192).
-    await page.goto('/bots.html');
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
     await mockSettings(page);
+    // Each test installs its dashboard mock, then loads the Bots page once:
+    // bot pull requests live there, not on the main list (#1192).
   });
 
   test('a Renovate-authored GitHub pull request shows the button', async ({
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -125,7 +129,7 @@ test.describe('pull request Renovate rebase button', () => {
       'forgejo',
       makePR({ forge: 'forgejo', author: 'renovate[bot]' }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -138,7 +142,7 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR({ author: 'renovate' }));
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -151,7 +155,7 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR({ author: 'claude' }));
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -168,17 +172,19 @@ test.describe('pull request Renovate rebase button', () => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
-    expect(requestBody).toEqual({
-      forge: 'github',
-      fullName: 'alrayyes/forge-dashboard',
-      number: 42,
-    });
+    await expect
+      .poll(() => requestBody)
+      .toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 42,
+      });
   });
 
   test('shows a queued status while requesting, which holds until the next refresh', async ({
@@ -192,7 +198,7 @@ test.describe('pull request Renovate rebase button', () => {
         return route.fulfill({ status: 204 });
       },
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -233,7 +239,7 @@ test.describe('pull request Renovate rebase button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -263,7 +269,7 @@ test.describe('pull request Renovate rebase button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -294,7 +300,7 @@ test.describe('pull request Renovate rebase button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -320,7 +326,7 @@ test.describe('pull request Renovate rebase button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -347,7 +353,7 @@ test.describe('pull request Renovate rebase button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -366,7 +372,7 @@ test.describe('pull request Renovate rebase button', () => {
       page,
     }) => {
       await mockDashboard(page, 'github', makePR({ behind: true }));
-      await page.reload();
+      await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
       // Visible without opening "More actions" at all — that's the
@@ -388,16 +394,18 @@ test.describe('pull request Renovate rebase button', () => {
           return route.fulfill({ status: 204 });
         },
       );
-      await page.reload();
+      await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
       await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
-      expect(requestBody).toEqual({
-        forge: 'github',
-        fullName: 'alrayyes/forge-dashboard',
-        number: 42,
-      });
+      await expect
+        .poll(() => requestBody)
+        .toEqual({
+          forge: 'github',
+          fullName: 'alrayyes/forge-dashboard',
+          number: 42,
+        });
     });
 
     test('an empty, behind Renovate pull request keeps the button behind More actions', async ({
@@ -408,9 +416,12 @@ test.describe('pull request Renovate rebase button', () => {
         'github',
         makePR({ behind: true, empty: true }),
       );
-      await page.reload();
+      await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
+      await expect(
+        row.getByRole('button', { name: 'More actions' }),
+      ).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Renovate: Rebase' }),
       ).toHaveCount(0);
@@ -438,7 +449,7 @@ test.describe('pull request Renovate rebase button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
