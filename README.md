@@ -984,13 +984,15 @@ offered only when clicking it would show something, and the one that is active
 stays so it can be cleared.
 
 `GET /api/dashboard` and its stream carry `navCounts`, the numbers behind every
-navigation badge: for Branches, Pull requests, Releases and Bots a `total` and
-a `failed` (failing CI, or a failing default-branch pipeline), and for Issues a
-`total` only. They count what each page shows when it opens. Pull requests
-leave out ignored repos, drafts and hidden ones, even while Show drafts or Show
-hidden is on. Branches counts the default branches its page lists, which
-also leave out ignored repos. They are always present, zero when nothing is
-there.
+navigation badge: for Branches a `total` and a `failed` (a failing
+default-branch pipeline); for Pull requests, Releases and Bots a `total` and
+how many have CI `running` (pending), `failed` and `passed`; and for Issues a
+`total` only. A pull request with no checks counts in the total alone, so the
+four numbers need not add up. They count what each page shows when it opens.
+Pull requests leave out ignored repos, drafts and hidden ones, even while Show
+drafts or Show hidden is on. Branches counts the default branches its page
+lists, which also leave out ignored repos. They are always present, zero when
+nothing is there.
 
 The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
