@@ -1132,6 +1132,13 @@ already feeds `review`, so a draft reports 0. Forgejo gives no resolved state
 without a request per review, so its `unresolvedThreads` is `null`: unknown, not
 zero.
 
+`awaitingWorkflowApproval` is true when GitHub is holding a workflow run on the
+head commit until someone approves it (a check run counted as `ACTION_REQUIRED`
+in the checks summary). It adds no request, and it is false when that summary
+belongs to an earlier commit. It can be true while `ci` is pending or failing
+for another reason. A third-party check that concludes `action_required` counts
+too. Forgejo and the unauthenticated fallback always report false.
+
 The **Conflicts** quick filter keeps the pull requests with a merge conflict, so
 they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
 `conflicting`, the same field behind the row's own Conflicting pill, so the page

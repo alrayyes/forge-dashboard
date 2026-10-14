@@ -200,6 +200,11 @@ type PullRequest struct {
 	// the forge reports no resolved state (Forgejo), so a client shows the
 	// count without an "open" state rather than a false zero.
 	UnresolvedThreads *int `json:"unresolvedThreads"`
+	// AwaitingWorkflowApproval is true when GitHub is holding a workflow run on
+	// the head commit until someone approves it (#1280). Those runs count as
+	// failing in CI, so a client uses this to say "waiting for approval"
+	// instead of "check failed". Always present; false on Forgejo.
+	AwaitingWorkflowApproval bool `json:"awaitingWorkflowApproval"`
 	// HeadSHA is the commit the pull request's head branch points at (#759).
 	// A bot's rebase moves it, which shows the bot acted even when the pull
 	// request is still reported behind, or wasn't behind to begin with.
