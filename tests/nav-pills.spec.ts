@@ -368,13 +368,13 @@ test.describe('the real server serves what the nav reads (#1315)', () => {
     });
   });
 
-  test('a user with nothing tracked sees the always-there links and no pills', async ({
+  test('a user with nothing tracked sees only the Branches link and no pills', async ({
     page,
   }) => {
     await page.goto('/settings.html');
 
     await expect(header(page, '/')).toBeVisible();
-    await expect(header(page, '/pull-requests.html')).toBeVisible();
+    await expect(header(page, '/pull-requests.html')).toHaveCount(0);
     await expect(page.locator('.app-nav .nav-pills')).toHaveCount(0);
   });
 });

@@ -37,16 +37,10 @@ const NAV_PAGES = [
   { path: '/settings.html', label: 'Settings', tab: 'Settings' },
 ];
 
-// Issues, Releases and Bots leave the navigation while their count is 0
-// (#1228), and a new user has nothing, so here only these five are always
-// there; the page you are on keeps its own link.
-const ALWAYS_THERE = [
-  'Branches',
-  'Pull requests',
-  'Insights',
-  'Webhooks',
-  'Settings',
-];
+// Pull requests, Issues, Releases and Bots leave the navigation while their
+// count is 0 (#1228, #1415), and a new user has nothing, so here only these
+// four are always there; the page you are on keeps its own link.
+const ALWAYS_THERE = ['Branches', 'Insights', 'Webhooks', 'Settings'];
 const linksOn = (label: string) =>
   NAV_PAGES.filter((p) => ALWAYS_THERE.includes(p.label) || p.label === label);
 
