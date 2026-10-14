@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.187.1](https://github.com/alrayyes/forge-dashboard/compare/v0.187.0...v0.187.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **web:** offer a Branches pill only when clicking it would show something ([#1452](https://github.com/alrayyes/forge-dashboard/issues/1452)) ([dcc90b8](https://github.com/alrayyes/forge-dashboard/commit/dcc90b84b4e0c22bc1a4561e2680cee6426c50d1))
+
 ## [0.187.0](https://github.com/alrayyes/forge-dashboard/compare/v0.186.0...v0.187.0) (2026-10-14)
 
 
