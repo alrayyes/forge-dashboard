@@ -3003,13 +3003,15 @@ test.describe('dashboard page', () => {
     test('clicking resets every shared filter, group-by and CI status in one action, re-renders the board, resets pagination, and disables itself again', async ({
       page,
     }) => {
-      await page.fill('.filter-bar .col-filter[data-col="title"]', 'alarm');
+      await page.fill('.filter-bar .col-filter[data-col="title"]', 'build');
       await page.selectOption('#shared-group-select', 'repo');
       await page.selectOption(
         'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
         'failure',
       );
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(0); // title+status together match neither PR
+      // Title and status together leave the failing "Fix build" PR (#1427:
+      // a combination that matched nothing is no longer offered).
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
       var button = page.getByRole('button', { name: 'Clear filters' });
       await expect(button).toBeEnabled();
