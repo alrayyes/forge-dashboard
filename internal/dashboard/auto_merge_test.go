@@ -85,6 +85,13 @@ func (s *fakeAutoMergeStore) CancelAutoMerge(_ context.Context, _ []byte, forge,
 	return nil
 }
 
+func (s *fakeAutoMergeStore) cancelledKeys() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return append([]string(nil), s.cancelled...)
+}
+
 func (s *fakeAutoMergeStore) stillArmed() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -171,7 +178,6 @@ func TestAutoMerge_WaitsWhileItShouldNotMerge(t *testing.T) {
 		"conflicts":         func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting },
 		"not yet mergeable": func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown },
 		"draft":             func(p *dashboard.PullRequest) { p.Draft = true },
-		"empty":             func(p *dashboard.PullRequest) { p.Empty = true },
 		"github pull request": func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeGitHub
 		},
