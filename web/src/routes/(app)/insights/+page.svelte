@@ -176,7 +176,7 @@
   // What the charts can show, for the filters' own choices (#1427): the pull
   // requests and issues that every other shared filter lets through, and the
   // issues without the Dependency Dashboard while it is hidden.
-  function optionPool(excludeKey: "" | "repo" | "author" | "label") {
+  function optionPool(excludeKey: Filters.PoolKey) {
     const shared = chartFilters();
     return [
       ...Filters.optionPool(
@@ -202,7 +202,9 @@
   let sharedTitleDatalist: HTMLDataListElement | undefined = $state();
   let filterBarEl: HTMLDivElement | undefined = $state();
 
-  function updateSharedFilterOptions() {
+  // skipTitleSuggestions: set while someone types in the title box, so the
+  // suggestion list isn't rebuilt under them (#1427).
+  function updateSharedFilterOptions(skipTitleSuggestions = false) {
     const staleRepo = Filters.populateRepoSelect(
       sharedRepoSelect ?? null,
       optionPool("repo"),
@@ -212,10 +214,11 @@
       Filters.distinctValues((item) => item.author, optionPool("author")),
       sharedState.shared.author,
     );
-    Filters.populateDatalist(
-      sharedTitleDatalist ?? null,
-      Filters.distinctValues((item) => item.title, optionPool("")),
-    );
+    if (!skipTitleSuggestions)
+      Filters.populateDatalist(
+        sharedTitleDatalist ?? null,
+        Filters.distinctValues((item) => item.title, optionPool("")),
+      );
     const staleLabel = Filters.populateSelect(
       sharedLabelSelect ?? null,
       Filters.distinctValues(
@@ -224,6 +227,13 @@
       ),
       sharedState.shared.label,
     );
+    // A forge button is offered only when something here is on that forge.
+    if (filterBarEl)
+      Filters.offerForges(
+        filterBarEl,
+        new Set(optionPool("forge").map((item) => item.forge)),
+        sharedState.shared.forge ?? "",
+      );
     if (staleRepo) sharedState.shared.repo = "";
     if (staleAuthor) sharedState.shared.author = "";
     if (staleLabel) sharedState.shared.label = "";
@@ -265,7 +275,15 @@
               ? c.value
               : c.value.trim().toLowerCase();
           sharedState.shared[col] = value;
-          if (col === "forge") updateSharedFilterOptions();
+          // Each pick narrows what the others can offer (#1427).
+          if (
+            col === "forge" ||
+            col === "repo" ||
+            col === "author" ||
+            col === "label"
+          )
+            updateSharedFilterOptions();
+          else if (col === "title") updateSharedFilterOptions(true);
           Filters.saveState(sharedState, col);
         };
         c.addEventListener("input", apply);
