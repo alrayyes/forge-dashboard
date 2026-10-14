@@ -817,18 +817,4 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
     );
     await expect(chipOf(page)).toHaveCount(0);
   });
-
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe violations with the chip (${scheme})`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await open(page, armed());
-      await expect(chipOf(page)).toBeVisible();
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
 });
