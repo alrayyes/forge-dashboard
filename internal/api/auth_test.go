@@ -79,6 +79,16 @@ func newTestServerWithSources(tb testing.TB, buildSources func([]byte, settingsp
 func newTestServerWithSourcesAndManager(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
 	tb.Helper()
 
+	return newTestServerWithAutoMerge(tb, buildSources, false)
+}
+
+// newTestServerWithAutoMerge is newTestServerWithSourcesAndManager with the
+// auto-merge hook switched on, as main.go does: it merges armed Forgejo pull
+// requests and cancels an armed auto-merge on one that went empty (#1375). Off
+// elsewhere, since it reads the armed set on every refresh.
+func newTestServerWithAutoMerge(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
+	tb.Helper()
+
 	db, err := sql.Open("sqlite", filepath.Join(tb.TempDir(), "app.db"))
 	require.NoError(tb, err)
 	tb.Cleanup(func() { _ = db.Close() })
@@ -103,6 +113,9 @@ func newTestServerWithSourcesAndManager(tb testing.TB, buildSources func([]byte,
 	require.NoError(tb, sharingStore.Init(tb.Context()))
 
 	manager := dashboard.NewManager(testRefreshInterval)
+	if autoMerge {
+		manager.SetAutoMergeStore(settingsStore)
+	}
 	tb.Cleanup(manager.Stop)
 
 	appCtx, cancel := context.WithCancel(context.Background())

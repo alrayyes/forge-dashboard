@@ -30,8 +30,12 @@ type autoMergeConfig struct {
 	mu       sync.Mutex
 	attempts map[string]autoMergeAttempt
 	// failures and merged feed AutoMergeReport. Guarded by mu.
-	failures map[string]AutoMergeFailure
-	merged   []AutoMerged
+	failures  map[string]AutoMergeFailure
+	merged    []AutoMerged
+	cancelled map[string]AutoMergeCancelled
+	// cancelAttempts remembers the cancel tried for each empty pull request,
+	// so a refusal is not repeated on every refresh. Guarded by mu.
+	cancelAttempts map[string]autoMergeAttempt
 }
 
 // autoMergeAttempt is one merge call. It stands until the pull request
@@ -52,7 +56,7 @@ const transientAutoMergeWait = 5 * time.Minute
 // merge it, once its checks pass and the forge calls it mergeable. Nothing
 // else is ever merged: a pull request the user didn't arm is never touched.
 func (a *Aggregator) EnableAutoMerge(userID []byte, store AutoMergeStore) {
-	a.autoMerge = &autoMergeConfig{userID: userID, store: store, attempts: make(map[string]autoMergeAttempt), failures: make(map[string]AutoMergeFailure)}
+	a.autoMerge = &autoMergeConfig{userID: userID, store: store, attempts: make(map[string]autoMergeAttempt), failures: make(map[string]AutoMergeFailure), cancelled: make(map[string]AutoMergeCancelled), cancelAttempts: make(map[string]autoMergeAttempt)}
 }
 
 // runAutoMerge is the post-refresh hook. A store failure is logged and
@@ -62,6 +66,7 @@ func (a *Aggregator) runAutoMerge(ctx context.Context, snap Snapshot) {
 	if cfg == nil {
 		return
 	}
+	a.cancelEmptyAutoMerges(ctx, snap)
 
 	armed, err := cfg.store.AutoMergeIntents(ctx, cfg.userID)
 	if err != nil {
