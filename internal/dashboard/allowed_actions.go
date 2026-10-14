@@ -44,7 +44,13 @@ type Blocked struct {
 // client: a rate-limited or unreachable forge, a missing token, an action
 // already in flight.
 func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailability {
-	out := []ActionAvailability{mergeAvailability(pr), {Action: ActionClose}}
+	out := []ActionAvailability{}
+	// An empty pull request can't become mergeable by waiting, so it offers no
+	// Merge at all, only Close. PullRequestStatus says why (#1375).
+	if !pr.Empty {
+		out = append(out, mergeAvailability(pr))
+	}
+	out = append(out, ActionAvailability{Action: ActionClose})
 	if a, ok := updateBranchAvailability(pr, renovateAuthors); ok {
 		out = append(out, a)
 	}
@@ -90,16 +96,15 @@ func renovateRebaseAvailability(pr PullRequest) ActionAvailability {
 	}}
 }
 
-// mergeAvailability is Merge's rules in the order they apply. Merge is never
-// hidden for an open pull request, only blocked.
+// mergeAvailability is Merge's rules in the order they apply. Merge is blocked
+// rather than hidden while waiting or fixing something can unlock it. Only an
+// empty pull request, which nothing can unlock, is left without it.
 func mergeAvailability(pr PullRequest) ActionAvailability {
 	blocked := func(code ActionCode, message, next string) ActionAvailability {
 		return ActionAvailability{Action: ActionMerge, Blocked: &Blocked{Code: code, Message: message, Next: next}}
 	}
 
 	switch {
-	case pr.Empty:
-		return blocked(ActionAlreadyUpToDate, "Already up to date with the target branch — merging would be empty.", "")
 	case pr.StackedOn != nil:
 		// Merging it would land it in the parent's branch, not the base it
 		// will end up on (#860). It outranks the other reasons: it is the one

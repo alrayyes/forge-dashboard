@@ -99,6 +99,9 @@ type pullRequestView struct {
 	// its own for release and dependency pull requests (#716).
 	Kind           dashboard.PullRequestKind      `json:"kind"`
 	AllowedActions []dashboard.ActionAvailability `json:"allowedActions"`
+	// Status is what the pull request is waiting on or blocked by, for one
+	// fixed place on a row (#1375). Null when nothing holds it back.
+	Status *dashboard.Blocked `json:"status"`
 	// ReadyToMerge and NeedsReview are the Ready and Needs review quick
 	// filters' answers (#807), so a second client lists the same pull
 	// requests the page does.
@@ -365,10 +368,12 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 			continue
 		}
 		pr = withAutoMergeIntent(pr, b.autoMerge)
+		actions := b.allowedActions(pr)
 		item := pullRequestView{
 			PullRequest:    pr,
 			Kind:           dashboard.KindOf(pr, b.renovateAuthors),
-			AllowedActions: b.allowedActions(pr),
+			AllowedActions: actions,
+			Status:         dashboard.PullRequestStatus(pr, actions),
 			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
 			NeedsReview:    dashboard.NeedsReview(pr),
 

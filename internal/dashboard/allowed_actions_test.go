@@ -55,7 +55,7 @@ func TestAllowedActions(t *testing.T) {
 		want []string
 	}{
 		{"clean and mergeable: merge and close; auto-merge adds nothing", ghPR(nil), []string{"close", "merge"}},
-		{"empty: merge says nothing to merge", ghPR(func(p *dashboard.PullRequest) { p.Empty = true }), []string{"close", "merge:already_up_to_date"}},
+		{"empty: only close, no merge (#1375)", ghPR(func(p *dashboard.PullRequest) { p.Empty = true }), []string{"close"}},
 		{"conflicting", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }), []string{"close", "merge:conflict"}},
 		{"conflicting and behind: update branch is locked too", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting; p.Behind = true }), []string{"close", "merge:conflict", "update_branch:conflict"}},
 		{"draft that is not mergeable", ghPR(func(p *dashboard.PullRequest) { p.Draft = true; p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:not_mergeable"}},
@@ -111,9 +111,9 @@ func TestAllowedActions(t *testing.T) {
 			p.StackedOn = &dashboard.StackRef{Number: 840}
 			p.CI = dashboard.CIPending
 		}), []string{"close", "merge:stacked"}},
-		{"empty beats stacked", ghPR(func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840}; p.Empty = true }), []string{"close", "merge:already_up_to_date"}},
+		{"empty beats stacked", ghPR(func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840}; p.Empty = true }), []string{"close"}},
 		{"the bottom of a stack merges as usual", ghPR(func(p *dashboard.PullRequest) { p.StackChildren = []int{853} }), []string{"close", "merge"}},
-		{"empty and behind: no update branch", ghPR(func(p *dashboard.PullRequest) { p.Empty = true; p.Behind = true }), []string{"close", "merge:already_up_to_date"}},
+		{"empty and behind: no update branch", ghPR(func(p *dashboard.PullRequest) { p.Empty = true; p.Behind = true }), []string{"close"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
