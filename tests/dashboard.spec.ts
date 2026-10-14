@@ -3285,6 +3285,8 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       'GitHub',
       'Forgejo',
       'Failing CI',
+      'Running CI',
+      'Passing CI',
       'Conflicts',
       'Ready to Merge',
       'Needs Review',
