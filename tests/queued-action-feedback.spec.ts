@@ -312,10 +312,11 @@ for (const s of scenarios) {
       );
     }
 
-    test('the button reads Queued… and is disabled right after the click, and only one request is sent', async ({
+    test('the button reads Queued… and is disabled right after the click, only one request is sent, and a menu closes with focus on its trigger', async ({
       page,
     }) => {
-      const { row, hits } = await prepare(page);
+      const mocks = await prepare(page);
+      const { row, hits } = mocks;
       const button = row.getByRole('button', { name: s.button });
       await button.click();
 
@@ -326,6 +327,20 @@ for (const s of scenarios) {
       // the request is a real network call to the mock.
       await page.waitForTimeout(500);
       expect(hits()).toBe(1);
+
+      // #690: a bot action sits in the More actions menu. Once the request
+      // is answered the board re-renders, the menu closes and focus lands on
+      // its trigger in the same row. Only the bot scenarios have a menu, and
+      // the full-only test below can't prove it for them.
+      if (s.openMenu) {
+        await afterResponseLands(page, mocks);
+        await expect(
+          page
+            .locator('#pr-rows .row')
+            .first()
+            .getByRole('button', { name: 'More actions' }),
+        ).toBeFocused();
+      }
     });
 
     if (s.full) {
@@ -353,19 +368,7 @@ for (const s of scenarios) {
         // The mock holds the response 300ms; the handler re-renders after.
         await expect.poll(hits).toBe(1);
         await afterResponseLands(page, mocks);
-        if (s.openMenu) {
-          // The menu closes on the re-render (an open one would hold the
-          // board back), so focus lands on its trigger, in the same row.
-          await expect(
-            page
-              .locator('#pr-rows .row')
-              .first()
-              .getByRole('button', { name: 'More actions' }),
-          ).toBeFocused();
-          await openMoreActions(page.locator('#pr-rows .row').first());
-        } else {
-          await expect(queuedButton()).toBeFocused();
-        }
+        await expect(queuedButton()).toBeFocused();
         await expect(queuedButton()).toHaveAttribute('aria-disabled', 'true');
 
         // Playwright refuses to click an aria-disabled button unless forced.
@@ -444,9 +447,7 @@ for (const s of scenarios) {
         const { row } = await prepare(page, 204, true);
         await row.getByRole('button', { name: s.button }).click();
 
-        const ticking = chip(page).locator(
-          s.awaitsRefresh ? '.feedback-countdown' : '.feedback-requested',
-        );
+        const ticking = chip(page).locator('.feedback-countdown');
         await expect(ticking).toHaveAttribute('aria-hidden', 'true');
         // The announced text is stable: said once, no digits that change
         // each second.
@@ -475,7 +476,6 @@ for (const s of scenarios) {
         await afterResponseLands(page, mocks);
 
         const fresh = page.locator('#pr-rows .row').first();
-        if (s.openMenu) await openMoreActions(fresh);
         await expect(
           fresh.getByRole('button', { name: s.queuedLabel }),
         ).toBeDisabled();
@@ -515,10 +515,7 @@ for (const s of scenarios) {
 
         // A snapshot that doesn't change this pull request's state. A bot
         // request is still on the pull request, as the server keeps it.
-        const bot = s.name.split(' ')[0].toLowerCase();
-        const same = s.awaitsRefresh
-          ? withUpdateRequest(s.pr)
-          : { ...s.pr, botRequest: botRequestFor(bot, 'queued') };
+        const same = withUpdateRequest(s.pr);
         await page.evaluate(
           (data) => {
             const w = window as unknown as { __streams: EventSource[] };
@@ -533,7 +530,6 @@ for (const s of scenarios) {
           page.locator('#feedback-toasts .feedback-toast'),
         ).toHaveCount(1);
         const fresh = page.locator('#pr-rows .row').first();
-        if (s.openMenu) await openMoreActions(fresh);
         await expect(
           fresh.getByRole('button', { name: s.queuedLabel }),
         ).toBeDisabled();
