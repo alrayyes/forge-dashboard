@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.185.0](https://github.com/alrayyes/forge-dashboard/compare/v0.184.0...v0.185.0) (2026-10-14)
+
+
+### Features
+
+* **web:** tell queued, skipped and cancelled pipeline checks apart ([#1482](https://github.com/alrayyes/forge-dashboard/issues/1482)) ([7a84c01](https://github.com/alrayyes/forge-dashboard/commit/7a84c01261c6c73bcbe407dad1883d7fb36d45cc)), closes [#1473](https://github.com/alrayyes/forge-dashboard/issues/1473)
+
 ## [0.184.0](https://github.com/alrayyes/forge-dashboard/compare/v0.183.0...v0.184.0) (2026-10-14)
 
 
