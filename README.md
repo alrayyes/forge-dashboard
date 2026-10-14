@@ -341,6 +341,10 @@ pull request, whose branch is already on the target, offers `close` and no
 `merge` or `auto_merge`, since nothing can unlock Merge; its `status` says there
 is nothing to merge.
 
+The row shows `status` in one place, a block with an icon and words above its
+actions, and a locked Merge is described by it, so the reason is read without
+hovering. A pull request with no status has no block.
+
 A pull request stacked on another open one shows a chip with its place and what
 it waits for: "Stack 2 of 3 · waits for #840", or "Stack 1 of 3 · merges first"
 for the bottom. The members sit together in position order, at the slot of the
