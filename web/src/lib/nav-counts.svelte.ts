@@ -5,7 +5,15 @@
 // the layout asks once on pages that load none. null until it is known, so an
 // item shows no number rather than a misleading 0.
 
-export type NavCount = { total: number; failed: number };
+// running and passed come with the pages that have CI (#1439): Pull requests,
+// Bots and Releases. A pull request with no checks is in the total only, so
+// the four need not add up. Branches and Issues carry neither.
+export type NavCount = {
+  total: number;
+  failed: number;
+  running?: number;
+  passed?: number;
+};
 
 export type NavCounts = {
   branches: NavCount;
