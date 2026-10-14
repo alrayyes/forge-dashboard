@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.182.0](https://github.com/alrayyes/forge-dashboard/compare/v0.181.2...v0.182.0) (2026-10-14)
+
+
+### Features
+
+* **api:** navCounts carries running and passed for the pull request pages ([#1443](https://github.com/alrayyes/forge-dashboard/issues/1443)) ([5fc6c91](https://github.com/alrayyes/forge-dashboard/commit/5fc6c9121f5abbee707761042a7eb94ade64d1d0))
+* **dashboard:** cancel an armed auto-merge on a pull request that went empty ([#1454](https://github.com/alrayyes/forge-dashboard/issues/1454)) ([e2e0299](https://github.com/alrayyes/forge-dashboard/commit/e2e0299769d40d0baa644ebf75ed00544701b97c))
+
 ## [0.181.2](https://github.com/alrayyes/forge-dashboard/compare/v0.181.1...v0.181.2) (2026-10-14)
 
 
