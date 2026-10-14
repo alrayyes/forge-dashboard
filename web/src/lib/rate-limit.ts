@@ -53,9 +53,16 @@ export function rateLimitReasonText(
   return `${head} Actions resume at ${formatTime(resetsAt)} (in ${minutesUntil(resetsAt, now)} min).`;
 }
 
-// The header's budget text, e.g. "GH: 0/5,000 reqs, resets 14:32".
-export function budgetText(shortLabel: string, limit: RateLimit): string {
-  return `${shortLabel}: ${limit.remaining.toLocaleString('en-US')}/${limit.limit.toLocaleString('en-US')} reqs, resets ${formatTime(limit.resetsAt)}`;
+// The header's budget text, e.g. "GH REST: 0/5,000 reqs, resets 14:32". The
+// label says which budget it is, since GitHub keeps two (#1433). A count
+// above its limit means the limit isn't this budget's, so it says what is
+// left and doesn't print a ratio that can't be true.
+export function budgetText(label: string, limit: RateLimit): string {
+  const remaining = limit.remaining.toLocaleString('en-US');
+  const resets = `resets ${formatTime(limit.resetsAt)}`;
+  if (limit.remaining > limit.limit)
+    return `${label}: ${remaining} reqs left, ${resets}`;
+  return `${label}: ${remaining}/${limit.limit.toLocaleString('en-US')} reqs, ${resets}`;
 }
 
 // Milliseconds until a timer should fire to re-enable actions: just past
