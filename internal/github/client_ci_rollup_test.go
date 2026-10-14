@@ -37,6 +37,12 @@ func rollupFixture(state string, runs, statuses map[string]int) map[string]any {
 func ciFromGraphQLRollup(t *testing.T, rollup map[string]any) dashboard.CIStatus {
 	t.Helper()
 
+	return pullRequestFromGraphQLRollup(t, rollup).CI
+}
+
+func pullRequestFromGraphQLRollup(t *testing.T, rollup map[string]any) dashboard.PullRequest {
+	t.Helper()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		body := readGraphQLRequest(t, r)
@@ -75,7 +81,7 @@ func ciFromGraphQLRollup(t *testing.T, rollup map[string]any) dashboard.CIStatus
 	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
 	require.Len(t, result.PullRequests, 1)
 
-	return result.PullRequests[0].CI
+	return result.PullRequests[0]
 }
 
 func TestFetch_RollupCI_CancelledRunWhileOthersRun(t *testing.T) {
@@ -279,4 +285,30 @@ func TestFetch_NoToken_MapsTheHeadCommitSHA(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "cafef00d", restPullRequest(t, nil).HeadSHA)
+}
+
+// A run GitHub holds until someone approves it reads as ACTION_REQUIRED in the
+// rollup. The flag lets a client say "waiting for approval" instead of "check
+// failed" (#1280).
+func TestFetch_RollupAwaitingWorkflowApproval(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		rollup map[string]any
+		want   bool
+	}{
+		{"an action_required run", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 3}, nil), true},
+		{"action_required beside a real failure", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 1, "FAILURE": 1}, nil), true},
+		{"a real failure only", rollupFixture("FAILURE", map[string]int{"FAILURE": 1}, nil), false},
+		{"a zero count", rollupFixture("SUCCESS", map[string]int{"ACTION_REQUIRED": 0, "SUCCESS": 4}, nil), false},
+		{"no rollup", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, pullRequestFromGraphQLRollup(t, tt.rollup).AwaitingWorkflowApproval)
+		})
+	}
 }
