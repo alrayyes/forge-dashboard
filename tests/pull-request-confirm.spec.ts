@@ -100,6 +100,11 @@ async function trackRequests(page: Page) {
 test.describe('confirm step: leaving it', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    // Each test installs its dashboard mock, then loads the page once.
   });
 
   test('Cancel has a 44px hit area and returns the row to idle without a request', async ({
@@ -107,7 +112,7 @@ test.describe('confirm step: leaving it', () => {
   }) => {
     const calls = await trackRequests(page);
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await mergeButton(row).click();
@@ -130,7 +135,7 @@ test.describe('confirm step: leaving it', () => {
   }) => {
     const calls = await trackRequests(page);
     await mockDashboard(page, [makePR(3), makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await mergeButton(rowOf(page, 0)).click();
     await expect(confirmMerge(rowOf(page, 0))).toBeVisible();
@@ -145,7 +150,7 @@ test.describe('confirm step: leaving it', () => {
 
   test('a click on the page background disarms', async ({ page }) => {
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await mergeButton(rowOf(page, 0)).click();
     await expect(confirmMerge(rowOf(page, 0))).toBeVisible();
@@ -161,7 +166,7 @@ test.describe('confirm step: leaving it', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await mergeButton(rowOf(page, 0)).click();
     await expect(confirmMerge(rowOf(page, 0))).toBeVisible();
@@ -180,7 +185,7 @@ test.describe('confirm step: leaving it', () => {
   }) => {
     const calls = await trackRequests(page);
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await mergeButton(rowOf(page, 0)).click();
     await expect(confirmMerge(rowOf(page, 0))).toBeFocused();
@@ -197,7 +202,7 @@ test.describe('confirm step: leaving it', () => {
   }) => {
     const calls = await trackRequests(page);
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
@@ -224,7 +229,7 @@ test.describe('confirm step: leaving it', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
@@ -240,7 +245,7 @@ test.describe('confirm step: leaving it', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
@@ -257,6 +262,11 @@ test.describe('confirm step: leaving it', () => {
 test.describe('confirm step: timeout', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    // Each test installs its dashboard mock, then loads the page once.
   });
 
   test('disarms itself after 8 seconds, with a countdown line hidden from screen readers', async ({
@@ -265,7 +275,7 @@ test.describe('confirm step: timeout', () => {
     await page.clock.install({ time: new Date() });
     const calls = await trackRequests(page);
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await mergeButton(row).click();
@@ -290,7 +300,7 @@ test.describe('confirm step: timeout', () => {
   }) => {
     await page.clock.install({ time: new Date() });
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await mergeButton(row).focus();
@@ -312,7 +322,7 @@ test.describe('confirm step: timeout', () => {
   }) => {
     await page.clock.install({ time: new Date() });
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await mergeButton(row).click();
@@ -338,7 +348,7 @@ test.describe('confirm step: timeout', () => {
         body: JSON.stringify(snapshot(prs)),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await mergeButton(row).click();
@@ -359,11 +369,16 @@ test.describe('confirm step: timeout', () => {
 test.describe('confirm step: one at a time and the double-click guard', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    // Each test installs its dashboard mock, then loads the page once.
   });
 
   test('arming Close in one row disarms Merge in another', async ({ page }) => {
     await mockDashboard(page, [makePR(3), makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await mergeButton(rowOf(page, 0)).click();
     await expect(confirmMerge(rowOf(page, 0))).toBeVisible();
@@ -382,7 +397,7 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
   test('a double-click on Merge arms but does not merge', async ({ page }) => {
     const calls = await trackRequests(page);
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await mergeButton(row).dblclick();
@@ -401,7 +416,7 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
   test('a double-click on Close arms but does not close', async ({ page }) => {
     const calls = await trackRequests(page);
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await (await openClose(row)).dblclick();
@@ -418,7 +433,7 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
   test('Confirm still merges once the guard has passed', async ({ page }) => {
     const calls = await trackRequests(page);
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await mergeButton(row).click();
@@ -434,7 +449,7 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
   }) => {
     const calls = await trackRequests(page);
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await mergeButton(row).focus();
@@ -452,6 +467,11 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
 test.describe('confirm step: state outside the DOM', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    // Each test installs its dashboard mock, then loads the page once.
   });
 
   test('an armed row survives a snapshot, and the held update lands when it disarms', async ({
@@ -466,7 +486,7 @@ test.describe('confirm step: state outside the DOM', () => {
         body: JSON.stringify(snapshot(prs)),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await mergeButton(row).focus();
@@ -488,7 +508,7 @@ test.describe('confirm step: state outside the DOM', () => {
 
   test('an armed row survives the board being rebuilt', async ({ page }) => {
     await mockDashboard(page, [makePR(3), makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row', { hasText: 'Pull request 2' });
     await mergeButton(row).focus();
@@ -509,7 +529,7 @@ test.describe('confirm step: state outside the DOM', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR(3), makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row', { hasText: 'Pull request 2' });
     await mergeButton(row).focus();
@@ -532,13 +552,18 @@ test.describe('confirm step: state outside the DOM', () => {
 test.describe('confirm step: screen readers', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
+    // The live stream isn't part of these tests. Aborted, so a shared user's
+    // concurrent pages never hold a real stream open against the server, and
+    // a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    // Each test installs its dashboard mock, then loads the page once.
   });
 
   test('arming announces once, politely, and cancelling adds nothing', async ({
     page,
   }) => {
     await mockDashboard(page, [makePR(342)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const live = page.locator('#feedback-live');
     await expect(live).toHaveAttribute('aria-live', 'polite');
@@ -561,7 +586,7 @@ test.describe('confirm step: screen readers', () => {
 
   test('arming Close announces the close wording', async ({ page }) => {
     await mockDashboard(page, [makePR(342)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await (await openClose(rowOf(page, 0))).click();
     await expect(page.locator('#feedback-live')).toHaveText(
@@ -574,7 +599,7 @@ test.describe('confirm step: screen readers', () => {
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const hint = (row: Locator) => row.locator('.confirm-group .confirm-hint');
 
     await mergeButton(rowOf(page, 0)).click();
@@ -605,7 +630,7 @@ test.describe('confirm step: screen readers', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await mergeButton(rowOf(page, 0)).click();
     const hint = rowOf(page, 0).locator('.confirm-group .confirm-hint');
@@ -623,7 +648,7 @@ test.describe('confirm step: screen readers', () => {
   test('an armed Merge row has no axe-core violations', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await mergeButton(rowOf(page, 0)).click();
     await expect(confirmMerge(rowOf(page, 0))).toBeVisible();
@@ -639,7 +664,7 @@ test.describe('confirm step: screen readers', () => {
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await mockDashboard(page, [makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
