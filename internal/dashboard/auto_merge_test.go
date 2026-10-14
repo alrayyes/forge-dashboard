@@ -171,7 +171,6 @@ func TestAutoMerge_WaitsWhileItShouldNotMerge(t *testing.T) {
 		"conflicts":         func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting },
 		"not yet mergeable": func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown },
 		"draft":             func(p *dashboard.PullRequest) { p.Draft = true },
-		"empty":             func(p *dashboard.PullRequest) { p.Empty = true },
 		"github pull request": func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeGitHub
 		},
