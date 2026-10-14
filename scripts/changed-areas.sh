@@ -51,6 +51,10 @@ while IFS= read -r path; do
     package.json | bun.lock | bunfig.toml)
       web=true api=true prose=true
       ;;
+    # Built by a Go test and read by the specs: both jobs need it (#1437).
+    tests/generated/*)
+      go=true web=true
+      ;;
     web/* | tests/* | scripts/* | .semgrep/* | playwright.config.ts | biome.json | tsconfig.json | lighthouserc.json)
       web=true
       ;;

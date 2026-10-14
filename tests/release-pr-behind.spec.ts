@@ -42,6 +42,12 @@ const releasePR = {
     { action: 'close' },
     { action: 'update_branch' },
   ],
+  // The status repeats Merge's reason, as the server sends it (#1375).
+  status: {
+    code: 'behind',
+    message: 'Behind the base branch',
+    next: NEXT,
+  },
 };
 
 const snapshot = () =>

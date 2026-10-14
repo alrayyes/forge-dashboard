@@ -37,10 +37,11 @@ copy is deleted, one rule per pull request.
   Client libraries regenerate more often.
 - The page can't change a rule alone. A change that used to be one component is
   now a spec edit, a Go change and a page change.
-- The browser tests mock the API, so they carry small stand-ins for the
-  server's answers (`tests/allowed-actions-stand-in.ts`). Those follow the Go
-  rules by hand and can drift. The contract tests in `internal/api` check the
-  real responses against the spec, which is what keeps the two honest.
+- The browser tests mock the API, so they fill in the server's answers from a
+  table the Go rules generate (`tests/generated/allowed-actions.json`). A Go
+  test fails when a rule changes and the table isn't regenerated, so the mocks
+  can't drift from the rules. The contract tests in `internal/api` check the
+  real responses against the spec.
 - Live state the server can't know, such as a forge that is unreachable right
   now or an action already in flight, stays in the page.
 
