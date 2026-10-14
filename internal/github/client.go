@@ -1220,6 +1220,14 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 	return commits[0].Commit.StatusCheckRollup.ci()
 }
 
+func awaitingApprovalOf(commits []prCommitNode) bool {
+	if len(commits) == 0 {
+		return false
+	}
+
+	return commits[0].Commit.StatusCheckRollup.awaitingApproval()
+}
+
 // rollupIsOfAnotherCommit reports whether the last commit, whose rollup is read,
 // is known not to be the head. GitHub updates a pull request's commit list in a
 // background job after a push, so one response can carry the new head, and a
@@ -1238,6 +1246,23 @@ func rollupIsOfAnotherCommit(commits []prCommitNode, headOid string) bool {
 	oid := commits[0].Commit.Oid
 
 	return oid != "" && headOid != "" && oid != headOid
+}
+
+// awaitingApproval reports whether any run is held as ACTION_REQUIRED, which is
+// how GitHub shows a workflow waiting for someone to approve it (#1280). A
+// third-party check app can also conclude action_required, which this can't tell
+// apart until the spike in #1280 (criterion 5) says how.
+func (r *statusCheckRollup) awaitingApproval() bool {
+	if r == nil || r.Contexts == nil {
+		return false
+	}
+	for _, c := range r.Contexts.CheckRunCountsByState {
+		if c.State == "ACTION_REQUIRED" && c.Count > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ci is the rollup's combined result. A commit with no rollup (nil) has no
@@ -2213,30 +2238,33 @@ func reviewThreadCounts(p graphqlPullRequest) (comments, unresolved int) {
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	comments, unresolved := reviewThreadCounts(p)
 	ci := ciFromRollup(p.Commits.Nodes)
+	awaitingApproval := awaitingApprovalOf(p.Commits.Nodes)
 	if rollupIsOfAnotherCommit(p.Commits.Nodes, p.HeadRefOid) {
 		slog.Debug("github rollup is of an earlier commit, reading pending", "forge", dashboard.ForgeGitHub, "repo", fullName,
 			"number", p.Number, "head", p.HeadRefOid, "rollup_commit", p.Commits.Nodes[0].Commit.Oid)
 		ci = dashboard.CIPending
+		awaitingApproval = false
 	}
 
 	return dashboard.PullRequest{
-		Forge:           dashboard.ForgeGitHub,
-		Repo:            fullName,
-		Number:          p.Number,
-		Title:           p.Title,
-		URL:             p.URL,
-		Author:          authorLogin(p.Author),
-		Draft:           p.IsDraft,
-		Labels:          labelsFromNodes(p.Labels.Nodes),
-		CreatedAt:       p.CreatedAt,
-		UpdatedAt:       p.UpdatedAt,
-		CI:              ci,
-		MergeStatus:     mergeStatusFromGraphQL(p.MergeStateStatus),
-		Behind:          p.MergeStateStatus == "BEHIND",
-		HeadSHA:         p.HeadRefOid,
-		BaseBranch:      p.BaseRefName,
-		HeadBranch:      p.HeadRefName,
-		CrossRepository: p.IsCrossRepository,
+		Forge:                    dashboard.ForgeGitHub,
+		Repo:                     fullName,
+		Number:                   p.Number,
+		Title:                    p.Title,
+		URL:                      p.URL,
+		Author:                   authorLogin(p.Author),
+		Draft:                    p.IsDraft,
+		Labels:                   labelsFromNodes(p.Labels.Nodes),
+		CreatedAt:                p.CreatedAt,
+		UpdatedAt:                p.UpdatedAt,
+		CI:                       ci,
+		MergeStatus:              mergeStatusFromGraphQL(p.MergeStateStatus),
+		AwaitingWorkflowApproval: awaitingApproval,
+		Behind:                   p.MergeStateStatus == "BEHIND",
+		HeadSHA:                  p.HeadRefOid,
+		BaseBranch:               p.BaseRefName,
+		HeadBranch:               p.HeadRefName,
+		CrossRepository:          p.IsCrossRepository,
 
 		RenovateRebaseRequested: dashboard.RebaseCheckboxOf(p.Body) == dashboard.RebaseCheckboxTicked,
 		Empty:                   p.Additions == 0 && p.Deletions == 0 && p.ChangedFiles == 0,
