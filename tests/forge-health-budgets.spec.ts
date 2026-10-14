@@ -1,28 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
 import { rateLimit } from './severity-stand-in';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1433: GitHub has two independent budgets. The text under the forge pill
 // shows each one, labelled, so it never describes a different budget from the
 // banner, and a remaining count above its limit is never shown against that
 // limit.
 // https://github.com/alrayyes/forge-dashboard/issues/1433
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `budgets-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Budgets');
-}
 
 const inMinutes = (m: number) =>
   new Date(Date.now() + m * 60_000).toISOString();
@@ -50,9 +36,8 @@ const budgets = (page: Page) =>
   page.locator('#forge-health .forge-health-budget');
 
 test.describe('the budget text under the forge pill (#1433)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   test('a spent GraphQL budget shows next to a healthy REST one, each labelled', async ({
     page,
