@@ -213,7 +213,17 @@ export function loadState(): SharedFilterState {
     Object.assign(state.issue, parsed.issue);
   if (parsed.view && typeof parsed.view === 'object')
     Object.assign(state.view, parsed.view);
+  dropUnknownAutoMerge(state);
   return state;
+}
+
+// A saved auto-merge choice is only 'on' or 'off'; anything else is a stale
+// or hand-edited value, and reads as Any rather than as a chip nothing can
+// undo (#1455).
+function dropUnknownAutoMerge(state: SharedFilterState): void {
+  const value = state.pr.autoMerge;
+  if (value !== undefined && value !== 'on' && value !== 'off')
+    delete state.pr.autoMerge;
 }
 
 const FILTER_STATE_ENDPOINT = '/api/settings/filter-state';
@@ -323,6 +333,7 @@ export function applyServerState(
     Object.assign(state.issue, got.issue);
   if (got.view && typeof got.view === 'object')
     Object.assign(state.view, got.view);
+  dropUnknownAutoMerge(state);
 }
 
 export function minutesAgo(iso: string): number {

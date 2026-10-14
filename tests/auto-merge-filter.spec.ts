@@ -210,6 +210,67 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     await expect(titles(page)).toHaveCount(2);
   });
 
+  test('on a 360px phone the sheet draws no segment when nothing is on or off, and its buttons are 44px', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await open(page);
+    await page.getByRole('button', { name: /^Filters/ }).click();
+    const sheet = page.locator('dialog#filter-sheet');
+
+    for (const value of ['any', 'on', 'off']) {
+      const box = await sheet
+        .locator(`.am-group [data-am="${value}"]`)
+        .boundingBox();
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+      expect(box?.width).toBeGreaterThanOrEqual(44);
+    }
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    current = [pr(1, 'Unknown', 'success')];
+    await page.reload();
+    await page.getByRole('button', { name: /^Filters/ }).click();
+    await expect(sheet.locator('.am-group')).toBeHidden();
+  });
+
+  test('a saved choice that is not on or off reads as Any', async ({
+    page,
+    request,
+  }) => {
+    await open(page);
+    const saved = page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/settings/filter-state') &&
+        r.request().method() !== 'GET',
+    );
+    await am(page, 'on').click();
+    await saved;
+    await page.evaluate(async () => {
+      const got = await (
+        await fetch('/api/settings/filter-state', {
+          headers: { Accept: 'application/json' },
+        })
+      ).json();
+      got.pr.autoMerge = 'bogus';
+      document.cookie = 'forge-board-filters=; Max-Age=0; path=/';
+      await fetch('/api/settings/filter-state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(got),
+      });
+    });
+    await page.reload();
+
+    await expect(am(page, 'any')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByText('Auto-merge bogus')).toHaveCount(0);
+    await expect(titles(page)).toHaveCount(PRS.length);
+  });
+
   for (const scheme of ['light', 'dark'] as const) {
     test(`has no axe-core violations in the ${scheme} theme, with a CI pill and the segment active`, async ({
       page,

@@ -3052,6 +3052,15 @@ footer a.mono:focus-visible {
   .filter-sheet .quick-pill {
     min-height: 44px;
   }
+  /* The sheet-only rule above ties with .am-group[hidden] on specificity and
+     comes later, so say hidden again here (#1455). */
+  .filter-sheet .am-group[hidden] {
+    display: none;
+  }
+  .filter-sheet .am-group button {
+    min-height: 44px;
+    min-width: 44px;
+  }
   .filter-sheet .drafts-toggle {
     min-height: 44px;
   }
