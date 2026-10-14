@@ -136,3 +136,12 @@ server log. The tickets' criteria win over those two details.
   doesn't ship: the status tabs, trace and network panel, diagnostic JSON,
   stack trace, host names, session key and recovery notes all show internals, which
   an error page must not (rules/error-pages.md).
+
+- `1473-pipeline-states/`: state indicators for the pipeline checks panel, so
+  Queued, Skipped and Cancelled stop looking alike (#1473). `matrix.png` is
+  the six states, `variants.png` the two layouts, `pipeline-states-full.png`
+  the whole screen. Stitch project "Forge Dashboard UI Audit"
+  (`564147752128938905`), screen `53cfc94d10a04ad7bd2383f2e3de0614`. Variant A
+  (glyph inside a tinted pill) is the one to build. Running stays amber, not
+  Stitch's blue, which sits too close to its Queued blue. Its contrast ratios,
+  "eye travel latency" and spec labels are invented and don't ship.
