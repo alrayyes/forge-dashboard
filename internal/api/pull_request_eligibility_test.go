@@ -156,3 +156,26 @@ func TestPullRequestUpdateBranch_StillUpdatesABehindPullRequest(t *testing.T) {
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
 	assert.Equal(t, int32(1), src.updates.Load())
 }
+
+// An empty pull request no longer lists merge (#1375), so a client that still
+// shows Merge and posts it gets the real reason, not "doesn't apply".
+func TestPullRequestMerge_OnAnEmptyPullRequestSaysThereIsNothingToMerge_WithoutAskingTheForge(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie, src := eligibilityBoard(t, dashboard.PullRequest{
+		Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 5, Empty: true,
+		MergeStatus: dashboard.MergeMergeable, CI: dashboard.CISuccess,
+	})
+
+	resp := postMergePullRequest(t, srv.URL, cookie, "github", "alrayyes/a", 5)
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode, string(body))
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(body, &got))
+	assert.Equal(t, "already_up_to_date", got["code"])
+	assert.Contains(t, got["message"], "Nothing to merge")
+	assert.Zero(t, src.merges.Load(), "the forge must not be asked")
+}

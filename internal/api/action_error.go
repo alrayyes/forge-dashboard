@@ -103,6 +103,12 @@ func notOfferedRefusal(action dashboard.ActionName, pr dashboard.PullRequest) da
 	}
 
 	switch action {
+	case dashboard.ActionMerge:
+		// An empty pull request lists no merge (#1375), so a client that still
+		// posts one hears the reason that left it out.
+		if pr.Empty {
+			return dashboard.ActionRefusal{Code: dashboard.ActionAlreadyUpToDate, Message: "Nothing to merge: the branch is already on the target branch."}
+		}
 	case dashboard.ActionDependabotRebase, dashboard.ActionDependabotRecreate:
 		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This isn't a Dependabot pull request on GitHub."}
 	case dashboard.ActionRenovateRebase:
