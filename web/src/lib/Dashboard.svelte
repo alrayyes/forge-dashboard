@@ -4193,12 +4193,15 @@
     // excludeKey === "" scopes by all four (forge/repo/author/label),
     // which is what the Title datalist wants: free text has no "own
     // selection" to exclude itself from. The pull request board's own
-    // fields (CI status, quick pills) stay out of this by design: isPR is
-    // false, which skips both checks. The Issues page's default hiding of
-    // a bot's housekeeping issue is in, since a repo with nothing else has
-    // nothing to show (#1427).
+    // fields (CI status, quick pills) stay out of the repo, author and label
+    // choices by design: isPR is false, which skips both checks. The CI
+    // status and age choices do apply them, bar the one being populated, so
+    // a pick never leaves an empty list (#1427). The Issues page's default
+    // hiding of a bot's housekeeping issue is in, since a repo with nothing
+    // else has nothing to show.
     function sharedPoolExcluding(
-      excludeKey: "" | "repo" | "author" | "label",
+      excludeKey: Filters.PoolKey,
+      board: "ignore" | "apply" | "applyExceptStatus" = "ignore",
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -4206,12 +4209,20 @@
       const items: FilterableItem[] = pullsView ? allPRs : allIssues;
       // The Issues page hides a bot's housekeeping issue by default, so a
       // repo that has nothing else isn't a choice while it's hidden (#1427).
+      const withBoard = pullsView && board !== "ignore";
       return Filters.optionPool(
         items,
-        false,
+        withBoard,
         sharedState.shared,
         excludeKey,
-        pullsView ? undefined : sharedState.issue,
+        pullsView
+          ? withBoard
+            ? {
+                ...sharedState.pr,
+                ...(board === "applyExceptStatus" ? { status: "" } : {}),
+              }
+            : undefined
+          : sharedState.issue,
       );
     }
 
@@ -4242,7 +4253,9 @@
     // cleared here too — otherwise it keeps silently filtering out
     // everything on a value nothing can match, with no visible cause
     // (#112).
-    function updateSharedFilterOptions() {
+    // skipTitleSuggestions: set while someone types in the title box, so the
+    // suggestion list isn't rebuilt under them (#1427).
+    function updateSharedFilterOptions(skipTitleSuggestions = false) {
       const staleRepo = Filters.populateRepoSelect(
         document.getElementById(
           "shared-repo-select",
@@ -4259,12 +4272,13 @@
         ),
         sharedState.shared.author,
       );
-      Filters.populateDatalist(
-        document.getElementById(
-          "shared-title-options",
-        ) as HTMLDataListElement | null,
-        Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
-      );
+      if (!skipTitleSuggestions)
+        Filters.populateDatalist(
+          document.getElementById(
+            "shared-title-options",
+          ) as HTMLDataListElement | null,
+          Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
+        );
       const staleLabel = Filters.populateSelect(
         document.getElementById(
           "shared-label-select",
@@ -4275,12 +4289,62 @@
         ),
         sharedState.shared.label,
       );
+      // The fixed choices offer only what the results have too (#1427): the
+      // age ranges something falls in, and the CI states pull requests are in.
+      const staleCreated = populateEvery(
+        'select[data-col="created"]',
+        Filters.ageChoices(
+          sharedPoolExcluding("created", "apply"),
+          "createdAt",
+        ),
+        sharedState.shared.created,
+      );
+      const staleUpdated = populateEvery(
+        'select[data-col="updated"]',
+        Filters.ageChoices(
+          sharedPoolExcluding("updated", "apply"),
+          "updatedAt",
+        ),
+        sharedState.shared.updated,
+      );
+      const staleStatus =
+        pullsView &&
+        populateEvery(
+          'select[data-col="status"]',
+          Filters.ciChoices(sharedPoolExcluding("", "applyExceptStatus")),
+          sharedState.pr.status,
+        );
       updateGroupByOptions();
       if (staleRepo) sharedState.shared.repo = "";
       if (staleAuthor) sharedState.shared.author = "";
       if (staleLabel) sharedState.shared.label = "";
-      if (staleRepo || staleAuthor || staleLabel)
+      if (staleCreated) sharedState.shared.created = "";
+      if (staleUpdated) sharedState.shared.updated = "";
+      if (staleStatus) sharedState.pr.status = "";
+      if (
+        staleRepo ||
+        staleAuthor ||
+        staleLabel ||
+        staleCreated ||
+        staleUpdated ||
+        staleStatus
+      )
         Filters.saveState(sharedState);
+    }
+
+    // The same control can sit in the bar or in the Filters sheet (#828), so
+    // every match gets the choices. True if the pick was stale in any of them.
+    function populateEvery(
+      selector: string,
+      choices: Filters.Choice[],
+      previous: string,
+    ): boolean {
+      let stale = false;
+      for (const select of document.querySelectorAll<HTMLSelectElement>(
+        selector,
+      ))
+        if (Filters.populateChoices(select, choices, previous)) stale = true;
+      return stale;
     }
 
     // Restores the shared bar's controls to match the filters just
@@ -4660,6 +4724,9 @@
             extraState.status = statusSelect.value.trim().toLowerCase();
             state.page = 1;
             Filters.saveState(sharedState);
+            // The age ranges are worth choosing only if something in this CI
+            // state falls in them (#1427).
+            updateSharedFilterOptions();
             render();
           });
         }
@@ -4826,13 +4893,20 @@
           // away rather than waiting for the next poll's setItems
           // (#112). Title stays out of this: it's debounced free text
           // and deliberately suggestions-only, not a restrictive facet.
+          // Created and Updated narrow the pool as well (#1427).
           if (
             col === "forge" ||
             col === "repo" ||
             col === "author" ||
-            col === "label"
+            col === "label" ||
+            col === "created" ||
+            col === "updated"
           )
             updateSharedFilterOptions();
+          // The title narrows the pool too, so the choices follow it as it is
+          // typed (#1427). Only the suggestions wait: they are rebuilt on the
+          // next snapshot.
+          else if (col === "title") updateSharedFilterOptions(true);
           // debouncedCol: only Title fires on 'input' per keystroke;
           // every other control here only ever fires on 'change' (a
           // discrete, already-complete pick), so passing col
