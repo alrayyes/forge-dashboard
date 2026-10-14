@@ -1,13 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import type { FilterableItem } from './filters';
-import {
-  AGE_BUCKETS,
-  bucketAges,
-  bucketForAge,
-  REPO_RANK_CAP,
-  rankByRepo,
-} from './insights';
+import { AGE_BUCKETS, bucketAges, bucketForAge, rankByRepo } from './insights';
 
 // The Insights page's aggregation rules, with no browser: which age bucket an
 // item falls into, and how repos are ranked. The page only draws the answers.
@@ -135,19 +129,19 @@ describe('rankByRepo', () => {
     expect(top.map((r) => r.repo)).toEqual(['a/first', 'a/second', 'a/third']);
   });
 
-  test(`shows at most ${REPO_RANK_CAP} repos and says how many more there are`, () => {
+  test('shows at most 10 repos and says how many more there are', () => {
     const spec: Record<string, number> = {};
     for (let i = 0; i < 12; i++) spec[`alrayyes/repo-${i}`] = 1;
 
     const { top, remaining } = rankByRepo(repos(spec));
 
-    expect(top).toHaveLength(REPO_RANK_CAP);
+    expect(top).toHaveLength(10);
     expect(remaining).toBe(2);
   });
 
   test('exactly the cap leaves nothing remaining', () => {
     const spec: Record<string, number> = {};
-    for (let i = 0; i < REPO_RANK_CAP; i++) spec[`alrayyes/repo-${i}`] = 1;
+    for (let i = 0; i < 10; i++) spec[`alrayyes/repo-${i}`] = 1;
 
     expect(rankByRepo(repos(spec)).remaining).toBe(0);
   });
