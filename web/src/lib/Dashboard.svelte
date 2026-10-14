@@ -3697,10 +3697,56 @@
       return `${sec}s`;
     }
 
+    // One inline glyph per state, so the states differ by shape and not
+    // colour alone (#1473). Static markup, never built from forge data.
+    const RING = '<circle cx="8" cy="8" r="6.25"/>';
+    const CROSS = `${RING}<path d="m5.8 5.8 4.4 4.4m0-4.4-4.4 4.4"/>`;
+    const HOURGLASS =
+      '<circle cx="8" cy="8" r="6.25" stroke-dasharray="2 2"/>' +
+      '<path d="M5.8 4.6h4.4M5.8 11.4h4.4M6.2 4.6c0 2 3.6 2 3.6 3.4' +
+      's-3.6 1.4-3.6 3.4M9.8 4.6c0 2-3.6 2-3.6 3.4s3.6 1.4 3.6 3.4"/>';
+    const CHECK_GLYPHS: Record<string, { name: string; body: string }[]> = {
+      success: [
+        { name: "check", body: `${RING}<path d="m5.3 8.2 1.9 1.9 3.5-3.9"/>` },
+      ],
+      failure: [{ name: "cross", body: CROSS }],
+      timed_out: [{ name: "cross", body: CROSS }],
+      running: [
+        { name: "arc", body: '<path d="M8 1.75a6.25 6.25 0 1 1-6.25 6.25"/>' },
+        { name: "clock", body: `${RING}<path d="M8 4.6V8l2.3 1.4"/>` },
+      ],
+      queued: [{ name: "hourglass", body: HOURGLASS }],
+      skipped: [{ name: "slash", body: `${RING}<path d="m3.6 3.6 8.8 8.8"/>` }],
+      cancelled: [
+        {
+          name: "stop",
+          body: `${RING}<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".8"/>`,
+        },
+      ],
+    };
+
+    function pipelineCheckGlyphs(state: string): SVGElement[] {
+      return (CHECK_GLYPHS[state] ?? []).map(({ name, body }) => {
+        const svg = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "svg",
+        );
+        svg.setAttribute("viewBox", "0 0 16 16");
+        svg.setAttribute("class", `check-glyph check-glyph-${name}`);
+        svg.setAttribute("data-glyph", name);
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+        svg.innerHTML = body;
+        return svg;
+      });
+    }
+
     function pipelineCheckRow(check: Check): HTMLElement {
       const row = el("li", "pipeline-check");
       const status = el("span", `pipeline-check-status ${check.state}`);
-      status.appendChild(el("span", "dot"));
+      const glyphs = pipelineCheckGlyphs(check.state);
+      if (glyphs.length > 0) glyphs.forEach((g) => status.appendChild(g));
+      else status.appendChild(el("span", "dot"));
       status.appendChild(
         document.createTextNode(CHECK_STATE_LABELS[check.state] || check.state),
       );
