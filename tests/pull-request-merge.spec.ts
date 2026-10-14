@@ -217,13 +217,11 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
-  // #543: a mergeable pull request whose diff
-  // against its base is already empty (content landed some other way)
-  // used to show a fully clickable Merge button that quietly did nothing
-  // when clicked. It now shows a disabled button explaining why, so Close
-  // (always available, see pull-request-close.spec.ts) reads as the one
-  // real action instead of a silent dead end.
-  test('an empty pull request shows a disabled Merge button explaining why, not a clickable one', async ({
+  // #543: a mergeable pull request whose diff against its base is already
+  // empty (content landed some other way) used to show a fully clickable Merge
+  // button that quietly did nothing. #1375: nothing can unlock it, so it has
+  // no Merge at all, only Close, and the status area says why.
+  test('an empty pull request has no Merge, and says why in its status area', async ({
     page,
   }) => {
     await mockDashboard(
@@ -233,10 +231,10 @@ test.describe('pull request merge button', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toBeVisible();
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/already up to date/i);
+    await expect(row.locator('.status-area')).toContainText('Nothing to merge');
+    await expect(
+      row.getByRole('button', { name: 'Merge', exact: true }),
+    ).toHaveCount(0);
   });
 
   test('clicking Merge arms a confirm step instead of merging immediately', async ({
