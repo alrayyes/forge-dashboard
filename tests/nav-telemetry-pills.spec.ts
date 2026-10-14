@@ -209,6 +209,8 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
   }) => {
     await page.setViewportSize({ width: 360, height: 740 });
     await open(page, { bots: MIXED });
+    // Wait for the pill, or the pill checks below would be skipped.
+    await expect(page.locator('.bottom-nav .nav-pills').first()).toBeVisible();
 
     const links = page.locator('.bottom-nav .bottom-nav-link');
     const boxes = await links.evaluateAll((els) =>
@@ -233,6 +235,53 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
       }
     }
   });
+
+  for (const [label, counts, maxBar] of [
+    ['three digits', { total: 128, running: 12, failed: 24, passed: 92 }, 112],
+    [
+      'four digits',
+      { total: 1204, running: 85, failed: 18, passed: 1100 },
+      120,
+    ],
+  ] as const) {
+    test(`on a 360px phone ${label} still fit their tab, and the bar is at most ${maxBar}px (a known cost: one count per line)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 360, height: 740 });
+      await open(page, {
+        pullRequests: counts,
+        bots: counts,
+        releases: counts,
+      });
+      await expect(
+        page.locator('.bottom-nav .nav-pills').first(),
+      ).toBeVisible();
+
+      const fit = await page
+        .locator('.bottom-nav .bottom-nav-link')
+        .evaluateAll((els) =>
+          els.map((el) => {
+            const r = el.getBoundingClientRect();
+            const pill = el.querySelector<HTMLElement>('.nav-pills');
+            const p = pill?.getBoundingClientRect();
+            return {
+              right: r.right,
+              height: r.height,
+              pillInside: p
+                ? p.left >= r.left - 1 && p.right <= r.right + 1
+                : true,
+              clipped: pill ? pill.scrollWidth > pill.clientWidth : false,
+            };
+          }),
+        );
+      for (const tabFit of fit) {
+        expect(tabFit.right).toBeLessThanOrEqual(361);
+        expect(tabFit.pillInside).toBe(true);
+        expect(tabFit.clipped).toBe(false);
+        expect(tabFit.height).toBeLessThanOrEqual(maxBar);
+      }
+    });
+  }
 
   for (const scheme of ['light', 'dark'] as const) {
     test(`has no axe-core violations in the ${scheme} theme, on desktop and on a phone`, async ({

@@ -858,15 +858,15 @@ the ones that belong to another of the three), and show how many are failing
 passing (green), in that order. A pull request with no checks is in the total
 only, so the numbers needn't add up. A zero is never drawn, and the link's name
 says the same in words: "Pull requests, 15 total, 2 failing, 3 running, 10
-passing". On a phone the total sits on its own line above the counts. Issues
-counts open issues, without Renovate's Dependency Dashboard, and has no failed
-count. The
-server works the numbers out from the same lists the pages show (`navCounts` on
-`/api/dashboard`), so a page agrees with its icon, and a hidden pull request is
-in neither. The dashboard pages set them from each snapshot. The other
-signed-in pages (Branches, Insights, Settings and the rest) load them and ask
-again every 30 seconds while the tab is visible, so a refresh or a webhook
-changes them without a reload.
+passing". On a phone the total sits on its own line above the counts, and with
+three-digit numbers each count takes a line, so the busy tabs grow to about
+110px. Issues counts open issues, without Renovate's Dependency Dashboard, and
+has no failed count. The server works the numbers out from the same lists the
+pages show (`navCounts` on `/api/dashboard`), so a page agrees with its icon,
+and a hidden pull request is in neither. The dashboard pages set them from each
+snapshot. The other signed-in pages (Branches, Insights, Settings and the rest)
+load them and ask again every 30 seconds while the tab is visible, so a refresh
+or a webhook changes them without a reload.
 
 A zero is never drawn: a page with nothing in it has no total, and nothing
 failing means no red pill. A page with nothing to show leaves the navigation:

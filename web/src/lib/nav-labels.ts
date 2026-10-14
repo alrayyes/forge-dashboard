@@ -1,6 +1,6 @@
-// What assistive tech hears for a nav item with counts (#1315, #1439). The pills are
-// aria-hidden, so the link's own name carries both numbers, and the name has
-// to contain the words and numbers on screen (WCAG 2.5.3).
+// What assistive tech hears for a nav item with counts (#1315, #1439). The
+// pills are aria-hidden, so the link's own name carries every number, and the
+// name has to contain the words and numbers on screen (WCAG 2.5.3).
 
 type Count = {
   total: number;
