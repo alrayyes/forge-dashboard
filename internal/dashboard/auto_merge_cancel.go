@@ -16,21 +16,27 @@ import (
 // empty, is never touched.
 func (a *Aggregator) cancelEmptyAutoMerges(ctx context.Context, snap Snapshot) {
 	cfg := a.autoMerge
+	cfg.forgetGone(snap)
 
 	var intents map[string]struct{}
+	intentsFailed := false
 	for _, pr := range snap.PullRequests {
 		if !pr.Empty {
 			continue
 		}
 		key := dependabotPRKey(pr)
-		if pr.Forge == ForgeForgejo && intents == nil {
+		if pr.Forge == ForgeForgejo && intents == nil && !intentsFailed {
 			loaded, err := cfg.store.AutoMergeIntents(ctx, cfg.userID)
 			if err != nil {
+				// A Forgejo pull request can't be told to be armed without the
+				// set; GitHub's own state is on the pull request, so go on.
 				slog.Warn("auto-merge: could not load armed pull requests", "error", err)
-
-				return
+				intentsFailed = true
 			}
 			intents = loaded
+		}
+		if intentsFailed && pr.Forge == ForgeForgejo {
+			continue
 		}
 		if !armedOn(pr, key, intents) || !cfg.beginCancel(pr) {
 			continue
@@ -96,6 +102,30 @@ func (a *Aggregator) cancelAutoMerge(ctx context.Context, pr PullRequest, key st
 		},
 	})
 	a.notify(a.Get())
+}
+
+// forgetGone drops what is kept for pull requests the snapshot no longer lists
+// (merged, closed), and the cancellations too old to show, so neither map grows
+// for ever. A pull request that is still listed keeps its entry, which is what
+// stops a stale snapshot from cancelling twice.
+func (c *autoMergeConfig) forgetGone(snap Snapshot) {
+	listed := make(map[string]struct{}, len(snap.PullRequests))
+	for _, pr := range snap.PullRequests {
+		listed[dependabotPRKey(pr)] = struct{}{}
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key := range c.cancelAttempts {
+		if _, ok := listed[key]; !ok {
+			delete(c.cancelAttempts, key)
+		}
+	}
+	for key, cancelled := range c.cancelled {
+		if _, ok := listed[key]; !ok && time.Since(cancelled.At) >= autoMergedKeep {
+			delete(c.cancelled, key)
+		}
+	}
 }
 
 // beginCancel reports whether the cancel may be tried now, and records the

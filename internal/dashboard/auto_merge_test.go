@@ -85,6 +85,13 @@ func (s *fakeAutoMergeStore) CancelAutoMerge(_ context.Context, _ []byte, forge,
 	return nil
 }
 
+func (s *fakeAutoMergeStore) cancelledKeys() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return append([]string(nil), s.cancelled...)
+}
+
 func (s *fakeAutoMergeStore) stillArmed() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
