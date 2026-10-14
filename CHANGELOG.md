@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.184.0](https://github.com/alrayyes/forge-dashboard/compare/v0.183.0...v0.184.0) (2026-10-14)
+
+
+### Features
+
+* **web:** filter pull requests by running or passing CI and by auto-merge ([#1470](https://github.com/alrayyes/forge-dashboard/issues/1470)) ([c25b191](https://github.com/alrayyes/forge-dashboard/commit/c25b191ed5b51f3d4d4d45227b07789f89b6984a))
+
 ## [0.183.0](https://github.com/alrayyes/forge-dashboard/compare/v0.182.0...v0.183.0) (2026-10-14)
 
 
