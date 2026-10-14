@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.177.0](https://github.com/alrayyes/forge-dashboard/compare/v0.176.3...v0.177.0) (2026-10-14)
+
+
+### Features
+
+* **api:** flag a pull request whose workflow runs await approval ([#1413](https://github.com/alrayyes/forge-dashboard/issues/1413)) ([fcabc32](https://github.com/alrayyes/forge-dashboard/commit/fcabc32d193745ac2d4a2e00afe62bb665fc4a0d))
+
 ## [0.176.3](https://github.com/alrayyes/forge-dashboard/compare/v0.176.2...v0.176.3) (2026-10-13)
 
 
