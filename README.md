@@ -949,10 +949,11 @@ default. The badge is set from each snapshot on the dashboard and issues
 pages, and loaded once on the other signed-in pages. The pull request page no
 longer lists issues.
 
-The repo, author and label choices on the dashboard pages and on Insights come
-from what the page can show: the items every other filter lets through, and
-without the Dependency Dashboard while it is hidden. A repo whose only issue is
-that one isn't offered until **Hide Dependency Dashboard** is unchecked.
+The repo, author and label choices on the pull request, release, bot and issue
+pages and on Insights come from what the page can show: the items every other
+filter lets through, and without the Dependency Dashboard while it is hidden. A
+repo whose only issue is that one isn't offered until **Hide Dependency
+Dashboard** is unchecked. Hiding it again clears a repo picked on that basis.
 
 `GET /api/dashboard` and its stream carry `navCounts`, the numbers behind every
 navigation badge: for Branches, Pull requests, Releases and Bots a `total` and

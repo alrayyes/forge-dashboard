@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import {
   type APIRequestContext,
   expect,
@@ -52,7 +53,7 @@ const ISSUES = [
   }),
 ];
 
-async function open(page: Page, path: string) {
+async function open(page: Page, path: string, issues = ISSUES) {
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
@@ -62,8 +63,8 @@ async function open(page: Page, path: string) {
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
         pullRequests: [],
-        issues: ISSUES,
-        openIssueCount: ISSUES.length,
+        issues,
+        openIssueCount: issues.length,
         repos: [],
         hiddenDrafts: 0,
       }),
@@ -131,3 +132,74 @@ for (const path of ['/issues.html', '/insights.html']) {
     });
   });
 }
+
+// Narrowing (the other filters shape a filter's own choices) and what happens
+// to a picked value that stops being a choice.
+test.describe('filter choices follow the other filters on the Issues page (#1427)', () => {
+  const NARROWING = [
+    issue(1, { repo: 'alrayyes/app', author: 'ryan' }),
+    issue(2, { repo: 'alrayyes/other', author: 'claude' }),
+    issue(3, { repo: 'alrayyes/other', author: 'ryan' }),
+    issue(4, {
+      repo: 'alrayyes/dash-only',
+      author: 'renovate',
+      housekeeping: true,
+    }),
+  ];
+
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+    await open(page, '/issues.html', NARROWING);
+  });
+
+  test('picking an author narrows the repo choices to that author, and the author keeps its siblings', async ({
+    page,
+  }) => {
+    await expect(page.locator('#shared-repo-select option')).toHaveCount(3);
+
+    await page.selectOption('#shared-author-select', 'claude');
+
+    await expect(page.locator('#shared-repo-select option')).toHaveCount(2);
+    expect(await choices(page, 'shared-repo-select')).toEqual([
+      'All repos',
+      'alrayyes/other',
+    ]);
+    // The author select leaves its own pick out, so ryan stays a choice.
+    expect(await choices(page, 'shared-author-select')).toEqual([
+      'All authors',
+      'claude',
+      'ryan',
+    ]);
+  });
+
+  test('a picked repo that only has hidden issues is cleared when they are hidden again, and the list shows everything', async ({
+    page,
+  }) => {
+    const hide = page.locator('#issue-hide-dependency-dashboard');
+    await hide.uncheck();
+    await page.selectOption('#shared-repo-select', 'github:alrayyes/dash-only');
+    await expect(page.locator('#shared-repo-select')).toHaveValue(
+      'github:alrayyes/dash-only',
+    );
+
+    await hide.check();
+
+    await expect(page.locator('#shared-repo-select')).toHaveValue('');
+    expect(await choices(page, 'shared-repo-select')).not.toContain(
+      'alrayyes/dash-only',
+    );
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(3);
+  });
+
+  test('has no axe-core violations with the narrowed choices', async ({
+    page,
+  }) => {
+    await page.selectOption('#shared-author-select', 'claude');
+    await expect(page.locator('#shared-repo-select option')).toHaveCount(2);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+});
