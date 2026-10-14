@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.187.0](https://github.com/alrayyes/forge-dashboard/compare/v0.186.0...v0.187.0) (2026-10-14)
+
+
+### Features
+
+* **web:** say a pull request is waiting for workflow approval and link to approve it ([#1480](https://github.com/alrayyes/forge-dashboard/issues/1480)) ([e05ecc6](https://github.com/alrayyes/forge-dashboard/commit/e05ecc6b951a10989dc9ef835baceb18b0ba598f)), closes [#1280](https://github.com/alrayyes/forge-dashboard/issues/1280)
+
 ## [0.186.0](https://github.com/alrayyes/forge-dashboard/compare/v0.185.0...v0.186.0) (2026-10-14)
 
 
