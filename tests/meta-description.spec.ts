@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1135: Lighthouse's SEO audit wants a description on every page, and a
 // search result or link preview reads it. A sentence about the page, not the
@@ -37,25 +37,21 @@ test.describe('meta descriptions (#1135)', () => {
     });
   }
 
-  test('every signed-in page describes itself, each differently', async ({
-    page,
-    request,
-    baseURL,
-  }) => {
-    await registerViaInvite(
+  test.describe('signed in', () => {
+    // Reads only, so it starts from the shared session (#1379).
+    test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+    test('every signed-in page describes itself, each differently', async ({
       page,
-      request,
-      baseURL,
-      `meta-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Meta Test User',
-    );
-    const seen = new Set<string>();
-    for (const path of SIGNED_IN_PAGES) {
-      await page.goto(path);
-      const text = await description(page);
-      expect(text.length, `${path} has no description`).toBeGreaterThan(20);
-      seen.add(text);
-    }
-    expect(seen.size).toBe(SIGNED_IN_PAGES.length);
+    }) => {
+      const seen = new Set<string>();
+      for (const path of SIGNED_IN_PAGES) {
+        await page.goto(path);
+        const text = await description(page);
+        expect(text.length, `${path} has no description`).toBeGreaterThan(20);
+        seen.add(text);
+      }
+      expect(seen.size).toBe(SIGNED_IN_PAGES.length);
+    });
   });
 });
