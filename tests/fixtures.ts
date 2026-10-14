@@ -1,8 +1,8 @@
 import { test as base } from '@playwright/test';
 import {
-  allowedActionsFor,
+  allowedActionsFixture,
   installAllowedActionsStandIn,
-  statusFor,
+  outputFor,
 } from './allowed-actions-stand-in';
 
 // The test every spec imports. It is Playwright's own, plus one thing: each
@@ -11,7 +11,7 @@ import {
 export const test = base.extend({
   context: async ({ context }, use) => {
     await context.addInitScript(
-      `(${installAllowedActionsStandIn.toString()})(${allowedActionsFor.toString()}, ${statusFor.toString()})`,
+      `(${installAllowedActionsStandIn.toString()})(${JSON.stringify(allowedActionsFixture)}, ${outputFor.toString()})`,
     );
     await use(context);
   },
