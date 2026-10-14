@@ -5,7 +5,11 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
-import { allowedActionsFor, statusFor } from './allowed-actions-stand-in';
+import {
+  allowedActionsFor,
+  kindFor,
+  statusFor,
+} from './allowed-actions-stand-in';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
@@ -76,9 +80,9 @@ function snapshot(prs: MockPR[]) {
       allowedActions: allowedActionsFor(pr),
       // And the status (#1375), or every row reads as changed against the
       // enriched first fetch.
-      status: statusFor(pr, allowedActionsFor(pr)),
-      // Same for the kind (#716): these are ordinary pull requests.
-      kind: 'regular',
+      status: statusFor(pr),
+      // Same for the kind (#716).
+      kind: kindFor(pr),
     })),
     issues: [],
   };
