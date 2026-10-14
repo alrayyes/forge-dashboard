@@ -59,6 +59,7 @@ const PRS = [
     unresolvedThreads: null,
   }),
   makePR(2, { title: 'Old server', reviewComments: undefined }),
+  makePR(1, { title: 'Single', reviewComments: 1, unresolvedThreads: 1 }),
 ];
 
 async function open(page: Page, scheme: 'light' | 'dark' = 'light') {
@@ -118,6 +119,7 @@ test.describe('the review comments pill (#1335)', () => {
     await expect(shown(page, 'Resolved')).toHaveText('7');
     await expect(p).toHaveAccessibleName('7 review comments');
     await expect(p).not.toHaveClass(/\bopen\b/);
+    await expect(p.locator('.dot')).toHaveCount(0);
   });
 
   test('open threads turn it amber and say how many', async ({ page }) => {
@@ -129,22 +131,21 @@ test.describe('the review comments pill (#1335)', () => {
       '7 review comments, 2 unresolved threads',
     );
     await expect(p).toHaveClass(/\bopen\b/);
+    // The state is a dot and a different background, not only a class name.
+    await expect(p.locator('.dot')).toHaveCount(1);
+    const background = (title: string) =>
+      pill(page, title).evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await background('Open')).not.toBe(await background('Resolved'));
   });
 
   test('a lone comment and a lone open thread read in the singular', async ({
     page,
   }) => {
-    PRS.push(
-      makePR(1, { title: 'Single', reviewComments: 1, unresolvedThreads: 1 }),
+    await open(page);
+
+    await expect(pill(page, 'Single')).toHaveAccessibleName(
+      '1 review comment, 1 unresolved thread',
     );
-    try {
-      await open(page);
-      await expect(pill(page, 'Single')).toHaveAccessibleName(
-        '1 review comment, 1 unresolved thread',
-      );
-    } finally {
-      PRS.pop();
-    }
   });
 
   test('a forge that cannot say which threads are open shows the count and no amber', async ({
