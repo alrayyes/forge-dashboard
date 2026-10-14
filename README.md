@@ -971,7 +971,9 @@ The CI status select, the Created and Updated ranges and the forge buttons on
 Insights follow the same rule: a CI state, a range or a forge appears only when
 something in the results is in it, and a pick that nothing matches any more is
 cleared. The CI and age choices also follow the other one and the quick pills,
-so picking one never leaves an empty list.
+so picking one never leaves an empty list. The quick pills do too: a pill is
+offered only when clicking it would show something, and the one that is active
+stays so it can be cleared.
 
 `GET /api/dashboard` and its stream carry `navCounts`, the numbers behind every
 navigation badge: for Branches a `total` and a `failed` (a failing
