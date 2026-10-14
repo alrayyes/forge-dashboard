@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.181.1](https://github.com/alrayyes/forge-dashboard/compare/v0.181.0...v0.181.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **web:** show each GitHub budget under the pill, labelled ([#1434](https://github.com/alrayyes/forge-dashboard/issues/1434)) ([da636b5](https://github.com/alrayyes/forge-dashboard/commit/da636b578ddd99a846145e1c9ea650303760b42c))
+
 ## [0.181.0](https://github.com/alrayyes/forge-dashboard/compare/v0.180.2...v0.181.0) (2026-10-14)
 
 
