@@ -1249,7 +1249,9 @@ func rollupIsOfAnotherCommit(commits []prCommitNode, headOid string) bool {
 }
 
 // awaitingApproval reports whether any run is held as ACTION_REQUIRED, which is
-// how GitHub shows a workflow waiting for someone to approve it (#1280).
+// how GitHub shows a workflow waiting for someone to approve it (#1280). A
+// third-party check app can also conclude action_required, which this can't tell
+// apart until the spike in #1280 (criterion 5) says how.
 func (r *statusCheckRollup) awaitingApproval() bool {
 	if r == nil || r.Contexts == nil {
 		return false
@@ -2245,19 +2247,18 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 	}
 
 	return dashboard.PullRequest{
-		Forge:       dashboard.ForgeGitHub,
-		Repo:        fullName,
-		Number:      p.Number,
-		Title:       p.Title,
-		URL:         p.URL,
-		Author:      authorLogin(p.Author),
-		Draft:       p.IsDraft,
-		Labels:      labelsFromNodes(p.Labels.Nodes),
-		CreatedAt:   p.CreatedAt,
-		UpdatedAt:   p.UpdatedAt,
-		CI:          ci,
-		MergeStatus: mergeStatusFromGraphQL(p.MergeStateStatus),
-
+		Forge:                    dashboard.ForgeGitHub,
+		Repo:                     fullName,
+		Number:                   p.Number,
+		Title:                    p.Title,
+		URL:                      p.URL,
+		Author:                   authorLogin(p.Author),
+		Draft:                    p.IsDraft,
+		Labels:                   labelsFromNodes(p.Labels.Nodes),
+		CreatedAt:                p.CreatedAt,
+		UpdatedAt:                p.UpdatedAt,
+		CI:                       ci,
+		MergeStatus:              mergeStatusFromGraphQL(p.MergeStateStatus),
 		AwaitingWorkflowApproval: awaitingApproval,
 		Behind:                   p.MergeStateStatus == "BEHIND",
 		HeadSHA:                  p.HeadRefOid,

@@ -1136,7 +1136,8 @@ zero.
 head commit until someone approves it (a check run counted as `ACTION_REQUIRED`
 in the checks summary). It adds no request, and it is false when that summary
 belongs to an earlier commit. It can be true while `ci` is pending or failing
-for another reason. Forgejo always reports false.
+for another reason. A third-party check that concludes `action_required` counts
+too. Forgejo and the unauthenticated fallback always report false.
 
 The **Conflicts** quick filter keeps the pull requests with a merge conflict, so
 they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
