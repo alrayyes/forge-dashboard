@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.186.0](https://github.com/alrayyes/forge-dashboard/compare/v0.185.0...v0.186.0) (2026-10-14)
+
+
+### Features
+
+* **api:** navCounts.branches carries running and passed ([#1472](https://github.com/alrayyes/forge-dashboard/issues/1472)) ([251bb04](https://github.com/alrayyes/forge-dashboard/commit/251bb046a2c947410ad43f519e7e661ad2ea5bf2))
+
 ## [0.185.0](https://github.com/alrayyes/forge-dashboard/compare/v0.184.0...v0.185.0) (2026-10-14)
 
 
