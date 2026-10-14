@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import * as Filters from "#lib/filters.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
+  import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
 
   type RateLimit = {
     limit: number;
@@ -52,51 +53,6 @@
     { key: "pending", label: "Running", className: "ci-warning" },
     { key: "none", label: "No checks", className: "ci-neutral" },
   ] as const;
-
-  const REPO_RANK_CAP = 10;
-
-  // Fixed age buckets, oldest-catch-all last so nothing older ever gets
-  // dropped instead of counted.
-  const AGE_BUCKETS = [
-    { key: "lt1", label: "<1 day", maxHours: 24 },
-    { key: "1to3", label: "1-3 days", maxHours: 24 * 3 },
-    { key: "3to7", label: "3-7 days", maxHours: 24 * 7 },
-    { key: "7to30", label: "7-30 days", maxHours: 24 * 30 },
-    { key: "30plus", label: "30+ days", maxHours: Number.POSITIVE_INFINITY },
-  ] as const;
-
-  function bucketForAge(hoursOld: number): string {
-    const bucket = AGE_BUCKETS.find((b) => hoursOld < b.maxHours);
-    return bucket ? bucket.key : AGE_BUCKETS[AGE_BUCKETS.length - 1].key;
-  }
-
-  function bucketAges(items: FilterableItem[]) {
-    const counts: Record<string, number> = {};
-    for (const b of AGE_BUCKETS) counts[b.key] = 0;
-    const now = Date.now();
-    for (const item of items) {
-      const hoursOld =
-        (now - new Date(item.createdAt).getTime()) / (60 * 60 * 1000);
-      counts[bucketForAge(hoursOld)]++;
-    }
-    const maxCount = Math.max(...AGE_BUCKETS.map((b) => counts[b.key]));
-    return { counts, maxCount };
-  }
-
-  // Ranked by count, single neutral hue — repo identity rides the label,
-  // not a color, since a fixed categorical hue order doesn't scale past
-  // a handful of repos.
-  function rankByRepo(items: FilterableItem[]) {
-    const counts: Record<string, number> = {};
-    for (const item of items) counts[item.repo] = (counts[item.repo] || 0) + 1;
-    const ranked = Object.keys(counts)
-      .map((repo) => ({ repo, count: counts[repo] }))
-      .sort((a, b) => b.count - a.count);
-    const top = ranked.slice(0, REPO_RANK_CAP);
-    const maxCount = top.length > 0 ? top[0].count : 0;
-    const remaining = ranked.length - top.length;
-    return { top, maxCount, remaining };
-  }
 
   // The gauge colour follows the budget's health, not forge identity —
   // --gh/--fj don't pass as chart-mark fills (see the CSS comment on this
