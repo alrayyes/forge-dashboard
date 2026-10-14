@@ -14,6 +14,7 @@
       "GHCR",
       "Gitea",
       "Sigstore",
+      "Vitest",
       "autodiscovered",
       "automerge",
       "commitlint-on-title",
