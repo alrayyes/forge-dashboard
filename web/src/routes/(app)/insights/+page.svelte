@@ -202,7 +202,9 @@
   let sharedTitleDatalist: HTMLDataListElement | undefined = $state();
   let filterBarEl: HTMLDivElement | undefined = $state();
 
-  function updateSharedFilterOptions() {
+  // skipTitleSuggestions: set while someone types in the title box, so the
+  // suggestion list isn't rebuilt under them (#1427).
+  function updateSharedFilterOptions(skipTitleSuggestions = false) {
     const staleRepo = Filters.populateRepoSelect(
       sharedRepoSelect ?? null,
       optionPool("repo"),
@@ -212,10 +214,11 @@
       Filters.distinctValues((item) => item.author, optionPool("author")),
       sharedState.shared.author,
     );
-    Filters.populateDatalist(
-      sharedTitleDatalist ?? null,
-      Filters.distinctValues((item) => item.title, optionPool("")),
-    );
+    if (!skipTitleSuggestions)
+      Filters.populateDatalist(
+        sharedTitleDatalist ?? null,
+        Filters.distinctValues((item) => item.title, optionPool("")),
+      );
     const staleLabel = Filters.populateSelect(
       sharedLabelSelect ?? null,
       Filters.distinctValues(
@@ -280,6 +283,7 @@
             col === "label"
           )
             updateSharedFilterOptions();
+          else if (col === "title") updateSharedFilterOptions(true);
           Filters.saveState(sharedState, col);
         };
         c.addEventListener("input", apply);

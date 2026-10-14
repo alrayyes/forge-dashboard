@@ -4190,7 +4190,9 @@
     // cleared here too — otherwise it keeps silently filtering out
     // everything on a value nothing can match, with no visible cause
     // (#112).
-    function updateSharedFilterOptions() {
+    // skipTitleSuggestions: set while someone types in the title box, so the
+    // suggestion list isn't rebuilt under them (#1427).
+    function updateSharedFilterOptions(skipTitleSuggestions = false) {
       const staleRepo = Filters.populateRepoSelect(
         document.getElementById(
           "shared-repo-select",
@@ -4207,12 +4209,13 @@
         ),
         sharedState.shared.author,
       );
-      Filters.populateDatalist(
-        document.getElementById(
-          "shared-title-options",
-        ) as HTMLDataListElement | null,
-        Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
-      );
+      if (!skipTitleSuggestions)
+        Filters.populateDatalist(
+          document.getElementById(
+            "shared-title-options",
+          ) as HTMLDataListElement | null,
+          Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
+        );
       const staleLabel = Filters.populateSelect(
         document.getElementById(
           "shared-label-select",
@@ -4837,6 +4840,10 @@
             col === "updated"
           )
             updateSharedFilterOptions();
+          // The title narrows the pool too, so the choices follow it as it is
+          // typed (#1427). Only the suggestions wait: they are rebuilt on the
+          // next snapshot.
+          else if (col === "title") updateSharedFilterOptions(true);
           // debouncedCol: only Title fires on 'input' per keystroke;
           // every other control here only ever fires on 'change' (a
           // discrete, already-complete pick), so passing col

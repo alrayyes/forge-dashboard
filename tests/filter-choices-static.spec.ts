@@ -135,6 +135,23 @@ test.describe('CI status and age choices on the pull request page (#1427)', () =
     expect(await values(page, STATUS)).toEqual(['', 'success']);
   });
 
+  test('typing a title narrows the CI choices as it is typed, and clears a CI pick it leaves nothing for', async ({
+    page,
+  }) => {
+    await open(page, '/pull-requests.html', [
+      pr(1, { title: 'Alpha change', ci: 'success' }),
+      pr(2, { title: 'Beta change', ci: 'failure' }),
+    ]);
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    await page.selectOption(STATUS, 'failure');
+
+    await page.fill('.filter-bar .col-filter[data-col="title"]', 'alpha');
+
+    await expect(page.locator(STATUS)).toHaveValue('');
+    expect(await values(page, STATUS)).toEqual(['', 'success']);
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+  });
+
   test('picking a CI state leaves only the age ranges that state is in', async ({
     page,
   }) => {
