@@ -1132,6 +1132,14 @@ already feeds `review`, so a draft reports 0. Forgejo gives no resolved state
 without a request per review, so its `unresolvedThreads` is `null`: unknown, not
 zero.
 
+Each row shows that as a pill beside the other status pills (#1335): the number
+of review comments, and `7 · 2 open` in amber, with a dot, when threads are
+still unresolved. A pull request with no review comments shows nothing, and on
+Forgejo, where `unresolvedThreads` is `null`, the pill shows the count with no
+open state. The pill is a link to the pull request's files-and-review view on
+the forge, opened in a new tab. Its accessible name is the full sentence, such
+as "7 review comments, 2 unresolved threads".
+
 `awaitingWorkflowApproval` is true when GitHub is holding a workflow run on the
 head commit until someone approves it (a check run counted as `ACTION_REQUIRED`
 in the checks summary). It adds no request, and it is false when that summary
