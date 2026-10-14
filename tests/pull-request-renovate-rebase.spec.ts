@@ -178,11 +178,13 @@ test.describe('pull request Renovate rebase button', () => {
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
-    expect(requestBody).toEqual({
-      forge: 'github',
-      fullName: 'alrayyes/forge-dashboard',
-      number: 42,
-    });
+    await expect
+      .poll(() => requestBody)
+      .toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 42,
+      });
   });
 
   test('shows a queued status while requesting, which holds until the next refresh', async ({
@@ -397,11 +399,13 @@ test.describe('pull request Renovate rebase button', () => {
       const row = page.locator('#pr-rows .row').first();
       await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
-      expect(requestBody).toEqual({
-        forge: 'github',
-        fullName: 'alrayyes/forge-dashboard',
-        number: 42,
-      });
+      await expect
+        .poll(() => requestBody)
+        .toEqual({
+          forge: 'github',
+          fullName: 'alrayyes/forge-dashboard',
+          number: 42,
+        });
     });
 
     test('an empty, behind Renovate pull request keeps the button behind More actions', async ({
