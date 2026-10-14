@@ -28,8 +28,13 @@ export type StandInPR = {
   autoMergeEnabled?: boolean | null;
   autoMergeAllowed?: boolean | null;
   allowedActions?: unknown;
+  status?: StandInStatus | null;
   kind?: string;
 };
+
+// What the server says holds a pull request back (#1375): the same shape as
+// a blocked action.
+export type StandInStatus = { code: string; message: string; next?: string };
 
 export type StandInEntry = {
   action: string;
@@ -129,7 +134,11 @@ export function allowedActionsFor(pr: StandInPR): StandInEntry[] {
     return true;
   }
 
-  const out: StandInEntry[] = [merge(), { action: 'close' }];
+  // An empty pull request can't become mergeable by waiting, so it has no
+  // Merge at all; its status says why (#1375).
+  const out: StandInEntry[] = pr.empty
+    ? [{ action: 'close' }]
+    : [merge(), { action: 'close' }];
   const ub = updateBranch();
   if (ub) out.push(ub);
   if (autoMergeOffered()) out.push({ action: 'auto_merge' });
@@ -150,10 +159,29 @@ export function allowedActionsFor(pr: StandInPR): StandInEntry[] {
   return out;
 }
 
-// Runs in the browser. Self-contained apart from the rule function it is
+// The server's `status` for a pull request (internal/dashboard
+// PullRequestStatus, #1375): why it is waiting or can't be merged, or null.
+// An empty one has no Merge to carry the reason, so it is stated here; any
+// other repeats Merge's blocked reason. A port of the Go rule.
+export function statusFor(
+  pr: StandInPR,
+  actions: StandInEntry[],
+): StandInStatus | null {
+  if (pr.empty)
+    return {
+      code: 'already_up_to_date',
+      message: 'Nothing to merge: the branch is already on the target branch.',
+      next: 'Close it. There is nothing left to land.',
+    };
+  const merge = actions.find((a) => a.action === 'merge' && a.blocked);
+  return merge?.blocked ? { ...merge.blocked } : null;
+}
+
+// Runs in the browser. Self-contained apart from the rule functions it is
 // handed, because it's sent over as source text.
 export function installAllowedActionsStandIn(
   allowedFor: (pr: StandInPR) => StandInEntry[],
+  statusOf: (pr: StandInPR, actions: StandInEntry[]) => StandInStatus | null,
 ) {
   function enrich<T>(data: T): T {
     const snapshot = data as unknown as {
@@ -169,6 +197,10 @@ export function installAllowedActionsStandIn(
     if (snapshot && Array.isArray(snapshot.pullRequests))
       for (const pr of snapshot.pullRequests) {
         if (pr.allowedActions === undefined) pr.allowedActions = allowedFor(pr);
+        // The server always sends a status: null when nothing holds the pull
+        // request back. A mock that states its own is left alone.
+        if (pr.status === undefined)
+          pr.status = statusOf(pr, pr.allowedActions as StandInEntry[]);
         // The server's kind for a pull request (internal/dashboard KindOf,
         // #716): a release label wins, then a bot author, else regular. A
         // mock that states its own kind is left alone.
