@@ -23,7 +23,7 @@ async function registerAndSignIn(
   await registerViaInvite(page, request, baseURL, username, 'Mobile Filters');
 }
 
-function makePR(number: number, repo: string, author: string) {
+function makePR(number: number, repo: string, author: string, ci = 'success') {
   return {
     forge: repo.startsWith('homelab/') ? 'forgejo' : 'github',
     repo,
@@ -32,7 +32,7 @@ function makePR(number: number, repo: string, author: string) {
     url: `https://example.com/${number}`,
     author,
     draft: false,
-    ci: 'success',
+    ci,
     labels: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date(Date.now() - number * 1000).toISOString(),
@@ -46,7 +46,8 @@ const PRS = [
   makePR(2, 'alrayyes/two', 'claude'),
   makePR(3, 'alrayyes/two', 'ryan'),
   makePR(4, 'homelab/three', 'claude'),
-  makePR(5, 'homelab/three', 'ryan'),
+  // One failing, so the Failing CI pill is offered (#1427).
+  makePR(5, 'homelab/three', 'ryan', 'failure'),
 ];
 
 function snapshot() {

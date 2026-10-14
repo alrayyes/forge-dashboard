@@ -3274,10 +3274,12 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(rowTitles(page)).toHaveCount(LISTED);
   });
 
-  test('shows all the pills in a labelled group with exactly one active', async ({
+  test('shows the pills something matches in a labelled group with exactly one active', async ({
     page,
   }) => {
     const group = page.getByRole('group', { name: 'Quick filters' });
+    // A pill is offered only when clicking it would show something (#1427);
+    // none of these pull requests asks the signed-in user for a review.
     await expect(group.getByRole('button')).toHaveText([
       'All',
       'GitHub',
@@ -3286,7 +3288,6 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
       'Conflicts',
       'Ready to Merge',
       'Needs Review',
-      'Review requested from me',
     ]);
     await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
     await expect(group.locator('[aria-pressed="true"]')).toHaveCount(1);
@@ -3387,8 +3388,10 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(pill(page, 'Failing CI')).toHaveCount(0);
     await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
-    await pill(page, 'Forgejo').click();
-    await expect(page.locator('#issue-rows > .row')).toHaveCount(0);
+    // No issue is on Forgejo, so that pill isn't offered (#1427); GitHub is.
+    await expect(pill(page, 'Forgejo')).toBeHidden();
+    await pill(page, 'GitHub').click();
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
   });
 
   test('the active pill survives a reload', async ({ page }) => {
