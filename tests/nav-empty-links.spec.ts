@@ -237,11 +237,12 @@ test.describe('empty pages leave the navigation (#1228)', () => {
   }) => {
     const state: Snapshot = { pullRequests: [], openIssueCount: 0 };
     await mockDashboard(page, state);
+    await page.clock.install();
     await page.goto('/settings.html');
     await expect(header(page, PULLS)).toHaveCount(0);
 
     state.pullRequests = [makePR(1)];
-    await page.goto('/insights.html');
+    await page.clock.runFor(31_000);
     await expect(header(page, PULLS)).toBeVisible();
     await expect(tab(page, PULLS)).toHaveCount(1);
   });
@@ -256,6 +257,11 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     );
     await page.goto('/issues.html');
     await expect(page.locator('#issue-empty')).toBeVisible();
+  });
+
+  test('the Pull requests page typed into the address bar with none open still opens with its own empty state (#1415)', async ({
+    page,
+  }) => {
     await mockDashboard(page, { pullRequests: [], openIssueCount: 0 });
     await page.goto('/pull-requests.html');
     await expect(page.locator('#pr-empty')).toContainText(
