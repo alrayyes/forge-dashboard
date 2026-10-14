@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.179.0](https://github.com/alrayyes/forge-dashboard/compare/v0.178.0...v0.179.0) (2026-10-14)
+
+
+### Features
+
+* **web:** show review comments and open threads on each pull request row ([#1418](https://github.com/alrayyes/forge-dashboard/issues/1418)) ([d34a37b](https://github.com/alrayyes/forge-dashboard/commit/d34a37bf87b72c98baa2d7bd4d88683bfe979d4e))
+
 ## [0.178.0](https://github.com/alrayyes/forge-dashboard/compare/v0.177.0...v0.178.0) (2026-10-14)
 
 
