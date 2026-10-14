@@ -357,6 +357,14 @@ stack. On a phone the chip is short, what it waits for goes on a second line,
 and the title is what gets cut. The server works out stacks from the branches
 (`stack`, `stackedOn` and `stackChildren` on each pull request).
 
+On GitHub, a pull request whose workflow runs are held until someone approves
+them (`awaitingWorkflowApproval`) doesn't read "Failing". The CI pill says
+"Waiting for workflow approval" and still opens the pipeline panel. An
+"Approve on GitHub" link beside it opens the pull request's checks page in a new
+tab, where GitHub's own button approves the runs. The dashboard doesn't approve
+anything itself. These runs still count as failing CI, so the Failing CI quick
+filter keeps matching them.
+
 Every open pull request row has a Merge button. It's clickable when the forge
 reports the merge is actually possible. Otherwise it stays on the row, locked
 (`aria-disabled`, no click), with the reason printed beside it: "Waiting for CI
