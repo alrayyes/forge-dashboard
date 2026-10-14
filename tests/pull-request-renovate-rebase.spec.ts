@@ -141,7 +141,7 @@ test.describe('pull request Renovate rebase button', () => {
   test('the renovate GitHub App author form (bare GraphQL slug) also shows the button', async ({
     page,
   }) => {
-    await mockDashboard(page, 'github', makePR({ author: 'claude' }));
+    await mockDashboard(page, 'github', makePR({ author: 'renovate' }));
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
