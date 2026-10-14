@@ -67,14 +67,14 @@ test.describe('Merge states on a pull request row', () => {
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await page.goto('/pull-requests.html');
+    // Each test installs its dashboard mock, then loads the page once.
   });
 
   test('pending CI: Merge is locked with a visible reason and what happens next', async ({
     page,
   }) => {
     await mockDashboard(page, makePR({ ci: 'pending' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
     const merge = row.getByRole('button', { name: 'Merge', exact: true });
@@ -94,7 +94,7 @@ test.describe('Merge states on a pull request row', () => {
       mergeCalled = true;
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
     // force: Playwright otherwise waits forever for an aria-disabled button
@@ -113,7 +113,7 @@ test.describe('Merge states on a pull request row', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ ci: 'pending' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const merge = rowOf(page).getByRole('button', {
       name: 'Merge',
@@ -130,7 +130,7 @@ test.describe('Merge states on a pull request row', () => {
       page,
       makePR({ mergeStatus: 'blocked', ci: 'failure' }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
     await expect(
@@ -146,7 +146,7 @@ test.describe('Merge states on a pull request row', () => {
       page,
       makePR({ mergeStatus: 'blocked', ci: 'success' }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
     await expect(row.getByText('Blocked by the forge')).toBeVisible();
@@ -157,7 +157,7 @@ test.describe('Merge states on a pull request row', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ mergeStatus: 'conflicting' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
     await expect(
@@ -167,7 +167,7 @@ test.describe('Merge states on a pull request row', () => {
 
   test('draft: Merge is locked and says to mark it ready', async ({ page }) => {
     await mockDashboard(page, makePR({ mergeStatus: 'unknown', draft: true }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await expect(rowOf(page).getByText('Draft pull request')).toBeVisible();
   });
@@ -176,7 +176,7 @@ test.describe('Merge states on a pull request row', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ mergeStatus: 'unknown' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
     await expect(
@@ -187,7 +187,7 @@ test.describe('Merge states on a pull request row', () => {
 
   test('ready: Merge is clickable and no reason is shown', async ({ page }) => {
     await mockDashboard(page, makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
     const merge = row.getByRole('button', { name: 'Merge', exact: true });
@@ -206,9 +206,12 @@ test.describe('Merge states on a pull request row', () => {
   ] as const) {
     test(`${name}: Close is only in More actions`, async ({ page }) => {
       await mockDashboard(page, makePR(overrides));
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = rowOf(page);
+      await expect(
+        row.getByRole('button', { name: 'Merge', exact: true }),
+      ).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Close pull request', exact: true }),
       ).toHaveCount(0);
@@ -227,7 +230,7 @@ test.describe('Merge states on a pull request row', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
     await row.getByRole('button', { name: 'More actions' }).click();
@@ -267,7 +270,7 @@ test.describe('Merge states on a pull request row', () => {
   ] as const) {
     test(`${name}: no axe-core violations`, async ({ page }) => {
       await mockDashboard(page, makePR(overrides));
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(
         rowOf(page).getByRole('button', { name: 'Merge', exact: true }),
       ).toBeVisible();
@@ -283,7 +286,7 @@ test.describe('Merge states on a pull request row', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ ci: 'pending' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await rowOf(page).getByRole('button', { name: 'More actions' }).click();
 
     const results = await new AxeBuilder({ page })
