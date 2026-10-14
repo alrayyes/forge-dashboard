@@ -113,13 +113,17 @@ const chipOf = (page: Page) => firstRow(page).locator('.wait-chip');
 const slotOf = (page: Page) => firstRow(page).locator('.wait-slot');
 
 async function size(locator: Locator) {
-  // A snapshot can rebuild the row between finding it and measuring it.
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const box = await locator.boundingBox();
-    if (box) return { width: box.width, height: box.height };
-    await locator.page().waitForTimeout(100);
-  }
-  throw new Error('no box');
+  // A snapshot can rebuild the row between finding it and measuring it, so
+  // wait for a box rather than measuring once.
+  let size = { width: 0, height: 0 };
+  await expect
+    .poll(async () => {
+      const box = await locator.boundingBox();
+      if (box) size = { width: box.width, height: box.height };
+      return box !== null;
+    })
+    .toBe(true);
+  return size;
 }
 
 // What must not move when a chip comes or goes: the row, and the area the
@@ -168,6 +172,8 @@ test.describe('the waiting chip on a bot rebase', () => {
     current = botPR('dependabot');
     await registerAndSignIn(page, request, baseURL);
     await page.goto('/bots.html');
+    // Before the hooks, so the skew sits on top of the fake clock's Date.now.
+    await page.clock.install();
     await bots(page, current, () => current);
     await page.route(
       '**/api/pull-requests/dependabot-action',
@@ -279,7 +285,8 @@ test.describe('the waiting chip on a bot rebase', () => {
     await expect(chip.locator('.wait-chip-label')).toHaveText('Still waiting');
     await expect(live).toContainText('Still waiting');
     const spoken = await live.textContent();
-    await page.waitForTimeout(2500);
+    // Two and a half seconds on the page's own timers, without waiting them.
+    await page.clock.runFor(2500);
     expect(await live.textContent()).toBe(spoken);
     expect(await layout(page)).toEqual(before);
 
