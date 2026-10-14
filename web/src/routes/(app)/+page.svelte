@@ -8,6 +8,8 @@
     DEFAULT_FILTER,
     duration,
     forgeCounts,
+    offeredForges,
+    offeredStatuses,
     isFiltered,
     loadFilter,
     type MainBranch,
@@ -30,6 +32,10 @@
   const branches = $derived(data?.branches ?? []);
   const visible = $derived(applyFilter(branches, filter));
   const perForge = $derived(forgeCounts(branches));
+  // A status or forge pill is offered only when clicking it would show
+  // something, and the active one stays (#1427).
+  const statusOffered = $derived(offeredStatuses(branches, filter));
+  const forgeOffered = $derived(offeredForges(branches, filter));
   const staleRows = $derived(branches.filter((b) => b.stale));
   const staleSince = $derived(
     staleRows
@@ -462,7 +468,7 @@
 
       <div class="mb-bar">
         <div class="mb-group" role="group" aria-label="Filter by status">
-          {#each STATUS_PILLS as { key, label } (key)}
+          {#each STATUS_PILLS.filter( (p) => statusOffered.has(p.key) ) as { key, label } (key)}
             <button
               type="button"
               class="mb-pill"
@@ -482,7 +488,7 @@
             aria-pressed={filter.forge === "all"}
             onclick={() => setForge("all")}>All forges</button
           >
-          {#each ["github", "forgejo"] as const as forge (forge)}
+          {#each (["github", "forgejo"] as const).filter( (f) => forgeOffered.has(f) ) as forge (forge)}
             <button
               type="button"
               class="mb-pill"
