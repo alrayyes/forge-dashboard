@@ -1,6 +1,6 @@
-import { type APIRequestContext, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 interface WebMCPTool {
   name: string;
@@ -17,15 +17,6 @@ declare global {
       registerTool(tool: WebMCPTool): Promise<void>;
     };
   }
-}
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `webmcp-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'WebMCP Test User');
 }
 
 // Playwright's own bundled Chromium doesn't implement document.modelContext
@@ -56,13 +47,14 @@ async function stubModelContext(page: Page) {
 }
 
 test.describe('WebMCP get_dashboard tool', () => {
+  // Read-only: no test writes per-user state, so they share one session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
   test('registers get_dashboard when document.modelContext is present', async ({
     page,
-    request,
-    baseURL,
   }) => {
     await stubModelContext(page);
-    await registerAndSignIn(page, request, baseURL);
+    await page.goto('/pull-requests.html');
 
     // Registration happens once the dashboard's own script runs past its
     // initial setup, not necessarily by the moment navigation itself
@@ -78,13 +70,11 @@ test.describe('WebMCP get_dashboard tool', () => {
 
   test('registering it never breaks the page when document.modelContext is absent -- every browser but an Origin Trial one today', async ({
     page,
-    request,
-    baseURL,
   }) => {
     // No stub here -- this is the real, current-browser-default case.
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await registerAndSignIn(page, request, baseURL);
+    await page.goto('/pull-requests.html');
 
     await expect(page.locator('h1')).toHaveText('Forge Board');
     expect(
@@ -95,11 +85,9 @@ test.describe('WebMCP get_dashboard tool', () => {
 
   test("get_dashboard's execute() fetches real data through the same /api/dashboard endpoint the page's own poll uses", async ({
     page,
-    request,
-    baseURL,
   }) => {
     await stubModelContext(page);
-    await registerAndSignIn(page, request, baseURL);
+    await page.goto('/pull-requests.html');
     await page.waitForFunction(() => window.__webmcpTools.length > 0);
 
     const [response, result] = await Promise.all([
