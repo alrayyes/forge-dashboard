@@ -21,6 +21,9 @@ export interface FilterableItem {
   createdAt: string;
   updatedAt: string;
   ci?: string;
+  // Whether auto-merge is scheduled, as the forge says it. Absent when the
+  // forge can't say, which is in neither On nor Off (#1455).
+  autoMergeEnabled?: boolean;
   draft?: boolean;
   mergeStatus?: string;
   labels?: { name: string }[];
@@ -42,6 +45,8 @@ export interface FilterableItem {
 // The pull-request-only quick filter pills (#678). Stored as pr.quick.
 export const QUICK_FILTERS = [
   'failing',
+  'running',
+  'passing',
   'ready',
   'needs-review',
   'review-requested',
@@ -56,6 +61,10 @@ export function matchesQuickFilter(
   switch (quick) {
     case 'failing':
       return item.ci === 'failure';
+    case 'running':
+      return item.ci === 'pending';
+    case 'passing':
+      return item.ci === 'success';
     case 'ready':
       return item.readyToMerge === true;
     case 'needs-review':
@@ -70,6 +79,18 @@ export function matchesQuickFilter(
     default:
       return true;
   }
+}
+
+// The auto-merge choice (#1455): On keeps what the forge says is scheduled,
+// Off what it says is not. A pull request it didn't say anything about is in
+// neither.
+export function matchesAutoMerge(
+  item: FilterableItem,
+  autoMerge: string | undefined,
+): boolean {
+  if (autoMerge === 'on') return item.autoMergeEnabled === true;
+  if (autoMerge === 'off') return item.autoMergeEnabled === false;
+  return true;
 }
 
 // The pill that's active for a state: a quick filter wins, then a forge,
@@ -192,7 +213,17 @@ export function loadState(): SharedFilterState {
     Object.assign(state.issue, parsed.issue);
   if (parsed.view && typeof parsed.view === 'object')
     Object.assign(state.view, parsed.view);
+  dropUnknownAutoMerge(state);
   return state;
+}
+
+// A saved auto-merge choice is only 'on' or 'off'; anything else is a stale
+// or hand-edited value, and reads as Any rather than as a chip nothing can
+// undo (#1455).
+function dropUnknownAutoMerge(state: SharedFilterState): void {
+  const value = state.pr.autoMerge;
+  if (value !== undefined && value !== 'on' && value !== 'off')
+    delete state.pr.autoMerge;
 }
 
 const FILTER_STATE_ENDPOINT = '/api/settings/filter-state';
@@ -302,6 +333,7 @@ export function applyServerState(
     Object.assign(state.issue, got.issue);
   if (got.view && typeof got.view === 'object')
     Object.assign(state.view, got.view);
+  dropUnknownAutoMerge(state);
 }
 
 export function minutesAgo(iso: string): number {
@@ -356,6 +388,8 @@ export function failingFilters(
     failing.push('label');
   if (isPR && extra?.status && item.ci !== extra.status) failing.push('status');
   if (isPR && !matchesQuickFilter(item, extra?.quick)) failing.push('quick');
+  if (isPR && !matchesAutoMerge(item, extra?.autoMerge))
+    failing.push('autoMerge');
   // A bot's housekeeping issue (Renovate's Dependency Dashboard): the
   // server says which ones those are (#980), so this only reads the flag.
   if (!isPR && extra?.hideDependencyDashboard && item.housekeeping)
@@ -402,6 +436,7 @@ export const FILTER_NAMES: Record<string, string> = {
   label: 'Label',
   status: 'CI status',
   quick: 'quick',
+  autoMerge: 'Auto-merge',
 };
 
 // Distinct, sorted values of getValues(item) across items — what both
@@ -544,6 +579,25 @@ export function offerPills(
       ? quickPool.some((item) => matchesQuickFilter(item, pill))
       : forgePool.some((item) => item.forge === pill);
     button.hidden = !(matches || pill === active);
+  }
+}
+
+// Shows the auto-merge segment's On and Off only when some pull request in the
+// pool has that state, or it is the one picked, and the whole segment only when
+// something is on offer (#1455). "Any" is always there while the segment is.
+export function offerAutoMerge(
+  groups: Iterable<HTMLElement>,
+  pool: FilterableItem[],
+  picked: string,
+): void {
+  const on = pool.some((i) => i.autoMergeEnabled === true);
+  const off = pool.some((i) => i.autoMergeEnabled === false);
+  for (const group of groups) {
+    const onButton = group.querySelector<HTMLElement>('[data-am="on"]');
+    const offButton = group.querySelector<HTMLElement>('[data-am="off"]');
+    if (onButton) onButton.hidden = !(on || picked === 'on');
+    if (offButton) offButton.hidden = !(off || picked === 'off');
+    group.hidden = Boolean(onButton?.hidden && offButton?.hidden);
   }
 }
 
