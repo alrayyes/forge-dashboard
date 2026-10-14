@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.180.2](https://github.com/alrayyes/forge-dashboard/compare/v0.180.1...v0.180.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* **web:** offer only the forges and statuses the webhooks list has ([#1430](https://github.com/alrayyes/forge-dashboard/issues/1430)) ([e007881](https://github.com/alrayyes/forge-dashboard/commit/e007881888a4a7ff4883c018d36a17d310eed3a4))
+
 ## [0.180.1](https://github.com/alrayyes/forge-dashboard/compare/v0.180.0...v0.180.1) (2026-10-14)
 
 
