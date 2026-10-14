@@ -906,7 +906,10 @@ failing first, then running, passing and no pipeline, in the order the server
 sends them.
 
 The pills (All, Failing, Passing, Running, No pipeline) carry the server's
-counts. A forge toggle and a search box narrow the list further; search
+counts. A pill, and each forge in the toggle, is offered only when a row would
+show under it, given the search and the other pill, so none leads to an empty
+list; the one that is active always stays, so it can be cleared. A forge toggle
+and a search box narrow the list further; search
 matches the repo, branch, commit, author and failing job names. The filter is
 saved in a cookie of its own, `forge-board-main-branches`, and is still set
 after a reload. It is not part of the shared filter cookie, which holds

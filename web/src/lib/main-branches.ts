@@ -89,6 +89,31 @@ export function applyFilter(
   });
 }
 
+// The status pills worth offering (#1427): those some row would show if
+// clicked, given the forge and the search, plus "All" and the one that is
+// active, so it can be seen and cleared.
+export function offeredStatuses(
+  branches: MainBranch[],
+  filter: MainBranchFilter,
+): Set<StatusPill> {
+  const offered = new Set<StatusPill>(['all', filter.status]);
+  for (const b of applyFilter(branches, { ...filter, status: 'all' }))
+    offered.add(b.status);
+  return offered;
+}
+
+// The forge pills worth offering, the same way: given the status and the
+// search, plus "All forges" and the one that is active.
+export function offeredForges(
+  branches: MainBranch[],
+  filter: MainBranchFilter,
+): Set<ForgeFilter> {
+  const offered = new Set<ForgeFilter>(['all', filter.forge]);
+  for (const b of applyFilter(branches, { ...filter, forge: 'all' }))
+    offered.add(b.forge as ForgeFilter);
+  return offered;
+}
+
 // Per-forge counts for the toggle, from the rows themselves.
 export function forgeCounts(branches: MainBranch[]) {
   return {
