@@ -264,7 +264,18 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
         body: JSON.stringify(got),
       });
     });
+    // The saved value arrives after the first paint, so wait for it and a
+    // frame to apply it before asserting that nothing shows.
+    const restored = page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/settings/filter-state') &&
+        r.request().method() === 'GET',
+    );
     await page.reload();
+    await restored;
+    await page.evaluate(
+      () => new Promise((done) => requestAnimationFrame(() => done(null))),
+    );
 
     await expect(am(page, 'any')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByText('Auto-merge bogus')).toHaveCount(0);
