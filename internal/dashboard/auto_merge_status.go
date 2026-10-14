@@ -47,6 +47,16 @@ type AutoMerged struct {
 type AutoMergeReport struct {
 	Failures map[string]AutoMergeFailure
 	Merged   []AutoMerged
+	// Cancelled holds the armed auto-merges this app took back off because the
+	// pull request went empty, keyed like Failures, for the last few minutes
+	// (#1375). The row says why the auto-merge is gone.
+	Cancelled map[string]AutoMergeCancelled
+}
+
+// AutoMergeCancelled is an armed auto-merge this app cancelled, and why.
+type AutoMergeCancelled struct {
+	At      time.Time
+	Refusal ActionRefusal
 }
 
 // autoMergedKeep is how long a merge stays in the report.
@@ -121,8 +131,16 @@ func (a *Aggregator) AutoMergeReport() AutoMergeReport {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 
-	report := AutoMergeReport{Failures: make(map[string]AutoMergeFailure, len(cfg.failures))}
+	report := AutoMergeReport{
+		Failures:  make(map[string]AutoMergeFailure, len(cfg.failures)),
+		Cancelled: make(map[string]AutoMergeCancelled, len(cfg.cancelled)),
+	}
 	maps.Copy(report.Failures, cfg.failures)
+	for key, c := range cfg.cancelled {
+		if a.now().Sub(c.At) < autoMergedKeep {
+			report.Cancelled[key] = c
+		}
+	}
 	for _, m := range cfg.merged {
 		if a.now().Sub(m.At) < autoMergedKeep {
 			report.Merged = append(report.Merged, m)
