@@ -1560,12 +1560,6 @@
         });
     }
 
-    // Always rendered for an open pull request (#705): clickable when
-    // mergeNotReady has nothing to say, locked with a visible reason
-    // otherwise. First click only arms a confirm step
-    // (doMerge is never reachable from it directly); merging is a real,
-    // hard-to-reverse write to the real repo, not a filter toggle like
-    // the CI pill next to it.
     // The one place on a row that says what the pull request is waiting on or
     // blocked by (#1375). Text and an icon, never colour alone. A locked Merge
     // is described by it, so it is read without hovering.
@@ -1611,6 +1605,12 @@
       return area;
     }
 
+    // Always rendered for an open pull request (#705): clickable when
+    // mergeNotReady has nothing to say, locked with a visible reason
+    // otherwise. First click only arms a confirm step
+    // (doMerge is never reachable from it directly); merging is a real,
+    // hard-to-reverse write to the real repo, not a filter toggle like
+    // the CI pill next to it.
     function mergeActionCell(item: PullRequestItem): HTMLElement | null {
       // Found already merged or closed on the forge: say so, nothing to click.
       const settled = mergeState[prKey(item)]?.phase;
@@ -1631,21 +1631,19 @@
         readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
       )
         return null;
-      if (merge.blocked)
-        return item.status
-          ? lockedActionButton(
-              "Merge",
-              merge.blocked.message,
-              undefined,
-              undefined,
-              statusAreaId(item),
-            )
-          : lockedActionButton(
-              "Merge",
-              merge.blocked.message,
-              undefined,
-              merge.blocked.next,
-            );
+      if (merge.blocked) {
+        // The status block on the row already says why, and describes the
+        // button; without one (it is always sent for a blocked Merge) the
+        // reason is printed beside it as before.
+        const described = item.status ? statusAreaId(item) : undefined;
+        return lockedActionButton(
+          "Merge",
+          merge.blocked.message,
+          undefined,
+          described ? undefined : merge.blocked.next,
+          described,
+        );
+      }
 
       const key = prKey(item);
       const entry = mergeState[key] || { phase: "idle" };
