@@ -48,6 +48,9 @@ check "go image e2e" "scripts/test-build-reports.sh"
 check "web image e2e" "web/src/lib/filters.ts"
 check "web image e2e prose" "web/src/routes/(app)/+page.svelte"
 check "web image e2e" "tests/dashboard.spec.ts"
+# The generated table is checked by a Go test, so a change to it alone needs the
+# Go job (#1437).
+check "go web image e2e" "tests/generated/allowed-actions.json"
 check "web image e2e" "biome.json"
 check "web image e2e prose" ".semgrep/svelte.yml"
 # The prose jobs run these scripts, so editing one runs them (#884).
