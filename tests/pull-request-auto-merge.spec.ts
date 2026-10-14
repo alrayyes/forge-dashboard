@@ -90,6 +90,8 @@ test.describe('pull request Enable auto-merge action', () => {
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    // Each test installs its mocks, then loads the page once. A goto here would
+    // load it before they exist.
   });
 
   test('a GitHub pull request with checks still pending shows the button — this is the case auto-merge exists for', async ({
@@ -196,6 +198,9 @@ test.describe('pull request Enable auto-merge action', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
+      row.getByRole('button', { name: 'More actions' }),
+    ).toBeVisible();
+    await expect(
       row.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
   });
@@ -227,11 +232,13 @@ test.describe('pull request Enable auto-merge action', () => {
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Enable auto-merge' }).click();
 
-    expect(requestBody).toEqual({
-      forge: 'github',
-      fullName: 'alrayyes/forge-dashboard',
-      number: 42,
-    });
+    await expect
+      .poll(() => requestBody)
+      .toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 42,
+      });
   });
 
   test('the Auto-merge pill appears once enabled, without a page reload', async ({
@@ -256,6 +263,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
+    await expect(
+      row.getByRole('button', { name: 'More actions' }),
+    ).toBeVisible();
     await expect(row.locator('.merge-pill.auto-merge')).toHaveCount(0);
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Enable auto-merge' }).click();
