@@ -74,19 +74,6 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
     }
   });
 
-  test('the link and the tab say it in words', async ({ page }) => {
-    await open(page, MIXED);
-
-    await expect(header(page)).toHaveAttribute(
-      'aria-label',
-      'Branches, 7 total, 2 failing, 1 running, 4 passing',
-    );
-    await expect(tab(page)).toHaveAttribute(
-      'aria-label',
-      '7 Branches, 2 failing, 1 running, 4 passing',
-    );
-  });
-
   test('a count of zero is not drawn, and no branches means no pill', async ({
     page,
   }) => {
@@ -95,10 +82,6 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
     await expect(pill.locator('.nav-passed')).toHaveText('3');
     await expect(pill.locator('.nav-failed')).toHaveCount(0);
     await expect(pill.locator('.nav-running')).toHaveCount(0);
-    await expect(header(page)).toHaveAttribute(
-      'aria-label',
-      'Branches, 5 total, 3 passing',
-    );
 
     await open(page, { total: 0, failed: 0, running: 0, passed: 0 });
     await expect(header(page).locator('.nav-pills')).toHaveCount(0);

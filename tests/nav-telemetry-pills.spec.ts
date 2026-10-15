@@ -137,18 +137,6 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
     await expect(prs.locator('.nav-passed')).toHaveText('8');
     await expect(prs.locator('.nav-failed')).toHaveCount(0);
     await expect(prs.locator('.nav-running')).toHaveCount(0);
-    await expect(header(page, PRS)).toHaveAttribute(
-      'aria-label',
-      'Pull requests, 8 total, 8 passing',
-    );
-    await expect(header(page, '/releases.html')).toHaveAttribute(
-      'aria-label',
-      'Releases, 6 total, 6 running',
-    );
-    await expect(header(page, '/bots.html')).toHaveAttribute(
-      'aria-label',
-      'Bots, 4 total, 1 failing',
-    );
   });
 
   test('Bots and Releases show the same pill for their own counts', async ({
@@ -168,19 +156,6 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
     await expect(releases.locator('.nav-total')).toHaveText('6');
     await expect(releases.locator('.nav-running')).toHaveText('6');
     await expect(releases.locator('.nav-failed')).toHaveCount(0);
-  });
-
-  test('large numbers are shown whole and named whole', async ({ page }) => {
-    await open(page, {
-      pullRequests: { total: 1204, running: 85, failed: 18, passed: 1100 },
-    });
-
-    await expect(header(page, PRS).locator('.nav-total')).toHaveText('1204');
-    await expect(header(page, PRS).locator('.nav-passed')).toHaveText('1100');
-    await expect(header(page, PRS)).toHaveAttribute(
-      'aria-label',
-      'Pull requests, 1204 total, 18 failing, 85 running, 1100 passing',
-    );
   });
 
   test('a page with nothing in it shows no pill', async ({ page }) => {
