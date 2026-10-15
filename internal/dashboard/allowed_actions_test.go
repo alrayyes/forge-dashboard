@@ -106,6 +106,11 @@ func TestAllowedActions(t *testing.T) {
 			p.Behind = true
 			p.Labels = []dashboard.Label{{Name: "autorelease: pending"}}
 		}), []string{"auto_merge", "close", "merge", "update_branch"}},
+		{"empty release-please behind: only close, no update branch", ghPR(func(p *dashboard.PullRequest) {
+			p.Empty = true
+			p.Behind = true
+			p.Labels = []dashboard.Label{{Name: "autorelease: pending"}}
+		}), []string{"close"}},
 		{"stacked on an open parent: merge is blocked and auto-merge is gone", ghPR(func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840} }), []string{"close", "merge:stacked"}},
 		{"stacked beats CI pending as the reason", ghPR(func(p *dashboard.PullRequest) {
 			p.StackedOn = &dashboard.StackRef{Number: 840}
