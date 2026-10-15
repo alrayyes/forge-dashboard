@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"slices"
 	"time"
@@ -57,11 +58,24 @@ func buildMainBranchesResponse(generatedAt time.Time, branches []dashboard.MainB
 	}
 }
 
-// handleMainBranches answers the CI status of every tracked repo's default
-// branch (#1224) from the snapshot the background refresh already holds. It
-// never calls a forge, so it costs no rate-limit budget however often a page
-// reads it. Only the signed-in user's own dashboard, like the stream and the
-// refresh: sharing is for the dashboard board.
+// resolveMainBranchesFor answers the CI status of every tracked repo's default
+// branch (#1224) for u from the snapshot the background refresh already holds.
+// It never calls a forge, so it costs no rate-limit budget however often it's
+// read. Shared by handleMainBranches and the MCP get_main_branches tool so the
+// two can't drift.
+func resolveMainBranchesFor(ctx context.Context, deps Deps, u *auth.User) mainBranchesResponse {
+	warmUpAggregator(ctx, deps, u.ID, u.Username)
+	deps.Manager.WaitFirstRefresh(ctx, u.ID, firstLoadWait)
+
+	snap := deps.Manager.Get(u.ID)
+	board := loadBoardSettings(ctx, deps.SettingsStore, u.ID)
+
+	return buildMainBranchesResponse(snap.GeneratedAt, board.mainBranchRows(snap.MainBranches))
+}
+
+// handleMainBranches serves resolveMainBranchesFor over HTTP. Only the
+// signed-in user's own dashboard, like the stream and the refresh: sharing is
+// for the dashboard board.
 func handleMainBranches(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := auth.UserFromContext(r.Context())
@@ -71,11 +85,6 @@ func handleMainBranches(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		warmUpAggregator(r.Context(), deps, u.ID, u.Username)
-		deps.Manager.WaitFirstRefresh(r.Context(), u.ID, firstLoadWait)
-
-		snap := deps.Manager.Get(u.ID)
-		board := loadBoardSettings(r.Context(), deps.SettingsStore, u.ID)
-		writeJSON(w, http.StatusOK, buildMainBranchesResponse(snap.GeneratedAt, board.mainBranchRows(snap.MainBranches)))
+		writeJSON(w, http.StatusOK, resolveMainBranchesFor(r.Context(), deps, u))
 	}
 }

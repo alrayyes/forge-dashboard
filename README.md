@@ -50,10 +50,12 @@ stale.
   this app.** Authenticated the same way any other `/api/*` route already
   is — a personal API token (Settings → API tokens),
   `Authorization: Bearer <token>` — not a separate credential system. Its
-  one tool, `get_dashboard`, mirrors `GET /api/dashboard` exactly
-  (including its own `?owner=`/`owner` semantics for a dashboard someone
-  else has shared with you) rather than adding a second, parallel path to
-  the same data. Built on the official
+  tools so far are `get_dashboard`, which mirrors `GET /api/dashboard`
+  exactly (including its own `?owner=`/`owner` semantics for a dashboard
+  someone else has shared with you), and `get_main_branches`, which mirrors
+  `GET /api/main-branches` (default-branch CI status, no forge budget).
+  Each calls the same function as its handler rather than adding a second,
+  parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
   Streamable HTTP transport.
   The aim is that every API operation has a tool (#1503), so an agent is
