@@ -1005,8 +1005,9 @@ its default branch, the status of the pipeline on the newest commit (`failed`,
 `passed`, `running` or `none`), the commit (short SHA, subject, author), the
 names of the failed jobs, when the pipeline finished and how long it ran, and a
 link to the run. The response also counts the rows per status. Every row is
-returned whatever its status, failed first, so a client filters it and its
-counts always match what it lists.
+returned whatever its status, ordered by commit time, latest first (rows with
+no commit time last, then by repo name), so a client filters it and its counts
+always match what it lists. Status is a filter, not the order.
 
 It reads the snapshot the background refresh already holds and never calls a
 forge, so reading it costs no rate-limit budget. The refresh gets the data

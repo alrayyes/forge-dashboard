@@ -72,7 +72,7 @@ func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_main_branches",
 		Description: "Fetch the CI status of every tracked repo's default branch " +
-			"(failed first, with counts per status), the same data the web UI's " +
+			"(newest commit first, with counts per status), the same data the web UI's " +
 			"Main branches page renders. Read-only: this app never writes to either " +
 			"forge through this tool. Reads the snapshot the background refresh " +
 			"already holds, so it costs no forge budget however often you call it.",
