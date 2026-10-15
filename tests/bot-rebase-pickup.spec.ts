@@ -1,13 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
 import { settle } from './settle-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #707: after a Dependabot or Renovate rebase request the row says the
 // request went out, that the bot picks it up in its own time, and when it
@@ -21,14 +16,9 @@ import { settle } from './settle-helper';
 // server by putting that field on the mocked snapshots. The page clears a
 // request when a later snapshot no longer has it.
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `bot-rebase-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Bot Rebase User');
-}
+// Every bot endpoint is mocked and nothing is saved per user, so the whole file
+// starts from the shared session (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 interface MockPR {
   forge: string;
@@ -132,11 +122,8 @@ for (const b of bots) {
     // runs for both.
     const shared = b.id === 'dependabot';
 
-    test.beforeEach(async ({ page, request, baseURL }) => {
+    test.beforeEach(async ({ page }) => {
       current = { ...b.pr };
-      await registerAndSignIn(page, request, baseURL);
-      // Bot pull requests are on the Bots page, not the main list (#1192).
-      await page.goto('/bots.html');
       await page.addInitScript(() => {
         const w = window as unknown as {
           __skew: number;
@@ -176,7 +163,8 @@ for (const b of bots) {
         current = { ...current, botRequest: botRequest(b.id, 'queued') };
         return route.fulfill({ status: 204 });
       });
-      await page.reload();
+      // Bot pull requests are on the Bots page, not the main list (#1192).
+      await page.goto('/bots.html');
     });
 
     async function request(page: Page) {
@@ -509,12 +497,7 @@ for (const b of bots) {
 test.describe('bot rebase pickup with another row still queued', () => {
   test('the row that was picked up drops Out of date while the other stays put', async ({
     page,
-    request,
-    baseURL,
   }) => {
-    await registerAndSignIn(page, request, baseURL);
-    // Bot pull requests are on the Bots page, not the main list (#1192).
-    await page.goto('/bots.html');
     await page.addInitScript(() => {
       const w = window as unknown as {
         __streams: EventSource[];
@@ -556,7 +539,8 @@ test.describe('bot rebase pickup with another row still queued', () => {
     await page.route('**/api/pull-requests/dependabot-action', (route: Route) =>
       route.fulfill({ status: 204 }),
     );
-    await page.reload();
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    await page.goto('/bots.html');
 
     const rows = page.locator('#pr-rows .row');
     const rowFor = (n: number) => rows.filter({ hasText: `#${n}` }).first();

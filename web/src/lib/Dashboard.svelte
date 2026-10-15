@@ -14,6 +14,9 @@
   const pullsView = $derived(view !== "issues");
 
   import { onMount } from "svelte";
+  import PullRequestDetailsDialog, {
+    type DetailsChip,
+  } from "#lib/PullRequestDetailsDialog.svelte";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
@@ -277,6 +280,9 @@
       restored?: boolean;
     };
   };
+
+  // The read-only details dialog (#943); a row's Details button opens it.
+  let detailsDialog = $state<PullRequestDetailsDialog>();
 
   onMount(initDashboard);
 
@@ -921,6 +927,57 @@
       return /\brelease\s+v?(\d+\.\d+\.\d+\S*)/i.exec(title)?.[1] ?? "";
     }
 
+    // The status chips in the details header, from the fields the row already
+    // carries and nothing else, as they were when the dialog opened.
+    function detailsChips(item: PullRequestItem): DetailsChip[] {
+      const chips: DetailsChip[] = [];
+      if (item.draft) chips.push({ text: "Draft", tone: "neutral" });
+      if (item.ci === "success") chips.push({ text: "Passing", tone: "good" });
+      if (item.ci === "failure")
+        chips.push({ text: "Failing", tone: "critical" });
+      if (item.ci === "pending")
+        chips.push({ text: "Running", tone: "warning" });
+      if (item.mergeStatus === "mergeable")
+        chips.push({ text: "Mergeable", tone: "good" });
+      if (item.mergeStatus === "conflicting")
+        chips.push({ text: "Conflicts", tone: "critical" });
+      if (item.mergeStatus === "blocked" && item.ci !== "pending")
+        chips.push({ text: "Blocked", tone: "warning" });
+      if (item.behind) chips.push({ text: "Out of date", tone: "warning" });
+      if (item.autoMergeEnabled === true)
+        chips.push({ text: "Auto-merge on", tone: "neutral" });
+      for (const label of item.labels ?? [])
+        chips.push({ text: label.name, tone: "neutral" });
+      return chips;
+    }
+
+    // Opens the read-only details dialog (#943). A real button of its own, not
+    // stretched over the row: the row's stretched link still opens the pull
+    // request on the forge until the dialog takes over the whole row.
+    function detailsButton(item: PullRequestItem): HTMLButtonElement {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "row-details";
+      button.id = `details-trigger-${domSafeId(prKey(item))}`;
+      button.textContent = "Details";
+      button.setAttribute(
+        "aria-label",
+        `Details, #${item.number} ${item.title}`,
+      );
+      button.addEventListener("click", () => {
+        detailsDialog?.open(
+          {
+            ...item,
+            chips: detailsChips(item),
+            version:
+              item.kind === "release" ? releaseVersion(item.title) : undefined,
+          },
+          button.id,
+        );
+      });
+      return button;
+    }
+
     function buildRow(
       item: PullRequestItem | IssueItem,
       isPR: boolean,
@@ -933,6 +990,7 @@
       const titleCellEl = titleCell(item, onLabelClick, activeLabel);
       row.appendChild(titleCellEl);
       if (!isPR) row.dataset.issueKey = prKey(item);
+      if (isPR) titleCellEl.appendChild(detailsButton(item as PullRequestItem));
       if (isPR && (item as PullRequestItem).stack)
         titleCellEl.appendChild(stackInfo(item as PullRequestItem));
       // The Releases page shows the version being released, and says why a
@@ -7146,6 +7204,7 @@
 </div>
 
 {#if pullsView}
+  <PullRequestDetailsDialog bind:this={detailsDialog} />
   <dialog
     id="pipeline-dialog"
     class="pipeline-dialog"

@@ -1,13 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
 import { settle } from './settle-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1082: Dependabot reacts to an `@dependabot rebase` comment with a
 // thumbs-up to say it got the command. The server looks for that reaction and
@@ -78,22 +73,16 @@ const line = (page: Page) => row(page).locator('.row-feedback');
 const chip = (page: Page) => row(page).locator('.wait-chip');
 
 test.describe('Dependabot acknowledgment (#1082)', () => {
+  // Every bot endpoint is mocked and nothing is saved per user, so it starts
+  // from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
   let current: ReturnType<typeof makePR>;
   let posts = 0;
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
+  test.beforeEach(async ({ page }) => {
     current = makePR();
     posts = 0;
-    const username = `dependabot-ack-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-    await registerViaInvite(
-      page,
-      request as APIRequestContext,
-      baseURL,
-      username,
-      'Dependabot Ack User',
-    );
-    // Bot pull requests are on the Bots page, not the main list (#1192).
-    await page.goto('/bots.html');
     await page.addInitScript(() => {
       const w = window as unknown as {
         __streams: EventSource[];
@@ -128,7 +117,8 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
       current = { ...current, botRequest: dependabotRequest('queued') };
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    await page.goto('/bots.html');
   });
 
   async function request(page: Page) {
