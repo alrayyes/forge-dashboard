@@ -1,10 +1,10 @@
-import { expect } from '@playwright/test';
+/// <reference types="bun" />
+import { describe, expect, test } from 'bun:test';
 import {
   type FailedRequest,
   failureDetails,
   MAX_RAW_TEXT,
-} from '../web/src/lib/failure-details';
-import { test } from './fixtures';
+} from './failure-details';
 
 // What a failed action keeps of the server's answer for Copy (#1323). Reading
 // the response is exercised by the page in copy-failure.spec.ts.
@@ -15,7 +15,7 @@ const context = { action: 'merge', forge: 'github', repo: 'a/b', number: 1 };
 const answered = (status: number, raw: unknown): FailedRequest =>
   Object.assign(new Error('a plain sentence'), { status, raw });
 
-test.describe('the raw answer kept for Copy', () => {
+describe('the raw answer kept for Copy', () => {
   test('a JSON body is kept as received, raw error included', () => {
     const body = { error: 'forgejo: PUT /x: 405 raw', code: 'unknown' };
 

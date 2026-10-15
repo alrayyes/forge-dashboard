@@ -1,32 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #752: a failure line on a row says one plain sentence, never the raw
 // error string; it can be dismissed and goes away by itself when it no
 // longer applies; Retry shows only for a reason that can pass; and it wraps
 // on a phone.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `failure-line-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Failure Line User',
-  );
-}
 
 interface MockPR {
   forge: string;
@@ -105,7 +85,7 @@ async function prepare(
       body: JSON.stringify(snapshot(current)),
     }),
   );
-  await page.reload();
+  await page.goto('/pull-requests.html');
   return (next: MockPR[]) => {
     current = next;
   };
@@ -117,8 +97,11 @@ async function fail(page: Page) {
 }
 
 test.describe('row failure lines (#752)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  // Every action is mocked and nothing is saved per user, so it starts from the
+  // shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  test.beforeEach(async ({ page }) => {
     await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
       route.fulfill({
         status: 200,
