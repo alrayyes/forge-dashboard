@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.192.0](https://github.com/alrayyes/forge-dashboard/compare/v0.191.0...v0.192.0) (2026-10-15)
+
+
+### Features
+
+* **web:** a WebMCP parity test and the read tools that have a server twin ([#1556](https://github.com/alrayyes/forge-dashboard/issues/1556)) ([c8569ed](https://github.com/alrayyes/forge-dashboard/commit/c8569ed4e26e91f7fdeff97e1a158bc819adf524))
+
 ## [0.191.0](https://github.com/alrayyes/forge-dashboard/compare/v0.190.2...v0.191.0) (2026-10-15)
 
 
