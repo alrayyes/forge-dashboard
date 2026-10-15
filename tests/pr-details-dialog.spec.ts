@@ -8,6 +8,10 @@ import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 // state, so it starts from the shared session (#1379).
 test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
+// A valid 1x1 PNG, for an avatar that has to load.
+const PNG_1X1 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
 const NOW = new Date();
 const ago = (minutes: number) =>
   new Date(NOW.getTime() - minutes * 60_000).toISOString();
@@ -308,6 +312,13 @@ test.describe('pull request details dialog', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR()]);
+    await page.route('https://example.invalid/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        body: Buffer.from(PNG_1X1, 'base64'),
+      }),
+    );
     await mockDetails(
       page,
       details({
@@ -701,6 +712,7 @@ test.describe('pull request details dialog', () => {
         mergeStatus: 'conflicting',
         behind: true,
         autoMergeEnabled: true,
+        labels: [{ name: 'kind/chore', color: 'cccccc' }],
         kind: 'release',
         title: 'chore(main): release 1.2.0',
       }),
@@ -715,6 +727,7 @@ test.describe('pull request details dialog', () => {
       'Conflicts',
       'Out of date',
       'Auto-merge on',
+      'kind/chore',
       'v1.2.0',
     ]) {
       await expect(chips.getByText(text, { exact: true })).toBeVisible();
@@ -749,5 +762,44 @@ test.describe('pull request details dialog', () => {
         .analyze();
       expect(results.violations).toEqual([]);
     });
+  }
+  for (const scheme of ['light', 'dark'] as const) {
+    for (const width of [1280, 360]) {
+      test(`has no axe-core violations with a reaction list open (${scheme}, ${width}px)`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.emulateMedia({ colorScheme: scheme });
+        await mockDashboard(page, [makePR()]);
+        await mockDetails(
+          page,
+          details({
+            description: body('d', {
+              reactions: {
+                thumbsUp: { count: 2, logins: ['alice', 'bob'] },
+                thumbsDown: { count: 0, logins: [] },
+              },
+            }),
+          }),
+        );
+        await page.goto('/pull-requests.html');
+        await trigger(page).click();
+        await dialog(page)
+          .getByRole('group', { name: /thumbs up/ })
+          .focus();
+        await expect(dialog(page).locator('.reaction-people')).toBeVisible();
+        const results = await new AxeBuilder({ page })
+          .withTags([
+            'wcag2a',
+            'wcag2aa',
+            'wcag21a',
+            'wcag21aa',
+            'wcag22aa',
+            'best-practice',
+          ])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
   }
 });

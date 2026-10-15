@@ -946,6 +946,8 @@
       if (item.behind) chips.push({ text: "Out of date", tone: "warning" });
       if (item.autoMergeEnabled === true)
         chips.push({ text: "Auto-merge on", tone: "neutral" });
+      for (const label of item.labels ?? [])
+        chips.push({ text: label.name, tone: "neutral" });
       return chips;
     }
 

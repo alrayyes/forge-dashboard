@@ -314,6 +314,7 @@
         {#if releaseNotes}
           <section class="details-section">
             <h3>Release notes</h3>
+            <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
             <div class="markdown">{@html html.notes}</div>
             {#if releaseNotes.truncated}
               <p class="details-note">
@@ -330,9 +331,11 @@
             {:else if isBot}
               <details class="details-collapsed">
                 <summary>Show the generated description</summary>
+                <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
                 <div class="markdown">{@html html.description}</div>
               </details>
             {:else}
+              <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
               <div class="markdown">{@html html.description}</div>
             {/if}
             {#if details.description.truncated}
@@ -379,6 +382,7 @@
                     {#if c.edited}<span class="comment-edited">edited</span
                       >{/if}
                   </div>
+                  <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
                   <div class="markdown">{@html html[c.id]}</div>
                   {#if c.truncated}
                     <p class="details-note">Cut at 20,000 characters.</p>
