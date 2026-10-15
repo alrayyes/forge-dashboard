@@ -883,12 +883,12 @@ nothing to review.
 Every item in the navigation shows how many items its page lists, and how many
 of them are failing. It is one pill: a neutral **total**, then the counts above
 zero, each with its own glyph so colour is never the only signal. Branches
-counts default branches and how many have a failed run (no pipeline isn't
-failed). Pull requests, Releases and Bots count their pull requests (without
-the ones that belong to another of the three), and show how many are failing
-(red), running (amber, a spinner, or a still clock under reduced motion) and
-passing (green), in that order. A pull request with no checks is in the total
-only, so the numbers needn't add up. A zero is never drawn, and the link's name
+counts default branches. Pull requests, Releases and Bots count their pull
+requests (without the ones that belong to another of the three). All four show
+how many are failing (red), running (amber, a spinner, or a still clock under
+reduced motion) and passing (green), in that order. A branch with no pipeline
+or a pull request with no checks is in the total only, so the numbers needn't
+add up. A zero is never drawn, and the link's name
 says the same in words: "Pull requests, 15 total, 2 failing, 3 running, 10
 passing". On a phone the total sits on its own line above the counts, and with
 three-digit numbers each count takes a line, so the busy tabs grow to about
@@ -916,8 +916,9 @@ is a quiet line under the Insights heading. A page with nothing open says so,
 even when its nav item is hidden.
 
 On a phone the numbers sit above each tab's icon. An item's accessible name says
-both in words: "Branches, 12 total, 3 failing" on the header icon, "12 Branches,
-3 failing" on the tab, which shows its numbers before its word.
+both in words: "Branches, 12 total, 3 failing, 1 running, 8 passing" on the
+header icon, "12 Branches, 3 failing, 1 running, 8 passing" on the tab, which
+shows its numbers before its word.
 
 ## Main branches
 
