@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -9,12 +10,43 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
-// handlePullRequestDetails reads one pull request's description, comments and
-// reactions for the pull request dialog (#1506). A GET like the checks
-// endpoint: it fetches on demand and writes nothing, so it takes a query string,
-// and it is never part of the snapshot, so a thread nobody opens costs no
-// budget. dashboard.PullRequestDetailer does the per-forge fetch; this resolves
-// which source answers, and adds the release notes for a release pull request.
+// resolvePullRequestDetailsFor reads one pull request's description, comments
+// and reactions for u (#1506): it resolves which source answers, has
+// dashboard.PullRequestDetailer do the per-forge fetch, and adds the release
+// notes for a release pull request. Shared by handlePullRequestDetails and the
+// MCP get_pull_request_details tool so the two can't drift. The *statusError
+// carries the HTTP status the handler answers with.
+func resolvePullRequestDetailsFor(ctx context.Context, deps Deps, u *auth.User, forge, fullName string, number int) (dashboard.PullRequestDetails, *statusError) {
+	owner, name, ok := splitFullName(fullName)
+	if !ok {
+		return dashboard.PullRequestDetails{}, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
+	}
+
+	src, _, serr := lookupForgeSource(ctx, deps, u.ID, forge)
+	if serr != nil {
+		return dashboard.PullRequestDetails{}, serr
+	}
+	detailer, serr := capabilityFor[dashboard.PullRequestDetailer](src, forge, "doesn't support reading pull request details")
+	if serr != nil {
+		return dashboard.PullRequestDetails{}, serr
+	}
+
+	details, err := detailer.GetPullRequestDetails(ctx, owner, name, number)
+	if err != nil {
+		slog.Warn("pull request details fetch failed", "forge", forge, "repo", fullName, "number", number, "error", err)
+
+		return dashboard.PullRequestDetails{}, &statusError{clientErrorStatus(err), err.Error()}
+	}
+
+	details.ReleaseNotes = releaseNotesOf(deps, u.ID, dashboard.Forge(forge), fullName, number, details.Description)
+
+	return details, nil
+}
+
+// handlePullRequestDetails serves resolvePullRequestDetailsFor over HTTP. A GET
+// like the checks endpoint: it fetches on demand and writes nothing, so it takes
+// a query string, and it is never part of the snapshot, so a thread nobody opens
+// costs no budget.
 func handlePullRequestDetails(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := auth.UserFromContext(r.Context())
@@ -24,8 +56,6 @@ func handlePullRequestDetails(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		forge := r.URL.Query().Get("forge")
-		fullName := r.URL.Query().Get("fullName")
 		number, err := strconv.Atoi(r.URL.Query().Get("number"))
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("number must be an integer"))
@@ -33,31 +63,13 @@ func handlePullRequestDetails(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		owner, name, ok := splitFullName(fullName)
-		if !ok {
-			writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
+		details, serr := resolvePullRequestDetailsFor(r.Context(), deps, u, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"), number)
+		if serr != nil {
+			serr.write(w)
 
 			return
 		}
 
-		src, _, ok := forgeSource(w, r, deps, u.ID, forge)
-		if !ok {
-			return
-		}
-		detailer, ok := capabilityOf[dashboard.PullRequestDetailer](w, src, forge, "doesn't support reading pull request details")
-		if !ok {
-			return
-		}
-
-		details, err := detailer.GetPullRequestDetails(r.Context(), owner, name, number)
-		if err != nil {
-			slog.Warn("pull request details fetch failed", "forge", forge, "repo", fullName, "number", number, "error", err)
-			writeJSON(w, clientErrorStatus(err), errorBody(err.Error()))
-
-			return
-		}
-
-		details.ReleaseNotes = releaseNotesOf(deps, u.ID, dashboard.Forge(forge), fullName, number, details.Description)
 		writeJSON(w, http.StatusOK, details)
 	}
 }
