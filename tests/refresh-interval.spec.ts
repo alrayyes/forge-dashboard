@@ -1,7 +1,8 @@
-import { expect, type Page, type Route } from '@playwright/test';
+import { expect, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { flushRequests } from './flush-requests-helper';
 import { settle } from './settle-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #809: the page used to hard-code a 30s poll and a 5s force-refresh lock,
 // mirroring the server's config. The server now says how often to read
@@ -19,19 +20,12 @@ function snapshot(extra: Record<string, unknown> = {}) {
   };
 }
 
-async function signIn(page: Page, request: never, baseURL: string | undefined) {
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    `refresh-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-    'Refresh Test User',
-  );
-}
+// Every endpoint is mocked and nothing is saved per user, so the whole file
+// starts from the shared session (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('refresh follows the server (#809)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await signIn(page, request as never, baseURL);
+  test.beforeEach(async ({ page }) => {
     await page.route('**/api/dashboard/stream', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
@@ -59,9 +53,9 @@ test.describe('refresh follows the server (#809)', () => {
     const base = reads;
 
     await page.clock.fastForward(15_000);
-    // Real time: the clock is paused, so frames don't tick, and an absence
-    // can only be seen by giving a stray read time to reach the route.
-    await page.waitForTimeout(200);
+    // The clock is paused, so frames don't tick: a sentinel request queued
+    // behind any stray read shows it would have reached the route by now.
+    await flushRequests(page);
     expect(reads).toBe(base);
 
     await page.clock.fastForward(5_000);

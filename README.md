@@ -53,7 +53,14 @@ stale.
   tools so far are `get_dashboard`, which mirrors `GET /api/dashboard`
   exactly (including its own `?owner=`/`owner` semantics for a dashboard
   someone else has shared with you), and `get_main_branches`, which mirrors
-  `GET /api/main-branches` (default-branch CI status, no forge budget).
+  `GET /api/main-branches` (default-branch CI status, no forge budget), and
+  `get_pull_request_details`, which mirrors `GET /api/pull-requests/details`
+  (a pull request's description, comments and reactions). That one reads the
+  forge on demand and spends budget: one GraphQL query on GitHub, up to 53
+  requests on Forgejo. The last is
+  `get_pull_request_checks`, which mirrors `GET /api/pull-requests/checks`
+  (a pull request's individual CI checks). It spends budget too: 4 REST
+  requests on GitHub (more for failed jobs), 3 plus one per run on Forgejo.
   Each calls the same function as its handler rather than adding a second,
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
@@ -95,18 +102,25 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   write access on Forgejo, since its hooks API has no separate read-only
   scope — this app still only reads that list, and never creates or edits a
   hook itself.
-- **A [WebMCP](https://github.com/webmachinelearning/webmcp) tool in the
-  frontend itself, `get_dashboard`.** Experimental — as of this writing
-  it's an Origin Trial in Chrome 149+/Edge 150+ only, with no stable spec
-  yet — so this is a no-op everywhere else rather than a real dependency
-  the page needs. Where it's present, it lets an in-browser AI agent
-  fetch the same data the page itself renders by calling the page's own
-  already-authenticated fetch layer (`fetchDashboardData()`) directly —
-  the same request `/api/dashboard` already answers, riding on the
+- **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
+  itself: `get_dashboard`, `get_main_branches`, `get_pull_request_checks` and
+  `get_pull_request_details`.** Experimental — as of this writing it's an Origin
+  Trial in Chrome 149+/Edge 150+ only, with no stable spec yet — so this is a
+  no-op everywhere else rather than a real dependency the page needs. Where it's
+  present, it lets an in-browser AI agent fetch the same data the page itself
+  renders. `get_dashboard` calls the page's own already-authenticated fetch
+  layer (`fetchDashboardData()`) directly, the same request `/api/dashboard`
+  already answers; the others call their endpoint the same way. All ride on the
   browser's own session cookie exactly like the page's own poll does.
-  Nothing new crosses to the browser that the preceding "Credentials
-  never reach the browser" bullet doesn't already allow: the tool never
-  sees a token, only the same already-filtered JSON the page always got.
+  Nothing new crosses to the browser that the preceding
+  "Credentials never reach the browser" bullet doesn't already allow: the tools
+  never see a token, only the same already-filtered JSON the page always got.
+  The tools live in `web/src/lib/webmcp-tools.ts`, each named for the API
+  operation it covers. A unit test, `web/src/lib/webmcp-parity.test.ts`, lists
+  every `operationId` in `api/openapi.yaml` and fails unless it has a tool, a
+  written exclusion (the same `x-mcp-excluded` reason the server MCP uses, so
+  one list serves both) or a place on the test's list of tools still to come
+  (#1503).
 
 ### Where this stands against #3
 
@@ -862,6 +876,35 @@ swap one for the page whose address it was sent at. Inside the app,
 `handleError` keeps the message generic. `src/error.html` is the static fallback
 for an error the app can't render itself.
 
+## Pull request details
+
+Each pull request row has a **Details** button. It opens a read-only pop-up
+with the pull request's description, its comments and the thumbs up and thumbs
+down reactions on each, and an **Open on GitHub** (or Forgejo) link. On the
+Releases page the pop-up shows the release notes in place of the description.
+A Dependabot or Renovate pull request opens the same pop-up, with its long
+generated description folded away until you open it. There are no actions in
+it yet: Merge, Update branch and the rest stay on the row.
+
+The pop-up loads when it opens, from `GET /api/pull-requests/details`, and
+never as part of the dashboard snapshot, so a forge's budget isn't spent on
+rows nobody opens. It shows the first 50 comments and says so when there are
+more. The header shows status chips taken from the row (draft, CI, merge state,
+out of date, auto-merge) as they were when it opened, and the version on the
+Releases page. Each comment carries the author's avatar (the forge's own HTTPS
+image URL, or an initial if it isn't one or can't load), a relative time and an
+"edited" mark. A deleted author reads "ghost". Hovering or focusing a reaction
+lists who gave it, up to ten names and then "and N more"; Escape hides that
+list first and a second press closes the pop-up. Reactions are display only.
+When the details can't load, it says so in plain words with **Try again**.
+
+The text is Markdown and the server doesn't sanitise it, so the page renders
+it with [markdown-it](https://github.com/markdown-it/markdown-it) with raw HTML
+off: tags show as text, images aren't loaded, only absolute `http`, `https`
+and `mailto` links are links (anything else stays plain text), and they open
+in a new tab with `rel="noopener noreferrer"`. The
+library loads the first time a pop-up opens.
+
 ## Releases
 
 Release pull requests have their own page, `/releases.html`, reached from the
@@ -978,8 +1021,9 @@ its default branch, the status of the pipeline on the newest commit (`failed`,
 `passed`, `running` or `none`), the commit (short SHA, subject, author), the
 names of the failed jobs, when the pipeline finished and how long it ran, and a
 link to the run. The response also counts the rows per status. Every row is
-returned whatever its status, failed first, so a client filters it and its
-counts always match what it lists.
+returned whatever its status, ordered by commit time, latest first (rows with
+no commit time last, then by repo name), so a client filters it and its counts
+always match what it lists. Status is a filter, not the order.
 
 It reads the snapshot the background refresh already holds and never calls a
 forge, so reading it costs no rate-limit budget. The refresh gets the data
@@ -1086,7 +1130,8 @@ does changing a filter, the sort or the page. Nothing re-renders while
 focus is inside a row, a More actions menu is open, a modal window is open, or a
 row action is in flight. **Pause live updates** stops every automatic
 update until you turn it back on (Refresh now still works). The **Sort**
-control offers Last activity (the default, the server's order), Created and
+control offers Last activity (the default, the server's order: most recently
+updated first, whether or not a pull request is ready to merge), Created and
 Repository. Pause and sort are saved with your other filters.
 
 Draft pull requests are left out by default. The **Show drafts** toggle in the

@@ -14,6 +14,9 @@
   const pullsView = $derived(view !== "issues");
 
   import { onMount } from "svelte";
+  import PullRequestDetailsDialog, {
+    type DetailsChip,
+  } from "#lib/PullRequestDetailsDialog.svelte";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
@@ -75,6 +78,7 @@
     onTimezoneChange,
     effectiveZone,
   } from "#lib/time.svelte.js";
+  import { createWebMCPTools } from "#lib/webmcp-tools.js";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, admin-link, logout-button, whoami) —
@@ -277,6 +281,9 @@
       restored?: boolean;
     };
   };
+
+  // The read-only details dialog (#943); a row's Details button opens it.
+  let detailsDialog = $state<PullRequestDetailsDialog>();
 
   onMount(initDashboard);
 
@@ -672,8 +679,11 @@
     // Merge button's own clickability. "conflicting" gets no such
     // exception: a real merge conflict is true regardless of CI state,
     // not a completion gate the way an incomplete "blocked" is.
+    // #1561: "blocked" is also silent while ci is "failure", the failing CI
+    // pill already says why (Filters.showBlockedChip).
     function mergeStatusPill(status: string, ci: string): HTMLElement | null {
-      if (status === "blocked" && ci === "pending") return null;
+      if (status === "blocked" && !Filters.showBlockedChip(status, ci))
+        return null;
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
       const pill = el("span", `merge-pill ${status}`);
@@ -921,6 +931,57 @@
       return /\brelease\s+v?(\d+\.\d+\.\d+\S*)/i.exec(title)?.[1] ?? "";
     }
 
+    // The status chips in the details header, from the fields the row already
+    // carries and nothing else, as they were when the dialog opened.
+    function detailsChips(item: PullRequestItem): DetailsChip[] {
+      const chips: DetailsChip[] = [];
+      if (item.draft) chips.push({ text: "Draft", tone: "neutral" });
+      if (item.ci === "success") chips.push({ text: "Passing", tone: "good" });
+      if (item.ci === "failure")
+        chips.push({ text: "Failing", tone: "critical" });
+      if (item.ci === "pending")
+        chips.push({ text: "Running", tone: "warning" });
+      if (item.mergeStatus === "mergeable")
+        chips.push({ text: "Mergeable", tone: "good" });
+      if (item.mergeStatus === "conflicting")
+        chips.push({ text: "Conflicts", tone: "critical" });
+      if (Filters.showBlockedChip(item.mergeStatus, item.ci))
+        chips.push({ text: "Blocked", tone: "warning" });
+      if (item.behind) chips.push({ text: "Out of date", tone: "warning" });
+      if (item.autoMergeEnabled === true)
+        chips.push({ text: "Auto-merge on", tone: "neutral" });
+      for (const label of item.labels ?? [])
+        chips.push({ text: label.name, tone: "neutral" });
+      return chips;
+    }
+
+    // Opens the read-only details dialog (#943). A real button of its own, not
+    // stretched over the row: the row's stretched link still opens the pull
+    // request on the forge until the dialog takes over the whole row.
+    function detailsButton(item: PullRequestItem): HTMLButtonElement {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "row-details";
+      button.id = `details-trigger-${domSafeId(prKey(item))}`;
+      button.textContent = "Details";
+      button.setAttribute(
+        "aria-label",
+        `Details, #${item.number} ${item.title}`,
+      );
+      button.addEventListener("click", () => {
+        detailsDialog?.open(
+          {
+            ...item,
+            chips: detailsChips(item),
+            version:
+              item.kind === "release" ? releaseVersion(item.title) : undefined,
+          },
+          button.id,
+        );
+      });
+      return button;
+    }
+
     function buildRow(
       item: PullRequestItem | IssueItem,
       isPR: boolean,
@@ -933,6 +994,7 @@
       const titleCellEl = titleCell(item, onLabelClick, activeLabel);
       row.appendChild(titleCellEl);
       if (!isPR) row.dataset.issueKey = prKey(item);
+      if (isPR) titleCellEl.appendChild(detailsButton(item as PullRequestItem));
       if (isPR && (item as PullRequestItem).stack)
         titleCellEl.appendChild(stackInfo(item as PullRequestItem));
       // The Releases page shows the version being released, and says why a
@@ -6545,7 +6607,7 @@
     refresh();
     schedulePoll();
 
-    // ---- WebMCP (webmachinelearning/webmcp) tool: get_dashboard ----
+    // ---- WebMCP (webmachinelearning/webmcp) tools, defined in webmcp-tools.ts ----
     // Experimental browser API -- document.modelContext only exists in
     // Chrome 149+/Edge 150+ behind an Origin Trial (or the local
     // about:flags#enable-webmcp-testing flag) as of this writing, so this
@@ -6560,18 +6622,22 @@
     // agent and the person watching the page never see it disagree —
     // the WebMCP explainer's own "synchronize visual UI state" guidance.
     if (document.modelContext) {
-      document.modelContext.registerTool({
-        name: "get_dashboard",
-        description:
-          "Fetch the aggregated open pull requests, issues, and CI/forge health this dashboard already tracks across GitHub and Forgejo -- the same read-only data currently rendered on this page. Read-only: this never writes to either forge.",
-        async execute() {
+      const { modelContext } = document;
+      const tools = createWebMCPTools({
+        async getDashboard() {
           const seq = ++requestSeq;
           const data = await fetchDashboardData();
           applySnapshot(data, false, seq);
 
           return data;
         },
+        onSessionExpired() {
+          window.location.href = "/login.html";
+        },
       });
+      for (const { operationId: _operationId, ...tool } of tools) {
+        modelContext.registerTool(tool);
+      }
     }
 
     // ---- live updates over Server-Sent Events, on top of the poll above ----
@@ -7146,6 +7212,7 @@
 </div>
 
 {#if pullsView}
+  <PullRequestDetailsDialog bind:this={detailsDialog} />
   <dialog
     id="pipeline-dialog"
     class="pipeline-dialog"

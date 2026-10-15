@@ -1,25 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #918: a failed action's line stays on its row until it is dismissed or the
 // row is acted on again, however many snapshots arrive, and a permission
 // refusal locks only that action on that pull request.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `failure-stays-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Failure Stays');
-}
 
 function pr(number: number, over: Record<string, unknown> = {}) {
   return {
@@ -53,7 +39,7 @@ function snapshot(prs: Record<string, unknown>[]) {
 }
 
 async function open(page: Page, prs: Record<string, unknown>[]) {
-  // Installed before the reload so the page's timers run on the fake clock; the
+  // Installed before the page loads so the page's timers run on the fake clock; the
   // tests move time with page.clock.runFor instead of sleeping (#1378).
   await page.clock.install();
   await page.addInitScript(() => {
@@ -96,7 +82,7 @@ async function open(page: Page, prs: Record<string, unknown>[]) {
       }),
     }),
   );
-  await page.reload();
+  await page.goto('/pull-requests.html');
   await expect(page.locator('#pr-rows .row')).toHaveCount(prs.length);
 }
 
@@ -115,9 +101,9 @@ const rowFor = (page: Page, n: number) =>
   page.locator(`#pr-rows .row[data-pr-key$="#${n}"]`);
 
 test.describe('a failure line stays until dismissed (#918)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Every action is mocked and nothing is saved per user, so it starts from the
+  // shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   test('the line survives snapshots, including ones that change the row', async ({
     page,

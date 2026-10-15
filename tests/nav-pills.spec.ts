@@ -367,6 +367,7 @@ test.describe('the real server serves what the nav reads (#1315)', () => {
       failed: expect.any(Number),
       passed: expect.any(Number),
     };
+    // A branch with no pipeline is counted as none, so the five add up (#1531).
     expect(body.navCounts).toEqual({
       branches: { ...checkedPage, none: expect.any(Number) },
       pullRequests: checkedPage,
@@ -481,30 +482,20 @@ test.describe('nav counts are accessible (#1315)', () => {
 
   const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const [label, size] of [
-      ['desktop', { width: 1280, height: 800 }],
-      ['phone', { width: 360, height: 740 }],
-    ] as const) {
-      test(`no axe violations with the pills, including contrast (${label}, ${scheme})`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await page.setViewportSize(size);
-        await serve(page, { counts: MIXED });
-        await page.goto('/settings.html');
-        await expect(
-          page.locator(
-            label === 'phone'
-              ? '.bottom-nav .nav-failed'
-              : '.app-nav .nav-failed',
-          ),
-        ).not.toHaveCount(0);
+  // One run keeps axe in this journey (a11y rule). The other three scheme by
+  // size combinations are asserted, over the same shared nav, by
+  // nav-telemetry-pills and nav-branches-pills (#1502).
+  test('no axe violations with the pills, including contrast (phone, dark)', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.setViewportSize({ width: 360, height: 740 });
+    await serve(page, { counts: MIXED });
+    await page.goto('/settings.html');
+    await expect(page.locator('.bottom-nav .nav-failed')).not.toHaveCount(0);
 
-        expect(
-          (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
-        ).toEqual([]);
-      });
-    }
-  }
+    expect(
+      (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
+    ).toEqual([]);
+  });
 });

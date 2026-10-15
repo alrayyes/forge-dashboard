@@ -1,4 +1,5 @@
-import { expect } from '@playwright/test';
+/// <reference types="bun" />
+import { describe, expect, test } from 'bun:test';
 import {
   type AutoMergeInput,
   autoMergeChip,
@@ -9,8 +10,7 @@ import {
   type WaitInput,
   type WaitKind,
   waitChip,
-} from '../web/src/lib/wait-chip';
-import { test } from './fixtures';
+} from './wait-chip';
 
 // The chip's wording lives in one module, so the wording is checked here
 // without a browser. The page wiring is wait-chip.spec.ts.
@@ -41,7 +41,7 @@ const words = (text: string) => text.trim().split(/\s+/).length;
 const OLD_TEXT =
   /Awaiting the next refresh|Waiting for Dependabot|Waiting for Renovate|will pick this up shortly|Waiting for CI to restart/;
 
-test.describe('waitChip wording', () => {
+describe('waitChip wording', () => {
   test('a queued bot rebase names the bot and counts its age', () => {
     const chip = waitChip(input());
     expect(chip.state).toBe('waiting');
@@ -120,7 +120,7 @@ test.describe('waitChip wording', () => {
   });
 });
 
-test.describe('autoMergeChip wording', () => {
+describe('autoMergeChip wording', () => {
   const waiting = (
     overrides: Partial<AutoMergeInput> = {},
   ): AutoMergeInput => ({
@@ -189,7 +189,7 @@ test.describe('autoMergeChip wording', () => {
   });
 });
 
-test.describe('queuedChip wording', () => {
+describe('queuedChip wording', () => {
   test('reads Queued with the reset time, offers Cancel, and is three words at most', () => {
     const chip = queuedChip({
       time: '14:32',

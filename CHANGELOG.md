@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.192.1](https://github.com/alrayyes/forge-dashboard/compare/v0.192.0...v0.192.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **web:** don't show the Blocked pill when CI is failing ([#1562](https://github.com/alrayyes/forge-dashboard/issues/1562)) ([2cfe92c](https://github.com/alrayyes/forge-dashboard/commit/2cfe92c44044c788706acb41f3847a3ee9862da1))
+
+## [0.192.0](https://github.com/alrayyes/forge-dashboard/compare/v0.191.0...v0.192.0) (2026-10-15)
+
+
+### Features
+
+* **web:** a WebMCP parity test and the read tools that have a server twin ([#1556](https://github.com/alrayyes/forge-dashboard/issues/1556)) ([c8569ed](https://github.com/alrayyes/forge-dashboard/commit/c8569ed4e26e91f7fdeff97e1a158bc819adf524))
+
+## [0.191.0](https://github.com/alrayyes/forge-dashboard/compare/v0.190.2...v0.191.0) (2026-10-15)
+
+
+### Features
+
+* **api:** add the get_pull_request_details MCP tool ([#1544](https://github.com/alrayyes/forge-dashboard/issues/1544)) ([48409e8](https://github.com/alrayyes/forge-dashboard/commit/48409e88f063c6291aea27f4ac853bb76dfcbf60))
+
+## [0.190.2](https://github.com/alrayyes/forge-dashboard/compare/v0.190.1...v0.190.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* **dashboard:** sort pull requests by last activity alone ([#1532](https://github.com/alrayyes/forge-dashboard/issues/1532)) ([#1534](https://github.com/alrayyes/forge-dashboard/issues/1534)) ([ecfb56b](https://github.com/alrayyes/forge-dashboard/commit/ecfb56b530c37368ab06c7948f7203dd1bd755e3))
+
+## [0.190.1](https://github.com/alrayyes/forge-dashboard/compare/v0.190.0...v0.190.1) (2026-10-15)
+
+
+### Performance Improvements
+
+* **web:** inline the layout and footer css into each page ([#1538](https://github.com/alrayyes/forge-dashboard/issues/1538)) ([4a68bde](https://github.com/alrayyes/forge-dashboard/commit/4a68bde12f8c74e0f2df42943b855ab481846af8))
+
+## [0.190.0](https://github.com/alrayyes/forge-dashboard/compare/v0.189.0...v0.190.0) (2026-10-15)
+
+
+### Features
+
+* **web:** open a read-only details dialog from a pull request row ([#1525](https://github.com/alrayyes/forge-dashboard/issues/1525)) ([bf65c5d](https://github.com/alrayyes/forge-dashboard/commit/bf65c5d822efd87c72dee4fc092bed0421ef2ff6))
+
+## [0.189.0](https://github.com/alrayyes/forge-dashboard/compare/v0.188.2...v0.189.0) (2026-10-15)
+
+
+### Features
+
+* **api:** add the get_main_branches MCP tool ([#1529](https://github.com/alrayyes/forge-dashboard/issues/1529)) ([4225979](https://github.com/alrayyes/forge-dashboard/commit/4225979fb6158a40c122b09f214240ea07300c26)), closes [#1503](https://github.com/alrayyes/forge-dashboard/issues/1503)
+* **api:** read a pull request's description, comments and reactions ([#1506](https://github.com/alrayyes/forge-dashboard/issues/1506)) ([#1519](https://github.com/alrayyes/forge-dashboard/issues/1519)) ([1b7ad46](https://github.com/alrayyes/forge-dashboard/commit/1b7ad46dd9233a134dc512d0969486e468ad7661))
+
 ## [0.188.2](https://github.com/alrayyes/forge-dashboard/compare/v0.188.1...v0.188.2) (2026-10-15)
 
 
