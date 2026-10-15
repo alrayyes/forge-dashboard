@@ -817,6 +817,7 @@
         code: pr.autoMerge.code,
         message: pr.autoMerge.message,
         draft: pr.draft,
+        forge: pr.forge,
       });
       if (!chip) return null;
       const disarm = isSettled(pr) ? null : cancelAutoMergeCell(pr, true);
