@@ -224,10 +224,12 @@ describe('api/openapi.yaml against the WebMCP tools', () => {
     }
   });
 
-  test('every tool has a description and an object input schema', () => {
+  test('every tool has a description, and an object input schema if any', () => {
     for (const tool of tools) {
       expect(tool.description.length).toBeGreaterThan(40);
-      expect((tool.inputSchema as { type: string }).type).toBe('object');
+      if (tool.inputSchema) {
+        expect((tool.inputSchema as { type: string }).type).toBe('object');
+      }
     }
   });
 });

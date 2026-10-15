@@ -101,10 +101,11 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   Trial in Chrome 149+/Edge 150+ only, with no stable spec yet — so this is a
   no-op everywhere else rather than a real dependency the page needs. Where it's
   present, it lets an in-browser AI agent fetch the same data the page itself
-  renders by calling the page's own already-authenticated fetch layer
-  (`fetchDashboardData()`) directly — the same request `/api/dashboard` already
-  answers, riding on the browser's own session cookie exactly like the page's
-  own poll does. Nothing new crosses to the browser that the preceding
+  renders. `get_dashboard` calls the page's own already-authenticated fetch
+  layer (`fetchDashboardData()`) directly, the same request `/api/dashboard`
+  already answers; the others call their endpoint the same way. All ride on the
+  browser's own session cookie exactly like the page's own poll does.
+  Nothing new crosses to the browser that the preceding
   "Credentials never reach the browser" bullet doesn't already allow: the tools
   never see a token, only the same already-filtered JSON the page always got.
   The tools live in `web/src/lib/webmcp-tools.ts`, each named for the API
