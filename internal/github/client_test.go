@@ -1980,7 +1980,7 @@ func TestEnsureWebhook_CreatesWhenMissing(t *testing.T) {
 	assert.Equal(t, "sekret", config["secret"])
 	assert.Equal(t, "json", config["content_type"])
 	assert.Equal(t, true, createBody["active"])
-	assert.ElementsMatch(t, []any{"pull_request", "issues", "status", "check_run"}, createBody["events"])
+	assert.ElementsMatch(t, []any{"pull_request", "issues", "issue_comment", "pull_request_review", "pull_request_review_comment", "status", "check_run"}, createBody["events"])
 }
 
 func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
@@ -1992,7 +1992,7 @@ func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
 	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
 		writeJSON(t, w, []map[string]any{
-			{"id": 7, "config": map[string]any{"url": "https://dashboard.example/api/webhooks/github/tok123"}, "active": false},
+			{"id": 7, "events": []string{"pull_request", "issues", "status", "check_run"}, "config": map[string]any{"url": "https://dashboard.example/api/webhooks/github/tok123"}, "active": false},
 		})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/hooks/7", func(w http.ResponseWriter, r *http.Request) {
@@ -2011,6 +2011,11 @@ func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "/repos/alrayyes/a/hooks/7", editedPath)
 	assert.Equal(t, true, editBody["active"])
+	// A hook made before comment events existed gets them at the next ensure,
+	// in place: the POST handler above would fail the test on a duplicate.
+	assert.Contains(t, editBody["events"], "issue_comment")
+	assert.Contains(t, editBody["events"], "pull_request_review")
+	assert.Contains(t, editBody["events"], "pull_request_review_comment")
 }
 
 // TestEnsureWebhook_SendsAuthorizationHeader is a regression test for a

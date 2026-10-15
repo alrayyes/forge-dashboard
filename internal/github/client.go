@@ -472,9 +472,16 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 }
 
 // githubWebhookEvents mirrors what docs/webhooks.md's manual GitHub
-// steps have a user tick by hand — Pull requests, Issues, Statuses,
-// Check runs — so a webhook created here covers the same ground.
-var githubWebhookEvents = []string{"pull_request", "issues", "status", "check_run"}
+// steps have a user tick by hand, so a webhook created here covers the same
+// ground. The comment events matter for the "Last activity" sort: a comment,
+// or a review, moves an item's updated_at, and without one of these the
+// snapshot only learns of it at the next poll (#1552). issue_comment covers
+// conversation comments on issues and on pull requests alike.
+var githubWebhookEvents = []string{
+	"pull_request", "issues", "issue_comment",
+	"pull_request_review", "pull_request_review_comment",
+	"status", "check_run",
+}
 
 // EnsureWebhook implements dashboard.WebhookManager: create a webhook
 // targeting targetURL if owner/name has none yet, or bring an existing

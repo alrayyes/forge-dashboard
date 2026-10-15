@@ -30,7 +30,9 @@ webhook" button — it creates one via the forge's own API, pointed at
 this dashboard's URL and secret, subscribed to every event the table
 below recommends. If a forge-dashboard webhook already exists there but
 is turned off or missing an event, clicking it fixes that one up in place
-rather than creating a second, duplicate hook.
+rather than creating a second, duplicate hook. A webhook the button made
+before comment events were added gets them the same way: click the button
+once more on that repo, and its event list is replaced with the current one.
 
 This needs a broader token scope than just reading your repos — GitHub's
 fine-grained tokens need the Webhooks permission set to **Read and
@@ -56,12 +58,14 @@ by a _different_ event than the one that shows the pull request existing
 at all, so it's easy to end up with a webhook that reacts to a new pull
 request or a comment but never to that pull request's checks finishing.
 
-| Live update you want                                                                            | GitHub events        | Forgejo events |
-| ----------------------------------------------------------------------------------------------- | -------------------- | -------------- |
-| A pull request opening, closing, or its labels/reviewers changing                               | Pull requests        | Pull Request   |
-| An issue opening, closing, or getting commented on                                              | Issues               | Issue          |
-| **CI/build status** — Actions, a third-party check, or a classic commit status, on either forge | Statuses, Check runs | Status         |
-| A commit landing outside an open pull request                                                   | not tracked          | Push           |
+| Live update you want                                                                            | GitHub events                                      | Forgejo events                                                                          |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| A pull request opening, closing, or its labels/reviewers changing                               | Pull requests                                      | Pull Request                                                                            |
+| An issue opening or closing                                                                     | Issues                                             | Issue                                                                                   |
+| A comment on an issue or a pull request, which also moves "Last activity"                       | Issue comments                                     | Issue Comment, Pull Request Comment                                                     |
+| A review on a pull request, or a comment on its diff                                            | Pull request reviews, Pull request review comments | Pull Request Review Approved, Pull Request Review Rejected, Pull Request Review Comment |
+| **CI/build status** — Actions, a third-party check, or a classic commit status, on either forge | Statuses, Check runs                               | Status                                                                                  |
+| A commit landing outside an open pull request                                                   | not tracked                                        | Push                                                                                    |
 
 GitHub splits CI into two separate events because it has two separate
 CI mechanisms with two separate APIs — **Statuses** is the older
@@ -96,7 +100,8 @@ working; there's no separate step to "save" them.
 4. **Secret**: the secret from Settings.
 5. **Which events would you like to trigger this webhook?** → "Let me
    select individual events", then check **Pull requests**, **Issues**,
-   **Statuses**, and **Check runs**. (Selecting "Send me everything"
+   **Issue comments**, **Pull request reviews**, **Pull request review
+   comments**, **Statuses**, and **Check runs**. (Selecting "Send me everything"
    works too, see below — it's just more traffic than needed.)
 6. Leave **Active** checked, then **Add webhook**.
 
@@ -113,8 +118,12 @@ was accepted.
 3. **HTTP Method**: `POST`. **`POST Content Type`**: `application/json`.
 4. **Secret**: the secret from Settings.
 5. **Trigger On**: "Custom Events", then check **Pull Request**,
-   **Issue**, **Push**, and **Status**. ("All Events" works too, same
-   reasoning as the preceding GitHub section.)
+   **Issue**, **Issue Comment**, **Pull Request Comment**, **Pull Request
+   Review Approved**, **Pull Request Review Rejected**, **Pull Request
+   Review Comment**, **Push**, and **Status**. ("All Events" works too, same
+   reasoning as the preceding GitHub section.) A webhook the button creates
+   through the API needs no extra ticks: Forgejo's **Pull Request** and
+   **Issue** types already deliver comments and reviews on those items.
 6. Leave it **Active**, then **Add Webhook**.
 
 ## How a delivery is verified
