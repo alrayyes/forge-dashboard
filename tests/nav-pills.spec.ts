@@ -359,7 +359,8 @@ test.describe('the real server serves what the nav reads (#1315)', () => {
     const body = await res.json();
 
     expect(res.ok()).toBe(true);
-    // Every page except Issues counts running and passed (#1439, #1458).
+    // Every page except Issues counts running and passed (#1439, #1458);
+    // Branches also counts those with no pipeline (#1531).
     const checkedPage = {
       total: expect.any(Number),
       running: expect.any(Number),
@@ -367,7 +368,7 @@ test.describe('the real server serves what the nav reads (#1315)', () => {
       passed: expect.any(Number),
     };
     expect(body.navCounts).toEqual({
-      branches: checkedPage,
+      branches: { ...checkedPage, none: expect.any(Number) },
       pullRequests: checkedPage,
       issues: { total: expect.any(Number) },
       releases: checkedPage,

@@ -18,9 +18,10 @@ type Counts = {
   failed: number;
   running: number;
   passed: number;
+  none: number;
 };
 
-const MIXED: Counts = { total: 7, failed: 2, running: 1, passed: 4 };
+const MIXED: Counts = { total: 7, failed: 2, running: 1, passed: 3, none: 1 };
 
 async function open(page: Page, branches: Counts) {
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
@@ -68,22 +69,37 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
     await expect(pill.locator('.nav-total')).toHaveText('7');
     await expect(pill.locator('.nav-failed')).toHaveText('2');
     await expect(pill.locator('.nav-running')).toHaveText('1');
-    await expect(pill.locator('.nav-passed')).toHaveText('4');
-    for (const kind of ['failed', 'running', 'passed']) {
+    await expect(pill.locator('.nav-passed')).toHaveText('3');
+    await expect(pill.locator('.nav-none')).toHaveText('1');
+    for (const kind of ['failed', 'running', 'passed', 'none']) {
       await expect(pill.locator(`.nav-${kind} svg`).first()).toBeAttached();
     }
+  });
+
+  test('the link names the branches without a pipeline, in the header and on the tab (#1531)', async ({
+    page,
+  }) => {
+    await open(page, MIXED);
+    await expect(header(page)).toHaveAccessibleName(
+      'Branches, 7 total, 2 failing, 1 running, 3 passing, 1 without a pipeline',
+    );
+    await page.setViewportSize({ width: 360, height: 740 });
+    await expect(tab(page)).toHaveAccessibleName(
+      '7 Branches, 2 failing, 1 running, 3 passing, 1 without a pipeline',
+    );
   });
 
   test('a count of zero is not drawn, and no branches means no pill', async ({
     page,
   }) => {
-    await open(page, { total: 5, failed: 0, running: 0, passed: 3 });
+    await open(page, { total: 5, failed: 0, running: 0, passed: 5, none: 0 });
     const pill = header(page).locator('.nav-pills');
-    await expect(pill.locator('.nav-passed')).toHaveText('3');
+    await expect(pill.locator('.nav-passed')).toHaveText('5');
+    await expect(pill.locator('.nav-none')).toHaveCount(0);
     await expect(pill.locator('.nav-failed')).toHaveCount(0);
     await expect(pill.locator('.nav-running')).toHaveCount(0);
 
-    await open(page, { total: 0, failed: 0, running: 0, passed: 0 });
+    await open(page, { total: 0, failed: 0, running: 0, passed: 0, none: 0 });
     await expect(header(page).locator('.nav-pills')).toHaveCount(0);
   });
 
@@ -116,6 +132,38 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
       () => document.documentElement.scrollWidth > window.innerWidth,
     );
     expect(overflow).toBe(false);
+  });
+
+  test('with five counts of three digits the tab still fits at 360px (#1531)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await open(page, {
+      total: 500,
+      failed: 111,
+      running: 112,
+      passed: 113,
+      none: 164,
+    });
+    await expect(tab(page).locator('.nav-none')).toHaveText('164');
+    const fits = await page
+      .locator('.bottom-nav .bottom-nav-link')
+      .evaluateAll((els) =>
+        els.every((el) => {
+          const r = el.getBoundingClientRect();
+          const p = el.querySelector('.nav-pills')?.getBoundingClientRect();
+          return (
+            r.right <= 361 &&
+            (!p || (p.left >= r.left - 1 && p.right <= r.right + 1))
+          );
+        }),
+      );
+    expect(fits).toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      ),
+    ).toBe(false);
   });
 
   for (const scheme of ['light', 'dark'] as const) {

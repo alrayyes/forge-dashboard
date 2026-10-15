@@ -507,6 +507,9 @@ header,
 .nav-passed {
   color: var(--good);
 }
+.nav-none {
+  color: var(--ink-2);
+}
 .nav-count svg {
   flex: none;
 }
