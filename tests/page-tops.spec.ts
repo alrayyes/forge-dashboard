@@ -8,6 +8,7 @@ import {
 import { test } from './fixtures';
 import { navCountsFor } from './nav-counts-helper';
 import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // Each number appears once (#1325): the nav icons carry the totals and the
 // failed counts (#1315), so the pages start with the list instead of a row of
@@ -15,6 +16,8 @@ import { registerViaInvite } from './register-helper';
 // count is one line, and the repo count lives on Insights.
 // https://github.com/alrayyes/forge-dashboard/issues/1325
 
+// Only the pill and filter tests below save filter state, so they keep a
+// user of their own.
 async function registerAndSignIn(
   page: Page,
   request: APIRequestContext,
@@ -100,9 +103,8 @@ const PAGES = [
 ] as const;
 
 test.describe('the pages start with the list (#1325)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Reads mocked data only, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   for (const { path } of PAGES) {
     test(`${path} has no stat tiles`, async ({ page }) => {
@@ -125,9 +127,8 @@ test.describe('the pages start with the list (#1325)', () => {
 });
 
 test.describe('the banners sit above the filter bar (#1325)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Reads mocked data only, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   // The stat tiles used to be the anchor the banners were inserted before.
   test('the unreachable-forge banner comes before the filter bar', async ({
@@ -222,9 +223,8 @@ test.describe('one line says how many are shown (#1325)', () => {
 });
 
 test.describe('an empty page says so (#1325)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Reads mocked data only, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   test('the pull request page with none open says nothing is open', async ({
     page,
@@ -256,9 +256,8 @@ test.describe('an empty page says so (#1325)', () => {
 });
 
 test.describe('the Branches page drops its summary line (#1325)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Reads mocked data only, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   test('no "N tracked: …" line, and the pills keep their counts', async ({
     page,
@@ -305,9 +304,8 @@ test.describe('the Branches page drops its summary line (#1325)', () => {
 });
 
 test.describe('the repo count lives on Insights (#1325)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Reads mocked data only, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   test('Insights says how many repositories are tracked, across forges', async ({
     page,
@@ -331,9 +329,8 @@ test.describe('the repo count lives on Insights (#1325)', () => {
 });
 
 test.describe('the pages without tiles are accessible (#1325)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Reads mocked data only, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
