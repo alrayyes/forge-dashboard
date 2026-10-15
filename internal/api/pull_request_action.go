@@ -61,19 +61,57 @@ func readActionTarget(w http.ResponseWriter, r *http.Request) (actionTarget, boo
 	return actionTarget{user: u, req: req, owner: owner, name: name}, true
 }
 
+// statusError is a refusal that carries the HTTP status the handler answers
+// with, so a function shared with the MCP tools can fail without a
+// ResponseWriter. An MCP tool reports just the message.
+type statusError struct {
+	status  int
+	message string
+}
+
+func (e *statusError) Error() string { return e.message }
+
+// write answers w with the refusal.
+func (e *statusError) write(w http.ResponseWriter) {
+	writeJSON(w, e.status, errorBody(e.message))
+}
+
+// lookupForgeSource finds the user's source for forge, with the settings it was
+// built from. The *statusError is a 500 or 400, nil on success.
+func lookupForgeSource(ctx context.Context, deps Deps, userID []byte, forge string) (dashboard.Source, settings.Credentials, *statusError) {
+	creds, err := deps.SettingsStore.Get(ctx, userID)
+	if err != nil {
+		return nil, settings.Credentials{}, &statusError{http.StatusInternalServerError, "could not load settings"}
+	}
+
+	src, serr := pickForgeSource(deps, userID, creds, forge)
+
+	return src, creds, serr
+}
+
+// pickForgeSource picks the source for forge out of the ones creds builds, or a
+// 400 when the user has none.
+func pickForgeSource(deps Deps, userID []byte, creds settings.Credentials, forge string) (dashboard.Source, *statusError) {
+	for _, src := range deps.BuildSources(userID, creds) {
+		if string(src.Forge()) == forge {
+			return src, nil
+		}
+	}
+
+	return nil, &statusError{http.StatusBadRequest, "no " + forge + " credentials saved"}
+}
+
 // forgeSource finds the signed-in user's source for forge, with the settings it
 // was built from, and answers 500 or 400 itself when it can't.
 func forgeSource(w http.ResponseWriter, r *http.Request, deps Deps, userID []byte, forge string) (dashboard.Source, settings.Credentials, bool) {
-	creds, err := deps.SettingsStore.Get(r.Context(), userID)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
+	src, creds, serr := lookupForgeSource(r.Context(), deps, userID, forge)
+	if serr != nil {
+		serr.write(w)
 
 		return nil, settings.Credentials{}, false
 	}
 
-	src, ok := findForgeSource(w, deps, userID, creds, forge)
-
-	return src, creds, ok
+	return src, creds, true
 }
 
 // findForgeSource picks the source for forge out of the ones creds builds, and
@@ -81,26 +119,36 @@ func forgeSource(w http.ResponseWriter, r *http.Request, deps Deps, userID []byt
 // for a handler that has to do something between loading the settings and
 // looking for the source.
 func findForgeSource(w http.ResponseWriter, deps Deps, userID []byte, creds settings.Credentials, forge string) (dashboard.Source, bool) {
-	for _, src := range deps.BuildSources(userID, creds) {
-		if string(src.Forge()) == forge {
-			return src, true
-		}
-	}
-	writeJSON(w, http.StatusBadRequest, errorBody("no "+forge+" credentials saved"))
+	src, serr := pickForgeSource(deps, userID, creds, forge)
+	if serr != nil {
+		serr.write(w)
 
-	return nil, false
+		return nil, false
+	}
+
+	return src, true
 }
 
-// capabilityOf asks src for the one optional capability a handler needs, and
-// answers 400 with unsupported (what the forge can't do) when it lacks it.
-func capabilityOf[T any](w http.ResponseWriter, src dashboard.Source, forge, unsupported string) (T, bool) {
+// capabilityFor asks src for the one optional capability a caller needs, or a
+// 400 with unsupported (what the forge can't do) when it lacks it.
+func capabilityFor[T any](src dashboard.Source, forge, unsupported string) (T, *statusError) {
 	capability, ok := src.(T)
 	if !ok {
-		writeJSON(w, http.StatusBadRequest, errorBody(forge+" "+unsupported))
-
 		var none T
 
-		return none, false
+		return none, &statusError{http.StatusBadRequest, forge + " " + unsupported}
+	}
+
+	return capability, nil
+}
+
+// capabilityOf is capabilityFor for a handler: it answers the 400 itself.
+func capabilityOf[T any](w http.ResponseWriter, src dashboard.Source, forge, unsupported string) (T, bool) {
+	capability, serr := capabilityFor[T](src, forge, unsupported)
+	if serr != nil {
+		serr.write(w)
+
+		return capability, false
 	}
 
 	return capability, true
