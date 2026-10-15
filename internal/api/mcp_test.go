@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -362,4 +363,107 @@ func TestMCP_GetPullRequestDetails_RefusesBadInput(t *testing.T) {
 		})
 	}
 	assert.Zero(t, source.lastNumber, "nothing reached the forge")
+}
+
+func TestMCP_GetPullRequestChecks_ListsTheTool(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
+
+	result, err := session.ListTools(t.Context(), nil)
+	require.NoError(t, err)
+
+	var found *mcp.Tool
+	for _, tool := range result.Tools {
+		if tool.Name == "get_pull_request_checks" {
+			found = tool
+		}
+	}
+	require.NotNil(t, found)
+	for _, want := range []string{"Read-only", "on demand", "snapshot", "GitHub", "Forgejo", "requests"} {
+		assert.Contains(t, found.Description, want)
+	}
+}
+
+func TestMCP_GetPullRequestChecks_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeCheckerSource{
+		forge: dashboard.ForgeGitHub,
+		checks: []dashboard.Check{
+			{Name: "build", State: dashboard.CheckSuccess, URL: "https://github.com/alrayyes/tempus-fugit/runs/1"},
+			{Name: "test", State: dashboard.CheckRunning, URL: "https://github.com/alrayyes/tempus-fugit/runs/2"},
+		},
+	}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+		Name:      "get_pull_request_checks",
+		Arguments: map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit", "number": 42},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	resp := getPullRequestChecks(t, srvURL, cookie, "github", "alrayyes/tempus-fugit", 42)
+	defer func() { _ = resp.Body.Close() }()
+	var httpContent map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&httpContent))
+	assert.Equal(t, httpContent, result.StructuredContent)
+	assert.Equal(t, "tempus-fugit", source.lastName)
+	assert.Equal(t, 42, source.lastNumber)
+}
+
+func TestMCP_GetPullRequestChecks_RefusesBadInput(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeCheckerSource{forge: dashboard.ForgeGitHub}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	for name, args := range map[string]map[string]any{
+		"unknown forge":      {"forge": "gitlab", "fullName": "a/b", "number": 1},
+		"malformed fullName": {"forge": "github", "fullName": "nope", "number": 1},
+		"number not integer": {"forge": "github", "fullName": "a/b", "number": "abc"},
+		"number missing":     {"forge": "github", "fullName": "a/b"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_pull_request_checks", Arguments: args})
+
+			refused := err != nil || (result != nil && result.IsError)
+			assert.True(t, refused, "the tool should refuse as the endpoint answers 400")
+		})
+	}
+	assert.Zero(t, source.lastNumber, "nothing reached the forge")
+}
+
+// A forge failure comes back with the message the endpoint's error body carries.
+func TestMCP_GetPullRequestChecks_ForgeErrorCarriesTheEndpointsMessage(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeCheckerSource{
+		forge:     dashboard.ForgeGitHub,
+		checksErr: &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("github: rate limit exceeded")},
+	}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	resp := getPullRequestChecks(t, srvURL, cookie, "github", "alrayyes/tempus-fugit", 1)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+		Name:      "get_pull_request_checks",
+		Arguments: map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit", "number": 1},
+	})
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	require.Len(t, result.Content, 1)
+	text, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	assert.Equal(t, body["error"], text.Text)
 }
