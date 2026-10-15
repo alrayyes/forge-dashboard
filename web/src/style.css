@@ -1114,6 +1114,7 @@ select.col-filter {
   flex: none;
   font: inherit;
   font-size: 12px;
+  min-height: 24px; /* WCAG 2.2 2.5.8 */
   padding: 2px 10px;
   border-radius: 999px;
   border: 1px solid var(--border-strong);

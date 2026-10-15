@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
+import { settle } from './settle-helper';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // Mocks /api/dashboard and /api/pull-requests/details only, writes no per-user
@@ -47,10 +48,17 @@ function body(text: string, extra: Record<string, unknown> = {}) {
   };
 }
 
+// A fresh URL per call: the browser's image cache must not carry an answer
+// from one test (loaded, or failed) into another.
+const uniq = () => Math.random().toString(36).slice(2);
+
 function comment(id: string, extra: Record<string, unknown> = {}) {
   return {
     id,
-    author: { login: 'alice', avatarUrl: 'https://example.invalid/a.png' },
+    author: {
+      login: 'alice',
+      avatarUrl: `https://example.invalid/${id}-${uniq()}.png`,
+    },
     createdAt: ago(120),
     updatedAt: null,
     edited: false,
@@ -214,26 +222,86 @@ test.describe('pull request details dialog', () => {
     await page.goto('/pull-requests.html');
     await trigger(page).click();
 
-    const up = dialog(page).getByRole('button', {
+    const up = dialog(page).getByRole('group', {
       name: '3 thumbs up, from alice, bob and carol',
     });
     await expect(up).toBeVisible();
     // Zero counts show nothing: one thumbs-up pill and one thumbs-down pill.
     await expect(dialog(page).locator('.reaction-pill')).toHaveCount(2);
-    const down = dialog(page).getByRole('button', {
+    // Display only: nothing here is a button.
+    await expect(dialog(page).locator('.reaction button')).toHaveCount(0);
+    const down = dialog(page).getByRole('group', {
       name: /^12 thumbs down, from u1,.* and 2 more$/,
     });
     await expect(down).toBeVisible();
 
-    const list = dialog(page).locator('.reaction-people').first();
-    await expect(list).toBeHidden();
+    const list = dialog(page).locator('.reaction-people');
+    // The dialog opened under the pointer, which may rest on a pill.
+    await page.mouse.move(0, 0);
+    await expect(list).toHaveCount(0);
     await up.hover();
     await expect(list).toBeVisible();
     await expect(list).toContainText('alice');
+    // Hoverable (WCAG 1.4.13): the pointer can move onto the list.
+    await list.hover();
+    await expect(list).toBeVisible();
     await page.mouse.move(0, 0);
-    await expect(list).toBeHidden();
+    await expect(list).toHaveCount(0);
     await up.focus();
     await expect(list).toBeVisible();
+  });
+
+  test('Escape dismisses the reaction list first and closes the dialog on the second press', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await mockDetails(
+      page,
+      details({
+        description: body('d', {
+          reactions: {
+            thumbsUp: { count: 2, logins: ['alice', 'bob'] },
+            thumbsDown: { count: 0, logins: [] },
+          },
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    const up = dialog(page).getByRole('group', { name: /thumbs up/ });
+    await up.focus();
+    await expect(dialog(page).locator('.reaction-people')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog(page).locator('.reaction-people')).toHaveCount(0);
+    await expect(dialog(page)).toBeVisible();
+    await expect(up).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    await expect(trigger(page)).toBeFocused();
+  });
+
+  test('Escape dismisses a list opened by hover, too', async ({ page }) => {
+    await mockDashboard(page, [makePR()]);
+    await mockDetails(
+      page,
+      details({
+        description: body('d', {
+          reactions: {
+            thumbsUp: { count: 2, logins: ['alice', 'bob'] },
+            thumbsDown: { count: 0, logins: [] },
+          },
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    await dialog(page)
+      .getByRole('group', { name: /thumbs up/ })
+      .hover();
+    await expect(dialog(page).locator('.reaction-people')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog(page).locator('.reaction-people')).toHaveCount(0);
+    await expect(dialog(page)).toBeVisible();
   });
 
   test('comments show oldest first with avatar, login, relative time and edited; a deleted author reads ghost', async ({
@@ -427,9 +495,10 @@ test.describe('pull request details dialog', () => {
       .getByRole('button', { name: /^Details/ })
       .click();
     await expect(dialog(page)).toContainText('description for 43');
+    const stale = page.waitForResponse((r) => r.url().includes('number=42'));
     releaseFirst();
-    // Give the stale answer time to (wrongly) land.
-    await page.waitForTimeout(300);
+    await stale;
+    await settle(page);
     await expect(dialog(page)).toContainText('description for 43');
     await expect(dialog(page)).not.toContainText('description for 42');
   });
@@ -509,6 +578,146 @@ test.describe('pull request details dialog', () => {
       const b = await control.boundingBox();
       expect(b?.height).toBeGreaterThanOrEqual(44);
       expect(b?.width).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  test('a failed markdown chunk shows a plain error and Try again recovers once the network is back', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await mockDetails(page, details());
+    let failChunks = false;
+    await page.route('**/_app/immutable/**/*.js', (route) =>
+      failChunks ? route.abort() : route.continue(),
+    );
+    await page.goto('/pull-requests.html');
+    await expect(trigger(page)).toBeVisible();
+    failChunks = true;
+    await trigger(page).click();
+    await expect(dialog(page).getByRole('alert')).toContainText(
+      'Could not load the details',
+    );
+    // Technical text stays out of the UI.
+    await expect(dialog(page).getByRole('alert')).not.toContainText('/_app/');
+    await expect(dialog(page).getByRole('alert')).not.toContainText(
+      'dynamically imported',
+    );
+    failChunks = false;
+    await dialog(page).getByRole('button', { name: 'Try again' }).click();
+    await expect(dialog(page).locator('strong')).toHaveText('structured');
+  });
+
+  test('a network failure reads as plain words, a server error shows its reason', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await page.route('**/api/pull-requests/details*', (route) => route.abort());
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    await expect(dialog(page).getByRole('alert')).toContainText(
+      'Could not load the details',
+    );
+    await expect(dialog(page).getByRole('alert')).not.toContainText(
+      'Failed to fetch',
+    );
+  });
+
+  test('an avatar is shown only from an https URL; other schemes fall back to the initial', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await page.route('https://example.invalid/**', (route) => route.abort());
+    const httpsUrl = `https://example.invalid/${uniq()}.png`;
+    const avatar = (id: string, url: string) =>
+      comment(id, { author: { login: `user${id}`, avatarUrl: url } });
+    await mockDetails(
+      page,
+      details({
+        comments: [
+          avatar('1', 'javascript:window.__pwned=1'),
+          avatar(
+            '2',
+            'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>',
+          ),
+          avatar('3', 'http://example.invalid/http.png'),
+          avatar('4', httpsUrl),
+        ],
+        commentCount: 4,
+      }),
+    );
+    const requested: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('example.invalid')) requested.push(r.url());
+    });
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    await expect(dialog(page).locator('.details-comment')).toHaveCount(4);
+    // Only the https one is ever requested (it fails to load here, which also
+    // falls back to the initial, so all four end as initials).
+    await expect.poll(() => requested).toEqual([httpsUrl]);
+    await expect(dialog(page).locator('.avatar')).toHaveCount(4);
+  });
+
+  test('markdown links must be absolute http(s) or mailto; relative and protocol-relative ones are plain text', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await mockDetails(
+      page,
+      details({
+        description: body(
+          '[rel](/api/dashboard) [proto](//evil.example/x) [frag](#top) [ok](https://example.org/x) [mail](mailto:a@example.org)',
+        ),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    const content = dialog(page).locator('.details-body .markdown').first();
+    await expect(content.getByRole('link', { name: 'ok' })).toBeVisible();
+    await expect(content.getByRole('link')).toHaveCount(2);
+    await expect(content).toContainText('rel');
+    await expect(content).toContainText('proto');
+    await expect(content).toContainText('frag');
+    await expect(content.locator('a[href^="/"], a[href^="#"]')).toHaveCount(0);
+  });
+
+  test('the row Details button is at least 24px high on a desktop and 44px on a phone', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await page.goto('/pull-requests.html');
+    const box = await trigger(page).boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(24);
+    expect(box?.width).toBeGreaterThanOrEqual(24);
+  });
+
+  test('the header shows status chips from the row data, and the version on Releases', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      makePR({
+        draft: true,
+        ci: 'failure',
+        mergeStatus: 'conflicting',
+        behind: true,
+        autoMergeEnabled: true,
+        kind: 'release',
+        title: 'chore(main): release 1.2.0',
+      }),
+    ]);
+    await mockDetails(page, details());
+    await page.goto('/releases.html');
+    await trigger(page).click();
+    const chips = dialog(page).locator('.details-chips');
+    for (const text of [
+      'Draft',
+      'Failing',
+      'Conflicts',
+      'Out of date',
+      'Auto-merge on',
+      'v1.2.0',
+    ]) {
+      await expect(chips.getByText(text, { exact: true })).toBeVisible();
     }
   });
 

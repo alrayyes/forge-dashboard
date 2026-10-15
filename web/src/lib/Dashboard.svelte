@@ -14,7 +14,9 @@
   const pullsView = $derived(view !== "issues");
 
   import { onMount } from "svelte";
-  import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
+  import PullRequestDetailsDialog, {
+    type DetailsChip,
+  } from "#lib/PullRequestDetailsDialog.svelte";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
@@ -925,6 +927,28 @@
       return /\brelease\s+v?(\d+\.\d+\.\d+\S*)/i.exec(title)?.[1] ?? "";
     }
 
+    // The status chips in the details header, from the fields the row already
+    // carries and nothing else, as they were when the dialog opened.
+    function detailsChips(item: PullRequestItem): DetailsChip[] {
+      const chips: DetailsChip[] = [];
+      if (item.draft) chips.push({ text: "Draft", tone: "neutral" });
+      if (item.ci === "success") chips.push({ text: "Passing", tone: "good" });
+      if (item.ci === "failure")
+        chips.push({ text: "Failing", tone: "critical" });
+      if (item.ci === "pending")
+        chips.push({ text: "Running", tone: "warning" });
+      if (item.mergeStatus === "mergeable")
+        chips.push({ text: "Mergeable", tone: "good" });
+      if (item.mergeStatus === "conflicting")
+        chips.push({ text: "Conflicts", tone: "critical" });
+      if (item.mergeStatus === "blocked" && item.ci !== "pending")
+        chips.push({ text: "Blocked", tone: "warning" });
+      if (item.behind) chips.push({ text: "Out of date", tone: "warning" });
+      if (item.autoMergeEnabled === true)
+        chips.push({ text: "Auto-merge on", tone: "neutral" });
+      return chips;
+    }
+
     // Opens the read-only details dialog (#943). A real button of its own, not
     // stretched over the row: the row's stretched link still opens the pull
     // request on the forge until the dialog takes over the whole row.
@@ -939,7 +963,15 @@
         `Details, #${item.number} ${item.title}`,
       );
       button.addEventListener("click", () => {
-        detailsDialog?.open(item, button.id);
+        detailsDialog?.open(
+          {
+            ...item,
+            chips: detailsChips(item),
+            version:
+              item.kind === "release" ? releaseVersion(item.title) : undefined,
+          },
+          button.id,
+        );
       });
       return button;
     }

@@ -1,4 +1,9 @@
 <script module lang="ts">
+  export type DetailsChip = {
+    text: string;
+    tone: "good" | "critical" | "warning" | "neutral";
+  };
+
   // The part of a row this dialog needs.
   export type DetailsTarget = {
     forge: string;
@@ -7,6 +12,10 @@
     title: string;
     url: string;
     kind?: "release" | "dependency" | "regular";
+    // Chips and the release version come from the row the dialog was opened
+    // from, as it was then. Nothing here is fetched.
+    chips?: DetailsChip[];
+    version?: string;
   };
 </script>
 
@@ -19,6 +28,9 @@
   // trigger and holds nothing else of this dialog's state.
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
+
+  // An error the server explained, as opposed to a network or chunk failure.
+  class ServerReason extends Error {}
 
   // Matches components.schemas.PullRequestDetails in api/openapi.yaml.
   type Reaction = { count: number; logins: string[] };
@@ -90,7 +102,9 @@
       }
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(data?.error || `backend answered ${res.status}`);
+        throw new ServerReason(
+          data?.error || `the server answered ${res.status}`,
+        );
       }
       const loaded = data as Details;
       const rendered: Record<string, string> = {};
@@ -111,14 +125,42 @@
       phase = "ready";
     } catch (err) {
       if (mine !== token) return;
-      errorMessage = `Couldn't load details for ${current.repo}#${current.number}: ${
-        err instanceof Error ? err.message : "unknown error"
-      }`;
+      // The server's own reason is plain words. A network or chunk failure
+      // carries a URL and a browser message, which stay out of the UI.
+      errorMessage =
+        err instanceof ServerReason
+          ? `Could not load the details: ${err.message}`
+          : "Could not load the details. Check your connection and try again.";
       phase = "error";
     }
   }
 
+  // The avatar is the forge's own URL, passed through unchanged. Only https
+  // is loaded: the dashboard is served over https, where the browser blocks
+  // an http image anyway, and javascript: or data: have no business in an
+  // <img>. Anything else shows the initial.
+  function avatarSrc(url: string | undefined): string | null {
+    if (!url) return null;
+    try {
+      return new URL(url).protocol === "https:" ? url : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // The one reaction list on show, if any (WCAG 1.4.13): hover or focus
+  // shows it, leaving hides it, and Escape dismisses it without moving focus.
+  let shownReaction = $state<string | null>(null);
+
+  function onCancel(event: Event) {
+    if (shownReaction === null) return;
+    // The first Escape only dismisses the list; the next one closes the dialog.
+    event.preventDefault();
+    shownReaction = null;
+  }
+
   function onClose() {
+    shownReaction = null;
     token++;
     const id = returnFocusId;
     returnFocusId = "";
@@ -160,25 +202,41 @@
   }
 </script>
 
-{#snippet reactionPills(reactions: Reactions)}
+{#snippet reactionPills(reactions: Reactions, scope: string)}
   {#if reactions.thumbsUp.count > 0 || reactions.thumbsDown.count > 0}
     <div class="reactions">
       {#each [{ r: reactions.thumbsUp, label: "thumbs up", icon: "👍" }, { r: reactions.thumbsDown, label: "thumbs down", icon: "👎" }] as pill (pill.label)}
         {#if pill.r.count > 0}
-          <span class="reaction">
-            <button
-              type="button"
-              class="reaction-pill"
-              aria-label={pillName(pill.r, pill.label)}
-            >
-              <span aria-hidden="true">{pill.icon}</span>
-              <span aria-hidden="true">{pill.r.count}</span>
-            </button>
-            <span class="reaction-people" aria-hidden="true">
-              {who(pill.r)
-                ? `${pill.label}: ${who(pill.r).replace(/^from /, "")}`
-                : pill.label}
+          {@const key = `${scope}:${pill.label}`}
+          <!-- Display only, so not a button: a focusable group whose name
+               carries the count and the people, with a list that shows on
+               hover or focus. -->
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+          <span
+            class="reaction"
+            role="group"
+            tabindex="0"
+            aria-label={pillName(pill.r, pill.label)}
+            onmouseenter={() => (shownReaction = key)}
+            onmouseleave={() => {
+              if (shownReaction === key) shownReaction = null;
+            }}
+            onfocusin={() => (shownReaction = key)}
+            onfocusout={() => {
+              if (shownReaction === key) shownReaction = null;
+            }}
+          >
+            <span class="reaction-pill" aria-hidden="true">
+              <span>{pill.icon}</span>
+              <span>{pill.r.count}</span>
             </span>
+            {#if shownReaction === key}
+              <span class="reaction-people" aria-hidden="true">
+                {who(pill.r)
+                  ? `${pill.label}: ${who(pill.r).replace(/^from /, "")}`
+                  : pill.label}
+              </span>
+            {/if}
           </span>
         {/if}
       {/each}
@@ -193,6 +251,7 @@
     ? `Pull request details: ${target.repo} #${target.number}`
     : "Pull request details"}
   onclose={onClose}
+  oncancel={onCancel}
   onclick={onBackdrop}
 >
   {#if target}
@@ -205,6 +264,16 @@
           <span class="mono">{target.repo} #{target.number}</span>
         </p>
         <h2 class="details-title">{target.title}</h2>
+        {#if target.version || target.chips?.length}
+          <ul class="details-chips" aria-label="Status when opened">
+            {#if target.version}
+              <li class="chip neutral mono">v{target.version}</li>
+            {/if}
+            {#each target.chips ?? [] as chip (chip.text)}
+              <li class="chip {chip.tone}">{chip.text}</li>
+            {/each}
+          </ul>
+        {/if}
       </div>
       <button
         type="button"
@@ -251,7 +320,7 @@
                 Cut at 20,000 characters. The rest is on {forgeLabel}.
               </p>
             {/if}
-            {@render reactionPills(releaseNotes.reactions)}
+            {@render reactionPills(releaseNotes.reactions, "notes")}
           </section>
         {:else}
           <section class="details-section">
@@ -271,7 +340,10 @@
                 Cut at 20,000 characters. The rest is on {forgeLabel}.
               </p>
             {/if}
-            {@render reactionPills(details.description.reactions)}
+            {@render reactionPills(
+              details.description.reactions,
+              "description",
+            )}
           </section>
         {/if}
 
@@ -285,10 +357,10 @@
                 {@const login = c.author?.login ?? "ghost"}
                 <li class="details-comment">
                   <div class="comment-head">
-                    {#if c.author && c.author.avatarUrl && !brokenAvatars[c.id]}
+                    {#if avatarSrc(c.author?.avatarUrl) && !brokenAvatars[c.id]}
                       <img
                         class="avatar"
-                        src={c.author.avatarUrl}
+                        src={avatarSrc(c.author?.avatarUrl) ?? undefined}
                         alt=""
                         width="32"
                         height="32"
@@ -311,7 +383,7 @@
                   {#if c.truncated}
                     <p class="details-note">Cut at 20,000 characters.</p>
                   {/if}
-                  {@render reactionPills(c.reactions)}
+                  {@render reactionPills(c.reactions, c.id)}
                 </li>
               {/each}
             </ol>
@@ -593,6 +665,39 @@
   }
   .reaction {
     position: relative;
+    border-radius: 999px;
+  }
+  .reaction:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .details-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+  }
+  .chip {
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--neutral-bg);
+    color: var(--ink-2);
+  }
+  .chip.good {
+    background: var(--good-bg);
+    color: var(--good);
+  }
+  .chip.critical {
+    background: var(--critical-bg);
+    color: var(--critical);
+  }
+  .chip.warning {
+    background: var(--warning-bg);
+    color: var(--warning);
   }
   .reaction-pill {
     display: inline-flex;
@@ -609,9 +714,10 @@
     cursor: default;
   }
   .reaction-people {
-    display: none;
+    display: block;
     position: absolute;
-    top: calc(100% + 4px);
+    top: 100%;
+    margin-top: 2px;
     left: 0;
     z-index: 2;
     width: max-content;
@@ -623,10 +729,6 @@
     box-shadow: var(--shadow);
     font-size: 12px;
     color: var(--ink);
-  }
-  .reaction:hover .reaction-people,
-  .reaction:focus-within .reaction-people {
-    display: block;
   }
   .visually-hidden {
     position: absolute;
@@ -654,9 +756,13 @@
       min-height: 44px;
       min-width: 44px;
     }
+    .reaction {
+      display: inline-flex;
+    }
     .reaction-pill {
       min-height: 44px;
       min-width: 44px;
+      justify-content: center;
     }
     .details-collapsed summary {
       min-height: 44px;

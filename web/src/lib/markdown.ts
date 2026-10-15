@@ -15,25 +15,37 @@ type Renderer = InstanceType<typeof MarkdownIt>;
 
 let renderer: Promise<Renderer> | null = null;
 
+function create(MarkdownItCtor: typeof MarkdownIt): Renderer {
+  const md = new MarkdownItCtor({ html: false, linkify: true });
+  md.disable('image');
+  md.renderer.rules.link_open = (tokens, idx, options, _env, self) => {
+    const href = String(tokens[idx].attrGet('href') ?? '');
+    // Only absolute http(s) and mailto links are links. A relative or
+    // protocol-relative href would resolve against the dashboard's own
+    // origin, so it stays as plain text instead.
+    if (!/^(https?:|mailto:)/i.test(href)) {
+      tokens[idx].tag = 'span';
+      tokens[idx].attrs = null;
+      const close = tokens.slice(idx + 1).find((t) => t.type === 'link_close');
+      if (close) close.tag = 'span';
+      return self.renderToken(tokens, idx, options);
+    }
+    tokens[idx].attrSet('target', '_blank');
+    tokens[idx].attrSet('rel', 'noopener noreferrer');
+    return self.renderToken(tokens, idx, options);
+  };
+  return md;
+}
+
 function load(): Promise<Renderer> {
-  renderer ??= import('markdown-it').then(({ default: MarkdownItCtor }) => {
-    const md = new MarkdownItCtor({
-      html: false,
-      linkify: true,
-      breaks: false,
+  // A failed import is not cached: Try again must be able to fetch the chunk
+  // once the network is back.
+  renderer ??= import('markdown-it')
+    .then(({ default: MarkdownItCtor }) => create(MarkdownItCtor))
+    .catch((err) => {
+      renderer = null;
+      throw err;
     });
-    md.disable('image');
-    const fallback =
-      md.renderer.rules.link_open ??
-      ((tokens, idx, options, _env, self) =>
-        self.renderToken(tokens, idx, options));
-    md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
-      tokens[idx].attrSet('target', '_blank');
-      tokens[idx].attrSet('rel', 'noopener noreferrer');
-      return fallback(tokens, idx, options, env, self);
-    };
-    return md;
-  });
   return renderer;
 }
 
