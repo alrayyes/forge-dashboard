@@ -1,27 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1223: Close is a reversible "give up on this pull request", so on the row
 // it is a neutral button, not green (it read as the affirmative) and not red
 // (it isn't destructive). It names the object, "Close pull request", and only
 // the confirm step carries the warning tone.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `close-neutral-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Close Neutral');
-}
 
 function makePR(overrides: Record<string, unknown> = {}) {
   return {
@@ -94,8 +79,10 @@ async function token(page: Page, name: string) {
 }
 
 test.describe('Close is neutral, and says what it closes (#1223)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
@@ -108,7 +95,7 @@ test.describe('Close is neutral, and says what it closes (#1223)', () => {
       page,
       makePR({ mergeStatus: 'mergeable', empty: true }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const empty = await closeButton(page);
     await expect(empty).not.toHaveClass(/suggested/);
     const emptyBg = await background(empty);
@@ -119,7 +106,7 @@ test.describe('Close is neutral, and says what it closes (#1223)', () => {
       page,
       makePR({ mergeStatus: 'blocked', ci: 'failure' }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const other = await closeButton(page);
     expect(await background(other)).toBe(emptyBg);
   });
@@ -129,7 +116,7 @@ test.describe('Close is neutral, and says what it closes (#1223)', () => {
       page,
       makePR({ mergeStatus: 'blocked', ci: 'failure' }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const close = await closeButton(page);
     expect(await background(close)).not.toBe(
       await token(page, '--critical-bg'),
@@ -143,7 +130,7 @@ test.describe('Close is neutral, and says what it closes (#1223)', () => {
       page,
       makePR({ mergeStatus: 'blocked', ci: 'failure' }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const close = await closeButton(page);
     await expect(close).toHaveText('Close pull request');
     await expect(close).toHaveAccessibleName('Close pull request');
@@ -173,7 +160,7 @@ test.describe('Close is neutral, and says what it closes (#1223)', () => {
         page,
         makePR({ mergeStatus: 'mergeable', empty: true }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       const close = await closeButton(page);
       expect(
         (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
