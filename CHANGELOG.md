@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.188.2](https://github.com/alrayyes/forge-dashboard/compare/v0.188.1...v0.188.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* **dashboard:** poll repos with an armed GitHub pull request until it merges ([#1508](https://github.com/alrayyes/forge-dashboard/issues/1508)) ([d930af2](https://github.com/alrayyes/forge-dashboard/commit/d930af2b1d7884f493df7eba05bda7cc329c34ef))
+
 ## [0.188.1](https://github.com/alrayyes/forge-dashboard/compare/v0.188.0...v0.188.1) (2026-10-15)
 
 
