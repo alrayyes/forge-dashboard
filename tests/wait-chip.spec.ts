@@ -1,28 +1,18 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1229: every "something is happening, hold on" state on a pull request
 // row is one chip in the row's action area: an icon, a short label, a
 // lighter line naming the actor or the reason, and a button only where one
 // exists. These journeys play the server by mocking snapshots; the wording
-// itself is checked without a browser in wait-chip-unit.spec.ts.
+// itself is checked without a browser in web/src/lib/wait-chip.test.ts.
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `wait-chip-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Wait Chip User');
-}
+// Every endpoint here is mocked, including the queued-action delete, and
+// nothing is saved per user, so the whole file starts from the shared session
+// (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 type MockPR = Record<string, unknown>;
 
@@ -168,10 +158,8 @@ async function bots(page: Page, pr: MockPR, current: () => MockPR) {
 test.describe('the waiting chip on a bot rebase', () => {
   let current: MockPR;
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
+  test.beforeEach(async ({ page }) => {
     current = botPR('dependabot');
-    await registerAndSignIn(page, request, baseURL);
-    await page.goto('/bots.html');
     // Before the hooks, so the skew sits on top of the fake clock's Date.now.
     await page.clock.install();
     await bots(page, current, () => current);
@@ -182,7 +170,7 @@ test.describe('the waiting chip on a bot rebase', () => {
         return route.fulfill({ status: 204 });
       },
     );
-    await page.reload();
+    await page.goto('/bots.html');
   });
 
   async function ask(page: Page) {
@@ -382,10 +370,7 @@ test.describe('the waiting chip on a bot rebase', () => {
 test.describe('the waiting chip on Update branch', () => {
   test('Updating branch counts down to the refresh, with no layout shift and no old line', async ({
     page,
-    request,
-    baseURL,
   }) => {
-    await registerAndSignIn(page, request, baseURL);
     const pr = makePR({ behind: true, mergeStatus: 'blocked' });
     let accepted = false;
     const served = () =>
@@ -411,7 +396,7 @@ test.describe('the waiting chip on Update branch', () => {
       accepted = true;
       return route.fulfill({ status: 202 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const before = await layout(page);
     await firstRow(page).getByRole('button', { name: 'Update branch' }).click();
@@ -469,10 +454,7 @@ test.describe('the waiting chip on a merge and a close', () => {
   ]) {
     test(`${s.name} in progress is a ${s.label} chip, and the row does not move`, async ({
       page,
-      request,
-      baseURL,
     }) => {
-      await registerAndSignIn(page, request, baseURL);
       const answer = (route: Route) =>
         route.fulfill({
           status: 200,
@@ -489,7 +471,7 @@ test.describe('the waiting chip on a merge and a close', () => {
         await gate;
         return route.fulfill({ status: 204 });
       });
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = firstRow(page);
       // Close sits in More actions, with the Hide items (#841).
@@ -547,12 +529,8 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
         body: JSON.stringify(snapshot(pr)),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
   }
-
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
 
   test('an armed pull request reads Waiting for CI, with Disarm in the chip and the reason in the tooltip', async ({
     page,
@@ -662,10 +640,7 @@ test.describe('the waiting chip on an action queued for a reset (#756)', () => {
 
   test('is one Queued chip with the reset time, Cancel inside, and the same slot size', async ({
     page,
-    request,
-    baseURL,
   }) => {
-    await registerAndSignIn(page, request, baseURL);
     const pr = makePR({ behind: true, mergeStatus: 'blocked' });
     let queued: ReturnType<typeof queuedItem> | null = null;
     await page.route('**/api/dashboard*', (route: Route) =>
@@ -683,12 +658,12 @@ test.describe('the waiting chip on an action queued for a reset (#756)', () => {
       deletes.push(route.request().url().split('/').pop() ?? '');
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await expect(slotOf(page)).toBeVisible();
     const plain = await size(slotOf(page));
 
     queued = queuedItem(new Date(Date.now() + 8 * 60_000).toISOString());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const chip = chipOf(page);
     await expect(chip.locator('.wait-chip-label')).toHaveText(
@@ -740,12 +715,8 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
         body: JSON.stringify(snapshot(pr)),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
   }
-
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
 
   test('an armed GitHub pull request reads Waiting for CI, with Disarm in the chip', async ({
     page,
