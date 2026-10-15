@@ -641,9 +641,10 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 }
 
 // PollCI refreshes every repo that currently has at least one open
-// pull request whose CI is still pending — the only case a check
-// finishing could actually change, and the only one worth spending an
-// extra scoped fetch on between full Refresh passes. Fills the gap a
+// pull request whose CI is still pending, or that GitHub is going to merge
+// by itself (auto-merge armed) — the only cases a check finishing or a merge
+// could change, and the only ones worth spending an extra scoped fetch on
+// between full Refresh passes. Fills the gap a
 // working webhook would otherwise close: confirmed live, twice
 // independently, that real Forgejo instances silently drop the
 // "status" webhook event from a hook's persisted event list even
@@ -663,7 +664,7 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	}
 	pending := make(map[repoKey]struct{})
 	for _, pr := range a.Get().PullRequests {
-		if pr.CI != CIPending {
+		if pr.CI != CIPending && !armedOnGitHub(pr) {
 			continue
 		}
 		owner, name, ok := strings.Cut(pr.Repo, "/")
@@ -672,17 +673,34 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 		}
 		pending[repoKey{forge: pr.Forge, owner: owner, name: name, fullName: pr.Repo}] = struct{}{}
 	}
+	snap := a.Get()
 	for key := range pending {
+		// A forge whose budget is spent can't answer until its reset: the next
+		// full refresh already waits that out (NextRefreshDelay), so polling
+		// every minute meanwhile only repeats the refusal. An armed pull
+		// request can sit for hours, so this is not a brief window.
+		if _, spent := exhaustedHealth(snap, key.forge, a.now()); spent {
+			continue
+		}
 		a.RefreshRepo(ctx, key.forge, key.owner, key.name, key.fullName)
 	}
+}
+
+// armedOnGitHub reports whether pr has GitHub's own auto-merge armed. GitHub
+// merges it by itself once checks pass, so nothing the dashboard does makes it
+// happen and a webhook may never tell the dashboard it did: the repo is polled
+// for as long as the pull request stays armed, which is one scoped query a
+// minute per repo, until it merges and leaves the board (#1505).
+func armedOnGitHub(pr PullRequest) bool {
+	return pr.Forge == ForgeGitHub && pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled
 }
 
 // RunCIPoll runs PollCI on a fixed interval until ctx is cancelled —
 // PollCI's own ticker-loop counterpart, the same relationship Run has
 // to Refresh. A plain Ticker, unlike Run's rate-limit-aware Timer:
-// PollCI's own per-tick cost is already bounded to just the repos with
-// something pending, so it doesn't need the same backoff Run's
-// account-wide pass does. Meant to run in its own goroutine for the
+// PollCI's own per-tick cost is bounded to the repos with something pending or
+// armed, and it skips a forge whose budget is spent itself, so it doesn't need
+// the delay Run computes for its account-wide pass. Meant to run in its own goroutine for the
 // lifetime of the process, alongside Run.
 func (a *Aggregator) RunCIPoll(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
