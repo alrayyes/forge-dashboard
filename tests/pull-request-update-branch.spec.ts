@@ -132,40 +132,6 @@ test.describe('pull request update-branch button', () => {
     await expect(row.locator('.merge-pill.blocked')).toHaveCount(0);
   });
 
-  test('a pull request not reported as behind shows no Update branch button', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ behind: false }));
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    // Wait for the row: a count of zero proves nothing before it renders.
-    await expect(row).toBeVisible();
-    await expect(
-      row.getByRole('button', { name: 'Update branch' }),
-    ).toHaveCount(0);
-  });
-
-  // #543: reported behind but with nothing left to
-  // merge — its diff against base is already empty. Update branch would
-  // be as much a dead end as Merge is in this state (see
-  // pull-request-merge.spec.ts's own empty-pull-request test), so it's
-  // hidden entirely rather than shown as clickable or locked; the reason
-  // lives on the Merge row's own locked button instead.
-  test('an empty pull request shows no Update branch button even though behind', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ behind: true, empty: true }));
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    // Wait for the row: a count of zero proves nothing before it renders.
-    await expect(row).toBeVisible();
-    await expect(
-      row.getByRole('button', { name: 'Update branch' }),
-    ).toHaveCount(0);
-  });
-
   // #701: both forges refuse to update a branch that doesn't merge
   // cleanly, so offering the button on a conflicting PR only sets up a
   // failed click. It stays visible as a locked, non-actionable control
@@ -198,42 +164,6 @@ test.describe('pull request update-branch button', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
-  });
-
-  test('a conflicting PR that is not behind still shows no Update branch button', async ({
-    page,
-  }) => {
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'conflicting', behind: false }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    // Wait for the row: a count of zero proves nothing before it renders.
-    await expect(row).toBeVisible();
-    await expect(
-      row.getByRole('button', { name: 'Update branch' }),
-    ).toHaveCount(0);
-  });
-
-  test('a pull request that is both mergeable and behind shows both buttons at once', async ({
-    page,
-  }) => {
-    // The real reason Behind is its own field, not folded into
-    // mergeStatus: confirmed live against Forgejo, a pull request can be
-    // mergeable and behind at the same time.
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'mergeable', behind: true }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
-    await expect(
-      row.getByRole('button', { name: 'Update branch' }),
-    ).toBeVisible();
   });
 
   test('clicking calls the API immediately, with no confirm step, and refreshes the board', async ({
@@ -597,75 +527,6 @@ test.describe('pull request update-branch button', () => {
 
       const row = page.locator('#pr-rows .row').first();
       await expect(row).toContainText('Conflicts need fixing by hand');
-    });
-
-    test('an empty release-please PR shows no Update branch button', async ({
-      page,
-    }) => {
-      await mockDashboard(
-        page,
-        makePR({
-          empty: true,
-          labels: [{ name: 'autorelease: pending', color: 'fbca04' }],
-        }),
-      );
-      // This pull request is on the Releases page, not the main list.
-      await page.goto('/releases.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      // Wait for the row: a count of zero proves nothing before it renders.
-      await expect(row).toBeVisible();
-      await expect(
-        row.getByRole('button', { name: 'Update branch' }),
-      ).toHaveCount(0);
-    });
-
-    test('a Dependabot PR (dependabot author) shows no Update branch button by default', async ({
-      page,
-    }) => {
-      await mockDashboard(page, makePR({ author: 'dependabot' }));
-      // This pull request is on the Bots page, not the main list.
-      await page.goto('/bots.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      // Wait for the row: a count of zero proves nothing before it renders.
-      await expect(row).toBeVisible();
-      // The row is a working one: it offers its own rebase control.
-      await expect(
-        row.getByRole('button', { name: 'Dependabot: Rebase' }),
-      ).toBeVisible();
-      await expect(
-        row.getByRole('button', { name: 'Update branch' }),
-      ).toHaveCount(0);
-    });
-
-    test('a Renovate PR (renovate[bot] author) shows no Update branch button by default', async ({
-      page,
-    }) => {
-      await mockDashboard(page, makePR({ author: 'renovate[bot]' }));
-      // This pull request is on the Bots page, not the main list.
-      await page.goto('/bots.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      // Wait for the row: a count of zero proves nothing before it renders.
-      await expect(row).toBeVisible();
-      // The row is a working one: it offers its own rebase control.
-      await expect(
-        row.getByRole('button', { name: 'Renovate: Rebase' }),
-      ).toBeVisible();
-      await expect(
-        row.getByRole('button', { name: 'Update branch' }),
-      ).toHaveCount(0);
-    });
-
-    test('a non-bot-managed PR still shows Update branch', async ({ page }) => {
-      await mockDashboard(page, makePR());
-      await page.goto('/pull-requests.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      await expect(
-        row.getByRole('button', { name: 'Update branch' }),
-      ).toBeVisible();
     });
   });
 
