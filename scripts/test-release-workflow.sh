@@ -6,7 +6,8 @@
 # be run here: no wrapper anywhere, each action is a direct `uses:` step pinned
 # by full SHA, and the outputs the later jobs read come straight from the step.
 # WORKFLOW overrides the file checked, so the check can be pointed at another
-# copy of the workflow.
+# copy of the workflow. AUTO_MERGE_WORKFLOW does the same for the auto-merge
+# workflow checked at the end.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -34,6 +35,17 @@ grep -Eq 'steps\.release\.outputs\.release_created' "$wf" || fail "release_creat
 grep -Eq 'steps\.release\.outputs\.tag_name' "$wf" || fail "tag_name is not read from the release-please step's outputs"
 if grep -Eq 'fromJSON\(steps\.release\.outputs\.outputs\)' "$wf"; then
   fail "outputs are read through the wrapper's JSON; read them directly from the step"
+fi
+
+# release-please opens its pull request and adds `autorelease: pending` in a
+# second API call, so the `opened` run sees no label and its job skips. Only a
+# `labeled` run can see the label, so the trigger has to list that type (#1576).
+am=${AUTO_MERGE_WORKFLOW:-.github/workflows/release-auto-merge.yml}
+amwf=$(mktemp)
+trap 'rm -f "$wf" "$amwf"' EXIT
+grep -Ev '^\s*#' "$am" >"$amwf"
+if ! grep -Eq '^\s+types:.*\blabeled\b' "$amwf"; then
+  fail "$am does not run on the labeled activity type, so it misses the label release-please adds after opening the pull request"
 fi
 
 exit "$failed"
