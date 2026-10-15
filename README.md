@@ -102,18 +102,25 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   write access on Forgejo, since its hooks API has no separate read-only
   scope — this app still only reads that list, and never creates or edits a
   hook itself.
-- **A [WebMCP](https://github.com/webmachinelearning/webmcp) tool in the
-  frontend itself, `get_dashboard`.** Experimental — as of this writing
-  it's an Origin Trial in Chrome 149+/Edge 150+ only, with no stable spec
-  yet — so this is a no-op everywhere else rather than a real dependency
-  the page needs. Where it's present, it lets an in-browser AI agent
-  fetch the same data the page itself renders by calling the page's own
-  already-authenticated fetch layer (`fetchDashboardData()`) directly —
-  the same request `/api/dashboard` already answers, riding on the
+- **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
+  itself: `get_dashboard`, `get_main_branches`, `get_pull_request_checks` and
+  `get_pull_request_details`.** Experimental — as of this writing it's an Origin
+  Trial in Chrome 149+/Edge 150+ only, with no stable spec yet — so this is a
+  no-op everywhere else rather than a real dependency the page needs. Where it's
+  present, it lets an in-browser AI agent fetch the same data the page itself
+  renders. `get_dashboard` calls the page's own already-authenticated fetch
+  layer (`fetchDashboardData()`) directly, the same request `/api/dashboard`
+  already answers; the others call their endpoint the same way. All ride on the
   browser's own session cookie exactly like the page's own poll does.
-  Nothing new crosses to the browser that the preceding "Credentials
-  never reach the browser" bullet doesn't already allow: the tool never
-  sees a token, only the same already-filtered JSON the page always got.
+  Nothing new crosses to the browser that the preceding
+  "Credentials never reach the browser" bullet doesn't already allow: the tools
+  never see a token, only the same already-filtered JSON the page always got.
+  The tools live in `web/src/lib/webmcp-tools.ts`, each named for the API
+  operation it covers. A unit test, `web/src/lib/webmcp-parity.test.ts`, lists
+  every `operationId` in `api/openapi.yaml` and fails unless it has a tool, a
+  written exclusion (the same `x-mcp-excluded` reason the server MCP uses, so
+  one list serves both) or a place on the test's list of tools still to come
+  (#1503).
 
 ### Where this stands against #3
 
