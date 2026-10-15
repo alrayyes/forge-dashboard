@@ -258,6 +258,7 @@ func TestPullRequestMerge_RefusedWithAConflict_AnswersConflictFromTheReRead(t *t
 	var body actionErrorBody
 	require.NoError(t, readJSON(resp, &body))
 	assert.Equal(t, "conflict", body.Code)
+	assert.Equal(t, "Merge conflict. Resolve it on the forge, then merge.", body.Message)
 	assert.Equal(t, 1, source.stateReads)
 }
 
