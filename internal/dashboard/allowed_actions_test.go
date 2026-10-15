@@ -142,6 +142,46 @@ func TestAllowedActions_BlockedMergeSaysWhatToDoNext(t *testing.T) {
 	}
 }
 
+// The words the Merge button shows for each way it can be held back. The page
+// prints blocked.message and blocked.next as they come and maps nothing itself,
+// so this is where each state's reason is pinned.
+func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		mutate   func(*dashboard.PullRequest)
+		wantCode dashboard.ActionCode
+		message  string
+		next     string
+	}{
+		{"CI pending", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }, dashboard.ActionChecksPending, "Waiting for CI to finish", "Merge unlocks automatically"},
+		{"blocked with a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }, dashboard.ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge"},
+		{"blocked with passing CI does not invent a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CISuccess }, dashboard.ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing"},
+		{"conflicting", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }, dashboard.ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge"},
+		{"draft", func(p *dashboard.PullRequest) { p.Draft = true }, dashboard.ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge"},
+		{"merge status not known yet", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }, dashboard.ActionNotMergeable, "Merge status not known yet", "Merge unlocks once the forge reports it"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var merge dashboard.ActionAvailability
+			for _, a := range dashboard.AllowedActions(ghPR(tc.mutate), nil) {
+				if a.Action == dashboard.ActionMerge {
+					merge = a
+				}
+			}
+
+			if assert.NotNil(t, merge.Blocked) {
+				assert.Equal(t, tc.wantCode, merge.Blocked.Code)
+				assert.Equal(t, tc.message, merge.Blocked.Message)
+				assert.Equal(t, tc.next, merge.Blocked.Next)
+			}
+		})
+	}
+}
+
 func TestAllowedActions_StackedMergeNamesTheParent(t *testing.T) {
 	t.Parallel()
 
