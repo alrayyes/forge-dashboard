@@ -7,6 +7,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { flushRequests } from './flush-requests-helper';
 import { registerViaInvite } from './register-helper';
 
 // The two-step confirm on Merge and Close: an explicit way out, dismissal on
@@ -403,9 +404,9 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await mergeButton(row).dblclick();
 
     await expect(confirmMerge(row)).toBeVisible();
-    // Lets a request that the guard failed to stop reach the route; the test
-    // also fails on the visible state when the guard is removed (#1382).
-    await page.waitForTimeout(200);
+    // A request the guard failed to stop has reached the route by now; the
+    // test also fails on the visible state when the guard is removed (#1382).
+    await flushRequests(page);
     expect(calls).toEqual([]);
     // The confirm group shifts the row, and the second click lands on the CI
     // pill beside it (#1286): it must neither disarm the row nor open the
@@ -424,13 +425,14 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await expect(
       row.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeVisible();
-    // Lets a request that the guard failed to stop reach the route; the test
-    // also fails on the visible state when the guard is removed (#1382).
-    await page.waitForTimeout(200);
+    // A request the guard failed to stop has reached the route by now; the
+    // test also fails on the visible state when the guard is removed (#1382).
+    await flushRequests(page);
     expect(calls).toEqual([]);
   });
 
   test('Confirm still merges once the guard has passed', async ({ page }) => {
+    await page.clock.install({ time: new Date() });
     const calls = await trackRequests(page);
     await mockDashboard(page, [makePR(2)]);
     await page.goto('/pull-requests.html');
@@ -438,7 +440,8 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     const row = rowOf(page, 0);
     await mergeButton(row).click();
     await expect(confirmMerge(row)).toBeVisible();
-    await page.waitForTimeout(700);
+    // Past the 400ms guard on the page's own clock, not the wall clock.
+    await page.clock.fastForward(500);
     await confirmMerge(row).click();
 
     await expect.poll(() => calls).toEqual(['merge']);
@@ -457,9 +460,9 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await page.keyboard.press('Enter');
 
     await expect(confirmMerge(row)).toBeVisible();
-    // Lets a request that the guard failed to stop reach the route; the test
-    // also fails on the visible state when the guard is removed (#1382).
-    await page.waitForTimeout(200);
+    // A request the guard failed to stop has reached the route by now; the
+    // test also fails on the visible state when the guard is removed (#1382).
+    await flushRequests(page);
     expect(calls).toEqual([]);
   });
 });
@@ -562,6 +565,8 @@ test.describe('confirm step: screen readers', () => {
   test('arming announces once, politely, and cancelling adds nothing', async ({
     page,
   }) => {
+    // The page's clock, so the announcement's 30ms delay is run on demand.
+    await page.clock.install({ time: new Date() });
     await mockDashboard(page, [makePR(342)]);
     await page.goto('/pull-requests.html');
 
@@ -570,12 +575,30 @@ test.describe('confirm step: screen readers', () => {
 
     const row = rowOf(page, 0);
     await mergeButton(row).click();
+    await page.clock.runFor(100);
     await expect(live).toHaveText(
       'Confirm merge of #342? Press Confirm or Cancel.',
     );
 
+    // Any later write to the region, even the same sentence, is a second
+    // announcement to a screen reader.
+    await live.evaluate((el) => {
+      const writes: number[] = [];
+      (window as unknown as { liveWrites: number[] }).liveWrites = writes;
+      new MutationObserver((m) => writes.push(m.length)).observe(el, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    });
     await cancelButton(row).click();
-    await page.waitForTimeout(150);
+    await expect(confirmMerge(row)).toHaveCount(0);
+    await page.clock.runFor(100);
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { liveWrites: number[] }).liveWrites,
+      ),
+    ).toEqual([]);
     await expect(live).toHaveText(
       'Confirm merge of #342? Press Confirm or Cancel.',
     );

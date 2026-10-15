@@ -862,6 +862,35 @@ swap one for the page whose address it was sent at. Inside the app,
 `handleError` keeps the message generic. `src/error.html` is the static fallback
 for an error the app can't render itself.
 
+## Pull request details
+
+Each pull request row has a **Details** button. It opens a read-only pop-up
+with the pull request's description, its comments and the thumbs up and thumbs
+down reactions on each, and an **Open on GitHub** (or Forgejo) link. On the
+Releases page the pop-up shows the release notes in place of the description.
+A Dependabot or Renovate pull request opens the same pop-up, with its long
+generated description folded away until you open it. There are no actions in
+it yet: Merge, Update branch and the rest stay on the row.
+
+The pop-up loads when it opens, from `GET /api/pull-requests/details`, and
+never as part of the dashboard snapshot, so a forge's budget isn't spent on
+rows nobody opens. It shows the first 50 comments and says so when there are
+more. The header shows status chips taken from the row (draft, CI, merge state,
+out of date, auto-merge) as they were when it opened, and the version on the
+Releases page. Each comment carries the author's avatar (the forge's own HTTPS
+image URL, or an initial if it isn't one or can't load), a relative time and an
+"edited" mark. A deleted author reads "ghost". Hovering or focusing a reaction
+lists who gave it, up to ten names and then "and N more"; Escape hides that
+list first and a second press closes the pop-up. Reactions are display only.
+When the details can't load, it says so in plain words with **Try again**.
+
+The text is Markdown and the server doesn't sanitise it, so the page renders
+it with [markdown-it](https://github.com/markdown-it/markdown-it) with raw HTML
+off: tags show as text, images aren't loaded, only absolute `http`, `https`
+and `mailto` links are links (anything else stays plain text), and they open
+in a new tab with `rel="noopener noreferrer"`. The
+library loads the first time a pop-up opens.
+
 ## Releases
 
 Release pull requests have their own page, `/releases.html`, reached from the
