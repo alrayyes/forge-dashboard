@@ -1,26 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
 import { rateLimit } from './severity-stand-in';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #755: a rate-limited forge goes read-only. Its mutating controls are not
 // drawn at all (not greyed), one banner per forge says so with the reset
 // time, and everything comes back by itself at the reset.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `readonly-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Read-only User');
-}
 
 function makePR(overrides: Record<string, unknown> = {}) {
   return {
@@ -84,9 +70,12 @@ const MUTATING = [
   'Renovate: Rebase',
 ];
 
+// Every endpoint is mocked and nothing is saved per user, so the whole file
+// starts from the shared session (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
 test.describe('a rate-limited forge goes read-only (#755)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
@@ -100,7 +89,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       [github({ rateLimitREST: spent(), rateLimitGraphQL: spent() })],
       [makePR()],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByText('A pull request')).toBeVisible();
@@ -129,7 +118,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       [github({ rateLimitREST: spent(), rateLimitGraphQL: spent() })],
       [makePR(), makePR({ number: 43 })],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const banner = page.locator('#rate-limit-banner');
     await expect(banner.locator('.rate-limit-banner-row')).toHaveCount(1);
@@ -152,7 +141,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       [github({ rateLimitREST: spent(), rateLimitGraphQL: spent() })],
       [makePR()],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const banner = page.locator('#rate-limit-banner');
     const why = banner.getByText('Why?', { exact: true });
@@ -188,7 +177,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       ],
       [makePR({ forge: 'forgejo' })],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const banner = page.locator('#rate-limit-banner');
     await banner.getByText('Why?', { exact: true }).click();
@@ -216,7 +205,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
         }),
       ],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const gh = page.locator('#pr-rows .row', { hasText: 'On GitHub' });
     const fj = page.locator('#pr-rows .row', { hasText: 'On Forgejo' });
@@ -239,7 +228,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       [github({ rateLimitREST: plenty(), rateLimitGraphQL: spent() })],
       [makePR({ ci: 'pending', mergeStatus: 'blocked', behind: false })],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'More actions' }).click();
@@ -266,7 +255,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       [github({ rateLimitREST: spent(), rateLimitGraphQL: plenty() })],
       [makePR({ ci: 'pending', mergeStatus: 'blocked', behind: false })],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -292,7 +281,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       [github({ rateLimitREST: spent(1), rateLimitGraphQL: spent(1) })],
       [makePR()],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -323,7 +312,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       [github({ rateLimitREST: spent(), rateLimitGraphQL: spent() })],
       [makePR()],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await page
       .locator('#rate-limit-banner')
       .getByText('What still works')

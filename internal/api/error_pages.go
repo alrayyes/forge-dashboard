@@ -81,7 +81,7 @@ func (w *notFoundWriter) WriteHeader(status int) {
 	h.Del("Content-Length")
 	w.ResponseWriter.WriteHeader(http.StatusNotFound)
 	if !w.head {
-		_, _ = w.ResponseWriter.Write(w.page)
+		_, _ = w.ResponseWriter.Write(w.page) // #nosec G705 -- w.page is the embedded error page, not request data
 	}
 }
 

@@ -109,24 +109,30 @@ func CountMainBranches(rows []MainBranch) MainBranchCounts {
 	return counts
 }
 
-// SortMainBranches orders rows failed first, then running, passed and none,
-// each group by repo name, so a broken main is the first thing on the page.
+// SortMainBranches orders rows by the default branch's newest commit, newest
+// first, whatever the status (#1552): what just changed is at the top, and
+// status is only a filter. A row with no commit time goes after every dated
+// row. Ties and undated rows go by repo name, then forge, so the order is
+// stable between refreshes.
 func SortMainBranches(rows []MainBranch) {
-	rank := func(s MainBranchStatus) int {
-		switch s {
-		case MainBranchFailed:
-			return 0
-		case MainBranchRunning:
-			return 1
-		case MainBranchPassed:
-			return 2
-		default:
-			return 3
+	committedAt := func(r MainBranch) *time.Time {
+		if r.Commit == nil {
+			return nil
 		}
+
+		return r.Commit.CommittedAt
 	}
 	slices.SortStableFunc(rows, func(a, b MainBranch) int {
-		if r := rank(a.Status) - rank(b.Status); r != 0 {
-			return r
+		ta, tb := committedAt(a), committedAt(b)
+		switch {
+		case ta != nil && tb == nil:
+			return -1
+		case ta == nil && tb != nil:
+			return 1
+		case ta != nil && tb != nil:
+			if c := tb.Compare(*ta); c != 0 {
+				return c
+			}
 		}
 		if c := strings.Compare(a.FullName, b.FullName); c != 0 {
 			return c
