@@ -145,3 +145,20 @@ server log. The tickets' criteria win over those two details.
   (glyph inside a tinted pill) is the one to build. Running stays amber, not
   Stitch's blue, which sits too close to its Queued blue. Its contrast ratios,
   "eye travel latency" and spec labels are invented and don't ship.
+
+- `943-pr-dialog/`: what opens from a pull request row (#943): the
+  description, comments, avatars and thumbs up and down reactions, and
+  release notes on a release pull request. `dialog-regular-dark-full.png` is
+  the regular pull request in dark, `dialog-release-light.png` the release
+  variant and `dialog-bot-light.png` the bot variant (both cut from
+  `dialog-release-and-bot-light-full.png`), `dialog-phone-dark.png` the 360px
+  sheet. Stitch project "Forge Dashboard UI Audit" (`564147752128938905`),
+  screens `5659e54743a44235be3113479d1f0800`, `81ddc704677e457f9617172e8a2fd5aa`
+  and `a52d240ecebb462caa1dc4e884a1234a`. Build the structure: avatar and
+  login on each comment, reaction pills with who gave them in hover text, the
+  grouped release notes, one column for a bot pull request with its notes
+  collapsed, and a sticky action bar on a phone. Don't build the invented
+  parts: the Live chip, the bottom tab bar, "CI Logs", "GPG Signed Commits",
+  "Maintainer", the "Bot Command Interface" box, the "Approve & Merge
+  Dependency" button, the add-reaction button, the "Design Architecture Spec"
+  and "States Preview Drawer" panels, the made-up figures and contrast claims.
