@@ -127,18 +127,22 @@ func TestMainBranches(t *testing.T) {
 		branchRow("o/broken", dashboard.MainBranchFailed),
 		branchRow("o/building", dashboard.MainBranchRunning),
 	}
+	for i, hoursAgo := range map[int]int{0: 2, 2: 5, 3: 1} {
+		c := time.Now().Add(-time.Duration(hoursAgo) * time.Hour).UTC()
+		rows[i].Commit = &dashboard.MainBranchCommit{CommittedAt: &c}
+	}
 	stale := time.Now().Add(-time.Hour).UTC()
 	rows[0].StaleSince = &stale
 	body := readMainBranches(t, rows)
 
-	t.Run("every row is listed, failed first, then running, passed and none", func(t *testing.T) {
+	t.Run("every row is listed, newest commit first, undated last", func(t *testing.T) {
 		t.Parallel()
 
 		var order []string
 		for _, b := range body.Branches {
 			order = append(order, b.FullName)
 		}
-		assert.Equal(t, []string{"o/broken", "o/building", "o/passing", "o/none"}, order)
+		assert.Equal(t, []string{"o/building", "o/passing", "o/broken", "o/none"}, order)
 	})
 
 	t.Run("counts each status, so the pills match what they list", func(t *testing.T) {

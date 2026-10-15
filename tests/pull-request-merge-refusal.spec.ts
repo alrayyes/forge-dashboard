@@ -1,12 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // The merge endpoint answers a refused merge with a structured result
 // (components.schemas.ActionError): a `code` and a short `message`. These
@@ -40,21 +35,6 @@ interface MockPR {
 }
 
 const REPO = 'alrayyes/forge-dashboard';
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `pr-merge-refusal-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'PR Merge Refusal User',
-  );
-}
 
 function makePR(): MockPR {
   return {
@@ -119,9 +99,15 @@ async function confirmMerge(page: Page) {
   return row;
 }
 
+// Every endpoint is mocked and nothing is saved per user, so the whole file
+// starts from the shared session (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
 test.describe('a refused merge explains itself from the server code', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    // The live stream isn't part of these tests: aborted, so no real snapshot
+    // is pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
   test('already_merged: the row reads Merged, a polite toast says so, and the row is gone on the next snapshot', async ({
@@ -136,7 +122,7 @@ test.describe('a refused merge explains itself from the server code', () => {
       code: 'already_merged',
       message: 'This pull request was already merged.',
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = await confirmMerge(page);
 
@@ -160,7 +146,7 @@ test.describe('a refused merge explains itself from the server code', () => {
       code: 'already_merged',
       message: 'This pull request was already merged.',
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await confirmMerge(page);
 
@@ -180,7 +166,7 @@ test.describe('a refused merge explains itself from the server code', () => {
       message:
         'Blocked by branch protection: a required review or check is missing.',
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = await confirmMerge(page);
 
@@ -203,7 +189,7 @@ test.describe('a refused merge explains itself from the server code', () => {
         "The forge's API rate limit is reached. Try again once it resets.",
       resetsAt: new Date(Date.now() + 20 * 60000).toISOString(),
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = await confirmMerge(page);
 
@@ -226,7 +212,7 @@ test.describe('a refused merge explains itself from the server code', () => {
       code: 'unknown',
       message: 'EOF',
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = await confirmMerge(page);
 
@@ -243,7 +229,7 @@ test.describe('a refused merge explains itself from the server code', () => {
       code: 'conflict',
       message: 'Merge conflict. Resolve it on the forge, then merge.',
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = await confirmMerge(page);
     await expect(row.locator('.row-feedback')).toBeVisible();
