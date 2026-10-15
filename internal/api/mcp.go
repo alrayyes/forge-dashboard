@@ -39,28 +39,35 @@ func newMCPHandler(deps Deps) http.Handler {
 		// always fails closed, rather than a nil-pointer panic.
 		u, ok := auth.UserFromContext(r.Context())
 
-		server := mcp.NewServer(&mcp.Implementation{Name: "forge-dashboard", Version: deps.Version}, nil)
-		mcp.AddTool(server, &mcp.Tool{
-			Name: "get_dashboard",
-			Description: "Fetch the aggregated open pull requests, issues, and CI/forge " +
-				"health this dashboard already tracks across GitHub and Forgejo -- " +
-				"the same read-only data the web UI's own dashboard renders. Read-only: " +
-				"this app never writes to either forge through this tool.",
-		}, func(ctx context.Context, _ *mcp.CallToolRequest, input getDashboardInput) (*mcp.CallToolResult, dashboardResponse, error) {
-			if !ok {
-				return nil, dashboardResponse{}, errNoAuthenticatedUser
-			}
-
-			resp, err := resolveDashboardFor(ctx, deps, u, input.Owner, boardView{})
-			if err != nil {
-				return nil, dashboardResponse{}, err
-			}
-
-			return nil, resp, nil
-		})
-
-		return server
+		return newMCPServer(deps, u, ok)
 	}
 
 	return mcp.NewStreamableHTTPHandler(getServer, nil)
+}
+
+// newMCPServer builds the server for one authenticated user. Every tool it
+// registers must have an entry in mcpToolOperations (mcp_operations.go), which
+// the parity test checks against what the server really serves.
+func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
+	server := mcp.NewServer(&mcp.Implementation{Name: "forge-dashboard", Version: deps.Version}, nil)
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "get_dashboard",
+		Description: "Fetch the aggregated open pull requests, issues, and CI/forge " +
+			"health this dashboard already tracks across GitHub and Forgejo -- " +
+			"the same read-only data the web UI's own dashboard renders. Read-only: " +
+			"this app never writes to either forge through this tool.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, input getDashboardInput) (*mcp.CallToolResult, dashboardResponse, error) {
+		if !ok {
+			return nil, dashboardResponse{}, errNoAuthenticatedUser
+		}
+
+		resp, err := resolveDashboardFor(ctx, deps, u, input.Owner, boardView{})
+		if err != nil {
+			return nil, dashboardResponse{}, err
+		}
+
+		return nil, resp, nil
+	})
+
+	return server
 }

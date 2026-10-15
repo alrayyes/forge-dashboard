@@ -99,6 +99,7 @@ paths:
   /api/auth/registration-status:
     get:
       operationId: getRegistrationStatus
+      x-mcp-excluded: "Pre-login: reports whether self-registration is open. An MCP client already has a token."
       summary: Whether self-registration is open
       description: |
         Unauthenticated — a visitor deciding whether to show the login
@@ -119,6 +120,7 @@ paths:
   /api/auth/register/begin:
     post:
       operationId: beginRegistration
+      x-mcp-excluded: "A WebAuthn ceremony that needs a browser authenticator; a token cannot take part."
       summary: Start a passkey registration ceremony
       description: |
         The very first registration on a fresh instance (zero registered
@@ -163,6 +165,7 @@ paths:
   /api/auth/register/finish:
     post:
       operationId: finishRegistration
+      x-mcp-excluded: "The second half of the WebAuthn registration ceremony."
       summary: Complete a passkey registration ceremony
       tags: [auth]
       parameters:
@@ -197,6 +200,7 @@ paths:
   /api/auth/login/begin:
     post:
       operationId: beginLogin
+      x-mcp-excluded: "A WebAuthn ceremony that needs a browser authenticator."
       summary: Start a passkey login ceremony
       tags: [auth]
       requestBody:
@@ -224,6 +228,7 @@ paths:
   /api/auth/login/finish:
     post:
       operationId: finishLogin
+      x-mcp-excluded: "The second half of the WebAuthn login ceremony."
       summary: Complete a passkey login ceremony
       tags: [auth]
       parameters:
@@ -258,6 +263,7 @@ paths:
   /api/auth/logout:
     post:
       operationId: logout
+      x-mcp-excluded: "Ends a browser session; an MCP client's token is not that session."
       summary: End the current session
       tags: [auth]
       responses:
@@ -312,6 +318,7 @@ paths:
   /api/auth/credentials/begin:
     post:
       operationId: beginAddCredential
+      x-mcp-excluded: "A WebAuthn ceremony that needs a browser authenticator."
       summary: Start a ceremony to add another passkey to the signed-in account
       description: |
         The authenticated counterpart to POST /api/auth/register/begin —
@@ -341,6 +348,7 @@ paths:
   /api/auth/credentials/finish:
     post:
       operationId: finishAddCredential
+      x-mcp-excluded: "The second half of adding a passkey."
       summary: Complete an add-credential ceremony
       tags: [auth]
       security: [{ bearerAuth: [] }]
@@ -606,6 +614,7 @@ paths:
   /api/settings/filter-state:
     get:
       operationId: getFilterState
+      x-mcp-excluded: "Cookie-session only: the spec refuses a personal API token with 403 (#1000), so an MCP client cannot call it."
       summary: The signed-in user's own saved dashboard/Insights filter state
       description: |
         A lightweight read of one opaque blob, deliberately not
@@ -638,6 +647,7 @@ paths:
                 $ref: "#/components/schemas/Error"
     put:
       operationId: setFilterState
+      x-mcp-excluded: "Cookie-session only: the spec refuses a personal API token with 403 (#1000), so an MCP client cannot call it."
       summary: Save the signed-in user's own dashboard/Insights filter state
       description: |
         A dedicated, lightweight save separate from the main
@@ -685,6 +695,7 @@ paths:
   /api/tokens:
     get:
       operationId: listAPITokens
+      x-mcp-excluded: "A token must not enumerate, mint or revoke tokens: one leaked token would otherwise keep itself alive by minting others."
       summary: List the signed-in user's own personal API tokens
       description: Metadata only, per APIToken's own description — a raw value never reappears once created.
       tags: [tokens]
@@ -706,6 +717,7 @@ paths:
                 $ref: "#/components/schemas/Error"
     post:
       operationId: createAPIToken
+      x-mcp-excluded: "A token must not mint tokens (see listAPITokens)."
       summary: Generate a new personal API token
       tags: [tokens]
       security: [{ bearerAuth: [] }]
@@ -740,6 +752,7 @@ paths:
   /api/tokens/{id}:
     delete:
       operationId: deleteAPIToken
+      x-mcp-excluded: "A token must not revoke tokens (see listAPITokens)."
       summary: Revoke a personal API token
       description: |
         Stops the token authenticating immediately. Idempotent — deleting
@@ -2226,6 +2239,7 @@ paths:
   /readyz:
     get:
       operationId: ready
+      x-mcp-excluded: "A readiness probe for the orchestrator."
       summary: Readiness
       description: |
         Answers 200 once the server can actually serve: the database answers
@@ -2283,6 +2297,7 @@ paths:
   /healthz:
     get:
       operationId: health
+      x-mcp-excluded: "A liveness probe for the orchestrator."
       summary: Liveness
       description: |
         Answers 200 once the server has started. Doesn't reflect whether
@@ -2379,6 +2394,7 @@ paths:
   /api/dashboard/stream:
     get:
       operationId: streamDashboard
+      x-mcp-excluded: "A server-sent event stream; a tool call answers once. get_dashboard covers the data."
       summary: Server-Sent Events stream of the signed-in user's own dashboard
       description: |
         Pushes a fresh snapshot every time this user's background
@@ -2611,6 +2627,7 @@ paths:
   /api/webhooks/github/{webhookToken}:
     post:
       operationId: receiveGitHubWebhook
+      x-mcp-excluded: "A signed callback from GitHub, authenticated by its signature, not by a user."
       summary: Receive a GitHub repository webhook delivery
       description: |
         Triggers an immediate refresh for the user webhookToken identifies,
@@ -2655,6 +2672,7 @@ paths:
   /api/webhooks/forgejo/{webhookToken}:
     post:
       operationId: receiveForgejoWebhook
+      x-mcp-excluded: "A signed callback from Forgejo, authenticated by its signature, not by a user."
       summary: Receive a Forgejo repository webhook delivery
       description: |
         Triggers an immediate refresh for the user webhookToken identifies,
