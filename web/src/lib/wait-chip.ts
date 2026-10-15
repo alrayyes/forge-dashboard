@@ -219,6 +219,8 @@ export type AutoMergeInput = {
   // The server's own sentence, kept as the tooltip.
   message: string;
   draft: boolean;
+  // Who merges an armed pull request that has nothing left to wait for.
+  forge: string;
 };
 
 // An armed Forgejo auto-merge that is waiting. A stopped one needs a person,
@@ -244,7 +246,11 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
       return words('Rate limited', 'Retries after the reset');
     case '':
     case undefined:
-      return words('Merging next', 'On the next refresh');
+      // Forgejo's intent is held here and acted on at the next refresh;
+      // GitHub's own auto-merge merges as soon as it can (#1505).
+      return input.forge === 'github'
+        ? words('Merging', 'GitHub merges it as soon as it can')
+        : words('Merging next', 'On the next refresh');
     default:
       return input.draft
         ? words('Waiting for ready', 'Merges once marked ready')

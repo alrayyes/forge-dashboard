@@ -127,6 +127,7 @@ test.describe('autoMergeChip wording', () => {
     state: 'waiting',
     message: 'Auto-merge is waiting for checks to finish.',
     draft: false,
+    forge: 'forgejo',
     ...overrides,
   });
 
@@ -158,6 +159,29 @@ test.describe('autoMergeChip wording', () => {
     expect(
       autoMergeChip(waiting({ code: 'not_mergeable', draft: true }))?.label,
     ).toBe('Waiting for ready');
+  });
+
+  // #1505: with nothing left to wait for, Forgejo's app merges on its next
+  // refresh, but GitHub's own auto-merge merges as soon as it can.
+  test('a green Forgejo auto-merge merges on the next refresh', () => {
+    const chip = autoMergeChip(waiting({ code: '', forge: 'forgejo' }));
+    expect(chip?.label).toBe('Merging next');
+    expect(chip?.detail).toBe('On the next refresh');
+  });
+
+  test('a green GitHub auto-merge says GitHub merges it itself', () => {
+    const chip = autoMergeChip(
+      waiting({
+        code: undefined,
+        forge: 'github',
+        message: 'Checks passed. GitHub merges it as soon as it can.',
+      }),
+    );
+    expect(chip?.label).toBe('Merging');
+    expect(chip?.detail).toBe('GitHub merges it as soon as it can');
+    expect(chip?.tooltip).toBe(
+      'Checks passed. GitHub merges it as soon as it can.',
+    );
   });
 
   test('a stopped auto-merge is not a wait', () => {
