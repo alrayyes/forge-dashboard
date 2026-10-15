@@ -1387,7 +1387,8 @@ them), `POST /api/pull-requests/hide` and `/unhide` to hide one pull request
 `GET /api/pull-requests/details` for one pull request's description, comments
 and thumbs up and down reactions (on demand, never in the snapshot: Markdown
 as the forge stores it, cut at 20,000 characters, the first 50 comments, and a
-release pull request's release notes), `GET /api/main-branches` for
+release pull request's release notes; one GraphQL query on GitHub, up to 53
+requests on Forgejo, which has no batch read), `GET /api/main-branches` for
 the CI status of every default branch, `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the
 `PUT` response never echoes a token back, only whether one is now set

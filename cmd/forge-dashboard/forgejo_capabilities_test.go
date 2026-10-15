@@ -57,8 +57,7 @@ var optionalCapabilities = []optionalCapability{
 	capabilityNamed[dashboard.PullRequestCommenter](true),
 	capabilityNamed[dashboard.PullRequestAutoMerger](true),
 	capabilityNamed[dashboard.PullRequestAutoMergeDisabler](true),
-	// GitHub-only until the Forgejo side of #1506 lands; then it moves up.
-	capabilityNamed[dashboard.PullRequestDetailer](true),
+	capabilityNamed[dashboard.PullRequestDetailer](false),
 }
 
 // capabilitiesTheAPIAsksFor is every dashboard.<Name> the non-test code in
