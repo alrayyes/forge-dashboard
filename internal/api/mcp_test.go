@@ -260,3 +260,106 @@ func TestMCP_GetMainBranches_LeavesOutARepoIgnoredForPullRequests(t *testing.T) 
 	assert.Equal(t, "acme/kept", branches[0].(map[string]any)["fullName"])
 	assert.EqualValues(t, 0, content["counts"].(map[string]any)["failed"])
 }
+
+// callDetailsTool calls get_pull_request_details with args on a session for
+// the user cookie belongs to.
+func callDetailsTool(t *testing.T, srvURL string, cookie *http.Cookie, args map[string]any) *mcp.CallToolResult {
+	t.Helper()
+
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_pull_request_details", Arguments: args})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	return result
+}
+
+func TestMCP_GetPullRequestDetails_ListsTheTool(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
+
+	result, err := session.ListTools(t.Context(), nil)
+	require.NoError(t, err)
+
+	var found *mcp.Tool
+	for _, tool := range result.Tools {
+		if tool.Name == "get_pull_request_details" {
+			found = tool
+		}
+	}
+	require.NotNil(t, found)
+	for _, want := range []string{"Read-only", "on demand", "GraphQL", "53 requests", "Markdown", "unsanitised"} {
+		assert.Contains(t, found.Description, want)
+	}
+}
+
+func TestMCP_GetPullRequestDetails_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeDetailerSource{forge: dashboard.ForgeGitHub, details: sampleDetails()}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	result := callDetailsTool(t, srvURL, cookie, map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit", "number": 42})
+
+	resp := getPullRequestDetails(t, srvURL, cookie, "github", "alrayyes/tempus-fugit", 42)
+	defer func() { _ = resp.Body.Close() }()
+	var httpContent map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&httpContent))
+	assert.Equal(t, httpContent, result.StructuredContent)
+	assert.Equal(t, "alrayyes", source.lastOwner)
+	assert.Equal(t, 42, source.lastNumber)
+}
+
+// The release notes come from the shared function, so one case is enough.
+func TestMCP_GetPullRequestDetails_AListedReleasePullRequestCarriesReleaseNotes(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeDetailerSource{
+		forge: dashboard.ForgeGitHub,
+		prs: []dashboard.PullRequest{{
+			Forge: dashboard.ForgeGitHub, Repo: "alrayyes/tempus-fugit", Number: 7, Title: "chore(main): release 1.2.0",
+			Labels: []dashboard.Label{{Name: "autorelease: pending"}},
+		}},
+		details: sampleDetails(),
+	}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	require.Eventually(t, func() bool {
+		prs, _ := fetchDashboard(t, srvURL, cookie)["pullRequests"].([]any)
+
+		return len(prs) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	result := callDetailsTool(t, srvURL, cookie, map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit", "number": 7})
+
+	content, ok := result.StructuredContent.(map[string]any)
+	require.True(t, ok)
+	notes, ok := content["releaseNotes"].(map[string]any)
+	require.True(t, ok, "a listed release pull request carries release notes")
+	assert.Equal(t, "Adds the dialog.", notes["text"])
+}
+
+func TestMCP_GetPullRequestDetails_RefusesBadInput(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeDetailerSource{forge: dashboard.ForgeGitHub, details: sampleDetails()}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	for name, args := range map[string]map[string]any{
+		"unknown forge":      {"forge": "gitlab", "fullName": "a/b", "number": 1},
+		"malformed fullName": {"forge": "github", "fullName": "nope", "number": 1},
+		"number not integer": {"forge": "github", "fullName": "a/b", "number": "abc"},
+		"number missing":     {"forge": "github", "fullName": "a/b"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_pull_request_details", Arguments: args})
+
+			refused := err != nil || (result != nil && result.IsError)
+			assert.True(t, refused, "the tool should refuse as the endpoint answers 400")
+		})
+	}
+	assert.Zero(t, source.lastNumber, "nothing reached the forge")
+}
