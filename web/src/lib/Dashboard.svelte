@@ -678,8 +678,11 @@
     // Merge button's own clickability. "conflicting" gets no such
     // exception: a real merge conflict is true regardless of CI state,
     // not a completion gate the way an incomplete "blocked" is.
+    // #1561: "blocked" is also silent while ci is "failure", the failing CI
+    // pill already says why (Filters.showBlockedChip).
     function mergeStatusPill(status: string, ci: string): HTMLElement | null {
-      if (status === "blocked" && ci === "pending") return null;
+      if (status === "blocked" && !Filters.showBlockedChip(status, ci))
+        return null;
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
       const pill = el("span", `merge-pill ${status}`);
@@ -941,7 +944,7 @@
         chips.push({ text: "Mergeable", tone: "good" });
       if (item.mergeStatus === "conflicting")
         chips.push({ text: "Conflicts", tone: "critical" });
-      if (item.mergeStatus === "blocked" && item.ci !== "pending")
+      if (Filters.showBlockedChip(item.mergeStatus, item.ci))
         chips.push({ text: "Blocked", tone: "warning" });
       if (item.behind) chips.push({ text: "Out of date", tone: "warning" });
       if (item.autoMergeEnabled === true)
