@@ -1,14 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
 import { settle } from './settle-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #680, #714: Update branch, Dependabot rebase and Renovate rebase all
 // answer with "Queued…" the instant they're clicked and hold that state
@@ -16,20 +10,9 @@ import { settle } from './settle-helper';
 // chip (#1229), and Update branch's counts down to the next poll; a toast
 // and the Activity panel carry the same events. The top banner is not used.
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `queued-action-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Queued Action Test User',
-  );
-}
+// Every queue endpoint is mocked and nothing is saved per user, so the whole
+// file starts from the shared session (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // A negative check's stand-in for a sleep (#1378): one round trip through the
 // route handlers after the click. Nothing guarantees an earlier request is
@@ -225,11 +208,7 @@ const scenarios: Scenario[] = [
 
 for (const s of scenarios) {
   test.describe(`queued state: ${s.name}`, () => {
-    test.beforeEach(async ({ page, request, baseURL }) => {
-      await registerAndSignIn(page, request, baseURL);
-      // Bot pull requests are on the Bots page, not the main list (#1192).
-      if (/^(dependabot|renovate)/.test(s.pr.author))
-        await page.goto('/bots.html');
+    test.beforeEach(async ({ page }) => {
       await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -295,7 +274,12 @@ for (const s of scenarios) {
       // and a test moves time with runFor instead of sleeping (#1378). The
       // mock's own 300 ms delay is Node-side real time and isn't affected.
       if (fakeClock) await page.clock.install();
-      await page.reload();
+      // Bot pull requests are on the Bots page, not the main list (#1192).
+      await page.goto(
+        /^(dependabot|renovate)/.test(s.pr.author)
+          ? '/bots.html'
+          : '/pull-requests.html',
+      );
       const row = page.locator('#pr-rows .row').first();
       if (s.openMenu) await openMoreActions(row);
       return {
@@ -611,10 +595,7 @@ for (const s of scenarios) {
 }
 
 test.describe('queued state: bot rebases move on once a snapshot shows pickup', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-    // Bot pull requests are on the Bots page, not the main list (#1192).
-    await page.goto('/bots.html');
+  test.beforeEach(async ({ page }) => {
     await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
       route.fulfill({
         status: 200,
@@ -653,7 +634,8 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
         ),
       });
     });
-    await page.reload();
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -703,7 +685,8 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
         ),
       }),
     );
-    await page.reload();
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
