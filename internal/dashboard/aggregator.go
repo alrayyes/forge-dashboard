@@ -641,9 +641,10 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 }
 
 // PollCI refreshes every repo that currently has at least one open
-// pull request whose CI is still pending — the only case a check
-// finishing could actually change, and the only one worth spending an
-// extra scoped fetch on between full Refresh passes. Fills the gap a
+// pull request whose CI is still pending, or that GitHub is going to merge
+// by itself (auto-merge armed) — the only cases a check finishing or a merge
+// could change, and the only ones worth spending an extra scoped fetch on
+// between full Refresh passes. Fills the gap a
 // working webhook would otherwise close: confirmed live, twice
 // independently, that real Forgejo instances silently drop the
 // "status" webhook event from a hook's persisted event list even
@@ -663,7 +664,7 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	}
 	pending := make(map[repoKey]struct{})
 	for _, pr := range a.Get().PullRequests {
-		if pr.CI != CIPending {
+		if pr.CI != CIPending && !armedOnGitHub(pr) {
 			continue
 		}
 		owner, name, ok := strings.Cut(pr.Repo, "/")
@@ -675,6 +676,14 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	for key := range pending {
 		a.RefreshRepo(ctx, key.forge, key.owner, key.name, key.fullName)
 	}
+}
+
+// armedOnGitHub reports whether pr has GitHub's own auto-merge armed. GitHub
+// merges it by itself once checks pass, so nothing the dashboard does makes it
+// happen and a webhook may never tell the dashboard it did: the repo is polled
+// until the pull request leaves the board (#1505).
+func armedOnGitHub(pr PullRequest) bool {
+	return pr.Forge == ForgeGitHub && pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled
 }
 
 // RunCIPoll runs PollCI on a fixed interval until ctx is cancelled —
