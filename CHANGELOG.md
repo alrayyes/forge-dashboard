@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.193.2](https://github.com/alrayyes/forge-dashboard/compare/v0.193.1...v0.193.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* **web:** open the live stream after the first poll, and reopen it if it closes ([#1574](https://github.com/alrayyes/forge-dashboard/issues/1574)) ([20f87d0](https://github.com/alrayyes/forge-dashboard/commit/20f87d095b380bf626e477688c6f115905f4142a))
+
 ## [0.193.1](https://github.com/alrayyes/forge-dashboard/compare/v0.193.0...v0.193.1) (2026-10-15)
 
 
