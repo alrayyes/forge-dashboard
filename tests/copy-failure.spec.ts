@@ -1,28 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // A failed action keeps its plain sentence on the row, and a Copy button
 // beside it copies what the server really answered: the status, the body as
 // received (the raw `error` included) and the action's context, so the real
 // forge text can be pasted into a ticket or a chat.
 // https://github.com/alrayyes/forge-dashboard/issues/1323
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `copy-failure-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Copy Failure');
-}
 
 const REPO = 'alrayyes/obsidian';
 const RAW =
@@ -151,9 +136,11 @@ async function readClipboard(page: Page): Promise<Record<string, unknown>> {
 }
 
 test.describe('Copy error details on a failed action (#1323)', () => {
-  test.beforeEach(async ({ page, request, baseURL, context }) => {
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  test.beforeEach(async ({ context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await registerAndSignIn(page, request, baseURL);
   });
 
   for (const a of ACTIONS) {
@@ -338,9 +325,11 @@ test.describe('Copy error details on a failed action (#1323)', () => {
 // Rerun failed checks fails inside the pipeline panel, not on the row, so its
 // failure has its own line there (#1323, criterion 1).
 test.describe('Copy error details on a failed Rerun failed checks (#1323)', () => {
-  test.beforeEach(async ({ page, request, baseURL, context }) => {
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  test.beforeEach(async ({ context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await registerAndSignIn(page, request, baseURL);
   });
 
   async function openPanel(page: Page) {
@@ -448,7 +437,10 @@ test.describe('Copy error details on a failed Rerun failed checks (#1323)', () =
 });
 
 test.describe('Copy error details without a clipboard (#1323)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  test.beforeEach(async ({ page }) => {
     // An insecure context or a refused permission: writeText rejects.
     await page.addInitScript(() => {
       Object.defineProperty(navigator, 'clipboard', {
@@ -458,7 +450,6 @@ test.describe('Copy error details without a clipboard (#1323)', () => {
         configurable: true,
       });
     });
-    await registerAndSignIn(page, request, baseURL);
   });
 
   test('the details show in a selectable box instead of failing silently', async ({
