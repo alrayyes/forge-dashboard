@@ -78,6 +78,7 @@
     onTimezoneChange,
     effectiveZone,
   } from "#lib/time.svelte.js";
+  import { createWebMCPTools } from "#lib/webmcp-tools.js";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, admin-link, logout-button, whoami) —
@@ -6603,7 +6604,7 @@
     refresh();
     schedulePoll();
 
-    // ---- WebMCP (webmachinelearning/webmcp) tool: get_dashboard ----
+    // ---- WebMCP (webmachinelearning/webmcp) tools, defined in webmcp-tools.ts ----
     // Experimental browser API -- document.modelContext only exists in
     // Chrome 149+/Edge 150+ behind an Origin Trial (or the local
     // about:flags#enable-webmcp-testing flag) as of this writing, so this
@@ -6618,18 +6619,22 @@
     // agent and the person watching the page never see it disagree —
     // the WebMCP explainer's own "synchronize visual UI state" guidance.
     if (document.modelContext) {
-      document.modelContext.registerTool({
-        name: "get_dashboard",
-        description:
-          "Fetch the aggregated open pull requests, issues, and CI/forge health this dashboard already tracks across GitHub and Forgejo -- the same read-only data currently rendered on this page. Read-only: this never writes to either forge.",
-        async execute() {
+      const { modelContext } = document;
+      const tools = createWebMCPTools({
+        async getDashboard() {
           const seq = ++requestSeq;
           const data = await fetchDashboardData();
           applySnapshot(data, false, seq);
 
           return data;
         },
+        onSessionExpired() {
+          window.location.href = "/login.html";
+        },
       });
+      for (const { operationId: _operationId, ...tool } of tools) {
+        modelContext.registerTool(tool);
+      }
     }
 
     // ---- live updates over Server-Sent Events, on top of the poll above ----
