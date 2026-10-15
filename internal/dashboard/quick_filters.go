@@ -6,8 +6,8 @@ import (
 )
 
 // IsReadyToMerge is the Ready quick filter (#807): mergeable, CI green and not
-// a draft. Not readyToMerge in aggregator.go, which only orders the list and
-// lets a pull request with no checks float up too.
+// a draft. It is the only way to find them by readiness: the list's order is
+// last activity alone (#1532).
 func IsReadyToMerge(pr PullRequest) bool {
 	return pr.MergeStatus == MergeMergeable && pr.CI == CISuccess && !pr.Draft
 }

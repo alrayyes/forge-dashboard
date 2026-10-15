@@ -1111,7 +1111,8 @@ does changing a filter, the sort or the page. Nothing re-renders while
 focus is inside a row, a More actions menu is open, a modal window is open, or a
 row action is in flight. **Pause live updates** stops every automatic
 update until you turn it back on (Refresh now still works). The **Sort**
-control offers Last activity (the default, the server's order), Created and
+control offers Last activity (the default, the server's order: most recently
+updated first, whether or not a pull request is ready to merge), Created and
 Repository. Pause and sort are saved with your other filters.
 
 Draft pull requests are left out by default. The **Show drafts** toggle in the
