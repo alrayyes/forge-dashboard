@@ -2144,12 +2144,31 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows .merge-pill.blocked')).toHaveCount(0);
     });
 
-    test('the blocked pill appears once CI resolves to a real block', async ({
+    // #1561: the failing CI pill already says why, so no Blocked pill next
+    // to it. Review or branch protection blocks still show it (the default
+    // fixture above has CI passing; the next test has no CI at all).
+    test('a blocked pull request whose CI is failing shows the failing CI pill and no blocked pill', async ({
       page,
     }) => {
       await mockDashboard(page, [
         pr({ mergeStatus: 'blocked', ci: 'failure' }),
       ]);
+      await page.reload();
+
+      const row = page.locator('#pr-rows > .row');
+      await expect(row.locator('.ci-pill')).toContainText('Failing');
+      await expect(page.locator('#pr-rows .merge-pill.blocked')).toHaveCount(0);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+
+    test('a blocked pull request with no CI still shows the blocked pill', async ({
+      page,
+    }) => {
+      await mockDashboard(page, [pr({ mergeStatus: 'blocked', ci: 'none' })]);
       await page.reload();
 
       const pill = page.locator('#pr-rows .merge-pill.blocked');
