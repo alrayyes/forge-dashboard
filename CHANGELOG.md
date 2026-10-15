@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.191.0](https://github.com/alrayyes/forge-dashboard/compare/v0.190.2...v0.191.0) (2026-10-15)
+
+
+### Features
+
+* **api:** add the get_pull_request_details MCP tool ([#1544](https://github.com/alrayyes/forge-dashboard/issues/1544)) ([48409e8](https://github.com/alrayyes/forge-dashboard/commit/48409e88f063c6291aea27f4ac853bb76dfcbf60))
+
 ## [0.190.2](https://github.com/alrayyes/forge-dashboard/compare/v0.190.1...v0.190.2) (2026-10-15)
 
 
