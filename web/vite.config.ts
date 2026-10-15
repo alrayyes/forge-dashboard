@@ -60,8 +60,9 @@ export default defineConfig({
       // The layout's and footer's component CSS (about 4 KB) rides in each
       // page's HTML instead of two more render-blocking requests, and the
       // @font-face rules in it no longer wait for a stylesheet round trip
-      // (#1069). style.css stays a separate file: its URL is immutable-cached,
-      // and the HTML isn't (#1288).
+      // (#1069). style.css stays a separate file: inlining it would resend its
+      // 45 KB with every no-cache HTML response, where today a repeat
+      // visit revalidates it with a 304, for no measurable gain (#1288).
       inlineStyleThreshold: 8192,
 
       // Every page has migrated (#352) — the layout's own links (nav,

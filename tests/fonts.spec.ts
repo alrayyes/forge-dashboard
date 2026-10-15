@@ -70,7 +70,9 @@ test.describe('self-hosted fonts on the dashboard (#797)', () => {
 // #1069: the layout's own CSS (which holds the @font-face rules) rides in the
 // page's HTML, so /style.css is the only stylesheet that blocks the first
 // paint. SvelteKit keeps a disabled, never-matching <link> per inlined sheet
-// for client-side navigation; those don't block.
+// for client-side navigation; those don't block. Only the login page is
+// checked: every page shares the one layout, so the others inline the same
+// sheets, but nothing here asserts it.
 test.describe('render-blocking stylesheets (#1069)', () => {
   test('the login page blocks first paint on /style.css alone', async ({
     page,

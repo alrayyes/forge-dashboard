@@ -53,13 +53,26 @@ async function openError(page: Page, body: string, status: number) {
 // The served HTML, not the hydrated DOM: the browser adds its own preload
 // links with the page's origin, which isn't the app leaking anything. A
 // `.svelte-abc123` scoped-class selector in the inlined CSS (#1069) isn't a
-// source file name either; `.svelte` followed by a hash is allowed.
+// source file name either; only the exact `.svelte-<6 char hash>` suffix is allowed.
 function expectNoInternals(html: string) {
   expect(html).not.toMatch(
-    /node_modules|\.svelte(?!-)|\.ts:\d|stack ?trace|at \S+ \(/i,
+    /node_modules|\.svelte(?!-[a-z0-9]{6}\b)|\.ts:\d|stack ?trace|at \S+ \(/i,
   );
   expect(html).not.toMatch(/localhost|127\.0\.0\.1|HTTP\/\d/);
 }
+
+test.describe('expectNoInternals (#1069)', () => {
+  test('allows a scoped-class hash but still catches real leaks', () => {
+    expect(() =>
+      expectNoInternals('.github-link.svelte-9sff3o{display:flex}'),
+    ).not.toThrow();
+    expect(() =>
+      expectNoInternals('see .svelte-kit/output/server/index.js'),
+    ).toThrow();
+    expect(() => expectNoInternals('at Foo.svelte-hmr')).toThrow();
+    expect(() => expectNoInternals('src/Foo.svelte:12')).toThrow();
+  });
+});
 
 test.describe('error pages (#1175)', () => {
   for (const { name: pageName, title, headline, chip, body, status } of PAGES) {
