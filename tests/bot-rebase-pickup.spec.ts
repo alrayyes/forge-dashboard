@@ -127,6 +127,10 @@ for (const b of bots) {
     // What the mocked dashboard currently answers with: a test changes it
     // to play the bot acting.
     let current: MockPR;
+    // Behaviour that doesn't depend on the bot runs for Dependabot only
+    // (#1380). A test that reads a bot's own string, endpoint or button
+    // runs for both.
+    const shared = b.id === 'dependabot';
 
     test.beforeEach(async ({ page, request, baseURL }) => {
       current = { ...b.pr };
@@ -233,18 +237,20 @@ for (const b of bots) {
       await expect(page.locator('#status-banner')).toHaveCount(0);
     });
 
-    test('the age keeps ticking and is not read out', async ({ page }) => {
-      await request(page);
-      const ago = chip(page).locator('.feedback-requested');
-      await expect(ago).toHaveAttribute('aria-hidden', 'true');
-      await expect(ago).toHaveText('0s ago');
-      await skew(page, 7_000);
-      await expect(ago).toHaveText('7s ago');
+    if (shared) {
+      test('the age keeps ticking and is not read out', async ({ page }) => {
+        await request(page);
+        const ago = chip(page).locator('.feedback-requested');
+        await expect(ago).toHaveAttribute('aria-hidden', 'true');
+        await expect(ago).toHaveText('0s ago');
+        await skew(page, 7_000);
+        await expect(ago).toHaveText('7s ago');
 
-      const live = page.locator('#feedback-live');
-      await expect(live).not.toContainText(/\d+s ago/);
-      await expect(live.locator('.feedback-requested')).toHaveCount(0);
-    });
+        const live = page.locator('#feedback-live');
+        await expect(live).not.toContainText(/\d+s ago/);
+        await expect(live.locator('.feedback-requested')).toHaveCount(0);
+      });
+    }
 
     // #808: the request lives on the server, so a reload mid-wait still
     // shows it, and the age on the chip counts from when it was
@@ -260,18 +266,20 @@ for (const b of bots) {
       await expect(chip(page).locator('.wait-chip-tip')).toHaveText(b.tip);
     });
 
-    test('a request seen only in the snapshot counts its age from requestedAt', async ({
-      page,
-    }) => {
-      current = {
-        ...current,
-        botRequest: botRequest(b.id, 'queued', 90_000),
-      };
-      await page.reload();
-      await expect(chip(page).locator('.feedback-requested')).toHaveText(
-        '1m ago',
-      );
-    });
+    if (shared) {
+      test('a request seen only in the snapshot counts its age from requestedAt', async ({
+        page,
+      }) => {
+        current = {
+          ...current,
+          botRequest: botRequest(b.id, 'queued', 90_000),
+        };
+        await page.reload();
+        await expect(chip(page).locator('.feedback-requested')).toHaveText(
+          '1m ago',
+        );
+      });
+    }
 
     test('a request that is rebasing in the snapshot shows Rebasing after a reload', async ({
       page,
@@ -318,19 +326,21 @@ for (const b of bots) {
       await expect(toasts).toHaveCount(1);
     });
 
-    test('the chip survives a stream push that still shows it queued', async ({
-      page,
-    }) => {
-      await request(page);
-      await push(page, current);
-      await expect(label(page)).toHaveText('Rebase requested');
-      await expect(
-        row(page).getByRole('button', { name: 'Rebase requested' }),
-      ).toBeDisabled();
-      await expect(
-        page.locator('#feedback-toasts .feedback-toast'),
-      ).toHaveCount(1);
-    });
+    if (shared) {
+      test('the chip survives a stream push that still shows it queued', async ({
+        page,
+      }) => {
+        await request(page);
+        await push(page, current);
+        await expect(label(page)).toHaveText('Rebase requested');
+        await expect(
+          row(page).getByRole('button', { name: 'Rebase requested' }),
+        ).toBeDisabled();
+        await expect(
+          page.locator('#feedback-toasts .feedback-toast'),
+        ).toHaveCount(1);
+      });
+    }
 
     // #691: a refresh that started before the click can't tell the click
     // happened, so its answer must not end the wait, even when it shows
@@ -402,107 +412,94 @@ for (const b of bots) {
       await expect(label(page)).toHaveText('Rebasing');
     });
 
-    test('once the bot has rebased it the chip says Rebasing until CI restarts', async ({
-      page,
-    }) => {
-      await request(page);
-      // The bot force-pushed: no longer behind, CI not restarted yet.
-      current = {
-        ...current,
-        behind: false,
-        botRequest: botRequest(b.id, 'rebasing'),
-      };
-      await push(page, current);
+    // Renovate's variant: Dependabot's strings are asserted by the twins.
+    if (!shared) {
+      test('once the bot has rebased it the chip says Rebasing until CI restarts', async ({
+        page,
+      }) => {
+        await request(page);
+        // The bot force-pushed: no longer behind, CI not restarted yet.
+        current = {
+          ...current,
+          behind: false,
+          botRequest: botRequest(b.id, 'rebasing'),
+        };
+        await push(page, current);
 
-      await expect(label(page)).toHaveText('Rebasing');
-      await expect(row(page).getByText('Out of date')).toHaveCount(0);
-      await expect(chip(page).locator('.wait-chip-tip')).toContainText(
-        `${b.bot} picked this up`,
-      );
-      await expect(page.locator('#feedback-live')).toContainText(
-        `${b.bot} picked up the rebase`,
-      );
+        await expect(label(page)).toHaveText('Rebasing');
+        await expect(row(page).getByText('Out of date')).toHaveCount(0);
+        await expect(chip(page).locator('.wait-chip-tip')).toContainText(
+          `${b.bot} picked this up`,
+        );
+        await expect(page.locator('#feedback-live')).toContainText(
+          `${b.bot} picked up the rebase`,
+        );
 
-      // CI restarts: the server drops the request, and so does the row.
-      current = { ...current, ci: 'pending', botRequest: undefined };
-      await push(page, current);
-      await expect(label(page)).toHaveText('Settled');
-      await expect(line(page)).toHaveCount(0);
-      await expect(
-        page.locator('#feedback-toasts .feedback-toast').first(),
-      ).toContainText(`${b.bot} rebase finished.`);
-      // Settled goes by itself after SETTLED_MS, and the row has only its
-      // normal actions. The skew moves Date.now past that, so the next tick
-      // removes it, instead of the test waiting the real four seconds (#1378).
-      await skew(page, 5_000);
-      await expect(chip(page)).toHaveCount(0);
-    });
+        // CI restarts: the server drops the request, and so does the row.
+        current = { ...current, ci: 'pending', botRequest: undefined };
+        await push(page, current);
+        await expect(label(page)).toHaveText('Settled');
+        await expect(line(page)).toHaveCount(0);
+        await expect(
+          page.locator('#feedback-toasts .feedback-toast').first(),
+        ).toContainText(`${b.bot} rebase finished.`);
+        // Settled goes by itself after SETTLED_MS, and the row has only its
+        // normal actions. The skew moves Date.now past that, so the next tick
+        // removes it, instead of the test waiting the real four seconds (#1378).
+        await skew(page, 5_000);
+        await expect(chip(page)).toHaveCount(0);
+      });
+    }
 
-    test('a request the server drops (a repo whose CI never restarts) clears Rebasing', async ({
-      page,
-    }) => {
-      await request(page);
-      current = {
-        ...current,
-        behind: false,
-        botRequest: botRequest(b.id, 'rebasing'),
-      };
-      await push(page, current);
-      await expect(label(page)).toHaveText('Rebasing');
+    if (shared) {
+      test('a CI run already under way at pickup needs no Rebasing step', async ({
+        page,
+      }) => {
+        await request(page);
+        current = {
+          ...current,
+          behind: false,
+          ci: 'pending',
+          botRequest: undefined,
+        };
+        await push(page, current);
+        await expect(
+          chip(page).getByText('Rebasing', { exact: true }),
+        ).toHaveCount(0);
+        await expect(
+          page.locator('#feedback-toasts .feedback-toast').first(),
+        ).toContainText(`${b.bot} rebase finished.`);
+      });
+    }
 
-      current = { ...current, botRequest: undefined };
-      await push(page, current);
-      await expect(label(page)).toHaveText('Settled');
-      await skew(page, 5_000);
-      await expect(chip(page)).toHaveCount(0);
-      await expect(line(page)).toHaveCount(0);
-    });
+    if (shared) {
+      test('has no axe violations when requested or rebasing, and none relies on colour alone', async ({
+        page,
+      }) => {
+        const scan = async () => {
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
+        };
+        await request(page);
+        await expect(label(page)).toHaveText('Rebase requested');
+        await scan();
 
-    test('a CI run already under way at pickup needs no Rebasing step', async ({
-      page,
-    }) => {
-      await request(page);
-      current = {
-        ...current,
-        behind: false,
-        ci: 'pending',
-        botRequest: undefined,
-      };
-      await push(page, current);
-      await expect(
-        chip(page).getByText('Rebasing', { exact: true }),
-      ).toHaveCount(0);
-      await expect(
-        page.locator('#feedback-toasts .feedback-toast').first(),
-      ).toContainText(`${b.bot} rebase finished.`);
-    });
-
-    test('has no axe violations when requested or rebasing, and none relies on colour alone', async ({
-      page,
-    }) => {
-      const scan = async () => {
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      };
-      await request(page);
-      await expect(label(page)).toHaveText('Rebase requested');
-      await scan();
-
-      current = {
-        ...current,
-        behind: false,
-        botRequest: botRequest(b.id, 'rebasing'),
-      };
-      await push(page, current);
-      // Words and an icon, not just a tint: the state is in the text of both.
-      await expect(label(page)).toHaveText('Rebasing');
-      await expect(chip(page).locator('.wait-chip-tip')).toContainText(
-        'picked this up',
-      );
-      await scan();
-    });
+        current = {
+          ...current,
+          behind: false,
+          botRequest: botRequest(b.id, 'rebasing'),
+        };
+        await push(page, current);
+        // Words and an icon, not just a tint: the state is in the text of both.
+        await expect(label(page)).toHaveText('Rebasing');
+        await expect(chip(page).locator('.wait-chip-tip')).toContainText(
+          'picked this up',
+        );
+        await scan();
+      });
+    }
   });
 }
 
