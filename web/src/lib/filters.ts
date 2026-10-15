@@ -54,6 +54,18 @@ export const QUICK_FILTERS = [
 ] as const;
 export type QuickFilter = (typeof QUICK_FILTERS)[number];
 
+// Whether a row shows the Blocked chip. Not while CI is pending (#418: the
+// forge reports blocked until checks finish) and not while it is failing
+// (#1561: the failing CI pill already says why). It stays for success and no
+// CI, where a review or branch protection is what blocks. Display only: the
+// quick filters read the server's own answers and are unaffected.
+export function showBlockedChip(
+  mergeStatus: string | undefined,
+  ci: string | undefined,
+): boolean {
+  return mergeStatus === 'blocked' && ci !== 'pending' && ci !== 'failure';
+}
+
 export function matchesQuickFilter(
   item: FilterableItem,
   quick: string | undefined,
