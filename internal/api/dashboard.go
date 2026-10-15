@@ -746,8 +746,8 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		if !ok {
 			// No Aggregator running yet (Settings has never been saved) —
 			// a plain 404 rather than an open connection with nothing to
-			// send. EventSource retries a failed connection on its own,
-			// so the browser picks the stream up once one exists.
+			// send. EventSource does not retry a non-200, so the page opens
+			// the stream again itself (Dashboard.svelte, ensureStream).
 			writeJSON(w, http.StatusNotFound, errorBody("no background refresh is running yet for this user"))
 
 			return

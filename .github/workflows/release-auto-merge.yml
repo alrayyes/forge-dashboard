@@ -8,7 +8,12 @@
 # checkout to guard against.
 name: release-auto-merge
 
-on: pull_request
+# `labeled` is the type that matters: release-please adds its label in a second
+# API call after opening the pull request, so the `opened` run sees no label.
+# A `labeled` event for any other label skips at the job's `if`.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
   contents: write
