@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
@@ -77,16 +78,27 @@ func TestGetPullRequestDetails_ReadsDescriptionCommentsAndReactions(t *testing.T
 func TestGetPullRequestDetails_StopsAtTheFirstRateLimit(t *testing.T) {
 	t.Parallel()
 
-	var reactionCalls atomic.Int32
+	const comments = 50
+	var commentReactionCalls atomic.Int32
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"number": 5, "body": "x"})
 	})
-	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, []any{map[string]any{"id": 1, "body": "c", "created_at": "2026-10-01T10:00:00Z", "updated_at": "2026-10-01T10:00:00Z"}})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/reactions", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []any{})
 	})
-	mux.HandleFunc("/api/v1/repos/alrayyes/a/", func(w http.ResponseWriter, _ *http.Request) {
-		reactionCalls.Add(1)
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) {
+		list := make([]any, 0, comments)
+		for i := range comments {
+			list = append(list, map[string]any{
+				"id": i + 1, "body": "c", "created_at": "2026-10-01T10:00:00Z", "updated_at": "2026-10-01T10:00:00Z",
+			})
+		}
+		writeJSON(t, w, list)
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/comments/", func(w http.ResponseWriter, _ *http.Request) {
+		commentReactionCalls.Add(1)
+		time.Sleep(20 * time.Millisecond)
 		w.Header().Set("Retry-After", "30")
 		w.WriteHeader(http.StatusTooManyRequests)
 	})
@@ -95,10 +107,13 @@ func TestGetPullRequestDetails_StopsAtTheFirstRateLimit(t *testing.T) {
 
 	client := forgejo.NewClient(srv.URL, "test-token", "")
 
-	_, err := client.GetPullRequestDetails(t.Context(), "alrayyes", "a", 5)
+	got, err := client.GetPullRequestDetails(t.Context(), "alrayyes", "a", 5)
 
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr, "an error with a code, not a partial thread")
 	assert.Equal(t, dashboard.ForgeErrorRateLimited, clientErr.Kind)
 	assert.NotNil(t, clientErr.RateLimit)
+	assert.Empty(t, got.Comments, "nothing partial comes back with the error")
+	assert.Equal(t, dashboard.PullRequestDetails{}, got)
+	assert.Less(t, int(commentReactionCalls.Load()), comments/2, "the first refusal stops the rest of the reads")
 }
