@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.192.1](https://github.com/alrayyes/forge-dashboard/compare/v0.192.0...v0.192.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **web:** don't show the Blocked pill when CI is failing ([#1562](https://github.com/alrayyes/forge-dashboard/issues/1562)) ([2cfe92c](https://github.com/alrayyes/forge-dashboard/commit/2cfe92c44044c788706acb41f3847a3ee9862da1))
+
 ## [0.192.0](https://github.com/alrayyes/forge-dashboard/compare/v0.191.0...v0.192.0) (2026-10-15)
 
 
