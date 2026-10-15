@@ -162,3 +162,19 @@ server log. The tickets' criteria win over those two details.
   "Maintainer", the "Bot Command Interface" box, the "Approve & Merge
   Dependency" button, the add-reaction button, the "Design Architecture Spec"
   and "States Preview Drawer" panels, the made-up figures and contrast claims.
+
+- `1563-status-grammar/`: state, outcome and attribute told apart on a row
+  (#1563). `taxonomy-and-lifecycle.png` is the three tiers and the Queued,
+  Running, Failed sequence in one fixed slot. `pr-rows-desktop.png` is the rows,
+  `dialog-header-and-nav-pill.png` the pop-up header and the nav pill, and
+  `phone-card.png` the 360px card. `status-grammar-full.png` is the whole
+  screen. Stitch project "Forge Dashboard UI Audit" (`564147752128938905`),
+  screen `9729161c2e2a44cbabf05bba5675f927`. Variant A is the one to build: a
+  pill in a fixed CI slot, and quiet outlined attribute chips in their own
+  group. Running stays amber and Queued keeps the hourglass from #1473. The
+  nav pill groups the outcomes, then the running state after a thin divider.
+  Not built, because the app has no such data or status: "Standby", queue
+  position, run durations, exit codes, "(3/8)" progress, a run id, a worker
+  name, "Signed Commits", "2 Approvals", "Fast-Forward ready", the latency
+  and sync chips, the display-mode and colour-check toggles, and the contrast
+  claims.
