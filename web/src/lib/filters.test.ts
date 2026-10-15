@@ -13,6 +13,7 @@ import {
   type FilterableItem,
   matchesFilters,
   optionPool,
+  showBlockedChip,
 } from './filters';
 
 // Which fixed choices a set of items offers (#1427). Pure, so these run without
@@ -171,5 +172,26 @@ describe('optionPool', () => {
     ];
 
     expect(optionPool(items, false, { title: 'bug' }, '')).toHaveLength(1);
+  });
+});
+
+// The Blocked chip is dropped when CI is failing (#1561): the failing CI pill
+// already says why. https://github.com/alrayyes/forge-dashboard/issues/1561
+describe('showBlockedChip', () => {
+  test('shows for a blocked pull request whose CI passed or has none', () => {
+    expect(showBlockedChip('blocked', 'success')).toBe(true);
+    expect(showBlockedChip('blocked', 'none')).toBe(true);
+    expect(showBlockedChip('blocked', undefined)).toBe(true);
+  });
+
+  test('is hidden while CI is failing or still running', () => {
+    expect(showBlockedChip('blocked', 'failure')).toBe(false);
+    expect(showBlockedChip('blocked', 'pending')).toBe(false);
+  });
+
+  test('is never shown for another merge status', () => {
+    expect(showBlockedChip('mergeable', 'success')).toBe(false);
+    expect(showBlockedChip('conflicting', 'failure')).toBe(false);
+    expect(showBlockedChip(undefined, 'success')).toBe(false);
   });
 });
