@@ -46,11 +46,11 @@ async function stubModelContext(page: Page) {
   });
 }
 
-test.describe('WebMCP get_dashboard tool', () => {
+test.describe('WebMCP tools', () => {
   // Read-only: no test writes per-user state, so they share one session (#1379).
   test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
-  test('registers get_dashboard when document.modelContext is present', async ({
+  test('registers its tools when document.modelContext is present', async ({
     page,
   }) => {
     await stubModelContext(page);
@@ -63,8 +63,12 @@ test.describe('WebMCP get_dashboard tool', () => {
     await page.waitForFunction(() => window.__webmcpTools.length > 0);
 
     const tools = await page.evaluate(() => window.__webmcpTools);
-    expect(tools).toHaveLength(1);
-    expect(tools[0].name).toBe('get_dashboard');
+    expect(tools.map((t) => t.name)).toEqual([
+      'get_dashboard',
+      'get_main_branches',
+      'get_pull_request_checks',
+      'get_pull_request_details',
+    ]);
     expect(tools[0].description).toMatch(/pull requests/i);
   });
 
@@ -112,4 +116,52 @@ test.describe('WebMCP get_dashboard tool', () => {
     expect(result).toHaveProperty('forges');
     expect(result).toHaveProperty('generatedAt');
   });
+
+  // The read tools with a server twin (#1503): each calls the endpoint the
+  // tool is named for and returns that endpoint's JSON untouched.
+  const PR = { forge: 'forgejo', fullName: 'acme/api', number: 7 };
+  const PR_QUERY = 'forge=forgejo&fullName=acme%2Fapi&number=7';
+  const readTools = [
+    { tool: 'get_main_branches', input: {}, path: '/api/main-branches' },
+    {
+      tool: 'get_pull_request_checks',
+      input: PR,
+      path: '/api/pull-requests/checks',
+      query: PR_QUERY,
+    },
+    {
+      tool: 'get_pull_request_details',
+      input: PR,
+      path: '/api/pull-requests/details',
+      query: PR_QUERY,
+    },
+  ];
+
+  for (const { tool, input, path, query } of readTools) {
+    test(`${tool} calls ${path} and returns its JSON`, async ({ page }) => {
+      const body = { marker: tool };
+      const seen: string[] = [];
+      await page.route(`**${path}*`, (route) => {
+        seen.push(new URL(route.request().url()).search.slice(1));
+
+        return route.fulfill({ json: body });
+      });
+      await stubModelContext(page);
+      await page.goto('/pull-requests.html');
+      await page.waitForFunction(() => window.__webmcpTools.length > 0);
+
+      const result = await page.evaluate(
+        ({ name, args }) => {
+          const t = window.__webmcpTools.find((x) => x.name === name);
+          if (!t) throw new Error(`${name} tool not registered`);
+
+          return t.execute(args);
+        },
+        { name: tool, args: input },
+      );
+
+      expect(result).toEqual(body);
+      expect(seen).toEqual([query ?? '']);
+    });
+  }
 });
