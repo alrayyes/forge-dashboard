@@ -4708,13 +4708,14 @@ components:
 
     NavCount:
       type: object
-      required: [total, running, failed, passed]
+      required: [total, running, failed, passed, none]
       description: |
-        The Branches page's numbers (#1458): how many default branches it
-        lists and how many of those have a pipeline running, failed and
-        passed, the same four as `NavPullRequestCount`. A branch with no
-        pipeline counts in `total` only, so the four numbers need not add up.
-        All four are always present.
+        The Branches page's numbers (#1458, #1531): how many default branches
+        it lists and how many of those have a pipeline running, failed and
+        passed, the same four as `NavPullRequestCount`, plus `none`, the ones
+        with no pipeline. Every branch is in exactly one of the four states,
+        so `running`, `failed`, `passed` and `none` add up to `total`. All
+        five are always present.
       properties:
         total:
           type: integer
@@ -4732,6 +4733,10 @@ components:
           type: integer
           minimum: 0
           description: How many of them have a pipeline that passed.
+        none:
+          type: integer
+          minimum: 0
+          description: How many of them have no pipeline.
 
     NavPullRequestCount:
       type: object
