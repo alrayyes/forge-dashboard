@@ -92,31 +92,130 @@ function ratio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-// The `color` a rule sets, as written in the stylesheet.
-function colorOf(selector: string): string {
-  const m = block(css, `${selector} {`).match(/(?:^|[\s;])color:\s*([^;]+);/);
-  if (!m) throw new Error(`${selector} sets no color`);
-  return m[1].trim();
+const KNOWN = ['total', 'failed', 'running', 'passed'];
+const PILL_SELECTOR = /\.nav-(?:pills|total|failed|running|passed|none)\b/;
+
+type Rule = { selectors: string[]; body: string };
+
+// Every innermost `selectors { declarations }` rule, media queries included.
+function rules(source: string): Rule[] {
+  const out: Rule[] = [];
+  for (const m of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = m[1]
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split(',')
+      .map((x) => x.trim());
+    out.push({ selectors, body: m[2] });
+  }
+  return out;
+}
+
+const declared = (body: string, prop: string) =>
+  body.match(new RegExp(`(?:^|[\\s;])${prop}:\\s*([^;]+?)\\s*(?:;|$)`))?.[1];
+
+// The pills, found from the stylesheet: each `.nav-<word> { color }` rule, the
+// first one wins. Anything that could change what the test measures without
+// being measured is a problem, so the next editor extends the test.
+function pillColours(source: string): {
+  colours: Map<string, string>;
+  problems: string[];
+} {
+  const colours = new Map<string, string>();
+  const problems: string[] = [];
+  for (const { selectors, body } of rules(source)) {
+    const touches = selectors.filter((sel) => PILL_SELECTOR.test(sel));
+    if (touches.length === 0) continue;
+    const color = declared(body, 'color');
+    const exact = touches.find((sel) => /^\.nav-(?!pills\b)[a-z]+$/.test(sel));
+    if (color && exact && !colours.has(exact)) {
+      colours.set(exact, color);
+    } else if (color) {
+      problems.push(`${touches.join(', ')} sets color`);
+    }
+    if (declared(body, 'opacity')) {
+      problems.push(`${touches.join(', ')} sets opacity`);
+    }
+    if (
+      declared(body, 'background') !== undefined &&
+      touches.some((sel) => sel !== '.nav-pills')
+    ) {
+      problems.push(`${touches.join(', ')} sets a background`);
+    }
+  }
+  if (!KNOWN.every((w) => colours.has(`.nav-${w}`))) {
+    problems.push(
+      `found only ${[...colours.keys()].join(', ')}; expected at least ${KNOWN.map((w) => `.nav-${w}`).join(', ')}`,
+    );
+  }
+  return { colours, problems };
+}
+
+const MESSAGE =
+  'Extend nav-pill-contrast.test.ts to measure this before changing the pill: ';
+
+// Ratios below 4.5:1 for the pills of a stylesheet, per theme.
+function failures(source: string, theme: Map<string, string>): string[] {
+  const { colours } = pillColours(source);
+  const bg = resolve('var(--surface-sunken)', theme);
+  return [...colours].flatMap(([sel, value]) => {
+    const r = ratio(resolve(value, theme), bg);
+    return r >= 4.5 ? [] : [`${sel} is ${r.toFixed(2)}:1`];
+  });
 }
 
 const background = block(css, '.nav-pills {')
   .match(/background:\s*([^;]+);/)?.[1]
   ?.trim();
 
-const PILLS = ['.nav-total', '.nav-failed', '.nav-running', '.nav-passed'];
-
 describe('nav pill colours', () => {
   test('the pill draws its own background', () => {
+    // --surface-sunken is the token that matters: the pill paints it over the
+    // header and the tab bar, so the page's --surface never sits behind a count.
     expect(background).toBe('var(--surface-sunken)');
   });
 
+  test('nothing else changes a pill colour, opacity or background', () => {
+    const { problems } = pillColours(css);
+    if (problems.length > 0) throw new Error(MESSAGE + problems.join('; '));
+  });
+
+  test('finds the pills from the stylesheet', () => {
+    const { colours } = pillColours(css);
+    for (const w of KNOWN) expect(colours.has(`.nav-${w}`)).toBe(true);
+  });
+
   for (const [name, theme] of themes) {
-    for (const selector of PILLS) {
-      test(`${selector} reads at 4.5:1 on the pill in the ${name} theme`, () => {
-        const fg = resolve(colorOf(selector), theme);
-        const bg = resolve(background ?? '', theme);
-        expect(ratio(fg, bg)).toBeGreaterThanOrEqual(4.5);
-      });
-    }
+    test(`every pill reads at 4.5:1 on the pill in the ${name} theme`, () => {
+      expect(failures(css, theme)).toEqual([]);
+    });
   }
+});
+
+describe('pillColours on a synthetic stylesheet', () => {
+  const base = `.nav-total { color: var(--ink); }
+.nav-failed { color: var(--critical); }
+.nav-running { color: var(--warning); }
+.nav-passed { color: var(--good); }`;
+
+  test('checks a pill it was not told about', () => {
+    const sheet = `${base}\n.nav-none { color: #ff0; }`;
+    expect(pillColours(sheet).colours.has('.nav-none')).toBe(true);
+    expect(failures(sheet, light)).toEqual(['.nav-none is 1.00:1']);
+  });
+
+  test('fails loudly when a known pill is missing', () => {
+    expect(pillColours('.nav-failed { color: red; }').problems.length).toBe(1);
+  });
+
+  test('flags a later override, an opacity and a stacked background', () => {
+    expect(
+      pillColours(`${base}\n.nav-pills .nav-failed { color: #ff0; }`).problems,
+    ).toHaveLength(1);
+    expect(
+      pillColours(`${base}\n.nav-failed { opacity: 0.5; }`).problems,
+    ).toHaveLength(1);
+    expect(
+      pillColours(`${base}\n.nav-pills.stacked { background: #fff; }`).problems,
+    ).toHaveLength(1);
+  });
 });
