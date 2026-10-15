@@ -10,7 +10,8 @@ package api
 
 // mcpToolOperations maps each registered MCP tool to the operation it covers.
 var mcpToolOperations = map[string]string{
-	"get_dashboard": "getDashboard",
+	"get_dashboard":     "getDashboard",
+	"get_main_branches": "getMainBranches",
 }
 
 // mcpPending are the operations whose tool is still to come, in small pull
@@ -55,7 +56,6 @@ var mcpPending = []string{
 	"exportRequests",
 	"getVersion",
 	"refreshDashboard",
-	"getMainBranches",
 	"getSharing",
 	"shareWith",
 	"unshareWith",
