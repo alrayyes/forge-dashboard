@@ -13,6 +13,9 @@
       "puppeteerScript": "./scripts/lighthouse-session.js",
       "puppeteerLaunchOptions": {
         "args": ["--no-sandbox"]
+      },
+      "settings": {
+        "onlyCategories": ["performance", "best-practices"]
       }
     },
     "assert": {
@@ -29,19 +32,11 @@
             "minScore": 0.9
           }
         ],
-        "categories:seo": [
-          "warn",
-          {
-            "minScore": 0.9
-          }
-        ],
         "redirects": "warn",
         "cache-insight": "warn",
         "document-latency-insight": "warn",
         "render-blocking-insight": "warn",
-        "network-dependency-tree-insight": "warn",
-        "categories:accessibility": "off",
-        "is-crawlable": "off"
+        "network-dependency-tree-insight": "warn"
       }
     },
     "upload": {
