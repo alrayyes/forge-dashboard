@@ -10,15 +10,16 @@ package api
 
 // mcpToolOperations maps each registered MCP tool to the operation it covers.
 var mcpToolOperations = map[string]string{
-	"get_dashboard":     "getDashboard",
-	"get_main_branches": "getMainBranches",
+	"get_dashboard":            "getDashboard",
+	"get_main_branches":        "getMainBranches",
+	"get_pull_request_details": "getPullRequestDetails",
+	"get_pull_request_checks":  "getPullRequestChecks",
 }
 
 // mcpPending are the operations whose tool is still to come, in small pull
 // requests one resource at a time (#1503). A pull request that adds a tool moves
 // its operation from here to mcpToolOperations; the parity test refuses both.
 var mcpPending = []string{
-	"getPullRequestDetails",
 	"getSession",
 	"listCredentials",
 	"deleteCredential",
@@ -43,7 +44,6 @@ var mcpPending = []string{
 	"updatePullRequestBranch",
 	"postPullRequestDependabotAction",
 	"postPullRequestRenovateRebase",
-	"getPullRequestChecks",
 	"listQueuedActions",
 	"queueAction",
 	"cancelQueuedAction",
