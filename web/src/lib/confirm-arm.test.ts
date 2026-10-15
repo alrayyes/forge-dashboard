@@ -1,12 +1,12 @@
-import { expect } from '@playwright/test';
+/// <reference types="bun" />
+import { describe, expect, test } from 'bun:test';
 import {
   CONFIRM_GUARD_MS,
   CONFIRM_TIMEOUT_MS,
   type ConfirmArmOptions,
   createConfirmArm,
   type DisarmReason,
-} from '../web/src/lib/confirm-arm';
-import { test } from './fixtures';
+} from './confirm-arm';
 
 // The helper is pure state plus injected timers, so these run without a
 // browser. The page wiring is covered by the pull-request-confirm journey.
@@ -51,7 +51,7 @@ function harness(overrides: Partial<ConfirmArmOptions> = {}) {
   return { arm, advance, disarmed, timers };
 }
 
-test.describe('createConfirmArm', () => {
+describe('createConfirmArm', () => {
   test('arming tracks the one armed key', () => {
     const { arm } = harness();
     expect(arm.armedKey()).toBeNull();

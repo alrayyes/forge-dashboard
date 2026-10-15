@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
+import { flushRequests } from './flush-requests-helper';
 import { registerViaInvite } from './register-helper';
 import { settle } from './settle-helper';
 
@@ -59,9 +60,9 @@ test.describe('refresh follows the server (#809)', () => {
     const base = reads;
 
     await page.clock.fastForward(15_000);
-    // Real time: the clock is paused, so frames don't tick, and an absence
-    // can only be seen by giving a stray read time to reach the route.
-    await page.waitForTimeout(200);
+    // The clock is paused, so frames don't tick: a sentinel request queued
+    // behind any stray read shows it would have reached the route by now.
+    await flushRequests(page);
     expect(reads).toBe(base);
 
     await page.clock.fastForward(5_000);

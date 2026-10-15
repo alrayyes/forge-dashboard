@@ -1109,6 +1109,36 @@ select.col-filter {
   margin-right: 6px;
 }
 
+/* The row's Details button (#943). Above .title::after's stretched-link
+   overlay, like the CI pill, or the overlay would swallow its clicks. */
+.row-details {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  min-height: 24px; /* WCAG 2.2 2.5.8 */
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.row-details:hover {
+  color: var(--ink);
+}
+.row-details:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+@media (max-width: 480px) {
+  .row-details {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 .draft-badge {
   font-size: 10.5px;
   font-weight: 600;

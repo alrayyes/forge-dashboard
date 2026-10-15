@@ -1,4 +1,5 @@
-import { expect } from '@playwright/test';
+/// <reference types="bun" />
+import { describe, expect, test } from 'bun:test';
 import {
   comesBack,
   hideFailedMessage,
@@ -6,8 +7,7 @@ import {
   nameOf,
   restoredMessage,
   restoreFailedMessage,
-} from '../web/src/lib/hidden-pull-requests';
-import { test } from './fixtures';
+} from './hidden-pull-requests';
 
 // The wording around hiding a pull request lives in one module, so it is
 // checked here without a browser. The page wiring is hide-pull-request.spec.ts.
@@ -16,7 +16,7 @@ import { test } from './fixtures';
 const NOW = Date.parse('2026-10-12T12:00:00Z');
 const inDays = (d: number) => new Date(NOW + d * 86_400_000).toISOString();
 
-test.describe('when a hidden pull request comes back', () => {
+describe('when a hidden pull request comes back', () => {
   test('one hidden until restored says so', () => {
     expect(comesBack(undefined, NOW)).toBe('Hidden until you restore it');
   });
@@ -42,7 +42,7 @@ test.describe('when a hidden pull request comes back', () => {
   });
 });
 
-test.describe('naming a pull request', () => {
+describe('naming a pull request', () => {
   const pr = { number: 123, title: 'Fix the thing' };
 
   test('the number and the title, so equal titles can be told apart', () => {

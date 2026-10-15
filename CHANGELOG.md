@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.190.1](https://github.com/alrayyes/forge-dashboard/compare/v0.190.0...v0.190.1) (2026-10-15)
+
+
+### Performance Improvements
+
+* **web:** inline the layout and footer css into each page ([#1538](https://github.com/alrayyes/forge-dashboard/issues/1538)) ([4a68bde](https://github.com/alrayyes/forge-dashboard/commit/4a68bde12f8c74e0f2df42943b855ab481846af8))
+
+## [0.190.0](https://github.com/alrayyes/forge-dashboard/compare/v0.189.0...v0.190.0) (2026-10-15)
+
+
+### Features
+
+* **web:** open a read-only details dialog from a pull request row ([#1525](https://github.com/alrayyes/forge-dashboard/issues/1525)) ([bf65c5d](https://github.com/alrayyes/forge-dashboard/commit/bf65c5d822efd87c72dee4fc092bed0421ef2ff6))
+
 ## [0.189.0](https://github.com/alrayyes/forge-dashboard/compare/v0.188.2...v0.189.0) (2026-10-15)
 
 
