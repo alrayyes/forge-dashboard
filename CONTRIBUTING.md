@@ -137,6 +137,13 @@ fails until the table is regenerated with `UPDATE_FIXTURES=1 go test
 whose raw fields the table has no value for fails loudly: widen the axis in
 `allowed_actions_fixture_test.go`.
 
+The nav badges work the same way. A mocked `/api/dashboard` takes its `navCounts`
+from `navCountsFor` in `tests/nav-counts-helper.ts`, which adds up what
+`tests/generated/nav-counts.json` says each pull request and branch contributes.
+`go test ./internal/api` fails when `buildNavCounts` or a field name changes
+until `UPDATE_FIXTURES=1 go test ./internal/api -run TestNavCountsFixture`
+regenerates it.
+
 ## Unit tests
 
 A rule that needs no browser is tested without one. `web/src/lib/*.test.ts`
