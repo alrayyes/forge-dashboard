@@ -1,21 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `releases-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Releases Test');
-}
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 function makePR(overrides: Record<string, unknown> = {}) {
   return {
@@ -67,8 +53,11 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('Releases page (#1107)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  // Only reads mocked data and follows a link, so it starts from the shared
+  // session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
