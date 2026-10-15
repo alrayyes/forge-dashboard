@@ -89,9 +89,9 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
   };
 }
 
-function snapshot(pr: MockPR) {
+function snapshot(pr: MockPR, generatedAt = new Date().toISOString()) {
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     forges: [{ forge: pr.forge, reachable: true, repoCount: 1 }],
     pullRequests: [pr],
     issues: [],
@@ -335,6 +335,13 @@ for (const b of bots) {
     // #691: a refresh that started before the click can't tell the click
     // happened, so its answer must not end the wait, even when it shows
     // the pull request no longer behind.
+    //
+    // The stale answer this drops is one the generatedAt check lets through:
+    // stamped later than every snapshot the page has applied, as when a
+    // slow answer lands after a push but still predates the click. Only the
+    // startedSeq guard in syncServerRequests stops it ending the wait. One
+    // stamped at test time is dropped by applySnapshot first (#1124) and
+    // never reaches the guard, so the stamps here are explicit and ahead.
     test('a refresh already in flight at the click does not clear the queued state, the next one does', async ({
       page,
     }) => {
@@ -346,7 +353,13 @@ for (const b of bots) {
       // What the refresh that is already in flight answers: it started
       // before the click, so it has no record, and it shows the pull
       // request no longer behind.
-      const stale = JSON.stringify(snapshot({ ...current, behind: false }));
+      const staleAt = Date.now() + 60_000;
+      const stale = JSON.stringify(
+        snapshot(
+          { ...current, behind: false },
+          new Date(staleAt).toISOString(),
+        ),
+      );
       await page.route('**/api/dashboard/refresh', async (route: Route) => {
         if (held) {
           held = false;
@@ -360,7 +373,9 @@ for (const b of bots) {
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify(snapshot(current)),
+          body: JSON.stringify(
+            snapshot(current, new Date(staleAt + 1000).toISOString()),
+          ),
         });
       });
 
