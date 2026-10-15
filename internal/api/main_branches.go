@@ -36,9 +36,9 @@ func (b boardSettings) mainBranchRows(rows []dashboard.MainBranch) []dashboard.M
 	})
 }
 
-// buildMainBranchesResponse orders the rows failed first and counts them. A
-// row the caller passes is never left out, whatever its status: the client
-// filters, and its pill counts then always match what each pill lists.
+// buildMainBranchesResponse orders the rows newest commit first and counts
+// them. A row the caller passes is never left out, whatever its status: the
+// client filters, and its pill counts then always match what each pill lists.
 func buildMainBranchesResponse(generatedAt time.Time, branches []dashboard.MainBranch) mainBranchesResponse {
 	rows := slices.Clone(branches)
 	dashboard.SortMainBranches(rows)

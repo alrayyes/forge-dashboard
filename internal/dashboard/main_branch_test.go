@@ -296,17 +296,40 @@ func TestMainBranches_CountSortAndShortSHA(t *testing.T) {
 		assert.Equal(t, dashboard.MainBranchCounts{Failed: 2, Passed: 1, Running: 1, None: 1, Total: 5}, dashboard.CountMainBranches(rows))
 	})
 
-	t.Run("failed first, then running, passed and none, each by name", func(t *testing.T) {
+	t.Run("newest commit first whatever the status, undated rows last", func(t *testing.T) {
 		t.Parallel()
-		sorted := append([]dashboard.MainBranch(nil), rows...)
+		at := func(r dashboard.MainBranch, ts string) dashboard.MainBranch {
+			c := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+			if ts != "" {
+				d, _ := time.ParseDuration(ts)
+				c = c.Add(d)
+			}
+			r.Commit = &dashboard.MainBranchCommit{CommittedAt: &c}
+
+			return r
+		}
+		undatedCommit := row(dashboard.ForgeGitHub, "o/c", dashboard.MainBranchPassed)
+		undatedCommit.Commit = &dashboard.MainBranchCommit{}
+		sorted := []dashboard.MainBranch{
+			row(dashboard.ForgeGitHub, "o/d", dashboard.MainBranchNone),
+			undatedCommit,
+			at(row(dashboard.ForgeGitHub, "o/old-failed", dashboard.MainBranchFailed), "1h"),
+			at(row(dashboard.ForgeGitHub, "o/new-passed", dashboard.MainBranchPassed), "48h"),
+			at(row(dashboard.ForgeForgejo, "o/tie", dashboard.MainBranchRunning), "24h"),
+			at(row(dashboard.ForgeGitHub, "o/tie", dashboard.MainBranchFailed), "24h"),
+			at(row(dashboard.ForgeGitHub, "o/a-tie", dashboard.MainBranchPassed), "24h"),
+		}
 
 		dashboard.SortMainBranches(sorted)
 
 		var names []string
 		for _, r := range sorted {
-			names = append(names, r.FullName)
+			names = append(names, string(r.Forge)+":"+r.FullName)
 		}
-		assert.Equal(t, []string{"o/a", "o/z", "o/b", "o/c", "o/d"}, names)
+		assert.Equal(t, []string{
+			"github:o/new-passed", "github:o/a-tie", "forgejo:o/tie", "github:o/tie",
+			"github:o/old-failed", "github:o/c", "github:o/d",
+		}, names)
 	})
 
 	t.Run("a commit id is cut to seven characters", func(t *testing.T) {
