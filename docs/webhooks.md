@@ -121,7 +121,9 @@ was accepted.
    **Issue**, **Issue Comment**, **Pull Request Comment**, **Pull Request
    Review Approved**, **Pull Request Review Rejected**, **Pull Request
    Review Comment**, **Push**, and **Status**. ("All Events" works too, same
-   reasoning as the preceding GitHub section.)
+   reasoning as the preceding GitHub section.) A webhook the button creates
+   through the API needs no extra ticks: Forgejo's **Pull Request** and
+   **Issue** types already deliver comments and reviews on those items.
 6. Leave it **Active**, then **Add Webhook**.
 
 ## How a delivery is verified
