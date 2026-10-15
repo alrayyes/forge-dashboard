@@ -9,6 +9,7 @@ import {
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 import { settle } from './settle-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #714: per-pull-request action feedback lives on the row (an inline
 // status line), in a bottom-right toast stack, and in an Activity panel.
@@ -161,7 +162,7 @@ async function setup(
   // Don't combine this with a spec's own Date.now script (addInitScript): the
   // order they install in would matter.
   if (opts.fakeClock) await page.clock.install();
-  await page.reload();
+  await page.goto('/pull-requests.html');
   return mocks;
 }
 
@@ -169,10 +170,10 @@ async function updateBranch(row: Locator) {
   await row.getByRole('button', { name: 'Update branch' }).click();
 }
 
+// These tests mock every endpoint they touch and save nothing per user, so they
+// start from the shared session (#1379).
 test.describe('inline feedback, toasts and the activity panel', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   test('two pull requests in flight each show their own waiting chip', async ({
     page,
@@ -341,26 +342,6 @@ test.describe('inline feedback, toasts and the activity panel', () => {
       .click();
     await expect(target).toBeInViewport();
     await expect(target).toBeFocused();
-  });
-
-  test('Show row clears the filter that hides the row, says which, and focuses it (#723)', async ({
-    page,
-  }) => {
-    await setup(page, [makePR(1), makePR(2, { author: 'alice' }), makePR(3)]);
-    await updateBranch(rowFor(page, 2));
-    await page.selectOption('#shared-author-select', 'claude');
-    await expect(rowFor(page, 2)).toHaveCount(0);
-
-    await toasts(page)
-      .first()
-      .getByRole('button', { name: 'Show row' })
-      .click();
-
-    await expect(page.locator('#shared-author-select')).toHaveValue('');
-    await expect(rowFor(page, 2)).toBeFocused();
-    await expect(page.locator('#feedback-live')).toContainText(
-      'Cleared the Author filter',
-    );
   });
 
   test('Show row moves the list to the page the row is on (#723)', async ({
@@ -599,7 +580,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
         body: JSON.stringify({ error: 'down' }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await expect(page.locator('#error-banner')).toContainText(
       'Could not reach the backend',
     );
@@ -638,5 +619,33 @@ test.describe('inline feedback, toasts and the activity panel', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+});
+
+// Picking an author filter saves filter state for the user, so this one test
+// keeps its own user (#1379).
+test.describe('inline feedback and a saved filter', () => {
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerAndSignIn(page, request, baseURL);
+  });
+
+  test('Show row clears the filter that hides the row, says which, and focuses it (#723)', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1), makePR(2, { author: 'alice' }), makePR(3)]);
+    await updateBranch(rowFor(page, 2));
+    await page.selectOption('#shared-author-select', 'claude');
+    await expect(rowFor(page, 2)).toHaveCount(0);
+
+    await toasts(page)
+      .first()
+      .getByRole('button', { name: 'Show row' })
+      .click();
+
+    await expect(page.locator('#shared-author-select')).toHaveValue('');
+    await expect(rowFor(page, 2)).toBeFocused();
+    await expect(page.locator('#feedback-live')).toContainText(
+      'Cleared the Author filter',
+    );
   });
 });
