@@ -673,7 +673,15 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 		}
 		pending[repoKey{forge: pr.Forge, owner: owner, name: name, fullName: pr.Repo}] = struct{}{}
 	}
+	snap := a.Get()
 	for key := range pending {
+		// A forge whose budget is spent can't answer until its reset: the next
+		// full refresh already waits that out (NextRefreshDelay), so polling
+		// every minute meanwhile only repeats the refusal. An armed pull
+		// request can sit for hours, so this is not a brief window.
+		if _, spent := exhaustedHealth(snap, key.forge, a.now()); spent {
+			continue
+		}
 		a.RefreshRepo(ctx, key.forge, key.owner, key.name, key.fullName)
 	}
 }
@@ -681,7 +689,8 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 // armedOnGitHub reports whether pr has GitHub's own auto-merge armed. GitHub
 // merges it by itself once checks pass, so nothing the dashboard does makes it
 // happen and a webhook may never tell the dashboard it did: the repo is polled
-// until the pull request leaves the board (#1505).
+// for as long as the pull request stays armed, which is one scoped query a
+// minute per repo, until it merges and leaves the board (#1505).
 func armedOnGitHub(pr PullRequest) bool {
 	return pr.Forge == ForgeGitHub && pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled
 }

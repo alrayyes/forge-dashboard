@@ -28,6 +28,10 @@ type fakeRepoRefresherSource struct {
 	// that each individually find no run already in flight.
 	delay time.Duration
 
+	// exhausted makes the source report its GraphQL budget as spent until an
+	// hour from now, as a real forge does after a rate limit.
+	exhausted bool
+
 	mu             sync.Mutex
 	byRepo         map[string][]dashboard.PullRequest
 	issues         map[string][]dashboard.Issue
@@ -58,6 +62,9 @@ func (f *fakeRepoRefresherSource) Fetch(_ context.Context) dashboard.Result {
 	f.fetchCalls++
 
 	result := dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true, RepoCount: len(f.byRepo)}}
+	if f.exhausted {
+		result.Health.RateLimitGraphQL = &dashboard.RateLimit{Limit: 5000, Remaining: 0, ResetsAt: time.Now().Add(time.Hour)}
+	}
 	for fullName, prs := range f.byRepo {
 		result.PullRequests = append(result.PullRequests, prs...)
 		result.Repos = append(result.Repos, dashboard.Repo{Forge: f.forge, FullName: fullName})

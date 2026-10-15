@@ -147,3 +147,30 @@ func TestAggregator_PollCI_DedupesArmedAndPendingInTheSameRepo(t *testing.T) {
 
 	assert.Equal(t, 1, src.repoFetchCallCount("alrayyes/a"))
 }
+
+// A spent GraphQL budget is not hammered: PollCI skips a forge whose budget is
+// exhausted until its reset, for pending-CI repos and armed ones alike (#1505).
+// An armed pull request can sit for hours, so this is a standing cost otherwise.
+func TestAggregator_PollCI_LeavesAnExhaustedForgeAlone(t *testing.T) {
+	t.Parallel()
+
+	on := true
+	src := newFakeRepoRefresherSource()
+	src.exhausted = true
+	src.setRepo("alrayyes/armed", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/armed", Number: 1, CI: dashboard.CISuccess, AutoMergeEnabled: &on},
+	})
+	src.setRepo("alrayyes/pending", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/pending", Number: 2, CI: dashboard.CIPending},
+	})
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	for range 3 {
+		agg.PollCI(t.Context())
+	}
+
+	assert.Equal(t, 0, src.repoFetchCallCount("alrayyes/armed"), "the budget is spent until its reset")
+	assert.Equal(t, 0, src.repoFetchCallCount("alrayyes/pending"))
+}
