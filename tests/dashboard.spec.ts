@@ -2158,6 +2158,11 @@ test.describe('dashboard page', () => {
       const row = page.locator('#pr-rows > .row');
       await expect(row.locator('.ci-pill')).toContainText('Failing');
       await expect(page.locator('#pr-rows .merge-pill.blocked')).toHaveCount(0);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
     });
 
     test('a blocked pull request with no CI still shows the blocked pill', async ({
