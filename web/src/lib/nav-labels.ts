@@ -11,7 +11,8 @@ type Count = {
 } | null;
 
 // The counts in the order the pill draws them, triage first: failing, then
-// running, then passing, then the branches without a pipeline. Zero is never spoken, as it is never drawn (#1439).
+// running, then passing, then the branches without a pipeline. Zero is never
+// spoken, as it is never drawn (#1439).
 function states(count: NonNullable<Count>): string {
   const parts: string[] = [];
   if (count.failed > 0) parts.push(`${count.failed} failing`);
