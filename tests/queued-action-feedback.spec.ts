@@ -8,6 +8,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { settle } from './settle-helper';
 
 // #680, #714: Update branch, Dependabot rebase and Renovate rebase all
 // answer with "Queued…" the instant they're clicked and hold that state
@@ -28,6 +29,18 @@ async function registerAndSignIn(
     username,
     'Queued Action Test User',
   );
+}
+
+// Resolves once every request the page issued before this call has reached
+// the route handlers: intercepted requests are delivered in the order they
+// were sent, so a sentinel fetch that comes back means an earlier stray
+// request would already be counted. Lets a negative check wait on something
+// real instead of sleeping (#1378).
+async function requestsDelivered(page: Page) {
+  await page.route('**/__sentinel', (route: Route) =>
+    route.fulfill({ status: 204 }),
+  );
+  await page.evaluate(() => fetch('/__sentinel'));
 }
 
 interface MockPR {
@@ -304,12 +317,7 @@ for (const s of scenarios) {
       await expect.poll(mocks.responded).toBe(1);
       if (s.awaitsRefresh)
         await expect.poll(mocks.refreshed).toBeGreaterThan(0);
-      await page.evaluate(
-        () =>
-          new Promise<void>((resolve) =>
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-          ),
-      );
+      await settle(page);
     }
 
     test('the button reads Queued… and is disabled right after the click, only one request is sent, and a menu closes with focus on its trigger', async ({
@@ -323,9 +331,9 @@ for (const s of scenarios) {
       const queued = row.getByRole('button', { name: s.queuedLabel });
       await expect(queued).toBeVisible();
       await expect(queued).toBeDisabled();
-      // A negative check: no second request follows. Nothing to wait on, and
-      // the request is a real network call to the mock.
-      await page.waitForTimeout(500);
+      // A negative check: no second request follows. Wait until the answer
+      // and the render it causes are in, then count.
+      await afterResponseLands(page, mocks);
       expect(hits()).toBe(1);
 
       // #690: a bot action sits in the More actions menu. Once the request
@@ -373,8 +381,10 @@ for (const s of scenarios) {
 
         // Playwright refuses to click an aria-disabled button unless forced.
         await queuedButton().click({ force: true });
-        // A negative check: no second request follows the forced click.
-        await page.waitForTimeout(500);
+        // A negative check: no second request follows the forced click. The
+        // sentinel returns only after any such request reached the mock.
+        await requestsDelivered(page);
+        await settle(page);
         expect(hits()).toBe(1);
 
         const results = await new AxeBuilder({ page })
@@ -619,11 +629,18 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
   }) => {
     const pr = makePR({ author: 'renovate[bot]', behind: true });
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
-      route.fulfill({ status: 204 }),
+    let rebased = 0;
+    let refreshes = 0;
+    await page.route(
+      '**/api/pull-requests/renovate-rebase',
+      async (route: Route) => {
+        await route.fulfill({ status: 204 });
+        rebased += 1;
+      },
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
-      route.fulfill({
+    await page.route('**/api/dashboard/refresh', (route: Route) => {
+      refreshes += 1;
+      return route.fulfill({
         status: 200,
         contentType: 'application/json',
         // The refresh that follows shows the server saw the rebase land.
@@ -634,17 +651,21 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
             botRequest: botRequestFor('renovate', 'rebasing'),
           }),
         ),
-      }),
-    );
+      });
+    });
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
-    // The request is done, but nothing has refreshed yet. A negative check, so
-    // there is no condition to wait on.
-    await page.waitForTimeout(500);
+    // The request is done, but nothing has refreshed yet. A negative check:
+    // wait for the answer, for any stray refresh to reach the mock, and for
+    // the render, then look.
+    await expect.poll(() => rebased).toBe(1);
+    await requestsDelivered(page);
+    await settle(page);
+    expect(refreshes).toBe(0);
     await expect(row.locator('.wait-chip-label')).toHaveText(
       'Rebase requested',
     );
