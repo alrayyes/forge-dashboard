@@ -6577,7 +6577,10 @@
     function refresh(userAsked = false) {
       const seq = ++requestSeq;
       fetchDashboardData()
-        .then((data) => applySnapshot(data, userAsked, seq))
+        .then((data) => {
+          applySnapshot(data, userAsked, seq);
+          ensureStream();
+        })
         .catch((err: Error) => {
           showError(`Could not reach the backend: ${err.message}`);
         });
@@ -6645,14 +6648,45 @@
     // if it never connects at all the poll still keeps the data fresh.
     // The stream reads includeDrafts once, when it opens, so a changed
     // choice reopens it (#791).
+    //
+    // It opens after the first poll has answered with something to stream:
+    // the server answers 404 until it runs a background refresh for the user,
+    // and EventSource never retries a non-200, so opening it earlier (or for
+    // a user with no forge configured) logged a console error and lost the
+    // live updates for good (#1569). One that did close is opened again after
+    // a backoff, and the next poll that finds it closed does too.
     let eventSource: EventSource | null = null;
     let streamDrafts = false;
+    let streamTimer: ReturnType<typeof setTimeout> | undefined;
+    let streamRetryMs = 2000;
+    const streamRetryMaxMs = 30000;
+    function ensureStream() {
+      if (destroyed || streamTimer || lastForges.length === 0) return;
+      if (eventSource && eventSource.readyState !== EventSource.CLOSED) return;
+      openStream();
+    }
     function openStream() {
       if (!window.EventSource) return;
       eventSource?.close();
       streamDrafts = draftsOn();
-      eventSource = new EventSource(withDrafts("/api/dashboard/stream"));
-      eventSource.onmessage = (event) => {
+      const source = new EventSource(withDrafts("/api/dashboard/stream"));
+      eventSource = source;
+      source.onopen = () => {
+        streamRetryMs = 2000;
+      };
+      source.onerror = () => {
+        // CONNECTING means the browser is retrying on its own. CLOSED means
+        // it gave up, as it does for any non-200 answer.
+        if (source !== eventSource || source.readyState !== EventSource.CLOSED)
+          return;
+        clearTimeout(streamTimer);
+        streamTimer = setTimeout(() => {
+          streamTimer = undefined;
+          ensureStream();
+        }, streamRetryMs);
+        streamRetryMs = Math.min(streamRetryMs * 2, streamRetryMaxMs);
+      };
+      source.onmessage = (event) => {
         // Only when looking at your own dashboard — a push here is
         // always this session's own aggregator, never the owner
         // currently selected in the sharing dropdown.
@@ -6664,14 +6698,13 @@
         }
       };
     }
-    openStream();
 
     // A saved choice that arrives after the first fetch (the server's copy
     // beating a stale cookie) needs the data and the stream redone.
     syncDraftsPreference = () => {
       syncDraftsToggle();
       if (draftsOn() === streamDrafts) return;
-      openStream();
+      if (lastForges.length > 0) openStream();
       refresh(true);
     };
 
@@ -6689,6 +6722,7 @@
       stopTimezone();
       document.removeEventListener("keydown", onSlashShortcut);
       clearTimeout(pollTimer);
+      clearTimeout(streamTimer);
       clearInterval(tickTimer);
       window.clearTimeout(rateLimitResetTimer);
       eventSource?.close();
