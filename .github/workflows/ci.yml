@@ -370,9 +370,10 @@ jobs:
   # a11y.md's axe-core scan is the account's one chosen accessibility tool, not
   # something to duplicate with a second, less precise one. SEO is left out
   # because this is an internal service that stays out of search engines.
-  # It runs beside the shards, with its own binary: scripts/save-admin-session.ts registers the admin the way
-  # Playwright's global setup does, so scripts/lighthouse-session.js can reuse
-  # that session for the signed-in pages.
+  # It runs beside the shards, with its own binary:
+  # scripts/save-admin-session.ts registers the admin the way Playwright's
+  # global setup does, so scripts/lighthouse-session.js can reuse that session
+  # for the signed-in pages.
   lighthouse:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
