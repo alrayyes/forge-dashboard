@@ -80,17 +80,27 @@ func (s *slowCountingSource) Forge() dashboard.Forge { return dashboard.ForgeGit
 // a repo triggered a scoped refresh, not a full one."
 type repoCountingSource struct {
 	fetchCalls     *atomic.Int64
-	repoFetchCalls sync.Map // fullName string -> *atomic.Int64
+	repoFetchCalls sync.Map        // fullName string -> *atomic.Int64
+	forge          dashboard.Forge // zero value reads as GitHub
 }
 
-func (s *repoCountingSource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
+func (s *repoCountingSource) Forge() dashboard.Forge { return s.forgeOrGitHub() }
+
+// forgeOrGitHub is the zero-value-friendly forge: GitHub unless a test set one.
+func (s *repoCountingSource) forgeOrGitHub() dashboard.Forge {
+	if s.forge == "" {
+		return dashboard.ForgeGitHub
+	}
+
+	return s.forge
+}
 
 func (s *repoCountingSource) Fetch(_ context.Context) dashboard.Result {
 	n := s.fetchCalls.Add(1)
 
 	return dashboard.Result{
-		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: int(n)},
-		Repos:  []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/tempus-fugit"}},
+		Health: dashboard.ForgeHealth{Forge: s.forgeOrGitHub(), Reachable: true, RepoCount: int(n)},
+		Repos:  []dashboard.Repo{{Forge: s.forgeOrGitHub(), FullName: "alrayyes/tempus-fugit"}},
 	}
 }
 
@@ -98,7 +108,7 @@ func (s *repoCountingSource) FetchRepo(_ context.Context, _, _, fullName string)
 	counter, _ := s.repoFetchCalls.LoadOrStore(fullName, &atomic.Int64{})
 	counter.(*atomic.Int64).Add(1)
 
-	return []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: fullName, Number: 1}}, nil, nil
+	return []dashboard.PullRequest{{Forge: s.forgeOrGitHub(), Repo: fullName, Number: 1}}, nil, nil
 }
 
 func (s *repoCountingSource) repoFetchCallCount(fullName string) int64 {
@@ -607,4 +617,54 @@ func TestGitHubWebhook_InvalidSignature_LogsForgeEventAndDeliveryID(t *testing.T
 	assert.Contains(t, logged, "forge=github")
 	assert.Contains(t, logged, "event=issues")
 	assert.Contains(t, logged, "delivery=test-delivery-id-123")
+}
+
+// TestWebhook_CommentDelivery_TriggersOnlyAScopedRefresh pins that a comment
+// event is accepted and refreshes just the repo it names (#1552). The
+// receiver has no event allow-list; the events the forge sends are chosen by
+// the hook's own subscription, so a comment delivery takes the same path as a
+// pull_request one.
+func TestWebhook_CommentDelivery_TriggersOnlyAScopedRefresh(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		forge     string
+		sigHeader string
+		sigPrefix string
+		evHeader  string
+		event     string
+	}{
+		{"github issue_comment", "github", "X-Hub-Signature-256", "sha256=", "X-GitHub-Event", "issue_comment"},
+		{"github pull_request_review", "github", "X-Hub-Signature-256", "sha256=", "X-GitHub-Event", "pull_request_review"},
+		{"github pull_request_review_comment", "github", "X-Hub-Signature-256", "sha256=", "X-GitHub-Event", "pull_request_review_comment"},
+		{"forgejo issue_comment", "forgejo", "X-Forgejo-Signature", "", "X-Forgejo-Event", "issue_comment"},
+		{"forgejo pull_request_comment", "forgejo", "X-Forgejo-Signature", "", "X-Forgejo-Event", "pull_request_comment"},
+		{"gitea-named header", "forgejo", "X-Gitea-Signature", "", "X-Gitea-Event", "issue_comment"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			source := &repoCountingSource{fetchCalls: &atomic.Int64{}, forge: dashboard.Forge(tc.forge)}
+			srvURL, sessionCookie := newTestServerWithSource(t, source)
+			require.Eventually(t, func() bool { return source.fetchCalls.Load() >= 1 }, time.Second, 5*time.Millisecond)
+			fetchesBefore := source.fetchCalls.Load()
+
+			token, secret := webhookCredentials(t, srvURL, sessionCookie)
+			body := []byte(`{"action":"created","issue":{"number":3},"comment":{"id":9},"repository":{"full_name":"alrayyes/tempus-fugit","name":"tempus-fugit","owner":{"login":"alrayyes"}}}`)
+			req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/"+tc.forge+"/"+token, strings.NewReader(string(body)))
+			require.NoError(t, err)
+			req.Header.Set(tc.sigHeader, tc.sigPrefix+hexHMAC(body, secret))
+			req.Header.Set(tc.evHeader, tc.event)
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+			require.Eventually(t, func() bool { return source.repoFetchCallCount("alrayyes/tempus-fugit") >= 1 }, time.Second, 10*time.Millisecond,
+				"a comment delivery should trigger a scoped refresh for its repo")
+			assert.Equal(t, fetchesBefore, source.fetchCalls.Load(), "a scoped refresh must not also trigger a full fetch")
+		})
+	}
 }
