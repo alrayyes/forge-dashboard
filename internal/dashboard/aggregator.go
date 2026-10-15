@@ -698,9 +698,9 @@ func armedOnGitHub(pr PullRequest) bool {
 // RunCIPoll runs PollCI on a fixed interval until ctx is cancelled —
 // PollCI's own ticker-loop counterpart, the same relationship Run has
 // to Refresh. A plain Ticker, unlike Run's rate-limit-aware Timer:
-// PollCI's own per-tick cost is already bounded to just the repos with
-// something pending, so it doesn't need the same backoff Run's
-// account-wide pass does. Meant to run in its own goroutine for the
+// PollCI's own per-tick cost is bounded to the repos with something pending or
+// armed, and it skips a forge whose budget is spent itself, so it doesn't need
+// the delay Run computes for its account-wide pass. Meant to run in its own goroutine for the
 // lifetime of the process, alongside Run.
 func (a *Aggregator) RunCIPoll(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
