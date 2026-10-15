@@ -613,8 +613,10 @@ states: `Rebase requested` and then `Rebasing` for a Dependabot or Renovate
 `rebase`, `Recreating` for a Dependabot recreate, `Updating branch`, `Merging`
 and `Closing` while the forge answers, `Arming` and `Disarming` for auto-merge,
 and `Waiting for CI` (or `Waiting for parent`, `Rate limited`, `Waiting for
-ready`, `Waiting for forge`, `Merging next`) for an armed auto-merge on either
-forge, with `Disarm`. On GitHub, Disarm turns GitHub's own auto-merge off with
+ready`, `Waiting for forge`) for an armed auto-merge on either forge, with `Disarm`.
+Once nothing is left to wait for, Forgejo's reads `Merging next` (this app
+merges it on its next refresh) and GitHub's reads `Merging` (GitHub merges it
+as soon as it can). On GitHub, Disarm turns GitHub's own auto-merge off with
 `disablePullRequestAutoMerge`. When a pull request goes empty, because its branch
 landed on the base some other way, the app cancels an armed auto-merge on it
 (GitHub's with the same mutation, Forgejo's by dropping its intent) and the

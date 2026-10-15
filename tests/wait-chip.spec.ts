@@ -796,6 +796,33 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
     await expect(chipOf(page)).toHaveCount(0);
   });
 
+  // #1505: GitHub merges an armed, green pull request itself, so the chip
+  // doesn't borrow Forgejo's "on the next refresh".
+  for (const [forge, label, detail] of [
+    ['github', 'Merging', 'GitHub merges it as soon as it can'],
+    ['forgejo', 'Merging next', 'On the next refresh'],
+  ] as const) {
+    test(`an armed, green ${forge} pull request reads ${label}`, async ({
+      page,
+    }) => {
+      await open(
+        page,
+        armed({
+          forge,
+          ci: 'success',
+          mergeStatus: 'mergeable',
+          autoMerge: {
+            state: 'waiting',
+            message: 'Checks passed.',
+          },
+        }),
+      );
+      const chip = chipOf(page);
+      await expect(chip.locator('.wait-chip-label')).toHaveText(label);
+      await expect(chip.locator('.wait-chip-detail')).toHaveText(detail);
+    });
+  }
+
   test('a stopped GitHub auto-merge stays a text line with no chip', async ({
     page,
   }) => {
