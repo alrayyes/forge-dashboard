@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -86,4 +87,112 @@ func TestAggregator_PollCI_DedupesMultiplePendingPullRequestsInSameRepo(t *testi
 	agg.PollCI(t.Context())
 
 	assert.Equal(t, 1, src.repoFetchCallCount("alrayyes/a"))
+}
+
+// An armed GitHub pull request whose checks already passed is merged by GitHub
+// itself, with no webhook the dashboard may not hear of it until the next full
+// refresh (20 minutes by default). PollCI also looks at repos with an armed
+// pull request, so the merge shows within one poll (#1505).
+func TestAggregator_PollCI_RefreshesRepoWithAnArmedGitHubPullRequest(t *testing.T) {
+	t.Parallel()
+
+	on := true
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, CI: dashboard.CISuccess, AutoMergeEnabled: &on},
+	})
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 1, src.repoFetchCallCount("alrayyes/a"),
+		"GitHub merges an armed, green pull request by itself, so the board has to look again")
+}
+
+func TestAggregator_PollCI_SkipsAPullRequestWhoseAutoMergeIsOffOrUnknown(t *testing.T) {
+	t.Parallel()
+
+	off := false
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, CI: dashboard.CISuccess, AutoMergeEnabled: &off},
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, CI: dashboard.CISuccess},
+	})
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 0, src.repoFetchCallCount("alrayyes/a"), "nothing is armed, so nothing is waiting to be merged")
+}
+
+// An armed pull request and a pending one in the same repo still cost one
+// scoped refresh.
+func TestAggregator_PollCI_DedupesArmedAndPendingInTheSameRepo(t *testing.T) {
+	t.Parallel()
+
+	on := true
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, CI: dashboard.CISuccess, AutoMergeEnabled: &on},
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, CI: dashboard.CIPending},
+	})
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 1, src.repoFetchCallCount("alrayyes/a"))
+}
+
+// A spent GraphQL budget is not hammered: PollCI skips a forge whose budget is
+// exhausted until its reset, for pending-CI repos and armed ones alike (#1505).
+// An armed pull request can sit for hours, so this is a standing cost otherwise.
+func TestAggregator_PollCI_LeavesAnExhaustedForgeAlone(t *testing.T) {
+	t.Parallel()
+
+	on := true
+	src := newFakeRepoRefresherSource()
+	src.exhausted = true
+	src.setRepo("alrayyes/armed", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/armed", Number: 1, CI: dashboard.CISuccess, AutoMergeEnabled: &on},
+	})
+	src.setRepo("alrayyes/pending", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/pending", Number: 2, CI: dashboard.CIPending},
+	})
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	for range 3 {
+		agg.PollCI(t.Context())
+	}
+
+	assert.Equal(t, 0, src.repoFetchCallCount("alrayyes/armed"), "the budget is spent until its reset")
+	assert.Equal(t, 0, src.repoFetchCallCount("alrayyes/pending"))
+}
+
+// Once the budget's reset has passed the forge is polled again: a spent budget
+// holds PollCI off only until its reset (#1505).
+func TestAggregator_PollCI_PollsAgainOnceTheBudgetHasReset(t *testing.T) {
+	t.Parallel()
+
+	on := true
+	src := newFakeRepoRefresherSource()
+	src.exhausted = true
+	src.resetsAt = time.Now().Add(-time.Minute)
+	src.setRepo("alrayyes/armed", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/armed", Number: 1, CI: dashboard.CISuccess, AutoMergeEnabled: &on},
+	})
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 1, src.repoFetchCallCount("alrayyes/armed"), "the reset has passed, so the budget is back")
 }
