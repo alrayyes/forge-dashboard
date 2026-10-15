@@ -56,6 +56,13 @@ stale.
   the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
   Streamable HTTP transport.
+  The aim is that every API operation has a tool (#1503), so an agent is
+  never blocked by something only the API or the page can do. A test lists
+  every `operationId` in `api/openapi.yaml` and fails unless it has a tool,
+  a written exclusion with its reason (sign-in ceremonies, token management,
+  webhook receivers and probes, in `internal/api/mcp_operations.go`), or a
+  place on the list of tools still to come. Tools arrive in small pull
+  requests, one resource each.
 - **One Go binary.** The frontend — SvelteKit throughout, migrated
   incrementally, one page at a time — ends up embedded into
   the binary with `//go:embed`; a released binary needs nothing but
