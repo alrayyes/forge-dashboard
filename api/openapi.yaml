@@ -1783,6 +1783,102 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/pull-requests/details:
+    get:
+      operationId: getPullRequestDetails
+      summary: Read a pull request's description, comments and reactions, on demand
+      description: |
+        What the pull request dialog shows (#1506): the description, the
+        conversation in order, the thumbs up and thumbs down reactions on each
+        with who gave them, and, for a release pull request, the release
+        notes. Fetched live on every call, never as part of GET
+        /api/dashboard's snapshot: comments and reactions for every row would
+        spend the forge's budget on rows nobody opens.
+
+        GitHub answers with one GraphQL query. Forgejo costs one call for the
+        pull request, one for its comments, one for the description's
+        reactions and one for each comment's reactions (up to 50), so the
+        reaction calls run at most eight at a time and stop at the first rate
+        limit.
+
+        Every text is Markdown exactly as the forge stores it (`format` is
+        always `markdown`). The server neither converts nor sanitises it, so
+        a client must render it with raw HTML disabled. Each text is cut at
+        20,000 characters (`truncated`), the conversation keeps its first 50
+        comments (`commentsTruncated`, with the full `commentCount`), and a
+        reaction names at most its first 10 people while `count` is the full
+        number. An avatar is the forge's own URL, passed through unchanged
+        and never proxied; this app sets no Content-Security-Policy today, so
+        the browser loads it directly. A future policy's `img-src` has to
+        allow avatars.githubusercontent.com and the Forgejo host.
+
+        The error answers are those of GET /api/pull-requests/checks, with
+        the same codes. A forge that can't be read is an error, never an
+        empty thread.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: forge
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Forge"
+        - name: fullName
+          in: query
+          required: true
+          schema:
+            type: string
+          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+        - name: number
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Matching a PullRequest.number from GET /api/dashboard.
+      responses:
+        "200":
+          description: The pull request's description, conversation and, for a release pull request, release notes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PullRequestDetails"
+        "400":
+          description: '`number` wasn''t an integer, `fullName` wasn''t "owner/repo", no credentials are saved for that forge, or that forge''s client can''t read pull request details.'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie or token was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The forge rejected the request as unauthorized: the saved token's scope doesn't cover reading this pull request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/queued-actions:
     get:
       operationId: listQueuedActions
@@ -3631,6 +3727,142 @@ components:
             log can't be read or has expired. GitHub only: Forgejo's API
             doesn't serve job logs, so there the link to the run is all a
             failed check offers.
+
+    Person:
+      type: object
+      required: [login, avatarUrl]
+      description: Who wrote a description or a comment.
+      properties:
+        login:
+          type: string
+        avatarUrl:
+          type: string
+          description: The forge's own avatar URL, passed through unchanged and never proxied.
+
+    Reaction:
+      type: object
+      required: [count, logins]
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          description: How many people gave this reaction.
+        logins:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+          description: The first few of them, at most 10. `count` is the full number.
+
+    Reactions:
+      type: object
+      required: [thumbsUp, thumbsDown]
+      description: The two reactions the dialog shows, `+1` and `-1` on both forges.
+      properties:
+        thumbsUp:
+          $ref: "#/components/schemas/Reaction"
+        thumbsDown:
+          $ref: "#/components/schemas/Reaction"
+
+    DetailsBody:
+      type: object
+      required: [text, format, truncated, edited, reactions]
+      description: A pull request's description, or the release notes of a release pull request.
+      properties:
+        text:
+          type: string
+          description: |
+            The text as the forge stores it, cut at 20,000 characters. Markdown,
+            not converted or sanitised: render it with raw HTML disabled.
+        format:
+          type: string
+          enum: [markdown]
+          description: How `text` is written. Only markdown today; a later format is additive.
+        truncated:
+          type: boolean
+          description: True when `text` was cut at 20,000 characters.
+        edited:
+          type: boolean
+          description: True when the forge says the text was edited after it was posted.
+        reactions:
+          $ref: "#/components/schemas/Reactions"
+
+    DetailsComment:
+      type: object
+      required:
+        [
+          id,
+          author,
+          createdAt,
+          updatedAt,
+          edited,
+          text,
+          format,
+          truncated,
+          reactions,
+        ]
+      description: One comment on the pull request's conversation.
+      properties:
+        id:
+          type: string
+          description: The forge's own identifier for the comment.
+        author:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Person"
+          description: Null for a deleted account; a client shows it as "ghost".
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          oneOf:
+            - type: "null"
+            - type: string
+              format: date-time
+          description: When the comment was last edited, or null if it never was.
+        edited:
+          type: boolean
+        text:
+          type: string
+          description: Markdown, cut at 20,000 characters, not converted or sanitised.
+        format:
+          type: string
+          enum: [markdown]
+        truncated:
+          type: boolean
+        reactions:
+          $ref: "#/components/schemas/Reactions"
+
+    PullRequestDetails:
+      type: object
+      required:
+        [description, comments, commentCount, commentsTruncated, releaseNotes]
+      description: What the pull request dialog shows (#1506).
+      properties:
+        description:
+          $ref: "#/components/schemas/DetailsBody"
+        comments:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/DetailsComment"
+          description: The conversation, oldest first, at most the first 50.
+        commentCount:
+          type: integer
+          minimum: 0
+          description: How many comments the forge has on the pull request.
+        commentsTruncated:
+          type: boolean
+          description: True when `commentCount` is more than the comments returned.
+        releaseNotes:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/DetailsBody"
+          description: |
+            For a release pull request, the release notes it will publish (a
+            release-please pull request's description is its changelog). Null
+            for any other pull request, and for a release pull request this
+            app can't identify. Never an empty string.
 
     PullRequestChecksResponse:
       type: object

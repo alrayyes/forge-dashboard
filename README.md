@@ -1375,7 +1375,11 @@ for readiness,
 with `?owner=<username>`, one shared with them; `?includeHidden=true` lists the
 pull requests the user hid, marked `hidden`, and `hiddenPullRequests` counts
 them), `POST /api/pull-requests/hide` and `/unhide` to hide one pull request
-(until restored, or for `days`) and bring it back, `GET /api/main-branches` for
+(until restored, or for `days`) and bring it back,
+`GET /api/pull-requests/details` for one pull request's description, comments
+and thumbs up and down reactions (on demand, never in the snapshot: Markdown
+as the forge stores it, cut at 20,000 characters, the first 50 comments, and a
+release pull request's release notes), `GET /api/main-branches` for
 the CI status of every default branch, `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the
 `PUT` response never echoes a token back, only whether one is now set
