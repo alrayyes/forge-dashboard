@@ -1,27 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
 import { navCountsFor } from './nav-counts-helper';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1228: the Issues, Releases and Bots links are in the navigation only
 // while they have something to show. A count of null (not loaded yet) is not
 // zero and the page you are on keeps its link. Pull requests follow the same
 // rule (#1415); Branches always shows.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `nav-empty-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Nav Empty');
-}
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -89,9 +75,12 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const LINKS = ['/issues.html', '/releases.html', '/bots.html'];
 const PULLS = '/pull-requests.html';
 
+// Every endpoint is mocked and nothing is saved per user, so the whole file
+// starts from the shared session (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
 test.describe('empty pages leave the navigation (#1228)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
