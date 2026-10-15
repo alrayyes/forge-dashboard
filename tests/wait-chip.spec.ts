@@ -13,7 +13,7 @@ import { registerViaInvite } from './register-helper';
 // row is one chip in the row's action area: an icon, a short label, a
 // lighter line naming the actor or the reason, and a button only where one
 // exists. These journeys play the server by mocking snapshots; the wording
-// itself is checked without a browser in wait-chip-unit.spec.ts.
+// itself is checked without a browser in web/src/lib/wait-chip.test.ts.
 
 async function registerAndSignIn(
   page: Page,
