@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.193.1](https://github.com/alrayyes/forge-dashboard/compare/v0.193.0...v0.193.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **webhooks:** subscribe created hooks to comment and review events ([#1554](https://github.com/alrayyes/forge-dashboard/issues/1554)) ([ecff081](https://github.com/alrayyes/forge-dashboard/commit/ecff08183216abd1942007394af4e3635baceafd))
+
 ## [0.193.0](https://github.com/alrayyes/forge-dashboard/compare/v0.192.1...v0.193.0) (2026-10-15)
 
 
