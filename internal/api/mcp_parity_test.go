@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -11,22 +12,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// specOperationIDs lists every operationId in api/openapi.yaml.
-func specOperationIDs(t *testing.T) []string {
+// specOperations returns every operation in api/openapi.yaml: the operationIds
+// in order, and the `x-mcp-excluded` reason of those that carry one. An
+// operation without an operationId, or two with the same one, fails the test
+// here rather than slipping through.
+func specOperations(t *testing.T) (ids []string, excluded map[string]string) {
 	t.Helper()
 
 	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
 	require.NoError(t, err)
 
-	var ids []string
-	for _, item := range doc.Paths.Map() {
-		for _, op := range item.Operations() {
+	excluded = map[string]string{}
+	seen := map[string]bool{}
+	for path, item := range doc.Paths.Map() {
+		for method, op := range item.Operations() {
+			require.NotEmpty(t, op.OperationID, "%s %s has no operationId", method, path)
+			require.False(t, seen[op.OperationID], "operationId %s is used twice", op.OperationID)
+			seen[op.OperationID] = true
 			ids = append(ids, op.OperationID)
+			if raw, ok := op.Extensions["x-mcp-excluded"]; ok {
+				reason, isString := raw.(string)
+				require.True(t, isString, "%s: x-mcp-excluded must be a string reason", op.OperationID)
+				excluded[op.OperationID] = reason
+			}
 		}
 	}
 	slices.Sort(ids)
 
-	return ids
+	return ids, excluded
 }
 
 // registeredMCPTools connects an in-memory client to the server the handler
@@ -73,14 +86,14 @@ func TestMCPParity_EveryOperationHasAToolAnExclusionOrAPendingEntry(t *testing.T
 	for tool, id := range mcpToolOperations {
 		add(id, "tool "+tool)
 	}
-	for id := range mcpExcluded {
+	spec, excluded := specOperations(t)
+	for id := range excluded {
 		add(id, "excluded")
 	}
 	for _, id := range mcpPending {
 		add(id, "pending")
 	}
 
-	spec := specOperationIDs(t)
 	for _, id := range spec {
 		assert.Contains(t, covered, id, "operation %s has no MCP tool, no exclusion and no pending entry", id)
 	}
@@ -92,8 +105,10 @@ func TestMCPParity_EveryOperationHasAToolAnExclusionOrAPendingEntry(t *testing.T
 func TestMCPParity_AnExclusionSaysWhy(t *testing.T) {
 	t.Parallel()
 
-	for id, reason := range mcpExcluded {
-		assert.NotEmpty(t, reason, "excluded operation %s needs a reason", id)
+	_, excluded := specOperations(t)
+	assert.NotEmpty(t, excluded, "the spec marks no operation x-mcp-excluded")
+	for id, reason := range excluded {
+		assert.NotEmpty(t, strings.TrimSpace(reason), "x-mcp-excluded on %s needs a reason", id)
 	}
 }
 
