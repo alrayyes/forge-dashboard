@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.188.0](https://github.com/alrayyes/forge-dashboard/compare/v0.187.1...v0.188.0) (2026-10-15)
+
+
+### Features
+
+* **web:** pin the Branches nav pill showing failing, running and passing ([#1498](https://github.com/alrayyes/forge-dashboard/issues/1498)) ([b5bcd64](https://github.com/alrayyes/forge-dashboard/commit/b5bcd64bee6bc812888bd302b69c7b7e5f1a9390)), closes [#1458](https://github.com/alrayyes/forge-dashboard/issues/1458)
+
 ## [0.187.1](https://github.com/alrayyes/forge-dashboard/compare/v0.187.0...v0.187.1) (2026-10-14)
 
 
