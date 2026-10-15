@@ -53,7 +53,14 @@ stale.
   tools so far are `get_dashboard`, which mirrors `GET /api/dashboard`
   exactly (including its own `?owner=`/`owner` semantics for a dashboard
   someone else has shared with you), and `get_main_branches`, which mirrors
-  `GET /api/main-branches` (default-branch CI status, no forge budget).
+  `GET /api/main-branches` (default-branch CI status, no forge budget), and
+  `get_pull_request_details`, which mirrors `GET /api/pull-requests/details`
+  (a pull request's description, comments and reactions). That one reads the
+  forge on demand and spends budget: one GraphQL query on GitHub, up to 53
+  requests on Forgejo. The last is
+  `get_pull_request_checks`, which mirrors `GET /api/pull-requests/checks`
+  (a pull request's individual CI checks). It spends budget too: 4 REST
+  requests on GitHub (more for failed jobs), 3 plus one per run on Forgejo.
   Each calls the same function as its handler rather than adding a second,
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
