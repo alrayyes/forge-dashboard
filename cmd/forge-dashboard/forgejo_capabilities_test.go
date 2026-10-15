@@ -57,6 +57,7 @@ var optionalCapabilities = []optionalCapability{
 	capabilityNamed[dashboard.PullRequestCommenter](true),
 	capabilityNamed[dashboard.PullRequestAutoMerger](true),
 	capabilityNamed[dashboard.PullRequestAutoMergeDisabler](true),
+	capabilityNamed[dashboard.PullRequestDetailer](false),
 }
 
 // capabilitiesTheAPIAsksFor is every dashboard.<Name> the non-test code in

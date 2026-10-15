@@ -50,10 +50,12 @@ stale.
   this app.** Authenticated the same way any other `/api/*` route already
   is — a personal API token (Settings → API tokens),
   `Authorization: Bearer <token>` — not a separate credential system. Its
-  one tool, `get_dashboard`, mirrors `GET /api/dashboard` exactly
-  (including its own `?owner=`/`owner` semantics for a dashboard someone
-  else has shared with you) rather than adding a second, parallel path to
-  the same data. Built on the official
+  tools so far are `get_dashboard`, which mirrors `GET /api/dashboard`
+  exactly (including its own `?owner=`/`owner` semantics for a dashboard
+  someone else has shared with you), and `get_main_branches`, which mirrors
+  `GET /api/main-branches` (default-branch CI status, no forge budget).
+  Each calls the same function as its handler rather than adding a second,
+  parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
   Streamable HTTP transport.
   The aim is that every API operation has a tool (#1503), so an agent is
@@ -1383,7 +1385,12 @@ for readiness,
 with `?owner=<username>`, one shared with them; `?includeHidden=true` lists the
 pull requests the user hid, marked `hidden`, and `hiddenPullRequests` counts
 them), `POST /api/pull-requests/hide` and `/unhide` to hide one pull request
-(until restored, or for `days`) and bring it back, `GET /api/main-branches` for
+(until restored, or for `days`) and bring it back,
+`GET /api/pull-requests/details` for one pull request's description, comments
+and thumbs up and down reactions (on demand, never in the snapshot: Markdown
+as the forge stores it, cut at 20,000 characters, the first 50 comments, and a
+release pull request's release notes; one GraphQL query on GitHub, up to 53
+requests on Forgejo, which has no batch read), `GET /api/main-branches` for
 the CI status of every default branch, `GET`/`PUT
 /api/settings` for that user's own GitHub/Forgejo configuration — the
 `PUT` response never echoes a token back, only whether one is now set

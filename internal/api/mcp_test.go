@@ -177,3 +177,86 @@ func TestMCP_GetDashboard_UnsharedOwner_ReturnsAToolError(t *testing.T) {
 
 	assert.True(t, result.IsError, "an unshared owner should come back as a tool-level error, the same Forbidden case /api/dashboard?owner= already handles")
 }
+
+// callMainBranchesTool calls get_main_branches until it lists want rows and
+// returns what the tool answered.
+func callMainBranchesTool(t *testing.T, srvURL string, cookie *http.Cookie, want int) map[string]any {
+	t.Helper()
+
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	var content map[string]any
+	require.Eventually(t, func() bool {
+		result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_main_branches"})
+		if err != nil || result.IsError {
+			return false
+		}
+		got, ok := result.StructuredContent.(map[string]any)
+		if !ok {
+			return false
+		}
+		content = got
+		branches, _ := got["branches"].([]any)
+
+		return len(branches) == want
+	}, 2*time.Second, 10*time.Millisecond)
+
+	return content
+}
+
+func TestMCP_GetMainBranches_ListsTheTool(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
+
+	result, err := session.ListTools(t.Context(), nil)
+	require.NoError(t, err)
+
+	var found *mcp.Tool
+	for _, tool := range result.Tools {
+		if tool.Name == "get_main_branches" {
+			found = tool
+		}
+	}
+	require.NotNil(t, found)
+	assert.Contains(t, found.Description, "Read-only")
+	assert.Contains(t, found.Description, "no forge")
+}
+
+func TestMCP_GetMainBranches_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
+	t.Parallel()
+
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{
+		branchRow("acme/fine", dashboard.MainBranchPassed),
+		branchRow("acme/broken", dashboard.MainBranchFailed),
+	})
+	readMainBranchesFrom(t, srvURL, cookie, 2)
+
+	toolContent := callMainBranchesTool(t, srvURL, cookie, 2)
+
+	_, got := record(t, http.MethodGet, srvURL+"/api/main-branches", cookie)
+	var httpContent map[string]any
+	require.NoError(t, json.Unmarshal(got.body, &httpContent))
+	assert.Equal(t, httpContent, toolContent)
+}
+
+func TestMCP_GetMainBranches_LeavesOutARepoIgnoredForPullRequests(t *testing.T) {
+	t.Parallel()
+
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{
+		branchRow("acme/kept", dashboard.MainBranchPassed),
+		branchRow("acme/ignored", dashboard.MainBranchFailed),
+	})
+	readMainBranchesFrom(t, srvURL, cookie, 2)
+	resp := postRepoIgnoreAction(t, srvURL, cookie, "acme/ignored", true, false)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	content := callMainBranchesTool(t, srvURL, cookie, 1)
+
+	branches := content["branches"].([]any)
+	assert.Equal(t, "acme/kept", branches[0].(map[string]any)["fullName"])
+	assert.EqualValues(t, 0, content["counts"].(map[string]any)["failed"])
+}
