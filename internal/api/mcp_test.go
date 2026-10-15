@@ -239,6 +239,10 @@ func TestMCP_GetMainBranches_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
 	_, got := record(t, http.MethodGet, srvURL+"/api/main-branches", cookie)
 	var httpContent map[string]any
 	require.NoError(t, json.Unmarshal(got.body, &httpContent))
+	// A background refresh between the two reads stamps the snapshot again, so
+	// generatedAt is the one field that may differ (#1549).
+	delete(httpContent, "generatedAt")
+	delete(toolContent, "generatedAt")
 	assert.Equal(t, httpContent, toolContent)
 }
 
