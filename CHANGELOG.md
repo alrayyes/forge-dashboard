@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.190.2](https://github.com/alrayyes/forge-dashboard/compare/v0.190.1...v0.190.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* **dashboard:** sort pull requests by last activity alone ([#1532](https://github.com/alrayyes/forge-dashboard/issues/1532)) ([#1534](https://github.com/alrayyes/forge-dashboard/issues/1534)) ([ecfb56b](https://github.com/alrayyes/forge-dashboard/commit/ecfb56b530c37368ab06c7948f7203dd1bd755e3))
+
 ## [0.190.1](https://github.com/alrayyes/forge-dashboard/compare/v0.190.0...v0.190.1) (2026-10-15)
 
 
