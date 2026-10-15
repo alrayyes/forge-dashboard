@@ -66,3 +66,22 @@ test.describe('self-hosted fonts on the dashboard (#797)', () => {
     expect([...hosts]).toEqual([new URL(baseURL ?? '').host]);
   });
 });
+
+// #1069: the layout's own CSS (which holds the @font-face rules) rides in the
+// page's HTML, so /style.css is the only stylesheet that blocks the first
+// paint. SvelteKit keeps a disabled, never-matching <link> per inlined sheet
+// for client-side navigation; those don't block.
+test.describe('render-blocking stylesheets (#1069)', () => {
+  test('the login page blocks first paint on /style.css alone', async ({
+    page,
+  }) => {
+    await page.goto('/login.html');
+    const blocking = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')]
+        .filter((l) => !l.disabled && l.media !== '(max-width: 0)')
+        .map((l) => new URL(l.href).pathname),
+    );
+    expect(blocking).toEqual(['/style.css']);
+    expect(await loadedFaces(page)).toContain('IBM Plex Sans 400');
+  });
+});

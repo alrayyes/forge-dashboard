@@ -51,10 +51,12 @@ async function openError(page: Page, body: string, status: number) {
 }
 
 // The served HTML, not the hydrated DOM: the browser adds its own preload
-// links with the page's origin, which isn't the app leaking anything.
+// links with the page's origin, which isn't the app leaking anything. A
+// `.svelte-abc123` scoped-class selector in the inlined CSS (#1069) isn't a
+// source file name either; `.svelte` followed by a hash is allowed.
 function expectNoInternals(html: string) {
   expect(html).not.toMatch(
-    /node_modules|\.svelte|\.ts:\d|stack ?trace|at \S+ \(/i,
+    /node_modules|\.svelte(?!-)|\.ts:\d|stack ?trace|at \S+ \(/i,
   );
   expect(html).not.toMatch(/localhost|127\.0\.0\.1|HTTP\/\d/);
 }
