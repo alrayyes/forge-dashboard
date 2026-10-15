@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.188.1](https://github.com/alrayyes/forge-dashboard/compare/v0.188.0...v0.188.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **web:** say GitHub merges an armed pull request itself, not on the next refresh ([#1507](https://github.com/alrayyes/forge-dashboard/issues/1507)) ([afacb0e](https://github.com/alrayyes/forge-dashboard/commit/afacb0e7096c571737c89c9fc56a530af5f477a8)), closes [#1505](https://github.com/alrayyes/forge-dashboard/issues/1505)
+
 ## [0.188.0](https://github.com/alrayyes/forge-dashboard/compare/v0.187.1...v0.188.0) (2026-10-15)
 
 
