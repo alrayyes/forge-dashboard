@@ -14,6 +14,14 @@ type pageCount struct {
 	Passed  int `json:"passed"`
 }
 
+// branchCount is the Branches item's numbers: pageCount's four, plus None, how
+// many default branches have no pipeline, so the five add up to Total (#1531).
+// Matches components.schemas.NavCount.
+type branchCount struct {
+	pageCount
+	None int `json:"none"`
+}
+
 // issueCount is the Issues item's number. Issues have no failing state, so it
 // carries no failed field. Matches components.schemas.NavIssueCount.
 type issueCount struct {
@@ -24,11 +32,11 @@ type issueCount struct {
 // of the snapshot it already has, and the stream keeps the numbers live.
 // Matches components.schemas.NavCounts.
 type navCounts struct {
-	Branches     pageCount  `json:"branches"`
-	PullRequests pageCount  `json:"pullRequests"`
-	Issues       issueCount `json:"issues"`
-	Releases     pageCount  `json:"releases"`
-	Bots         pageCount  `json:"bots"`
+	Branches     branchCount `json:"branches"`
+	PullRequests pageCount   `json:"pullRequests"`
+	Issues       issueCount  `json:"issues"`
+	Releases     pageCount   `json:"releases"`
+	Bots         pageCount   `json:"bots"`
 }
 
 // buildNavCounts counts what each page shows when it opens. Pull requests leave
@@ -40,7 +48,9 @@ type navCounts struct {
 // when a toggle flips. A pull
 // request is running when its CI is pending, failed when it is failing and
 // passed when it succeeded; a branch is running, failed or passed with its
-// default-branch pipeline. One with no pipeline counts in the total only.
+// default-branch pipeline. One with no pipeline is counted in None, so a
+// branch is always in exactly one of the four (#1531). A pull request with no
+// checks counts in the total only.
 func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []dashboard.MainBranch) navCounts {
 	var counts navCounts
 	for _, pr := range pullRequests {
@@ -66,9 +76,10 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []d
 	}
 	counts.Issues.Total = openIssues
 	branchCounts := dashboard.CountMainBranches(branches)
-	counts.Branches = pageCount{
+	counts.Branches = branchCount{
 		Total: branchCounts.Total, Running: branchCounts.Running,
 		Failed: branchCounts.Failed, Passed: branchCounts.Passed,
+		None: branchCounts.None,
 	}
 
 	return counts
