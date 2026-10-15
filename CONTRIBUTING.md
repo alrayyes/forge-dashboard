@@ -74,6 +74,20 @@ bun run check:tests        # tsc over the tests; Playwright itself never type-ch
 bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechanics too
 ```
 
+### Dependency advisories
+
+A pull request that changes `go.mod`, `go.sum`, `package.json` or `bun.lock`
+runs `govulncheck` (Go) and `bun audit` through the shared
+[`alrayyes/advisory-scan`](https://github.com/alrayyes/advisory-scan) action in
+gate mode: it audits the base and the head and fails only on advisories the
+head adds. A newly published advisory does not turn an unrelated pull request
+red. `.github/workflows/dependency-scan.yml` audits the default branch daily,
+on every push that changes a lock file, and by hand, and keeps one open issue
+titled `Dependency advisories` with what it finds. It closes the issue when
+the audit is clean. There is no ignore list anywhere: an advisory with no fix
+stays in that issue until one ships. Run both audits yourself with the two
+commands above (`bun audit`, `govulncheck`).
+
 ### Comparing with real GitHub
 
 The unit tests for merge status and allowed actions use handwritten GitHub

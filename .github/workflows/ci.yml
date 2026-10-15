@@ -61,6 +61,8 @@ jobs:
         run: scripts/test-release-workflow.sh
       - name: check the hadolint pins agree
         run: scripts/test-hadolint-pin.sh
+      - name: check the audit gate and scan shape
+        run: scripts/test-audit-workflows.sh
       - name: changed areas
         id: areas
         env:
@@ -224,10 +226,12 @@ jobs:
       - run: go test -tags=integration ./integration/... -v
 
   # dependencies.md: pinning stops a version drifting, not a CVE existing in
-  # it — this is the check that actually notices one.
+  # it. On a pull request this fails only on the advisories the head has that
+  # the base doesn't, so a newly published one doesn't turn unrelated pull
+  # requests red; dependency-scan.yml keeps the ticket for everything else.
   govulncheck:
     needs: changes
-    if: needs.changes.outputs.go == 'true'
+    if: needs.changes.outputs.go == 'true' && github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -235,7 +239,10 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+      - uses: alrayyes/advisory-scan@425418a63e80eb10142fbd2e82127b7ef3a51d68 # main at #4 (scan mode), after v0.1.0
+        with:
+          mode: gate
+          command: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
   # No check-only flag on `go mod edit -fmt`, so this is the pre-commit
   # fixer's twin from lefthook.yml: run it again and diff.
@@ -638,11 +645,14 @@ jobs:
       - name: unit tests
         run: bun run test:unit
 
-  # rules/dependencies.md: bun audit on every push, the way govulncheck covers
-  # Go. scripts/audit.sh holds the dated ignores and the one registry retry.
+  # rules/dependencies.md: bun audit, the way govulncheck covers Go. A pull
+  # request fails only on what it introduces over its base; the action retries
+  # a registry failure itself, and there is no ignore list: a known advisory
+  # with no fix lives in the scan ticket (dependency-scan.yml). bun audit reads
+  # bun.lock, so no install.
   audit:
     needs: changes
-    if: needs.changes.outputs.web == 'true'
+    if: needs.changes.outputs.web == 'true' && github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -650,9 +660,10 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
-      - run: bun install --frozen-lockfile
-      - name: bun audit
-        run: scripts/audit.sh
+      - uses: alrayyes/advisory-scan@425418a63e80eb10142fbd2e82127b7ef3a51d68 # main at #4 (scan mode), after v0.1.0
+        with:
+          mode: gate
+          command: bun audit
 
   # Biome has no Svelte parser (biome.json excludes .svelte entirely) — this
   # is that file type's own check: svelte-check runs the TypeScript compiler

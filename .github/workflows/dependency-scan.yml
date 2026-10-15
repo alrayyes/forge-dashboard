@@ -1,0 +1,49 @@
+# rules/dependencies.md: a scan of the default branch keeps one open ticket,
+# "Dependency advisories", for every advisory in the lockfiles. The pull request
+# gate in ci.yml fails only on what a change introduces. The push trigger closes
+# the ticket as soon as a bot's fix merges, instead of the next morning. The
+# action takes no ignore list on purpose: an advisory with no fix stays in the
+# ticket until one ships.
+name: dependency-scan
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  push:
+    branches: [main]
+    paths: [package.json, bun.lock, go.mod, go.sum]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # One ticket for both ecosystems: the command runs both audits and fails
+      # if either found an advisory, and the action reads the IDs from both.
+      - uses: alrayyes/advisory-scan@425418a63e80eb10142fbd2e82127b7ef3a51d68 # main at #4 (scan mode), after v0.1.0
+        with:
+          mode: scan
+          labels: chore
+          command: |
+            status=0
+            bun audit || status=$?
+            go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./... || status=$?
+            exit "$status"
