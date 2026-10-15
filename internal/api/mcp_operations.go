@@ -17,6 +17,7 @@ var mcpToolOperations = map[string]string{
 // requests one resource at a time (#1503). A pull request that adds a tool moves
 // its operation from here to mcpToolOperations; the parity test refuses both.
 var mcpPending = []string{
+	"getPullRequestDetails",
 	"getSession",
 	"listCredentials",
 	"deleteCredential",
