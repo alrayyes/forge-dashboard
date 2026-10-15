@@ -61,24 +61,22 @@ func TestAggregator_Refresh_SortsByMostRecentlyUpdatedFirst(t *testing.T) {
 	})
 }
 
-// TestAggregator_Refresh_MergeableAndReadyPullRequestsSortFirst is the
-// "float to the top" ask: a pull request whose Merge button would
-// actually be clickable right now — MergeMergeable and CI resolved,
-// the same two conditions mergeActionCell itself gates on — sorts
-// ahead of one that isn't, even when the not-ready one was updated
-// more recently. Recency only breaks ties within a tier; it doesn't
-// override readiness.
-func TestAggregator_Refresh_MergeableAndReadyPullRequestsSortFirst(t *testing.T) {
+// The default sort is labelled Last activity, so a pull request updated more
+// recently is first whether or not an older one is ready to merge (#1532). The
+// readiness float from #536 is gone; the Ready quick filter still finds them.
+func TestAggregator_Refresh_PullRequestsSortByLastActivityWhateverTheirReadiness(t *testing.T) {
 	t.Parallel()
 
-	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	newer := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
+	oldest := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	middle := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	newest := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
 
 	src := &fakeSource{result: dashboard.Result{
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		PullRequests: []dashboard.PullRequest{
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, UpdatedAt: newer, MergeStatus: dashboard.MergeBlocked, CI: dashboard.CISuccess},
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, UpdatedAt: older, MergeStatus: dashboard.MergeMergeable, CI: dashboard.CISuccess},
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, UpdatedAt: oldest, MergeStatus: dashboard.MergeMergeable, CI: dashboard.CISuccess},
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, UpdatedAt: newest, MergeStatus: dashboard.MergeBlocked, CI: dashboard.CISuccess},
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 3, UpdatedAt: middle, MergeStatus: dashboard.MergeMergeable, CI: dashboard.CIPending},
 		},
 	}}
 
@@ -86,37 +84,10 @@ func TestAggregator_Refresh_MergeableAndReadyPullRequestsSortFirst(t *testing.T)
 	agg.Refresh(t.Context())
 	snap := agg.Get()
 
-	require.Len(t, snap.PullRequests, 2)
-	assert.Equal(t, 2, snap.PullRequests[0].Number, "the mergeable, CI-resolved PR should sort first despite being older")
-	assert.Equal(t, 1, snap.PullRequests[1].Number)
-}
-
-// A mergeable PR whose CI is still pending isn't actually ready to
-// merge yet — mergeActionCell itself withholds the button for exactly
-// this case (#385) — so it stays out of the top tier alongside a
-// merge-blocked one, ordered by recency like any other not-yet-ready
-// pull request.
-func TestAggregator_Refresh_MergeableButCIPendingPullRequestDoesNotFloatToTop(t *testing.T) {
-	t.Parallel()
-
-	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	newer := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
-
-	src := &fakeSource{result: dashboard.Result{
-		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
-		PullRequests: []dashboard.PullRequest{
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, UpdatedAt: newer, MergeStatus: dashboard.MergeMergeable, CI: dashboard.CIPending},
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, UpdatedAt: older, MergeStatus: dashboard.MergeBlocked, CI: dashboard.CISuccess},
-		},
-	}}
-
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.Refresh(t.Context())
-	snap := agg.Get()
-
-	require.Len(t, snap.PullRequests, 2)
-	assert.Equal(t, 1, snap.PullRequests[0].Number, "neither PR is ready, so plain recency order applies")
-	assert.Equal(t, 2, snap.PullRequests[1].Number)
+	require.Len(t, snap.PullRequests, 3)
+	assert.Equal(t, 2, snap.PullRequests[0].Number, "the newest is first although it isn't ready")
+	assert.Equal(t, 3, snap.PullRequests[1].Number)
+	assert.Equal(t, 1, snap.PullRequests[2].Number, "the oldest is last although it is ready to merge")
 }
 
 func TestAggregator_RefreshRepo_MergedResultStaysSortedGlobally(t *testing.T) {
