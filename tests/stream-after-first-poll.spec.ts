@@ -1,5 +1,6 @@
-import { expect, type Route } from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
+import { settle } from './settle-helper';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // The tests mock /api/dashboard and the stream and write nothing per user, so
@@ -21,6 +22,20 @@ function snapshot(forge: Record<string, unknown> = {}) {
   };
 }
 
+const isStream = (url: string) => url.includes('/api/dashboard/stream');
+
+// A macrotask round trip that a fake clock does not fake: the page has run
+// what the last response queued.
+const flush = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = () => resolve();
+        channel.port2.postMessage(0);
+      }),
+  );
+
 test.describe('live stream start (#1569)', () => {
   test('is not requested before the first poll has answered', async ({
     page,
@@ -35,12 +50,16 @@ test.describe('live stream start (#1569)', () => {
       return route.abort();
     });
     await page.route('**/api/dashboard*', async (route: Route) => {
-      if (route.request().url().includes('/stream')) return route.fallback();
+      if (isStream(route.request().url())) return route.fallback();
       await held;
       return route.fulfill({ json: snapshot() });
     });
+    const polled = page.waitForRequest(
+      (req) => !isStream(req.url()) && req.url().includes('/api/dashboard'),
+    );
     await page.goto('/pull-requests.html');
-    await page.waitForTimeout(500);
+    await polled;
+    await settle(page);
     expect(streamRequests).toBe(0);
 
     releasePoll();
@@ -77,7 +96,7 @@ test.describe('live stream start (#1569)', () => {
       });
     });
     await page.route('**/api/dashboard*', (route: Route) => {
-      if (route.request().url().includes('/stream')) return route.fallback();
+      if (isStream(route.request().url())) return route.fallback();
       return route.fulfill({ json: snapshot() });
     });
     await page.goto('/pull-requests.html');
@@ -94,16 +113,18 @@ test.describe('live stream start (#1569)', () => {
     ).toEqual([]);
   });
 
-  test('a page with nothing configured does not open the stream', async ({
+  test('a page with nothing configured does not open the stream, poll after poll', async ({
     page,
   }) => {
     let streamRequests = 0;
+    let polls = 0;
     await page.route('**/api/dashboard/stream*', (route: Route) => {
       streamRequests++;
       return route.abort();
     });
     await page.route('**/api/dashboard*', (route: Route) => {
-      if (route.request().url().includes('/stream')) return route.fallback();
+      if (isStream(route.request().url())) return route.fallback();
+      polls++;
       return route.fulfill({
         json: {
           ...snapshot(),
@@ -112,9 +133,72 @@ test.describe('live stream start (#1569)', () => {
         },
       });
     });
+    await page.clock.install();
     await page.goto('/pull-requests.html');
-    await expect(page.locator('#forge-health')).toBeAttached();
-    await page.waitForTimeout(1000);
+    await expect.poll(() => polls).toBe(1);
+    await flush(page);
     expect(streamRequests).toBe(0);
+
+    await page.clock.fastForward(60_000);
+    await expect.poll(() => polls).toBeGreaterThan(1);
+    await flush(page);
+    expect(streamRequests).toBe(0);
+  });
+
+  test('retries stop after five closes and a later poll starts them again', async ({
+    page,
+  }) => {
+    let streamRequests = 0;
+    await page.route('**/api/dashboard/stream*', (route: Route) => {
+      streamRequests++;
+      return route.fulfill({ status: 404, json: { error: 'none yet' } });
+    });
+    // The next poll is an hour away, so only the backoff can reopen it.
+    await page.route('**/api/dashboard*', (route: Route) => {
+      if (isStream(route.request().url())) return route.fallback();
+      return route.fulfill({
+        json: { ...snapshot(), readIntervalSeconds: 3600 },
+      });
+    });
+    await page.clock.install();
+    await page.goto('/pull-requests.html');
+    await expect.poll(() => streamRequests).toBe(1);
+    for (let i = 0; i < 8; i++) {
+      await page.clock.fastForward(31_000);
+      await flush(page);
+    }
+    expect(streamRequests).toBe(5);
+
+    await page.clock.fastForward(3_600_000);
+    await expect.poll(() => streamRequests).toBeGreaterThan(5);
+  });
+
+  test("a shared dashboard does not retry the viewer's own stream", async ({
+    page,
+  }) => {
+    let streamRequests = 0;
+    await page.route('**/api/sharing', (route: Route) =>
+      route.fulfill({
+        json: { sharedWithMe: [{ username: 'owner', displayName: 'Owner' }] },
+      }),
+    );
+    await page.route('**/api/dashboard/stream*', (route: Route) => {
+      streamRequests++;
+      return route.fulfill({ status: 404, json: { error: 'none yet' } });
+    });
+    await page.route('**/api/dashboard*', (route: Route) => {
+      if (isStream(route.request().url())) return route.fallback();
+      return route.fulfill({ json: snapshot() });
+    });
+    await page.clock.install();
+    await page.goto('/pull-requests.html');
+    await expect.poll(() => streamRequests).toBe(1);
+    await page.selectOption('#dashboard-owner-select', 'owner');
+    await page.clock.fastForward(5_000);
+    await flush(page);
+    const before = streamRequests;
+    await page.clock.fastForward(120_000);
+    await flush(page);
+    expect(streamRequests).toBe(before);
   });
 });

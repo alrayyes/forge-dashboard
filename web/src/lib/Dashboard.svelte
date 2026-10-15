@@ -6582,6 +6582,7 @@
       fetchDashboardData()
         .then((data) => {
           applySnapshot(data, userAsked, seq);
+          streamFailures = 0;
           ensureStream();
         })
         .catch((err: Error) => {
@@ -6647,7 +6648,8 @@
     // The poll keeps running unconditionally — this only ever makes the
     // dashboard update sooner than the next one, never a replacement
     // for it. A browser or proxy that can't hold this connection open
-    // just never benefits from it: EventSource retries on its own, and
+    // just never benefits from it: EventSource retries a dropped connection on
+    // its own (not a non-200, see below), and
     // if it never connects at all the poll still keeps the data fresh.
     // The stream reads includeDrafts once, when it opens, so a changed
     // choice reopens it (#791).
@@ -6663,8 +6665,15 @@
     let streamTimer: ReturnType<typeof setTimeout> | undefined;
     let streamRetryMs = 2000;
     const streamRetryMaxMs = 30000;
+    // Consecutive closes; retries stop at the limit until a poll answers.
+    const streamFailureLimit = 5;
+    let streamFailures = 0;
     function ensureStream() {
-      if (destroyed || streamTimer || lastForges.length === 0) return;
+      // A shared dashboard's forges are the owner's, but the stream is always
+      // the viewer's own, and its pushes are ignored there anyway.
+      if (destroyed || streamTimer || currentOwner) return;
+      if (lastForges.length === 0 || streamFailures >= streamFailureLimit)
+        return;
       if (eventSource && eventSource.readyState !== EventSource.CLOSED) return;
       openStream();
     }
@@ -6676,12 +6685,14 @@
       eventSource = source;
       source.onopen = () => {
         streamRetryMs = 2000;
+        streamFailures = 0;
       };
       source.onerror = () => {
         // CONNECTING means the browser is retrying on its own. CLOSED means
         // it gave up, as it does for any non-200 answer.
         if (source !== eventSource || source.readyState !== EventSource.CLOSED)
           return;
+        streamFailures++;
         clearTimeout(streamTimer);
         streamTimer = setTimeout(() => {
           streamTimer = undefined;
