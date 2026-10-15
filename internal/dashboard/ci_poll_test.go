@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -173,4 +174,25 @@ func TestAggregator_PollCI_LeavesAnExhaustedForgeAlone(t *testing.T) {
 
 	assert.Equal(t, 0, src.repoFetchCallCount("alrayyes/armed"), "the budget is spent until its reset")
 	assert.Equal(t, 0, src.repoFetchCallCount("alrayyes/pending"))
+}
+
+// Once the budget's reset has passed the forge is polled again: a spent budget
+// holds PollCI off only until its reset (#1505).
+func TestAggregator_PollCI_PollsAgainOnceTheBudgetHasReset(t *testing.T) {
+	t.Parallel()
+
+	on := true
+	src := newFakeRepoRefresherSource()
+	src.exhausted = true
+	src.resetsAt = time.Now().Add(-time.Minute)
+	src.setRepo("alrayyes/armed", []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/armed", Number: 1, CI: dashboard.CISuccess, AutoMergeEnabled: &on},
+	})
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 1, src.repoFetchCallCount("alrayyes/armed"), "the reset has passed, so the budget is back")
 }
