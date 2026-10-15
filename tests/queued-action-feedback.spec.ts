@@ -31,11 +31,11 @@ async function registerAndSignIn(
   );
 }
 
-// Resolves once every request the page issued before this call has reached
-// the route handlers: intercepted requests are delivered in the order they
-// were sent, so a sentinel fetch that comes back means an earlier stray
-// request would already be counted. Lets a negative check wait on something
-// real instead of sleeping (#1378).
+// A negative check's stand-in for a sleep (#1378): one round trip through the
+// route handlers after the click. Nothing guarantees an earlier request is
+// delivered before the sentinel, so this only catches a stray request the app
+// sends inside the click task itself, which is where every real path sends
+// it. A request scheduled later (say 200 ms on) would pass unnoticed.
 async function requestsDelivered(page: Page) {
   await page.route('**/__sentinel', (route: Route) =>
     route.fulfill({ status: 204 }),
