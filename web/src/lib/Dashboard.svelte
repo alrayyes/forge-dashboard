@@ -14,6 +14,7 @@
   const pullsView = $derived(view !== "issues");
 
   import { onMount } from "svelte";
+  import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
@@ -277,6 +278,9 @@
       restored?: boolean;
     };
   };
+
+  // The read-only details dialog (#943); a row's Details button opens it.
+  let detailsDialog = $state<PullRequestDetailsDialog>();
 
   onMount(initDashboard);
 
@@ -921,6 +925,25 @@
       return /\brelease\s+v?(\d+\.\d+\.\d+\S*)/i.exec(title)?.[1] ?? "";
     }
 
+    // Opens the read-only details dialog (#943). A real button of its own, not
+    // stretched over the row: the row's stretched link still opens the pull
+    // request on the forge until the dialog takes over the whole row.
+    function detailsButton(item: PullRequestItem): HTMLButtonElement {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "row-details";
+      button.id = `details-trigger-${domSafeId(prKey(item))}`;
+      button.textContent = "Details";
+      button.setAttribute(
+        "aria-label",
+        `Details, #${item.number} ${item.title}`,
+      );
+      button.addEventListener("click", () => {
+        detailsDialog?.open(item, button.id);
+      });
+      return button;
+    }
+
     function buildRow(
       item: PullRequestItem | IssueItem,
       isPR: boolean,
@@ -933,6 +956,7 @@
       const titleCellEl = titleCell(item, onLabelClick, activeLabel);
       row.appendChild(titleCellEl);
       if (!isPR) row.dataset.issueKey = prKey(item);
+      if (isPR) titleCellEl.appendChild(detailsButton(item as PullRequestItem));
       if (isPR && (item as PullRequestItem).stack)
         titleCellEl.appendChild(stackInfo(item as PullRequestItem));
       // The Releases page shows the version being released, and says why a
@@ -7146,6 +7170,7 @@
 </div>
 
 {#if pullsView}
+  <PullRequestDetailsDialog bind:this={detailsDialog} />
   <dialog
     id="pipeline-dialog"
     class="pipeline-dialog"
