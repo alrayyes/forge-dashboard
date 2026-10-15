@@ -70,22 +70,11 @@ test.describe('Merge states on a pull request row', () => {
     // Each test installs its dashboard mock, then loads the page once.
   });
 
-  test('pending CI: Merge is locked with a visible reason and what happens next', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ ci: 'pending' }));
-    await page.goto('/pull-requests.html');
-
-    const row = rowOf(page);
-    const merge = row.getByRole('button', { name: 'Merge', exact: true });
-    await expect(merge).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.getByText('Waiting for CI to finish')).toBeVisible();
-    await expect(row.getByText('Merge unlocks automatically')).toBeVisible();
-    await expect(merge).toHaveAccessibleDescription(/Waiting for CI to finish/);
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-  });
-
-  test('pending CI: clicking the locked Merge does nothing', async ({
+  // One journey for a blocked Merge. Which states block it, and the words for
+  // each, are the server's and are pinned in Go (TestAllowedActions and
+  // TestAllowedActions_BlockedMergeReasonPerState): the page prints the
+  // reason it is given. What only a browser proves is below.
+  test('a blocked Merge is locked with the visible reason, described to assistive tech, focusable and inert', async ({
     page,
   }) => {
     await mockDashboard(page, makePR({ ci: 'pending' }));
@@ -97,92 +86,23 @@ test.describe('Merge states on a pull request row', () => {
     await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
+    const merge = row.getByRole('button', { name: 'Merge', exact: true });
+    await expect(merge).toHaveAttribute('aria-disabled', 'true');
+    await expect(row.getByText('Waiting for CI to finish')).toBeVisible();
+    await expect(row.getByText('Merge unlocks automatically')).toBeVisible();
+    await expect(merge).toHaveAccessibleDescription(/Waiting for CI to finish/);
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+
+    await merge.focus();
+    await expect(merge).toBeFocused();
+
     // force: Playwright otherwise waits forever for an aria-disabled button
     // to become enabled, and the click landing on it is the whole point.
-    await row
-      .getByRole('button', { name: 'Merge', exact: true })
-      .click({ force: true });
-
+    await merge.click({ force: true });
     await expect(
       row.getByRole('button', { name: 'Confirm merge?' }),
     ).toHaveCount(0);
     expect(mergeCalled).toBe(false);
-  });
-
-  test('pending CI: the locked Merge takes keyboard focus', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ ci: 'pending' }));
-    await page.goto('/pull-requests.html');
-
-    const merge = rowOf(page).getByRole('button', {
-      name: 'Merge',
-      exact: true,
-    });
-    await merge.focus();
-    await expect(merge).toBeFocused();
-  });
-
-  test('blocked with a failing check: Merge is locked and says the check is failing', async ({
-    page,
-  }) => {
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'blocked', ci: 'failure' }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = rowOf(page);
-    await expect(
-      row.getByRole('button', { name: 'Merge', exact: true }),
-    ).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.getByText('Blocked, CI is failing')).toBeVisible();
-  });
-
-  test('blocked with passing CI: the reason does not invent a failing check', async ({
-    page,
-  }) => {
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'blocked', ci: 'success' }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = rowOf(page);
-    await expect(row.getByText('Blocked by the forge')).toBeVisible();
-    await expect(row.getByText(/CI is failing/)).toHaveCount(0);
-  });
-
-  test('conflicting: Merge is locked and names the conflict', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ mergeStatus: 'conflicting' }));
-    await page.goto('/pull-requests.html');
-
-    const row = rowOf(page);
-    await expect(
-      row.getByText('Merge conflict', { exact: true }),
-    ).toBeVisible();
-  });
-
-  test('draft: Merge is locked and says to mark it ready', async ({ page }) => {
-    await mockDashboard(page, makePR({ mergeStatus: 'unknown', draft: true }));
-    await page.goto('/pull-requests.html');
-
-    await expect(rowOf(page).getByText('Draft pull request')).toBeVisible();
-  });
-
-  test('unknown merge status: Merge is locked and says it is not known yet', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ mergeStatus: 'unknown' }));
-    await page.goto('/pull-requests.html');
-
-    const row = rowOf(page);
-    await expect(
-      row.getByRole('button', { name: 'Merge', exact: true }),
-    ).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.getByText('Merge status not known yet')).toBeVisible();
   });
 
   test('ready: Merge is clickable and no reason is shown', async ({ page }) => {
@@ -200,29 +120,24 @@ test.describe('Merge states on a pull request row', () => {
     ).toBeVisible();
   });
 
-  for (const [name, overrides] of [
-    ['pending', { ci: 'pending' }],
-    ['blocked', { mergeStatus: 'blocked', ci: 'failure' }],
-  ] as const) {
-    test(`${name}: Close is only in More actions`, async ({ page }) => {
-      await mockDashboard(page, makePR(overrides));
-      await page.goto('/pull-requests.html');
+  test('blocked Merge: Close is only in More actions', async ({ page }) => {
+    await mockDashboard(page, makePR({ ci: 'pending' }));
+    await page.goto('/pull-requests.html');
 
-      const row = rowOf(page);
-      await expect(
-        row.getByRole('button', { name: 'Merge', exact: true }),
-      ).toBeVisible();
-      await expect(
-        row.getByRole('button', { name: 'Close pull request', exact: true }),
-      ).toHaveCount(0);
-      await row.getByRole('button', { name: 'More actions' }).click();
-      await expect(
-        row
-          .locator('.row-actions-popover')
-          .getByRole('button', { name: 'Close pull request', exact: true }),
-      ).toBeVisible();
-    });
-  }
+    const row = rowOf(page);
+    await expect(
+      row.getByRole('button', { name: 'Merge', exact: true }),
+    ).toBeVisible();
+    await expect(
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
+    ).toHaveCount(0);
+    await row.getByRole('button', { name: 'More actions' }).click();
+    await expect(
+      row
+        .locator('.row-actions-popover')
+        .getByRole('button', { name: 'Close pull request', exact: true }),
+    ).toBeVisible();
+  });
 
   // Close shares More actions with the Hide items now (#841); a lone extra
   // action is still drawn directly (#1139), but every live row has Hide.
@@ -264,8 +179,7 @@ test.describe('Merge states on a pull request row', () => {
   });
 
   for (const [name, overrides] of [
-    ['pending', { ci: 'pending' }],
-    ['blocked', { mergeStatus: 'blocked', ci: 'failure' }],
+    ['blocked', { ci: 'pending' }],
     ['ready', {}],
   ] as const) {
     test(`${name}: no axe-core violations`, async ({ page }) => {
