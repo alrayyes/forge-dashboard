@@ -19,6 +19,10 @@ import { registerViaInvite } from './register-helper';
 // axe scan of a Merged row. A settled row is item-level, not action-level, so
 // that scan sees the same markup; if it ever becomes action-specific, scan it
 // here too (#1380).
+//
+// The conflict sentence is not repeated either: Go pins it
+// (TestPullRequestMerge_RefusedWithAConflict_AnswersConflictFromTheReRead),
+// and the locked row it would show is the blocked_by_protection case below.
 
 interface MockPR {
   forge: string;
@@ -164,31 +168,6 @@ test.describe('a refused merge explains itself from the server code', () => {
     await expect(page.locator('#feedback-toasts')).toContainText(
       /already merged/i,
     );
-  });
-
-  test('conflict: the server reason shows on the row and in an error toast', async ({
-    page,
-  }) => {
-    await mockBoard(page, [makePR()]);
-    await refuse(page, 409, {
-      error: 'github: PUT .../merge: Pull Request is not mergeable',
-      code: 'conflict',
-      message: 'Merge conflict. Resolve it on the forge, then merge.',
-    });
-    await page.reload();
-
-    const row = await confirmMerge(page);
-
-    await expect(row.locator('.row-feedback')).toContainText(
-      'Merge conflict. Resolve it on the forge, then merge.',
-    );
-    const toast = page.locator(
-      '#feedback-toasts .feedback-toast[data-kind="error"]',
-    );
-    await expect(toast).toContainText(
-      'Merge conflict. Resolve it on the forge',
-    );
-    await expect(row.locator('.row-settled')).toHaveCount(0);
   });
 
   test('blocked_by_protection: the server reason shows and Merge is locked until a re-check', async ({
