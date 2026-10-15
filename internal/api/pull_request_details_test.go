@@ -134,6 +134,54 @@ func TestPullRequestDetails_AReleasePullRequestCarriesItsReleaseNotes(t *testing
 	assert.Equal(t, "Adds the dialog.", notes["text"])
 }
 
+// The board lists the pull request, but it isn't a release one, or it is and
+// has nothing written: either way there are no release notes to show.
+func TestPullRequestDetails_ListedButNoReleaseNotes(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		pr   dashboard.PullRequest
+		body string
+	}{
+		"a listed pull request that isn't a release": {
+			pr: dashboard.PullRequest{
+				Forge: dashboard.ForgeGitHub, Repo: "alrayyes/tempus-fugit", Number: 7, Title: "feat: a dialog",
+			},
+			body: "Adds the dialog.",
+		},
+		"a release pull request with an empty description": {
+			pr: dashboard.PullRequest{
+				Forge: dashboard.ForgeGitHub, Repo: "alrayyes/tempus-fugit", Number: 7, Title: "chore(main): release 1.2.0",
+				Labels: []dashboard.Label{{Name: "autorelease: pending"}},
+			},
+			body: "",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			details := sampleDetails()
+			details.Description.Text = tc.body
+			source := &fakeDetailerSource{forge: dashboard.ForgeGitHub, prs: []dashboard.PullRequest{tc.pr}, details: details}
+			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			require.Eventually(t, func() bool {
+				prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
+
+				return len(prs) == 1
+			}, 2*time.Second, 10*time.Millisecond)
+
+			resp := getPullRequestDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 7)
+			defer func() { _ = resp.Body.Close() }()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+			assert.Nil(t, body["releaseNotes"])
+		})
+	}
+}
+
 func TestPullRequestDetails_ForgeWithNoSupport_Returns400(t *testing.T) {
 	t.Parallel()
 

@@ -39,3 +39,11 @@ func TestCapLogins_KeepsTheFirstTenAndNeverReturnsNil(t *testing.T) {
 	assert.Len(t, dashboard.CapLogins(twelve), dashboard.MaxReactionLogins)
 	assert.Equal(t, []string{}, dashboard.CapLogins(nil), "a JSON array, never null")
 }
+
+func TestDetailsCaps_AreTheDocumentedNumbers(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 20000, dashboard.MaxDetailsBodyRunes)
+	assert.Equal(t, 50, dashboard.MaxDetailsComments)
+	assert.Equal(t, 10, dashboard.MaxReactionLogins)
+}

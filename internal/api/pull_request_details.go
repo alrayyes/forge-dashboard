@@ -64,12 +64,12 @@ func handlePullRequestDetails(deps Deps) http.HandlerFunc {
 
 // releaseNotesOf is the description again when the board holds the pull request
 // as a release one: a release-please pull request's description is the
-// changelog it publishes. Nil for any other kind, and for a pull request the
-// board doesn't list, since the kind is the board's rule and not worth a second
+// changelog it publishes. Nil for any other kind, for an empty description, and for a pull
+// request the board doesn't list, since the kind is the board's rule and not worth a second
 // copy here.
 func releaseNotesOf(deps Deps, userID []byte, forge dashboard.Forge, fullName string, number int, description dashboard.DetailsBody) *dashboard.DetailsBody {
 	pr, found := deps.Manager.FindPullRequest(userID, forge, fullName, number)
-	if !found || dashboard.KindOf(pr, nil) != dashboard.KindRelease {
+	if !found || dashboard.KindOf(pr, nil) != dashboard.KindRelease || description.Text == "" {
 		return nil
 	}
 	notes := description
