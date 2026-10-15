@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.189.0](https://github.com/alrayyes/forge-dashboard/compare/v0.188.2...v0.189.0) (2026-10-15)
+
+
+### Features
+
+* **api:** add the get_main_branches MCP tool ([#1529](https://github.com/alrayyes/forge-dashboard/issues/1529)) ([4225979](https://github.com/alrayyes/forge-dashboard/commit/4225979fb6158a40c122b09f214240ea07300c26)), closes [#1503](https://github.com/alrayyes/forge-dashboard/issues/1503)
+* **api:** read a pull request's description, comments and reactions ([#1506](https://github.com/alrayyes/forge-dashboard/issues/1506)) ([#1519](https://github.com/alrayyes/forge-dashboard/issues/1519)) ([1b7ad46](https://github.com/alrayyes/forge-dashboard/commit/1b7ad46dd9233a134dc512d0969486e468ad7661))
+
 ## [0.188.2](https://github.com/alrayyes/forge-dashboard/compare/v0.188.1...v0.188.2) (2026-10-15)
 
 
