@@ -223,9 +223,16 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 }
 
 // forgejoWebhookEvents mirrors what docs/webhooks.md's manual Forgejo
-// steps have a user tick by hand — Pull Request, Issue, Push, and
-// Status — so a webhook created here covers the same ground.
-var forgejoWebhookEvents = []string{"pull_request", "issues", "push", "status"}
+// steps have a user tick by hand, so a webhook created here covers the same
+// ground. The comment and review events keep an item's updated time, and so
+// the "Last activity" sort, current (#1552). Names are Forgejo's own hook
+// event types (modules/webhook/type.go): issue_comment for issues,
+// pull_request_comment for conversation comments on a pull request.
+var forgejoWebhookEvents = []string{
+	"pull_request", "issues", "issue_comment", "pull_request_comment",
+	"pull_request_review_comment", "pull_request_review_approved",
+	"pull_request_review_rejected", "push", "status",
+}
 
 // EnsureWebhook implements dashboard.WebhookManager: create a webhook
 // targeting targetURL if owner/name has none yet, or bring an existing

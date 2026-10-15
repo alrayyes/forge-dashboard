@@ -1144,8 +1144,8 @@ answers again.
 Optional. Without one, the dashboard still refreshes on its own schedule
 and the browser tab polls it on the server's schedule (30 seconds
 today); a webhook just means a new
-pull request, a closed issue, or a CI status change on a tracked repo
-shows up within seconds instead of at the next poll. Set up from the
+pull request, a closed issue, a new comment, or a CI status change on a
+tracked repo shows up within seconds instead of at the next poll. Set up from the
 Settings page, one forge at a time — full copy-pasteable steps, exactly
 which events each part of the dashboard needs (CI status specifically
 needs its own, easy-to-miss event), and how delivery verification works:

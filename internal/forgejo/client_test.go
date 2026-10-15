@@ -822,7 +822,7 @@ func TestEnsureWebhook_CreatesWhenMissing(t *testing.T) {
 	assert.Equal(t, "https://dashboard.example/api/webhooks/forgejo/tok123", config["url"])
 	assert.Equal(t, "sekret", config["secret"])
 	assert.Equal(t, true, createBody["active"])
-	assert.ElementsMatch(t, []any{"pull_request", "issues", "push", "status"}, createBody["events"])
+	assert.ElementsMatch(t, []any{"pull_request", "issues", "issue_comment", "pull_request_comment", "pull_request_review_comment", "pull_request_review_approved", "pull_request_review_rejected", "push", "status"}, createBody["events"])
 }
 
 func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
@@ -838,7 +838,7 @@ func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
 			return
 		}
 		writeJSON(t, w, []map[string]any{
-			{"id": 7, "type": "forgejo", "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": false},
+			{"id": 7, "type": "forgejo", "events": []string{"pull_request", "issues", "push", "status"}, "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": false},
 		})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks/7", func(w http.ResponseWriter, r *http.Request) {
@@ -858,6 +858,9 @@ func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "7", editedID)
 	assert.Equal(t, true, editBody["active"])
+	// A hook made before comment events existed gets them at the next ensure.
+	assert.Contains(t, editBody["events"], "issue_comment")
+	assert.Contains(t, editBody["events"], "pull_request_comment")
 }
 
 func TestEnsureWebhook_ForgeErrorPropagates(t *testing.T) {
