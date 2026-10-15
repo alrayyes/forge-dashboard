@@ -1,24 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
-import { type APIRequestContext, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `changelog-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Releases Test User',
-  );
-}
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #813: the page is built from CHANGELOG.md, turned into one same-origin
 // JSON file at build time. It makes no request to GitHub or anyone else.
@@ -182,35 +167,37 @@ test.describe('release history page', () => {
     expect(hosts.has('api.github.com')).toBe(false);
   });
 
-  // #786: the footer's version is the way in to this page. CI builds a dev
-  // binary (plain text, no link), so a released version is mocked.
-  test('the footer version links here from other pages, and is plain text on this one', async ({
-    page,
-    request,
-    baseURL,
-  }) => {
-    await registerAndSignIn(page, request, baseURL);
-    await page.route('**/api/version', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ version: '1.2.3' }),
-      }),
-    );
-    await page.reload();
+  test.describe('signed in', () => {
+    // Reads only, so it starts from the shared session (#1379).
+    test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
-    const versionLink = page.locator('#footer-version a', {
-      hasText: 'v1.2.3',
+    // #786: the footer's version is the way in to this page. CI builds a dev
+    // binary (plain text, no link), so a released version is mocked.
+    test('the footer version links here from other pages, and is plain text on this one', async ({
+      page,
+    }) => {
+      await page.route('**/api/version', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ version: '1.2.3' }),
+        }),
+      );
+      await page.goto('/pull-requests.html');
+
+      const versionLink = page.locator('#footer-version a', {
+        hasText: 'v1.2.3',
+      });
+      await expect(versionLink).toHaveAttribute('href', '/changelog.html');
+      await versionLink.click();
+      await expect(page).toHaveURL(/\/changelog\.html$/);
+
+      await expect(page.locator('#footer-version')).toContainText('v1.2.3');
+      await expect(page.locator('#footer-version a')).toHaveCount(0);
+      await expect(page.locator('#footer-version')).not.toContainText(
+        'Release history',
+      );
     });
-    await expect(versionLink).toHaveAttribute('href', '/changelog.html');
-    await versionLink.click();
-    await expect(page).toHaveURL(/\/changelog\.html$/);
-
-    await expect(page.locator('#footer-version')).toContainText('v1.2.3');
-    await expect(page.locator('#footer-version a')).toHaveCount(0);
-    await expect(page.locator('#footer-version')).not.toContainText(
-      'Release history',
-    );
   });
 
   test('has no axe-core violations at desktop width', async ({ page }) => {

@@ -1,26 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
 import { navCountsFor } from './nav-counts-helper';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // The Bots page: Dependabot and Renovate pull requests (the server's
 // `kind: dependency`) with their own overview and count, and none of them on
 // the pull request page.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `bots-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Bots Test');
-}
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -90,8 +76,10 @@ const badge = (page: Page, nav: 'header' | '.bottom-nav', link: string) =>
   page.locator(nav).locator(`a[href="${link}"] .nav-total`);
 
 test.describe('Bots page (#1192)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  // Only reads mocked data, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
