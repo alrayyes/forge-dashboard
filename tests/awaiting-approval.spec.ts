@@ -1,31 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1280: a GitHub pull request whose workflow runs are held until someone
 // approves them says so, and links to its checks page to approve there.
 // https://github.com/alrayyes/forge-dashboard/issues/1280
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `awaiting-approval-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Awaiting Approval',
-  );
-}
 
 function pr(number: number, title: string, awaiting: boolean) {
   return {
@@ -72,9 +52,8 @@ const row = (page: Page, title: string) =>
   page.locator('#pr-rows > .row', { hasText: title });
 
 test.describe('Awaiting workflow approval (#1280)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
   test('a held row says so and links to its checks page', async ({ page }) => {
     await open(page);

@@ -1,26 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1206: a row's failure line for a network failure clears itself after ten
 // seconds, pauses while it is hovered or focused, and the row is read again
 // from the server when it goes. A refusal that needs a person stays until it
 // is dismissed.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `transient-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Transient User');
-}
 
 const PR = {
   forge: 'github',
@@ -84,8 +70,10 @@ async function failUpdateBranch(page: Page) {
 }
 
 test.describe('a network failure line clears itself (#1206)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  test.beforeEach(async ({ page }) => {
     await page.clock.install({ time: new Date() });
   });
 
@@ -96,7 +84,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await page.route('**/api/pull-requests/merge', (route) =>
       route.abort('failed'),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await failMerge(page);
 
     await expect(line(page)).toContainText("Couldn't reach the server");
@@ -120,7 +108,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await page.route('**/api/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
     await expect(line(page)).toContainText("Couldn't reach the server");
 
@@ -140,7 +128,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
         body: JSON.stringify({ code: 'unknown', message: 'EOF' }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
 
     await page.clock.fastForward(10_500);
@@ -161,7 +149,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
 
     await page.clock.fastForward(120_000);
@@ -179,7 +167,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await page.route('**/api/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
 
     await line(page).hover();
@@ -198,7 +186,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await page.route('**/api/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
 
     await line(page)
@@ -217,7 +205,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await page.route('**/api/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
     const toast = page.locator('#feedback-toasts .feedback-toast');
     await expect(toast).toHaveCount(1);
@@ -234,7 +222,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await page.route('**/api/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
 
     const live = page.locator('#feedback-live');
@@ -256,7 +244,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await page.route('**/api/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
     await page.clock.fastForward(7_000);
     await expect(line(page)).toHaveCount(1);

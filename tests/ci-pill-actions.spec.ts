@@ -1,21 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `ci-pill-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'CI Pill Test');
-}
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 function makePR(overrides: Record<string, unknown> = {}) {
   return {
@@ -64,8 +50,10 @@ function mockChecks(page: Page) {
 }
 
 test.describe('CI pill opens the pipeline (#1139)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  // Writes nothing per user, so it starts from the shared session (#1379).
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
@@ -76,7 +64,7 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
   }) => {
     await mockDashboard(page, makePR({ ci: 'failure' }));
     await mockChecks(page);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     const pill = row.getByRole('button', { name: 'Failing. Open pipeline' });
@@ -99,7 +87,7 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
   }) => {
     await mockDashboard(page, makePR());
     await mockChecks(page);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const pill = page
       .locator('#pr-rows .row')
@@ -122,7 +110,7 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
 
   test('a row with no CI draws no pill button', async ({ page }) => {
     await mockDashboard(page, makePR({ ci: 'none' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
     await expect(
       row.getByRole('button', { name: /Open pipeline/ }),
@@ -138,7 +126,7 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
       page,
       makePR({ allowedActions: [{ action: 'merge' }, { action: 'close' }] }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'More actions' }).click();
     await expect(
