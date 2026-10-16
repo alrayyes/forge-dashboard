@@ -68,6 +68,7 @@ test.describe('WebMCP tools', () => {
       'get_main_branches',
       'get_pull_request_checks',
       'get_pull_request_details',
+      'list_queued_actions',
     ]);
     expect(tools[0].description).toMatch(/pull requests/i);
   });
@@ -164,4 +165,32 @@ test.describe('WebMCP tools', () => {
       expect(seen).toEqual([query ?? '']);
     });
   }
+
+  test('list_queued_actions calls /api/queued-actions and returns the array under queuedActions', async ({
+    page,
+  }) => {
+    const queue: unknown[] = [];
+    let seen = 0;
+    await page.route('**/api/queued-actions', (route) => {
+      seen++;
+
+      return route.fulfill({ json: queue });
+    });
+    await stubModelContext(page);
+    await page.goto('/pull-requests.html');
+    await page.waitForFunction(() => window.__webmcpTools.length > 0);
+    const before = seen;
+
+    const result = await page.evaluate(() => {
+      const t = window.__webmcpTools.find(
+        (x) => x.name === 'list_queued_actions',
+      );
+      if (!t) throw new Error('list_queued_actions tool not registered');
+
+      return t.execute({});
+    });
+
+    expect(result).toEqual({ queuedActions: [] });
+    expect(seen).toBe(before + 1);
+  });
 });
