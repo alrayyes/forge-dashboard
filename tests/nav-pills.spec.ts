@@ -384,6 +384,9 @@ test.describe('nav counts on a phone (#1315)', () => {
     const branches = tab(page, '/');
     await expect(branches.locator('.nav-total')).toHaveText('12');
     await expect(branches.locator('.nav-failed')).toHaveText('3');
+    await expect(tab(page, '/bots.html').locator('.nav-total')).toHaveText(
+      '14',
+    );
     const pills = await branches.locator('.nav-pills').boundingBox();
     const icon = await branches.locator('svg').last().boundingBox();
     expect((pills?.y ?? 0) + (pills?.height ?? 0)).toBeLessThanOrEqual(
@@ -412,6 +415,9 @@ test.describe('nav counts on a phone (#1315)', () => {
       '27 PRs, 5 failing',
     );
     await expect(tab(page, '/issues.html')).toHaveAccessibleName('9 Issues');
+    await expect(tab(page, '/bots.html')).toHaveAccessibleName(
+      '14 Bots, 1 failing',
+    );
   });
 
   test('with three digits and a failed count, no pill spills out of its tab', async ({
