@@ -1,26 +1,16 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1427: the Branches page offers a status or forge pill only when clicking
 // it would show something, and keeps the one that is active so it can be
 // cleared. The counts on the pills stay what they were.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `branch-choices-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Branch Choices');
-}
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 const minutesAgo = (n: number) =>
   new Date(Date.now() - n * 60_000).toISOString();
@@ -98,10 +88,6 @@ const MIXED = [
 ];
 
 test.describe('Branches pills offer only what would show something (#1427)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   test('a status and a forge nothing is in are not offered', async ({
     page,
   }) => {
