@@ -1082,9 +1082,10 @@ the list stays as it was. A syntax error shows "That pattern isn't valid." A
 pattern that parses but could be slow shows "That pattern is too complex to
 check safely. Try a simpler one." The page estimates how many ways the pattern
 can match, multiplying every alternative and repeat, and refuses one that is
-too many: more than 200 characters, more than one open-ended repeat (`*`, `+`,
-`{2,}`) next to anything sizeable, or repeated and chained groups such as
-`(a+)+`, `(a+){5}` or `(a|b)?` written twenty times in a row. It tests only
+too many: more than 200 characters, two or more open-ended repeats (`*`, `+`,
+`{2,}`) in one pattern (so `\d+\.\d+` and `.*foo.*bar` are refused, while
+`start.*end` is fine), or repeated and chained groups such as `(a+)+`,
+`(a+){5}` or `(a|b)?` written twenty times in a row. It tests only
 the first 128 characters of a title. This is a safety margin tested by
 fuzzing, not a proof. The rule applies to the Issues board only; Insights
 charts ignore it.
