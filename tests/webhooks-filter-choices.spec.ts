@@ -1,12 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1427: a filter offers only choices that exist in the results. On the
 // webhooks page that is the forge buttons and the status select: a forge with
@@ -14,14 +9,9 @@ import { registerViaInvite } from './register-helper';
 // filters leave out is left out of the choices too.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `webhooks-choices-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Webhooks Choices');
-}
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 function mockDashboard(page: Page, repos: Record<string, unknown>[]) {
   return page.route('**/api/dashboard*', (route: Route) =>
@@ -49,10 +39,6 @@ const statusValues = (page: Page) =>
     .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
 
 test.describe('webhooks filter choices (#1427)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   test('a forge with no tracked repo is not offered, and neither is a status no repo has', async ({
     page,
   }) => {
