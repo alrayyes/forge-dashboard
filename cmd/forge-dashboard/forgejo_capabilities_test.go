@@ -52,11 +52,13 @@ var optionalCapabilities = []optionalCapability{
 	capabilityNamed[dashboard.PullRequestLabeler](false),
 	capabilityNamed[dashboard.PullRequestBodyEditor](false),
 
-	// GitHub-only by design: Forgejo has no Dependabot, and its auto-merge is
-	// this app's own intent rather than a forge call.
+	// Forgejo cancels a merge scheduled on the forge (#1571).
+	capabilityNamed[dashboard.PullRequestAutoMergeDisabler](false),
+
+	// GitHub-only by design: Forgejo has no Dependabot, and arming auto-merge
+	// there is this app's own intent rather than a forge call.
 	capabilityNamed[dashboard.PullRequestCommenter](true),
 	capabilityNamed[dashboard.PullRequestAutoMerger](true),
-	capabilityNamed[dashboard.PullRequestAutoMergeDisabler](true),
 	capabilityNamed[dashboard.PullRequestDetailer](false),
 }
 
