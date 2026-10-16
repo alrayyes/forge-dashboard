@@ -52,6 +52,10 @@ type missingRequiredCheck struct {
 	name    string
 	base    string
 	headOid string
+	// onlyChecksCanBlock is true when nothing GitHub reports on the pull request
+	// explains BLOCKED but a required check: not a draft, no review outstanding.
+	// It is the fallback for a repo whose required contexts can't be read.
+	onlyChecksCanBlock bool
 }
 
 // requiredCheckCandidate reports whether a pull request needs the lookup:
@@ -76,51 +80,100 @@ func appendUnreported(candidates []missingRequiredCheck, prs []dashboard.PullReq
 		name:    name,
 		base:    p.BaseRefName,
 		headOid: p.HeadRefOid,
+
+		onlyChecksCanBlock: onlyChecksCanBlock(p),
 	})
 }
 
+// onlyChecksCanBlock reports whether a blocked pull request has no other
+// visible reason to be blocked: it isn't a draft and its review decision isn't
+// asking for a review or changes. Conflicts and a stale branch are other merge
+// states, not BLOCKED. What it can't see (a merge queue, code owners with no
+// decision, unresolved conversations) it gets wrong, in the pending direction.
+func onlyChecksCanBlock(p graphqlPullRequest) bool {
+	if p.IsDraft {
+		return false
+	}
+	if p.ReviewDecision == nil {
+		return true
+	}
+
+	return *p.ReviewDecision != "REVIEW_REQUIRED" && *p.ReviewDecision != "CHANGES_REQUESTED"
+}
+
+// requiredVerdict is what the required-check lookup could conclude.
+type requiredVerdict int
+
+const (
+	// verdictKeepRollup: nothing to compare (a readable branch that requires
+	// nothing) or the evidence failed to load (rate limit, 5xx). GitHub's
+	// rollup stands.
+	verdictKeepRollup requiredVerdict = iota
+	// verdictMissing: a required context hasn't reported.
+	verdictMissing
+	// verdictComplete: every required context reported and every place that can
+	// require one was read, so the answer holds for good.
+	verdictComplete
+	// verdictUnreadable: the required contexts couldn't be read in full (no
+	// admin scope), so "nothing missing" can't be trusted.
+	verdictUnreadable
+)
+
 // settleUnreportedRequiredChecks turns CI to pending for every candidate whose
-// base branch requires a context the head commit hasn't reported. Lookups that
-// fail leave the rollup's answer standing, like the other secondary calls.
+// base branch requires a context the head commit hasn't reported. When the
+// required contexts can't be read (no admin scope) and nothing else explains
+// the block, the pull request reads pending too: the one thing left that can
+// block it is a required check. That guess is never remembered as complete, so
+// the next refresh asks again. A lookup that failed leaves the rollup's answer
+// standing, like the other secondary calls.
 func (c *Client) settleUnreportedRequiredChecks(ctx context.Context, prs []dashboard.PullRequest, candidates []missingRequiredCheck) {
 	for _, cand := range candidates {
 		if c.requiredChecks.isComplete(cand.headOid) {
 			continue
 		}
-		missing, known := c.hasUnreportedRequired(ctx, cand)
-		switch {
-		case !known:
-		case missing:
+		switch c.hasUnreportedRequired(ctx, cand) {
+		case verdictMissing:
 			prs[cand.prIndex].CI = dashboard.CIPending
-		default:
+		case verdictUnreadable:
+			if cand.onlyChecksCanBlock {
+				prs[cand.prIndex].CI = dashboard.CIPending
+			}
+		case verdictComplete:
 			c.requiredChecks.markComplete(cand.headOid)
+		case verdictKeepRollup:
 		}
 	}
 }
 
-// hasUnreportedRequired reports whether the head commit lacks a required
-// context, and whether the answer can be trusted for good. A missing context
-// is missing whatever else failed to load, but "nothing missing" holds only
-// when both places that can require a check (branch protection and rulesets)
-// answered, since the one that didn't might name another.
-func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequiredCheck) (missing, known bool) {
+// hasUnreportedRequired judges the head commit's required contexts. A missing
+// context is missing whatever else failed to load, but "nothing missing" holds
+// only when both places that can require a check (branch protection and
+// rulesets) answered, since the one that didn't might name another.
+func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequiredCheck) requiredVerdict {
 	required, answered := c.requiredContextNames(ctx, cand)
 	if len(required) == 0 {
-		return false, false
+		if answered {
+			return verdictKeepRollup
+		}
+
+		return verdictUnreadable
 	}
 	reported, err := c.reportedContexts(ctx, cand.owner, cand.name, cand.headOid)
 	if err != nil {
 		slog.Warn("github required-check lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
 
-		return false, false
+		return verdictKeepRollup
 	}
 	for name := range required {
 		if !reported[name] {
-			return true, true
+			return verdictMissing
 		}
 	}
+	if answered {
+		return verdictComplete
+	}
 
-	return false, answered
+	return verdictUnreadable
 }
 
 // reportedContexts is every context the head commit has reported a result for:
@@ -205,7 +258,7 @@ func (c *Client) addReportedStatuses(ctx context.Context, owner, name, sha strin
 // protection and active rulesets, and whether both lookups answered. A partial
 // set is cached too, but only for partialContextsTTL, and answered stays false
 // so it never marks a commit complete; a set that nothing could read (no admin
-// scope) is empty and leaves the combined status's answer alone.
+// scope) is empty, which sends the settle step to that fallback.
 func (c *Client) requiredContextNames(ctx context.Context, cand missingRequiredCheck) (names map[string]bool, answered bool) {
 	key := cand.owner + "/" + cand.name + "@" + cand.base
 	if cached, answered, ok := c.requiredChecks.cachedContexts(key); ok {
@@ -218,11 +271,11 @@ func (c *Client) requiredContextNames(ctx context.Context, cand missingRequiredC
 	// The store says whether this answer is the first unreadable one since the
 	// branch was last read in full, so the warning is decided under the same
 	// lock as the store: once until it can be read again (#1387). Without the
-	// required contexts a rollup that reads SUCCESS beside a blocked merge is
-	// left standing. A repo that is readable and simply requires no checks is
-	// not worth a warning.
+	// required contexts the settle step falls back to merge state and review
+	// decision (onlyChecksCanBlock). A repo that is readable and simply requires
+	// no checks is not worth a warning.
 	if c.requiredChecks.storeContexts(key, names, answered) {
-		slog.Warn("github required checks unreadable; a pending required check can read as passed",
+		slog.Warn("github required checks unreadable; a blocked pull request with no review outstanding reads pending",
 			"forge", dashboard.ForgeGitHub, "repo", cand.owner+"/"+cand.name, "base", cand.base,
 			"protectionRead", protKnown, "rulesetsRead", rulesKnown, "contexts", len(names))
 	}
