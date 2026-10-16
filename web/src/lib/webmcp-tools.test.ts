@@ -35,7 +35,7 @@ function setup(response: { status?: number; body?: unknown } = {}) {
 const PR = { forge: 'forgejo', fullName: 'acme/api', number: 7 };
 
 describe('WebMCP read tools', () => {
-  test('lists get_dashboard and the three server twins', () => {
+  test('lists get_dashboard and the four server twins', () => {
     const tools = createWebMCPTools({ getDashboard: async () => ({}) });
     expect(tools.map((t) => t.name)).toEqual([
       'get_dashboard',
