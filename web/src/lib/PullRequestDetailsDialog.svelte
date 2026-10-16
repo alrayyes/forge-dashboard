@@ -615,6 +615,62 @@
     border: 1px solid var(--border);
     padding: 4px 8px;
   }
+  .markdown :global(li.task-list-item) {
+    list-style: none;
+    margin-left: -1.25em;
+  }
+  .markdown :global(label.task) {
+    /* Block, not flex: inline children (code, em, a) must flow as text. The
+       box hangs in the left padding so wrapped lines align with the text. */
+    display: block;
+    padding-left: 20px;
+    text-indent: -20px;
+    color: inherit;
+  }
+  .markdown :global(label.task input) {
+    display: inline-block;
+    box-sizing: border-box;
+    margin: 0 6px 0 0;
+    vertical-align: -2px;
+    text-indent: 0;
+    /* A disabled native box is pale in both colour schemes: draw our own. */
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--ink-2);
+    border-radius: 3px;
+    background: transparent;
+  }
+  .markdown :global(label.task input:checked) {
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.5l2.5 2.5 4.5-5.5' fill='none' stroke='%23fff' stroke-width='1.8'/%3E%3C/svg%3E")
+        center / 100% no-repeat,
+      var(--accent);
+    border-color: var(--accent);
+  }
+  /* The accent is light in the dark scheme, so the tick is dark there. */
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme="light"]))
+      .markdown
+      :global(label.task input:checked) {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.5l2.5 2.5 4.5-5.5' fill='none' stroke='%2306181a' stroke-width='1.8'/%3E%3C/svg%3E");
+    }
+  }
+  :global(:root[data-theme="dark"])
+    .markdown
+    :global(label.task input:checked) {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.5l2.5 2.5 4.5-5.5' fill='none' stroke='%2306181a' stroke-width='1.8'/%3E%3C/svg%3E");
+  }
+  /* Forced colours drop our fills and the fixed-colour tick, so a checked box
+     would look empty: hand the control back to the browser. */
+  @media (forced-colors: active) {
+    .markdown :global(label.task input),
+    .markdown :global(label.task input:checked) {
+      appearance: auto;
+      background: none;
+      border: 0;
+    }
+  }
   .markdown :global(blockquote) {
     margin: 8px 0;
     padding-left: 12px;

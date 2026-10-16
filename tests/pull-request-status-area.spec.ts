@@ -115,6 +115,27 @@ test.describe('the status area on a pull request row (#1375)', () => {
     await expect(merge).toHaveAccessibleDescription(/Waiting for CI to finish/);
   });
 
+  test('auto-merge on drops the next-step line and keeps the reason (#1638)', async ({
+    page,
+  }) => {
+    await open(page, [
+      pr(2, {
+        title: 'Waiting',
+        ci: 'pending',
+        mergeStatus: 'blocked',
+        autoMergeEnabled: true,
+      }),
+    ]);
+    const waiting = row(page, 'Waiting');
+
+    await expect(waiting.locator('.status-area')).toContainText(
+      'Waiting for CI to finish',
+    );
+    await expect(waiting.locator('.status-area')).not.toContainText(
+      'Merge unlocks automatically',
+    );
+  });
+
   test('a pull request nothing holds back has no status area', async ({
     page,
   }) => {

@@ -21,7 +21,7 @@
     "prepare": "lefthook install",
     "test:e2e": "playwright test",
     "test:lighthouse": "lhci autorun",
-    "test:unit": "bun test web/src"
+    "test:unit": "bun test web/src scripts"
   },
   "browserslist": [
     "last 2 Chrome versions",

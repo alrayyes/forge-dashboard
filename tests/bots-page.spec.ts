@@ -72,9 +72,6 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
 
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
-const badge = (page: Page, nav: 'header' | '.bottom-nav', link: string) =>
-  page.locator(nav).locator(`a[href="${link}"] .nav-total`);
-
 test.describe('Bots page (#1192)', () => {
   // Only reads mocked data, so it starts from the shared session (#1379).
   test.use({ storageState: SHARED_STORAGE_STATE_PATH });
@@ -134,22 +131,6 @@ test.describe('Bots page (#1192)', () => {
         .locator('.quick-pills')
         .getByRole('button', { name: 'Bot PRs', exact: true }),
     ).toHaveCount(0);
-  });
-
-  test('the nav counts each: Pull requests without bots, Bots on its own, in header and tab bar', async ({
-    page,
-  }) => {
-    await mockDashboard(page, SNAPSHOT);
-    await page.goto('/pull-requests.html');
-    await expect(badge(page, 'header', '/pull-requests.html')).toHaveText('2');
-    await expect(badge(page, 'header', '/releases.html')).toHaveText('1');
-    await expect(badge(page, 'header', '/bots.html')).toHaveText('4');
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    await expect(badge(page, '.bottom-nav', '/bots.html')).toHaveText('4');
-    await expect(
-      page.locator('.bottom-nav').getByRole('link', { name: /Bots/ }),
-    ).toHaveAccessibleName(/4.*Bots/);
   });
 
   test('has no axe-core violations and no horizontal scroll at desktop and 390px', async ({

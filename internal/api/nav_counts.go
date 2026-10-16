@@ -41,7 +41,8 @@ type navCounts struct {
 
 // buildNavCounts counts what each page shows when it opens. Pull requests leave
 // out ignored repos, drafts and hidden ones, and are split by kind; issues
-// leave out the housekeeping ones. Branches counts the default
+// leave out the housekeeping ones and what the user's own settings hide
+// (#1630). Branches counts the default
 // branches it is given, which are the ones GET /api/main-branches lists: a repo
 // ignored for pull requests is left out of both (#1337). Show drafts and Show
 // hidden change the list a request gets, not the badge, so it doesn't jump

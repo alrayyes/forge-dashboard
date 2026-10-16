@@ -1,7 +1,7 @@
-import { type APIRequestContext, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // Coverage for issue #269: one persistent nav, shared markup, present and
 // consistent on every page rather than a per-page "back to X" link.
@@ -13,15 +13,6 @@ import { registerViaInvite } from './register-helper';
 // page — an unscoped locator would match two elements there and fail
 // Playwright's strict mode. See openspec/changes/mobile-bottom-nav/
 // design.md - Decisions.
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `nav-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Nav Test User');
-}
-
 // In menu order: Branches, Pull requests, Releases, Bots, Issues, then the
 // rest (#1279, #1321).
 // `tab` is what the bottom bar's accessible name contains, since its visible
@@ -50,11 +41,11 @@ const NO_SESSION_PAGES = [
   '/privacy.html',
 ];
 
-test.describe('persistent top nav', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+// The tests only read the nav and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
+test.describe('persistent top nav', () => {
   for (const { path, label } of NAV_PAGES) {
     test(`on ${path}, every nav icon is present and ${label} is marked current`, async ({
       page,
@@ -217,10 +208,6 @@ test.describe('persistent top nav', () => {
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
 
 test.describe('mobile bottom tab bar', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   for (const { path, label, tab } of NAV_PAGES) {
     test(`on ${path} at mobile width, the bottom tab bar shows every tab and only ${label} is current`, async ({
       page,

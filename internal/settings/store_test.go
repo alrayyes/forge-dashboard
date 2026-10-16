@@ -735,3 +735,57 @@ func TestStore_Get_NeverSaved_TimezoneDefaultsToEmptyMeaningBrowser(t *testing.T
 	require.ErrorIs(t, err, settings.ErrNotFound)
 	assert.Empty(t, got.Timezone)
 }
+
+func TestStore_SetThenGet_RoundTripsTheIssueHidingSettings(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	want := settings.Credentials{HideDependencyDashboard: true, IgnoredTitles: []string{"^Weekly report", "a,b"}}
+	require.NoError(t, store.Set(t.Context(), userID, want))
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.True(t, got.HideDependencyDashboard)
+	assert.Equal(t, []string{"^Weekly report", "a,b"}, got.IgnoredTitles, "a comma inside a pattern survives")
+}
+
+func TestStore_NeverSavedIssueHidingSettings_AreOffAndEmpty(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{Theme: "dark"}))
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.False(t, got.HideDependencyDashboard)
+	assert.Empty(t, got.IgnoredTitles)
+}
+
+func TestStore_Get_CorruptIgnoredTitles_FallsBackToNoPatternsAndKeepsTheRest(t *testing.T) {
+	t.Parallel()
+
+	for _, bad := range []string{``, `{}`, `"x"`, `[1]`, `not json`} {
+		t.Run(bad, func(t *testing.T) {
+			t.Parallel()
+			db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "settings.db"))
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = db.Close() })
+			cipher, err := settings.NewCipher(randomKey(t))
+			require.NoError(t, err)
+			store := settings.NewStore(db, cipher)
+			require.NoError(t, store.Init(t.Context()))
+			userID := []byte("user-1")
+			require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubToken: "ghp_keep", HideDependencyDashboard: true, IgnoredTitles: []string{"x"}}))
+			_, err = db.ExecContext(t.Context(), `UPDATE user_credentials SET ignored_titles = ?`, bad)
+			require.NoError(t, err)
+
+			got, err := store.Get(t.Context(), userID)
+
+			require.NoError(t, err, "a bad list must not take the credentials with it")
+			assert.Empty(t, got.IgnoredTitles)
+			assert.Equal(t, "ghp_keep", got.GitHubToken)
+			assert.True(t, got.HideDependencyDashboard)
+		})
+	}
+}

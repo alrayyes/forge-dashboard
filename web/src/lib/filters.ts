@@ -308,23 +308,52 @@ const FILTER_STATE_ENDPOINT = '/api/settings/filter-state';
 const TITLE_SAVE_DEBOUNCE_MS = 500;
 let titleSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
+// One PUT at a time. The server keeps whichever request lands last, and two
+// in flight can land in either order, so a pick made right after another
+// could be overwritten by the older one (#1637). While a PUT is out, newer
+// saves only replace the snapshot waiting behind it; the body is built when
+// it is sent, so the last pick is always the last one the server gets.
+// A request that never settles would hold the queue shut for the rest of the
+// page load, so each PUT is aborted after this long and releases it through
+// the failure path. Ten seconds is well past a healthy save on a slow link and
+// short enough that the next pick still reaches the server in the same visit.
+const PUT_TIMEOUT_MS = 10_000;
+let putInFlight = false;
+let queuedState: SharedFilterState | null = null;
+
 function putFilterStateToServer(state: SharedFilterState): void {
+  if (putInFlight) {
+    queuedState = state;
+    return;
+  }
+  putInFlight = true;
   // keepalive lets the request outlive the page: the dashboard and issues
   // pages share this state, and a click on the other page's nav item right
   // after a change would otherwise cancel the save (#827).
-  fetch(FILTER_STATE_ENDPOINT, {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), PUT_TIMEOUT_MS);
+  void fetch(FILTER_STATE_ENDPOINT, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(savedCopy(state)),
     keepalive: true,
-  }).catch(() => {
-    // Best-effort, the same restraint RecordWebhookDelivery's own
-    // server-side "a failure to persist this doesn't fail the request
-    // it's riding along with" gets — the cookie already has this
-    // value locally regardless, so a lost sync here just means the
-    // next device to load stays on its own last-synced state instead
-    // of today's, not a broken filter bar.
-  });
+    signal: abort.signal,
+  })
+    .catch(() => {
+      // Best-effort, the same restraint RecordWebhookDelivery's own
+      // server-side "a failure to persist this doesn't fail the request
+      // it's riding along with" gets — the cookie already has this
+      // value locally regardless, so a lost sync here just means the
+      // next device to load stays on its own last-synced state instead
+      // of today's, not a broken filter bar.
+    })
+    .then(() => {
+      clearTimeout(timer);
+      putInFlight = false;
+      const next = queuedState;
+      queuedState = null;
+      if (next) putFilterStateToServer(next);
+    });
 }
 
 // Writes the cookie synchronously and immediately, every call — the

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +100,10 @@ func TestContract_HealthAndReadiness(t *testing.T) {
 // on, held by the forge (#1608).
 const autoMergingPR = 7
 
+// autoMergeOffPR is the pull request on the populated board that reports
+// autoMergeEnabled: false explicitly, as opposed to leaving it unknown.
+const autoMergeOffPR = 8
+
 // A populated board, so the dashboard and refresh answers carry real pull
 // requests, issues and repos rather than empty lists.
 func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
@@ -126,6 +131,12 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 				MergeStatus: dashboard.MergeMergeable, CI: dashboard.CIPending, Labels: []dashboard.Label{}, RequestedReviewerLogins: []string{}, CreatedAt: now, UpdatedAt: now,
 				AutoMergeEnabled: new(true), AutoMergeHeldBy: dashboard.AutoMergeHeldByForge,
 			},
+			{
+				Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: autoMergeOffPR, Title: "Auto-merge switched off",
+				URL: "https://github.com/alrayyes/a/pull/8", Author: "alice",
+				MergeStatus: dashboard.MergeMergeable, CI: dashboard.CISuccess, Labels: []dashboard.Label{}, RequestedReviewerLogins: []string{}, CreatedAt: now, UpdatedAt: now,
+				AutoMergeEnabled: new(false),
+			},
 		},
 		issues: []dashboard.Issue{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Title: "Dependency Dashboard", URL: "https://github.com/alrayyes/a/issues/1", Author: "renovate[bot]", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
@@ -149,7 +160,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
-		return len(prs) == 3
+		return len(prs) == 4
 	}, time.Second, 10*time.Millisecond)
 
 	return srv, cookie
@@ -231,6 +242,55 @@ func TestContract_DashboardAndRefresh(t *testing.T) {
 	})
 }
 
+// TestContract_IssueSettings records the settings calls that carry the issue
+// settings (#1630), and a dashboard that applied them, against the spec.
+func TestContract_IssueSettings(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie := populatedBoard(t)
+	send := func(method, path, body string) (*http.Request, recorded) {
+		t.Helper()
+
+		req, err := http.NewRequest(method, srv.URL+path, strings.NewReader(body))
+		require.NoError(t, err)
+		req.AddCookie(cookie)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		// kin-openapi reads the request body to validate it; give it its own copy.
+		req.Body = nil
+
+		return req, recorded{status: resp.StatusCode, header: resp.Header, body: respBody}
+	}
+
+	t.Run("PUT /api/settings with both settings", func(t *testing.T) {
+		req, got := send(http.MethodPut, "/api/settings", `{"githubToken":"sekrit-token","hideDependencyDashboard":true,"ignoredTitles":["^Weekly report"]}`)
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+	})
+	t.Run("GET /api/settings", func(t *testing.T) {
+		req, got := send(http.MethodGet, "/api/settings", "")
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+	})
+	t.Run("GET /api/dashboard with the settings applied", func(t *testing.T) {
+		req, got := send(http.MethodGet, "/api/dashboard", "")
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+		require.Contains(t, string(got.body), `"settingsHiddenIssueCount":1`)
+		require.Contains(t, string(got.body), `"hideDependencyDashboard":true`)
+		require.Contains(t, string(got.body), `"ignoredTitlesSet":true`)
+	})
+	t.Run("PUT /api/settings with a pattern that does not compile", func(t *testing.T) {
+		req, got := send(http.MethodPut, "/api/settings", `{"ignoredTitles":["("]}`)
+		require.Equal(t, http.StatusBadRequest, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+	})
+}
+
 // kin-openapi doesn't check membership for x-extensible-enum, so the schema
 // check alone passes any string. The second subtest holds the real response
 // to the list the spec declares for autoMergeHeldBy (#1608).
@@ -276,5 +336,18 @@ func TestContract_DashboardCarriesAutoMergeHeldBy(t *testing.T) {
 				assert.NotContains(t, p, "autoMergeHeldBy")
 			}
 		}
+	})
+	t.Run("a pull request with auto-merge off reports false and omits autoMergeHeldBy", func(t *testing.T) {
+		t.Parallel()
+
+		var off map[string]any
+		for _, p := range body.PullRequests {
+			if p["number"] == float64(autoMergeOffPR) {
+				off = p
+			}
+		}
+		require.NotNil(t, off, "the auto-merge-off pull request is missing from the response")
+		assert.Equal(t, false, off["autoMergeEnabled"])
+		assert.NotContains(t, off, "autoMergeHeldBy")
 	})
 }

@@ -11,19 +11,23 @@ every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. It has passwordless login,
 per-user tokens, sharing and an admin role.
 
-| Page                                                                                                 | Light                                                                      | Dark                                                                     |
-| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| **Branches**. The CI status of every default branch, latest commit first.                            | ![Branches, light mode](docs/screenshots/branches-light.png)               | ![Branches, dark mode](docs/screenshots/branches-dark.png)               |
-| **Pull requests**. Open pull requests across both forges, with CI status, filters, and sorting.      | ![Pull requests, light mode](docs/screenshots/pull-requests-light.png)     | ![Pull requests, dark mode](docs/screenshots/pull-requests-dark.png)     |
-| **Pipeline checks**. A pull request's checks with state, time and failure excerpt, from its CI pill. | ![Pipeline checks, light mode](docs/screenshots/pipeline-checks-light.png) | ![Pipeline checks, dark mode](docs/screenshots/pipeline-checks-dark.png) |
-| **Issues**. Open issues across both forges.                                                          | ![Issues, light mode](docs/screenshots/issues-light.png)                   | ![Issues, dark mode](docs/screenshots/issues-dark.png)                   |
-| **Releases**. Release pull requests waiting to ship.                                                 | ![Releases, light mode](docs/screenshots/releases-light.png)               | ![Releases, dark mode](docs/screenshots/releases-dark.png)               |
-| **Bots**. Dependabot and Renovate pull requests.                                                     | ![Bots, light mode](docs/screenshots/bots-light.png)                       | ![Bots, dark mode](docs/screenshots/bots-dark.png)                       |
-| **Insights**. Charts of CI state and the busiest repos.                                              | ![Insights, light mode](docs/screenshots/insights-light.png)               | ![Insights, dark mode](docs/screenshots/insights-dark.png)               |
-| **Webhooks**. Which tracked repos have a confirmed webhook, and a way to add one.                    | ![Webhooks, light mode](docs/screenshots/webhooks-light.png)               | ![Webhooks, dark mode](docs/screenshots/webhooks-dark.png)               |
-| **Settings**. Theme, time zone, and dashboard sharing.                                               | ![Settings, light mode](docs/screenshots/settings-light.png)               | ![Settings, dark mode](docs/screenshots/settings-dark.png)               |
-| **Admin**. Users and invites, for the first registered user.                                         | ![Admin, light mode](docs/screenshots/admin-light.png)                     | ![Admin, dark mode](docs/screenshots/admin-dark.png)                     |
-| **Login**. Passkey sign-in.                                                                          | ![Login, light mode](docs/screenshots/login-light.png)                     | ![Login, dark mode](docs/screenshots/login-dark.png)                     |
+| Page                                                                                                 | Light                                                                               | Dark                                                                              |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Branches**. The CI status of every default branch, latest commit first.                            | ![Branches, light mode](docs/screenshots/branches-light.png)                        | ![Branches, dark mode](docs/screenshots/branches-dark.png)                        |
+| **Pull requests**. Open pull requests across both forges, with CI status, filters, and sorting.      | ![Pull requests, light mode](docs/screenshots/pull-requests-light.png)              | ![Pull requests, dark mode](docs/screenshots/pull-requests-dark.png)              |
+| **Pull request details**. A pull request's description, comments, and thumbs reactions.              | ![Pull request details, light mode](docs/screenshots/pull-request-dialog-light.png) | ![Pull request details, dark mode](docs/screenshots/pull-request-dialog-dark.png) |
+| **Phone sheet**. The same details on a 360px screen.                                                 | ![Phone sheet, light mode](docs/screenshots/pull-request-sheet-light.png)           | ![Phone sheet, dark mode](docs/screenshots/pull-request-sheet-dark.png)           |
+| **Pipeline checks**. A pull request's checks with state, time and failure excerpt, from its CI pill. | ![Pipeline checks, light mode](docs/screenshots/pipeline-checks-light.png)          | ![Pipeline checks, dark mode](docs/screenshots/pipeline-checks-dark.png)          |
+| **Issues**. Open issues across both forges.                                                          | ![Issues, light mode](docs/screenshots/issues-light.png)                            | ![Issues, dark mode](docs/screenshots/issues-dark.png)                            |
+| **Releases**. Release pull requests waiting to ship.                                                 | ![Releases, light mode](docs/screenshots/releases-light.png)                        | ![Releases, dark mode](docs/screenshots/releases-dark.png)                        |
+| **Release details**. The release notes a release pull request publishes.                             | ![Release details, light mode](docs/screenshots/release-dialog-light.png)           | ![Release details, dark mode](docs/screenshots/release-dialog-dark.png)           |
+| **Bots**. Dependabot and Renovate pull requests.                                                     | ![Bots, light mode](docs/screenshots/bots-light.png)                                | ![Bots, dark mode](docs/screenshots/bots-dark.png)                                |
+| **Bot details**. A bot pull request, its generated text collapsed.                                   | ![Bot details, light mode](docs/screenshots/bot-dialog-light.png)                   | ![Bot details, dark mode](docs/screenshots/bot-dialog-dark.png)                   |
+| **Insights**. Charts of CI state and the busiest repos.                                              | ![Insights, light mode](docs/screenshots/insights-light.png)                        | ![Insights, dark mode](docs/screenshots/insights-dark.png)                        |
+| **Webhooks**. Which tracked repos have a confirmed webhook, and a way to add one.                    | ![Webhooks, light mode](docs/screenshots/webhooks-light.png)                        | ![Webhooks, dark mode](docs/screenshots/webhooks-dark.png)                        |
+| **Settings**. Theme, time zone, and dashboard sharing.                                               | ![Settings, light mode](docs/screenshots/settings-light.png)                        | ![Settings, dark mode](docs/screenshots/settings-dark.png)                        |
+| **Admin**. Users and invites, for the first registered user.                                         | ![Admin, light mode](docs/screenshots/admin-light.png)                              | ![Admin, dark mode](docs/screenshots/admin-dark.png)                              |
+| **Login**. Passkey sign-in.                                                                          | ![Login, light mode](docs/screenshots/login-light.png)                              | ![Login, dark mode](docs/screenshots/login-dark.png)                              |
 
 Fixture data, not a real account's actual repositories. The release
 workflow regenerates every screenshot on each release (see
@@ -57,10 +61,13 @@ stale.
   `get_pull_request_details`, which mirrors `GET /api/pull-requests/details`
   (a pull request's description, comments and reactions). That one reads the
   forge on demand and spends budget: one GraphQL query on GitHub, up to 53
-  requests on Forgejo. The last is
+  requests on Forgejo. Another is
   `get_pull_request_checks`, which mirrors `GET /api/pull-requests/checks`
   (a pull request's individual CI checks). It spends budget too: 4 REST
   requests on GitHub (more for failed jobs), 3 plus one per run on Forgejo.
+  `list_queued_actions` mirrors `GET /api/queued-actions` (your actions
+  waiting on a rate-limited forge, and the finished ones from the last 24
+  hours, under a `queuedActions` key). It costs no forge budget.
   Each calls the same function as its handler rather than adding a second,
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
@@ -959,8 +966,9 @@ The text is Markdown and the server doesn't sanitise it, so the page renders
 it with [markdown-it](https://github.com/markdown-it/markdown-it) with raw HTML
 off: tags show as text, images aren't loaded, only absolute `http`, `https`
 and `mailto` links are links (anything else stays plain text), and they open
-in a new tab with `rel="noopener noreferrer"`. The
-library loads the first time a pop-up opens.
+in a new tab with `rel="noopener noreferrer"`. Task list items (`- [x]` and
+`- [ ]`) show as read-only checkboxes; ticking one changes nothing on the
+forge. The library loads the first time a pop-up opens.
 
 ## Releases
 
@@ -1008,13 +1016,14 @@ same order: "Pull requests, 15 total, 2 failing, 10 passing, 3 running", and
 "Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline". On
 a phone the total sits on its own line above the counts, and with three-digit
 numbers each count takes a line, so the busy tabs grow to about 110px. Issues
-counts open issues, without Renovate's Dependency Dashboard, and has no failed
-count. The server works the numbers out from the same lists the pages show
-(`navCounts` on `/api/dashboard`), so a page agrees with its icon, and a hidden
-pull request is in neither. The dashboard pages set them from each snapshot.
-The other signed-in pages (Branches, Insights, Settings and the rest) load them
-and ask again every 30 seconds while the tab is visible, so a refresh or a
-webhook changes them without a reload.
+counts open issues, without Renovate's Dependency Dashboard or what your
+settings hide, and has no failed count. The server works the numbers out from
+the same lists the pages show (`navCounts` on `/api/dashboard`), so a page
+agrees with its icon, and a hidden pull request is in neither. The dashboard
+pages set them from each snapshot. The other signed-in pages (Branches,
+Insights, Settings and the rest) load them and ask again every 30 seconds
+while the tab is visible, so a refresh or a webhook changes them without a
+reload.
 
 A zero is never drawn: a page with nothing in it has no total, and nothing
 failing means no red pill. A page with nothing to show leaves the navigation:
@@ -1137,6 +1146,41 @@ too many: more than 200 characters, two or more open-ended repeats (`*`, `+`,
 the first 128 characters of a title. This is a safety margin tested by
 fuzzing, not a proof. The rule applies to the Issues board only; Insights
 charts ignore it.
+
+### Issues your settings hide
+
+Two settings, saved with your account and applied by the server, keep issues
+out of everything you see:
+
+- **Hide Dependency Dashboard** (`hideDependencyDashboard` in the API) leaves
+  out the bot-kept Dependency Dashboard issue.
+- **Ignored titles** (`ignoredTitles`) is a list of patterns. An issue whose
+  title matches at least one is left out. A pattern matches anywhere in the title
+  and ignores case, so `^Weekly report` leaves out every issue whose title
+  starts with "Weekly report".
+
+The server drops those issues from `issues` in `GET /api/dashboard`, its
+stream and the `get_dashboard` MCP tool. `openIssueCount` and
+`navCounts.issues.total` count what remains, so the navigation badge, the
+Issues board and Insights agree with no arithmetic in the client.
+`settingsHiddenIssueCount` says how many issues the settings dropped, and is
+`0` when none were. The same response carries `hideDependencyDashboard` and
+`ignoredTitlesSet` (true when the list isn't empty), so a client knows whether
+to draw its own fields without reading `/api/settings`.
+
+Patterns use Go's RE2 syntax. It has no lookahead, lookbehind or
+backreferences, and it can't run slowly, so no pattern is refused for being
+complex. A pattern that matches the empty string, such as `.*` or `^`, is
+refused: it would match every title and hide every issue. Saving trims each
+pattern, drops blanks and repeats (ignoring case), and takes at most 20
+patterns of at most 200 characters. A pattern that doesn't compile is a 400
+that names `ignoredTitles` and the entry, counted from 1 in the list as sent,
+and says why, as in `ignoredTitles entry 2 ("("): missing closing )`.
+Nothing is saved then, not the other patterns and not the other settings.
+
+On a dashboard someone shared with you (`?owner=`), the issues are theirs and
+the settings are yours: your own choices decide what you see, and theirs don't
+reach you.
 
 ### Issues in Settings
 
@@ -1620,7 +1664,9 @@ Every push to `main` that passes CI publishes the generated reports at
 - [Coverage](https://apis.ryankes.eu/forge-dashboard/reports/coverage/), an
   HTML view plus `coverage.xml` (Cobertura) and the native Go `coverage.out`.
 - [Lighthouse](https://apis.ryankes.eu/forge-dashboard/reports/lighthouse/),
-  one report (and its JSON) for the login page and for each signed-in page.
+  one report (and its JSON) for the login page and for each signed-in page,
+  under fixed names such as `login.report.html` and `home.report.json` that
+  don't change between deploys. Only each page's representative run is kept.
   `lighthouse/report.html` and `report.json` stay as the first page's run.
 
 ## Contributing

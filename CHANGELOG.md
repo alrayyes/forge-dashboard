@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.201.1](https://github.com/alrayyes/forge-dashboard/compare/v0.201.0...v0.201.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **web:** render markdown task lists as read-only checkboxes ([#1657](https://github.com/alrayyes/forge-dashboard/issues/1657)) ([5a5153b](https://github.com/alrayyes/forge-dashboard/commit/5a5153baf292efe3c65faf4954625fd4d8065a77))
+
+## [0.201.0](https://github.com/alrayyes/forge-dashboard/compare/v0.200.2...v0.201.0) (2026-10-16)
+
+
+### Features
+
+* **mcp:** add the list_queued_actions tool ([#1656](https://github.com/alrayyes/forge-dashboard/issues/1656)) ([4a54b76](https://github.com/alrayyes/forge-dashboard/commit/4a54b766669b278e28712436ceaf7c9c34b3272f))
+
+## [0.200.2](https://github.com/alrayyes/forge-dashboard/compare/v0.200.1...v0.200.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* **dashboard:** drop the checks-pending next step when auto-merge is on ([#1644](https://github.com/alrayyes/forge-dashboard/issues/1644)) ([e92899e](https://github.com/alrayyes/forge-dashboard/commit/e92899e73dca7c48eb01752dbd773e20e426a935))
+
+## [0.200.1](https://github.com/alrayyes/forge-dashboard/compare/v0.200.0...v0.200.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **web:** send filter-state saves one at a time so the last pick wins ([#1646](https://github.com/alrayyes/forge-dashboard/issues/1646)) ([ffb7014](https://github.com/alrayyes/forge-dashboard/commit/ffb701445b606e40440980f92fcc008e29001849))
+
+## [0.200.0](https://github.com/alrayyes/forge-dashboard/compare/v0.199.0...v0.200.0) (2026-10-16)
+
+
+### Features
+
+* **api:** store and apply the hide-Dependency-Dashboard and ignored-titles settings ([#1635](https://github.com/alrayyes/forge-dashboard/issues/1635)) ([5ec8602](https://github.com/alrayyes/forge-dashboard/commit/5ec8602cf54b5b0942c0fd946694bdbea25ab06d))
+
 ## [0.199.0](https://github.com/alrayyes/forge-dashboard/compare/v0.198.1...v0.199.0) (2026-10-16)
 
 

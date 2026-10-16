@@ -187,6 +187,44 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 	}
 }
 
+// With auto-merge armed the wait chip already says what happens next, so the
+// status area drops its second line (#1638).
+func TestAllowedActions_ChecksPendingNextDependsOnAutoMerge(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		on   bool
+		next string
+	}{
+		{"auto-merge off keeps the next step", false, "Merge unlocks automatically"},
+		{"auto-merge on omits it", true, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			pr := ghPR(func(p *dashboard.PullRequest) {
+				p.CI = dashboard.CIPending
+				p.AutoMergeEnabled = &tc.on
+			})
+
+			var merge dashboard.ActionAvailability
+			for _, a := range dashboard.AllowedActions(pr, nil) {
+				if a.Action == dashboard.ActionMerge {
+					merge = a
+				}
+			}
+
+			if assert.NotNil(t, merge.Blocked) {
+				assert.Equal(t, dashboard.ActionChecksPending, merge.Blocked.Code)
+				assert.Equal(t, "Waiting for CI to finish", merge.Blocked.Message)
+				assert.Equal(t, tc.next, merge.Blocked.Next)
+			}
+		})
+	}
+}
+
 func TestAllowedActions_StackedMergeNamesTheParent(t *testing.T) {
 	t.Parallel()
 
