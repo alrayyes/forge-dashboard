@@ -124,7 +124,14 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 		return ActionAvailability{Action: ActionMerge}
 	case pr.CI == CIPending:
 		// Overrides a forge that says mergeable while checks still run (#385).
-		return blocked(ActionChecksPending, "Waiting for CI to finish", "Merge unlocks automatically")
+		// With auto-merge armed the wait chip already says what happens next,
+		// so a second line would repeat it (#1638).
+		next := "Merge unlocks automatically"
+		if pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled {
+			next = ""
+		}
+
+		return blocked(ActionChecksPending, "Waiting for CI to finish", next)
 	case pr.Behind && pr.MergeStatus != MergeMergeable:
 		return blocked(ActionBehind, "Behind the base branch", "Bring it up to date to unlock Merge")
 	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
