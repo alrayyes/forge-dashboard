@@ -423,61 +423,98 @@ export function failingFilters(
 
 // ---- "Hide titles matching (regex)" on the Issues page (#1593) ----
 //
-// JavaScript regular expressions have no timeout, so a pattern like (a+)+$ can
-// freeze the tab on a title that almost matches. Three limits keep that out:
-// the pattern is capped in length, a quantified group that holds a
-// quantifier or an alternation is refused as invalid (the shape behind
-// exponential backtracking), a pattern with more than MAX_OPEN_REPEATS
-// open-ended repeats is refused (each one adds a power to the worst case:
-// .*.*.*b takes about 0.7s on one 256-character title), and only the first
-// MAX_TITLE_TESTED characters of a title are tested (forges cap titles near
-// 256). What is left is at most quadratic over a short string, and each
-// distinct title is matched once per pattern.
+// JavaScript regular expressions have no timeout and cannot be interrupted, so
+// a pattern like (a+)+$ can freeze the tab on a title that almost matches.
+// Reading a pattern to prove it safe is always bypassable, so the guard errs
+// on the side of refusing, and a hard cap on the tested text bounds whatever
+// slips through. It is a heuristic, not a proof:
+//  1. The pattern is at most MAX_TITLE_REGEX_LENGTH characters.
+//  2. A quantified group (any of ? * + {n} {n,} {n,m}) that holds a quantifier
+//     or another quantified group is refused, at any depth: (a+){5}, (a?)?,
+//     ((a?){20}){20}. So is a quantified group that holds an alternation,
+//     unless the quantifier is a bare ?: (a|a)*.
+//  3. Each open-ended repeat (* + {n,}) multiplies the cost by the tested
+//     length and each {n,m} range by m-n+1; the product may not pass
+//     MAX_COST, so at most two open-ended repeats (a*a*b is quadratic).
+//  4. Only the first MAX_TITLE_TESTED characters of a title are tested.
+//  5. Each distinct title is matched once per pattern.
+// Measured on the corpus in title-rule.test.ts: every pattern is refused or
+// finishes in a few milliseconds on a 256-character title built to hurt it.
 export const MAX_TITLE_REGEX_LENGTH = 200;
-const MAX_TITLE_TESTED = 256;
-const MAX_OPEN_REPEATS = 2;
+const MAX_TITLE_TESTED = 128;
+const MAX_COST = MAX_TITLE_TESTED * MAX_TITLE_TESTED;
 
+// invalid: the engine can't parse it. complex: it parses, but the guard won't
+// run it.
 export type TitleRule =
   | { status: 'none' }
   | { status: 'invalid' }
+  | { status: 'complex' }
   | { status: 'ok'; regex: RegExp; seen: Map<string, boolean> };
 
-const REPEAT_AFTER_GROUP = /^(?:[+*]|\{\d+,\d*\})/;
-const OPEN_RANGE = /^\{\d+,\d*\}/;
+const QUANTIFIER = /^(?:[*+?]|\{(\d+)(,(\d*))?\})\??/;
+// The text after "(" that is not a capture: (?: (?= (?! (?<= (?<! (?<name>
+const GROUP_PREFIX = /^\?(?:[:=!]|<[=!]|<[^>]*>)/;
 
-// True when a group that holds a quantifier or an alternation is itself
-// quantified with +, * or {n,} ((a+)+, (a|aa)*, (.*a){3,}), or when the
-// pattern has too many open-ended repeats.
-function hasRiskyNesting(pattern: string): boolean {
-  const groups: { risky: boolean }[] = [];
-  let inClass = false;
-  let repeats = 0;
-  for (let i = 0; i < pattern.length; i++) {
+type Group = { repeats: boolean; alternates: boolean };
+
+// True when the pattern is too expensive to run safely (rules 2 and 3 above).
+function isTooComplex(pattern: string): boolean {
+  const stack: Group[] = [{ repeats: false, alternates: false }];
+  let cost = 1;
+  let i = 0;
+  while (i < pattern.length) {
     const c = pattern[i];
-    if (c === '\\') {
+    let closed: Group | null = null;
+    if (c === '(') {
+      stack.push({ repeats: false, alternates: false });
       i++;
-    } else if (inClass) {
-      if (c === ']') inClass = false;
-    } else if (c === '[') {
-      inClass = true;
-    } else if (c === '(') {
-      groups.push({ risky: false });
-    } else if (c === ')') {
-      const group = groups.pop();
-      const repeated = REPEAT_AFTER_GROUP.test(pattern.slice(i + 1));
-      if (group?.risky && repeated) return true;
-      const parent = groups[groups.length - 1];
-      if (parent && (group?.risky || repeated)) parent.risky = true;
-    } else if (
-      c === '|' ||
-      c === '+' ||
-      c === '*' ||
-      (c === '{' && OPEN_RANGE.test(pattern.slice(i)))
-    ) {
-      const parent = groups[groups.length - 1];
-      if (parent) parent.risky = true;
-      if (c !== '|' && ++repeats > MAX_OPEN_REPEATS) return true;
+      const prefix = GROUP_PREFIX.exec(pattern.slice(i));
+      if (prefix) i += prefix[0].length;
+      continue;
     }
+    if (c === ')') {
+      if (stack.length > 1) closed = stack.pop() ?? null;
+      i++;
+    } else if (c === '|') {
+      stack[stack.length - 1].alternates = true;
+      i++;
+      continue;
+    } else if (c === '^' || c === '$') {
+      i++;
+      continue;
+    } else if (c === '[') {
+      i++;
+      while (i < pattern.length && pattern[i] !== ']')
+        i += pattern[i] === '\\' ? 2 : 1;
+      i++;
+    } else {
+      i += c === '\\' ? 2 : 1;
+    }
+    // An atom (or a closed group) just ended; is it quantified?
+    const top = stack[stack.length - 1];
+    const q = QUANTIFIER.exec(pattern.slice(i));
+    if (!q) {
+      if (closed) {
+        top.repeats ||= closed.repeats;
+        top.alternates ||= closed.alternates;
+      }
+      continue;
+    }
+    i += q[0].length;
+    if (closed && (closed.repeats || (closed.alternates && q[0][0] !== '?')))
+      return true;
+    top.repeats = true;
+    const first = q[0][0];
+    if (first === '*' || first === '+') cost *= MAX_TITLE_TESTED;
+    else if (first === '{') {
+      const min = Number(q[1]);
+      if (q[2] !== undefined) {
+        const max = q[3] === '' ? Infinity : Number(q[3]);
+        cost *= Math.min(MAX_TITLE_TESTED, max - min + 1);
+      }
+    }
+    if (cost > MAX_COST) return true;
   }
   return false;
 }
@@ -491,16 +528,14 @@ export function compileTitleRule(pattern: unknown): TitleRule {
   const cached = titleRuleCache.get(pattern);
   if (cached) return cached;
   let rule: TitleRule = { status: 'invalid' };
-  if (pattern.length <= MAX_TITLE_REGEX_LENGTH && !hasRiskyNesting(pattern)) {
-    try {
-      rule = {
-        status: 'ok',
-        regex: new RegExp(pattern, 'i'),
-        seen: new Map(),
-      };
-    } catch {
-      // The engine's message stays out of the page.
-    }
+  try {
+    const regex = new RegExp(pattern, 'i');
+    rule =
+      pattern.length > MAX_TITLE_REGEX_LENGTH || isTooComplex(pattern)
+        ? { status: 'complex' }
+        : { status: 'ok', regex, seen: new Map() };
+  } catch {
+    // The engine's message stays out of the page.
   }
   if (titleRuleCache.size > 50) titleRuleCache.clear();
   titleRuleCache.set(pattern, rule);

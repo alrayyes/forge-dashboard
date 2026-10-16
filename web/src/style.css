@@ -693,6 +693,20 @@ section.board {
   background: var(--surface);
   color: var(--ink);
 }
+.text-filter input[type="text"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 760px) {
+  .text-filter {
+    flex-wrap: wrap;
+  }
+  .text-filter input[type="text"] {
+    min-height: 44px;
+    width: 100%;
+    font-size: 16px;
+  }
+}
 .text-filter input[aria-invalid="true"] {
   border-color: var(--critical);
 }

@@ -43,6 +43,12 @@
   // Never lets created/updated leak into a chart just because the main
   // dashboard's own board has a value stored for them — see design.md's
   // "Insights keeps masking fields it doesn't display" decision.
+  // The issue board's own rules, minus the title pattern: that box lives on
+  // the Issues page only, so the charts count what this page says they do.
+  function issueFilters(): Record<string, string> {
+    return { ...sharedState.issue, hideTitleRegex: "" };
+  }
+
   function chartFilters(): Record<string, string> {
     return { ...sharedState.shared, created: "", updated: "" };
   }
@@ -111,7 +117,7 @@
   );
   const issueItems = $derived(
     lastSnapshot.issues.filter((item) =>
-      Filters.matchesFilters(item, false, chartFilters(), sharedState.issue),
+      Filters.matchesFilters(item, false, chartFilters(), issueFilters()),
     ),
   );
 
@@ -147,7 +153,7 @@
         false,
         shared,
         excludeKey,
-        sharedState.issue,
+        issueFilters(),
       ),
     ];
   }

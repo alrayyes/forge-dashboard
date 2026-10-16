@@ -48,13 +48,13 @@ describe('compileTitleRule', () => {
     expect(compileTitleRule('*oops').status).toBe('invalid');
   });
 
-  test('a pattern over the length cap is invalid', () => {
+  test('a pattern over the length cap is too complex', () => {
     expect(compileTitleRule('a'.repeat(MAX_TITLE_REGEX_LENGTH)).status).toBe(
       'ok',
     );
     expect(
       compileTitleRule('a'.repeat(MAX_TITLE_REGEX_LENGTH + 1)).status,
-    ).toBe('invalid');
+    ).toBe('complex');
   });
 });
 
@@ -123,7 +123,7 @@ describe('hiding by title', () => {
 describe('a pathological pattern cannot freeze the page', () => {
   const title = `${'a'.repeat(40)}b`;
 
-  test('nested quantifiers are refused as invalid', () => {
+  test('nested quantifiers are refused as too complex', () => {
     for (const pattern of [
       '(a+)+$',
       '(a*)*$',
@@ -131,7 +131,7 @@ describe('a pathological pattern cannot freeze the page', () => {
       '(.*a){5,}',
       '((a+))+',
     ]) {
-      expect(compileTitleRule(pattern).status).toBe('invalid');
+      expect(compileTitleRule(pattern).status).toBe('complex');
     }
   });
 
@@ -157,7 +157,7 @@ describe('a pathological pattern cannot freeze the page', () => {
   });
 
   test('too many open-ended repeats are refused', () => {
-    expect(compileTitleRule('.*.*.*b').status).toBe('invalid');
+    expect(compileTitleRule('.*.*.*b').status).toBe('complex');
     expect(compileTitleRule('.*foo.*bar').status).toBe('ok');
   });
 
@@ -177,6 +177,67 @@ describe('a pathological pattern cannot freeze the page', () => {
     const again = performance.now();
     run();
     expect(performance.now() - again).toBeLessThan(20);
+  });
+});
+
+// The reviewer's corpus (#1598): each pattern is refused as too complex, or it
+// finishes inside the budget on a 256-character title built to hurt it.
+describe('the guard is sound for a corpus of slow patterns', () => {
+  const a = (n: number, tail: string) => 'a'.repeat(n) + tail;
+  const CORPUS: [string, string][] = [
+    ['(a+){5}$', a(255, 'b')],
+    ['(a+){6}$', a(255, 'b')],
+    ['(a*){5}$', a(255, 'b')],
+    ['(a*){3}b', a(255, '')],
+    ['((a?){20}){20}b', a(100, 'c')],
+    ['(a+)+$', a(255, 'b')],
+    ['(a|a)*b', a(255, '')],
+    ['(a*)*', a(255, 'b')],
+    ['(x+x+)+y', 'x'.repeat(255)],
+    ['^(([a-z])+.)+[A-Z]([a-z])+$', a(255, '!')],
+    ['(?:a+){10}$', a(255, 'b')],
+    ['(a{1,10}){1,10}b', a(255, '')],
+    ['a{1,50}a{1,50}a{1,50}b', a(255, '')],
+    ['(a+)\\1+$', a(255, 'b')],
+    ['(?=(a+)+)b', a(255, 'b')],
+    ['(?:(a+)(?=b)){4}c', a(255, 'b')],
+    ['.*.*.*b', a(255, '')],
+    ['(?<n>a+){4}\\k<n>$', a(255, 'b')],
+  ];
+
+  for (const [pattern, title] of CORPUS) {
+    test(`${pattern} is refused or fast`, () => {
+      const started = performance.now();
+      const rule = compileTitleRule(pattern);
+      if (rule.status === 'ok') {
+        matchesFilters(issue(title), false, {}, { hideTitleRegex: pattern });
+      }
+      expect(
+        rule.status === 'complex' || performance.now() - started < 50,
+      ).toBe(true);
+    });
+  }
+
+  test('a valid pattern the guard refuses is "complex", not "invalid"', () => {
+    expect(compileTitleRule('(a+)+$').status).toBe('complex');
+    expect(compileTitleRule('(').status).toBe('invalid');
+    expect(compileTitleRule('a'.repeat(201)).status).toBe('complex');
+  });
+
+  test('everyday patterns still pass', () => {
+    for (const pattern of [
+      '^Weekly report',
+      '^(Weekly|Monthly) report',
+      '\\bfoo\\b',
+      '^(ab)+$',
+      '(?<=x)y',
+      '^Release v\\d{1,3}\\.\\d{1,3}$',
+      '(Weekly )?report',
+      '.*foo.*bar',
+      '\\p{L}+',
+    ]) {
+      expect(compileTitleRule(pattern).status).toBe('ok');
+    }
   });
 });
 

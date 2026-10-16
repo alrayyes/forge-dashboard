@@ -197,7 +197,17 @@ test.describe('hide titles matching a pattern (#1593)', () => {
   }) => {
     await input(page).fill('(a+)+$');
 
-    await expect(error(page)).toHaveText("That pattern isn't valid.");
+    await expect(error(page)).toHaveText(
+      'That pattern is too complex to check safely. Try a simpler one.',
+    );
+    await expect(input(page)).toHaveAttribute('aria-invalid', 'true');
+    await expect(input(page)).toHaveAttribute(
+      'aria-describedby',
+      'issue-hide-title-regex-error',
+    );
+    await expect(rows(page)).toHaveCount(5);
+    await input(page).fill('(a+){5}$');
+    await expect(error(page)).toContainText('too complex');
     await expect(rows(page)).toHaveCount(5);
     const started = Date.now();
     await page.evaluate(() => 1);
@@ -269,6 +279,30 @@ test.describe('hide titles matching a pattern (#1593)', () => {
 
     await input(page).fill('weekly');
     await expect(rows(page)).toHaveCount(2);
+    await expect
+      .poll(async () => (await input(page).boundingBox())?.height ?? 0)
+      .toBeGreaterThanOrEqual(44);
+  });
+
+  test('the error line sits right under the field, before the count note', async ({
+    page,
+  }) => {
+    await input(page).fill('(unclosed');
+    const field = await input(page).boundingBox();
+    const err = await error(page).boundingBox();
+    expect(
+      (err?.y ?? 0) - ((field?.y ?? 0) + (field?.height ?? 0)),
+    ).toBeLessThan(40);
+    const order = await page.evaluate(
+      () =>
+        document
+          .getElementById('issue-hide-title-regex-error')
+          ?.compareDocumentPosition(
+            document.getElementById('issue-hide-title-note') as Node,
+          ) ?? 0,
+    );
+    // 4 is DOCUMENT_POSITION_FOLLOWING: the note comes after the error.
+    expect(order & 4).toBeTruthy();
   });
 
   for (const scheme of ['light', 'dark'] as const) {

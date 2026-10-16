@@ -4960,10 +4960,17 @@
         );
         const noteEl = document.getElementById(`${idPrefix}-hide-title-note`);
         if (isPR || !field || !errorEl || !noteEl) return;
-        const invalid =
-          Filters.compileTitleRule(extraState.hideTitleRegex).status ===
-          "invalid";
+        const status = Filters.compileTitleRule(
+          extraState.hideTitleRegex,
+        ).status;
+        const invalid = status === "invalid" || status === "complex";
         errorEl.hidden = !invalid;
+        errorEl.textContent =
+          status === "complex"
+            ? "That pattern is too complex to check safely. Try a simpler one."
+            : status === "invalid"
+              ? "That pattern isn't valid."
+              : "";
         if (invalid) {
           field.setAttribute("aria-invalid", "true");
           field.setAttribute("aria-describedby", errorEl.id);
@@ -7307,15 +7314,13 @@
           </label>
           <span class="count" id="issue-count">&ndash;</span>
         </div>
+        <p class="rule-error" id="issue-hide-title-regex-error" hidden></p>
         <p
           class="rule-note"
           id="issue-hide-title-note"
           role="status"
           hidden
         ></p>
-        <p class="rule-error" id="issue-hide-title-regex-error" hidden>
-          That pattern isn't valid.
-        </p>
       </div>
 
       <div id="issue-rows"></div>
