@@ -15,7 +15,7 @@
 
   import { onMount } from "svelte";
   import PullRequestDetailsDialog, {
-    type DetailsChip,
+    type DetailsStatus,
   } from "#lib/PullRequestDetailsDialog.svelte";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
@@ -122,6 +122,9 @@
     // them (#1280). The server decides; the page only says so.
     awaitingWorkflowApproval?: boolean;
     autoMergeEnabled: boolean | null;
+    // Who holds an enabled auto-merge. Omitted means the server doesn't
+    // know, and the page doesn't guess (#1596).
+    autoMergeHeldBy?: "dashboard" | "forge";
     behind: boolean;
     empty: boolean;
     // Why this pull request is waiting or can't be merged, in one place
@@ -611,7 +614,9 @@
       failure: "failure",
       success: "success",
     };
-    function ciPill(item: PullRequestItem): HTMLElement {
+    // The details header draws the same pill as a plain badge: it was a
+    // snapshot at open, so it opens nothing (interactive = false).
+    function ciPill(item: PullRequestItem, interactive = true): HTMLElement {
       const status = item.ci;
       const awaiting = item.awaitingWorkflowApproval === true;
       const label = awaiting
@@ -625,7 +630,7 @@
         else pill.appendChild(el("span", "dot"));
       };
       // No CI, no pipeline to open: a plain badge (#1139).
-      if (status === "none") {
+      if (status === "none" || !interactive) {
         const badge = el("span", `ci-pill ${status}`);
         addMark(badge);
         badge.appendChild(document.createTextNode(label));
@@ -788,6 +793,13 @@
       return svg;
     }
 
+    // Who holds a Forgejo auto-merge, in the chip's note. An unnamed holder
+    // gets no note at all (#1596).
+    const HOLDER_NOTE: Record<string, string> = {
+      dashboard: "Managed by Forge Dashboard",
+      forge: "Scheduled on Forgejo",
+    };
+
     // Silent unless auto-merge is genuinely enabled — autoMergeEnabled
     // is `null` for a forge that can't report this at all (Forgejo,
     // today), which must never render as "not enabled": strict ===
@@ -798,7 +810,8 @@
       // says so in words (it has no GitHub-style setting to point at).
       if (pr.forge === "forgejo") {
         const chip = attrChip("auto-merge", "Auto-merge on");
-        chip.appendChild(el("span", "pill-note", "Managed by Forge Dashboard"));
+        const note = HOLDER_NOTE[pr.autoMergeHeldBy ?? ""];
+        if (note) chip.appendChild(el("span", "pill-note", note));
         return chip;
       }
       return attrChip("auto-merge", "Auto-merge");
@@ -869,6 +882,7 @@
         message: pr.autoMerge.message,
         draft: pr.draft,
         forge: pr.forge,
+        heldBy: pr.autoMergeHeldBy,
       });
       if (!chip) return null;
       const disarm = isSettled(pr) ? null : cancelAutoMergeCell(pr, true);
@@ -972,28 +986,36 @@
       return /\brelease\s+v?(\d+\.\d+\.\d+\S*)/i.exec(title)?.[1] ?? "";
     }
 
-    // The status chips in the details header, from the fields the row already
-    // carries and nothing else, as they were when the dialog opened.
-    function detailsChips(item: PullRequestItem): DetailsChip[] {
-      const chips: DetailsChip[] = [];
-      if (item.draft) chips.push({ text: "Draft", tone: "neutral" });
-      if (item.ci === "success") chips.push({ text: "Passing", tone: "good" });
-      if (item.ci === "failure")
-        chips.push({ text: "Failing", tone: "critical" });
-      if (item.ci === "pending")
-        chips.push({ text: "Running", tone: "warning" });
-      if (item.mergeStatus === "mergeable")
-        chips.push({ text: "Mergeable", tone: "good" });
-      if (item.mergeStatus === "conflicting")
-        chips.push({ text: "Conflicts", tone: "critical" });
-      if (Filters.showBlockedChip(item.mergeStatus, item.ci))
-        chips.push({ text: "Blocked", tone: "warning" });
-      if (item.behind) chips.push({ text: "Out of date", tone: "warning" });
-      if (item.autoMergeEnabled === true)
-        chips.push({ text: "Auto-merge on", tone: "neutral" });
+    // The details header (#1563) follows the row's three tiers, built by the
+    // row's own builders so the two cannot drift: the CI slot and the merge
+    // state first, the attributes (the row's cluster, then labels and the
+    // release version) below the title. Fields the row has, nothing else, as
+    // they were when the dialog opened.
+    function detailsStatus(item: PullRequestItem): DetailsStatus {
+      const state = el("div", "details-state");
+      state.setAttribute("role", "group");
+      state.setAttribute("aria-label", "Status when opened");
+      const slot = el("div", "ci-slot");
+      slot.appendChild(ciPill(item, false));
+      state.appendChild(slot);
+      // Mergeable draws nothing, as on the row.
+      const merge = mergeStatusPill(item.mergeStatus, item.ci);
+      if (merge) state.appendChild(merge);
+      const attributes = attributeCluster(item);
+      attributes.setAttribute("role", "group");
+      attributes.setAttribute("aria-label", "Attributes when opened");
+      // The row only flags a bot's pull request as out of date (it has an
+      // Update branch button otherwise); the dialog keeps saying it for any.
+      if (item.behind && !attributes.querySelector(".behind"))
+        attributes.appendChild(attrChip("behind", "Out of date"));
+      if (item.kind === "release") {
+        const version = releaseVersion(item.title);
+        if (version)
+          attributes.appendChild(el("span", "attr-chip mono", `v${version}`));
+      }
       for (const label of item.labels ?? [])
-        chips.push({ text: label.name, tone: "neutral" });
-      return chips;
+        attributes.appendChild(el("span", "attr-chip label", label.name));
+      return { state, attributes };
     }
 
     // Opens the read-only details dialog (#943). A real button of its own, not
@@ -1013,9 +1035,7 @@
         detailsDialog?.open(
           {
             ...item,
-            chips: detailsChips(item),
-            version:
-              item.kind === "release" ? releaseVersion(item.title) : undefined,
+            status: detailsStatus(item),
           },
           button.id,
         );
@@ -1979,8 +1999,20 @@
     // way there is nothing to confirm: arming it again is one click.
     const cancelAutoMergeState: Record<string, ActionState> = {};
 
+    // A Forgejo merge the server says the forge holds: Cancel removes that.
+    function forgeHolds(item: PullRequestItem): boolean {
+      return item.forge === "forgejo" && item.autoMergeHeldBy === "forge";
+    }
+
     function doCancelAutoMerge(item: PullRequestItem) {
       const key = prKey(item);
+      const onForge = forgeHolds(item);
+      const cancelled = onForge
+        ? "Merge scheduled on Forgejo cancelled."
+        : "Auto-merge cancelled.";
+      const cancelling = onForge
+        ? "Cancelling the merge scheduled on Forgejo…"
+        : "Cancelling auto-merge…";
       cancelAutoMergeState[key] = { phase: "requesting" };
       keepFocusAcross(renderPRBoard);
       const fkey = `cancel-auto-merge:${key}`;
@@ -1990,9 +2022,9 @@
         label: "Cancel auto-merge",
         kind: "cancel-auto-merge",
         phase: "working",
-        inline: "Cancelling auto-merge…",
-        message: "Cancelling auto-merge…",
-        announce: "Cancelling auto-merge…",
+        inline: cancelling,
+        message: cancelling,
+        announce: cancelling,
         retry: () => doCancelAutoMerge(item),
       });
 
@@ -2022,9 +2054,9 @@
           delete cancelAutoMergeState[key];
           feedback.update(fkey, {
             phase: "done",
-            message: "Auto-merge cancelled.",
+            message: cancelled,
             toast: true,
-            announce: "Auto-merge cancelled.",
+            announce: cancelled,
           });
           return fetch(withDrafts("/api/dashboard/refresh"), {
             method: "POST",
@@ -2064,8 +2096,14 @@
       if (inChip)
         button.setAttribute(
           "aria-label",
-          requesting ? "Disarming auto-merge" : "Disarm auto-merge",
+          requesting
+            ? "Disarming auto-merge"
+            : forgeHolds(item)
+              ? "Disarm the merge scheduled on Forgejo"
+              : "Disarm auto-merge",
         );
+      if (forgeHolds(item))
+        button.title = "Cancels the merge scheduled on Forgejo.";
       button.type = "button";
       button.disabled = requesting;
       button.addEventListener("click", () => {

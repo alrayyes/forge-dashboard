@@ -223,6 +223,7 @@ test.describe('row status grammar (#1563)', () => {
             forge: 'forgejo',
             repo: 'alrayyes/dotfiles',
             autoMergeEnabled: true,
+            autoMergeHeldBy: 'dashboard',
             ci: 'success',
           }),
         ]);
