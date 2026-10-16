@@ -50,6 +50,9 @@ type Deps struct {
 	// Manager holds each signed-in user's own Aggregator, built from
 	// their saved Credentials via BuildSources.
 	Manager *dashboard.Manager
+	// FirstLoadWait is how long a read waits for a user's first refresh; zero
+	// means the default. Only tests set it.
+	FirstLoadWait time.Duration
 	// BuildSources takes the signed-in user's own ID (#482: threaded
 	// through so the forge clients it builds can record outbound
 	// requests under the right account) alongside their saved

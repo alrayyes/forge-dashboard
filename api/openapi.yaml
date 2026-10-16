@@ -4874,6 +4874,7 @@ components:
           pullRequests,
           issues,
           openIssueCount,
+          firstRefreshDone,
           navCounts,
           repos,
           hiddenDrafts,
@@ -4926,9 +4927,8 @@ components:
             of empty lists while it is false; a failed first refresh is
             reported through forge health, not by keeping this false. The same
             on `GET /api/dashboard`, the stream and the MCP `get_dashboard`
-            output. Optional until the server emits it (#1673); the server
-            change makes it required, and a client treats a missing flag as
-            true (loaded).
+            output. Always present (#1673). A client of an older server that
+            lacks it should treat a missing flag as true (loaded).
         navCounts:
           $ref: "#/components/schemas/NavCounts"
         generatedAt:

@@ -1150,6 +1150,17 @@ the first 128 characters of a title. This is a safety margin tested by
 fuzzing, not a proof. The rule applies to the Issues board only; Insights
 charts ignore it.
 
+### First refresh
+
+After a restart the server holds no state, so the first snapshot is empty until
+the first refresh for that user ends. `firstRefreshDone` on the dashboard
+snapshot tells an empty board from one that hasn't loaded: it is `false` from
+process start until the viewer's first refresh has finished, whether it
+succeeded or failed (a failed one shows in the forge health), and `true` from
+then on, including after later refreshes and settings saves. It is per user and
+not stored, so a restart resets it. `GET /api/dashboard`, the stream and the
+`get_dashboard` MCP tool all carry it.
+
 ### Issues your settings hide
 
 Two settings, saved with your account and applied by the server, keep issues
