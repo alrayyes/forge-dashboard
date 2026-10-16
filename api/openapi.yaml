@@ -3263,6 +3263,8 @@ components:
           webhookSecret,
           renovateRebaseLabel,
           renovateAuthors,
+          hideDependencyDashboard,
+          ignoredTitles,
           theme,
         ]
       properties:
@@ -3356,7 +3358,7 @@ components:
             everywhere: the server leaves a `housekeeping` issue out of the
             `issues` of GET /api/dashboard and its stream, and out of every
             count and total built from them (`navCounts`, Insights). Always
-            present once the server applies it (#1630).
+            present.
         ignoredTitles:
           type: array
           maxItems: 20
@@ -3369,8 +3371,7 @@ components:
             backreferences). A pattern matches anywhere in the title and
             ignores case; an issue matching any one is left out of `issues`
             and of every count and total built from them, the same as
-            `hideDependencyDashboard`. Always present once the server
-            applies it (#1630). Empty means none.
+            `hideDependencyDashboard`. Always present; empty means none.
 
     SettingsRequest:
       type: object
@@ -3445,8 +3446,9 @@ components:
             trimmed; blanks and repeats (ignoring case) are dropped. Each
             must compile as a Go RE2 regular expression: one that does not
             is a 400 naming `ignoredTitles` and the entry, with the reason in
-            plain words ("ignoredTitles entry 2, "(": missing closing )"),
-            and nothing is saved. More than 20 entries, or an entry over 200
+            plain words (`ignoredTitles entry 2 ("("): missing closing )`;
+            the number is the entry's place in the list as sent, from 1), and
+            nothing is saved. More than 20 entries, or an entry over 200
             characters, is a 400 too. See SettingsResponse.ignoredTitles.
 
     ThemeResponse:
@@ -4833,7 +4835,9 @@ components:
           minimum: 0
           description: |
             How many open issues are real work, the same number as
-            `openIssueCount`. Issues have no failing state, so there is no
+            `openIssueCount`: it leaves out the `housekeeping` ones and what
+            the user's own settings hide (`hideDependencyDashboard`,
+            `ignoredTitles`). Issues have no failing state, so there is no
             `failed`.
 
     NavCounts:
@@ -4874,6 +4878,7 @@ components:
           pullRequests,
           issues,
           openIssueCount,
+          settingsHiddenIssueCount,
           navCounts,
           repos,
           hiddenDrafts,
@@ -4906,7 +4911,9 @@ components:
           type: integer
           description: |
             How many of `issues` are real work: all of them except the
-            `housekeeping` ones. What the Issues badge shows.
+            `housekeeping` ones. `issues` already leaves out what the user's
+            own settings hide (`hideDependencyDashboard`, `ignoredTitles`),
+            so this does too. What the Issues badge shows.
         settingsHiddenIssueCount:
           type: integer
           minimum: 0
@@ -4914,8 +4921,9 @@ components:
             How many open issues the user's own settings (`hideDependencyDashboard`
             and `ignoredTitles`) left out of `issues`, so a client can say
             "N hidden by your settings" and link to Settings; it cannot work
-            that out, the issues are not sent. Always present once the
-            server applies the settings (#1630); 0 when none are hidden.
+            that out, the issues are not sent. Always present; 0 when none are
+            hidden. On another user's shared dashboard these are the
+            viewer's settings, not the owner's.
         navCounts:
           $ref: "#/components/schemas/NavCounts"
         generatedAt:
