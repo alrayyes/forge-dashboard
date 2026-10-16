@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.200.1](https://github.com/alrayyes/forge-dashboard/compare/v0.200.0...v0.200.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **web:** send filter-state saves one at a time so the last pick wins ([#1646](https://github.com/alrayyes/forge-dashboard/issues/1646)) ([ffb7014](https://github.com/alrayyes/forge-dashboard/commit/ffb701445b606e40440980f92fcc008e29001849))
+
 ## [0.200.0](https://github.com/alrayyes/forge-dashboard/compare/v0.199.0...v0.200.0) (2026-10-16)
 
 
