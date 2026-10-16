@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers/legacy"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -93,6 +95,10 @@ func TestContract_HealthAndReadiness(t *testing.T) {
 	}
 }
 
+// autoMergingPR is the pull request on the populated board that has auto-merge
+// on, held by the forge (#1608).
+const autoMergingPR = 7
+
 // A populated board, so the dashboard and refresh answers carry real pull
 // requests, issues and repos rather than empty lists.
 func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
@@ -113,6 +119,12 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 				Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 6, Title: "Bump a dependency",
 				URL: "https://github.com/alrayyes/a/pull/6", Author: "dependabot[bot]", Draft: true,
 				MergeStatus: dashboard.MergeMergeable, CI: dashboard.CISuccess, Labels: []dashboard.Label{}, RequestedReviewerLogins: []string{}, CreatedAt: now, UpdatedAt: now,
+			},
+			{
+				Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: autoMergingPR, Title: "Ship it once green",
+				URL: "https://github.com/alrayyes/a/pull/7", Author: "alice",
+				MergeStatus: dashboard.MergeMergeable, CI: dashboard.CIPending, Labels: []dashboard.Label{}, RequestedReviewerLogins: []string{}, CreatedAt: now, UpdatedAt: now,
+				AutoMergeEnabled: new(true), AutoMergeHeldBy: dashboard.AutoMergeHeldByForge,
 			},
 		},
 		issues: []dashboard.Issue{
@@ -137,7 +149,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
-		return len(prs) == 2
+		return len(prs) == 3
 	}, time.Second, 10*time.Millisecond)
 
 	return srv, cookie
@@ -216,5 +228,53 @@ func TestContract_DashboardAndRefresh(t *testing.T) {
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		require.NotEmpty(t, got.header.Get("Retry-After"))
 		validateAgainstSpec(t, req, got)
+	})
+}
+
+// kin-openapi doesn't check membership for x-extensible-enum, so the schema
+// check alone passes any string. The second subtest holds the real response
+// to the list the spec declares for autoMergeHeldBy (#1608).
+func TestContract_DashboardCarriesAutoMergeHeldBy(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie := populatedBoard(t)
+	req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard?includeDrafts=true", cookie)
+	require.Equal(t, http.StatusOK, got.status, string(got.body))
+	validateAgainstSpec(t, req, got)
+
+	var body struct {
+		PullRequests []map[string]any `json:"pullRequests"`
+	}
+	require.NoError(t, json.Unmarshal(got.body, &body))
+	var pr map[string]any
+	for _, p := range body.PullRequests {
+		if p["number"] == float64(autoMergingPR) {
+			pr = p
+		}
+	}
+	require.NotNil(t, pr, "the auto-merging pull request is missing from the response")
+
+	t.Run("auto-merge is on", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, true, pr["autoMergeEnabled"])
+	})
+	t.Run("autoMergeHeldBy is one of the values the spec lists", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+		require.NoError(t, err)
+		prop := doc.Components.Schemas["PullRequest"].Value.Properties["autoMergeHeldBy"].Value
+
+		assert.Contains(t, extensibleEnum(t, prop), pr["autoMergeHeldBy"])
+	})
+	t.Run("a pull request without auto-merge omits autoMergeHeldBy", func(t *testing.T) {
+		t.Parallel()
+
+		for _, p := range body.PullRequests {
+			if p["number"] != float64(autoMergingPR) {
+				assert.NotContains(t, p, "autoMergeHeldBy")
+			}
+		}
 	})
 }
