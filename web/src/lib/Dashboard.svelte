@@ -19,6 +19,7 @@
   } from "#lib/PullRequestDetailsDialog.svelte";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { loadIssueSettings } from "#lib/issue-settings.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { findAction, type AllowedAction } from "#lib/allowed-actions.js";
@@ -238,6 +239,8 @@
     openIssueCount?: number;
     // What each nav item shows: its page's total and failed count (#1315).
     navCounts?: ServerNavCounts;
+    // Open issues the user's own Settings left out of `issues` (#1630).
+    settingsHiddenIssueCount?: number;
     repos?: Filters.RepoRef[];
     // Drafts the API left out (#791). 0 when the request asked for them.
     hiddenDrafts?: number;
@@ -287,6 +290,29 @@
 
   // The read-only details dialog (#943); a row's Details button opens it.
   let detailsDialog = $state<PullRequestDetailsDialog>();
+
+  // The Issues settings (#1630). The server applies them to what it sends, so
+  // this page only stops drawing the two fields they replace and says how many
+  // issues they hid. The fields stay hidden until the settings are known, so a
+  // field that is about to go never flashes in.
+  let issueSettingsKnown = $state(false);
+  let settingsHideDependencyDashboard = $state(false);
+  let settingsIgnoreTitles = $state(false);
+  let settingsHiddenIssues = $state(0);
+
+  // The issue rules the page filters by: its own saved values, except for a
+  // field the settings replace. That one is ignored, not cleared, so it comes
+  // back when the setting is turned off.
+  function withSettings(extra: Record<string, string>): Record<string, string> {
+    if (!settingsHideDependencyDashboard && !settingsIgnoreTitles) return extra;
+    return {
+      ...extra,
+      ...(settingsHideDependencyDashboard
+        ? { hideDependencyDashboard: "1" }
+        : {}),
+      ...(settingsIgnoreTitles ? { hideTitleRegex: "" } : {}),
+    };
+  }
 
   onMount(initDashboard);
 
@@ -4440,7 +4466,7 @@
                 ...(board === "applyExceptAutoMerge" ? { autoMerge: "" } : {}),
               }
             : undefined
-          : sharedState.issue,
+          : withSettings(sharedState.issue),
       );
     }
 
@@ -4454,7 +4480,9 @@
         pullsView,
         { title: sharedState.shared.title ?? "" },
         "",
-        pullsView ? { ...sharedState.pr, quick: "" } : sharedState.issue,
+        pullsView
+          ? { ...sharedState.pr, quick: "" }
+          : withSettings(sharedState.issue),
       );
     }
 
@@ -4900,11 +4928,17 @@
         pages.appendChild(next);
       }
 
+      // What the board filters by: the saved rules, less what Settings
+      // replaces (#1630). Pull requests have no such rules.
+      function ruleState(): Record<string, string> {
+        return isPR ? extraState : withSettings(extraState);
+      }
+
       function render() {
         const container = document.getElementById(containerId);
         if (!container) return;
         const visible = state.items.filter((item) =>
-          Filters.matchesFilters(item, isPR, sharedState.shared, extraState),
+          Filters.matchesFilters(item, isPR, sharedState.shared, ruleState()),
         );
 
         container.innerHTML = "";
@@ -5037,7 +5071,7 @@
         const noteEl = document.getElementById(`${idPrefix}-hide-title-note`);
         if (isPR || !field || !errorEl || !noteEl) return;
         const status = Filters.compileTitleRule(
-          extraState.hideTitleRegex,
+          ruleState().hideTitleRegex,
         ).status;
         const invalid = status === "invalid" || status === "complex";
         errorEl.hidden = !invalid;
@@ -5060,7 +5094,7 @@
               item,
               isPR,
               sharedState.shared,
-              extraState,
+              ruleState(),
             ).join() === "hideTitleRegex",
         ).length;
         noteEl.hidden = hidden === 0;
@@ -5087,7 +5121,7 @@
           // Grouped mode has no pages: every filtered row is on screen.
           if (sharedState.shared.groupBy) return null;
           const visible = state.items.filter((item) =>
-            Filters.matchesFilters(item, isPR, sharedState.shared, extraState),
+            Filters.matchesFilters(item, isPR, sharedState.shared, ruleState()),
           );
           const pages = Stacks.pagesOf(entriesFor(visible), state.pageSize);
           const page =
@@ -5346,8 +5380,11 @@
         !sharedState.pr.status &&
         !sharedState.pr.quick &&
         !sharedState.pr.autoMerge &&
-        sharedState.issue.hideDependencyDashboard === "1" &&
-        !sharedState.issue.hideTitleRegex
+        // A field the Settings page replaced is not drawn, so what the
+        // page saved in it is not something to clear (#1630).
+        (settingsHideDependencyDashboard ||
+          sharedState.issue.hideDependencyDashboard === "1") &&
+        (settingsIgnoreTitles || !sharedState.issue.hideTitleRegex)
       );
     }
 
@@ -5599,9 +5636,18 @@
       for (const k of Object.keys(sharedState.shared))
         delete sharedState.shared[k];
       for (const k of Object.keys(sharedState.pr)) delete sharedState.pr[k];
+      // The page's own saved values for a field the Settings page replaced
+      // stay: they come back when the setting is turned off (#1630).
+      const keptDependencyDashboard = sharedState.issue.hideDependencyDashboard;
+      const keptTitleRegex = sharedState.issue.hideTitleRegex;
       for (const k of Object.keys(sharedState.issue))
         delete sharedState.issue[k];
-      sharedState.issue.hideDependencyDashboard = "1";
+      sharedState.issue.hideDependencyDashboard =
+        settingsHideDependencyDashboard
+          ? (keptDependencyDashboard ?? "1")
+          : "1";
+      if (settingsIgnoreTitles && keptTitleRegex)
+        sharedState.issue.hideTitleRegex = keptTitleRegex;
       syncQuickPills();
       syncAutoMerge();
 
@@ -5622,12 +5668,13 @@
       const hideDependencyDashboardCheckbox = document.getElementById(
         "issue-hide-dependency-dashboard",
       ) as HTMLInputElement | null;
-      if (hideDependencyDashboardCheckbox)
+      if (hideDependencyDashboardCheckbox && !settingsHideDependencyDashboard)
         hideDependencyDashboardCheckbox.checked = true;
       const hideTitleRegexInput = document.getElementById(
         "issue-hide-title-regex",
       ) as HTMLInputElement | null;
-      if (hideTitleRegexInput) hideTitleRegexInput.value = "";
+      if (hideTitleRegexInput && !settingsIgnoreTitles)
+        hideTitleRegexInput.value = "";
 
       updateSharedFilterOptions();
       prBoard.resetPage();
@@ -5635,6 +5682,25 @@
       Filters.saveState(sharedState);
       renderBoth();
     });
+
+    // #1630: which fields the Settings page has replaced.
+    if (view === "issues") {
+      loadIssueSettings().then((settings) => {
+        settingsHideDependencyDashboard = settings.hideDependencyDashboard;
+        settingsIgnoreTitles = settings.ignoredTitles.length > 0;
+        issueSettingsKnown = true;
+        // Only a saved value the settings now override changes what the
+        // board shows; otherwise leave the rows as they are.
+        if (
+          (settingsIgnoreTitles && sharedState.issue.hideTitleRegex) ||
+          (settingsHideDependencyDashboard &&
+            sharedState.issue.hideDependencyDashboard !== "1")
+        ) {
+          updateSharedFilterOptions();
+          issueBoard.render();
+        }
+      });
+    }
 
     // ---- forge health ----
     // One friendly, actionable line per ForgeErrorKind, taking
@@ -6658,6 +6724,7 @@
       // shows none of them and the Releases board only them. The server says
       // which are which (#716). The nav counts both from the full list.
       setNavCounts(data.navCounts);
+      settingsHiddenIssues = data.settingsHiddenIssueCount ?? 0;
       syncQueuedActions(data.queuedActions ?? []);
       const prs = (data.pullRequests || []).filter((p) =>
         viewKind
@@ -7367,7 +7434,10 @@
       <div class="board-head">
         <h2>Issues</h2>
         <div class="board-head-controls">
-          <label class="checkbox-filter">
+          <label
+            class="checkbox-filter"
+            hidden={!issueSettingsKnown || settingsHideDependencyDashboard}
+          >
             <input
               type="checkbox"
               id="issue-hide-dependency-dashboard"
@@ -7375,7 +7445,10 @@
             />
             Hide Dependency Dashboard
           </label>
-          <label class="text-filter">
+          <label
+            class="text-filter"
+            hidden={!issueSettingsKnown || settingsIgnoreTitles}
+          >
             Hide titles matching (regex)
             <input
               type="text"
@@ -7395,6 +7468,12 @@
           role="status"
           hidden
         ></p>
+        {#if settingsHiddenIssues > 0}
+          <p class="rule-note" id="issue-settings-note" role="status">
+            {settingsHiddenIssues} hidden by your settings.
+            <a href="/settings.html#issue-settings">Settings</a>
+          </p>
+        {/if}
       </div>
 
       <div id="issue-rows"></div>
