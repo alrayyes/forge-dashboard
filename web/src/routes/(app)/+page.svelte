@@ -132,7 +132,7 @@
   <title>Main branches — Forge Board</title>
   <meta
     name="description"
-    content="The CI status of every tracked repository's default branch, failing first."
+    content="The CI status of every tracked repository's default branch, newest commit first."
   />
   <style>
     .mb-wrap {
