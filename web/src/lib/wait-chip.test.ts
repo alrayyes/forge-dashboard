@@ -169,6 +169,45 @@ describe('autoMergeChip wording', () => {
     expect(chip?.detail).toBe('On the next refresh');
   });
 
+  // #1596: only a holder the server names changes the Forgejo wording.
+  test('a green Forgejo auto-merge held by the forge says the forge merges it', () => {
+    const chip = autoMergeChip(
+      waiting({
+        code: '',
+        forge: 'forgejo',
+        heldBy: 'forge',
+        message: 'Checks passed. Forgejo merges it.',
+      }),
+    );
+    expect(chip?.label).toBe('Merging');
+    expect(chip?.detail).toBe('Forgejo merges it when checks pass');
+    expect(chip?.tooltip).toBe('Checks passed. Forgejo merges it.');
+  });
+
+  test('a green Forgejo auto-merge held by the app or by an unknown holder keeps the historic wording', () => {
+    for (const heldBy of ['dashboard', undefined] as const) {
+      const chip = autoMergeChip(
+        waiting({ code: '', forge: 'forgejo', heldBy }),
+      );
+      expect(chip?.label).toBe('Merging next');
+      expect(chip?.detail).toBe('On the next refresh');
+    }
+  });
+
+  test('a holder does not change a waiting reason on Forgejo', () => {
+    const chip = autoMergeChip(
+      waiting({ code: 'checks_pending', heldBy: 'forge' }),
+    );
+    expect(chip?.label).toBe('Waiting for CI');
+  });
+
+  test('a GitHub auto-merge ignores the holder', () => {
+    const chip = autoMergeChip(
+      waiting({ code: '', forge: 'github', heldBy: 'forge' }),
+    );
+    expect(chip?.detail).toBe('GitHub merges it as soon as it can');
+  });
+
   test('a green GitHub auto-merge says GitHub merges it itself', () => {
     const chip = autoMergeChip(
       waiting({
