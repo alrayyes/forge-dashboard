@@ -24,6 +24,10 @@ type Manager struct {
 	autoMergeStore AutoMergeStore
 	// queuedActionStore is nil until SetQueuedActionStore is called.
 	queuedActionStore QueuedActionStore
+	// webhookCreds is nil until SetWebhookUpgrade is called.
+	webhookCreds   WebhookCredentialSource
+	webhookOrigin  string
+	webhookUpgrade *WebhookUpgrades
 	// ciPollInterval is zero until SetCIPollInterval is called — every
 	// Aggregator this Manager builds before that point, or ever, if
 	// it's never called, skips the CI-poll fallback (#177) entirely.
@@ -97,6 +101,20 @@ func (m *Manager) SetQueuedActionStore(store QueuedActionStore) {
 	m.queuedActionStore = store
 }
 
+// SetWebhookUpgrade turns on the once-per-start upgrade of app-created
+// webhooks (#1555) for every Aggregator this Manager builds from here on.
+// origin is the app's public origin, which the hooks' target URLs start with.
+// The record of which repos were visited lives here, not in an Aggregator, so
+// it spans credential saves and sign-ins for the life of the process. Call
+// once, before the first Ensure.
+func (m *Manager) SetWebhookUpgrade(creds WebhookCredentialSource, origin string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.webhookCreds = creds
+	m.webhookOrigin = origin
+	m.webhookUpgrade = NewWebhookUpgrades(DefaultWebhookUpgradeJitter)
+}
+
 // SetCIPollInterval turns on the CI-status poll fallback (#177) for
 // every Aggregator this Manager builds from here on — a setter rather
 // than a NewManager parameter, the same reason
@@ -166,6 +184,9 @@ func (m *Manager) startLocked(ctx context.Context, key string, userID []byte, so
 	}
 	if m.autoMergeStore != nil {
 		agg.EnableAutoMerge(userID, m.autoMergeStore)
+	}
+	if m.webhookCreds != nil {
+		agg.EnableWebhookUpgrade(runCtx, userID, m.webhookCreds, m.webhookOrigin, m.webhookUpgrade)
 	}
 	m.users[key] = &managedAggregator{agg: agg, cancel: cancel, started: time.Now()}
 	go agg.Run(runCtx, m.refreshInterval)

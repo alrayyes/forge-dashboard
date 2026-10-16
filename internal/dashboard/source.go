@@ -95,6 +95,32 @@ type WebhookManager interface {
 	EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error
 }
 
+// WebhookUpgrader is implemented by a ForgeClient (or, for github.Client, a
+// Source directly) that can bring an existing app-created webhook up to the
+// event list the app subscribes to now (#1555). Unlike WebhookManager it never
+// creates a hook, and it writes only when the hook lacks an event: one hooks
+// listing per call, plus one PATCH when the list differs. It reports whether
+// it wrote.
+type WebhookUpgrader interface {
+	UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (updated bool, err error)
+}
+
+// WebhookCoversEvents reports whether a hook's event list has every event want
+// names. A hook may carry more (a user's own extra ticks); those are left.
+func WebhookCoversEvents(have, want []string) bool {
+	got := make(map[string]struct{}, len(have))
+	for _, e := range have {
+		got[e] = struct{}{}
+	}
+	for _, e := range want {
+		if _, ok := got[e]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
 // PullRequestMerger is implemented by a ForgeClient (or, for github.Client,
 // a Source directly) that can merge one of its own pull requests —
 // checked via a type assertion, the same optional-capability pattern
