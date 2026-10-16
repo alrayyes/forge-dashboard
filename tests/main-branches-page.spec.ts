@@ -494,4 +494,134 @@ test.describe('Main branches page (#1224, #1279)', () => {
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
     }
   });
+
+  // #1563 slice 4: the row's CI status is a state (running) or an outcome
+  // (failed, passed) in one fixed slot with the pull request row's glyphs and
+  // colours. "No pipeline" is neither, so it is a quiet outlined note.
+  // https://github.com/alrayyes/forge-dashboard/issues/1563
+  const slotOf = (page: Page, n: number) =>
+    rows(page).nth(n).locator('.ci-slot');
+
+  test('failed, running and passed share one slot box, with the pull request row glyphs', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/');
+    await expect(rows(page)).toHaveCount(6);
+    const cases = [
+      { n: 0, word: 'Failed', cls: 'failure', glyph: 'cross' },
+      { n: 2, word: 'Running', cls: 'pending', glyph: 'arc' },
+      { n: 3, word: 'Passed', cls: 'success', glyph: 'check' },
+    ];
+    const slots = [];
+    const pills = [];
+    for (const c of cases) {
+      const pill = slotOf(page, c.n).locator('.ci-pill');
+      await expect(pill).toHaveText(c.word);
+      await expect(pill).toHaveClass(new RegExp(`\\b${c.cls}\\b`));
+      await expect(pill.locator(`svg[data-glyph="${c.glyph}"]`)).toBeAttached();
+      await expect(pill.locator('.dot')).toHaveCount(0);
+      slots.push(await slotOf(page, c.n).boundingBox());
+      pills.push(await pill.boundingBox());
+    }
+    // Same size in every state; the slot sits top right of its card.
+    expect(new Set(slots.map((b) => `${b?.width}x${b?.height}`)).size).toBe(1);
+    expect(new Set(pills.map((b) => `${b?.width}x${b?.height}`)).size).toBe(1);
+    const card = await rows(page).first().boundingBox();
+    expect((slots[0]?.x ?? 0) + (slots[0]?.width ?? 0)).toBeGreaterThan(
+      (card?.x ?? 0) + (card?.width ?? 0) - 24,
+    );
+    expect(slots[0]?.y ?? 0).toBeLessThan((card?.y ?? 0) + 24);
+  });
+
+  test('No pipeline is a quiet outlined note, neither a state nor an outcome', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await page.goto('/');
+    const note = slotOf(page, 5).locator('.attr-chip');
+    await expect(note).toHaveText('No pipeline');
+    await expect(slotOf(page, 5).locator('.ci-pill')).toHaveCount(0);
+    const style = await note.evaluate((el) => {
+      const s = getComputedStyle(el);
+      const probe = document.createElement('span');
+      const states = ['--good', '--warning', '--critical', '--queued'].map(
+        (t) => {
+          probe.style.color = `var(${t})`;
+          document.body.appendChild(probe);
+          const v = getComputedStyle(probe).color;
+          probe.remove();
+          return v;
+        },
+      );
+      return {
+        background: s.backgroundColor,
+        border: s.borderTopWidth,
+        animation: s.animationName,
+        isState: states.includes(s.color),
+      };
+    });
+    // Right edge on the slot's right edge, as tall as the pills.
+    const slotBox = await slotOf(page, 5).boundingBox();
+    const noteBox = await note.boundingBox();
+    const pillBox = await slotOf(page, 0).locator('.ci-pill').boundingBox();
+    expect((noteBox?.x ?? 0) + (noteBox?.width ?? 0)).toBeCloseTo(
+      (slotBox?.x ?? 0) + (slotBox?.width ?? 0),
+      0,
+    );
+    expect(noteBox?.height).toBe(pillBox?.height);
+    expect(style).toEqual({
+      background: 'rgba(0, 0, 0, 0)',
+      border: '1px',
+      animation: 'none',
+      isState: false,
+    });
+  });
+
+  test('the running glyph keeps still under reduced motion', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await mock(page, snapshot(MIXED));
+    await page.goto('/');
+    const pill = slotOf(page, 2).locator('.ci-pill');
+    await expect(pill.locator('svg[data-glyph="arc"]')).toBeHidden();
+    await expect(pill.locator('svg[data-glyph="clock"]')).toBeVisible();
+    const playing = await page.evaluate(() =>
+      document
+        .getAnimations()
+        .filter((a) => a.playState === 'running')
+        .map((a) => a.id),
+    );
+    expect(playing).toEqual([]);
+  });
+
+  for (const theme of ['light', 'dark']) {
+    test(`the slot at 360px has no overflow and passes axe in ${theme} mode`, async ({
+      page,
+    }) => {
+      await mock(page, snapshot(MIXED));
+      await page.setViewportSize({ width: 360, height: 800 });
+      await page.goto('/');
+      await setTheme(page, theme);
+      await page.reload();
+      await expect(rows(page)).toHaveCount(6);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+      const card = await rows(page).first().boundingBox();
+      const slot = await slotOf(page, 0).boundingBox();
+      expect((slot?.x ?? 0) + (slot?.width ?? 0)).toBeLessThanOrEqual(
+        (card?.x ?? 0) + (card?.width ?? 0) + 1,
+      );
+      expect(slot?.y ?? 0).toBeLessThan((card?.y ?? 0) + 24);
+      const results = await new AxeBuilder({ page })
+        .withTags([...AXE_TAGS, 'wcag22aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+      await setTheme(page, 'light');
+    });
+  }
 });
