@@ -12,7 +12,7 @@ import { registerViaInvite } from './register-helper';
 // The server removes the matching issues and says how many in
 // settingsHiddenIssueCount; the pages only stop drawing the fields the
 // settings replace and say how many are hidden. The server half is a separate
-// pull request, so GET /api/settings and /api/dashboard are stand-ins shaped
+// pull request, so /api/dashboard is a stand-in shaped
 // like api/openapi.yaml. Filter state is saved per user: the spec has its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1630
 
@@ -43,7 +43,6 @@ interface Stand {
   hideDependencyDashboard: boolean;
   ignoredTitles: string[];
   hidden: number | undefined;
-  puts: number;
 }
 
 async function standIn(page: Page, init: Partial<Stand> = {}) {
@@ -51,7 +50,6 @@ async function standIn(page: Page, init: Partial<Stand> = {}) {
     hideDependencyDashboard: false,
     ignoredTitles: [],
     hidden: undefined,
-    puts: 0,
     ...init,
   };
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
@@ -66,6 +64,8 @@ async function standIn(page: Page, init: Partial<Stand> = {}) {
         pullRequests: [],
         issues,
         openIssueCount: issues.length,
+        hideDependencyDashboard: stand.hideDependencyDashboard,
+        ignoredTitlesSet: stand.ignoredTitles.length > 0,
         ...(stand.hidden === undefined
           ? {}
           : { settingsHiddenIssueCount: stand.hidden }),
@@ -74,31 +74,6 @@ async function standIn(page: Page, init: Partial<Stand> = {}) {
       }),
     });
   });
-  await page.route(
-    (url) => url.pathname === '/api/settings',
-    (route: Route) => {
-      if (route.request().method() === 'PUT') stand.puts++;
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          githubUsername: '',
-          githubTokenSet: false,
-          githubAppInstallationId: 0,
-          githubAppConfigured: false,
-          forgejoUrl: '',
-          forgejoUsername: '',
-          forgejoTokenSet: false,
-          webhookToken: 'webhook-token',
-          webhookSecret: 'webhook-secret',
-          renovateRebaseLabel: '',
-          theme: '',
-          hideDependencyDashboard: stand.hideDependencyDashboard,
-          ignoredTitles: stand.ignoredTitles,
-        }),
-      });
-    },
-  );
   return stand;
 }
 
@@ -125,21 +100,45 @@ test.describe('Issues page follows the settings (#1630)', () => {
     await expect(note(page)).toHaveCount(0);
   });
 
-  test('a server that does not send the fields yet reads as nothing set', async ({
+  test('reads the flags from the snapshot and asks /api/settings for nothing', async ({
     page,
   }) => {
-    await standIn(page, { hidden: 3 });
-    // Registered last, so it wins over the stand-in's own answer.
-    await page.route(
-      (url) => url.pathname === '/api/settings',
-      (route: Route) => route.fulfill({ status: 500, body: 'nope' }),
-    );
+    const asked: string[] = [];
+    page.on('request', (r) => {
+      if (new URL(r.url()).pathname === '/api/settings') asked.push(r.method());
+    });
+    await standIn(page, { hideDependencyDashboard: true });
     await page.goto('/issues.html');
     await expect(rows(page)).toHaveCount(2);
+    await expect(dependencyBox(page)).toBeHidden();
+    await page.goto('/insights.html');
+    await expect(page.locator('#issue-hide-dependency-dashboard')).toBeHidden();
+    expect(asked).toEqual([]);
+  });
+
+  test('a snapshot without the flags reads as nothing set', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [],
+          pullRequests: [],
+          issues: [issue(1, 'Fix the login page')],
+          repos: [],
+        }),
+      }),
+    );
+    await page.goto('/issues.html');
+    await expect(rows(page)).toHaveCount(1);
     await expect(dependencyBox(page)).toBeVisible();
     await expect(patternBox(page)).toBeVisible();
-    // Unknown settings: the fields show, so the note says nothing either.
-    await expect(note(page)).toHaveCount(0);
   });
 
   test('the Dependency Dashboard setting removes that checkbox only', async ({
@@ -220,7 +219,7 @@ test.describe('Issues page follows the settings (#1630)', () => {
   });
 
   test('Clear filters leaves the settings alone', async ({ page }) => {
-    const stand = await standIn(page, {
+    await standIn(page, {
       hideDependencyDashboard: true,
       ignoredTitles: ['^Weekly report'],
       hidden: 2,
@@ -236,7 +235,6 @@ test.describe('Issues page follows the settings (#1630)', () => {
     await expect(dependencyBox(page)).toBeHidden();
     await expect(patternBox(page)).toBeHidden();
     await expect(note(page)).toContainText('2 hidden by your settings');
-    expect(stand.puts).toBe(0);
   });
 
   test('Clear filters is off when only a hidden field differs from the default', async ({
@@ -302,21 +300,6 @@ test.describe('Insights follows the settings (#1630)', () => {
     page,
   }) => {
     await standIn(page);
-    await page.goto('/insights.html');
-    await expect(
-      page.locator('#issue-hide-dependency-dashboard'),
-    ).toBeVisible();
-    await expect(note(page)).toHaveCount(0);
-  });
-
-  test('a failed settings load keeps the checkbox and draws no note', async ({
-    page,
-  }) => {
-    await standIn(page, { hidden: 5 });
-    await page.route(
-      (url) => url.pathname === '/api/settings',
-      (route: Route) => route.fulfill({ status: 500, body: 'nope' }),
-    );
     await page.goto('/insights.html');
     await expect(
       page.locator('#issue-hide-dependency-dashboard'),

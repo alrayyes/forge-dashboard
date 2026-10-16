@@ -179,8 +179,6 @@ test.describe('insights page', () => {
       '/api/settings/theme',
       '/api/settings/timezone',
       '/api/settings/filter-state',
-      // Which issue fields Settings replaces (#1630).
-      '/api/settings',
     ]);
     expect([...apiPaths].filter((p) => !layout.has(p))).toEqual([]);
   });

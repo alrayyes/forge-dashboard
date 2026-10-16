@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import * as Filters from "#lib/filters.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
-  import { loadIssueSettings } from "#lib/issue-settings.js";
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
 
   type RateLimit = {
@@ -263,7 +262,6 @@
   // replaces (the page's own saved value stays and comes back) and says how
   // many it hid. Hidden until known, so the checkbox never flashes in.
   let issueSettingsKnown = $state(false);
-  let issueSettingsFailed = $state(false);
   let settingsHideDependencyDashboard = $state(false);
   let settingsHiddenIssues = $state(0);
 
@@ -296,15 +294,6 @@
       }
     });
 
-    loadIssueSettings().then((settings) => {
-      issueSettingsKnown = true;
-      if (!settings) {
-        issueSettingsFailed = true;
-        return;
-      }
-      settingsHideDependencyDashboard = settings.hideDependencyDashboard;
-    });
-
     fetch("/api/dashboard", { headers: { Accept: "application/json" } })
       .then((res) => {
         if (res.status === 401) {
@@ -320,7 +309,11 @@
           issues?: FilterableItem[];
           forges?: Forge[];
           settingsHiddenIssueCount?: number;
+          hideDependencyDashboard?: boolean;
         }) => {
+          settingsHideDependencyDashboard =
+            data.hideDependencyDashboard === true;
+          issueSettingsKnown = true;
           settingsHiddenIssues = data.settingsHiddenIssueCount ?? 0;
           lastSnapshot.pullRequests = data.pullRequests || [];
           lastSnapshot.issues = data.issues || [];
@@ -770,7 +763,7 @@
       />
       Hide Dependency Dashboard (issue charts only)
     </label>
-    {#if settingsHiddenIssues > 0 && !issueSettingsFailed}
+    {#if settingsHiddenIssues > 0}
       <p class="settings-note" id="issue-settings-note">
         {settingsHiddenIssues} hidden by your settings.
         <a href="/settings.html#issue-settings">Settings</a>

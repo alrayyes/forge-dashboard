@@ -19,7 +19,6 @@
   } from "#lib/PullRequestDetailsDialog.svelte";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
-  import { loadIssueSettings } from "#lib/issue-settings.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { findAction, type AllowedAction } from "#lib/allowed-actions.js";
@@ -239,7 +238,11 @@
     openIssueCount?: number;
     // What each nav item shows: its page's total and failed count (#1315).
     navCounts?: ServerNavCounts;
-    // Open issues the user's own Settings left out of `issues` (#1630).
+    // The viewer's issue settings (#1630): whether the Dependency Dashboard is
+    // hidden, whether the ignored-titles list has an entry, and how many
+    // issues they left out of `issues`.
+    hideDependencyDashboard?: boolean;
+    ignoredTitlesSet?: boolean;
     settingsHiddenIssueCount?: number;
     repos?: Filters.RepoRef[];
     // Drafts the API left out (#791). 0 when the request asked for them.
@@ -293,12 +296,9 @@
 
   // The Issues settings (#1630). The server applies them to what it sends, so
   // this page only stops drawing the two fields they replace and says how many
-  // issues they hid. The fields stay hidden until the settings are known, so a
+  // issues they hid. The fields stay hidden until the first snapshot says, so a
   // field that is about to go never flashes in.
   let issueSettingsKnown = $state(false);
-  // The load failed: the fields show, and the note stays away, since nothing
-  // says whether the settings apply.
-  let issueSettingsFailed = $state(false);
   let settingsHideDependencyDashboard = $state(false);
   let settingsIgnoreTitles = $state(false);
   let settingsHiddenIssues = $state(0);
@@ -5686,29 +5686,6 @@
       renderBoth();
     });
 
-    // #1630: which fields the Settings page has replaced.
-    if (view === "issues") {
-      loadIssueSettings().then((settings) => {
-        issueSettingsKnown = true;
-        if (!settings) {
-          issueSettingsFailed = true;
-          return;
-        }
-        settingsHideDependencyDashboard = settings.hideDependencyDashboard;
-        settingsIgnoreTitles = settings.ignoredTitles.length > 0;
-        // Only a saved value the settings now override changes what the
-        // board shows; otherwise leave the rows as they are.
-        if (
-          (settingsIgnoreTitles && sharedState.issue.hideTitleRegex) ||
-          (settingsHideDependencyDashboard &&
-            sharedState.issue.hideDependencyDashboard !== "1")
-        ) {
-          updateSharedFilterOptions();
-          issueBoard.render();
-        }
-      });
-    }
-
     // ---- forge health ----
     // One friendly, actionable line per ForgeErrorKind, taking
     // precedence over the raw error string as the primary visible text.
@@ -6731,6 +6708,11 @@
       // shows none of them and the Releases board only them. The server says
       // which are which (#716). The nav counts both from the full list.
       setNavCounts(data.navCounts);
+      // The snapshot carries the viewer's two flags (#1630), so no second
+      // request decides which fields to draw.
+      settingsHideDependencyDashboard = data.hideDependencyDashboard === true;
+      settingsIgnoreTitles = data.ignoredTitlesSet === true;
+      issueSettingsKnown = true;
       settingsHiddenIssues = data.settingsHiddenIssueCount ?? 0;
       syncQueuedActions(data.queuedActions ?? []);
       const prs = (data.pullRequests || []).filter((p) =>
@@ -7475,7 +7457,7 @@
           role="status"
           hidden
         ></p>
-        {#if settingsHiddenIssues > 0 && !issueSettingsFailed}
+        {#if settingsHiddenIssues > 0}
           <p class="rule-note" id="issue-settings-note" role="status">
             {settingsHiddenIssues} hidden by your settings.
             <a href="/settings.html#issue-settings">Settings</a>
