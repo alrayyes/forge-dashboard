@@ -1,17 +1,16 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1458: the Branches item shows the total and how many default branches are
 // failing, running and passing, as the pull request items do (#1439). The
 // server counts them (`navCounts.branches`); the page only draws them.
 // https://github.com/alrayyes/forge-dashboard/issues/1458
+
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 type Counts = {
   total: number;
@@ -55,10 +54,6 @@ const header = (page: Page) => page.locator(`header nav a[href="${BRANCHES}"]`);
 const tab = (page: Page) => page.locator(`.bottom-nav a[href="${BRANCHES}"]`);
 
 test.describe('the Branches nav pill shows failing, running and passing (#1458)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await register(page, request, baseURL);
-  });
-
   test('shows the total, then failed, passed and running, each with its glyph', async ({
     page,
   }) => {
@@ -202,12 +197,3 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
     });
   }
 });
-
-async function register(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `nav-branches-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Nav Branches');
-}
