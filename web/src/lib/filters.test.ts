@@ -12,6 +12,7 @@ import {
   ciChoices,
   type FilterableItem,
   matchesFilters,
+  matchesQuickFilter,
   optionPool,
   showBlockedChip,
 } from './filters';
@@ -193,5 +194,47 @@ describe('showBlockedChip', () => {
     expect(showBlockedChip('mergeable', 'success')).toBe(false);
     expect(showBlockedChip('conflicting', 'failure')).toBe(false);
     expect(showBlockedChip(undefined, 'success')).toBe(false);
+  });
+});
+
+// Ready to Merge and Needs Review list what the server says they are (#807):
+// the page holds no copy of the definitions. Each item below states the flag
+// in a way that disagrees with what its raw fields would have said.
+// https://github.com/alrayyes/forge-dashboard/issues/807
+describe('matchesQuickFilter follows the server flags', () => {
+  const rawReady = choiceItem({
+    ci: 'success',
+    mergeStatus: 'mergeable',
+    readyToMerge: false,
+  });
+  const rawFailing = choiceItem({
+    ci: 'failure',
+    mergeStatus: 'blocked',
+    draft: true,
+    readyToMerge: true,
+  });
+  const serverReview = choiceItem({
+    review: { decision: 'approved', requestedReviewers: 0 },
+    needsReview: true,
+  });
+  const rawReview = choiceItem({
+    review: { decision: 'review_required', requestedReviewers: 1 },
+    needsReview: false,
+  });
+
+  test('ready keeps the items the server marks readyToMerge, whatever the raw fields say', () => {
+    expect(matchesQuickFilter(rawFailing, 'ready')).toBe(true);
+    expect(matchesQuickFilter(rawReady, 'ready')).toBe(false);
+  });
+
+  test('needs-review keeps the items the server marks needsReview, whatever the raw fields say', () => {
+    expect(matchesQuickFilter(serverReview, 'needs-review')).toBe(true);
+    expect(matchesQuickFilter(rawReview, 'needs-review')).toBe(false);
+  });
+
+  test('an item the server did not flag is in neither', () => {
+    const bare = choiceItem();
+    expect(matchesQuickFilter(bare, 'ready')).toBe(false);
+    expect(matchesQuickFilter(bare, 'needs-review')).toBe(false);
   });
 });
