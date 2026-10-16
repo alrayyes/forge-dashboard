@@ -206,6 +206,13 @@ type partialRequiredServer struct {
 	protection        []string
 	rulesets          []string
 	pages             [][]string
+	// The pull request's shape, for the fallback that applies when the required
+	// contexts can't be read (#1311). Zero values are an open, non-draft
+	// Dependabot pull request that GitHub blocks, with no review outstanding.
+	mergeState     string
+	reviewDecision string
+	author         string
+	draft          bool
 }
 
 func (p *partialRequiredServer) start(t *testing.T) *httptest.Server {
@@ -225,18 +232,9 @@ func (p *partialRequiredServer) start(t *testing.T) *httptest.Server {
 				"pageInfo": map[string]any{"hasNextPage": false},
 				"nodes": []map[string]any{{
 					"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "ADMIN",
-					"owner": map[string]any{"login": "alrayyes"},
-					"pullRequests": map[string]any{"nodes": []map[string]any{{
-						"number": 25, "title": "bump", "url": "https://github.com/alrayyes/a/pull/25",
-						"isDraft": false, "author": map[string]any{"login": "dependabot"},
-						"labels":    map[string]any{"nodes": []map[string]any{}},
-						"createdAt": "2026-10-12T12:27:00Z", "updatedAt": "2026-10-12T12:28:00Z",
-						"mergeStateStatus": "BLOCKED", "headRefOid": "cafef00d", "baseRefName": "main",
-						"commits": map[string]any{"nodes": []map[string]any{
-							{"commit": map[string]any{"statusCheckRollup": rollupFixture("SUCCESS", map[string]int{"SUCCESS": 1}, nil)}},
-						}},
-					}}},
-					"issues": map[string]any{"nodes": []map[string]any{}},
+					"owner":        map[string]any{"login": "alrayyes"},
+					"pullRequests": map[string]any{"nodes": []map[string]any{p.pullRequest()}},
+					"issues":       map[string]any{"nodes": []map[string]any{}},
 				}},
 			}},
 		}})
@@ -268,6 +266,31 @@ func (p *partialRequiredServer) start(t *testing.T) *httptest.Server {
 	base = srv.URL
 
 	return srv
+}
+
+func (p *partialRequiredServer) pullRequest() map[string]any {
+	mergeState, author := p.mergeState, p.author
+	if mergeState == "" {
+		mergeState = "BLOCKED"
+	}
+	if author == "" {
+		author = "dependabot"
+	}
+	pr := map[string]any{
+		"number": 25, "title": "bump", "url": "https://github.com/alrayyes/a/pull/25",
+		"isDraft": p.draft, "author": map[string]any{"login": author},
+		"labels":    map[string]any{"nodes": []map[string]any{}},
+		"createdAt": "2026-10-12T12:27:00Z", "updatedAt": "2026-10-12T12:28:00Z",
+		"mergeStateStatus": mergeState, "headRefOid": "cafef00d", "baseRefName": "main",
+		"commits": map[string]any{"nodes": []map[string]any{
+			{"commit": map[string]any{"statusCheckRollup": rollupFixture("SUCCESS", map[string]int{"SUCCESS": 1}, nil)}},
+		}},
+	}
+	if p.reviewDecision != "" {
+		pr["reviewDecision"] = p.reviewDecision
+	}
+
+	return pr
 }
 
 func (p *partialRequiredServer) rulesetsHandler(t *testing.T) http.HandlerFunc {
@@ -312,7 +335,7 @@ func (p *partialRequiredServer) checkRunsHandler(t *testing.T, base *string) htt
 func TestFetch_RequiredLookupThatFailed_NeverMarksACommitComplete(t *testing.T) {
 	t.Parallel()
 
-	srvData := &partialRequiredServer{protection: []string{"check", "codecov/patch"}, rulesets: []string{"check"}, pages: [][]string{{"check"}}}
+	srvData := &partialRequiredServer{protection: []string{"check", "codecov/patch"}, rulesets: []string{"check"}, pages: [][]string{{"check"}}, reviewDecision: "REVIEW_REQUIRED"}
 	srvData.protectionFails.Store(true)
 	srv := srvData.start(t)
 	client := github.NewClient("test-token", "", srv.URL)
@@ -350,7 +373,7 @@ func TestFetch_UnreadableProtection_IsNotAskedAgainOnTheNextPoll(t *testing.T) {
 	t.Parallel()
 
 	var protectionCalls atomic.Int32
-	srvData := &partialRequiredServer{protection: []string{"check"}, rulesets: []string{"check"}, pages: [][]string{{"check"}}}
+	srvData := &partialRequiredServer{protection: []string{"check"}, rulesets: []string{"check"}, pages: [][]string{{"check"}}, reviewDecision: "REVIEW_REQUIRED"}
 	srvData.protectionFails.Store(true)
 	srvData.protectionCalls = &protectionCalls
 	srv := srvData.start(t)
@@ -368,7 +391,7 @@ func TestFetch_UnreadableProtection_IsNotAskedAgainOnTheNextPoll(t *testing.T) {
 func TestFetch_PartialAnswerServedFromTheCache_StillNeverMarksACommitComplete(t *testing.T) {
 	t.Parallel()
 
-	srvData := &partialRequiredServer{protection: []string{"check", "codecov/patch"}, rulesets: []string{"check"}, pages: [][]string{{"check"}}}
+	srvData := &partialRequiredServer{protection: []string{"check", "codecov/patch"}, rulesets: []string{"check"}, pages: [][]string{{"check"}}, reviewDecision: "REVIEW_REQUIRED"}
 	srvData.protectionFails.Store(true)
 	srv := srvData.start(t)
 	client := github.NewClient("test-token", "", srv.URL)
@@ -450,4 +473,91 @@ func TestFetch_SameNamedRequiredRunStillQueued_IsPending(t *testing.T) {
 
 	require.Len(t, result.PullRequests, 1)
 	assert.Equal(t, dashboard.CIPending, result.PullRequests[0].CI)
+}
+
+// Without admin on the repository the required contexts can't be read, so the
+// check above can't tell a required check that hasn't started from one that
+// passed. GitHub's own answer is then the evidence: a rollup of SUCCESS beside
+// BLOCKED, with no draft, review or conflict explaining it, can only be a
+// required check that hasn't reported (#1311, alrayyes/forge-dashboard#1631).
+func fetchUnreadable(t *testing.T, p *partialRequiredServer) dashboard.PullRequest {
+	t.Helper()
+
+	p.protectionFails.Store(true)
+	srv := p.start(t)
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+	require.Len(t, result.PullRequests, 1)
+
+	return result.PullRequests[0]
+}
+
+func TestFetch_BlockedWithUnreadableRequiredChecks_IsPending(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]*partialRequiredServer{
+		"no review decision": {pages: [][]string{{"secrets", "check"}}},
+		"approved":           {pages: [][]string{{"check"}}, reviewDecision: "APPROVED"},
+		"renovate":           {pages: [][]string{{"check"}}, author: "renovate[bot]"},
+		"partly readable":    {protection: []string{"check"}, pages: [][]string{{"check"}}},
+	}
+	for name, p := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, dashboard.CIPending, fetchUnreadable(t, p).CI,
+				"nothing but a required check can block it, and it can't be read")
+		})
+	}
+}
+
+func TestFetch_BlockedWithUnreadableRequiredChecks_StaysPassedWhenSomethingElseBlocks(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]*partialRequiredServer{
+		"review required":   {pages: [][]string{{"check"}}, reviewDecision: "REVIEW_REQUIRED"},
+		"changes requested": {pages: [][]string{{"check"}}, reviewDecision: "CHANGES_REQUESTED"},
+		"draft":             {pages: [][]string{{"check"}}, draft: true},
+		"clean":             {pages: [][]string{{"check"}}, mergeState: "CLEAN"},
+		"behind":            {pages: [][]string{{"check"}}, mergeState: "BEHIND"},
+		"dirty":             {pages: [][]string{{"check"}}, mergeState: "DIRTY"},
+	}
+	for name, p := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, dashboard.CISuccess, fetchUnreadable(t, p).CI)
+		})
+	}
+}
+
+// The fallback guesses; it must not be remembered. The next poll asks again, so
+// the pill flips once GitHub stops saying BLOCKED.
+func TestFetch_UnreadableFallback_IsReevaluatedOnTheNextPoll(t *testing.T) {
+	t.Parallel()
+
+	p := &partialRequiredServer{pages: [][]string{{"check"}}}
+	p.protectionFails.Store(true)
+	srv := p.start(t)
+	client := github.NewClient("test-token", "", srv.URL)
+
+	first := client.Fetch(t.Context())
+	require.Len(t, first.PullRequests, 1)
+	assert.Equal(t, dashboard.CIPending, first.PullRequests[0].CI)
+
+	p.mergeState = "CLEAN"
+	second := client.Fetch(t.Context())
+	require.Len(t, second.PullRequests, 1)
+	assert.Equal(t, dashboard.CISuccess, second.PullRequests[0].CI)
+}
+
+// A required set that can be read in full and has reported wins over the
+// fallback: GitHub blocking for another reason isn't a missing check.
+func TestFetch_ReadableRequiredChecksAllReported_BeatsTheFallback(t *testing.T) {
+	t.Parallel()
+
+	p := &partialRequiredServer{protection: []string{"check"}, pages: [][]string{{"check"}}}
+	srv := p.start(t)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CISuccess, result.PullRequests[0].CI)
 }
