@@ -1,3 +1,4 @@
+import criticalCss from 'virtual:critical-css';
 import type { Handle } from '@sveltejs/kit/hooks';
 
 // Only the build's prerender runs this (the Go binary serves the output), but
@@ -14,6 +15,11 @@ export function handleError({ error }: { error: unknown }) {
 // the ext subsets and the rest load when a glyph needs them.
 export const handle: Handle = ({ event, resolve }) =>
   resolve(event, {
+    transformPageChunk: ({ html }) =>
+      html.replace(
+        '<!--critical-css-->',
+        () => `<style>${criticalCss}</style>`,
+      ),
     preload: ({ type, path }) =>
       type !== 'font' ||
       /ibm-plex-(sans|mono)-latin-(400|600)-normal\.[\w-]+\.woff2$/.test(path),

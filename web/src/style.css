@@ -1,3 +1,4 @@
+/* critical:start */
 :root {
   --bg: #eef1f6;
   --surface: #ffffff;
@@ -611,6 +612,10 @@ header,
     transform: rotate(360deg);
   }
 }
+html.css-pending .wrap > :not(header) {
+  display: none;
+}
+/* critical:end */
 section.board {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2481,6 +2486,7 @@ button.ci-pill:hover {
   padding-left: 18px;
 }
 
+/* critical:start */
 footer {
   text-align: center;
   font-size: 12px;
@@ -2501,6 +2507,7 @@ footer a.mono:focus-visible {
   text-decoration: underline;
   color: var(--ink);
 }
+/* critical:end */
 
 @media (max-width: 760px) {
   .row {
@@ -2568,6 +2575,7 @@ footer a.mono:focus-visible {
   }
 }
 
+/* critical:start */
 @media (max-width: 420px) {
   header {
     padding-top: 20px;
@@ -2597,6 +2605,7 @@ footer a.mono:focus-visible {
     padding-bottom: calc(64px + 44px + 12px + env(safe-area-inset-bottom, 0px));
   }
 }
+/* critical:end */
 
 /* ---- pipeline-checks panel ----
    A slide-over anchored to the right edge, not a centered modal: the

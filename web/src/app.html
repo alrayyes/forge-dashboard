@@ -28,7 +28,18 @@
 			})();
 		</script>
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="stylesheet" href="/style.css" />
+		<script>
+			document.documentElement.classList.add("css-pending");
+		</script>
+		<!--critical-css-->
+		<link
+			rel="stylesheet"
+			href="/style.css"
+			media="print"
+			onload="this.media='all';document.documentElement.classList.remove('css-pending')"
+			onerror="document.documentElement.classList.remove('css-pending')"
+		/>
+		<noscript><link rel="stylesheet" href="/style.css" /></noscript>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

@@ -68,22 +68,27 @@ test.describe('self-hosted fonts on the dashboard (#797)', () => {
 });
 
 // #1069: the layout's own CSS (which holds the @font-face rules) rides in the
-// page's HTML, so /style.css is the only stylesheet that blocks the first
-// paint. SvelteKit keeps a disabled, never-matching <link> per inlined sheet
-// for client-side navigation; those don't block. Only the login page is
-// checked: every page shares the one layout, so the others inline the same
-// sheets, but nothing here asserts it.
+// page's HTML. #1569 did the same for the critical part of /style.css and
+// loads the rest with media="print" until it arrives, so no stylesheet in the
+// served HTML blocks the first paint. SvelteKit keeps a disabled, never-matching
+// <link> per inlined sheet for client-side navigation; those don't block.
+// Only the login page is checked: every page shares the one layout.
 test.describe('render-blocking stylesheets (#1069)', () => {
-  test('the login page blocks first paint on /style.css alone', async ({
+  test('the login page ships no stylesheet link that blocks first paint', async ({
     page,
   }) => {
-    await page.goto('/login.html');
-    const blocking = await page.evaluate(() =>
-      [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')]
-        .filter((l) => !l.disabled && l.media !== '(max-width: 0)')
-        .map((l) => new URL(l.href).pathname),
+    const html = await (await page.request.get('/login.html')).text();
+    const links = [
+      ...html
+        .replace(/<noscript>[\s\S]*?<\/noscript>/g, '')
+        .matchAll(/<link\b[^>]*rel="stylesheet"[^>]*>/g),
+    ].map((m) => m[0]);
+    const blocking = links.filter(
+      (l) =>
+        !/\bdisabled\b/.test(l) && !/media="(print|\(max-width: 0\))"/.test(l),
     );
-    expect(blocking).toEqual(['/style.css']);
+    expect(blocking).toEqual([]);
+    await page.goto('/login.html');
     expect(await loadedFaces(page)).toContain('IBM Plex Sans 400');
   });
 });

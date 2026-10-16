@@ -30,9 +30,42 @@ function minifiedStyleCss(): Plugin {
   };
 }
 
+// The rules the first paint of the shell needs (theme tokens, base, header,
+// nav, footer) sit between critical:start and critical:end markers in
+// style.css. This hands them, minified, to hooks.server.ts as a string, which
+// inlines them in every page so /style.css can load without blocking paint
+// (#1569). The full file still carries them, in their original order.
+function criticalCss(): Plugin {
+  const id = 'virtual:critical-css';
+  return {
+    name: 'critical-css',
+    resolveId: (source) => (source === id ? `\0${id}` : undefined),
+    load(resolved) {
+      if (resolved !== `\0${id}`) return undefined;
+      const path = new URL('./src/style.css', import.meta.url);
+      const source = readFileSync(path, 'utf8');
+      const parts = [
+        ...source.matchAll(
+          /\/\* critical:start \*\/([\s\S]*?)\/\* critical:end \*\//g,
+        ),
+      ].map((m) => m[1]);
+      if (parts.length === 0) {
+        throw new Error('style.css has no critical:start/critical:end block');
+      }
+      const { code } = transform({
+        filename: 'critical.css',
+        code: Buffer.from(parts.join('\n')),
+        minify: true,
+      });
+      return `export default ${JSON.stringify(code.toString())};`;
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     minifiedStyleCss(),
+    criticalCss(),
     sveltekit({
       compilerOptions: {
         // Force runes mode for the project, except for libraries. Can be removed in svelte 6.

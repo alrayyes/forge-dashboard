@@ -214,6 +214,15 @@ options and measurements are on
   just the owner/viewer relationship; `internal/api`'s dashboard handler
   is what turns a granted share into an actual `dashboard.Manager`
   lookup for the owner's snapshot instead of the caller's own.
+- `web/src/style.css` does not block first paint. The rules the shell needs
+  (theme tokens, base, header, nav, footer) sit between `critical:start` and
+  `critical:end` comments; `web/vite.config.ts` minifies them and
+  `web/src/hooks.server.ts` puts them in every page, and the full file
+  loads behind them with `media="print"` swapped to `all` once it arrives
+  (#1569). Until then the page body below the header stays hidden
+  (`html.css-pending`), so half-styled content never shows. A rule the shell
+  needs on first paint goes inside a block; keep the blocks small, since
+  they ship with every HTML response.
 - `internal/api/static` is the frontend, embedded into the binary with
   `//go:embed` — SvelteKit throughout (`web/src/routes`, built with
   `bun run build:web` and merged in by `scripts/sync-web-build.sh`),
