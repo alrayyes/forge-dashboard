@@ -71,6 +71,12 @@ type Client struct {
 	// PR changed. Forgejo bumps updated_at when a review is submitted.
 	reviewsMu sync.Mutex
 	reviews   map[string]cachedReview
+
+	// schedule caches whether a merge is scheduled on the forge, by pull
+	// request, from the last successful timeline read (#1571).
+	scheduleMu  sync.Mutex
+	schedule    map[string]cachedSchedule
+	scheduleSeq uint64
 }
 
 // cachedReview is one pull request's review state as of updatedAt.
@@ -136,6 +142,7 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 		httpClient:  httpClient,
 		recorder:    rec,
 		reviews:     map[string]cachedReview{},
+		schedule:    map[string]cachedSchedule{},
 	}
 }
 
@@ -881,12 +888,9 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		CrossRepository:         p.Head != nil && p.Base != nil && p.Head.RepoID != p.Base.RepoID,
 		RequestedReviewerLogins: requestedLogins(p),
 		Empty:                   isEmpty(p),
-		// No read capability for this in the SDK at all — only
-		// write-side schedule/cancel verbs
-		// (MergePullRequestOption.MergeWhenChecksSucceed,
-		// CancelScheduledAutoMerge), nothing that reports current
-		// state. nil here means "this forge can't say," not "not
-		// enabled."
+		// The pull request JSON has no auto-merge field, so this is nil
+		// (unknown) here and ListOpenPullRequests fills it from the issue
+		// timeline (applyScheduledMerges).
 		AutoMergeEnabled: nil,
 		Review:           review,
 		// Forgejo reports no resolved state on a review comment without a call
@@ -921,6 +925,8 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 		opt.Page = resp.NextPage
 	}
 	c.pruneReviews(owner, name, open)
+	c.pruneSchedules(owner, name, open)
+	c.applyScheduledMerges(ctx, owner, name, prs)
 
 	return prs, nil
 }

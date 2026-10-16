@@ -328,6 +328,21 @@ func (s *GenericSource) ClosePullRequest(ctx context.Context, owner, name string
 	return nil
 }
 
+// DisableAutoMerge implements PullRequestAutoMergeDisabler at the Source level
+// by delegating to the underlying client, so the cancel handler reaches the
+// Forgejo client's cancel of a merge scheduled on the forge (#1571).
+func (s *GenericSource) DisableAutoMerge(ctx context.Context, owner, name string, number int) error {
+	disabler, ok := s.client.(PullRequestAutoMergeDisabler)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't cancel auto-merge: %w", s.forge, errUnsupportedByClient)
+	}
+	if err := disabler.DisableAutoMerge(ctx, owner, name, number); err != nil {
+		return fmt.Errorf("dashboard: cancel auto-merge: %w", err)
+	}
+
+	return nil
+}
+
 // ListChecks implements PullRequestChecker at the Source level by
 // delegating to the underlying client, the same "Source unwraps to its
 // ForgeClient" shape EnsureWebhook/MergePullRequest/UpdateBranch already
