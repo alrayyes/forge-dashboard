@@ -3263,8 +3263,6 @@ components:
           webhookSecret,
           renovateRebaseLabel,
           renovateAuthors,
-          hideDependencyDashboard,
-          ignoredTitles,
           theme,
         ]
       properties:
@@ -3358,7 +3356,7 @@ components:
             everywhere: the server leaves a `housekeeping` issue out of the
             `issues` of GET /api/dashboard and its stream, and out of every
             count and total built from them (`navCounts`, Insights). Always
-            present.
+            present once the server applies it (#1630).
         ignoredTitles:
           type: array
           maxItems: 20
@@ -3371,7 +3369,8 @@ components:
             backreferences). A pattern matches anywhere in the title and
             ignores case; an issue matching any one is left out of `issues`
             and of every count and total built from them, the same as
-            `hideDependencyDashboard`. Always present; empty means none.
+            `hideDependencyDashboard`. Always present once the server
+            applies it (#1630). Empty means none.
 
     SettingsRequest:
       type: object
@@ -3445,14 +3444,10 @@ components:
             Replaces the saved list; omitted or empty clears it. Entries are
             trimmed; blanks and repeats (ignoring case) are dropped. Each
             must compile as a Go RE2 regular expression: one that does not
-            is a 400 whose `field` is `ignoredTitles`, with the entry and the
-            reason in plain words in `error`
-            (`ignoredTitles entry 2 ("("): missing closing )`; the number is
-            the entry's place in the list as sent, from 1), and nothing is
-            saved. A pattern that matches the empty string (`.*`, `^`, `x*`)
-            would hide every issue, so it is a 400 too, as are more than 20
-            entries and an entry over 200 characters. See
-            SettingsResponse.ignoredTitles.
+            is a 400 naming `ignoredTitles` and the entry, with the reason in
+            plain words ("ignoredTitles entry 2, "(": missing closing )"),
+            and nothing is saved. More than 20 entries, or an entry over 200
+            characters, is a 400 too. See SettingsResponse.ignoredTitles.
 
     ThemeResponse:
       type: object
@@ -4838,9 +4833,7 @@ components:
           minimum: 0
           description: |
             How many open issues are real work, the same number as
-            `openIssueCount`: it leaves out the `housekeeping` ones and what
-            the user's own settings hide (`hideDependencyDashboard`,
-            `ignoredTitles`). Issues have no failing state, so there is no
+            `openIssueCount`. Issues have no failing state, so there is no
             `failed`.
 
     NavCounts:
@@ -4881,9 +4874,6 @@ components:
           pullRequests,
           issues,
           openIssueCount,
-          settingsHiddenIssueCount,
-          hideDependencyDashboard,
-          ignoredTitlesSet,
           navCounts,
           repos,
           hiddenDrafts,
@@ -4916,9 +4906,7 @@ components:
           type: integer
           description: |
             How many of `issues` are real work: all of them except the
-            `housekeeping` ones. `issues` already leaves out what the user's
-            own settings hide (`hideDependencyDashboard`, `ignoredTitles`),
-            so this does too. What the Issues badge shows.
+            `housekeeping` ones. What the Issues badge shows.
         settingsHiddenIssueCount:
           type: integer
           minimum: 0
@@ -4926,25 +4914,8 @@ components:
             How many open issues the user's own settings (`hideDependencyDashboard`
             and `ignoredTitles`) left out of `issues`, so a client can say
             "N hidden by your settings" and link to Settings; it cannot work
-            that out, the issues are not sent. Always present; 0 when none are
-            hidden. On another user's shared dashboard these are the
-            viewer's settings, not the owner's.
-        hideDependencyDashboard:
-          type: boolean
-          description: |
-            The user's own `hideDependencyDashboard` setting, on every
-            response. It always reflects the setting, so a client never reads
-            GET /api/settings (which also carries the webhook secret) just to
-            know whether to draw its own "Hide Dependency Dashboard" field. On
-            another user's shared dashboard it is the viewer's setting.
-        ignoredTitlesSet:
-          type: boolean
-          description: |
-            True when the user's own `ignoredTitles` list is not empty, on
-            every response, whether or not a pattern matches anything now
-            (`settingsHiddenIssueCount` can be 0 with this true). Like
-            `hideDependencyDashboard` it always reflects the setting and is
-            the viewer's on a shared dashboard.
+            that out, the issues are not sent. Always present once the
+            server applies the settings (#1630); 0 when none are hidden.
         navCounts:
           $ref: "#/components/schemas/NavCounts"
         generatedAt:
