@@ -15,7 +15,7 @@
 
   import { onMount } from "svelte";
   import PullRequestDetailsDialog, {
-    type DetailsChip,
+    type DetailsStatus,
   } from "#lib/PullRequestDetailsDialog.svelte";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
@@ -614,7 +614,9 @@
       failure: "failure",
       success: "success",
     };
-    function ciPill(item: PullRequestItem): HTMLElement {
+    // The details header draws the same pill as a plain badge: it was a
+    // snapshot at open, so it opens nothing (interactive = false).
+    function ciPill(item: PullRequestItem, interactive = true): HTMLElement {
       const status = item.ci;
       const awaiting = item.awaitingWorkflowApproval === true;
       const label = awaiting
@@ -628,7 +630,7 @@
         else pill.appendChild(el("span", "dot"));
       };
       // No CI, no pipeline to open: a plain badge (#1139).
-      if (status === "none") {
+      if (status === "none" || !interactive) {
         const badge = el("span", `ci-pill ${status}`);
         addMark(badge);
         badge.appendChild(document.createTextNode(label));
@@ -984,28 +986,36 @@
       return /\brelease\s+v?(\d+\.\d+\.\d+\S*)/i.exec(title)?.[1] ?? "";
     }
 
-    // The status chips in the details header, from the fields the row already
-    // carries and nothing else, as they were when the dialog opened.
-    function detailsChips(item: PullRequestItem): DetailsChip[] {
-      const chips: DetailsChip[] = [];
-      if (item.draft) chips.push({ text: "Draft", tone: "neutral" });
-      if (item.ci === "success") chips.push({ text: "Passing", tone: "good" });
-      if (item.ci === "failure")
-        chips.push({ text: "Failing", tone: "critical" });
-      if (item.ci === "pending")
-        chips.push({ text: "Running", tone: "warning" });
-      if (item.mergeStatus === "mergeable")
-        chips.push({ text: "Mergeable", tone: "good" });
-      if (item.mergeStatus === "conflicting")
-        chips.push({ text: "Conflicts", tone: "critical" });
-      if (Filters.showBlockedChip(item.mergeStatus, item.ci))
-        chips.push({ text: "Blocked", tone: "warning" });
-      if (item.behind) chips.push({ text: "Out of date", tone: "warning" });
-      if (item.autoMergeEnabled === true)
-        chips.push({ text: "Auto-merge on", tone: "neutral" });
+    // The details header (#1563) follows the row's three tiers, built by the
+    // row's own builders so the two cannot drift: the CI slot and the merge
+    // state first, the attributes (the row's cluster, then labels and the
+    // release version) below the title. Fields the row has, nothing else, as
+    // they were when the dialog opened.
+    function detailsStatus(item: PullRequestItem): DetailsStatus {
+      const state = el("div", "details-state");
+      state.setAttribute("role", "group");
+      state.setAttribute("aria-label", "Status when opened");
+      const slot = el("div", "ci-slot");
+      slot.appendChild(ciPill(item, false));
+      state.appendChild(slot);
+      // Mergeable draws nothing, as on the row.
+      const merge = mergeStatusPill(item.mergeStatus, item.ci);
+      if (merge) state.appendChild(merge);
+      const attributes = attributeCluster(item);
+      attributes.setAttribute("role", "group");
+      attributes.setAttribute("aria-label", "Attributes when opened");
+      // The row only flags a bot's pull request as out of date (it has an
+      // Update branch button otherwise); the dialog keeps saying it for any.
+      if (item.behind && !attributes.querySelector(".behind"))
+        attributes.appendChild(attrChip("behind", "Out of date"));
+      if (item.kind === "release") {
+        const version = releaseVersion(item.title);
+        if (version)
+          attributes.appendChild(el("span", "attr-chip mono", `v${version}`));
+      }
       for (const label of item.labels ?? [])
-        chips.push({ text: label.name, tone: "neutral" });
-      return chips;
+        attributes.appendChild(el("span", "attr-chip label", label.name));
+      return { state, attributes };
     }
 
     // Opens the read-only details dialog (#943). A real button of its own, not
@@ -1025,9 +1035,7 @@
         detailsDialog?.open(
           {
             ...item,
-            chips: detailsChips(item),
-            version:
-              item.kind === "release" ? releaseVersion(item.title) : undefined,
+            status: detailsStatus(item),
           },
           button.id,
         );
