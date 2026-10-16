@@ -52,8 +52,17 @@ grep -Eq 'gh release view' "$wf" || fail "$src does not check the release exists
 # so dispatching an OLDER release would move ghcr.io's latest back to it and
 # then fail on already_exists. Only the latest release, with no assets yet, is a
 # half-published release this path may repair.
-grep -Eq 'releases/latest' "$wf" || fail "$src does not check the dispatched tag is the latest release"
-grep -Eq 'assets' "$wf" || fail "$src does not check the release has no assets yet"
+# The guard step, exactly: it runs on a dispatch only, and each refusal is a
+# real `if` that ends in `exit 1`. A loose grep passes when a comparison is
+# replaced by `if false`, so these are whole-line matches inside the step.
+guard=$(awk '/- name: the dispatched tag is the latest release, and has no assets yet/ {on=1; next} on && /^      - uses:/ {exit} on' "$wf")
+step_has() { printf '%s\n' "$guard" | grep -Fxq -- "$1"; }
+step_has "        if: github.event_name == 'workflow_dispatch'" || fail "$src's guard step does not run on a dispatch only"
+step_has '          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)' || fail "$src does not read the latest release's tag"
+step_has '          if [ "$latest" != "$TAG" ]; then' || fail "$src does not refuse a tag that is not the latest release"
+step_has "          assets=\$(gh release view \"\$TAG\" --repo \"\$GITHUB_REPOSITORY\" --json assets --jq '.assets | length')" || fail "$src does not count the release's assets"
+step_has '          if [ "$assets" != 0 ]; then' || fail "$src does not refuse a release that already has assets"
+[ "$(printf '%s\n' "$guard" | grep -Fxc '            exit 1')" -ge 3 ] || fail "$src's guard step does not exit 1 on each refusal"
 # A bare tag name resolves to a branch of the same name first.
 grep -Eq 'ref: refs/tags/' "$wf" || fail "$src's artefacts checkout does not use refs/tags/<tag>"
 # A dispatch cuts no release: release-please runs on a push only.
