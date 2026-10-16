@@ -1156,6 +1156,18 @@ the other. The pull-request-only controls (CI status, the quick filters for
 failing, ready, needs-review and conflicting pull requests, Show drafts)
 are not on the issues page.
 
+Filters are remembered per account, in a cookie and in a copy on the server,
+so they follow you to another browser. The repo, author, label, created,
+updated and CI status choices each page offers come from its own list. When
+you open a page that doesn't offer a saved choice (an author who wrote no
+pull request, on the pull requests page), that page shows its list without
+it and leaves the saved choice alone, so it is still set when you go back to
+the page that does. Changing that control on the page ends the saved choice.
+What is deliberately not remembered: the page you were on and the page size,
+the open Filters sheet on a phone, held updates, open menus and pop-ups, and
+the expanded rows on Branches. Branches keeps its own filter in a cookie
+only, so it doesn't follow you to another browser.
+
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows is held behind an "N updates available" bar while you're scrolled
 below the top, a control in the list has focus, or live updates are paused;
