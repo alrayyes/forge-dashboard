@@ -565,25 +565,38 @@ a stacked pull request whose base branch has no protection rule has
 nothing to wait for, so GitHub refuses it and the action stays hidden.
 When GitHub's answer isn't known, the action shows as usual.
 
-Forgejo's own scheduled merge can't be read back, so on Forgejo this app keeps
-the auto-merge itself. "Enable auto-merge" stores your intent for that pull
-request and sends nothing to Forgejo. The pull request then shows "Auto-merge
-on" and "Managed by Forge Dashboard", and a waiting chip (below) with a `Disarm`
-button. After each refresh the server merges an armed pull request once its
-checks have passed and Forgejo says it can merge, with the repo's own merge
-method, the same as Merge. A pull request you didn't arm is never merged. Checks
-that fail, conflicts, a draft, a stack parent that hasn't merged yet or no
-checks at all keep it waiting, and it merges once that clears. The row says
-which, in words: the chip reads `Waiting for CI`, `Waiting for parent`, `Rate
-limited` and so on, and a text line says it stopped (a failed check, a conflict,
-or a refused merge, including a token without merge permission). When the server
-merges one it tells the page, which shows "Auto-merged owner/repo#N after checks
-passed" for the next few minutes. If Forgejo refuses the merge, the server
-doesn't ask again until the pull request changes (a rate limit or an unreachable
-forge is retried after five minutes), and the log records each attempt by repo
-and number. Closing or merging the pull request elsewhere removes the intent,
-once Forgejo confirms it. A token that can push but not merge only finds out at
-the merge itself.
+Forgejo's pull request JSON doesn't say whether a merge is scheduled, so on
+Forgejo this app keeps the auto-merge itself. "Enable auto-merge" stores your
+intent for that pull request and sends nothing to Forgejo. The pull request
+then shows "Auto-merge on" and "Managed by Forge Dashboard", and a waiting chip
+(below) with a `Disarm` button. After each refresh the server merges an armed
+pull request once its checks have passed and Forgejo says it can merge, with
+the repo's own merge method, the same as Merge. A pull request you didn't arm
+is never merged. Checks that fail, conflicts, a draft, a stack parent that
+hasn't merged yet or no checks at all keep it waiting, and it merges once that
+clears. The row says which, in words: the chip reads `Waiting for CI`, `Waiting
+for parent`, `Rate limited` and so on, and a text line says it stopped (a
+failed check, a conflict, or a refused merge, including a token without merge
+permission). When the server merges one it tells the page, which shows
+"Auto-merged owner/repo#N after checks passed" for the next few minutes. If
+Forgejo refuses the merge, the server doesn't ask again until the pull request
+changes (a rate limit or an unreachable forge is retried after five minutes),
+and the log records each attempt by repo and number. Closing or merging the
+pull request elsewhere removes the intent, once Forgejo confirms it. A token
+that can push but not merge only finds out at the merge itself.
+
+A merge scheduled in Forgejo's own web UI ("Merge when checks succeed") shows
+as auto-merging too, with Cancel auto-merge on it. Forgejo has no field for it,
+so each refresh reads the pull request's timeline (`GET
+/repos/{owner}/{repo}/issues/{n}/timeline`): the latest of the
+`pull_scheduled_merge` and `pull_cancel_scheduled_merge` events decides. That
+is one extra request per pull request, so it only runs for open pull requests
+that aren't drafts or empty, at most eight per repo per refresh, eight at a
+time. The ones over the cap are read on the next refresh, longest unread first,
+and keep their last known state until then. A failed read keeps the last known
+state too and never fails the refresh. Cancel auto-merge also calls Forgejo's
+cancel endpoint (`DELETE /repos/{owner}/{repo}/pulls/{n}/merge`), and treats
+"nothing scheduled" (404 or 409) as done.
 
 Under a Forgejo repo's heading, when pull requests are grouped, a note says that
 Forge Dashboard handles auto-merge there, not Forgejo, and links to the "Forgejo
