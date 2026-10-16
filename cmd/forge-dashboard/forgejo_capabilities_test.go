@@ -43,6 +43,8 @@ func capabilityNamed[T any](githubOnly bool) optionalCapability {
 // as GitHub-only with its reason.
 var optionalCapabilities = []optionalCapability{
 	capabilityNamed[dashboard.WebhookManager](false),
+	// Asked for by the aggregator (webhook_upgrade.go), not the API.
+	capabilityNamed[dashboard.WebhookUpgrader](false),
 	capabilityNamed[dashboard.PullRequestMerger](false),
 	capabilityNamed[dashboard.PullRequestStateReader](false),
 	capabilityNamed[dashboard.PullRequestCloser](false),
