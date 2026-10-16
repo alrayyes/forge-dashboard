@@ -32,3 +32,8 @@ test('the capture script writes every image the README links', () => {
     expect(script).toContain(name);
   }
 });
+
+test('the pull request fixture description has a ticked and an open task', () => {
+  expect(script).toContain("'- [x] ");
+  expect(script).toContain("'- [ ] ");
+});
