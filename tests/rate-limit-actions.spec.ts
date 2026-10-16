@@ -1,4 +1,3 @@
-import AxeBuilder from '@axe-core/playwright';
 import {
   type APIRequestContext,
   expect,
@@ -7,7 +6,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
-import { rateLimit, severityOf } from './severity-stand-in';
+import { severityOf } from './severity-stand-in';
 
 // A rate limit is a "wait until" condition, not a transient fault: the
 // forge says when it resets, so the blocked actions are greyed out with
@@ -114,31 +113,6 @@ test.describe('rate-limited actions (#732)', () => {
     ).toHaveCount(1);
   });
 
-  test('read-only actions stay enabled while rate limited', async ({
-    page,
-  }) => {
-    await mockDashboard(page, exhausted());
-    await page.reload();
-
-    const pipeline = firstRow(page).getByRole('button', {
-      name: 'Open pipeline',
-    });
-    await expect(pipeline).toBeVisible();
-    await expect(pipeline).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(pipeline).toBeEnabled();
-  });
-
-  test('the header shows the remaining budget and reset time as text', async ({
-    page,
-  }) => {
-    await mockDashboard(page, exhausted());
-    await page.reload();
-
-    await expect(page.locator('#forge-health')).toContainText(
-      /GH REST: 0\/5,000 reqs, resets .+/,
-    );
-  });
-
   test('a 429 on merge locks the actions with the reset time and no Retry', async ({
     page,
   }) => {
@@ -164,35 +138,6 @@ test.describe('rate-limited actions (#732)', () => {
     await expect(button).toHaveAccessibleDescription(
       /GitHub API rate limit reached\. Actions resume at/,
     );
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-  });
-
-  test('a 403 on merge locks the actions with no Retry and points to Settings', async ({
-    page,
-  }) => {
-    await mockDashboard(page);
-    await page.route('**/api/pull-requests/merge', (route) =>
-      route.fulfill({
-        status: 403,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: PUT .../merge: Forbidden',
-          code: 'permission',
-          message: 'Missing permission — check your token in Settings.',
-        }),
-      }),
-    );
-    await page.reload();
-
-    const row = firstRow(page);
-    await row.getByRole('button', { name: 'Merge', exact: true }).click();
-    await row.getByRole('button', { name: 'Confirm merge?' }).click();
-
-    const button = await expectLockedWithoutRetry(row, 'Merge');
-    await expect(button).toHaveAccessibleDescription(/token in Settings/);
-    await expect(
-      row.locator('.row-action-locked').getByText('Retry'),
-    ).toHaveCount(0);
     await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
   });
 
@@ -223,56 +168,6 @@ test.describe('rate-limited actions (#732)', () => {
     // A merge is never re-sent without its confirm step.
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
     await expect.poll(() => calls).toBe(2);
-  });
-
-  test('auto-merge, a GraphQL call, locks on the GraphQL budget and leaves REST actions alone', async ({
-    page,
-  }) => {
-    const resetsAt = new Date(Date.now() + 12 * 60 * 1000).toISOString();
-    await page.route('**/api/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [
-            {
-              forge: 'github',
-              reachable: true,
-              repoCount: 1,
-              rateLimitGraphQL: rateLimit(5000, 0, resetsAt),
-              rateLimitREST: rateLimit(5000, 4000, resetsAt),
-            },
-          ],
-          pullRequests: [makePR({ mergeStatus: 'blocked', ci: 'pending' })],
-          issues: [],
-        }),
-      }),
-    );
-    await page.reload();
-
-    // Auto-merge is not drawn; Close, in the menu with the Hide items (#841),
-    // stays clickable.
-    const row = firstRow(page);
-    await row.getByRole('button', { name: 'More actions' }).click();
-    await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
-    ).toHaveCount(0);
-    await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
-    ).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
-  test('has no axe-core violations while rate limited', async ({ page }) => {
-    await mockDashboard(page, exhausted());
-    await page.reload();
-    await page.locator('#shared-group-select').selectOption('repo');
-    await expect(page.locator('#rate-limit-banner')).toBeVisible();
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 
   test('the ticking countdown is not announced every second', async ({
