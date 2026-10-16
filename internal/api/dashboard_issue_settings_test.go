@@ -227,6 +227,8 @@ func TestDashboardStream_AppliesTheIssueSettings(t *testing.T) {
 		assert.Equal(t, []int{2, 4, 5}, issueNumbers(board))
 		assert.InDelta(t, 2, board["settingsHiddenIssueCount"], 0)
 		assert.InDelta(t, 3, navIssueTotal(board), 0)
+		assert.Equal(t, true, board["hideDependencyDashboard"])
+		assert.Equal(t, true, board["ignoredTitlesSet"])
 	case <-time.After(2 * time.Second):
 		t.Fatal("no SSE event received after the webhook-triggered refresh")
 	}
@@ -248,6 +250,8 @@ func TestMCP_GetDashboard_AppliesTheIssueSettings(t *testing.T) {
 	assert.Equal(t, []int{2, 4, 5}, issueNumbers(board))
 	assert.InDelta(t, 2, board["settingsHiddenIssueCount"], 0)
 	assert.InDelta(t, 3, board["openIssueCount"], 0)
+	assert.Equal(t, true, board["hideDependencyDashboard"])
+	assert.Equal(t, true, board["ignoredTitlesSet"])
 }
 
 // An issue from a repo the user ignored is not on their board either way, so
@@ -292,4 +296,55 @@ func TestDashboard_IssuesOfAnIgnoredRepo_AreNotCountedAsHiddenBySettings(t *test
 
 	assert.Equal(t, []int{4}, issueNumbers(board))
 	assert.InDelta(t, 1, board["settingsHiddenIssueCount"], 0, "only the kept repo's Weekly report")
+}
+
+// The dashboard carries the two flags so a client needn't read
+// GET /api/settings, which also holds the webhook secret, just to know whether
+// to draw its two fields.
+func TestDashboard_CarriesTheIssueSettingFlags(t *testing.T) {
+	t.Parallel()
+	srv, cookie := issueSettingsServer(t)
+
+	t.Run("both off by default and present", func(t *testing.T) {
+		board := fetchDashboard(t, srv.URL, cookie)
+
+		assert.Equal(t, false, board["hideDependencyDashboard"])
+		assert.Equal(t, false, board["ignoredTitlesSet"])
+	})
+	t.Run("both on once saved, even when a pattern matches nothing", func(t *testing.T) {
+		status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["matches nothing here"]}`, cookie)
+		require.Equal(t, http.StatusOK, status)
+
+		board := fetchDashboard(t, srv.URL, cookie)
+
+		assert.Equal(t, true, board["hideDependencyDashboard"])
+		assert.Equal(t, true, board["ignoredTitlesSet"])
+		assert.InDelta(t, 1, board["settingsHiddenIssueCount"], 0, "only the Dependency Dashboard: the pattern matched nothing")
+	})
+	t.Run("a cleared list turns ignoredTitlesSet off", func(t *testing.T) {
+		status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["  "]}`, cookie)
+		require.Equal(t, http.StatusOK, status)
+
+		board := fetchDashboard(t, srv.URL, cookie)
+
+		assert.Equal(t, true, board["hideDependencyDashboard"])
+		assert.Equal(t, false, board["ignoredTitlesSet"])
+	})
+}
+
+func TestDashboard_SharedDashboard_FlagsFollowTheViewer(t *testing.T) {
+	t.Parallel()
+	srv, owner := issueSettingsServer(t)
+	token := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
+	viewer, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
+	share := doJSON(t, http.MethodPut, srv.URL+"/api/sharing/"+testOtherUser, "", owner)
+	_ = share.Body.Close()
+	require.Equal(t, http.StatusNoContent, share.StatusCode)
+	status, _ := putSettings(t, srv.URL, `{"githubToken":"sekrit-token","hideDependencyDashboard":true,"ignoredTitles":["x"]}`, owner)
+	require.Equal(t, http.StatusOK, status)
+
+	board := fetchDashboardWith(t, srv.URL, viewer, "?owner="+testUser)
+
+	assert.Equal(t, false, board["hideDependencyDashboard"], "the owner's choice is not the viewer's")
+	assert.Equal(t, false, board["ignoredTitlesSet"])
 }

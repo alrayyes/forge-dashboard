@@ -51,6 +51,12 @@ type dashboardResponse struct {
 	// SettingsHiddenIssueCount is how many open issues the viewer's own
 	// settings left out of Issues (#1630). Always serialized, zero when none.
 	SettingsHiddenIssueCount int `json:"settingsHiddenIssueCount"`
+	// HideDependencyDashboard and IgnoredTitlesSet mirror the viewer's own
+	// settings (#1630), always, so a client knows whether to draw its two
+	// fields without reading GET /api/settings. IgnoredTitlesSet is true when
+	// the list is not empty, whether or not a pattern matches anything.
+	HideDependencyDashboard bool `json:"hideDependencyDashboard"`
+	IgnoredTitlesSet        bool `json:"ignoredTitlesSet"`
 	// NavCounts is each nav badge's total and failed number (#1315), counted
 	// from the lists above so they always agree with the pages.
 	NavCounts navCounts    `json:"navCounts"`
@@ -246,7 +252,8 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 	board.autoMergeReport = deps.Manager.AutoMergeReport(userID)
 	board.forgetClosedHides(ctx, deps.SettingsStore, userID, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
-	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, loadIssueFilter(ctx, deps.SettingsStore, viewerID))
+	filter := loadIssueFilter(ctx, deps.SettingsStore, viewerID)
+	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, filter)
 
 	return dashboardResponse{
 		GeneratedAt:    snap.GeneratedAt,
@@ -256,6 +263,8 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 		OpenIssueCount: openIssues,
 
 		SettingsHiddenIssueCount: settingsHidden,
+		HideDependencyDashboard:  filter.hideHousekeeping,
+		IgnoredTitlesSet:         filter.titlesSet,
 		NavCounts:                buildNavCounts(pullRequests, openIssues, board.mainBranchRows(snap.MainBranches)),
 		Repos:                    board.repoStatuses(snap.Repos),
 		HiddenDrafts:             hiddenDrafts,
@@ -498,7 +507,9 @@ func explainBehind(actions []dashboard.ActionAvailability, next string) []dashbo
 // (#1630).
 type issueFilter struct {
 	hideHousekeeping bool
-	titles           dashboard.TitlePatterns
+	// titlesSet is whether the user has saved any pattern.
+	titlesSet bool
+	titles    dashboard.TitlePatterns
 }
 
 // hides reports whether the settings leave issue out.
@@ -523,7 +534,7 @@ func loadIssueFilter(ctx context.Context, store *settings.Store, userID []byte) 
 		slog.Warn("could not compile ignored title patterns for dashboard response", "error", err)
 	}
 
-	return issueFilter{hideHousekeeping: creds.HideDependencyDashboard, titles: titles}
+	return issueFilter{hideHousekeeping: creds.HideDependencyDashboard, titlesSet: len(creds.IgnoredTitles) > 0, titles: titles}
 }
 
 // issueViews leaves out the issues of ignored repos, then the ones filter
