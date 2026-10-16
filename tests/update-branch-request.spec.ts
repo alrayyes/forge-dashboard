@@ -1,32 +1,12 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #982: the server owns an Update branch the forge accepted. Each pull
 // request in a snapshot carries `updateRequest` (queued, or expired after
 // five minutes still behind) until a later fetch shows the branch caught up,
 // and the page only draws it. These tests play the server by putting that
 // field on the mocked snapshots.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `update-request-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Update Request User',
-  );
-}
 
 interface MockUpdateRequest {
   phase: 'queued' | 'expired';
@@ -95,14 +75,17 @@ const row = (page: Page) => page.locator('#pr-rows .row').first();
 const line = (page: Page) => row(page).locator('.row-feedback');
 const chip = (page: Page) => row(page).locator('.wait-chip-label');
 
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
 test.describe('update branch request from the server', () => {
   // What the mocked dashboard currently answers with: a test changes it to
   // play the server.
   let current: MockPR;
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
+  test.beforeEach(async ({ page }) => {
     current = makePR();
-    await registerAndSignIn(page, request, baseURL);
     await page.addInitScript(() => {
       const w = window as unknown as {
         __streams: EventSource[];
@@ -131,7 +114,7 @@ test.describe('update branch request from the server', () => {
       current = { ...current, updateRequest: updateRequest('queued') };
       return route.fulfill({ status: 202 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
   });
 
   async function click(page: Page) {

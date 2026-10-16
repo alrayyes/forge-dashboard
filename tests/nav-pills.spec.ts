@@ -1,27 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // Every nav item shows how many items its page lists and how many of them are
 // failing: a neutral total, then a red failed count with a warning glyph,
 // shown only above zero. Design: docs/design/1315-nav-counts. The counts come
 // from `navCounts` on /api/dashboard; the page only draws them.
 // https://github.com/alrayyes/forge-dashboard/issues/1315
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `nav-pills-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Nav Pills');
-}
 
 type Pair = { total: number; failed: number };
 type Counts = {
@@ -77,11 +63,11 @@ const header = (page: Page, href: string) =>
 const tab = (page: Page, href: string) =>
   page.locator(`.bottom-nav a[href="${href}"]`);
 
-test.describe('nav counts: a total and a red failed count (#1315)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
+test.describe('nav counts: a total and a red failed count (#1315)', () => {
   test('Branches shows the total and a red failed count, and says both in its name', async ({
     page,
   }) => {
@@ -348,10 +334,6 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
 // Every other test here mocks /api/dashboard. This one asks the real server,
 // so the shape the nav reads is checked against the shape the server sends.
 test.describe('the real server serves what the nav reads (#1315)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   test('/api/dashboard carries navCounts in the shape the page reads', async ({
     page,
   }) => {
@@ -389,8 +371,7 @@ test.describe('the real server serves what the nav reads (#1315)', () => {
 });
 
 test.describe('nav counts on a phone (#1315)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 740 });
   });
 
@@ -476,10 +457,6 @@ test.describe('nav counts on a phone (#1315)', () => {
 });
 
 test.describe('nav counts are accessible (#1315)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
   // One run keeps axe in this journey (a11y rule). The other three scheme by
