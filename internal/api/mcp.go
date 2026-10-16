@@ -105,6 +105,26 @@ func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
 
 	addPullRequestTools(server, deps, u, ok)
 
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "list_queued_actions",
+		Description: "List the signed-in user's queued actions: the ones waiting for a " +
+			"rate-limited forge to reset, and the finished ones (done, skipped, failed) " +
+			"kept for 24 hours, oldest first. Read-only: it never queues, runs or " +
+			"cancels anything. Served from this app's own store, with no forge budget. " +
+			"The same list rides along on get_dashboard as queuedActions.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, queuedActionsResponse, error) {
+		if !ok {
+			return nil, queuedActionsResponse{}, errNoAuthenticatedUser
+		}
+
+		items, err := resolveQueuedActionsFor(ctx, deps, u)
+		if err != nil {
+			return nil, queuedActionsResponse{}, err
+		}
+
+		return nil, queuedActionsResponse{QueuedActions: items}, nil
+	})
+
 	return server
 }
 
