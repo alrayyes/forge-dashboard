@@ -578,8 +578,7 @@ a stacked pull request whose base branch has no protection rule has
 nothing to wait for, so GitHub refuses it and the action stays hidden.
 When GitHub's answer isn't known, the action shows as usual.
 
-Forgejo's pull request JSON doesn't say whether a merge is scheduled, so on
-Forgejo this app keeps the auto-merge itself. "Enable auto-merge" stores your
+On Forgejo this app does the merge itself. "Enable auto-merge" stores your
 intent for that pull request and sends nothing to Forgejo. The pull request
 then shows "Auto-merge on" and "Managed by Forge Dashboard", and a waiting chip
 (below) with a `Disarm` button. After each refresh the server merges an armed
@@ -599,8 +598,8 @@ pull request elsewhere removes the intent, once Forgejo confirms it. A token
 that can push but not merge only finds out at the merge itself.
 
 A merge scheduled in Forgejo's own web UI ("Merge when checks succeed") shows
-as auto-merging too, with Cancel auto-merge on it. Forgejo has no field for it,
-so each refresh reads the pull request's timeline (`GET
+as auto-merging too, with Cancel auto-merge on it. Forgejo's pull request JSON
+has no field for it, so each refresh reads the pull request's timeline (`GET
 /repos/{owner}/{repo}/issues/{n}/timeline`): the latest of the
 `pull_scheduled_merge` and `pull_cancel_scheduled_merge` events decides. That
 is two extra requests per pull request (a page, then the empty page that ends
@@ -608,8 +607,8 @@ the read, since Forgejo drops some rows after paging and a cancel can sit on a
 later one), so it only runs for open pull requests that aren't drafts or
 empty, at most eight per repo per refresh, eight at a time. The ones over the
 cap are read on the next refresh, oldest read first, and keep their last known
-state until then. A failed read keeps the last known
-state too and never fails the refresh. Cancel auto-merge also calls Forgejo's
+state until then. A failed read keeps the last known state too and never fails
+the refresh. Cancel auto-merge also calls Forgejo's
 cancel endpoint (`DELETE /repos/{owner}/{repo}/pulls/{n}/merge`), and treats
 "nothing scheduled" (404 or 409) as done.
 
