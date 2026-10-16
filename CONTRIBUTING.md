@@ -65,7 +65,7 @@ go build ./...
 go vet ./...
 go test ./...                                    # unit + handler tests
 go test -tags=integration ./integration/... -v   # real Forgejo in a container
-go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+scripts/govulncheck.sh    # by hand; no audit runs in pre-push, CI owns that gate
 golangci-lint run
 golangci-lint fmt          # the fixer; `run` stays the check
 
@@ -85,8 +85,11 @@ red. `.github/workflows/dependency-scan.yml` audits the default branch daily,
 on every push that changes a lock file, and by hand, and keeps one open issue
 titled `Dependency advisories` with what it finds. It closes the issue when
 the audit is clean. There is no ignore list anywhere: an advisory with no fix
-stays in that issue until one ships. Run both audits yourself with the two
-commands above (`bun audit`, `govulncheck`).
+stays in that issue until one ships. No audit runs in pre-push: a hook can't
+compare base and head, so it would fail on advisories already on `main` and
+push you towards `LEFTHOOK=0`, which also skips the tests and the secrets
+scan. Run the audits yourself when you want them: `bun audit` and
+`scripts/govulncheck.sh`.
 
 ### Comparing with real GitHub
 
