@@ -702,7 +702,7 @@ test.describe('pull request details dialog', () => {
     expect(box?.width).toBeGreaterThanOrEqual(24);
   });
 
-  test('the header shows status chips from the row data, and the version on Releases', async ({
+  test('the header shows attributes from the row data, and the version on Releases', async ({
     page,
   }) => {
     await mockDashboard(page, [
@@ -720,18 +720,147 @@ test.describe('pull request details dialog', () => {
     await mockDetails(page, details());
     await page.goto('/releases.html');
     await trigger(page).click();
-    const chips = dialog(page).locator('.details-chips');
+    const status = dialog(page).locator('.details-status');
+    const attributes = dialog(page).locator('.attr-cluster');
     for (const text of [
       'Draft',
-      'Failing',
-      'Conflicts',
       'Out of date',
-      'Auto-merge on',
+      'Auto-merge',
       'kind/chore',
       'v1.2.0',
     ]) {
-      await expect(chips.getByText(text, { exact: true })).toBeVisible();
+      await expect(
+        attributes.locator('.attr-chip', { hasText: text }),
+      ).toBeVisible();
     }
+    // The words are the row's: Failed and Conflicting, never Failing/Conflicts.
+    await expect(status.locator('.ci-pill')).toContainText('Failed');
+    await expect(status.locator('.merge-pill.conflicting')).toHaveText(
+      'Conflicting',
+    );
+    await expect(status).not.toContainText('Failing');
+  });
+
+  test('a bot pull request carries the bot attribute', async ({ page }) => {
+    await mockDashboard(page, [
+      makePR({ kind: 'dependency', author: 'dependabot' }),
+    ]);
+    await mockDetails(page, details());
+    await page.goto('/bots.html');
+    await trigger(page).click();
+    await expect(
+      dialog(page).locator('.attr-cluster .attr-chip.bot'),
+    ).toHaveText('Bot');
+  });
+
+  for (const ci of ['pending', 'failure', 'success'] as const) {
+    test(`the CI slot leads the header and reads like the row (${ci})`, async ({
+      page,
+    }) => {
+      await mockDashboard(page, [makePR({ ci, draft: true })]);
+      await mockDetails(page, details());
+      await page.goto('/pull-requests.html');
+      const rowPill = page.locator('#pr-rows .row').first().locator('.ci-pill');
+      const rowText = (await rowPill.textContent())?.trim();
+      const rowGlyph = await rowPill
+        .locator('[data-glyph]')
+        .first()
+        .getAttribute('data-glyph');
+      await trigger(page).click();
+      const d = dialog(page);
+      const slot = d.locator('.details-status .ci-slot');
+      await expect(slot.locator('.ci-pill')).toHaveText(rowText ?? '');
+      await expect(slot.locator('[data-glyph]').first()).toHaveAttribute(
+        'data-glyph',
+        rowGlyph ?? '',
+      );
+      expect(rowText).toBe(
+        { pending: 'Running', failure: 'Failed', success: 'Passed' }[ci],
+      );
+      // The slot sits above the title, the attributes below it.
+      const slotBox = await slot.boundingBox();
+      const titleBox = await d.locator('.details-title').boundingBox();
+      const attrBox = await d.locator('.attr-cluster').boundingBox();
+      expect(slotBox?.y).toBeLessThan(titleBox?.y ?? 0);
+      expect(attrBox?.y).toBeGreaterThan(titleBox?.y ?? 0);
+      // A header badge is not a second pipeline button.
+      await expect(d.locator('button.ci-pill')).toHaveCount(0);
+    });
+  }
+
+  test('attributes are quiet outlined chips with no fill or state colour', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      makePR({
+        kind: 'dependency',
+        draft: true,
+        behind: true,
+        autoMergeEnabled: true,
+        labels: [{ name: 'kind/chore', color: 'cccccc' }],
+      }),
+    ]);
+    await mockDetails(page, details());
+    await page.goto('/bots.html');
+    await trigger(page).click();
+    const chips = dialog(page).locator('.attr-cluster .attr-chip');
+    await expect(chips).toHaveCount(5);
+    const styles = await chips.evaluateAll((els) =>
+      els.map((el) => {
+        const s = getComputedStyle(el);
+        return {
+          bg: s.backgroundColor,
+          border: s.borderTopWidth,
+          color: s.color,
+        };
+      }),
+    );
+    for (const s of styles) {
+      expect(s.bg).toBe('rgba(0, 0, 0, 0)');
+      expect(s.border).toBe('1px');
+      expect(s.color).toBe(styles[0].color);
+    }
+  });
+
+  test('on a 360px phone the header status has no overflow, the slot is first and the attributes wrap', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await mockDashboard(page, [
+      makePR({
+        kind: 'dependency',
+        ci: 'failure',
+        mergeStatus: 'conflicting',
+        draft: true,
+        behind: true,
+        autoMergeEnabled: true,
+        labels: [{ name: 'a-rather-long-label-name', color: 'cccccc' }],
+      }),
+    ]);
+    await mockDetails(page, details());
+    await page.goto('/bots.html');
+    await trigger(page).click();
+    const d = dialog(page);
+    const overflow = await d.evaluate((el) => {
+      const header = el.querySelector('.details-header') as HTMLElement;
+      return [
+        el.scrollWidth - el.clientWidth,
+        header.scrollWidth - header.clientWidth,
+      ];
+    });
+    expect(overflow).toEqual([0, 0]);
+    const slot = await d.locator('.details-status .ci-slot').boundingBox();
+    const close = await d.getByRole('button', { name: /^Close/ }).boundingBox();
+    const attrs = await d.locator('.attr-cluster').boundingBox();
+    const title = await d.locator('.details-title').boundingBox();
+    expect(slot?.y).toBeLessThan(title?.y ?? 0);
+    expect((slot?.x ?? 0) + (slot?.width ?? 0)).toBeLessThanOrEqual(
+      close?.x ?? 0,
+    );
+    expect(attrs?.y).toBeGreaterThan(
+      (title?.y ?? 0) + (title?.height ?? 0) - 1,
+    );
+    expect((attrs?.x ?? 0) + (attrs?.width ?? 0)).toBeLessThanOrEqual(360);
   });
 
   for (const scheme of ['light', 'dark'] as const) {
@@ -739,7 +868,17 @@ test.describe('pull request details dialog', () => {
       page,
     }) => {
       await page.emulateMedia({ colorScheme: scheme });
-      await mockDashboard(page, [makePR()]);
+      await mockDashboard(page, [
+        makePR({
+          ci: 'failure',
+          mergeStatus: 'conflicting',
+          kind: 'dependency',
+          draft: true,
+          behind: true,
+          autoMergeEnabled: true,
+          labels: [{ name: 'kind/chore', color: 'cccccc' }],
+        }),
+      ]);
       await mockDetails(
         page,
         details({
@@ -754,7 +893,7 @@ test.describe('pull request details dialog', () => {
           commentsTruncated: true,
         }),
       );
-      await page.goto('/pull-requests.html');
+      await page.goto('/bots.html');
       await trigger(page).click();
       await expect(dialog(page).locator('.details-comment')).toHaveCount(2);
       const results = await new AxeBuilder({ page })
