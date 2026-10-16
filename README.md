@@ -1030,22 +1030,26 @@ A repo you ignore for pull requests is left out, here and in the badge.
 The pull request list is at `/pull-requests.html`. The page used to live at
 `/main-branches.html`, which now redirects to `/`.
 
-Each row shows the status as an
-icon and a word (Failed, Running, Passed or No pipeline), the repo, the
-branch, the short SHA, subject and author of the newest commit, how long ago the
-run finished and how long it ran. A failed row names its failing jobs and
-expands to list them. **View run** opens the run on the forge. Rows come
-latest commit first, in the order the server sends them.
+Each row shows the status top right, in the same slot the pull request rows use:
+a running branch is a state (Running, an amber spinner, a still clock under
+reduced motion) and a finished one an outcome (Failed or Passed), with the same
+glyphs and colours, so a run turns into its result without the row moving. A
+branch with no pipeline is neither, so it gets a quiet outlined "No pipeline"
+note instead. The row also shows the repo, the branch, the short SHA, subject
+and author of the newest commit, how long ago the run finished and how long it
+ran. A failed row names its failing jobs and expands to list them. **View run**
+opens the run on the forge. Rows come latest commit first, in the order the
+server sends them.
 
-The pills (All, Failing, Passing, Running, No pipeline) carry the server's
-counts. A pill, and each forge in the toggle, is offered only when a row would
-show under it, given the search and the other pill, so none leads to an empty
-list; the one that is active always stays, so it can be cleared. A forge toggle
-and a search box narrow the list further; search
-matches the repo, branch, commit, author and failing job names. The filter is
-saved in a cookie of its own, `forge-board-main-branches`, and is still set
-after a reload. It is not part of the shared filter cookie, which holds
-pull request and issue state.
+The pills (All, Failing, Passing, Running, No pipeline) keep their filter names,
+like the quick pills on the pull request board, and carry the server's counts. A
+pill, and each forge in the toggle, is offered only when a row would show under
+it, given the search and the other pill, so none leads to an empty list; the one
+that is active always stays, so it can be cleared. A forge toggle and a search
+box narrow the list further; search matches the repo, branch, commit, author and
+failing job names. The filter is saved in a cookie of its own,
+`forge-board-main-branches`, and is still set after a reload. It is not part of
+the shared filter cookie, which holds pull request and issue state.
 
 Rows from a forge that can't be read, or whose rate limit is spent, keep their
 last known status, are marked **stale**, and sit under one banner. The page
