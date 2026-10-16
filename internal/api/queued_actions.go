@@ -53,16 +53,13 @@ type queuedActionsResponse struct {
 
 // resolveQueuedActionsFor is the user's own queue, shared by the HTTP handler
 // and the MCP tool so both answer the same. The store scopes it by account.
-// The slice is never nil, so it encodes as [] when nothing is queued.
+// The store returns an empty, never nil, slice, so nothing queued encodes as [].
 func resolveQueuedActionsFor(ctx context.Context, deps Deps, u *auth.User) ([]dashboard.QueuedAction, error) {
 	items, err := deps.SettingsStore.QueuedActions(ctx, u.ID)
 	if err != nil {
 		slog.Error("could not list queued actions", "error", err)
 
 		return nil, errCouldNotLoadQueuedActions
-	}
-	if items == nil {
-		items = []dashboard.QueuedAction{}
 	}
 
 	return items, nil
