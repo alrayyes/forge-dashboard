@@ -70,6 +70,22 @@ test.describe('Merge states on a pull request row', () => {
     // Each test installs its dashboard mock, then loads the page once.
   });
 
+  // #1638: the wait chip already says what happens next, so the status area
+  // keeps its message and drops the "Merge unlocks automatically" line.
+  test('waiting on CI with auto-merge on drops the next-step line', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ ci: 'pending', autoMergeEnabled: true, autoMerge: 'waiting' }),
+    );
+    await page.goto('/pull-requests.html');
+
+    const row = rowOf(page);
+    await expect(row.getByText('Waiting for CI to finish')).toBeVisible();
+    await expect(row.getByText('Merge unlocks automatically')).toHaveCount(0);
+  });
+
   // One journey for a blocked Merge. Which states block it, and the words for
   // each, are the server's and are pinned in Go (TestAllowedActions and
   // TestAllowedActions_BlockedMergeReasonPerState): the page prints the
