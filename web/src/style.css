@@ -687,6 +687,11 @@ section.board {
   cursor: pointer;
 }
 
+.checkbox-filter[hidden],
+.text-filter[hidden] {
+  display: none;
+}
+
 .text-filter {
   display: inline-flex;
   align-items: center;
@@ -734,6 +739,10 @@ section.board {
 }
 .rule-error {
   color: var(--critical);
+}
+.rule-note a {
+  color: inherit;
+  text-decoration: underline;
 }
 
 .group-select {

@@ -274,6 +274,14 @@
   // real cookie/server value in onMount.
   let hideDependencyDashboard = $state(true);
 
+  // The Issues settings (#1630). The server leaves the issues they match out
+  // of the snapshot, so this page only stops drawing the checkbox the setting
+  // replaces (the page's own saved value stays and comes back) and says how
+  // many it hid. Hidden until known, so the checkbox never flashes in.
+  let issueSettingsKnown = $state(false);
+  let settingsHideDependencyDashboard = $state(false);
+  let settingsHiddenIssues = $state(0);
+
   function toggleHideDependencyDashboard() {
     sharedState.issue.hideDependencyDashboard = hideDependencyDashboard
       ? "1"
@@ -318,7 +326,13 @@
           pullRequests?: FilterableItem[];
           issues?: FilterableItem[];
           forges?: Forge[];
+          settingsHiddenIssueCount?: number;
+          hideDependencyDashboard?: boolean;
         }) => {
+          settingsHideDependencyDashboard =
+            data.hideDependencyDashboard === true;
+          issueSettingsKnown = true;
+          settingsHiddenIssues = data.settingsHiddenIssueCount ?? 0;
           lastSnapshot.pullRequests = data.pullRequests || [];
           lastSnapshot.issues = data.issues || [];
           lastSnapshot.forges = data.forges || [];
@@ -344,6 +358,15 @@
     content="CI status, busiest repositories, pull request and issue age, and API rate limits across your tracked repositories."
   />
   <style>
+    .settings-note {
+      margin: 8px 0 0;
+      font-size: 12px;
+      color: var(--ink-2);
+    }
+    .settings-note a {
+      color: inherit;
+      text-decoration: underline;
+    }
     .insights-wrap {
       max-width: 720px;
       margin: 0 auto;
@@ -746,7 +769,10 @@
       </select>
     </div>
 
-    <label class="checkbox-filter issue-only-filter">
+    <label
+      class="checkbox-filter issue-only-filter"
+      hidden={!issueSettingsKnown || settingsHideDependencyDashboard}
+    >
       <input
         type="checkbox"
         id="issue-hide-dependency-dashboard"
@@ -755,6 +781,12 @@
       />
       Hide Dependency Dashboard (issue charts only)
     </label>
+    {#if settingsHiddenIssues > 0}
+      <p class="settings-note" id="issue-settings-note">
+        {settingsHiddenIssues} hidden by your settings.
+        <a href="/settings.html#issue-settings">Settings</a>
+      </p>
+    {/if}
   </div>
 
   <div class="card">

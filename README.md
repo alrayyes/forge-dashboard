@@ -1185,6 +1185,35 @@ On a dashboard someone shared with you (`?owner=`), the issues are theirs and
 the settings are yours: your own choices decide what you see, and theirs don't
 reach you.
 
+### Issues in Settings
+
+The **Issues** section of Settings holds two standing rules, saved with the
+account and applied by the server, so they follow you to another browser:
+
+- **Hide the Dependency Dashboard issue** leaves Renovate's Dependency
+  Dashboard out everywhere.
+- **Ignored issue titles** is a list of up to 20 patterns of up to 200
+  characters. An issue whose title matches any of them is left out. A
+  pattern matches anywhere in the title and ignores case, so `^Weekly report`
+  leaves out every issue whose title starts with those words. Type a pattern
+  in **Pattern**, then press **Add**. **Remove** drops an entry. Blanks and
+  repeats are dropped. Both settings save with the **Save** button.
+
+Because the server applies them, the Issues badge in the navigation, the
+Issues page and the Insights issue charts all leave those issues out, and the
+Issues page and Insights say "N hidden by your settings" with a link back to
+Settings. They cover issues only, not pull requests. The server checks the
+patterns with Go's own syntax (RE2), which cannot look ahead or refer
+back to an earlier match, unlike the filter box on the Issues page. A pattern it
+refuses is shown beside the list with the reason, and nothing is saved.
+
+While a setting applies, the page's own field for it is not shown: the **Hide
+Dependency Dashboard** checkbox on the Issues page and Insights while the first
+setting is on, and the **Hide titles matching (regex)** box while the list has
+an entry. What you had in those fields is kept, not used, and comes back when
+you turn the setting off or empty the list. **Clear filters** changes neither
+setting.
+
 The repo, author and label choices on the pull request, release, bot and issue
 pages and on Insights come from what the page can show: the items every other
 filter lets through, and without the Dependency Dashboard while it is hidden. A
