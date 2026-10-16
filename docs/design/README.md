@@ -82,7 +82,7 @@ server log. The tickets' criteria win over those two details.
   `screen-main-branches-mobile.png`: a page with the CI status of every
   repo's default branch, in light, dark and at 390px. Rows carry status,
   branch, latest commit, failing workflow and age; filter pills with counts,
-  a forge toggle, search and a failing-first sort sit above them, and a failed
+  a forge toggle and search sit above them, and a failed
   row shows its failing job and last log lines.
   `crop-main-branches-filter-bar.png` is the header and filter bar and
   `crop-main-branches-failing-row.png` a failed row. Stitch project "Forge

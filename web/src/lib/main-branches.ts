@@ -64,7 +64,7 @@ export function isFiltered(filter: MainBranchFilter): boolean {
 }
 
 // The rows a filter keeps, in the order the server sent them: it already
-// puts failed first, and a client sort here would only fight it.
+// puts the newest commit first, and a client sort here would only fight it.
 export function applyFilter(
   branches: MainBranch[],
   filter: MainBranchFilter,
