@@ -53,4 +53,13 @@ else
   echo "$body" | grep -Eq 'issues: write' || fail "$scan lacks issues: write, so it cannot keep the ticket"
 fi
 
+# No dependency audit runs in pre-push (rules/dependencies.md, #1606): a hook
+# can't compare base and head, so it fails on advisories already on the default
+# branch and teaches LEFTHOOK=0, which also skips the tests and gitleaks. CI
+# owns the gate; the command stays a script to run by hand.
+if strip lefthook.yml | grep -Eq 'govulncheck|bun audit|npm audit|pip-audit|composer audit|cargo audit'; then
+  fail "lefthook.yml runs a dependency audit; CI owns the gate, so remove it from pre-push"
+fi
+[ -x scripts/govulncheck.sh ] || fail "scripts/govulncheck.sh is missing, so there is no way to run the Go audit by hand"
+
 exit "$failed"

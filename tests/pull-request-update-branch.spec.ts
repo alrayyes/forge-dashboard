@@ -510,7 +510,7 @@ test.describe('pull request update-branch button', () => {
       await expect(
         row.getByRole('button', { name: 'Update branch' }),
       ).toBeVisible();
-      await expect(row.locator('.merge-pill.behind')).toHaveCount(0);
+      await expect(row.locator('.attr-chip.behind')).toHaveCount(0);
     });
 
     test('a conflicting release-please PR shows the locked Update branch button (#728, #701)', async ({
