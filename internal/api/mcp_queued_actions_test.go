@@ -69,3 +69,29 @@ func TestMCP_ListQueuedActions_IsAnEmptyArrayWhenNothingIsQueued(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, []any{}, content["queuedActions"])
 }
+
+func TestMCP_ListQueuedActions_AnotherUserSeesOnlyTheirOwnQueue(t *testing.T) {
+	t.Parallel()
+
+	srv, _, owner := queueBoard(t, true, time.Now().Add(time.Hour))
+	status, _ := queueUpdate(t, srv, owner, 5)
+	require.Equal(t, http.StatusCreated, status)
+	invite := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
+	other, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", invite)
+
+	queued := func(cookie *http.Cookie) []any {
+		session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, cookie))
+		result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "list_queued_actions"})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		content, ok := result.StructuredContent.(map[string]any)
+		require.True(t, ok)
+		items, ok := content["queuedActions"].([]any)
+		require.True(t, ok)
+
+		return items
+	}
+
+	assert.Empty(t, queued(other), "the other user's queue")
+	assert.Len(t, queued(owner), 1, "the owner's queue")
+}
