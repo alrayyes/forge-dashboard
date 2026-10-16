@@ -246,6 +246,60 @@ function dropNonStringTitleRule(state: SharedFilterState): void {
     delete state.issue.hideTitleRegex;
 }
 
+// A pick the page being shown does not offer (an author who wrote no pull
+// request, on the Pull requests page) is cleared there so the list isn't
+// emptied by something nothing can match (#112, #1427). That clearing is about
+// this page, not about the choice: it is held back from the saved copy, so the
+// page that does offer it finds it still set (#1620). The user's own change to
+// the same control ends the hold.
+type StateGroup = keyof SharedFilterState;
+const held: { group: StateGroup; key: string; value: string }[] = [];
+
+function heldValue(group: StateGroup, key: string): string | undefined {
+  return held.find((h) => h.group === group && h.key === key)?.value;
+}
+
+// Clears the pick in state, as a page that does not offer it needs, and keeps
+// its value for the saved copy.
+export function holdStale(
+  state: SharedFilterState,
+  group: StateGroup,
+  key: string,
+): void {
+  const value = state[group][key];
+  if (value) {
+    releaseHeld(group, key);
+    held.push({ group, key, value });
+  }
+  state[group][key] = '';
+}
+
+// The user chose something else for this control (or cleared it): the held
+// value is no longer wanted.
+export function releaseHeld(group: StateGroup, key: string): void {
+  const at = held.findIndex((h) => h.group === group && h.key === key);
+  if (at >= 0) held.splice(at, 1);
+}
+
+export function releaseAllHeld(): void {
+  held.length = 0;
+}
+
+// What gets saved: the state with every held pick put back where the page
+// cleared it.
+function savedCopy(state: SharedFilterState): SharedFilterState {
+  if (held.length === 0) return state;
+  const copy: SharedFilterState = {
+    shared: { ...state.shared },
+    pr: { ...state.pr },
+    issue: { ...state.issue },
+    view: { ...state.view },
+  };
+  for (const h of held)
+    if (!copy[h.group][h.key]) copy[h.group][h.key] = h.value;
+  return copy;
+}
+
 const FILTER_STATE_ENDPOINT = '/api/settings/filter-state';
 // Long enough that a fast typist's keystrokes coalesce into one write,
 // short enough that a real pause reads as "done typing," matching the
@@ -261,7 +315,7 @@ function putFilterStateToServer(state: SharedFilterState): void {
   fetch(FILTER_STATE_ENDPOINT, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(state),
+    body: JSON.stringify(savedCopy(state)),
     keepalive: true,
   }).catch(() => {
     // Best-effort, the same restraint RecordWebhookDelivery's own
@@ -287,7 +341,7 @@ export function saveState(
   debouncedCol?: string,
 ): void {
   try {
-    setCookie(FILTERS_COOKIE, JSON.stringify(state));
+    setCookie(FILTERS_COOKIE, JSON.stringify(savedCopy(state)));
   } catch {
     /* ignore */
   }
@@ -346,13 +400,18 @@ export function applyServerState(
   state: SharedFilterState,
   got: Partial<SharedFilterState>,
 ): void {
-  if (got.shared && typeof got.shared === 'object')
-    Object.assign(state.shared, got.shared);
-  if (got.pr && typeof got.pr === 'object') Object.assign(state.pr, got.pr);
-  if (got.issue && typeof got.issue === 'object')
-    Object.assign(state.issue, got.issue);
-  if (got.view && typeof got.view === 'object')
-    Object.assign(state.view, got.view);
+  for (const group of ['shared', 'pr', 'issue', 'view'] as const) {
+    const incoming = got[group];
+    if (!incoming || typeof incoming !== 'object') continue;
+    for (const [key, value] of Object.entries(incoming)) {
+      // The server holds the pick this page cleared for itself: it agrees
+      // with what is held, so it stays cleared here. A different value is
+      // another device's newer choice and wins.
+      if (heldValue(group, key) === value) continue;
+      releaseHeld(group, key);
+      state[group][key] = value;
+    }
+  }
   dropUnknownAutoMerge(state);
   dropNonStringTitleRule(state);
 }
@@ -817,9 +876,12 @@ export function populateDatalist(
 export function populateRepoSelect(
   select: HTMLSelectElement | null,
   items: FilterableItem[],
+  wanted = '',
 ): boolean {
   if (!select) return false;
-  const previous = select.value;
+  // wanted is the saved pick, lowercase like all saved picks, for the first
+  // population when the control has not been set from it yet.
+  const previous = (select.value || wanted).toLowerCase();
   const byForge: Record<string, { value: string; label: string }[]> = {};
   const seen = new Set<string>();
 
@@ -843,7 +905,7 @@ export function populateRepoSelect(
   for (const child of Array.from(select.children).slice(1)) child.remove();
 
   const grouped = forgeOrder.length > 1;
-  let stillPresent = false;
+  let matched = '';
   for (const forge of forgeOrder) {
     let parent: HTMLElement = select;
     if (grouped) {
@@ -857,12 +919,12 @@ export function populateRepoSelect(
       option.value = entry.value;
       option.textContent = entry.label;
       parent.appendChild(option);
-      if (entry.value === previous) stillPresent = true;
+      if (entry.value.toLowerCase() === previous) matched = entry.value;
     }
   }
 
-  if (stillPresent) {
-    select.value = previous;
+  if (matched) {
+    select.value = matched;
     return false;
   }
   select.value = '';
