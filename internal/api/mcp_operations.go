@@ -14,6 +14,7 @@ var mcpToolOperations = map[string]string{
 	"get_main_branches":        "getMainBranches",
 	"get_pull_request_details": "getPullRequestDetails",
 	"get_pull_request_checks":  "getPullRequestChecks",
+	"list_queued_actions":      "listQueuedActions",
 }
 
 // mcpPending are the operations whose tool is still to come, in small pull
@@ -44,7 +45,6 @@ var mcpPending = []string{
 	"updatePullRequestBranch",
 	"postPullRequestDependabotAction",
 	"postPullRequestRenovateRebase",
-	"listQueuedActions",
 	"queueAction",
 	"cancelQueuedAction",
 	"listUsers",
