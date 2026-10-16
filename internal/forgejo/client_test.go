@@ -1928,6 +1928,10 @@ func TestUpgradeWebhook_HookLacksAnEvent_PatchesOnceAndNeverPosts(t *testing.T) 
 	t.Parallel()
 
 	var patches int
+	var patch struct {
+		Events []string          `json:"events"`
+		Config map[string]string `json:"config"`
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
@@ -1943,6 +1947,7 @@ func TestUpgradeWebhook_HookLacksAnEvent_PatchesOnceAndNeverPosts(t *testing.T) 
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks/7", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPatch, r.Method)
 		patches++
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&patch))
 		w.WriteHeader(http.StatusOK)
 	})
 	srv := httptest.NewServer(mux)
@@ -1955,6 +1960,9 @@ func TestUpgradeWebhook_HookLacksAnEvent_PatchesOnceAndNeverPosts(t *testing.T) 
 	require.NoError(t, err)
 	assert.True(t, updated)
 	assert.Equal(t, 1, patches)
+	assert.Contains(t, patch.Events, "issue_comment", "the current event list is sent")
+	assert.Equal(t, "sekret", patch.Config["secret"], "the secret is kept, not blanked")
+	assert.Equal(t, "https://dashboard.example/api/webhooks/forgejo/tok123", patch.Config["url"], "the target URL is kept")
 }
 
 func TestUpgradeWebhook_HookAlreadyHasEveryEvent_WritesNothing(t *testing.T) {
@@ -1986,6 +1994,40 @@ func TestUpgradeWebhook_HookAlreadyHasEveryEvent_WritesNothing(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.False(t, updated)
+}
+
+// Two real Forgejo instances never persist the `status` event, however it is
+// set (docs/webhooks.md), so a hook that has every other event is up to date.
+// Comparing `status` too would PATCH every Forgejo hook at every start.
+func TestUpgradeWebhook_HookMissingOnlyStatus_WritesNothing(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("unexpected write: %s", r.Method)
+		}
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"id": 7, "type": "forgejo", "events": []string{"push", "pull_request_review_rejected", "pull_request_review_approved", "pull_request_review_comment", "pull_request_comment", "issue_comment", "issues", "pull_request"}, "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": true},
+		})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks/7", func(_ http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected write: %s", r.Method)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.False(t, updated, "status never sticks on Forgejo, so its absence is not out of date")
 }
 
 func TestUpgradeWebhook_NoHookOfOurs_DoesNotCreateOne(t *testing.T) {

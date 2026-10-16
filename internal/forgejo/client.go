@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -312,7 +313,7 @@ func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, sec
 		return false, fmt.Errorf("forgejo: invalid webhook target URL: %w", err)
 	}
 	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
-	if err != nil || existing == nil || dashboard.WebhookCoversEvents(existing.Events, forgejoWebhookEvents) {
+	if err != nil || existing == nil || dashboard.WebhookCoversEvents(existing.Events, upgradeComparedEvents()) {
 		return false, err
 	}
 	config := map[string]string{"url": targetURL, "content_type": "json", "secret": secret}
@@ -321,6 +322,14 @@ func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, sec
 	}
 
 	return true, nil
+}
+
+// upgradeComparedEvents is forgejoWebhookEvents without `status`: two real
+// Forgejo instances never persist that event however it is set
+// (docs/webhooks.md), so counting its absence would PATCH every covered hook at
+// every start for nothing.
+func upgradeComparedEvents() []string {
+	return slices.DeleteFunc(slices.Clone(forgejoWebhookEvents), func(e string) bool { return e == "status" })
 }
 
 // forgejoError turns a failed gitea SDK call into the reason a person
