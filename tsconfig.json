@@ -11,5 +11,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["tests", "scripts", "playwright.config.ts"]
+  "include": ["tests", "scripts", "playwright.config.ts"],
+  "exclude": ["scripts/*.test.ts"]
 }
