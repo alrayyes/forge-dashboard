@@ -296,6 +296,9 @@
   // issues they hid. The fields stay hidden until the settings are known, so a
   // field that is about to go never flashes in.
   let issueSettingsKnown = $state(false);
+  // The load failed: the fields show, and the note stays away, since nothing
+  // says whether the settings apply.
+  let issueSettingsFailed = $state(false);
   let settingsHideDependencyDashboard = $state(false);
   let settingsIgnoreTitles = $state(false);
   let settingsHiddenIssues = $state(0);
@@ -5686,9 +5689,13 @@
     // #1630: which fields the Settings page has replaced.
     if (view === "issues") {
       loadIssueSettings().then((settings) => {
+        issueSettingsKnown = true;
+        if (!settings) {
+          issueSettingsFailed = true;
+          return;
+        }
         settingsHideDependencyDashboard = settings.hideDependencyDashboard;
         settingsIgnoreTitles = settings.ignoredTitles.length > 0;
-        issueSettingsKnown = true;
         // Only a saved value the settings now override changes what the
         // board shows; otherwise leave the rows as they are.
         if (
@@ -7468,7 +7475,7 @@
           role="status"
           hidden
         ></p>
-        {#if settingsHiddenIssues > 0}
+        {#if settingsHiddenIssues > 0 && !issueSettingsFailed}
           <p class="rule-note" id="issue-settings-note" role="status">
             {settingsHiddenIssues} hidden by your settings.
             <a href="/settings.html#issue-settings">Settings</a>

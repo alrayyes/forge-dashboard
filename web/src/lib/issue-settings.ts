@@ -67,11 +67,12 @@ export function addIgnoredTitle(
   return { list: [...list, pattern] };
 }
 
-// What the Issues and Insights pages need to know. Any failure reads as
-// "nothing set", so the page keeps its own fields.
-export function loadIssueSettings(): Promise<IssueSettings> {
+// What the Issues and Insights pages need to know. A failed load is null:
+// the page keeps its own fields and says nothing about what the settings hid,
+// since it can't tell whether they apply.
+export function loadIssueSettings(): Promise<IssueSettings | null> {
   return fetch('/api/settings', { headers: { Accept: 'application/json' } })
     .then((res) => (res.ok ? res.json() : null))
-    .then(issueSettingsFrom)
-    .catch(() => issueSettingsFrom(null));
+    .then((data) => (data ? issueSettingsFrom(data) : null))
+    .catch(() => null);
 }

@@ -263,6 +263,7 @@
   // replaces (the page's own saved value stays and comes back) and says how
   // many it hid. Hidden until known, so the checkbox never flashes in.
   let issueSettingsKnown = $state(false);
+  let issueSettingsFailed = $state(false);
   let settingsHideDependencyDashboard = $state(false);
   let settingsHiddenIssues = $state(0);
 
@@ -296,8 +297,12 @@
     });
 
     loadIssueSettings().then((settings) => {
-      settingsHideDependencyDashboard = settings.hideDependencyDashboard;
       issueSettingsKnown = true;
+      if (!settings) {
+        issueSettingsFailed = true;
+        return;
+      }
+      settingsHideDependencyDashboard = settings.hideDependencyDashboard;
     });
 
     fetch("/api/dashboard", { headers: { Accept: "application/json" } })
@@ -765,7 +770,7 @@
       />
       Hide Dependency Dashboard (issue charts only)
     </label>
-    {#if settingsHiddenIssues > 0}
+    {#if settingsHiddenIssues > 0 && !issueSettingsFailed}
       <p class="settings-note" id="issue-settings-note">
         {settingsHiddenIssues} hidden by your settings.
         <a href="/settings.html#issue-settings">Settings</a>

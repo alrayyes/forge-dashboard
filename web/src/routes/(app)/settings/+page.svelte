@@ -224,6 +224,11 @@
   // Set once the person edits either, so the load landing late never
   // clobbers an edit in flight.
   let issueSettingsTouched = false;
+  // Saving replaces the stored settings, so a form that never read them must
+  // not send its empty defaults over them.
+  let settingsLoaded = $state(false);
+  const SETTINGS_NOT_LOADED =
+    "Settings could not be loaded; saving is turned off so nothing is overwritten. Reload the page.";
 
   function addIgnoredPattern() {
     issueSettingsTouched = true;
@@ -370,6 +375,19 @@
 
   function handleSave(e: SubmitEvent) {
     e.preventDefault();
+    if (!settingsLoaded) return;
+
+    // A pattern typed but not added yet counts: add it now, and stop here
+    // when it can't be kept.
+    if (ignoredPattern.trim()) {
+      addIgnoredPattern();
+      if (ignoredError) {
+        status = ignoredError;
+        statusKind = "error";
+        document.getElementById("ignored-pattern")?.focus();
+        return;
+      }
+    }
 
     // What is valid is the server's call, not the page's: it merges the save
     // with what is stored, checks it, and names the field it refused
@@ -768,6 +786,7 @@
       })
       .then((data: SettingsResponse | null) => {
         if (!data) return;
+        settingsLoaded = true;
         // Guarded, not a blind overwrite: onMount fires after hydration,
         // later relative to page load than a vanilla page's synchronous
         // bottom <script> — this fetch can resolve after a fast typist
@@ -803,8 +822,8 @@
         // checked for exactly the reload this ticket is about.
         if (!isThemeSavePending()) theme = data.theme || "";
       })
-      .catch((err) => {
-        status = err.message || "Could not load settings.";
+      .catch(() => {
+        status = SETTINGS_NOT_LOADED;
         statusKind = "error";
       });
 
@@ -1167,6 +1186,18 @@
     }
     #issue-settings .share-list .btn-remove {
       flex-shrink: 0;
+    }
+    /* Touch targets at phone width: 44px high (#1630). */
+    @media (max-width: 760px) {
+      #issue-settings .share-list .btn-remove,
+      #issue-settings .pattern-row .btn {
+        min-height: 44px;
+        min-width: 44px;
+      }
+      #issue-settings .check-row {
+        min-height: 44px;
+        margin: 0;
+      }
     }
     .pattern-row {
       display: flex;
@@ -1749,7 +1780,7 @@
         type="submit"
         class="btn btn-primary"
         id="save-button"
-        disabled={saving}>Save</button
+        disabled={saving || !settingsLoaded}>Save</button
       >
       <p
         class={`status${statusKind ? ` ${statusKind}` : ""}`}

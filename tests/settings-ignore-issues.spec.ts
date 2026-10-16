@@ -151,6 +151,59 @@ test.describe('Settings: Issues (#1630)', () => {
     await expect(entries(page).first()).toContainText('^Weekly report');
   });
 
+  test('a failed load turns Save off and sends nothing', async ({ page }) => {
+    const puts: string[] = [];
+    await page.route(
+      (url) => url.pathname === '/api/settings',
+      (route: Route) => {
+        if (route.request().method() === 'PUT') puts.push('put');
+        return route.fulfill({ status: 500, body: 'nope' });
+      },
+    );
+    await page.goto('/settings.html');
+    await expect(page.locator('#status')).toContainText(
+      'saving is turned off so nothing is overwritten',
+    );
+    await expect(save(page)).toBeDisabled();
+    await page
+      .locator('#settings-form')
+      .evaluate((f: HTMLFormElement) => f.requestSubmit());
+    expect(puts).toEqual([]);
+  });
+
+  test('text typed in Pattern but not added is added by Save', async ({
+    page,
+  }) => {
+    const server = await standInSettings(page, {
+      ignoredTitles: ['^Nightly'],
+    });
+    await page.goto('/settings.html');
+    await expect(entries(page)).toHaveCount(1);
+    await pattern(page).fill('  ^Weekly report ');
+    await save(page).click();
+    await expect(page.locator('#status')).toHaveText('Saved.');
+    expect(server.stored.ignoredTitles).toEqual(['^Nightly', '^Weekly report']);
+    await expect(entries(page)).toHaveCount(2);
+    await expect(pattern(page)).toHaveValue('');
+  });
+
+  test('typed text that cannot be added stops the save and says why', async ({
+    page,
+  }) => {
+    const server = await standInSettings(page, {
+      ignoredTitles: Array.from({ length: 20 }, (_, i) => `^Report ${i}`),
+    });
+    await page.goto('/settings.html');
+    await expect(entries(page)).toHaveCount(20);
+    await pattern(page).fill('one more');
+    await save(page).click();
+    await expect(section(page).locator('#ignored-titles-error')).toContainText(
+      'at most 20',
+    );
+    await expect(pattern(page)).toBeFocused();
+    expect(server.puts).toEqual([]);
+  });
+
   test('Enter in the field adds the pattern and does not save the form', async ({
     page,
   }) => {
@@ -293,6 +346,15 @@ test.describe('Settings: Issues (#1630)', () => {
       client: document.documentElement.clientWidth,
     }));
     expect(widths.scroll).toBeLessThanOrEqual(widths.client);
+    // Touch targets are 44px high on a phone.
+    for (const target of [
+      page.getByRole('button', { name: 'Remove ^Weekly report' }),
+      add(page),
+      hideBox(page).locator('xpath=ancestor::label'),
+    ]) {
+      const box = await target.boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
   });
 
   for (const scheme of ['light', 'dark'] as const) {
@@ -310,7 +372,15 @@ test.describe('Settings: Issues (#1630)', () => {
       test('empty', async ({ page }) => {
         await standInSettings(page);
         await page.goto('/settings.html');
-        await expect(section(page)).toBeVisible();
+        await expect(
+          section(page).getByRole('heading', { name: 'Issues' }),
+        ).toBeVisible();
+        await expect(hideBox(page)).toBeVisible();
+        await expect(pattern(page)).toBeVisible();
+        await expect(add(page)).toBeVisible();
+        await expect(
+          section(page).locator('#ignored-titles-empty'),
+        ).toBeVisible();
         expect((await scan(page)).violations).toEqual([]);
       });
 
@@ -320,7 +390,14 @@ test.describe('Settings: Issues (#1630)', () => {
           ignoredTitles: ['^Weekly report', '^Nightly'],
         });
         await page.goto('/settings.html');
+        await expect(
+          section(page).getByRole('heading', { name: 'Issues' }),
+        ).toBeVisible();
+        await expect(hideBox(page)).toBeChecked();
         await expect(entries(page)).toHaveCount(2);
+        await expect(
+          page.getByRole('button', { name: 'Remove ^Nightly' }),
+        ).toBeVisible();
         expect((await scan(page)).violations).toEqual([]);
       });
 
@@ -331,6 +408,8 @@ test.describe('Settings: Issues (#1630)', () => {
         await expect(
           section(page).locator('#ignored-titles-error'),
         ).toBeVisible();
+        await expect(entries(page)).toHaveCount(1);
+        await expect(pattern(page)).toHaveAttribute('aria-invalid', 'true');
         expect((await scan(page)).violations).toEqual([]);
       });
     });

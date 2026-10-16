@@ -128,14 +128,18 @@ test.describe('Issues page follows the settings (#1630)', () => {
   test('a server that does not send the fields yet reads as nothing set', async ({
     page,
   }) => {
-    await page.route('**/api/settings', (route: Route) =>
-      route.fulfill({ status: 500, body: 'nope' }),
+    await standIn(page, { hidden: 3 });
+    // Registered last, so it wins over the stand-in's own answer.
+    await page.route(
+      (url) => url.pathname === '/api/settings',
+      (route: Route) => route.fulfill({ status: 500, body: 'nope' }),
     );
-    await standIn(page);
     await page.goto('/issues.html');
     await expect(rows(page)).toHaveCount(2);
     await expect(dependencyBox(page)).toBeVisible();
     await expect(patternBox(page)).toBeVisible();
+    // Unknown settings: the fields show, so the note says nothing either.
+    await expect(note(page)).toHaveCount(0);
   });
 
   test('the Dependency Dashboard setting removes that checkbox only', async ({
@@ -298,6 +302,21 @@ test.describe('Insights follows the settings (#1630)', () => {
     page,
   }) => {
     await standIn(page);
+    await page.goto('/insights.html');
+    await expect(
+      page.locator('#issue-hide-dependency-dashboard'),
+    ).toBeVisible();
+    await expect(note(page)).toHaveCount(0);
+  });
+
+  test('a failed settings load keeps the checkbox and draws no note', async ({
+    page,
+  }) => {
+    await standIn(page, { hidden: 5 });
+    await page.route(
+      (url) => url.pathname === '/api/settings',
+      (route: Route) => route.fulfill({ status: 500, body: 'nope' }),
+    );
     await page.goto('/insights.html');
     await expect(
       page.locator('#issue-hide-dependency-dashboard'),
