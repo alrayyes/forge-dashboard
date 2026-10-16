@@ -592,7 +592,7 @@ so each refresh reads the pull request's timeline (`GET
 `pull_scheduled_merge` and `pull_cancel_scheduled_merge` events decides. That
 is one extra request per pull request, so it only runs for open pull requests
 that aren't drafts or empty, at most eight per repo per refresh, eight at a
-time. The ones over the cap are read on the next refresh, longest unread first,
+time. The ones over the cap are read on the next refresh, oldest read first,
 and keep their last known state until then. A failed read keeps the last known
 state too and never fails the refresh. Cancel auto-merge also calls Forgejo's
 cancel endpoint (`DELETE /repos/{owner}/{repo}/pulls/{n}/merge`), and treats
