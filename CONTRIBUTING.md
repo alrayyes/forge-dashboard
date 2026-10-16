@@ -282,7 +282,14 @@ pushes the `ghcr.io/alrayyes/forge-dashboard` image goreleaser's own
 If a release job dies after release-please created the release (a token
 missing a permission, say), the release exists with no assets and a re-run
 only hits `already_exists`. Dispatch the `release` workflow by hand with the
-tag (`gh workflow run release.yml -f tag=vX.Y.Z`). It checks that the tag is
-`vX.Y.Z` and that the release exists, then builds the binaries and the image
-from that tag onto the release that is already there. It creates no release
-and moves no tag.
+tag (`gh workflow run release.yml -f tag=vX.Y.Z`). It only repairs a
+half-published release: the tag must be `vX.Y.Z`, the latest release, and
+have no assets. goreleaser pushes the image and the `latest` manifest before
+it uploads assets, so any other tag would be refused before a build starts.
+After a partial upload, delete the assets from the release by hand first; a
+second upload fails on `already_exists`. The dispatch builds the binaries and
+the image from that tag onto the release already there. It creates no release
+and moves no tag, but it does push the image tags for that version and
+`latest` to ghcr.io. A dispatched run's provenance attestation names `main` at
+dispatch time as the source ref, not the tag's commit, so verify with
+`gh attestation verify --repo alrayyes/forge-dashboard`, not `--source-ref`.

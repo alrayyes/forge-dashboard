@@ -45,9 +45,20 @@ fi
 grep -Eq '^\s+workflow_dispatch:' "$wf" || fail "$src has no workflow_dispatch, so a release that stalled cannot be completed"
 grep -Eq '^\s+tag:' "$wf" || fail "$src's workflow_dispatch takes no tag input"
 grep -Eq 'github\.event_name == .workflow_dispatch.' "$wf" || fail "$src's artefacts job does not run for a dispatch"
-grep -Eq 'ref: \$\{\{ .*inputs\.tag' "$wf" || fail "$src's artefacts checkout does not use the dispatched tag"
+grep -Eq 'ref: (refs/tags/)?\$\{\{ .*inputs\.tag' "$wf" || fail "$src's artefacts checkout does not use the dispatched tag"
 grep -Eq '\^v\[0-9\]' "$wf" || fail "$src does not check the dispatched tag looks like vX.Y.Z"
 grep -Eq 'gh release view' "$wf" || fail "$src does not check the release exists before building, so a dispatch could create a second one"
+# goreleaser pushes the image and the latest manifest before it uploads assets,
+# so dispatching an OLDER release would move ghcr.io's latest back to it and
+# then fail on already_exists. Only the latest release, with no assets yet, is a
+# half-published release this path may repair.
+grep -Eq 'releases/latest' "$wf" || fail "$src does not check the dispatched tag is the latest release"
+grep -Eq 'assets' "$wf" || fail "$src does not check the release has no assets yet"
+# A bare tag name resolves to a branch of the same name first.
+grep -Eq 'ref: refs/tags/' "$wf" || fail "$src's artefacts checkout does not use refs/tags/<tag>"
+# A dispatch cuts no release: release-please runs on a push only.
+rp=$(awk '/^  release-please:/ {on=1; next} on && /^  [a-z-]+:/ {exit} on' "$wf")
+echo "$rp" | grep -Eq "if: github\.event_name == 'push'" || fail "$src's release-please job is not push-only, so a dispatch could cut a release"
 
 # release-please opens its pull request and adds `autorelease: pending` in a
 # second API call, so the `opened` run sees no label and its job skips. Only a

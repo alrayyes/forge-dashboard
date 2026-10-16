@@ -82,10 +82,13 @@ jobs:
       id-token: write # mints the Sigstore OIDC token the attestation is signed with
       attestations: write # publishes the attestation to the repo
     steps:
-      # Before anything is built: a dispatch is a release tag that exists on a
-      # release that exists. goreleaser creates a release when there is none,
-      # which would be the duplicate this path is for avoiding.
-      - name: the dispatched tag is a release that exists
+      # Before anything is built: a dispatch repairs a half-published release.
+      # That is the latest release, with no assets yet. goreleaser pushes the
+      # image and moves the `latest` manifest before it uploads assets, so an
+      # older release would drag ghcr.io's latest back to that build and then
+      # fail on already_exists; and goreleaser creates a release when there is
+      # none, which is the duplicate this path is for avoiding.
+      - name: the dispatched tag is the latest release, and has no assets yet
         if: github.event_name == 'workflow_dispatch'
         env:
           TAG: ${{ inputs.tag }}
@@ -95,13 +98,21 @@ jobs:
             echo "::error::tag must look like vX.Y.Z, got '$TAG'"
             exit 1
           fi
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null ||
-            { echo "::error::no release $TAG to attach artefacts to"; exit 1; }
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          if [ "$latest" != "$TAG" ]; then
+            echo "::error::$TAG is not the latest release ($latest); only a half-published latest release can be repaired"
+            exit 1
+          fi
+          assets=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')
+          if [ "$assets" != 0 ]; then
+            echo "::error::$TAG already has $assets assets; delete the partial ones by hand first (a second upload fails on already_exists)"
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The tag, not the branch: goreleaser takes the version from the
           # ref it's standing on, and needs the history to build from.
-          ref: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+          ref: refs/tags/${{ needs.release-please.outputs.tag_name || inputs.tag }}
           fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
