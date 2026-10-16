@@ -122,6 +122,9 @@
     // them (#1280). The server decides; the page only says so.
     awaitingWorkflowApproval?: boolean;
     autoMergeEnabled: boolean | null;
+    // Who holds an enabled auto-merge. Omitted means the server doesn't
+    // know, and the page doesn't guess (#1596).
+    autoMergeHeldBy?: "dashboard" | "forge";
     behind: boolean;
     empty: boolean;
     // Why this pull request is waiting or can't be merged, in one place
@@ -788,6 +791,13 @@
       return svg;
     }
 
+    // Who holds a Forgejo auto-merge, in the chip's note. An unnamed holder
+    // gets no note at all (#1596).
+    const HOLDER_NOTE: Record<string, string> = {
+      dashboard: "Managed by Forge Dashboard",
+      forge: "Scheduled on Forgejo",
+    };
+
     // Silent unless auto-merge is genuinely enabled — autoMergeEnabled
     // is `null` for a forge that can't report this at all (Forgejo,
     // today), which must never render as "not enabled": strict ===
@@ -798,7 +808,8 @@
       // says so in words (it has no GitHub-style setting to point at).
       if (pr.forge === "forgejo") {
         const chip = attrChip("auto-merge", "Auto-merge on");
-        chip.appendChild(el("span", "pill-note", "Managed by Forge Dashboard"));
+        const note = HOLDER_NOTE[pr.autoMergeHeldBy ?? ""];
+        if (note) chip.appendChild(el("span", "pill-note", note));
         return chip;
       }
       return attrChip("auto-merge", "Auto-merge");
@@ -869,6 +880,7 @@
         message: pr.autoMerge.message,
         draft: pr.draft,
         forge: pr.forge,
+        heldBy: pr.autoMergeHeldBy,
       });
       if (!chip) return null;
       const disarm = isSettled(pr) ? null : cancelAutoMergeCell(pr, true);
@@ -1979,8 +1991,20 @@
     // way there is nothing to confirm: arming it again is one click.
     const cancelAutoMergeState: Record<string, ActionState> = {};
 
+    // A Forgejo merge the server says the forge holds: Cancel removes that.
+    function forgeHolds(item: PullRequestItem): boolean {
+      return item.forge === "forgejo" && item.autoMergeHeldBy === "forge";
+    }
+
     function doCancelAutoMerge(item: PullRequestItem) {
       const key = prKey(item);
+      const onForge = forgeHolds(item);
+      const cancelled = onForge
+        ? "Merge scheduled on Forgejo cancelled."
+        : "Auto-merge cancelled.";
+      const cancelling = onForge
+        ? "Cancelling the merge scheduled on Forgejo…"
+        : "Cancelling auto-merge…";
       cancelAutoMergeState[key] = { phase: "requesting" };
       keepFocusAcross(renderPRBoard);
       const fkey = `cancel-auto-merge:${key}`;
@@ -1990,9 +2014,9 @@
         label: "Cancel auto-merge",
         kind: "cancel-auto-merge",
         phase: "working",
-        inline: "Cancelling auto-merge…",
-        message: "Cancelling auto-merge…",
-        announce: "Cancelling auto-merge…",
+        inline: cancelling,
+        message: cancelling,
+        announce: cancelling,
         retry: () => doCancelAutoMerge(item),
       });
 
@@ -2022,9 +2046,9 @@
           delete cancelAutoMergeState[key];
           feedback.update(fkey, {
             phase: "done",
-            message: "Auto-merge cancelled.",
+            message: cancelled,
             toast: true,
-            announce: "Auto-merge cancelled.",
+            announce: cancelled,
           });
           return fetch(withDrafts("/api/dashboard/refresh"), {
             method: "POST",
@@ -2064,8 +2088,14 @@
       if (inChip)
         button.setAttribute(
           "aria-label",
-          requesting ? "Disarming auto-merge" : "Disarm auto-merge",
+          requesting
+            ? "Disarming auto-merge"
+            : forgeHolds(item)
+              ? "Disarm the merge scheduled on Forgejo"
+              : "Disarm auto-merge",
         );
+      if (forgeHolds(item))
+        button.title = "Cancels the merge scheduled on Forgejo.";
       button.type = "button";
       button.disabled = requesting;
       button.addEventListener("click", () => {
