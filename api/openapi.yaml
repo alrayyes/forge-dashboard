@@ -3448,8 +3448,9 @@ components:
             is a 400 naming `ignoredTitles` and the entry, with the reason in
             plain words (`ignoredTitles entry 2 ("("): missing closing )`;
             the number is the entry's place in the list as sent, from 1), and
-            nothing is saved. More than 20 entries, or an entry over 200
-            characters, is a 400 too. See SettingsResponse.ignoredTitles.
+            nothing is saved. A pattern that matches the empty string (`.*`,
+            `^`, `x*`) would hide every issue, so it is a 400 too, as are more
+            than 20 entries and an entry over 200 characters. See SettingsResponse.ignoredTitles.
 
     ThemeResponse:
       type: object

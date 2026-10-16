@@ -1142,12 +1142,13 @@ Issues board and Insights agree with no arithmetic in the client.
 
 Patterns use Go's RE2 syntax. It has no lookahead, lookbehind or
 backreferences, and it can't run slowly, so no pattern is refused for being
-complex. Saving trims each pattern, drops blanks and repeats (ignoring case),
-and takes at most 20 patterns of at most 200 characters. A pattern that
-doesn't compile is a 400 that names `ignoredTitles` and the entry, counted
-from 1 in the list as sent, and says why, as in `ignoredTitles entry 2 ("("):
-missing closing )`. Nothing is saved then, not the other patterns and not the
-other settings.
+complex. A pattern that matches the empty string, such as `.*` or `^`, is
+refused: it would match every title and hide every issue. Saving trims each
+pattern, drops blanks and repeats (ignoring case), and takes at most 20
+patterns of at most 200 characters. A pattern that doesn't compile is a 400
+that names `ignoredTitles` and the entry, counted from 1 in the list as sent,
+and says why, as in `ignoredTitles entry 2 ("("): missing closing )`.
+Nothing is saved then, not the other patterns and not the other settings.
 
 On a dashboard someone shared with you (`?owner=`), the issues are theirs and
 the settings are yours: your own choices decide what you see, and theirs don't
