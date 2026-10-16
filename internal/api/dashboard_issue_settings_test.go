@@ -249,3 +249,47 @@ func TestMCP_GetDashboard_AppliesTheIssueSettings(t *testing.T) {
 	assert.InDelta(t, 2, board["settingsHiddenIssueCount"], 0)
 	assert.InDelta(t, 3, board["openIssueCount"], 0)
 }
+
+// An issue from a repo the user ignored is not on their board either way, so
+// the settings did not hide it: it must not be in settingsHiddenIssueCount.
+func TestDashboard_IssuesOfAnIgnoredRepo_AreNotCountedAsHiddenBySettings(t *testing.T) {
+	t.Parallel()
+
+	const token = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
+	gh := func(repo string, n int, title string) dashboard.Issue {
+		return dashboard.Issue{Forge: dashboard.ForgeGitHub, Repo: repo, Number: n, Title: title}
+	}
+	dep := gh("alrayyes/ignored", 1, "Dependency Dashboard")
+	dep.Author = "renovate[bot]"
+	src := &fakeConfiguredSource{
+		health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 2},
+		issues: []dashboard.Issue{dep, gh("alrayyes/ignored", 2, "Weekly report"), gh("alrayyes/kept", 3, "Weekly report"), gh("alrayyes/kept", 4, "A bug")},
+		repos: []dashboard.Repo{
+			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/ignored", URL: "https://github.com/alrayyes/ignored"},
+			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/kept", URL: "https://github.com/alrayyes/kept"},
+		},
+	}
+	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+		if c.GitHubToken != token {
+			return nil
+		}
+
+		return []dashboard.Source{src}
+	})
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+token+`","hideDependencyDashboard":true,"ignoredTitles":["^Weekly"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+	require.Eventually(t, func() bool {
+		repos, _ := fetchDashboard(t, srv.URL, cookie)["repos"].([]any)
+
+		return len(repos) == 2
+	}, time.Second, 10*time.Millisecond)
+	ignore := postRepoIgnoreAction(t, srv.URL, cookie, "alrayyes/ignored", false, true)
+	_ = ignore.Body.Close()
+	require.Equal(t, http.StatusNoContent, ignore.StatusCode)
+
+	board := fetchDashboard(t, srv.URL, cookie)
+
+	assert.Equal(t, []int{4}, issueNumbers(board))
+	assert.InDelta(t, 1, board["settingsHiddenIssueCount"], 0, "only the kept repo's Weekly report")
+}
