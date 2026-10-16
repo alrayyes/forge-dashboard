@@ -12,8 +12,8 @@ import (
 // handlePullRequestAutoMerge arms auto-merge on the named pull request. On
 // GitHub that is the forge's own native auto-merge, which
 // dashboard.PullRequestAutoMerger's EnableAutoMerge decides how to switch on.
-// On Forgejo it is this app's own intent, because Forgejo's scheduled merge
-// can't be read back: the background pass merges it once checks pass.
+// On Forgejo it is this app's own intent: the background pass merges it once
+// checks pass. A merge scheduled on Forgejo itself is read from the timeline.
 func handlePullRequestAutoMerge(deps Deps) http.HandlerFunc {
 	github := guardedAction[dashboard.PullRequestAutoMerger]{
 		allowed:     dashboard.ActionAutoMerge,
@@ -75,8 +75,8 @@ func armForgejoAutoMerge(w http.ResponseWriter, r *http.Request, deps Deps, t ac
 }
 
 // handlePullRequestAutoMergeCancel takes auto-merge back off. On Forgejo it
-// removes the intent armForgejoAutoMerge stored and never calls the forge: the
-// intent lives here, and cancelling is idempotent. On GitHub it turns the
+// cancels a merge scheduled on the forge (#1571) and removes the intent
+// armForgejoAutoMerge stored. Cancelling is idempotent. On GitHub it turns the
 // forge's own auto-merge off through dashboard.PullRequestAutoMergeDisabler
 // (#1293), and only for a pull request that is armed.
 func handlePullRequestAutoMergeCancel(deps Deps) http.HandlerFunc {
@@ -106,6 +106,21 @@ func handlePullRequestAutoMergeCancel(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		// A merge scheduled on the forge itself (#1571) is cancelled there too.
+		// A source that can't cancel has nothing scheduled to cancel.
+		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
+		if !ok {
+			return
+		}
+		if disabler, can := src.(dashboard.PullRequestAutoMergeDisabler); can {
+			if err := disabler.DisableAutoMerge(r.Context(), t.owner, t.name, t.req.Number); err != nil {
+				slog.Warn("forgejo auto-merge cancel failed", "repo", t.req.FullName, "number", t.req.Number, "error", err)
+				writeActionRefusal(r.Context(), w, disabler, dashboard.PullRequestActionCancelAutoMerge, t.owner, t.name, t.req.Number, err)
+
+				return
+			}
+		}
+
 		if err := deps.SettingsStore.CancelAutoMerge(r.Context(), t.user.ID, t.req.Forge, t.req.FullName, t.req.Number); err != nil {
 			slog.Warn("could not remove auto-merge intent", "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "error", err)
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not cancel auto-merge"))
@@ -118,7 +133,8 @@ func handlePullRequestAutoMergeCancel(deps Deps) http.HandlerFunc {
 }
 
 // withAutoMergeIntent marks a Forgejo pull request as auto-merging when the
-// user armed it here. Forgejo can't say so itself.
+// user armed it here. The forge's own scheduled merge is already on the pull
+// request, from the issue timeline (#1571).
 func withAutoMergeIntent(pr dashboard.PullRequest, intents map[string]struct{}) dashboard.PullRequest {
 	if pr.Forge != dashboard.ForgeForgejo {
 		return pr
