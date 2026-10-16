@@ -278,3 +278,11 @@ open with the next version and changelog entry; merging that one tags the
 release. [goreleaser](https://goreleaser.com) then builds the binaries and
 pushes the `ghcr.io/alrayyes/forge-dashboard` image goreleaser's own
 `dockers:` block describes. Nobody picks a version by hand.
+
+If a release job dies after release-please created the release (a token
+missing a permission, say), the release exists with no assets and a re-run
+only hits `already_exists`. Dispatch the `release` workflow by hand with the
+tag (`gh workflow run release.yml -f tag=vX.Y.Z`). It checks that the tag is
+`vX.Y.Z` and that the release exists, then builds the binaries and the image
+from that tag onto the release that is already there. It creates no release
+and moves no tag.

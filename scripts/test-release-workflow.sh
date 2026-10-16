@@ -37,6 +37,18 @@ if grep -Eq 'fromJSON\(steps\.release\.outputs\.outputs\)' "$wf"; then
   fail "outputs are read through the wrapper's JSON; read them directly from the step"
 fi
 
+# A release whose job died after release-please created it (v0.194.0, #1587)
+# can only be completed by building its artefacts again from the tag, and the
+# workflow has no other trigger than a push to main. So it takes a manual
+# dispatch with the tag, checks that tag is a release tag that exists before
+# anything is built, and checks out that tag, never the branch.
+grep -Eq '^\s+workflow_dispatch:' "$wf" || fail "$src has no workflow_dispatch, so a release that stalled cannot be completed"
+grep -Eq '^\s+tag:' "$wf" || fail "$src's workflow_dispatch takes no tag input"
+grep -Eq 'github\.event_name == .workflow_dispatch.' "$wf" || fail "$src's artefacts job does not run for a dispatch"
+grep -Eq 'ref: \$\{\{ .*inputs\.tag' "$wf" || fail "$src's artefacts checkout does not use the dispatched tag"
+grep -Eq '\^v\[0-9\]' "$wf" || fail "$src does not check the dispatched tag looks like vX.Y.Z"
+grep -Eq 'gh release view' "$wf" || fail "$src does not check the release exists before building, so a dispatch could create a second one"
+
 # release-please opens its pull request and adds `autorelease: pending` in a
 # second API call, so the `opened` run sees no label and its job skips. Only a
 # `labeled` run can see the label, so the trigger has to list that type (#1576).

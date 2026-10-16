@@ -13,6 +13,16 @@ name: release
 on:
   push:
     branches: [main]
+  # Completes a release whose run died after release-please had created it
+  # (v0.194.0: a token missing a permission), which nothing else can: the push
+  # that made the release has run and release-please now sees the tag. Builds
+  # the binaries and the image from that tag onto the release already there.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag whose binaries and image to build again (vX.Y.Z); the release must already exist"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -36,6 +46,8 @@ jobs:
   # the release pull request; the run that matters is the one where that
   # pull request was what just landed.
   release-please:
+    # A dispatch builds artefacts for a tag that exists; it cuts no release.
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -59,7 +71,9 @@ jobs:
 
   artefacts:
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    # !cancelled() because a dispatch skips release-please, and a job whose
+    # needs were skipped is skipped too unless this says otherwise.
+    if: ${{ !cancelled() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -68,11 +82,26 @@ jobs:
       id-token: write # mints the Sigstore OIDC token the attestation is signed with
       attestations: write # publishes the attestation to the repo
     steps:
+      # Before anything is built: a dispatch is a release tag that exists on a
+      # release that exists. goreleaser creates a release when there is none,
+      # which would be the duplicate this path is for avoiding.
+      - name: the dispatched tag is a release that exists
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::tag must look like vX.Y.Z, got '$TAG'"
+            exit 1
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null ||
+            { echo "::error::no release $TAG to attach artefacts to"; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The tag, not the branch: goreleaser takes the version from the
           # ref it's standing on, and needs the history to build from.
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
           fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
