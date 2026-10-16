@@ -45,8 +45,18 @@ type dashboardResponse struct {
 	PullRequests []pullRequestView       `json:"pullRequests"`
 	Issues       []issueView             `json:"issues"`
 	// OpenIssueCount is how many of Issues are real work, without the
-	// housekeeping ones (#980).
+	// housekeeping ones (#980). Issues already leaves out what the viewer's
+	// own settings hide (#1630), so this follows them.
 	OpenIssueCount int `json:"openIssueCount"`
+	// SettingsHiddenIssueCount is how many open issues the viewer's own
+	// settings left out of Issues (#1630). Always serialized, zero when none.
+	SettingsHiddenIssueCount int `json:"settingsHiddenIssueCount"`
+	// HideDependencyDashboard and IgnoredTitlesSet mirror the viewer's own
+	// settings (#1630), always, so a client knows whether to draw its two
+	// fields without reading GET /api/settings. IgnoredTitlesSet is true when
+	// the list is not empty, whether or not a pattern matches anything.
+	HideDependencyDashboard bool `json:"hideDependencyDashboard"`
+	IgnoredTitlesSet        bool `json:"ignoredTitlesSet"`
 	// NavCounts is each nav badge's total and failed number (#1315), counted
 	// from the lists above so they always agree with the pages.
 	NavCounts navCounts    `json:"navCounts"`
@@ -233,12 +243,17 @@ type boardView struct {
 // A pull request the user hid (#841) is left out unless view.includeHidden,
 // and counted in HiddenPullRequests. Hides come before drafts, so a hidden
 // draft is only in the hidden count.
-func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap dashboard.Snapshot, view boardView) dashboardResponse {
+//
+// The issue settings (#1630) are the viewer's, not the data owner's: on a
+// shared dashboard the board is the owner's, and what is hidden from it is the
+// viewer's own choice. viewerID is userID on one's own dashboard.
+func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []byte, snap dashboard.Snapshot, view boardView) dashboardResponse {
 	board := loadBoardSettings(ctx, deps.SettingsStore, userID)
 	board.autoMergeReport = deps.Manager.AutoMergeReport(userID)
 	board.forgetClosedHides(ctx, deps.SettingsStore, userID, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
-	issues, openIssues := board.issueViews(snap.Issues)
+	filter := loadIssueFilter(ctx, deps.SettingsStore, viewerID)
+	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, filter)
 
 	return dashboardResponse{
 		GeneratedAt:    snap.GeneratedAt,
@@ -246,9 +261,13 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap 
 		PullRequests:   pullRequests,
 		Issues:         issues,
 		OpenIssueCount: openIssues,
-		NavCounts:      buildNavCounts(pullRequests, openIssues, board.mainBranchRows(snap.MainBranches)),
-		Repos:          board.repoStatuses(snap.Repos),
-		HiddenDrafts:   hiddenDrafts,
+
+		SettingsHiddenIssueCount: settingsHidden,
+		HideDependencyDashboard:  filter.hideHousekeeping,
+		IgnoredTitlesSet:         filter.titlesSet,
+		NavCounts:                buildNavCounts(pullRequests, openIssues, board.mainBranchRows(snap.MainBranches)),
+		Repos:                    board.repoStatuses(snap.Repos),
+		HiddenDrafts:             hiddenDrafts,
 
 		HiddenPullRequests: hiddenPullRequests,
 		AutoMerged:         board.autoMerged(),
@@ -484,23 +503,62 @@ func explainBehind(actions []dashboard.ActionAvailability, next string) []dashbo
 	return actions
 }
 
-// issueViews leaves out the issues of ignored repos and counts the ones that
-// are real work.
-func (b boardSettings) issueViews(issues []dashboard.Issue) ([]issueView, int) {
+// issueFilter is what a user's own settings leave out of the issues they see
+// (#1630).
+type issueFilter struct {
+	hideHousekeeping bool
+	// titlesSet is whether the user has saved any pattern.
+	titlesSet bool
+	titles    dashboard.TitlePatterns
+}
+
+// hides reports whether the settings leave issue out.
+func (f issueFilter) hides(issue dashboard.Issue, housekeeping bool) bool {
+	return (f.hideHousekeeping && housekeeping) || f.titles.Matches(issue.Title)
+}
+
+// loadIssueFilter reads userID's issue settings. A store failure, or a saved
+// pattern that no longer compiles, degrades to showing more, never to failing
+// the response.
+func loadIssueFilter(ctx context.Context, store *settings.Store, userID []byte) issueFilter {
+	creds, err := store.Get(ctx, userID)
+	if err != nil {
+		if !errors.Is(err, settings.ErrNotFound) {
+			slog.Warn("could not load issue settings for dashboard response", "error", err)
+		}
+
+		return issueFilter{}
+	}
+	titles, err := dashboard.CompileTitlePatterns(creds.IgnoredTitles)
+	if err != nil {
+		slog.Warn("could not compile ignored title patterns for dashboard response", "error", err)
+	}
+
+	return issueFilter{hideHousekeeping: creds.HideDependencyDashboard, titlesSet: len(creds.IgnoredTitles) > 0, titles: titles}
+}
+
+// issueViews leaves out the issues of ignored repos, then the ones filter
+// hides, and counts the ones that are real work. It says how many the filter
+// hid.
+func (b boardSettings) issueViews(issues []dashboard.Issue, filter issueFilter) (views []issueView, open, hidden int) {
 	out := make([]issueView, 0, len(issues))
-	open := 0
 	for _, issue := range issues {
 		if b.ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
 			continue
 		}
 		housekeeping := dashboard.IsHousekeepingIssue(issue)
+		if filter.hides(issue, housekeeping) {
+			hidden++
+
+			continue
+		}
 		out = append(out, issueView{Issue: issue, Housekeeping: housekeeping})
 		if !housekeeping {
 			open++
 		}
 	}
 
-	return out, open
+	return out, open, hidden
 }
 
 // viewOf reads includeDrafts and includeHidden from the query. Only "true"
@@ -560,7 +618,7 @@ func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, o
 		warmUpAggregator(ctx, deps, requester.ID, requester.Username)
 		deps.Manager.WaitFirstRefresh(ctx, requester.ID, firstLoadWait)
 
-		return buildDashboardResponse(ctx, deps, requester.ID, deps.Manager.Get(requester.ID), view), nil
+		return buildDashboardResponse(ctx, deps, requester.ID, requester.ID, deps.Manager.Get(requester.ID), view), nil
 	}
 
 	owner, err := deps.AuthStore.GetUserByUsername(ctx, ownerUsername)
@@ -583,7 +641,7 @@ func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, o
 	warmUpAggregator(ctx, deps, owner.ID, owner.Username)
 	deps.Manager.WaitFirstRefresh(ctx, owner.ID, firstLoadWait)
 
-	return buildDashboardResponse(ctx, deps, owner.ID, deps.Manager.Get(owner.ID), view).withoutQueue(), nil
+	return buildDashboardResponse(ctx, deps, owner.ID, requester.ID, deps.Manager.Get(owner.ID), view).withoutQueue(), nil
 }
 
 // handleDashboard answers the requested dashboard: the signed-in user's
@@ -709,7 +767,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 			// a refusal would leave the row stale (#809).
 			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
 		}
-		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps, u.ID, deps.Manager.Get(u.ID), viewOf(r)))
+		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps, u.ID, u.ID, deps.Manager.Get(u.ID), viewOf(r)))
 	}
 }
 
@@ -765,7 +823,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		flusher.Flush()
 
 		streamSnapshots(r.Context(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
-			return buildDashboardResponse(r.Context(), deps, u.ID, snap, view)
+			return buildDashboardResponse(r.Context(), deps, u.ID, u.ID, snap, view)
 		})
 	}
 }
