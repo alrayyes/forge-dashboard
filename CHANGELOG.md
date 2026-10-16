@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.195.0](https://github.com/alrayyes/forge-dashboard/compare/v0.194.2...v0.195.0) (2026-10-16)
+
+
+### Features
+
+* upgrade existing app-created webhooks once per start ([#1589](https://github.com/alrayyes/forge-dashboard/issues/1589)) ([85d1650](https://github.com/alrayyes/forge-dashboard/commit/85d1650ce27b69429992f717ed22b5da5263a05f))
+
 ## [0.194.2](https://github.com/alrayyes/forge-dashboard/compare/v0.194.1...v0.194.2) (2026-10-16)
 
 
