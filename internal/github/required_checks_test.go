@@ -202,10 +202,12 @@ type partialRequiredServer struct {
 	protectionFails atomic.Bool
 	// protectionMissing answers GitHub's 404 for a branch with no classic rule.
 	protectionMissing atomic.Bool
-	protectionCalls   *atomic.Int32
-	protection        []string
-	rulesets          []string
-	pages             [][]string
+	// checkRunsFail answers the check-run lookup with a server error.
+	checkRunsFail   atomic.Bool
+	protectionCalls *atomic.Int32
+	protection      []string
+	rulesets        []string
+	pages           [][]string
 	// The pull request's shape, for the fallback that applies when the required
 	// contexts can't be read (#1311). Zero values are an open, non-draft
 	// Dependabot pull request that GitHub blocks, with no review outstanding.
@@ -314,6 +316,11 @@ func (p *partialRequiredServer) checkRunsHandler(t *testing.T, base *string) htt
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		if p.checkRunsFail.Load() {
+			http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
+
+			return
+		}
 		page := 1
 		if r.URL.Query().Get("page") == "2" {
 			page = 2
@@ -528,9 +535,10 @@ func TestFetch_BlockedWithUnreadableRequiredChecks_StaysPassedWhenSomethingElseB
 	}
 }
 
-// The fallback guesses; it must not be remembered. The next poll asks again, so
-// the pill flips once GitHub stops saying BLOCKED.
-func TestFetch_UnreadableFallback_IsReevaluatedOnTheNextPoll(t *testing.T) {
+// The fallback guesses; it must not be remembered. A poll that still sees
+// SUCCESS beside BLOCKED reads pending again, which a commit wrongly marked
+// complete would not. The pill flips once GitHub stops saying BLOCKED.
+func TestFetch_UnreadableFallback_IsNotRememberedAsComplete(t *testing.T) {
 	t.Parallel()
 
 	p := &partialRequiredServer{pages: [][]string{{"check"}}}
@@ -542,10 +550,55 @@ func TestFetch_UnreadableFallback_IsReevaluatedOnTheNextPoll(t *testing.T) {
 	require.Len(t, first.PullRequests, 1)
 	assert.Equal(t, dashboard.CIPending, first.PullRequests[0].CI)
 
-	p.mergeState = "CLEAN"
 	second := client.Fetch(t.Context())
 	require.Len(t, second.PullRequests, 1)
+	assert.Equal(t, dashboard.CIPending, second.PullRequests[0].CI, "still blocked, still unverified")
+}
+
+func TestFetch_UnreadableFallback_FlipsWhenGitHubStopsBlocking(t *testing.T) {
+	t.Parallel()
+
+	p := &partialRequiredServer{pages: [][]string{{"check"}}}
+	p.protectionFails.Store(true)
+	srv := p.start(t)
+	client := github.NewClient("test-token", "", srv.URL)
+	client.Fetch(t.Context())
+
+	p.mergeState = "CLEAN"
+	second := client.Fetch(t.Context())
+
+	require.Len(t, second.PullRequests, 1)
 	assert.Equal(t, dashboard.CISuccess, second.PullRequests[0].CI)
+}
+
+// A branch whose protection and rulesets could be read, and require nothing,
+// has no required check to wait for: BLOCKED comes from somewhere else.
+func TestFetch_ReadableAndNothingRequired_StaysPassed(t *testing.T) {
+	t.Parallel()
+
+	p := &partialRequiredServer{protection: []string{}, rulesets: []string{}, pages: [][]string{{"check"}}}
+	p.protectionMissing.Store(true)
+	srv := p.start(t)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CISuccess, result.PullRequests[0].CI)
+}
+
+// Required contexts that were read, but a check-run lookup that failed (rate
+// limit, 5xx): the evidence is missing, not the permission, so the rollup stands.
+func TestFetch_ReadableRequiredButCheckRunLookupFails_KeepsTheRollup(t *testing.T) {
+	t.Parallel()
+
+	p := &partialRequiredServer{protection: []string{"check"}, pages: [][]string{{"check"}}}
+	p.checkRunsFail.Store(true)
+	srv := p.start(t)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CISuccess, result.PullRequests[0].CI)
 }
 
 // A required set that can be read in full and has reported wins over the
