@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.194.2](https://github.com/alrayyes/forge-dashboard/compare/v0.194.1...v0.194.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* show and cancel a merge scheduled on Forgejo ([#1571](https://github.com/alrayyes/forge-dashboard/issues/1571)) ([#1591](https://github.com/alrayyes/forge-dashboard/issues/1591)) ([c88a4ca](https://github.com/alrayyes/forge-dashboard/commit/c88a4ca5d4f0bd341f419f86ccc31cf6cae96c57))
+
 ## [0.194.1](https://github.com/alrayyes/forge-dashboard/compare/v0.194.0...v0.194.1) (2026-10-16)
 
 
