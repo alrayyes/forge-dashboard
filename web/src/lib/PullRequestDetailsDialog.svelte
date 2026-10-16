@@ -1,7 +1,10 @@
 <script module lang="ts">
-  export type DetailsChip = {
-    text: string;
-    tone: "good" | "critical" | "warning" | "neutral";
+  // The header's status, drawn by the row's own builders in Dashboard.svelte
+  // so the two cannot drift (#1563): the CI slot and merge state, and the
+  // attribute chips.
+  export type DetailsStatus = {
+    state: HTMLElement;
+    attributes: HTMLElement;
   };
 
   // The part of a row this dialog needs.
@@ -12,10 +15,9 @@
     title: string;
     url: string;
     kind?: "release" | "dependency" | "regular";
-    // Chips and the release version come from the row the dialog was opened
-    // from, as it was then. Nothing here is fetched.
-    chips?: DetailsChip[];
-    version?: string;
+    // Drawn from the row the dialog was opened from, as it was then. Nothing
+    // here is fetched.
+    status?: DetailsStatus;
   };
 </script>
 
@@ -28,6 +30,11 @@
   // trigger and holds nothing else of this dialog's state.
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
+
+  // Puts a node the row's builders made into the header.
+  const adopt = (content: HTMLElement) => (node: HTMLElement) => {
+    node.replaceChildren(content);
+  };
 
   // An error the server explained, as opposed to a network or chunk failure.
   class ServerReason extends Error {}
@@ -257,6 +264,12 @@
   {#if target}
     <div class="details-header">
       <div class="details-heading">
+        {#if target.status}
+          <div
+            class="details-status"
+            {@attach adopt(target.status.state)}
+          ></div>
+        {/if}
         <p class="details-ref">
           <span class="forge-badge {FORGE_CLASSES[target.forge] ?? ''}"
             ><span class="dot"></span>{forgeLabel}</span
@@ -264,15 +277,11 @@
           <span class="mono">{target.repo} #{target.number}</span>
         </p>
         <h2 class="details-title">{target.title}</h2>
-        {#if target.version || target.chips?.length}
-          <ul class="details-chips" aria-label="Status when opened">
-            {#if target.version}
-              <li class="chip neutral mono">v{target.version}</li>
-            {/if}
-            {#each target.chips ?? [] as chip (chip.text)}
-              <li class="chip {chip.tone}">{chip.text}</li>
-            {/each}
-          </ul>
+        {#if target.status?.attributes.hasChildNodes()}
+          <div
+            class="details-attributes"
+            {@attach adopt(target.status.attributes)}
+          ></div>
         {/if}
       </div>
       <button
@@ -675,33 +684,20 @@
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
-  .details-chips {
+  /* The header follows the row's tiers (#1563): the CI slot and merge state
+     above the title, the attribute chips below it. The nodes come from
+     Dashboard.svelte's builders, so the row's global classes style them. */
+  .details-status {
+    margin: 0 0 8px;
+  }
+  .details-status :global(.details-state) {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    list-style: none;
-    margin: 8px 0 0;
-    padding: 0;
+    align-items: center;
+    gap: 8px;
   }
-  .chip {
-    font-size: 11.5px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: var(--neutral-bg);
-    color: var(--ink-2);
-  }
-  .chip.good {
-    background: var(--good-bg);
-    color: var(--good);
-  }
-  .chip.critical {
-    background: var(--critical-bg);
-    color: var(--critical);
-  }
-  .chip.warning {
-    background: var(--warning-bg);
-    color: var(--warning);
+  .details-attributes {
+    margin-top: 8px;
   }
   .reaction-pill {
     display: inline-flex;
@@ -754,6 +750,11 @@
     .details-close {
       width: 44px;
       height: 44px;
+    }
+    /* The CI slot at the top right of the header, the attributes wrapping
+       on their own line below the title. */
+    .details-status :global(.details-state) {
+      justify-content: flex-end;
     }
     .details-retry,
     .details-open-link {
