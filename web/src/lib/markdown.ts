@@ -6,18 +6,55 @@
 //     links, which stay as plain text;
 //   - images are switched off, so an <img> never loads from a stranger's URL
 //     and no hidden tracking pixel fires on open;
+//   - task list items (`- [x] done`) become read-only checkboxes: a disabled
+//     <input type="checkbox"> inside a <label> with the item's text, built
+//     from the parsed tokens, so the text stays escaped (#1655);
 //   - every link opens in a new tab with rel="noopener noreferrer".
 // The library is imported on first use, so the dashboard's own chunk doesn't
 // carry it.
 import type MarkdownIt from 'markdown-it';
 
 type Renderer = InstanceType<typeof MarkdownIt>;
+type StateCore = Parameters<
+  Parameters<Renderer['core']['ruler']['push']>[1]
+>[0];
 
 let renderer: Promise<Renderer> | null = null;
+
+const TASK = /^\[([ xX])\](?=\s)\s*/;
+
+// GFM task list items: only a list item whose first paragraph starts with
+// `[ ]` or `[x]` and a space. markdown-it parses code spans, link labels and
+// mid-sentence text as their own tokens, so none of those match.
+function taskLists(state: StateCore): void {
+  const { tokens, Token } = state;
+  for (let i = 2; i < tokens.length; i++) {
+    const inline = tokens[i];
+    if (
+      inline.type !== 'inline' ||
+      tokens[i - 1].type !== 'paragraph_open' ||
+      tokens[i - 2].type !== 'list_item_open'
+    ) {
+      continue;
+    }
+    const first = inline.children?.[0];
+    const m = first?.type === 'text' ? TASK.exec(first.content) : null;
+    if (!first || !inline.children || !m) continue;
+    first.content = first.content.slice(m[0].length);
+    inline.content = inline.content.slice(m[0].length);
+    const open = new Token('html_inline', '', 0);
+    open.content = `<label class="task"><input type="checkbox" disabled${m[1] === ' ' ? '' : ' checked'}> `;
+    const close = new Token('html_inline', '', 0);
+    close.content = '</label>';
+    inline.children = [open, ...inline.children, close];
+    tokens[i - 2].attrJoin('class', 'task-list-item');
+  }
+}
 
 function create(MarkdownItCtor: typeof MarkdownIt): Renderer {
   const md = new MarkdownItCtor({ html: false, linkify: true });
   md.disable('image');
+  md.core.ruler.after('inline', 'task-lists', taskLists);
   md.renderer.rules.link_open = (tokens, idx, options, _env, self) => {
     const href = String(tokens[idx].attrGet('href') ?? '');
     // Only absolute http(s) and mailto links are links. A relative or

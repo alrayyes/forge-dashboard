@@ -959,8 +959,9 @@ The text is Markdown and the server doesn't sanitise it, so the page renders
 it with [markdown-it](https://github.com/markdown-it/markdown-it) with raw HTML
 off: tags show as text, images aren't loaded, only absolute `http`, `https`
 and `mailto` links are links (anything else stays plain text), and they open
-in a new tab with `rel="noopener noreferrer"`. The
-library loads the first time a pop-up opens.
+in a new tab with `rel="noopener noreferrer"`. Task list items (`- [x]` and
+`- [ ]`) show as read-only checkboxes; ticking one changes nothing on the
+forge. The library loads the first time a pop-up opens.
 
 ## Releases
 
