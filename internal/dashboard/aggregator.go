@@ -40,6 +40,10 @@ type Aggregator struct {
 	// autoMerge is nil unless EnableAutoMerge was called — see auto_merge.go.
 	autoMerge *autoMergeConfig
 
+	// webhookUpgrade is nil unless EnableWebhookUpgrade was called — see
+	// webhook_upgrade.go.
+	webhookUpgrade *webhookUpgradeConfig
+
 	// queued is nil unless EnableQueuedActions was called — see
 	// queued_runner.go. queuedBuffer is how long past a reset it waits.
 	queued       *queuedActionsConfig
@@ -541,14 +545,20 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.snap = snap
 	a.lastGood = goodAt
 	a.mu.Unlock()
-	a.firstRefreshed.Store(true)
-	a.firstRefreshedOnce.Do(func() { close(a.firstRefreshedCh) })
+	a.markFirstRefreshed()
 
 	logRateLimitTransitions(previous.Forges, snap.Forges)
 
 	a.notify(snap)
 	a.runAutoUpdateBranch(ctx, snap)
 	a.runAutoMerge(ctx, snap)
+	a.startWebhookUpgrade(snap)
+}
+
+// markFirstRefreshed flips the readiness latch and wakes WaitFirstRefresh.
+func (a *Aggregator) markFirstRefreshed() {
+	a.firstRefreshed.Store(true)
+	a.firstRefreshedOnce.Do(func() { close(a.firstRefreshedCh) })
 }
 
 // logRateLimitTransitions logs a rate-limit budget crossing into or out of

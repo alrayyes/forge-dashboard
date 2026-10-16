@@ -241,6 +241,9 @@ func run() error {
 
 	manager := newManager(settingsStore, refreshInterval, ciPollInterval)
 	defer manager.Stop()
+	// Existing app-created webhooks get new events without a click on
+	// "Add a webhook" (#1555); same origin the ensure endpoint builds URLs from.
+	manager.SetWebhookUpgrade(settingsStore, envOr("RP_ORIGIN", "http://localhost:8080"))
 
 	// One writer for every request-log row (#902). Close drains what's
 	// queued on the way out; a row logged after that is dropped, not a panic.
