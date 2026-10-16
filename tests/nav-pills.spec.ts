@@ -387,6 +387,9 @@ test.describe('nav counts on a phone (#1315)', () => {
     await expect(tab(page, '/bots.html').locator('.nav-total')).toHaveText(
       '14',
     );
+    await expect(tab(page, '/bots.html').locator('.nav-failed')).toHaveText(
+      '1',
+    );
     const pills = await branches.locator('.nav-pills').boundingBox();
     const icon = await branches.locator('svg').last().boundingBox();
     expect((pills?.y ?? 0) + (pills?.height ?? 0)).toBeLessThanOrEqual(
