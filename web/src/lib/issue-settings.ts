@@ -6,6 +6,9 @@
 export const MAX_IGNORED_TITLES = 20;
 export const MAX_PATTERN_LENGTH = 200;
 
+// The server counts characters (runes), not UTF-16 units, so an emoji is one.
+const length = (text: string) => Array.from(text).length;
+
 export interface IssueSettings {
   hideDependencyDashboard: boolean;
   ignoredTitles: string[];
@@ -21,7 +24,7 @@ export function normaliseIgnoredTitles(raw: unknown): string[] {
   for (const entry of raw) {
     if (typeof entry !== 'string') continue;
     const pattern = entry.trim();
-    if (!pattern || pattern.length > MAX_PATTERN_LENGTH) continue;
+    if (!pattern || length(pattern) > MAX_PATTERN_LENGTH) continue;
     const key = pattern.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -52,7 +55,7 @@ export function addIgnoredTitle(
 ): { list: string[]; error?: string } {
   const pattern = typed.trim();
   if (!pattern) return { list };
-  if (pattern.length > MAX_PATTERN_LENGTH)
+  if (length(pattern) > MAX_PATTERN_LENGTH)
     return {
       list,
       error: `A pattern can be at most ${MAX_PATTERN_LENGTH} characters.`,

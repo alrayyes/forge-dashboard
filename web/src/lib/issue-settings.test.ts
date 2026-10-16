@@ -39,6 +39,23 @@ describe('normaliseIgnoredTitles', () => {
   });
 });
 
+describe('pattern length counts characters, not UTF-16 units', () => {
+  const emoji = '\u{1F600}';
+
+  test('keeps 200 non-BMP characters and drops 201', () => {
+    expect(normaliseIgnoredTitles([emoji.repeat(200)])).toHaveLength(1);
+    expect(normaliseIgnoredTitles([emoji.repeat(201)])).toEqual([]);
+  });
+
+  test('addIgnoredTitle accepts 200 non-BMP characters and refuses 201', () => {
+    expect(addIgnoredTitle([], emoji.repeat(200)).error).toBeUndefined();
+    expect(addIgnoredTitle([], emoji.repeat(200)).list).toHaveLength(1);
+    const over = addIgnoredTitle([], emoji.repeat(201));
+    expect(over.list).toEqual([]);
+    expect(over.error).toContain(String(MAX_PATTERN_LENGTH));
+  });
+});
+
 describe('issueSettingsFrom', () => {
   test('reads a response, treating missing fields as off and empty', () => {
     expect(issueSettingsFrom({})).toEqual({

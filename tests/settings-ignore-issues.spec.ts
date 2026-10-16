@@ -52,6 +52,7 @@ async function standInSettings(
     webhookToken: 'webhook-token',
     webhookSecret: 'webhook-secret',
     renovateRebaseLabel: '',
+    renovateAuthors: [],
     theme: '',
     ...state.stored,
   });
@@ -69,7 +70,7 @@ async function standInSettings(
             status: 400,
             contentType: 'application/json',
             body: JSON.stringify({
-              error: `ignoredTitles entry ${bad + 1}, "(": missing closing )`,
+              error: `ignoredTitles entry ${bad + 1} ("("): missing closing )`,
               field: 'ignoredTitles',
             }),
           });
@@ -204,6 +205,43 @@ test.describe('Settings: Issues (#1630)', () => {
     expect(server.puts).toEqual([]);
   });
 
+  test('Remove moves focus to the next entry, then the previous, then Pattern', async ({
+    page,
+  }) => {
+    await standInSettings(page, {
+      ignoredTitles: ['^One', '^Two', '^Three'],
+    });
+    await page.goto('/settings.html');
+    await expect(entries(page)).toHaveCount(3);
+    await page.getByRole('button', { name: 'Remove ^Two' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      page.getByRole('button', { name: 'Remove ^Three' }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(
+      page.getByRole('button', { name: 'Remove ^One' }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(pattern(page)).toBeFocused();
+  });
+
+  test('counts a pattern in characters: 200 emoji are kept, 201 are refused', async ({
+    page,
+  }) => {
+    await standInSettings(page);
+    await page.goto('/settings.html');
+    const emoji = '\u{1F600}';
+    await addPattern(page, emoji.repeat(201));
+    await expect(entries(page)).toHaveCount(0);
+    await expect(section(page).locator('#ignored-titles-error')).toContainText(
+      'at most 200',
+    );
+    await addPattern(page, emoji.repeat(200));
+    await expect(entries(page)).toHaveCount(1);
+    await expect(section(page).locator('#ignored-titles-error')).toBeHidden();
+  });
+
   test('Enter in the field adds the pattern and does not save the form', async ({
     page,
   }) => {
@@ -316,7 +354,7 @@ test.describe('Settings: Issues (#1630)', () => {
     await save(page).click();
     const error = section(page).locator('#ignored-titles-error');
     await expect(error).toContainText('missing closing )');
-    await expect(error).toContainText('ignoredTitles entry 1');
+    await expect(error).toContainText('ignoredTitles entry 1 ("(")');
     await expect(pattern(page)).toHaveAttribute('aria-invalid', 'true');
     await expect(pattern(page)).toHaveAttribute(
       'aria-describedby',
@@ -350,6 +388,7 @@ test.describe('Settings: Issues (#1630)', () => {
     for (const target of [
       page.getByRole('button', { name: 'Remove ^Weekly report' }),
       add(page),
+      save(page),
       hideBox(page).locator('xpath=ancestor::label'),
     ]) {
       const box = await target.boundingBox();

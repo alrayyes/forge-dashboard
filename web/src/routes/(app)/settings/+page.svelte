@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import {
     addIgnoredTitle,
     issueSettingsFrom,
@@ -240,8 +240,20 @@
 
   function removeIgnoredPattern(pattern: string) {
     issueSettingsTouched = true;
+    const at = ignoredTitles.indexOf(pattern);
     ignoredTitles = ignoredTitles.filter((p) => p !== pattern);
     ignoredError = "";
+    // The clicked button leaves the page; keep the keyboard's place: the
+    // entry that took its spot, else the one before it, else the field.
+    void tick().then(() => {
+      const buttons = document.querySelectorAll<HTMLElement>(
+        "#ignored-titles .btn-remove",
+      );
+      (
+        buttons[Math.min(at, buttons.length - 1)] ??
+        document.getElementById("ignored-pattern")
+      )?.focus();
+    });
   }
 
   function onIgnoredPatternKeydown(e: KeyboardEvent) {
@@ -1194,6 +1206,9 @@
         min-height: 44px;
         min-width: 44px;
       }
+      #save-button {
+        min-height: 44px;
+      }
       #issue-settings .check-row {
         min-height: 44px;
         margin: 0;
@@ -1750,7 +1765,6 @@
             id="ignored-pattern"
             name="ignoredTitles"
             type="text"
-            maxlength={MAX_PATTERN_LENGTH}
             autocomplete="off"
             spellcheck="false"
             placeholder="^Weekly report"
