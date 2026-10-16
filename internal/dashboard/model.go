@@ -228,10 +228,10 @@ type PullRequest struct {
 	// positive that would hide Merge on a pull request that still has
 	// something to merge.
 	Empty bool `json:"empty"`
-	// AutoMergeEnabled is nil when the owning forge has no way to report
-	// this at all (Forgejo, today) — the same "doesn't report it" shape
-	// RateLimit's own nilable pointer already uses, so a forge with
-	// nothing to say here never renders as a false "not enabled."
+	// AutoMergeEnabled is nil when it isn't known: a Forgejo pull request
+	// whose timeline hasn't been read (or whose read failed, #1571) — the
+	// same "doesn't report it" shape RateLimit's own nilable pointer
+	// already uses, so an unknown never renders as a false "not enabled."
 	AutoMergeEnabled *bool `json:"autoMergeEnabled,omitempty"`
 	// AutoMergeAllowed is GitHub's per-viewer viewerCanEnableAutoMerge
 	// answer (#738): false when GitHub would refuse "Enable auto-merge",
