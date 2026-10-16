@@ -1667,8 +1667,11 @@ func TestFetch_MapsAutoMergeAllowedFromViewerCanEnableAutoMerge(t *testing.T) {
 // go-github's own doc comment), and this path deliberately doesn't pay a
 // per-PR Get call to resolve them — see design.md's Open Questions in
 // openspec/changes/archive/*/show-pr-merge-status.
-func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
-	t.Parallel()
+// restFallbackPullServer serves one open pull request over the REST endpoints
+// the no-token path reads. autoMerge is the pull request's auto_merge value:
+// an object when on, nil (JSON null) when off.
+func restFallbackPullServer(t *testing.T, autoMerge any) *httptest.Server {
+	t.Helper()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
@@ -1694,7 +1697,7 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 				"labels":     []map[string]string{},
 				"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
 				"head":       map[string]string{"sha": "cafef00d"},
-				"auto_merge": map[string]string{"merge_method": "squash"},
+				"auto_merge": autoMerge,
 			},
 		})
 	})
@@ -1713,7 +1716,15 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 		writeJSON(t, w, map[string]any{"state": "success"})
 	})
 	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
+	t.Parallel()
+
+	srv := restFallbackPullServer(t, map[string]string{"merge_method": "squash"})
 
 	client := github.NewClient("", "alrayyes", srv.URL)
 	result := client.Fetch(t.Context())
@@ -1724,6 +1735,23 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	require.NotNil(t, pr.AutoMergeEnabled)
 	assert.True(t, *pr.AutoMergeEnabled)
 	assert.Equal(t, dashboard.AutoMergeHeldByForge, pr.AutoMergeHeldBy)
+}
+
+// With auto-merge off the REST fallback reports it disabled and names no
+// holder, the same as the GraphQL path (#1608).
+func TestFetch_NoToken_AutoMergeOffOmitsHolder(t *testing.T) {
+	t.Parallel()
+
+	srv := restFallbackPullServer(t, nil)
+
+	client := github.NewClient("", "alrayyes", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	pr := result.PullRequests[0]
+	require.NotNil(t, pr.AutoMergeEnabled)
+	assert.False(t, *pr.AutoMergeEnabled)
+	assert.Empty(t, pr.AutoMergeHeldBy)
 }
 
 func repoNodeWithOwnerName() map[string]any {
