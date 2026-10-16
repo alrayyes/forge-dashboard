@@ -221,6 +221,9 @@ export type AutoMergeInput = {
   draft: boolean;
   // Who merges an armed pull request that has nothing left to wait for.
   forge: string;
+  // Who holds a Forgejo auto-merge, as the server says. Omitted is unknown:
+  // never guessed from other fields (#1596).
+  heldBy?: 'dashboard' | 'forge';
 };
 
 // An armed Forgejo auto-merge that is waiting. A stopped one needs a person,
@@ -248,8 +251,12 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
     case undefined:
       // Forgejo's intent is held here and acted on at the next refresh;
       // GitHub's own auto-merge merges as soon as it can (#1505).
-      return input.forge === 'github'
-        ? words('Merging', 'GitHub merges it as soon as it can')
+      if (input.forge === 'github')
+        return words('Merging', 'GitHub merges it as soon as it can');
+      // Only a merge the server says Forgejo holds is merged by Forgejo;
+      // unknown keeps the safe, historic wording (#1596).
+      return input.heldBy === 'forge'
+        ? words('Merging', 'Forgejo merges it when checks pass')
         : words('Merging next', 'On the next refresh');
     default:
       return input.draft
