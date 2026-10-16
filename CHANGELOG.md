@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.202.0](https://github.com/alrayyes/forge-dashboard/compare/v0.201.1...v0.202.0) (2026-10-16)
+
+
+### Features
+
+* **webmcp:** add list_queued_actions, the twin of the MCP tool ([#1658](https://github.com/alrayyes/forge-dashboard/issues/1658)) ([df7f1fa](https://github.com/alrayyes/forge-dashboard/commit/df7f1fa49a081ac6e93f53c6d957bd39b5ff9aea))
+
 ## [0.201.1](https://github.com/alrayyes/forge-dashboard/compare/v0.201.0...v0.201.1) (2026-10-16)
 
 
