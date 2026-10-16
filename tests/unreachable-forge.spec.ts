@@ -191,6 +191,11 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     const state: { current?: { forges: unknown[] } } = {};
     await mockDashboard(page, [down()], [makePR(1)], state);
     await page.reload();
+    // The mock builds its body when it answers, so flipping state before the
+    // reload's snapshot has been served and drawn would hand that snapshot the
+    // reachable forge. A count of 0 passes before anything renders, so wait for
+    // the banner first.
+    await expect(page.locator('#unreachable-banner')).toBeVisible();
     const row = page.locator('#pr-rows .row').first();
     await expect(
       row.getByRole('button', { name: 'Merge', exact: true }),
