@@ -388,8 +388,12 @@
     .mb-row .ci-pill {
       cursor: default;
     }
+    /* Right edge on the slot's right edge, as tall as the pills beside it, so
+       no state moves the row. */
     .mb-nopipe {
-      align-self: flex-start;
+      margin-left: auto;
+      min-height: 24px;
+      align-items: center;
     }
     @media (max-width: 420px) {
       .mb-wrap {
@@ -540,8 +544,11 @@
                         class="check-glyph check-glyph-{g.name}"
                         data-glyph={g.name}
                         aria-hidden="true"
-                        focusable="false">{@html g.body}</svg
+                        focusable="false"
                       >
+                        <!-- nosemgrep: svelte-at-html -- g.body comes only from the static CHECK_GLYPHS constant in #lib/check-glyphs, never from forge data -->
+                        {@html g.body}
+                      </svg>
                     {/each}
                     {STATUS_LABEL[b.status]}
                   </span>

@@ -562,6 +562,15 @@ test.describe('Main branches page (#1224, #1279)', () => {
         isState: states.includes(s.color),
       };
     });
+    // Right edge on the slot's right edge, as tall as the pills.
+    const slotBox = await slotOf(page, 5).boundingBox();
+    const noteBox = await note.boundingBox();
+    const pillBox = await slotOf(page, 0).locator('.ci-pill').boundingBox();
+    expect((noteBox?.x ?? 0) + (noteBox?.width ?? 0)).toBeCloseTo(
+      (slotBox?.x ?? 0) + (slotBox?.width ?? 0),
+      0,
+    );
+    expect(noteBox?.height).toBe(pillBox?.height);
     expect(style).toEqual({
       background: 'rgba(0, 0, 0, 0)',
       border: '1px',
