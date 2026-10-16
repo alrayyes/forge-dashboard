@@ -1,27 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1439: the Pull requests, Bots and Releases items show the total and how
 // many pull requests are failing, running and passing, as one pill: a neutral
 // total, then the non-zero counts, each with its own glyph. Zero is never
 // drawn. The server counts them (`navCounts`); the page only draws them.
 // https://github.com/alrayyes/forge-dashboard/issues/1439
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `nav-telemetry-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Nav Telemetry');
-}
 
 type Counts = {
   total: number;
@@ -74,11 +60,11 @@ const tab = (page: Page, href: string) =>
   page.locator(`.bottom-nav a[href="${href}"]`);
 const PRS = '/pull-requests.html';
 
-test.describe('the nav pill shows failing, running and passing (#1439)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+// Every endpoint is mocked and nothing is saved per user, so the whole file
+// starts from the shared session (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
+test.describe('the nav pill shows failing, running and passing (#1439)', () => {
   test('Pull requests shows the total, then failed, running and passed, each with its glyph', async ({
     page,
   }) => {

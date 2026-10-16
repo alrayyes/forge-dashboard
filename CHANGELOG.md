@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.193.2](https://github.com/alrayyes/forge-dashboard/compare/v0.193.1...v0.193.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* **web:** open the live stream after the first poll, and reopen it if it closes ([#1574](https://github.com/alrayyes/forge-dashboard/issues/1574)) ([20f87d0](https://github.com/alrayyes/forge-dashboard/commit/20f87d095b380bf626e477688c6f115905f4142a))
+
+## [0.193.1](https://github.com/alrayyes/forge-dashboard/compare/v0.193.0...v0.193.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **webhooks:** subscribe created hooks to comment and review events ([#1554](https://github.com/alrayyes/forge-dashboard/issues/1554)) ([ecff081](https://github.com/alrayyes/forge-dashboard/commit/ecff08183216abd1942007394af4e3635baceafd))
+
+## [0.193.0](https://github.com/alrayyes/forge-dashboard/compare/v0.192.1...v0.193.0) (2026-10-15)
+
+
+### Features
+
+* **api:** count the branches with no pipeline in navCounts.branches ([#1531](https://github.com/alrayyes/forge-dashboard/issues/1531)) ([#1535](https://github.com/alrayyes/forge-dashboard/issues/1535)) ([deb736f](https://github.com/alrayyes/forge-dashboard/commit/deb736fd025c3a12cb191d31f89dc32d8297db82))
+
+
+### Bug Fixes
+
+* **api:** suppress the G705 false positive on the embedded error page ([#1566](https://github.com/alrayyes/forge-dashboard/issues/1566)) ([#1567](https://github.com/alrayyes/forge-dashboard/issues/1567)) ([e626df8](https://github.com/alrayyes/forge-dashboard/commit/e626df8329c62ec2d497baf69692219c1c1dc4ed))
+* **dashboard:** order main branches by newest commit, not by status ([#1553](https://github.com/alrayyes/forge-dashboard/issues/1553)) ([d41d56d](https://github.com/alrayyes/forge-dashboard/commit/d41d56d56539cf43e872b30e8734d9ae66cc8647)), closes [#1552](https://github.com/alrayyes/forge-dashboard/issues/1552)
+
 ## [0.192.1](https://github.com/alrayyes/forge-dashboard/compare/v0.192.0...v0.192.1) (2026-10-15)
 
 

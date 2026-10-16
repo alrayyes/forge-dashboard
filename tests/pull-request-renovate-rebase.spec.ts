@@ -1,28 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `pr-renovate-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'PR Renovate Test User',
-  );
-}
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 interface MockLabel {
   name: string;
@@ -96,9 +75,12 @@ async function openMoreActions(row: Locator) {
   await row.getByRole('button', { name: 'More actions' }).click();
 }
 
+// Every endpoint is mocked and nothing is saved per user, so the whole file
+// starts from the shared session (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
 test.describe('pull request Renovate rebase button', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server, and
     // a real snapshot can't be pushed over the mock.
