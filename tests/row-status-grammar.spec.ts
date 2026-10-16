@@ -209,6 +209,54 @@ test.describe('row status grammar (#1563)', () => {
     expect(style.height).toBeLessThan(slot?.height ?? 0);
   });
 
+  // The Forgejo chip is the longest ("Auto-merge on" and the note that the app
+  // does the merging), so it is the one that can run past its outline.
+  for (const width of [360, 768, 1024, 1280]) {
+    for (const theme of ['light', 'dark'] as const) {
+      test(`the Forgejo auto-merge chip holds its text at ${width}px in ${theme} mode`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        await page.setViewportSize({ width, height: 900 });
+        await open(page, [
+          makePR(1, {
+            forge: 'forgejo',
+            repo: 'alrayyes/dotfiles',
+            autoMergeEnabled: true,
+            ci: 'success',
+          }),
+        ]);
+        const chip = firstRow(page).locator('.attr-chip.auto-merge');
+        await expect(chip).toContainText('Managed by Forge Dashboard');
+        const fit = await chip.evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          const cluster = (
+            el.parentElement as HTMLElement
+          ).getBoundingClientRect();
+          const inside = (r: DOMRect, outer: DOMRect) =>
+            r.left >= outer.left - 0.5 &&
+            r.right <= outer.right + 0.5 &&
+            r.top >= outer.top - 0.5 &&
+            r.bottom <= outer.bottom + 0.5;
+          return {
+            chipInCluster: box.right <= cluster.right + 0.5,
+            clipped: el.scrollWidth > el.clientWidth,
+            children: [...el.children].map((c) =>
+              inside(c.getBoundingClientRect(), box),
+            ),
+            noteWidth: (el.querySelector('.pill-note') as HTMLElement)
+              .scrollWidth,
+            note: (el.querySelector('.pill-note') as HTMLElement).clientWidth,
+          };
+        });
+        expect(fit.chipInCluster).toBe(true);
+        expect(fit.clipped).toBe(false);
+        expect(fit.children.every(Boolean)).toBe(true);
+        expect(fit.noteWidth).toBeLessThanOrEqual(fit.note);
+      });
+    }
+  }
+
   test('no attribute chip uses a state colour', async ({ page }) => {
     await open(page, [everything()], '/bots.html');
     const colours = await firstRow(page)

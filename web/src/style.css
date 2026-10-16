@@ -1248,6 +1248,7 @@ select.col-filter {
   background: transparent;
   color: var(--ink-2);
   white-space: nowrap;
+  flex-wrap: wrap;
 }
 .attr-icon {
   width: 11px;
@@ -1297,6 +1298,8 @@ button.ci-pill:hover {
 /* biome-ignore lint/style/noDescendingSpecificity: .forge-badge.gh .dot
    (higher specificity, earlier) sets only background -- never width/
    height/border-radius/flex, so no property actually collides. */
+/* Only the "No checks" badge still draws a dot; every other CI state has a
+   glyph (#1563). */
 .ci-pill .dot {
   width: 7px;
   height: 7px;
@@ -1482,10 +1485,10 @@ button.ci-pill:hover {
 /* "Managed by Forge Dashboard": the app, not the forge, does this merge. */
 .attr-chip .pill-note {
   font-weight: 400;
-}
-.attr-chip .pill-note::before {
-  content: "\00b7";
-  margin-right: 6px;
+  /* On a line of its own inside the chip, so the longest chip stays inside
+     its outline at every width instead of running past it. */
+  flex: 1 0 100%;
+  white-space: normal;
 }
 /* Why an armed pull request hasn't merged: the state leads in bold text, so
    it never rests on colour. */
