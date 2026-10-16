@@ -21,6 +21,10 @@ const (
 	// maxRenovateAuthors caps the Renovate logins a user lists. One account
 	// per forge is the norm; this is only a bound on the request.
 	maxRenovateAuthors = 20
+	// maxIgnoredTitles and maxIgnoredTitleLen bound the issue-title patterns a
+	// user lists (#1630).
+	maxIgnoredTitles   = 20
+	maxIgnoredTitleLen = 200
 
 	// maxPullRequestNumber is the largest int32: no forge numbers a pull
 	// request higher.
