@@ -59,7 +59,7 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
     await register(page, request, baseURL);
   });
 
-  test('shows the total, then failed, running and passed, each with its glyph', async ({
+  test('shows the total, then failed, passed and running, each with its glyph', async ({
     page,
   }) => {
     await open(page, MIXED);

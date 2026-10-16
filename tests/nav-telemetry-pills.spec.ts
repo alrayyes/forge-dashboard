@@ -65,7 +65,7 @@ const PRS = '/pull-requests.html';
 test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('the nav pill shows failing, running and passing (#1439)', () => {
-  test('Pull requests shows the total, then failed, running and passed, each with its glyph', async ({
+  test('Pull requests shows the total, then failed, passed and running, each with its glyph', async ({
     page,
   }) => {
     await open(page);
@@ -247,12 +247,20 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
   }) => {
     await page.setViewportSize({ width: 360, height: 740 });
     await open(page);
-    await expect(
-      page.locator('.bottom-nav .nav-pills .nav-divider'),
-    ).toBeHidden();
+    const phone = page.locator('.bottom-nav .nav-pills .nav-divider');
+    await expect(phone).toHaveCount(1);
+    await expect(phone).toHaveCSS('display', 'none');
     await expect(
       page.locator('.bottom-nav .nav-pills .nav-running'),
     ).toBeVisible();
+
+    // On desktop it is a real, visible hairline.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const desktop = header(page, PRS).locator('.nav-pills .nav-divider');
+    await expect(desktop).toHaveCount(1);
+    const box = await desktop.boundingBox();
+    expect(box?.width).toBeGreaterThan(0);
+    expect(box?.height).toBeGreaterThan(0);
   });
 
   for (const [label, counts, maxBar] of [

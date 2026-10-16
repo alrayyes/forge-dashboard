@@ -460,8 +460,9 @@ header,
 
 /* What each nav item shows (#1315, #1439, #1563): one pill, a neutral total,
    then the outcomes above zero, failed and passed, a thin divider, and the
-   state, running. Each count has a glyph as well as a number, so colour is never alone, and the whole
-   pill is aria-hidden: the link's own name says the same in words. */
+   state, running. Each count has a glyph as well as a number, so colour is
+   never alone, and the whole pill is aria-hidden: the link's own name says
+   the same in words. */
 .nav-pills {
   display: inline-flex;
   align-items: center;

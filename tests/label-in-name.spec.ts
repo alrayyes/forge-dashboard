@@ -127,7 +127,7 @@ test.describe('the check itself (#1315)', () => {
     await page.evaluate(() => {
       document.body.insertAdjacentHTML(
         'beforeend',
-        '<a href="#" aria-label="Pull requests, 15 total, 2 failing"><span class="nav-pills"><span class="nav-total">15</span><span class="nav-count nav-failed">2</span><span class="nav-count nav-running">3</span><span class="nav-count nav-passed">10</span></span></a>',
+        '<a href="#" aria-label="Pull requests, 15 total, 2 failing"><span class="nav-pills"><span class="nav-total">15</span><span class="nav-count nav-failed">2</span><span class="nav-count nav-passed">10</span><span class="nav-count nav-running">3</span></span></a>',
       );
     });
 
