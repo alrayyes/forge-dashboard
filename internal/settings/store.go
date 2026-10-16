@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -261,7 +262,9 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 
 	c.RenovateAuthors = splitLogins(authors)
 	if err := json.Unmarshal([]byte(titles), &c.IgnoredTitles); err != nil {
-		return Credentials{}, fmt.Errorf("settings: decode ignored titles: %w", err)
+		// A bad list must not take the tokens with it: no patterns, a warning.
+		slog.Warn("could not read the saved ignored title patterns; using none", "error", err)
+		c.IgnoredTitles = nil
 	}
 	if len(c.IgnoredTitles) == 0 {
 		c.IgnoredTitles = nil

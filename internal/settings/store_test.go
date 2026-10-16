@@ -761,3 +761,31 @@ func TestStore_NeverSavedIssueHidingSettings_AreOffAndEmpty(t *testing.T) {
 	assert.False(t, got.HideDependencyDashboard)
 	assert.Empty(t, got.IgnoredTitles)
 }
+
+func TestStore_Get_CorruptIgnoredTitles_FallsBackToNoPatternsAndKeepsTheRest(t *testing.T) {
+	t.Parallel()
+
+	for _, bad := range []string{``, `{}`, `"x"`, `[1]`, `not json`} {
+		t.Run(bad, func(t *testing.T) {
+			t.Parallel()
+			db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "settings.db"))
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = db.Close() })
+			cipher, err := settings.NewCipher(randomKey(t))
+			require.NoError(t, err)
+			store := settings.NewStore(db, cipher)
+			require.NoError(t, store.Init(t.Context()))
+			userID := []byte("user-1")
+			require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubToken: "ghp_keep", HideDependencyDashboard: true, IgnoredTitles: []string{"x"}}))
+			_, err = db.ExecContext(t.Context(), `UPDATE user_credentials SET ignored_titles = ?`, bad)
+			require.NoError(t, err)
+
+			got, err := store.Get(t.Context(), userID)
+
+			require.NoError(t, err, "a bad list must not take the credentials with it")
+			assert.Empty(t, got.IgnoredTitles)
+			assert.Equal(t, "ghp_keep", got.GitHubToken)
+			assert.True(t, got.HideDependencyDashboard)
+		})
+	}
+}
