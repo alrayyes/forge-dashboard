@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
+  import {
+    addIgnoredTitle,
+    issueSettingsFrom,
+    MAX_IGNORED_TITLES,
+    MAX_PATTERN_LENGTH,
+  } from "#lib/issue-settings.js";
   import {
     applyTheme,
     clearThemeSavePending,
@@ -36,6 +42,10 @@
     webhookSecret: string;
     renovateRebaseLabel: string;
     theme: ThemePreference;
+    // Optional until the server sends them (#1630): missing reads as off and
+    // empty.
+    hideDependencyDashboard?: boolean;
+    ignoredTitles?: string[];
   };
   type ApiToken = {
     id: string;
@@ -204,6 +214,55 @@
 
   let renovateRebaseLabel = $state("");
 
+  // ---- Issues (#1630): the server keeps both and applies them to what it
+  // sends, so this form only edits them. PUT /api/settings replaces, so
+  // every save sends both, even when the save was for something else.
+  let hideDependencyDashboard = $state(false);
+  let ignoredTitles = $state<string[]>([]);
+  let ignoredPattern = $state("");
+  let ignoredError = $state("");
+  // Set once the person edits either, so the load landing late never
+  // clobbers an edit in flight.
+  let issueSettingsTouched = false;
+  // Saving replaces the stored settings, so a form that never read them must
+  // not send its empty defaults over them.
+  let settingsLoaded = $state(false);
+  const SETTINGS_NOT_LOADED =
+    "Settings could not be loaded; saving is turned off so nothing is overwritten. Reload the page.";
+
+  function addIgnoredPattern() {
+    issueSettingsTouched = true;
+    const added = addIgnoredTitle(ignoredTitles, ignoredPattern);
+    ignoredTitles = added.list;
+    ignoredError = added.error ?? "";
+    if (!added.error) ignoredPattern = "";
+  }
+
+  function removeIgnoredPattern(pattern: string) {
+    issueSettingsTouched = true;
+    const at = ignoredTitles.indexOf(pattern);
+    ignoredTitles = ignoredTitles.filter((p) => p !== pattern);
+    ignoredError = "";
+    // The clicked button leaves the page; keep the keyboard's place: the
+    // entry that took its spot, else the one before it, else the field.
+    void tick().then(() => {
+      const buttons = document.querySelectorAll<HTMLElement>(
+        "#ignored-titles .btn-remove",
+      );
+      (
+        buttons[Math.min(at, buttons.length - 1)] ??
+        document.getElementById("ignored-pattern")
+      )?.focus();
+    });
+  }
+
+  function onIgnoredPatternKeydown(e: KeyboardEvent) {
+    // Enter adds the pattern; it must not save the whole form.
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    addIgnoredPattern();
+  }
+
   let saving = $state(false);
   let status = $state("");
   let statusKind = $state<"" | "error" | "ok">("");
@@ -328,6 +387,19 @@
 
   function handleSave(e: SubmitEvent) {
     e.preventDefault();
+    if (!settingsLoaded) return;
+
+    // A pattern typed but not added yet counts: add it now, and stop here
+    // when it can't be kept.
+    if (ignoredPattern.trim()) {
+      addIgnoredPattern();
+      if (ignoredError) {
+        status = ignoredError;
+        statusKind = "error";
+        document.getElementById("ignored-pattern")?.focus();
+        return;
+      }
+    }
 
     // What is valid is the server's call, not the page's: it merges the save
     // with what is stored, checks it, and names the field it refused
@@ -356,7 +428,10 @@
       forgejoToken,
       forgejoUsername: trimmedForgejoUsername,
       renovateRebaseLabel: renovateRebaseLabel.trim(),
+      hideDependencyDashboard,
+      ignoredTitles,
     };
+    ignoredError = "";
 
     fetch("/api/settings", {
       method: "PUT",
@@ -395,12 +470,17 @@
         // what confirms it took.
         githubToken = "";
         forgejoToken = "";
+        const issueSettings = issueSettingsFrom(data);
+        hideDependencyDashboard = issueSettings.hideDependencyDashboard;
+        ignoredTitles = issueSettings.ignoredTitles;
         status = "Saved.";
         statusKind = "ok";
       })
       .catch((err: Error & { field?: string }) => {
         status = err.message || "Could not save settings.";
         statusKind = "error";
+        // The server names the entry it refused; say so beside the list.
+        if (err.field === "ignoredTitles") ignoredError = status;
         // Its inputs are named for the API's own field names.
         if (err.field)
           document
@@ -718,6 +798,7 @@
       })
       .then((data: SettingsResponse | null) => {
         if (!data) return;
+        settingsLoaded = true;
         // Guarded, not a blind overwrite: onMount fires after hydration,
         // later relative to page load than a vanilla page's synchronous
         // bottom <script> — this fetch can resolve after a fast typist
@@ -739,6 +820,11 @@
         webhookSecret = data.webhookSecret;
         if (!renovateRebaseLabel)
           renovateRebaseLabel = data.renovateRebaseLabel || "";
+        if (!issueSettingsTouched) {
+          const issueSettings = issueSettingsFrom(data);
+          hideDependencyDashboard = issueSettings.hideDependencyDashboard;
+          ignoredTitles = issueSettings.ignoredTitles;
+        }
         // Just the control's own displayed value — (app)/+layout.svelte's
         // syncThemeFromServer already applies the theme itself and syncs
         // the cookie on every page, this one included. Skipped while a
@@ -748,8 +834,8 @@
         // checked for exactly the reload this ticket is about.
         if (!isThemeSavePending()) theme = data.theme || "";
       })
-      .catch((err) => {
-        status = err.message || "Could not load settings.";
+      .catch(() => {
+        status = SETTINGS_NOT_LOADED;
         statusKind = "error";
       });
 
@@ -1090,6 +1176,62 @@
     .timezone-preview {
       font-size: 13px;
       color: var(--ink-3);
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      color: var(--ink);
+      margin: 12px 0 4px;
+    }
+    #issue-settings h3 {
+      font-size: 14px;
+      margin: 18px 0 4px;
+    }
+    #issue-settings .share-list li {
+      gap: 12px;
+    }
+    #issue-settings .share-list code {
+      overflow-wrap: anywhere;
+      min-width: 0;
+    }
+    #issue-settings .share-list .btn-remove {
+      flex-shrink: 0;
+    }
+    /* Touch targets at phone width: 44px high (#1630). */
+    @media (max-width: 760px) {
+      #issue-settings .share-list .btn-remove,
+      #issue-settings .pattern-row .btn {
+        min-height: 44px;
+        min-width: 44px;
+      }
+      #save-button {
+        min-height: 44px;
+      }
+      #issue-settings .check-row {
+        min-height: 44px;
+        margin: 0;
+      }
+    }
+    .pattern-row {
+      display: flex;
+      gap: 8px;
+    }
+    .pattern-row input {
+      flex: 1;
+      min-width: 0;
+    }
+    .pattern-error {
+      color: var(--critical);
+      font-size: 12.5px;
+      margin: 6px 0 0;
+    }
+    .pattern-error[hidden] {
+      display: none;
+    }
+    .field input[aria-invalid="true"] {
+      border-color: var(--critical);
     }
     .share-list {
       list-style: none;
@@ -1566,12 +1708,93 @@
       </div>
     </div>
 
+    <div class="card" id="issue-settings">
+      <h2>Issues</h2>
+      <p class="field-hint">
+        These apply to every issue list and total: the Issues page, Insights and
+        the count in the navigation. They are saved with the Save button below.
+      </p>
+      <label class="check-row">
+        <input
+          type="checkbox"
+          name="hideDependencyDashboard"
+          bind:checked={hideDependencyDashboard}
+          onchange={() => (issueSettingsTouched = true)}
+        />
+        Hide the Dependency Dashboard issue
+      </label>
+
+      <h3 id="ignored-titles-heading">Ignored issue titles</h3>
+      <p class="field-hint" id="ignored-titles-hint">
+        An issue whose title matches any of these patterns is left out. A
+        pattern matches anywhere in the title and ignores case, so
+        <code>^Weekly report</code> ignores every title that starts with those
+        words. The server checks the patterns with its own syntax (RE2), which
+        has no lookahead and no backreferences. Up to {MAX_IGNORED_TITLES} patterns
+        of {MAX_PATTERN_LENGTH}
+        characters each. The filter box on the Issues page uses a different engine.
+      </p>
+      <ul
+        class="share-list"
+        id="ignored-titles"
+        aria-labelledby="ignored-titles-heading"
+      >
+        {#each ignoredTitles as pattern (pattern)}
+          <li>
+            <code>{pattern}</code>
+            <button
+              class="btn-remove"
+              type="button"
+              aria-label={`Remove ${pattern}`}
+              onclick={() => removeIgnoredPattern(pattern)}>Remove</button
+            >
+          </li>
+        {/each}
+      </ul>
+      <p
+        class="empty-state"
+        id="ignored-titles-empty"
+        hidden={ignoredTitles.length > 0}
+      >
+        No titles are ignored. Add a pattern to leave matching issues out.
+      </p>
+      <div class="field" id="ignored-pattern-field">
+        <label for="ignored-pattern">Pattern</label>
+        <div class="pattern-row">
+          <input
+            id="ignored-pattern"
+            name="ignoredTitles"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="^Weekly report"
+            aria-invalid={ignoredError ? "true" : undefined}
+            aria-describedby={ignoredError
+              ? "ignored-titles-hint ignored-titles-error"
+              : "ignored-titles-hint"}
+            bind:value={ignoredPattern}
+            onkeydown={onIgnoredPatternKeydown}
+          />
+          <button type="button" class="btn" onclick={addIgnoredPattern}
+            >Add</button
+          >
+        </div>
+        <p
+          class="pattern-error"
+          id="ignored-titles-error"
+          hidden={!ignoredError}
+        >
+          {ignoredError}
+        </p>
+      </div>
+    </div>
+
     <div class="actions">
       <button
         type="submit"
         class="btn btn-primary"
         id="save-button"
-        disabled={saving}>Save</button
+        disabled={saving || !settingsLoaded}>Save</button
       >
       <p
         class={`status${statusKind ? ` ${statusKind}` : ""}`}
