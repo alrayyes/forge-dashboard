@@ -100,6 +100,10 @@ func TestContract_HealthAndReadiness(t *testing.T) {
 // on, held by the forge (#1608).
 const autoMergingPR = 7
 
+// autoMergeOffPR is the pull request on the populated board that reports
+// autoMergeEnabled: false explicitly, as opposed to leaving it unknown.
+const autoMergeOffPR = 8
+
 // A populated board, so the dashboard and refresh answers carry real pull
 // requests, issues and repos rather than empty lists.
 func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
@@ -127,6 +131,12 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 				MergeStatus: dashboard.MergeMergeable, CI: dashboard.CIPending, Labels: []dashboard.Label{}, RequestedReviewerLogins: []string{}, CreatedAt: now, UpdatedAt: now,
 				AutoMergeEnabled: new(true), AutoMergeHeldBy: dashboard.AutoMergeHeldByForge,
 			},
+			{
+				Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: autoMergeOffPR, Title: "Auto-merge switched off",
+				URL: "https://github.com/alrayyes/a/pull/8", Author: "alice",
+				MergeStatus: dashboard.MergeMergeable, CI: dashboard.CISuccess, Labels: []dashboard.Label{}, RequestedReviewerLogins: []string{}, CreatedAt: now, UpdatedAt: now,
+				AutoMergeEnabled: new(false),
+			},
 		},
 		issues: []dashboard.Issue{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Title: "Dependency Dashboard", URL: "https://github.com/alrayyes/a/issues/1", Author: "renovate[bot]", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
@@ -150,7 +160,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
-		return len(prs) == 3
+		return len(prs) == 4
 	}, time.Second, 10*time.Millisecond)
 
 	return srv, cookie
@@ -326,5 +336,18 @@ func TestContract_DashboardCarriesAutoMergeHeldBy(t *testing.T) {
 				assert.NotContains(t, p, "autoMergeHeldBy")
 			}
 		}
+	})
+	t.Run("a pull request with auto-merge off reports false and omits autoMergeHeldBy", func(t *testing.T) {
+		t.Parallel()
+
+		var off map[string]any
+		for _, p := range body.PullRequests {
+			if p["number"] == float64(autoMergeOffPR) {
+				off = p
+			}
+		}
+		require.NotNil(t, off, "the auto-merge-off pull request is missing from the response")
+		assert.Equal(t, false, off["autoMergeEnabled"])
+		assert.NotContains(t, off, "autoMergeHeldBy")
 	})
 }
