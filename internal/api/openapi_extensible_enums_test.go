@@ -25,6 +25,10 @@ var (
 	}
 )
 
+// knownAutoMergeHolders is PullRequest.autoMergeHeldBy's list (#1596): a new
+// holder is an additive SDK release too.
+var knownAutoMergeHolders = []string{"dashboard", "forge"}
+
 func allowedActionSchema(t *testing.T) *openapi3.Schema {
 	t.Helper()
 
@@ -66,6 +70,25 @@ func TestAllowedActionSpec_ExtensibleEnumsMatchTheGoLists(t *testing.T) {
 		prop := schema.Properties["blocked"].Value.Properties["code"].Value
 		assert.Empty(t, prop.Enum, "a closed enum would make every new value a major release")
 		assert.ElementsMatch(t, knownBlockedCodes, extensibleEnum(t, prop))
+	})
+}
+
+func TestPullRequestSpec_AutoMergeHeldByIsExtensible(t *testing.T) {
+	t.Parallel()
+
+	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+	require.NoError(t, err)
+	prop := doc.Components.Schemas["PullRequest"].Value.Properties["autoMergeHeldBy"].Value
+
+	t.Run("is not a closed enum", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Empty(t, prop.Enum, "a closed enum would make every new holder a major release")
+	})
+	t.Run("lists what the server knows", func(t *testing.T) {
+		t.Parallel()
+
+		assert.ElementsMatch(t, knownAutoMergeHolders, extensibleEnum(t, prop))
 	})
 }
 
