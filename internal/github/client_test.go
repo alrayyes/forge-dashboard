@@ -1661,12 +1661,6 @@ func TestFetch_MapsAutoMergeAllowedFromViewerCanEnableAutoMerge(t *testing.T) {
 	}
 }
 
-// TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown documents the
-// REST-fallback path's asymmetry: AutoMerge is already on the List
-// response go-github decodes, but Mergeable/MergeableState aren't (per
-// go-github's own doc comment), and this path deliberately doesn't pay a
-// per-PR Get call to resolve them — see design.md's Open Questions in
-// openspec/changes/archive/*/show-pr-merge-status.
 // restFallbackPullServer serves one open pull request over the REST endpoints
 // the no-token path reads. autoMerge is the pull request's auto_merge value:
 // an object when on, nil (JSON null) when off.
@@ -1721,6 +1715,12 @@ func restFallbackPullServer(t *testing.T, autoMerge any) *httptest.Server {
 	return srv
 }
 
+// TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown documents the
+// REST-fallback path's asymmetry: AutoMerge is already on the List
+// response go-github decodes, but Mergeable/MergeableState aren't (per
+// go-github's own doc comment), and this path deliberately doesn't pay a
+// per-PR Get call to resolve them — see design.md's Open Questions in
+// openspec/changes/archive/*/show-pr-merge-status.
 func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	t.Parallel()
 
