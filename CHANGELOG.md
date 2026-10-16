@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.197.0](https://github.com/alrayyes/forge-dashboard/compare/v0.196.0...v0.197.0) (2026-10-16)
+
+
+### Features
+
+* **api:** say who holds an auto-merge with autoMergeHeldBy ([#1604](https://github.com/alrayyes/forge-dashboard/issues/1604)) ([d5fc900](https://github.com/alrayyes/forge-dashboard/commit/d5fc900c8f8ad5112bcc0dcfe9e67fec530a7384)), closes [#1596](https://github.com/alrayyes/forge-dashboard/issues/1596)
+
 ## [0.196.0](https://github.com/alrayyes/forge-dashboard/compare/v0.195.0...v0.196.0) (2026-10-16)
 
 

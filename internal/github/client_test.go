@@ -1577,6 +1577,11 @@ func TestFetch_MapsAutoMergeFromAutoMergeRequest(t *testing.T) {
 			require.Len(t, result.PullRequests, 1)
 			require.NotNil(t, result.PullRequests[0].AutoMergeEnabled)
 			assert.Equal(t, tc.want, *result.PullRequests[0].AutoMergeEnabled)
+			if tc.want {
+				assert.Equal(t, dashboard.AutoMergeHeldByForge, result.PullRequests[0].AutoMergeHeldBy)
+			} else {
+				assert.Empty(t, result.PullRequests[0].AutoMergeHeldBy, "off has no holder")
+			}
 		})
 	}
 }
@@ -1718,6 +1723,7 @@ func TestFetch_NoToken_AutoMergeFreeButMergeStatusUnknown(t *testing.T) {
 	assert.Equal(t, dashboard.MergeUnknown, pr.MergeStatus)
 	require.NotNil(t, pr.AutoMergeEnabled)
 	assert.True(t, *pr.AutoMergeEnabled)
+	assert.Equal(t, dashboard.AutoMergeHeldByForge, pr.AutoMergeHeldBy)
 }
 
 func repoNodeWithOwnerName() map[string]any {
