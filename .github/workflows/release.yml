@@ -13,10 +13,12 @@ name: release
 on:
   push:
     branches: [main]
-  # Completes a release whose run died after release-please had created it
-  # (v0.194.0: a token missing a permission), which nothing else can: the push
-  # that made the release has run and release-please now sees the tag. Builds
-  # the binaries and the image from that tag onto the release already there.
+  # The safety net for a half-published latest release: the run died after
+  # release-please had created it (as v0.194.0's did, on a token missing a
+  # permission), which nothing else can repair, since the push that made the
+  # release has run and release-please now sees the tag. Builds the binaries and
+  # the image from that tag onto the release already there. Only the latest
+  # release with no assets qualifies, so a superseded one is left alone.
   workflow_dispatch:
     inputs:
       tag:

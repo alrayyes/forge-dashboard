@@ -286,6 +286,10 @@ tag (`gh workflow run release.yml -f tag=vX.Y.Z`). It only repairs a
 half-published release: the tag must be `vX.Y.Z`, the latest release, and
 have no assets. goreleaser pushes the image and the `latest` manifest before
 it uploads assets, so any other tag would be refused before a build starts.
+A release that a newer one has superseded is left as it is, with a note in its
+release body pointing at the newer release (v0.194.0 is one: v0.194.1 shipped
+fully). This path is the safety net for a future half-published latest
+release, not for catching up an old one.
 After a partial upload, delete the assets from the release by hand first; a
 second upload fails on `already_exists`. The dispatch builds the binaries and
 the image from that tag onto the release already there. It creates no release

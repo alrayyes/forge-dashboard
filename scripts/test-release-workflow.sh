@@ -37,7 +37,7 @@ if grep -Eq 'fromJSON\(steps\.release\.outputs\.outputs\)' "$wf"; then
   fail "outputs are read through the wrapper's JSON; read them directly from the step"
 fi
 
-# A release whose job died after release-please created it (v0.194.0, #1587)
+# A latest release whose job died after release-please created it (#1587)
 # can only be completed by building its artefacts again from the tag, and the
 # workflow has no other trigger than a push to main. So it takes a manual
 # dispatch with the tag, checks that tag is a release tag that exists before
