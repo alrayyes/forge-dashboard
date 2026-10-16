@@ -35,13 +35,14 @@ function setup(response: { status?: number; body?: unknown } = {}) {
 const PR = { forge: 'forgejo', fullName: 'acme/api', number: 7 };
 
 describe('WebMCP read tools', () => {
-  test('lists get_dashboard and the three server twins', () => {
+  test('lists get_dashboard and the four server twins', () => {
     const tools = createWebMCPTools({ getDashboard: async () => ({}) });
     expect(tools.map((t) => t.name)).toEqual([
       'get_dashboard',
       'get_main_branches',
       'get_pull_request_checks',
       'get_pull_request_details',
+      'list_queued_actions',
     ]);
   });
 
@@ -52,6 +53,32 @@ describe('WebMCP read tools', () => {
     expect(calls[0].url).toBe('/api/main-branches');
     expect(calls[0].init?.credentials).toBe('same-origin');
     expect(calls[0].init?.method ?? 'GET').toBe('GET');
+  });
+
+  test('list_queued_actions wraps the endpoint array under queuedActions', async () => {
+    const items = [{ id: 1, kind: 'merge' }];
+    const { calls, tool } = setup({ body: items });
+    expect(await tool('list_queued_actions').execute({})).toEqual({
+      queuedActions: items,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('/api/queued-actions');
+    expect(calls[0].init?.credentials).toBe('same-origin');
+    expect(calls[0].init?.method ?? 'GET').toBe('GET');
+  });
+
+  test('list_queued_actions is an empty array when nothing is queued', async () => {
+    const { tool } = setup({ body: [] });
+    expect(await tool('list_queued_actions').execute({})).toEqual({
+      queuedActions: [],
+    });
+  });
+
+  test('list_queued_actions throws on an error answer', async () => {
+    const { tool } = setup({ status: 500, body: {} });
+    await expect(tool('list_queued_actions').execute({})).rejects.toThrow(
+      'backend answered 500',
+    );
   });
 
   test('get_pull_request_checks reads /api/pull-requests/checks with the pull request', async () => {

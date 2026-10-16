@@ -110,14 +110,17 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   scope — this app still only reads that list, and never creates or edits a
   hook itself.
 - **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
-  itself: `get_dashboard`, `get_main_branches`, `get_pull_request_checks` and
-  `get_pull_request_details`.** Experimental — as of this writing it's an Origin
-  Trial in Chrome 149+/Edge 150+ only, with no stable spec yet — so this is a
+  itself: `get_dashboard`, `get_main_branches`, `get_pull_request_checks`,
+  `get_pull_request_details` and `list_queued_actions`.** Experimental — as of
+  this writing it's an Origin Trial in Chrome 149+/Edge 150+ only, with no
+  stable spec yet — so this is a
   no-op everywhere else rather than a real dependency the page needs. Where it's
   present, it lets an in-browser AI agent fetch the same data the page itself
   renders. `get_dashboard` calls the page's own already-authenticated fetch
   layer (`fetchDashboardData()`) directly, the same request `/api/dashboard`
-  already answers; the others call their endpoint the same way. All ride on the
+  already answers; the others call their endpoint the same way
+  (`list_queued_actions` returns `GET /api/queued-actions` under a
+  `queuedActions` key, as the server's tool of that name does). All ride on the
   browser's own session cookie exactly like the page's own poll does.
   Nothing new crosses to the browser that the preceding
   "Credentials never reach the browser" bullet doesn't already allow: the tools

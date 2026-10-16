@@ -115,7 +115,6 @@ const PENDING_OPERATIONS = [
   'updatePullRequestBranch',
   'postPullRequestDependabotAction',
   'postPullRequestRenovateRebase',
-  'listQueuedActions',
   'queueAction',
   'cancelQueuedAction',
   'listUsers',
