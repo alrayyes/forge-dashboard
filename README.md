@@ -1203,6 +1203,16 @@ remembered for an hour and the checks are skipped, with one warning in the log.
 A token that can't administer one repo is skipped for that repo alone. Grant
 the permission and the next check after the hour sees it.
 
+A webhook the dashboard created earlier is brought up to date without a click.
+After the first refresh that finds a repo's webhook, the dashboard lists that
+repo's hooks once and, only if the hook lacks an event the dashboard now
+subscribes to, edits it in place. It never creates a hook there. Cost: one
+extra hooks listing per covered repo per process start (plus one edit for a
+hook that is out of date), at most four at a time, each after a short random
+pause. A forge that is unreachable or out of REST budget is skipped and tried
+again on a later refresh, and never fails one. A repo whose hooks the token
+can't administer is tried once and left until the next restart.
+
 ## Configuration
 
 Everything the process itself needs is environment variables — no

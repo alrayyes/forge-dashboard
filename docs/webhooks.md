@@ -31,8 +31,10 @@ this dashboard's URL and secret, subscribed to every event the table
 below recommends. If a forge-dashboard webhook already exists there but
 is turned off or missing an event, clicking it fixes that one up in place
 rather than creating a second, duplicate hook. A webhook the button made
-before comment events were added gets them the same way: click the button
-once more on that repo, and its event list is replaced with the current one.
+before comment events were added gets them the same way, and the dashboard
+does it for you: once per process start it checks each covered repo's hook and
+replaces an out-of-date event list with the current one (see the README's
+Webhooks section for what that costs). Clicking the button still works.
 
 This needs a broader token scope than just reading your repos — GitHub's
 fine-grained tokens need the Webhooks permission set to **Read and
