@@ -21,10 +21,12 @@ const DESCRIPTION = [
   '- [ ] open item with a [link](https://example.org/x)',
   '- plain `[x]` in code, [x] mid-sentence',
   '',
+  `- [x] foo\`code\`bar and *em*baz plus a [link](https://example.org/x)tail, ${'then a long wrapped line '.repeat(6)}`,
+  '',
   'Not a task: [x] mid-sentence.',
 ].join('\n');
 
-async function openDialog(page: Page) {
+async function openDialog(page: Page, description = DESCRIPTION) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/dashboard*', (route) =>
     route.fulfill({
@@ -61,7 +63,7 @@ async function openDialog(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         description: {
-          text: DESCRIPTION,
+          text: description,
           format: 'markdown',
           truncated: false,
           edited: false,
@@ -99,7 +101,7 @@ for (const scheme of ['light', 'dark'] as const) {
     });
     await expect(done).toBeChecked();
     await expect(open).not.toBeChecked();
-    await expect(dialog.getByRole('checkbox')).toHaveCount(2);
+    await expect(dialog.getByRole('checkbox')).toHaveCount(3);
     await expect(done).toBeDisabled();
     await expect(open).toBeDisabled();
 
@@ -112,7 +114,7 @@ for (const scheme of ['light', 'dark'] as const) {
     // No literal task markers; [x] elsewhere is unchanged.
     const text = dialog.locator('.details-body .markdown').first();
     await expect(text).not.toContainText('[ ]');
-    await expect(text.locator('code')).toHaveText('[x]');
+    await expect(text.locator('code').first()).toHaveText('[x]');
     await expect(text).toContainText('mid-sentence');
     await expect(text).toContainText('Not a task: [x] mid-sentence.');
 
@@ -130,3 +132,54 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(results.violations).toEqual([]);
   });
 }
+
+for (const scheme of ['light', 'dark'] as const) {
+  test(`an item with inline formatting flows as normal text (${scheme}, 360px)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.setViewportSize({ width: 360, height: 740 });
+    const inline = `foo\`code\`bar and *em*baz plus a [link](https://example.org/x)tail, ${'then a long wrapped line '.repeat(6)}`;
+    const dialog = await openDialog(page, `- [x] ${inline}\n\n${inline}`);
+    const label = dialog.locator('label.task');
+    await expect(label).toHaveCount(1);
+    const task = await label.boundingBox();
+    const para = await dialog
+      .locator('.details-body .markdown > p')
+      .first()
+      .boundingBox();
+    if (!task || !para) throw new Error('missing boxes');
+    // The same text as a plain paragraph is the baseline: a flex label made
+    // one-word columns and was far taller. One extra line covers the indent.
+    expect(task.height).toBeLessThanOrEqual(para.height + 22);
+    // The text stays whole: no flex-item gaps inside the words.
+    await expect(label).toContainText('foocodebar and embaz plus a linktail');
+    // The box sits on the first line.
+    const box = await label.locator('input').boundingBox();
+    expect(box && box.y - task.y).toBeLessThan(12);
+    expect(await dialog.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(
+      0,
+    );
+  });
+}
+
+test('in forced-colors mode a checked box differs from an unchecked one', async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: 'active' });
+  await page.setViewportSize({ width: 360, height: 740 });
+  const dialog = await openDialog(page);
+  const checked = await dialog
+    .getByRole('checkbox', { name: 'done item' })
+    .screenshot();
+  const open = await dialog
+    .getByRole('checkbox', { name: 'open item with a link' })
+    .screenshot();
+  expect(checked.equals(open)).toBe(false);
+  // The drawn tick is a fixed-colour image that forced colours can't recolour,
+  // so the native control (which keeps its own state mark) takes over.
+  const appearance = await dialog
+    .getByRole('checkbox', { name: 'done item' })
+    .evaluate((el) => getComputedStyle(el).appearance);
+  expect(appearance).not.toBe('none');
+});

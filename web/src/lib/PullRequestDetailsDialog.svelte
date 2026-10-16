@@ -620,15 +620,19 @@
     margin-left: -1.25em;
   }
   .markdown :global(label.task) {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
+    /* Block, not flex: inline children (code, em, a) must flow as text. The
+       box hangs in the left padding so wrapped lines align with the text. */
+    display: block;
+    padding-left: 20px;
+    text-indent: -20px;
     color: inherit;
   }
   .markdown :global(label.task input) {
-    flex: none;
-    margin: 0;
-    align-self: center;
+    display: inline-block;
+    box-sizing: border-box;
+    margin: 0 6px 0 0;
+    vertical-align: -2px;
+    text-indent: 0;
     /* A disabled native box is pale in both colour schemes: draw our own. */
     appearance: none;
     width: 14px;
@@ -656,6 +660,16 @@
     .markdown
     :global(label.task input:checked) {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.5l2.5 2.5 4.5-5.5' fill='none' stroke='%2306181a' stroke-width='1.8'/%3E%3C/svg%3E");
+  }
+  /* Forced colours drop our fills and the fixed-colour tick, so a checked box
+     would look empty: hand the control back to the browser. */
+  @media (forced-colors: active) {
+    .markdown :global(label.task input),
+    .markdown :global(label.task input:checked) {
+      appearance: auto;
+      background: none;
+      border: 0;
+    }
   }
   .markdown :global(blockquote) {
     margin: 8px 0;

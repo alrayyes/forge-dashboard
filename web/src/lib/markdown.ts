@@ -24,7 +24,8 @@ let renderer: Promise<Renderer> | null = null;
 const TASK = /^\[([ xX])\](?=\s)\s*/;
 
 // GFM task list items: only a list item whose first paragraph starts with
-// `[ ]` or `[x]` and a space. markdown-it parses code spans, link labels and
+// `[ ]` or `[x]` and a space (`- [x]` then a newline is a task in GFM but
+// stays literal here: a rare form, left out on purpose). markdown-it parses code spans, link labels and
 // mid-sentence text as their own tokens, so none of those match.
 function taskLists(state: StateCore): void {
   const { tokens, Token } = state;
