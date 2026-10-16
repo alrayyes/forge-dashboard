@@ -1138,7 +1138,9 @@ stream and the `get_dashboard` MCP tool. `openIssueCount` and
 `navCounts.issues.total` count what remains, so the navigation badge, the
 Issues board and Insights agree with no arithmetic in the client.
 `settingsHiddenIssueCount` says how many issues the settings dropped, and is
-`0` when none were.
+`0` when none were. The same response carries `hideDependencyDashboard` and
+`ignoredTitlesSet` (true when the list isn't empty), so a client knows whether
+to draw its own fields without reading `/api/settings`.
 
 Patterns use Go's RE2 syntax. It has no lookahead, lookbehind or
 backreferences, and it can't run slowly, so no pattern is refused for being
