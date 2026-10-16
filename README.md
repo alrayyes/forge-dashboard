@@ -855,6 +855,20 @@ checks reported would read as passed. A required check that is queued or
 running counts as not finished. The server looks the required checks up only
 when the combined status says success and GitHub still blocks the pull request.
 
+Reading which checks are required needs admin on the repository for classic
+branch protection. Without it, the server can't tell a required check that
+hasn't started from one that passed, so it falls back to what GitHub reports on
+the pull request itself. A pull request whose combined status is success and
+whose merge state is `BLOCKED`, that isn't a draft and has no review
+outstanding (`REVIEW_REQUIRED` or `CHANGES_REQUESTED`), reads pending: a
+required check is the only thing left that can block it. This needs no extra
+request. Where the required checks can be read, they decide and the fallback
+isn't used. The limit: GitHub also reports `BLOCKED` for a merge queue, code
+owners whose review shows no decision, and unresolved conversations. Such a
+pull request reads pending, not passed, until GitHub stops blocking it. The
+next refresh asks again, so the pill follows GitHub as soon as the merge state
+changes.
+
 Just after a push, a response from GitHub can briefly show the new head beside
 the finished checks of the previous commit. The server reads the id of the
 commit the checks belong to, and when it isn't the head of the pull request the
@@ -889,10 +903,10 @@ status checks and its rulesets are both read, and Forgejo's
 permission than listing checks (admin on GitHub's classic rules and on
 Forgejo), so with a token that can't, or for a check the dashboard can't
 match to a protection entry, the check lands under `Status unknown`
-rather than being guessed advisory. A Forgejo Actions job is only marked
-required when a pattern matches its job name or its workflow-file
-context; it is never marked advisory. If nothing is known for any check,
-the panel stays the flat list.
+rather than being guessed advisory (the pill has its own fallback, above). A
+Forgejo Actions job is only marked required when a pattern matches its job
+name or its workflow-file context; it is never marked advisory. If nothing is
+known for any check, the panel stays the flat list.
 
 Each check's state has its own glyph inside a tinted pill, so states differ
 by shape and word, not colour alone. Passed is a check in a circle, Failed and
