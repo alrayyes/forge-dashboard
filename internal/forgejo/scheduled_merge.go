@@ -115,6 +115,7 @@ func (c *Client) applyScheduledMerges(ctx context.Context, owner, name string, p
 		if known, ok := c.schedule[reviewKey(owner, name, int64(prs[i].Number))]; ok {
 			on := known.scheduled
 			prs[i].AutoMergeEnabled = &on
+			prs[i].AutoMergeHeldBy = heldByForge(on)
 		}
 	}
 }
@@ -178,4 +179,14 @@ func (c *Client) DisableAutoMerge(ctx context.Context, owner, name string, numbe
 	c.recordRequest(ctx, http.MethodDelete, path, resp.StatusCode, "success")
 
 	return nil
+}
+
+// heldByForge names the forge as the holder of a merge scheduled on it, and
+// nobody when nothing is scheduled (#1596).
+func heldByForge(scheduled bool) dashboard.AutoMergeHolder {
+	if scheduled {
+		return dashboard.AutoMergeHeldByForge
+	}
+
+	return ""
 }

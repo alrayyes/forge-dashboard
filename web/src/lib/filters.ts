@@ -226,6 +226,7 @@ export function loadState(): SharedFilterState {
   if (parsed.view && typeof parsed.view === 'object')
     Object.assign(state.view, parsed.view);
   dropUnknownAutoMerge(state);
+  dropNonStringTitleRule(state);
   return state;
 }
 
@@ -236,6 +237,13 @@ function dropUnknownAutoMerge(state: SharedFilterState): void {
   const value = state.pr.autoMerge;
   if (value !== undefined && value !== 'on' && value !== 'off')
     delete state.pr.autoMerge;
+}
+
+// A saved title pattern is a string; anything else is a stale or hand-edited
+// value and reads as no rule (#1593).
+function dropNonStringTitleRule(state: SharedFilterState): void {
+  if (typeof state.issue.hideTitleRegex !== 'string')
+    delete state.issue.hideTitleRegex;
 }
 
 const FILTER_STATE_ENDPOINT = '/api/settings/filter-state';
@@ -284,7 +292,7 @@ export function saveState(
     /* ignore */
   }
 
-  if (debouncedCol === 'title') {
+  if (debouncedCol === 'title' || debouncedCol === 'hideTitleRegex') {
     if (titleSaveTimer) clearTimeout(titleSaveTimer);
     titleSaveTimer = setTimeout(() => {
       titleSaveTimer = null;
@@ -346,6 +354,7 @@ export function applyServerState(
   if (got.view && typeof got.view === 'object')
     Object.assign(state.view, got.view);
   dropUnknownAutoMerge(state);
+  dropNonStringTitleRule(state);
 }
 
 export function minutesAgo(iso: string): number {
@@ -406,7 +415,173 @@ export function failingFilters(
   // server says which ones those are (#980), so this only reads the flag.
   if (!isPR && extra?.hideDependencyDashboard && item.housekeeping)
     failing.push('hideDependencyDashboard');
+  // The user's own hide rule on the Issues page (#1593).
+  if (!isPR && titleRuleHides(extra?.hideTitleRegex, item.title))
+    failing.push('hideTitleRegex');
   return failing;
+}
+
+// ---- "Hide titles matching (regex)" on the Issues page (#1593) ----
+//
+// JavaScript regular expressions have no timeout and cannot be interrupted, so
+// a pattern like (a+)+$ can freeze the tab on a title that almost matches. A
+// Worker would make the synchronous filter pipeline async, so the page bounds
+// the work instead. This is a measured heuristic, not a proof:
+//  1. The pattern is at most MAX_TITLE_REGEX_LENGTH characters.
+//  2. pathCost() estimates how many ways the engine can try to match the
+//     pattern, as a product over its choice points: an alternation adds its
+//     branches, a quantifier on an atom or group with cost c allows
+//     c^min + ... + c^max ways (a plain atom counts one way per repeat count),
+//     and a sequence multiplies. N overlapping choice points are exponential
+//     in N, and so is the product. A pattern whose cost passes MAX_COST is
+//     refused.
+//  3. Only the first MAX_TITLE_TESTED characters of a title are tested.
+//  4. Each distinct title is matched once per pattern.
+// The fuzz test in title-rule.test.ts checks that whatever this accepts
+// finishes inside 50 ms on hostile 128 and 256 character titles.
+export const MAX_TITLE_REGEX_LENGTH = 200;
+const MAX_TITLE_TESTED = 128;
+// Calibrated with the fuzz test: at 2048 the slowest accepted pattern out of
+// 250,000 random ones took under 20 ms; at 16384 some took over 80 ms.
+const MAX_COST = 2048;
+const OVER_COST = MAX_COST + 1;
+const MAX_PATTERN_DEPTH = 8;
+// An open-ended repeat: 0 to this many, so a plain atom has MAX_TITLE_TESTED ways.
+const OPEN_REPEAT = MAX_TITLE_TESTED - 1;
+
+// invalid: the engine can't parse it. complex: it parses, but the guard won't
+// run it.
+export type TitleRule =
+  | { status: 'none' }
+  | { status: 'invalid' }
+  | { status: 'complex' }
+  | { status: 'ok'; regex: RegExp; seen: Map<string, boolean> };
+
+const QUANTIFIER = /^(?:[*+?]|\{(\d+)(,(\d*))?\})\??/;
+// The text after "(" that is not a capture: (?: (?= (?! (?<= (?<! (?<name>
+const GROUP_PREFIX = /^\?(?:[:=!]|<[=!]|<[^>]*>)/;
+
+const times = (a: number, b: number) => Math.min(OVER_COST, a * b);
+
+// Ways to repeat something that has `inner` ways of matching, min to max times.
+function repeatCost(inner: number, min: number, max: number): number {
+  const top = Math.min(max, OPEN_REPEAT);
+  if (inner <= 1) return Math.max(1, top - min + 1);
+  let total = 0;
+  let power = 1;
+  for (let k = 1; k <= top && power < OVER_COST; k++) {
+    power = times(power, inner);
+    if (k >= min) total = Math.min(OVER_COST, total + power);
+  }
+  if (min === 0) total = Math.min(OVER_COST, total + 1);
+  return power >= OVER_COST ? OVER_COST : total;
+}
+
+// Estimated ways to match `pattern` from index `start`, up to the closing
+// bracket of the current group; `end` is where it stopped.
+function pathCost(pattern: string): number {
+  let i = 0;
+
+  function alternation(depth: number): number {
+    if (depth > MAX_PATTERN_DEPTH) return OVER_COST;
+    let total = 0;
+    let branch = 1;
+    while (i < pattern.length && pattern[i] !== ')') {
+      if (pattern[i] === '|') {
+        total = Math.min(OVER_COST, total + branch);
+        branch = 1;
+        i++;
+        continue;
+      }
+      branch = times(branch, term(depth));
+    }
+    return Math.min(OVER_COST, total + branch);
+  }
+
+  function atom(depth: number): number {
+    const c = pattern[i];
+    if (c === '(') {
+      i++;
+      const prefix = GROUP_PREFIX.exec(pattern.slice(i));
+      if (prefix) i += prefix[0].length;
+      const inner = alternation(depth + 1);
+      i++; // the ")"
+      return inner;
+    }
+    if (c === '[') {
+      i++;
+      while (i < pattern.length && pattern[i] !== ']')
+        i += pattern[i] === '\\' ? 2 : 1;
+      i++;
+      return 1;
+    }
+    if (c === '\\') {
+      // A back reference may re-match what a repeat matched.
+      const backReference = /[1-9k]/.test(pattern[i + 1] ?? '');
+      i += 2;
+      return backReference ? MAX_TITLE_TESTED : 1;
+    }
+    i++;
+    return 1;
+  }
+
+  function term(depth: number): number {
+    const inner = atom(depth);
+    const q = QUANTIFIER.exec(pattern.slice(i));
+    if (!q) return inner;
+    i += q[0].length;
+    const first = q[0][0];
+    if (first === '*') return repeatCost(inner, 0, OPEN_REPEAT);
+    if (first === '+') return repeatCost(inner, 1, OPEN_REPEAT);
+    if (first === '?') return repeatCost(inner, 0, 1);
+    const min = Number(q[1]);
+    const max =
+      q[2] === undefined ? min : q[3] === '' ? OPEN_REPEAT : Number(q[3]);
+    return repeatCost(inner, min, max);
+  }
+
+  return alternation(0);
+}
+
+function isTooComplex(pattern: string): boolean {
+  return pathCost(pattern) > MAX_COST;
+}
+
+// Compiled once per pattern text: typing and every re-render ask the same
+// question, and a bad pattern is judged once.
+const titleRuleCache = new Map<string, TitleRule>();
+
+export function compileTitleRule(pattern: unknown): TitleRule {
+  if (typeof pattern !== 'string' || pattern === '') return { status: 'none' };
+  const cached = titleRuleCache.get(pattern);
+  if (cached) return cached;
+  let rule: TitleRule = { status: 'invalid' };
+  try {
+    const regex = new RegExp(pattern, 'i');
+    rule =
+      pattern.length > MAX_TITLE_REGEX_LENGTH || isTooComplex(pattern)
+        ? { status: 'complex' }
+        : { status: 'ok', regex, seen: new Map() };
+  } catch {
+    // The engine's message stays out of the page.
+  }
+  if (titleRuleCache.size > 50) titleRuleCache.clear();
+  titleRuleCache.set(pattern, rule);
+  return rule;
+}
+
+function titleRuleHides(pattern: unknown, title: string): boolean {
+  const rule = compileTitleRule(pattern);
+  if (rule.status !== 'ok') return false;
+  // Every render asks again for every issue; each distinct title is matched
+  // once per pattern.
+  let hidden = rule.seen.get(title);
+  if (hidden === undefined) {
+    if (rule.seen.size > 5000) rule.seen.clear();
+    hidden = rule.regex.test(title.slice(0, MAX_TITLE_TESTED));
+    rule.seen.set(title, hidden);
+  }
+  return hidden;
 }
 
 // The items a filter's own choices are built from (#1427): what the page can
@@ -449,6 +624,7 @@ export const FILTER_NAMES: Record<string, string> = {
   status: 'CI status',
   quick: 'quick',
   autoMerge: 'Auto-merge',
+  hideTitleRegex: 'Hide titles matching',
 };
 
 // Distinct, sorted values of getValues(item) across items — what both

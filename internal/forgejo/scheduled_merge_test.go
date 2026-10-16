@@ -319,3 +319,27 @@ func TestListOpenPullRequests_ReadsPastAShortTimelinePage(t *testing.T) {
 		})
 	}
 }
+
+func TestListOpenPullRequests_ScheduledMergeIsHeldByTheForge(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	var fail atomic.Bool
+	srv := timelineServer(t,
+		[]map[string]any{reviewPR(1, false, "2026-09-02T00:00:00Z"), reviewPR(2, false, "2026-09-02T00:00:00Z"), reviewPR(3, true, "2026-09-02T00:00:00Z")},
+		map[int][]map[string]any{1: {timelineEvent("pull_scheduled_merge")}, 2: {timelineEvent("comment")}, 3: {}}, &calls, &fail)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	first, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.AutoMergeHeldByForge, first[0].AutoMergeHeldBy)
+	assert.Empty(t, first[1].AutoMergeHeldBy, "not scheduled has no holder")
+	assert.Empty(t, first[2].AutoMergeHeldBy, "unknown has no holder")
+
+	fail.Store(true)
+	second, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.AutoMergeHeldByForge, second[0].AutoMergeHeldBy, "a failed read keeps the last known holder")
+	assert.Empty(t, second[1].AutoMergeHeldBy)
+}
