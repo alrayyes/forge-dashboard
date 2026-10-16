@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.203.0](https://github.com/alrayyes/forge-dashboard/compare/v0.202.0...v0.203.0) (2026-10-16)
+
+
+### Features
+
+* **web:** ignore issue titles and the Dependency Dashboard from Settings ([#1636](https://github.com/alrayyes/forge-dashboard/issues/1636)) ([9a140c3](https://github.com/alrayyes/forge-dashboard/commit/9a140c3ff26dee6db170a842f2cb411cd380cbf8))
+
 ## [0.202.0](https://github.com/alrayyes/forge-dashboard/compare/v0.201.1...v0.202.0) (2026-10-16)
 
 
