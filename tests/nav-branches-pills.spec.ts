@@ -74,6 +74,21 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
     for (const kind of ['failed', 'running', 'passed', 'none']) {
       await expect(pill.locator(`.nav-${kind} svg`).first()).toBeAttached();
     }
+    // Outcomes, the divider, the state, then the branches with no pipeline,
+    // which are neither (#1563).
+    const order = await pill.evaluate((el) =>
+      [...el.children].map(
+        (c) => c.className.split(' ').find((n) => n !== 'nav-count') ?? '',
+      ),
+    );
+    expect(order).toEqual([
+      'nav-total',
+      'nav-failed',
+      'nav-passed',
+      'nav-divider',
+      'nav-running',
+      'nav-none',
+    ]);
   });
 
   test('the link names the branches without a pipeline, in the header and on the tab (#1531)', async ({
@@ -81,11 +96,11 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
   }) => {
     await open(page, MIXED);
     await expect(header(page)).toHaveAccessibleName(
-      'Branches, 7 total, 2 failing, 1 running, 3 passing, 1 without a pipeline',
+      'Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline',
     );
     await page.setViewportSize({ width: 360, height: 740 });
     await expect(tab(page)).toHaveAccessibleName(
-      '7 Branches, 2 failing, 1 running, 3 passing, 1 without a pipeline',
+      '7 Branches, 2 failing, 3 passing, 1 running, 1 without a pipeline',
     );
   });
 
