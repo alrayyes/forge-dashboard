@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -51,6 +52,8 @@ func timelineServer(t *testing.T, prs []map[string]any, timelines map[int][]map[
 
 				return
 			}
+			// Forgejo says how many rows a list has; with it, one page is one request.
+			w.Header().Set("X-Total-Count", strconv.Itoa(len(events)))
 			writeJSON(t, w, events)
 		})
 	}
@@ -215,6 +218,7 @@ func TestListOpenPullRequests_StopsReadingTheTimelineOfAPullRequestThatClosed(t 
 
 			return
 		}
+		w.Header().Set("X-Total-Count", "1")
 		writeJSON(t, w, []map[string]any{timelineEvent("pull_scheduled_merge")})
 	})
 	srv := httptest.NewServer(mux)
@@ -263,4 +267,58 @@ func TestDisableAutoMerge_ReportsOtherRefusals(t *testing.T) {
 
 	client := forgejo.NewClient(srv.URL, "test-token", "")
 	require.Error(t, client.DisableAutoMerge(t.Context(), "alrayyes", "a", 7))
+}
+
+// Forgejo pages a timeline in the database query and then drops the rows it
+// won't show (review line comments, references it can't read), so a page can
+// come back short while later pages exist, and the cancel that turns the
+// schedule off sits on one of them (it pages oldest first). A short page is
+// not the last one.
+func TestListOpenPullRequests_ReadsPastAShortTimelinePage(t *testing.T) {
+	t.Parallel()
+
+	for name, total := range map[string]string{
+		"the forge reports how many rows exist": "120",
+		"the forge reports no count":            "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Query().Get("page") != "1" {
+					writeJSON(t, w, []map[string]any{})
+
+					return
+				}
+				writeJSON(t, w, []map[string]any{reviewPR(1, false, "2026-09-02T00:00:00Z")})
+			})
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/1/reviews", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, []map[string]any{})
+			})
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/1/timeline", func(w http.ResponseWriter, r *http.Request) {
+				if total != "" {
+					w.Header().Set("X-Total-Count", total)
+				}
+				switch r.URL.Query().Get("page") {
+				case "1":
+					writeJSON(t, w, []map[string]any{timelineEvent("comment"), timelineEvent("pull_scheduled_merge")})
+				case "2":
+					writeJSON(t, w, []map[string]any{timelineEvent("pull_cancel_scheduled_merge")})
+				default:
+					writeJSON(t, w, []map[string]any{})
+				}
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := forgejo.NewClient(srv.URL, "test-token", "")
+			prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+			require.NoError(t, err)
+			require.Len(t, prs, 1)
+
+			require.NotNil(t, prs[0].AutoMergeEnabled)
+			assert.False(t, *prs[0].AutoMergeEnabled, "the cancel on page 2 turns the schedule off")
+		})
+	}
 }
