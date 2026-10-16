@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Regenerates docs/screenshots/<page>-{light,dark}.png for every page in the
 // menu (branches, pull requests, issues, releases, bots, insights, webhooks,
-// settings, admin), the pipeline checks panel and the login page (the footer
+// settings, admin), the pipeline checks panel, the pull request dialogs
+// (a pull request, a release, a bot, and the phone sheet) and the login page (the footer
 // pages are left out) against a real
 // build of the binary, run by the release workflow's screenshots job —
 // not a Playwright *test* (playwright.config.js only looks in tests/),
@@ -328,6 +329,148 @@ const CHECKS = {
   ],
 };
 
+// Placeholder avatars: a flat coloured circle with an initial, served for
+// every avatar URL below so no real person's picture appears (#251).
+function avatarSvg(initial: string, colour: string) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="32" fill="${colour}"/><text x="32" y="43" font-family="sans-serif" font-size="30" text-anchor="middle" fill="#fff">${initial}</text></svg>`;
+}
+const AVATARS: Record<string, string> = {
+  'demo-user': avatarSvg('D', '#6f42c1'),
+  'demo-colleague': avatarSvg('C', '#0a7d5a'),
+  'demo-reviewer': avatarSvg('R', '#b35c00'),
+};
+const avatarUrl = (login: string) =>
+  `https://avatars.example.invalid/${login}.svg`;
+
+function reactions(up: string[], down: string[]) {
+  return {
+    thumbsUp: { count: up.length, logins: up },
+    thumbsDown: { count: down.length, logins: down },
+  };
+}
+
+function comment(
+  id: string,
+  login: string,
+  text: string,
+  minutes: number,
+  react = reactions([], []),
+) {
+  return {
+    id,
+    author: { login, avatarUrl: avatarUrl(login) },
+    createdAt: new Date(Date.now() - minutes * 60_000).toISOString(),
+    updatedAt: null,
+    edited: false,
+    text,
+    format: 'markdown',
+    truncated: false,
+    reactions: react,
+  };
+}
+
+function body(text: string, react = reactions([], [])) {
+  return {
+    text,
+    format: 'markdown',
+    truncated: false,
+    edited: false,
+    reactions: react,
+  };
+}
+
+// GET /api/pull-requests/details payloads, keyed by pull request number.
+// Fictional text throughout (#251).
+const DETAILS: Record<number, unknown> = {
+  142: {
+    description: body(
+      [
+        'Keeps the repo and author filters scoped to the forge picked in the',
+        'header, so a Forgejo-only view stops offering GitHub repos.',
+        '',
+        '```ts',
+        'const repos = rows.filter((r) => r.forge === active).map((r) => r.repo);',
+        '```',
+        '',
+        '## Checklist',
+        '',
+        '- [x] Unit tests',
+        '- [x] End-to-end test',
+        '- [ ] Release notes',
+      ].join('\n'),
+      reactions(['demo-colleague', 'demo-reviewer'], ['demo-guest']),
+    ),
+    comments: [
+      comment(
+        '1',
+        'demo-reviewer',
+        'Looks right. Could the saved selection also drop repos that vanish?',
+        180,
+        reactions(['demo-user'], []),
+      ),
+      comment(
+        '2',
+        'demo-user',
+        'Good catch, **fixed** in the latest push.',
+        95,
+        reactions(['demo-reviewer', 'demo-colleague'], []),
+      ),
+      comment(
+        '3',
+        'demo-colleague',
+        'Approved from my side. Merging once CI is green.',
+        20,
+        reactions(['demo-user'], ['demo-guest']),
+      ),
+    ],
+    commentCount: 3,
+    commentsTruncated: false,
+    releaseNotes: null,
+  },
+  143: {
+    description: body('Release pull request.'),
+    comments: [],
+    commentCount: 0,
+    commentsTruncated: false,
+    releaseNotes: body(
+      [
+        '## 0.9.0',
+        '',
+        '### Features',
+        '',
+        '* keep repo and author filters scoped to the active forge',
+        '* show a pull request conversation in a dialog',
+        '',
+        '### Bug fixes',
+        '',
+        '* fix SQLITE_BUSY under concurrent writers',
+      ].join('\n'),
+      reactions(['demo-colleague'], []),
+    ),
+  },
+  88: {
+    description: body(
+      [
+        'Bumps [vite](https://github.com/example-org/vite) from 8.0.3 to 8.1.0.',
+        '',
+        '## Release notes',
+        '',
+        '* Faster dependency pre-bundling',
+        '* Fixes a regression in the dev server proxy',
+        '',
+        '## Commits',
+        '',
+        '* `a1b2c3d` chore: release 8.1.0',
+        '* `e4f5a6b` fix(proxy): keep the host header',
+      ].join('\n'),
+    ),
+    comments: [],
+    commentCount: 0,
+    commentsTruncated: false,
+    releaseNotes: null,
+  },
+};
+
 // One entry per page. `ready` only matches once the page shows real
 // content, so a spinner or an error state is never shot.
 // In menu order, which is the order the README lists them in.
@@ -368,6 +511,32 @@ async function shootPipelineChecks(
   await page.screenshot({
     path: path.join(OUT_DIR, `pipeline-checks-${theme}.png`),
   });
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+}
+
+// Opens the details dialog on one fixture pull request (the "Details" button
+// in its row) and shoots it once the content, not the skeleton, is drawn.
+async function shootDialog(
+  page: import('@playwright/test').Page,
+  number: number,
+  name: string,
+  theme: (typeof THEMES)[number],
+  ready: string,
+) {
+  const row = page.locator('#pr-rows .row', { hasText: `#${number}` }).first();
+  await row.getByRole('button', { name: /^Details/ }).click();
+  const dialog = page.getByRole('dialog', { name: /^Pull request details/ });
+  await dialog.waitFor();
+  await dialog.locator(ready).first().waitFor();
+  await page.waitForLoadState('networkidle');
+  // Avatars are plain <img>s: wait until each has decoded.
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('dialog[open] img')].every(
+      (i) => (i as HTMLImageElement).complete,
+    ),
+  );
+  await page.screenshot({ path: path.join(OUT_DIR, `${name}-${theme}.png`) });
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });
 }
@@ -435,6 +604,28 @@ async function main() {
     }),
   );
 
+  await page.route('**/api/pull-requests/details*', (route) => {
+    const number = Number(
+      new URL(route.request().url()).searchParams.get('number'),
+    );
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(DETAILS[number]),
+    });
+  });
+  await page.route('https://avatars.example.invalid/*', (route) => {
+    const login = path.basename(
+      new URL(route.request().url()).pathname,
+      '.svg',
+    );
+    return route.fulfill({
+      status: 200,
+      contentType: 'image/svg+xml',
+      body: AVATARS[login] ?? AVATARS['demo-user'],
+    });
+  });
+
   for (const theme of THEMES) {
     // #352: theme is a Settings-only control now, not a header toggle —
     // same real PUT tests/theme-helper.ts's setTheme uses.
@@ -459,7 +650,22 @@ async function main() {
       await page.screenshot({
         path: path.join(OUT_DIR, `${name}-${theme}.png`),
       });
-      if (name === 'pull-requests') await shootPipelineChecks(page, theme);
+      if (name === 'pull-requests') {
+        await shootPipelineChecks(page, theme);
+        // Taller than a page shot, so all three comments fit.
+        await page.setViewportSize({ width: 1280, height: 1330 });
+        await shootDialog(page, 142, 'pull-request-dialog', theme, '.markdown');
+        // The same dialog as the phone sheet, at 360px wide.
+        await page.setViewportSize({ width: 360, height: 780 });
+        await shootDialog(page, 142, 'pull-request-sheet', theme, '.markdown');
+        await page.setViewportSize({ width: 1280, height: 900 });
+      }
+      if (name === 'releases') {
+        await shootDialog(page, 143, 'release-dialog', theme, '.markdown');
+      }
+      if (name === 'bots') {
+        await shootDialog(page, 88, 'bot-dialog', theme, '.details-collapsed');
+      }
     }
   }
   await context.close();
