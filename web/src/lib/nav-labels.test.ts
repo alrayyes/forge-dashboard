@@ -42,6 +42,29 @@ describe('headerLabel', () => {
     );
   });
 
+  test('names the branches without a pipeline last, and never as zero (#1531)', () => {
+    expect(
+      headerLabel('Branches', {
+        total: 7,
+        failed: 2,
+        running: 1,
+        passed: 3,
+        none: 1,
+      }),
+    ).toBe(
+      'Branches, 7 total, 2 failing, 1 running, 3 passing, 1 without a pipeline',
+    );
+    expect(
+      headerLabel('Branches', {
+        total: 3,
+        failed: 0,
+        running: 0,
+        passed: 3,
+        none: 0,
+      }),
+    ).toBe('Branches, 3 total, 3 passing');
+  });
+
   test('large numbers are named whole', () => {
     expect(
       headerLabel('Pull requests', {
@@ -69,6 +92,18 @@ describe('tabLabel', () => {
     expect(
       tabLabel('Branches', { total: 7, failed: 2, running: 1, passed: 4 }),
     ).toBe('7 Branches, 2 failing, 1 running, 4 passing');
+  });
+
+  test('the tab says the branches without a pipeline in the same words (#1531)', () => {
+    expect(
+      tabLabel('Branches', {
+        total: 7,
+        failed: 2,
+        running: 1,
+        passed: 3,
+        none: 1,
+      }),
+    ).toBe('7 Branches, 2 failing, 1 running, 3 passing, 1 without a pipeline');
   });
 
   test('never speaks a zero', () => {

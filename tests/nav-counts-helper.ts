@@ -16,7 +16,13 @@ type Mock = {
   hidden?: boolean;
 };
 
-type Page = { total: number; running: number; failed: number; passed: number };
+type Page = {
+  total: number;
+  running: number;
+  failed: number;
+  passed: number;
+  none?: number;
+};
 
 const empty = (): Page => ({ total: 0, running: 0, failed: 0, passed: 0 });
 
@@ -51,7 +57,7 @@ export function navCountsFor(
   }
 
   return {
-    branches: { ...empty(), ...branches },
+    branches: { ...empty(), none: 0, ...branches },
     pullRequests: pages.pullRequests,
     issues: { total: openIssueCount },
     releases: pages.releases,

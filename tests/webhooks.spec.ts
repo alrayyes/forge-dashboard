@@ -206,8 +206,15 @@ test.describe('webhook-triggered live updates', () => {
         .inputValue();
       const secret = await page.locator('#webhook-secret').inputValue();
 
+      // The page opens its stream after the first poll (#1569); the response
+      // headers come once the server has subscribed it, so the webhook below
+      // can't fire before the stream is there to hear it.
+      const streamUp = page.waitForResponse((res) =>
+        res.url().includes('/api/dashboard/stream'),
+      );
       await page.goto('/issues.html');
       await expect(page.locator('#issue-rows')).toContainText('existing issue');
+      await streamUp;
 
       // The moment being reproduced: someone opens a new ticket on the
       // tracked repo. Nothing here refetches on its own — the dashboard
@@ -297,8 +304,12 @@ test.describe('webhook-triggered live updates', () => {
         .inputValue();
       const secret = await page.locator('#webhook-secret').inputValue();
 
+      const streamUp = page.waitForResponse((res) =>
+        res.url().includes('/api/dashboard/stream'),
+      );
       await page.goto('/issues.html');
       await expect(page.locator('#issue-rows')).toContainText('old issue 1');
+      await streamUp;
 
       issues.push({
         number: 31,
