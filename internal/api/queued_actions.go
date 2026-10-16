@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -9,6 +11,8 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
+
+var errCouldNotLoadQueuedActions = errors.New("could not load queued actions")
 
 // queuedActionRequest matches components.schemas.QueuedActionRequest.
 type queuedActionRequest struct {
@@ -29,16 +33,36 @@ func handleQueuedActionsList(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		items, err := deps.SettingsStore.QueuedActions(r.Context(), u.ID)
+		items, err := resolveQueuedActionsFor(r.Context(), deps, u)
 		if err != nil {
-			slog.Error("could not list queued actions", "error", err)
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not load queued actions"))
+			writeJSON(w, http.StatusInternalServerError, errorBody(err.Error()))
 
 			return
 		}
 
 		writeJSON(w, http.StatusOK, items)
 	}
+}
+
+// queuedActionsResponse is what the list_queued_actions MCP tool returns: the
+// endpoint's array under a key, since an MCP tool's structured output is an
+// object.
+type queuedActionsResponse struct {
+	QueuedActions []dashboard.QueuedAction `json:"queuedActions"`
+}
+
+// resolveQueuedActionsFor is the user's own queue, shared by the HTTP handler
+// and the MCP tool so both answer the same. The store scopes it by account.
+// The store returns an empty, never nil, slice, so nothing queued encodes as [].
+func resolveQueuedActionsFor(ctx context.Context, deps Deps, u *auth.User) ([]dashboard.QueuedAction, error) {
+	items, err := deps.SettingsStore.QueuedActions(ctx, u.ID)
+	if err != nil {
+		slog.Error("could not list queued actions", "error", err)
+
+		return nil, errCouldNotLoadQueuedActions
+	}
+
+	return items, nil
 }
 
 // handleQueuedActionsCreate implements POST /api/queued-actions (#756). It
