@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.201.1](https://github.com/alrayyes/forge-dashboard/compare/v0.201.0...v0.201.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **web:** render markdown task lists as read-only checkboxes ([#1657](https://github.com/alrayyes/forge-dashboard/issues/1657)) ([5a5153b](https://github.com/alrayyes/forge-dashboard/commit/5a5153baf292efe3c65faf4954625fd4d8065a77))
+
 ## [0.201.0](https://github.com/alrayyes/forge-dashboard/compare/v0.200.2...v0.201.0) (2026-10-16)
 
 
