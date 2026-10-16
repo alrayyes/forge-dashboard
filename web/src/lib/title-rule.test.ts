@@ -158,7 +158,8 @@ describe('a pathological pattern cannot freeze the page', () => {
 
   test('too many open-ended repeats are refused', () => {
     expect(compileTitleRule('.*.*.*b').status).toBe('complex');
-    expect(compileTitleRule('.*foo.*bar').status).toBe('ok');
+    expect(compileTitleRule('.*foo.*bar').status).toBe('complex');
+    expect(compileTitleRule('.*foo\\d{1,5}').status).toBe('ok');
   });
 
   test('long titles are cut short and each is matched once per pattern', () => {
@@ -167,7 +168,7 @@ describe('a pathological pattern cannot freeze the page', () => {
     );
     const run = () =>
       items.filter((item) =>
-        matchesFilters(item, false, {}, { hideTitleRegex: '.*a.*b' }),
+        matchesFilters(item, false, {}, { hideTitleRegex: '.*a[bc]{1,9}d' }),
       );
 
     const first = performance.now();
@@ -233,11 +234,124 @@ describe('the guard is sound for a corpus of slow patterns', () => {
       '(?<=x)y',
       '^Release v\\d{1,3}\\.\\d{1,3}$',
       '(Weekly )?report',
-      '.*foo.*bar',
+      '.*foo',
       '\\p{L}+',
     ]) {
       expect(compileTitleRule(pattern).status).toBe('ok');
     }
+  });
+});
+
+// The second review (#1598): a chain of choice points multiplies, whether the
+// groups are quantified or not.
+describe('a chain of choice points is refused or fast', () => {
+  const chain = (unit: string, n: number, tail: string) =>
+    unit.repeat(n) + tail;
+  const CHAINS: [string, string][] = [
+    [chain('(a|a)?', 18, 'b'), 'a'.repeat(18)],
+    [chain('(a|b)?', 24, 'c'), 'ab'.repeat(40)],
+    [chain('(a|a)', 20, 'b'), 'a'.repeat(20)],
+    [chain('a?', 25, 'b'), 'a'.repeat(25)],
+    [chain('(a|a)?', 22, 'b'), 'a'.repeat(22)],
+  ];
+
+  for (const [pattern, title] of CHAINS) {
+    test(`${pattern.slice(0, 30)}... is refused or fast`, () => {
+      const rule = compileTitleRule(pattern);
+      if (rule.status !== 'ok') return;
+      const started = performance.now();
+      matchesFilters(issue(title), false, {}, { hideTitleRegex: pattern });
+      expect(performance.now() - started).toBeLessThan(50);
+    });
+  }
+});
+
+// A seeded fuzz over a small grammar: any pattern the guard accepts has to
+// finish inside the budget on hostile titles. A failure prints the pattern.
+describe('fuzz: whatever the guard accepts is fast', () => {
+  function rng(seed: number) {
+    let t = seed + 0x6d2b79f5;
+    return () => {
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function generate(seed: number): string {
+    const r = rng(seed);
+    const pick = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
+    const quantifier = () => {
+      const x = r();
+      if (x < 0.5) return '';
+      return pick(['?', '*', '+', '{2}', '{3}', '{1,3}', '{2,5}', '{0,10}']);
+    };
+    const atom = (depth: number): string => {
+      if (depth < 3 && r() < 0.35) {
+        const branches = 1 + Math.floor(r() * 3);
+        const parts = Array.from({ length: branches }, () =>
+          sequence(depth + 1),
+        );
+        return `(${r() < 0.3 ? '?:' : ''}${parts.join('|')})`;
+      }
+      return pick(['a', 'a', 'b', '.', '[ab]', '[^a]', '\\w']);
+    };
+    const sequence = (depth: number): string => {
+      const n = 1 + Math.floor(r() * (depth === 0 ? 6 : 3));
+      let out = '';
+      for (let i = 0; i < n; i++) out += atom(depth) + quantifier();
+      return out;
+    };
+    return sequence(0).slice(0, MAX_TITLE_REGEX_LENGTH);
+  }
+
+  const HOSTILE = (() => {
+    const out: string[] = [];
+    for (const n of [128, 256]) {
+      out.push('a'.repeat(n));
+      out.push('ab'.repeat(n / 2));
+      out.push(`${'a'.repeat(n - 1)}c`);
+      out.push(`${'ab'.repeat(n / 2 - 1)}ac`);
+    }
+    return out;
+  })();
+
+  test('no accepted pattern is slow, over a few thousand seeds', () => {
+    const started = performance.now();
+    let accepted = 0;
+    for (let seed = 1; seed <= 3000; seed++) {
+      const pattern = generate(seed);
+      const rule = compileTitleRule(pattern);
+      if (rule.status !== 'ok') continue;
+      accepted++;
+      for (const title of HOSTILE) {
+        // A pause from the host (GC, another process) is not a slow pattern:
+        // the second timing, on a title that isn't cached, has to be slow too.
+        let took = 0;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          compileTitleRule(pattern);
+          const t0 = performance.now();
+          matchesFilters(
+            issue(attempt === 0 ? title : `${title.slice(0, -1)}d`),
+            false,
+            {},
+            {
+              hideTitleRegex: pattern,
+            },
+          );
+          took = performance.now() - t0;
+          if (took < 50) break;
+        }
+        if (took >= 50) {
+          throw new Error(
+            `accepted pattern took ${took.toFixed(0)} ms: ${pattern} on ${title.slice(0, 20)}... (seed ${seed})`,
+          );
+        }
+      }
+    }
+    // The generator has to exercise the guard, not be refused wholesale.
+    expect(accepted).toBeGreaterThan(300);
+    expect(performance.now() - started).toBeLessThan(5000);
   });
 });
 

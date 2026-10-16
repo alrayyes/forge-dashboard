@@ -424,25 +424,30 @@ export function failingFilters(
 // ---- "Hide titles matching (regex)" on the Issues page (#1593) ----
 //
 // JavaScript regular expressions have no timeout and cannot be interrupted, so
-// a pattern like (a+)+$ can freeze the tab on a title that almost matches.
-// Reading a pattern to prove it safe is always bypassable, so the guard errs
-// on the side of refusing, and a hard cap on the tested text bounds whatever
-// slips through. It is a heuristic, not a proof:
+// a pattern like (a+)+$ can freeze the tab on a title that almost matches. A
+// Worker would make the synchronous filter pipeline async, so the page bounds
+// the work instead. This is a measured heuristic, not a proof:
 //  1. The pattern is at most MAX_TITLE_REGEX_LENGTH characters.
-//  2. A quantified group (any of ? * + {n} {n,} {n,m}) that holds a quantifier
-//     or another quantified group is refused, at any depth: (a+){5}, (a?)?,
-//     ((a?){20}){20}. So is a quantified group that holds an alternation,
-//     unless the quantifier is a bare ?: (a|a)*.
-//  3. Each open-ended repeat (* + {n,}) multiplies the cost by the tested
-//     length and each {n,m} range by m-n+1; the product may not pass
-//     MAX_COST, so at most two open-ended repeats (a*a*b is quadratic).
-//  4. Only the first MAX_TITLE_TESTED characters of a title are tested.
-//  5. Each distinct title is matched once per pattern.
-// Measured on the corpus in title-rule.test.ts: every pattern is refused or
-// finishes in a few milliseconds on a 256-character title built to hurt it.
+//  2. pathCost() estimates how many ways the engine can try to match the
+//     pattern, as a product over its choice points: an alternation adds its
+//     branches, a quantifier on an atom or group with cost c allows
+//     c^min + ... + c^max ways (a plain atom counts one way per repeat count),
+//     and a sequence multiplies. N overlapping choice points are exponential
+//     in N, and so is the product. A pattern whose cost passes MAX_COST is
+//     refused.
+//  3. Only the first MAX_TITLE_TESTED characters of a title are tested.
+//  4. Each distinct title is matched once per pattern.
+// The fuzz test in title-rule.test.ts checks that whatever this accepts
+// finishes inside 50 ms on hostile 128 and 256 character titles.
 export const MAX_TITLE_REGEX_LENGTH = 200;
 const MAX_TITLE_TESTED = 128;
-const MAX_COST = MAX_TITLE_TESTED * MAX_TITLE_TESTED;
+// Calibrated with the fuzz test: at 2048 the slowest accepted pattern out of
+// 250,000 random ones took under 20 ms; at 16384 some took over 80 ms.
+const MAX_COST = 2048;
+const OVER_COST = MAX_COST + 1;
+const MAX_PATTERN_DEPTH = 8;
+// An open-ended repeat: 0 to this many, so a plain atom has MAX_TITLE_TESTED ways.
+const OPEN_REPEAT = MAX_TITLE_TESTED - 1;
 
 // invalid: the engine can't parse it. complex: it parses, but the guard won't
 // run it.
@@ -456,67 +461,90 @@ const QUANTIFIER = /^(?:[*+?]|\{(\d+)(,(\d*))?\})\??/;
 // The text after "(" that is not a capture: (?: (?= (?! (?<= (?<! (?<name>
 const GROUP_PREFIX = /^\?(?:[:=!]|<[=!]|<[^>]*>)/;
 
-type Group = { repeats: boolean; alternates: boolean };
+const times = (a: number, b: number) => Math.min(OVER_COST, a * b);
 
-// True when the pattern is too expensive to run safely (rules 2 and 3 above).
-function isTooComplex(pattern: string): boolean {
-  const stack: Group[] = [{ repeats: false, alternates: false }];
-  let cost = 1;
+// Ways to repeat something that has `inner` ways of matching, min to max times.
+function repeatCost(inner: number, min: number, max: number): number {
+  const top = Math.min(max, OPEN_REPEAT);
+  if (inner <= 1) return Math.max(1, top - min + 1);
+  let total = 0;
+  let power = 1;
+  for (let k = 1; k <= top && power < OVER_COST; k++) {
+    power = times(power, inner);
+    if (k >= min) total = Math.min(OVER_COST, total + power);
+  }
+  if (min === 0) total = Math.min(OVER_COST, total + 1);
+  return power >= OVER_COST ? OVER_COST : total;
+}
+
+// Estimated ways to match `pattern` from index `start`, up to the closing
+// bracket of the current group; `end` is where it stopped.
+function pathCost(pattern: string): number {
   let i = 0;
-  while (i < pattern.length) {
+
+  function alternation(depth: number): number {
+    if (depth > MAX_PATTERN_DEPTH) return OVER_COST;
+    let total = 0;
+    let branch = 1;
+    while (i < pattern.length && pattern[i] !== ')') {
+      if (pattern[i] === '|') {
+        total = Math.min(OVER_COST, total + branch);
+        branch = 1;
+        i++;
+        continue;
+      }
+      branch = times(branch, term(depth));
+    }
+    return Math.min(OVER_COST, total + branch);
+  }
+
+  function atom(depth: number): number {
     const c = pattern[i];
-    let closed: Group | null = null;
     if (c === '(') {
-      stack.push({ repeats: false, alternates: false });
       i++;
       const prefix = GROUP_PREFIX.exec(pattern.slice(i));
       if (prefix) i += prefix[0].length;
-      continue;
+      const inner = alternation(depth + 1);
+      i++; // the ")"
+      return inner;
     }
-    if (c === ')') {
-      if (stack.length > 1) closed = stack.pop() ?? null;
-      i++;
-    } else if (c === '|') {
-      stack[stack.length - 1].alternates = true;
-      i++;
-      continue;
-    } else if (c === '^' || c === '$') {
-      i++;
-      continue;
-    } else if (c === '[') {
+    if (c === '[') {
       i++;
       while (i < pattern.length && pattern[i] !== ']')
         i += pattern[i] === '\\' ? 2 : 1;
       i++;
-    } else {
-      i += c === '\\' ? 2 : 1;
+      return 1;
     }
-    // An atom (or a closed group) just ended; is it quantified?
-    const top = stack[stack.length - 1];
-    const q = QUANTIFIER.exec(pattern.slice(i));
-    if (!q) {
-      if (closed) {
-        top.repeats ||= closed.repeats;
-        top.alternates ||= closed.alternates;
-      }
-      continue;
+    if (c === '\\') {
+      // A back reference may re-match what a repeat matched.
+      const backReference = /[1-9k]/.test(pattern[i + 1] ?? '');
+      i += 2;
+      return backReference ? MAX_TITLE_TESTED : 1;
     }
-    i += q[0].length;
-    if (closed && (closed.repeats || (closed.alternates && q[0][0] !== '?')))
-      return true;
-    top.repeats = true;
-    const first = q[0][0];
-    if (first === '*' || first === '+') cost *= MAX_TITLE_TESTED;
-    else if (first === '{') {
-      const min = Number(q[1]);
-      if (q[2] !== undefined) {
-        const max = q[3] === '' ? Infinity : Number(q[3]);
-        cost *= Math.min(MAX_TITLE_TESTED, max - min + 1);
-      }
-    }
-    if (cost > MAX_COST) return true;
+    i++;
+    return 1;
   }
-  return false;
+
+  function term(depth: number): number {
+    const inner = atom(depth);
+    const q = QUANTIFIER.exec(pattern.slice(i));
+    if (!q) return inner;
+    i += q[0].length;
+    const first = q[0][0];
+    if (first === '*') return repeatCost(inner, 0, OPEN_REPEAT);
+    if (first === '+') return repeatCost(inner, 1, OPEN_REPEAT);
+    if (first === '?') return repeatCost(inner, 0, 1);
+    const min = Number(q[1]);
+    const max =
+      q[2] === undefined ? min : q[3] === '' ? OPEN_REPEAT : Number(q[3]);
+    return repeatCost(inner, min, max);
+  }
+
+  return alternation(0);
+}
+
+function isTooComplex(pattern: string): boolean {
+  return pathCost(pattern) > MAX_COST;
 }
 
 // Compiled once per pattern text: typing and every re-render ask the same

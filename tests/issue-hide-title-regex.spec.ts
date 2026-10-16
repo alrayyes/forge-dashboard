@@ -301,6 +301,10 @@ test.describe('hide titles matching a pattern (#1593)', () => {
             document.getElementById('issue-hide-title-note') as Node,
           ) ?? 0,
     );
+    const count = await page.locator('#issue-count').boundingBox();
+    expect((err?.y ?? 0) + (err?.height ?? 0)).toBeLessThanOrEqual(
+      (count?.y ?? 0) + 1,
+    );
     // 4 is DOCUMENT_POSITION_FOLLOWING: the note comes after the error.
     expect(order & 4).toBeTruthy();
   });

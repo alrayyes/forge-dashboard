@@ -1080,12 +1080,14 @@ choices leave out what it hides. The pattern is saved with the other filters,
 and **Clear filters** empties it. A pattern the page can't use is ignored and
 the list stays as it was. A syntax error shows "That pattern isn't valid." A
 pattern that parses but could be slow shows "That pattern is too complex to
-check safely." That covers a pattern over 200 characters, more than two
-open-ended repeats (`*`, `+`, `{2,}`), and a repeated group that holds a
-repeat or an alternative, such as `(a+)+` or `(a+){5}`. Those limits, and
-testing only the first 128 characters of a title, keep a pathological pattern
-from freezing the page. They are a safety margin rather than a proof. The rule
-applies to the Issues board only; Insights charts ignore it.
+check safely. Try a simpler one." The page estimates how many ways the pattern
+can match, multiplying every alternative and repeat, and refuses one that is
+too many: more than 200 characters, more than one open-ended repeat (`*`, `+`,
+`{2,}`) next to anything sizeable, or repeated and chained groups such as
+`(a+)+`, `(a+){5}` or `(a|b)?` written twenty times in a row. It tests only
+the first 128 characters of a title. This is a safety margin tested by
+fuzzing, not a proof. The rule applies to the Issues board only; Insights
+charts ignore it.
 
 The repo, author and label choices on the pull request, release, bot and issue
 pages and on Insights come from what the page can show: the items every other

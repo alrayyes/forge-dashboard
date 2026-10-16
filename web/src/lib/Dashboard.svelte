@@ -7312,9 +7312,9 @@
               placeholder="^Weekly report"
             />
           </label>
+          <p class="rule-error" id="issue-hide-title-regex-error" hidden></p>
           <span class="count" id="issue-count">&ndash;</span>
         </div>
-        <p class="rule-error" id="issue-hide-title-regex-error" hidden></p>
         <p
           class="rule-note"
           id="issue-hide-title-note"
