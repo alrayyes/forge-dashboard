@@ -3,6 +3,10 @@
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { formatTime } from "#lib/time.svelte.js";
+  import { firstRefreshPending } from "#lib/first-refresh.js";
+  import { firstRefresh } from "#lib/first-refresh.svelte.js";
+  import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
+  import ListSkeleton from "#lib/ListSkeleton.svelte";
   import {
     ago,
     applyFilter,
@@ -31,6 +35,9 @@
   let filter = $state<MainBranchFilter>({ ...DEFAULT_FILTER });
   let expanded = $state<Record<string, boolean>>({});
 
+  // The server's first refresh after a restart has not finished (#1672): the
+  // list is empty because nothing is read yet, not because nothing is tracked.
+  const pending = $derived(firstRefreshPending(firstRefresh.done));
   const branches = $derived(data?.branches ?? []);
   const visible = $derived(applyFilter(branches, filter));
   const perForge = $derived(forgeCounts(branches));
@@ -441,7 +448,12 @@
     <h1>Main branches</h1>
   </div>
 
-  {#if loading}
+  {#if pending}
+    <FirstRefreshStatus {pending} />
+    <div class="list-region" aria-busy="true">
+      <ListSkeleton />
+    </div>
+  {:else if loading}
     <p class="mb-loading" role="status">Loading the main branches…</p>
   {:else if failed}
     <div class="mb-note" role="alert">
