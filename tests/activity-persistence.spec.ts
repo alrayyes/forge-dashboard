@@ -1,25 +1,14 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #724: the Activity list outlives a reload, for the life of the tab. A
 // request still queued comes back from the server's own updateRequest (#982),
 // so only finished entries are stored here.
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `activity-persist-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Activity User');
-}
+// The tests mock /api/dashboard and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 function makePR(number: number) {
   return {
@@ -84,7 +73,8 @@ async function setup(page: Page) {
     recorded.add(number);
     return route.fulfill({ status: 202 });
   });
-  await page.reload();
+  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
+  await page.goto('/pull-requests.html');
 }
 
 const rowFor = (page: Page, n: number): Locator =>
@@ -100,10 +90,6 @@ async function openActivity(page: Page) {
 }
 
 test.describe('the Activity list across a reload', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   test('finished and queued entries are still listed after a reload, until Clear finished', async ({
     page,
   }) => {
