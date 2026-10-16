@@ -83,7 +83,7 @@ test.describe('Releases page (#1107)', () => {
     const row = rows.first();
     await expect(row).toContainText('acme/ingress');
     await expect(row).toContainText('v0.74.2');
-    await expect(row.getByRole('button', { name: /Failing/ })).toBeVisible();
+    await expect(row.getByRole('button', { name: /Failed/ })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Releases' })).toBeVisible();
     await expect(page).toHaveTitle(/Releases/);
   });

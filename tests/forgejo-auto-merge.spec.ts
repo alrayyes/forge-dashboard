@@ -146,7 +146,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await page.reload();
 
     const row = page.locator('#pr-rows .row').first();
-    const pill = row.locator('.merge-pill.auto-merge');
+    const pill = row.locator('.attr-chip.auto-merge');
     await expect(pill).toContainText('Auto-merge on');
     await expect(pill).toContainText('Managed by Forge Dashboard');
     // The waiting chip says it in a word, the server's sentence is its hint,
@@ -216,7 +216,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Disarm auto-merge' }).click();
 
-    await expect(row.locator('.merge-pill.auto-merge')).toHaveCount(0);
+    await expect(row.locator('.attr-chip.auto-merge')).toHaveCount(0);
     expect(posted).toEqual({
       forge: 'forgejo',
       fullName: 'alrayyes/dotfiles',
@@ -274,7 +274,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     );
     await page.reload();
     await expect(
-      page.locator('#pr-rows .row').first().locator('.merge-pill.auto-merge'),
+      page.locator('#pr-rows .row').first().locator('.attr-chip.auto-merge'),
     ).toBeVisible();
 
     const results = await new AxeBuilder({ page })

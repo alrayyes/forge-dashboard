@@ -382,12 +382,25 @@ and the title is what gets cut. The server works out stacks from the branches
 (`stack`, `stackedOn` and `stackChildren` on each pull request).
 
 On GitHub, a pull request whose workflow runs are held until someone approves
-them (`awaitingWorkflowApproval`) doesn't read "Failing". The CI pill says
+them (`awaitingWorkflowApproval`) doesn't read "Failed". The CI pill says
 "Waiting for workflow approval" and still opens the pipeline panel. An
 "Approve on GitHub" link beside it opens the pull request's checks page in a new
 tab, where GitHub's own button approves the runs. The dashboard doesn't approve
 anything itself. These runs still count as failing CI, so the Failing CI quick
 filter keeps matching them.
+
+A pull request row draws what it shows as three tiers (#1563). A **state**
+(`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
+CI slot: one pill of a fixed size with a glyph and a word, so a finished run
+turns into its result in the same place and the row doesn't move. The glyphs
+are the ones in the pipeline panel, and `Failed` is the heaviest weight. The
+running glyph spins, and holds still under reduced motion. An **attribute** is
+something set on the pull request that holds until someone changes it: `Auto-merge`
+on, `Draft`, `Bot` (a Dependabot or Renovate pull request) and `Out of date`.
+Attributes are quiet outlined chips with a small icon and no fill or motion,
+in a cluster beside the CI slot, never inside it. Conflicts and Blocked stay
+as merge pills, since they say what the merge needs. On a phone the CI slot sits
+at the top right and the attributes take a line of their own.
 
 Every open pull request row has a Merge button. It's clickable when the forge
 reports the merge is actually possible. Otherwise it stays on the row, locked
@@ -951,26 +964,28 @@ that change is ignored. With no bot pull requests open the page says there is
 nothing to review.
 
 Every item in the navigation shows how many items its page lists, and how many
-of them are failing. It is one pill: a neutral **total**, then the counts above
-zero, each with its own glyph so colour is never the only signal. Branches
-counts default branches. Pull requests, Releases and Bots count their pull
-requests (without the ones that belong to another of the three). All four show
-how many are failing (red), running (amber, a spinner, or a still clock under
-reduced motion) and passing (green), in that order. A pull request with no
-checks is in the total only, so its numbers needn't add up. Branches adds a
-fifth, neutral count with a dashed circle for the branches with no pipeline, so
-its numbers do add up. A zero is never drawn, and the link's name
-says the same in words: "Pull requests, 15 total, 2 failing, 3 running, 10
-passing", and "Branches, 7 total, 2 failing, 1 running, 3 passing, 1 without a
-pipeline". On a phone the total sits on its own line above the counts, and with
-three-digit numbers each count takes a line, so the busy tabs grow to about
-110px. Issues counts open issues, without Renovate's Dependency Dashboard, and
-has no failed count. The server works the numbers out from the same lists the
-pages show (`navCounts` on `/api/dashboard`), so a page agrees with its icon,
-and a hidden pull request is in neither. The dashboard pages set them from each
-snapshot. The other signed-in pages (Branches, Insights, Settings and the rest)
-load them and ask again every 30 seconds while the tab is visible, so a refresh
-or a webhook changes them without a reload.
+of them are failing. It is one pill: a neutral **total**, then the outcomes,
+failing (red) and passing (green), then a thin divider and the state, running
+(amber, a spinner, or a still clock under reduced motion). Each count has its
+own glyph so colour is never the only signal. Branches counts default
+branches. Pull requests, Releases and Bots count their pull requests (without
+the ones that belong to another of the three). All four show those three
+counts, in that order. The divider appears only when a running count follows an
+outcome, and not on a phone. A pull request with no checks is in the total
+only, so its numbers needn't add up. Branches adds a fifth, neutral count with
+a dashed circle for the branches with no pipeline, last, so its numbers do add
+up. A zero is never drawn, and the link's name says the same in words, in the
+same order: "Pull requests, 15 total, 2 failing, 10 passing, 3 running", and
+"Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline". On
+a phone the total sits on its own line above the counts, and with three-digit
+numbers each count takes a line, so the busy tabs grow to about 110px. Issues
+counts open issues, without Renovate's Dependency Dashboard, and has no failed
+count. The server works the numbers out from the same lists the pages show
+(`navCounts` on `/api/dashboard`), so a page agrees with its icon, and a hidden
+pull request is in neither. The dashboard pages set them from each snapshot.
+The other signed-in pages (Branches, Insights, Settings and the rest) load them
+and ask again every 30 seconds while the tab is visible, so a refresh or a
+webhook changes them without a reload.
 
 A zero is never drawn: a page with nothing in it has no total, and nothing
 failing means no red pill. A page with nothing to show leaves the navigation:
@@ -988,8 +1003,8 @@ is a quiet line under the Insights heading. A page with nothing open says so,
 even when its nav item is hidden.
 
 On a phone the numbers sit above each tab's icon. An item's accessible name says
-both in words: "Branches, 12 total, 3 failing, 1 running, 8 passing" on the
-header icon, "12 Branches, 3 failing, 1 running, 8 passing" on the tab, which
+both in words: "Branches, 12 total, 3 failing, 8 passing, 1 running" on the
+header icon, "12 Branches, 3 failing, 8 passing, 1 running" on the tab, which
 shows its numbers before its word.
 
 ## Main branches
