@@ -166,10 +166,17 @@
 
   // skipTitleSuggestions: set while someone types in the title box, so the
   // suggestion list isn't rebuilt under them (#1427).
-  function updateSharedFilterOptions(skipTitleSuggestions = false) {
+  // holdPicks: the page is reconciling its saved picks with what it offers (the
+  // first snapshot, the server's copy), so one it does not offer is cleared
+  // here only and stays in the saved copy for the page that does (#1620).
+  function updateSharedFilterOptions(
+    skipTitleSuggestions = false,
+    holdPicks = !sharedControlsRestored,
+  ) {
     const staleRepo = Filters.populateRepoSelect(
       sharedRepoSelect ?? null,
       optionPool("repo"),
+      sharedState.shared.repo,
     );
     const staleAuthor = Filters.populateSelect(
       sharedAuthorSelect ?? null,
@@ -196,10 +203,19 @@
         new Set(optionPool("forge").map((item) => item.forge)),
         sharedState.shared.forge ?? "",
       );
-    if (staleRepo) sharedState.shared.repo = "";
-    if (staleAuthor) sharedState.shared.author = "";
-    if (staleLabel) sharedState.shared.label = "";
-    if (staleRepo || staleAuthor || staleLabel) Filters.saveState(sharedState);
+    const clearPick = (stale: boolean, key: string) => {
+      if (!stale) return;
+      if (holdPicks) Filters.holdStale(sharedState, "shared", key);
+      else {
+        Filters.releaseHeld("shared", key);
+        sharedState.shared[key] = "";
+      }
+    };
+    clearPick(staleRepo, "repo");
+    clearPick(staleAuthor, "author");
+    clearPick(staleLabel, "label");
+    if (!holdPicks && (staleRepo || staleAuthor || staleLabel))
+      Filters.saveState(sharedState);
   }
 
   function syncSharedControlsToState() {
@@ -237,6 +253,7 @@
               ? c.value
               : c.value.trim().toLowerCase();
           sharedState.shared[col] = value;
+          Filters.releaseHeld("shared", col);
           // Each pick narrows what the others can offer (#1427).
           if (
             col === "forge" ||
@@ -276,6 +293,7 @@
 
   onMount(() => {
     sharedState = Filters.loadState();
+    Filters.releaseAllHeld();
     hideDependencyDashboard = sharedState.issue.hideDependencyDashboard === "1";
     wireFilterBar();
 
@@ -289,7 +307,7 @@
       hideDependencyDashboard =
         sharedState.issue.hideDependencyDashboard === "1";
       if (sharedControlsRestored) {
-        updateSharedFilterOptions();
+        updateSharedFilterOptions(false, true);
         syncSharedControlsToState();
       }
     });

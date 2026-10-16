@@ -855,6 +855,20 @@ checks reported would read as passed. A required check that is queued or
 running counts as not finished. The server looks the required checks up only
 when the combined status says success and GitHub still blocks the pull request.
 
+Reading which checks are required needs admin on the repository for classic
+branch protection. Without it, the server can't tell a required check that
+hasn't started from one that passed, so it falls back to what GitHub reports on
+the pull request itself. A pull request whose combined status is success and
+whose merge state is `BLOCKED`, that isn't a draft and has no review
+outstanding (`REVIEW_REQUIRED` or `CHANGES_REQUESTED`), reads pending: a
+required check is the only thing left that can block it. This needs no extra
+request. Where the required checks can be read, they decide and the fallback
+isn't used. The limit: GitHub also reports `BLOCKED` for a merge queue, code
+owners whose review shows no decision, and unresolved conversations. Such a
+pull request reads pending, not passed, until GitHub stops blocking it. The
+next refresh asks again, so the pill follows GitHub as soon as the merge state
+changes.
+
 Just after a push, a response from GitHub can briefly show the new head beside
 the finished checks of the previous commit. The server reads the id of the
 commit the checks belong to, and when it isn't the head of the pull request the
@@ -889,10 +903,10 @@ status checks and its rulesets are both read, and Forgejo's
 permission than listing checks (admin on GitHub's classic rules and on
 Forgejo), so with a token that can't, or for a check the dashboard can't
 match to a protection entry, the check lands under `Status unknown`
-rather than being guessed advisory. A Forgejo Actions job is only marked
-required when a pattern matches its job name or its workflow-file
-context; it is never marked advisory. If nothing is known for any check,
-the panel stays the flat list.
+rather than being guessed advisory (the pill has its own fallback, above). A
+Forgejo Actions job is only marked required when a pattern matches its job
+name or its workflow-file context; it is never marked advisory. If nothing is
+known for any check, the panel stays the flat list.
 
 Each check's state has its own glyph inside a tinted pill, so states differ
 by shape and word, not colour alone. Passed is a check in a circle, Failed and
@@ -1033,22 +1047,26 @@ A repo you ignore for pull requests is left out, here and in the badge.
 The pull request list is at `/pull-requests.html`. The page used to live at
 `/main-branches.html`, which now redirects to `/`.
 
-Each row shows the status as an
-icon and a word (Failed, Running, Passed or No pipeline), the repo, the
-branch, the short SHA, subject and author of the newest commit, how long ago the
-run finished and how long it ran. A failed row names its failing jobs and
-expands to list them. **View run** opens the run on the forge. Rows come
-latest commit first, in the order the server sends them.
+Each row shows the status top right, in the same slot the pull request rows use:
+a running branch is a state (Running, an amber spinner, a still clock under
+reduced motion) and a finished one an outcome (Failed or Passed), with the same
+glyphs and colours, so a run turns into its result without the row moving. A
+branch with no pipeline is neither, so it gets a quiet outlined "No pipeline"
+note instead. The row also shows the repo, the branch, the short SHA, subject
+and author of the newest commit, how long ago the run finished and how long it
+ran. A failed row names its failing jobs and expands to list them. **View run**
+opens the run on the forge. Rows come latest commit first, in the order the
+server sends them.
 
-The pills (All, Failing, Passing, Running, No pipeline) carry the server's
-counts. A pill, and each forge in the toggle, is offered only when a row would
-show under it, given the search and the other pill, so none leads to an empty
-list; the one that is active always stays, so it can be cleared. A forge toggle
-and a search box narrow the list further; search
-matches the repo, branch, commit, author and failing job names. The filter is
-saved in a cookie of its own, `forge-board-main-branches`, and is still set
-after a reload. It is not part of the shared filter cookie, which holds
-pull request and issue state.
+The pills (All, Failing, Passing, Running, No pipeline) keep their filter names,
+like the quick pills on the pull request board, and carry the server's counts. A
+pill, and each forge in the toggle, is offered only when a row would show under
+it, given the search and the other pill, so none leads to an empty list; the one
+that is active always stays, so it can be cleared. A forge toggle and a search
+box narrow the list further; search matches the repo, branch, commit, author and
+failing job names. The filter is saved in a cookie of its own,
+`forge-board-main-branches`, and is still set after a reload. It is not part of
+the shared filter cookie, which holds pull request and issue state.
 
 Rows from a forge that can't be read, or whose rate limit is spent, keep their
 last known status, are marked **stale**, and sit under one banner. The page
@@ -1180,6 +1198,18 @@ and saved with your other filters, so a filter set on one page is still set on
 the other. The pull-request-only controls (CI status, the quick filters for
 failing, ready, needs-review and conflicting pull requests, Show drafts)
 are not on the issues page.
+
+Filters are remembered per account, in a cookie and in a copy on the server,
+so they follow you to another browser. The repo, author, label, created,
+updated and CI status choices each page offers come from its own list. When
+you open a page that doesn't offer a saved choice (an author who wrote no
+pull request, on the pull requests page), that page shows its list without
+it and leaves the saved choice alone, so it is still set when you go back to
+the page that does. Changing that control on the page ends the saved choice.
+What is deliberately not remembered: the page you were on and the page size,
+the open Filters sheet on a phone, held updates, open menus and pop-ups, and
+the expanded rows on Branches. Branches keeps its own filter in a cookie
+only, so it doesn't follow you to another browser.
 
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows is held behind an "N updates available" bar while you're scrolled

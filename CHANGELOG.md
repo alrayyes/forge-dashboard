@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.199.0](https://github.com/alrayyes/forge-dashboard/compare/v0.198.1...v0.199.0) (2026-10-16)
+
+
+### Features
+
+* **web:** draw the Branches status as state, outcome and a quiet note ([#1628](https://github.com/alrayyes/forge-dashboard/issues/1628)) ([fec2644](https://github.com/alrayyes/forge-dashboard/commit/fec264492483059e2d8e0759bf6f4f6ac02cc5e4))
+
+
+### Bug Fixes
+
+* **github:** read CI pending when blocked and required checks are unreadable ([#1640](https://github.com/alrayyes/forge-dashboard/issues/1640)) ([7dd9442](https://github.com/alrayyes/forge-dashboard/commit/7dd9442e5b3adec21d83e4f9eeda6b4d788fc33d))
+
+## [0.198.1](https://github.com/alrayyes/forge-dashboard/compare/v0.198.0...v0.198.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **web:** keep a saved pick the current page does not offer ([#1631](https://github.com/alrayyes/forge-dashboard/issues/1631)) ([fbeed07](https://github.com/alrayyes/forge-dashboard/commit/fbeed0710a1607da6aaf27178b6b40351db22137))
+
 ## [0.198.0](https://github.com/alrayyes/forge-dashboard/compare/v0.197.1...v0.198.0) (2026-10-16)
 
 

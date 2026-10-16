@@ -37,6 +37,38 @@ if grep -Eq 'fromJSON\(steps\.release\.outputs\.outputs\)' "$wf"; then
   fail "outputs are read through the wrapper's JSON; read them directly from the step"
 fi
 
+# A latest release whose job died after release-please created it (#1587)
+# can only be completed by building its artefacts again from the tag, and the
+# workflow has no other trigger than a push to main. So it takes a manual
+# dispatch with the tag, checks that tag is a release tag that exists before
+# anything is built, and checks out that tag, never the branch.
+grep -Eq '^\s+workflow_dispatch:' "$wf" || fail "$src has no workflow_dispatch, so a release that stalled cannot be completed"
+grep -Eq '^\s+tag:' "$wf" || fail "$src's workflow_dispatch takes no tag input"
+grep -Eq 'github\.event_name == .workflow_dispatch.' "$wf" || fail "$src's artefacts job does not run for a dispatch"
+grep -Eq 'ref: (refs/tags/)?\$\{\{ .*inputs\.tag' "$wf" || fail "$src's artefacts checkout does not use the dispatched tag"
+grep -Eq '\^v\[0-9\]' "$wf" || fail "$src does not check the dispatched tag looks like vX.Y.Z"
+grep -Eq 'gh release view' "$wf" || fail "$src does not check the release exists before building, so a dispatch could create a second one"
+# goreleaser pushes the image and the latest manifest before it uploads assets,
+# so dispatching an OLDER release would move ghcr.io's latest back to it and
+# then fail on already_exists. Only the latest release, with no assets yet, is a
+# half-published release this path may repair.
+# The guard step, exactly: it runs on a dispatch only, and each refusal is a
+# real `if` that ends in `exit 1`. A loose grep passes when a comparison is
+# replaced by `if false`, so these are whole-line matches inside the step.
+guard=$(awk '/- name: the dispatched tag is the latest release, and has no assets yet/ {on=1; next} on && /^      - uses:/ {exit} on' "$wf")
+step_has() { printf '%s\n' "$guard" | grep -Fxq -- "$1"; }
+step_has "        if: github.event_name == 'workflow_dispatch'" || fail "$src's guard step does not run on a dispatch only"
+step_has '          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)' || fail "$src does not read the latest release's tag"
+step_has '          if [ "$latest" != "$TAG" ]; then' || fail "$src does not refuse a tag that is not the latest release"
+step_has "          assets=\$(gh release view \"\$TAG\" --repo \"\$GITHUB_REPOSITORY\" --json assets --jq '.assets | length')" || fail "$src does not count the release's assets"
+step_has '          if [ "$assets" != 0 ]; then' || fail "$src does not refuse a release that already has assets"
+[ "$(printf '%s\n' "$guard" | grep -Fxc '            exit 1')" -ge 3 ] || fail "$src's guard step does not exit 1 on each refusal"
+# A bare tag name resolves to a branch of the same name first.
+grep -Eq 'ref: refs/tags/' "$wf" || fail "$src's artefacts checkout does not use refs/tags/<tag>"
+# A dispatch cuts no release: release-please runs on a push only.
+rp=$(awk '/^  release-please:/ {on=1; next} on && /^  [a-z-]+:/ {exit} on' "$wf")
+echo "$rp" | grep -Eq "if: github\.event_name == 'push'" || fail "$src's release-please job is not push-only, so a dispatch could cut a release"
+
 # release-please opens its pull request and adds `autorelease: pending` in a
 # second API call, so the `opened` run sees no label and its job skips. Only a
 # `labeled` run can see the label, so the trigger has to list that type (#1576).

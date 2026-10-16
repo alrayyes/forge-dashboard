@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
     ago,
@@ -16,6 +17,7 @@
     type MainBranches,
     type MainBranchFilter,
     saveFilter,
+    CI_SLOT,
     STATUS_LABEL,
     type StatusPill,
     type ForgeFilter,
@@ -293,19 +295,6 @@
       color: var(--ink-2);
       white-space: nowrap;
     }
-    .mb-status[data-status="failed"] {
-      background: var(--critical-bg);
-      color: var(--critical);
-    }
-    .mb-status[data-status="passed"] {
-      background: var(--good-bg);
-      color: var(--good);
-    }
-    .mb-status[data-status="running"] {
-      background: var(--surface-sunken);
-      color: var(--ink);
-      border: 1px solid var(--accent);
-    }
     .mb-stale {
       background: var(--warning-bg);
       color: var(--warning);
@@ -381,18 +370,30 @@
     .mb-empty p {
       margin: 0 0 12px;
     }
-    .mb-spin {
-      animation: mb-spin 1.2s linear infinite;
+    /* The CI slot (#1563) sits top right; its look comes from style.css. */
+    .mb-row .ci-slot {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: start;
+      justify-self: end;
     }
-    @keyframes mb-spin {
-      to {
-        transform: rotate(360deg);
-      }
+    .mb-row .mb-main {
+      grid-column: 1;
+      grid-row: 1 / span 2;
     }
-    @media (prefers-reduced-motion: reduce) {
-      .mb-spin {
-        animation: none;
-      }
+    .mb-row .mb-side {
+      grid-column: 2;
+      grid-row: 2;
+    }
+    .mb-row .ci-pill {
+      cursor: default;
+    }
+    /* Right edge on the slot's right edge, as tall as the pills beside it, so
+       no state moves the row. */
+    .mb-nopipe {
+      margin-left: auto;
+      min-height: 24px;
+      align-items: center;
     }
     @media (max-width: 420px) {
       .mb-wrap {
@@ -412,8 +413,14 @@
         flex: none;
       }
       .mb-row {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) auto;
         padding: 12px;
+      }
+      .mb-row .mb-main {
+        grid-row: 1;
+      }
+      .mb-row .mb-side {
+        grid-column: 1 / -1;
       }
       .mb-side {
         align-items: stretch;
@@ -527,39 +534,43 @@
               data-testid="main-branch-row"
               data-status={b.status}
             >
-              <div class="mb-main">
-                <div class="mb-top">
-                  <span class="mb-chip mb-status" data-status={b.status}>
-                    <svg
-                      class:mb-spin={b.status === "running"}
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.4"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      {#if b.status === "failed"}
-                        <circle cx="12" cy="12" r="10" /><path
-                          d="m15 9-6 6"
-                        /><path d="m9 9 6 6" />
-                      {:else if b.status === "passed"}
-                        <circle cx="12" cy="12" r="10" /><path
-                          d="m9 12 2 2 4-4"
-                        />
-                      {:else if b.status === "running"}
-                        <path d="M21 12a9 9 0 1 1-6.2-8.55" /><path
-                          d="M21 3v6h-6"
-                        />
-                      {:else}
-                        <circle cx="12" cy="12" r="10" stroke-dasharray="3 4" />
-                      {/if}
-                    </svg>
+              <div class="ci-slot mb-status" data-status={b.status}>
+                {#if CI_SLOT[b.status]}
+                  {@const slot = CI_SLOT[b.status]!}
+                  <span class="ci-pill {slot.cls}">
+                    {#each CHECK_GLYPHS[slot.glyphs] as g (g.name)}
+                      <svg
+                        viewBox="0 0 16 16"
+                        class="check-glyph check-glyph-{g.name}"
+                        data-glyph={g.name}
+                        aria-hidden="true"
+                        focusable="false"
+                      >
+                        <!-- nosemgrep: svelte-at-html -- g.body comes only from the static CHECK_GLYPHS constant in #lib/check-glyphs, never from forge data -->
+                        {@html g.body}
+                      </svg>
+                    {/each}
                     {STATUS_LABEL[b.status]}
                   </span>
+                {:else}
+                  <span class="attr-chip mb-nopipe">
+                    <svg
+                      viewBox="0 0 16 16"
+                      class="attr-icon"
+                      aria-hidden="true"
+                      focusable="false"
+                      ><circle
+                        cx="8"
+                        cy="8"
+                        r="6.25"
+                        stroke-dasharray="2 2"
+                      /></svg
+                    >{STATUS_LABEL[b.status]}
+                  </span>
+                {/if}
+              </div>
+              <div class="mb-main">
+                <div class="mb-top">
                   <a
                     class="mb-repo"
                     href={b.url}
