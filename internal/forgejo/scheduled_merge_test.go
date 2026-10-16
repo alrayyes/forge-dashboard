@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -52,8 +51,6 @@ func timelineServer(t *testing.T, prs []map[string]any, timelines map[int][]map[
 
 				return
 			}
-			// Forgejo says how many rows a list has; with it, one page is one request.
-			w.Header().Set("X-Total-Count", strconv.Itoa(len(events)))
 			writeJSON(t, w, events)
 		})
 	}
@@ -171,11 +168,12 @@ func TestListOpenPullRequests_ReadsAtMostEightTimelinesAndRotatesThroughTheRest(
 	client := forgejo.NewClient(srv.URL, "test-token", "")
 	first, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
 	require.NoError(t, err)
-	assert.Equal(t, int32(8), calls.Load(), "the first refresh reads the cap and no more")
+	// Each timeline is two requests: its page, and the empty page that ends the read.
+	assert.Equal(t, int32(16), calls.Load(), "the first refresh reads the cap of eight timelines and no more")
 
 	second, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
 	require.NoError(t, err)
-	assert.Equal(t, int32(16), calls.Load(), "the next refresh reads the four it skipped first, then the oldest four")
+	assert.Equal(t, int32(32), calls.Load(), "the next refresh reads the four it skipped first, then the oldest four")
 
 	known := func(list []dashboard.PullRequest) int {
 		n := 0
@@ -218,7 +216,6 @@ func TestListOpenPullRequests_StopsReadingTheTimelineOfAPullRequestThatClosed(t 
 
 			return
 		}
-		w.Header().Set("X-Total-Count", "1")
 		writeJSON(t, w, []map[string]any{timelineEvent("pull_scheduled_merge")})
 	})
 	srv := httptest.NewServer(mux)
@@ -232,7 +229,7 @@ func TestListOpenPullRequests_StopsReadingTheTimelineOfAPullRequestThatClosed(t 
 	mu.Unlock()
 	_, err = client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
 	require.NoError(t, err)
-	assert.Equal(t, int32(1), calls.Load())
+	assert.Equal(t, int32(2), calls.Load(), "one read (a page and the empty one), and none once the pull request closed")
 }
 
 func TestDisableAutoMerge_CancelsTheScheduleOnTheForge(t *testing.T) {

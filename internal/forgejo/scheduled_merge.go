@@ -7,11 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
-	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -68,24 +66,16 @@ func (c *Client) scheduledMerge(ctx context.Context, owner, name string, number 
 		}
 		// A short page is not the last one: Forgejo pages in the database query
 		// and then drops rows it won't show (review line comments, references it
-		// can't read), and the cancel that matters sits on a later page. Stop on
-		// an empty page, or once the forge's own row count has been read.
-		if len(events) == 0 || timelineExhausted(resp, page) {
+		// can't read), and the cancel that matters sits on a later page.
+		// X-Total-Count is the count after that drop, so it can't say either.
+		// Only an empty page ends the read (and maxTimelinePages bounds it): one
+		// extra request per pull request read, the price of not missing a cancel.
+		if len(events) == 0 {
 			break
 		}
 	}
 
 	return scheduled, nil
-}
-
-// timelineExhausted reports whether page was the last of a timeline whose
-// response says how many rows exist (X-Total-Count counts them before the rows
-// Forgejo hides are dropped, so it never ends the read early). Without the
-// header, only an empty page ends it.
-func timelineExhausted(resp *gitea.Response, page int) bool {
-	total, err := strconv.Atoi(resp.Header.Get("X-Total-Count"))
-
-	return err == nil && page*pageLimit >= total
 }
 
 // applyScheduledMerges sets AutoMergeEnabled on owner/name's pull requests from
