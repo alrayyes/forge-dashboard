@@ -458,10 +458,11 @@ header,
   outline-offset: -2px;
 }
 
-/* What each nav item shows (#1315, #1439): one pill, a neutral total, then
-   the counts above zero in triage order, failed, running, passed. Each count
-   has a glyph as well as a number, so colour is never alone, and the whole
-   pill is aria-hidden: the link's own name says the same in words. */
+/* What each nav item shows (#1315, #1439, #1563): one pill, a neutral total,
+   then the outcomes above zero, failed and passed, a thin divider, and the
+   state, running. Each count has a glyph as well as a number, so colour is
+   never alone, and the whole pill is aria-hidden: the link's own name says
+   the same in words. */
 .nav-pills {
   display: inline-flex;
   align-items: center;
@@ -497,6 +498,14 @@ header,
 }
 .nav-count {
   padding: 0 5px;
+}
+/* Sets the state apart from the outcomes (#1563). Decoration: it carries no
+   colour of its own to measure, and the counts do not rely on it. */
+.nav-divider {
+  align-self: stretch;
+  width: 1px;
+  margin: 4px 0;
+  background: var(--border-strong);
 }
 .nav-failed {
   color: var(--critical);
@@ -563,6 +572,9 @@ header,
 .nav-pills.stacked .nav-total:not(:last-child) {
   border-right: 0;
   border-bottom: 1px solid var(--border-strong);
+}
+.nav-pills.stacked .nav-divider {
+  display: none;
 }
 .nav-pills.stacked .nav-count {
   height: 15px;

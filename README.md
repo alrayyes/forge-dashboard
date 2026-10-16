@@ -951,26 +951,28 @@ that change is ignored. With no bot pull requests open the page says there is
 nothing to review.
 
 Every item in the navigation shows how many items its page lists, and how many
-of them are failing. It is one pill: a neutral **total**, then the counts above
-zero, each with its own glyph so colour is never the only signal. Branches
-counts default branches. Pull requests, Releases and Bots count their pull
-requests (without the ones that belong to another of the three). All four show
-how many are failing (red), running (amber, a spinner, or a still clock under
-reduced motion) and passing (green), in that order. A pull request with no
-checks is in the total only, so its numbers needn't add up. Branches adds a
-fifth, neutral count with a dashed circle for the branches with no pipeline, so
-its numbers do add up. A zero is never drawn, and the link's name
-says the same in words: "Pull requests, 15 total, 2 failing, 3 running, 10
-passing", and "Branches, 7 total, 2 failing, 1 running, 3 passing, 1 without a
-pipeline". On a phone the total sits on its own line above the counts, and with
-three-digit numbers each count takes a line, so the busy tabs grow to about
-110px. Issues counts open issues, without Renovate's Dependency Dashboard, and
-has no failed count. The server works the numbers out from the same lists the
-pages show (`navCounts` on `/api/dashboard`), so a page agrees with its icon,
-and a hidden pull request is in neither. The dashboard pages set them from each
-snapshot. The other signed-in pages (Branches, Insights, Settings and the rest)
-load them and ask again every 30 seconds while the tab is visible, so a refresh
-or a webhook changes them without a reload.
+of them are failing. It is one pill: a neutral **total**, then the outcomes,
+failing (red) and passing (green), then a thin divider and the state, running
+(amber, a spinner, or a still clock under reduced motion). Each count has its
+own glyph so colour is never the only signal. Branches counts default
+branches. Pull requests, Releases and Bots count their pull requests (without
+the ones that belong to another of the three). All four show those three
+counts, in that order. The divider appears only when a running count follows an
+outcome, and not on a phone. A pull request with no checks is in the total
+only, so its numbers needn't add up. Branches adds a fifth, neutral count with
+a dashed circle for the branches with no pipeline, last, so its numbers do add
+up. A zero is never drawn, and the link's name says the same in words, in the
+same order: "Pull requests, 15 total, 2 failing, 10 passing, 3 running", and
+"Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline". On
+a phone the total sits on its own line above the counts, and with three-digit
+numbers each count takes a line, so the busy tabs grow to about 110px. Issues
+counts open issues, without Renovate's Dependency Dashboard, and has no failed
+count. The server works the numbers out from the same lists the pages show
+(`navCounts` on `/api/dashboard`), so a page agrees with its icon, and a hidden
+pull request is in neither. The dashboard pages set them from each snapshot.
+The other signed-in pages (Branches, Insights, Settings and the rest) load them
+and ask again every 30 seconds while the tab is visible, so a refresh or a
+webhook changes them without a reload.
 
 A zero is never drawn: a page with nothing in it has no total, and nothing
 failing means no red pill. A page with nothing to show leaves the navigation:
@@ -988,8 +990,8 @@ is a quiet line under the Insights heading. A page with nothing open says so,
 even when its nav item is hidden.
 
 On a phone the numbers sit above each tab's icon. An item's accessible name says
-both in words: "Branches, 12 total, 3 failing, 1 running, 8 passing" on the
-header icon, "12 Branches, 3 failing, 1 running, 8 passing" on the tab, which
+both in words: "Branches, 12 total, 3 failing, 8 passing, 1 running" on the
+header icon, "12 Branches, 3 failing, 8 passing, 1 running" on the tab, which
 shows its numbers before its word.
 
 ## Main branches
