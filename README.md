@@ -941,11 +941,13 @@ zero, each with its own glyph so colour is never the only signal. Branches
 counts default branches. Pull requests, Releases and Bots count their pull
 requests (without the ones that belong to another of the three). All four show
 how many are failing (red), running (amber, a spinner, or a still clock under
-reduced motion) and passing (green), in that order. A branch with no pipeline
-or a pull request with no checks is in the total only, so the numbers needn't
-add up. A zero is never drawn, and the link's name
+reduced motion) and passing (green), in that order. A pull request with no
+checks is in the total only, so its numbers needn't add up. Branches adds a
+fifth, neutral count with a dashed circle for the branches with no pipeline, so
+its numbers do add up. A zero is never drawn, and the link's name
 says the same in words: "Pull requests, 15 total, 2 failing, 3 running, 10
-passing". On a phone the total sits on its own line above the counts, and with
+passing", and "Branches, 7 total, 2 failing, 1 running, 3 passing, 1 without a
+pipeline". On a phone the total sits on its own line above the counts, and with
 three-digit numbers each count takes a line, so the busy tabs grow to about
 110px. Issues counts open issues, without Renovate's Dependency Dashboard, and
 has no failed count. The server works the numbers out from the same lists the

@@ -2,7 +2,8 @@
   import type { NavCount } from "#lib/nav-counts.svelte.js";
 
   // One pill (#1439): a neutral total, then the counts above zero in triage
-  // order, failed, running, passed, each with its own glyph. Colour is never
+  // order, failed, running, passed, and for Branches the ones without a
+  // pipeline (#1531), each with its own glyph. Colour is never
   // alone: the glyph says the state without it, and the link's own name says
   // it in words, so the pill is aria-hidden. Nothing at all for a page with
   // nothing in it, and a zero is never drawn.
@@ -82,6 +83,23 @@
           aria-hidden="true"
           ><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg
         >{count.passed}</span
+      >
+    {/if}
+    {#if (count.none ?? 0) > 0}
+      <!-- A dashed circle: no run to be good or bad. Neutral ink. -->
+      <span class="nav-count nav-none"
+        ><svg
+          width="11"
+          height="11"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+          ><circle cx="12" cy="12" r="10" stroke-dasharray="4 4" /></svg
+        >{count.none}</span
       >
     {/if}
   </span>
