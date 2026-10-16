@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.198.1](https://github.com/alrayyes/forge-dashboard/compare/v0.198.0...v0.198.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **web:** keep a saved pick the current page does not offer ([#1631](https://github.com/alrayyes/forge-dashboard/issues/1631)) ([fbeed07](https://github.com/alrayyes/forge-dashboard/commit/fbeed0710a1607da6aaf27178b6b40351db22137))
+
 ## [0.198.0](https://github.com/alrayyes/forge-dashboard/compare/v0.197.1...v0.198.0) (2026-10-16)
 
 

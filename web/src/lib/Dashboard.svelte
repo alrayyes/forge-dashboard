@@ -17,6 +17,7 @@
   import PullRequestDetailsDialog, {
     type DetailsStatus,
   } from "#lib/PullRequestDetailsDialog.svelte";
+  import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
@@ -3837,33 +3838,8 @@
     }
 
     // One inline glyph per state, so the states differ by shape and not
-    // colour alone (#1473). Static markup, never built from forge data.
-    const RING = '<circle cx="8" cy="8" r="6.25"/>';
-    const CROSS = `${RING}<path d="m5.8 5.8 4.4 4.4m0-4.4-4.4 4.4"/>`;
-    const HOURGLASS =
-      '<circle cx="8" cy="8" r="6.25" stroke-dasharray="2 2"/>' +
-      '<path d="M5.8 4.6h4.4M5.8 11.4h4.4M6.2 4.6c0 2 3.6 2 3.6 3.4' +
-      's-3.6 1.4-3.6 3.4M9.8 4.6c0 2-3.6 2-3.6 3.4s3.6 1.4 3.6 3.4"/>';
-    const CHECK_GLYPHS: Record<string, { name: string; body: string }[]> = {
-      success: [
-        { name: "check", body: `${RING}<path d="m5.3 8.2 1.9 1.9 3.5-3.9"/>` },
-      ],
-      failure: [{ name: "cross", body: CROSS }],
-      timed_out: [{ name: "cross", body: CROSS }],
-      running: [
-        { name: "arc", body: '<path d="M8 1.75a6.25 6.25 0 1 1-6.25 6.25"/>' },
-        { name: "clock", body: `${RING}<path d="M8 4.6V8l2.3 1.4"/>` },
-      ],
-      queued: [{ name: "hourglass", body: HOURGLASS }],
-      skipped: [{ name: "slash", body: `${RING}<path d="m3.6 3.6 8.8 8.8"/>` }],
-      cancelled: [
-        {
-          name: "stop",
-          body: `${RING}<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".8"/>`,
-        },
-      ],
-    };
-
+    // colour alone (#1473). The shapes live in #lib/check-glyphs.js, which
+    // the Branches page draws from too.
     function pipelineCheckGlyphs(state: string): SVGElement[] {
       return (CHECK_GLYPHS[state] ?? []).map(({ name, body }) => {
         const svg = document.createElementNS(
@@ -4362,6 +4338,8 @@
     // from — only the current page's own entity type (#1071), though a
     // picked filter still applies to both boards, so it carries over.
     const sharedState = Filters.loadState();
+    // The cookie has every pick, including ones an earlier page held back.
+    Filters.releaseAllHeld();
     let allPRs: PullRequestItem[] = [];
     // repos[] from the last snapshot, keyed forge+fullName, for the host
     // chip and sync status on a "Group by repository" header (#679).
@@ -4390,7 +4368,7 @@
       // already gave the page: a re-render for nothing replaces every row
       // under the reader (#827).
       if (sharedControlsRestored && JSON.stringify(sharedState) !== before) {
-        updateSharedFilterOptions();
+        updateSharedFilterOptions(false, true);
         syncSharedControlsToState();
         applyPendingNow();
         renderBoth();
@@ -4487,12 +4465,21 @@
     // (#112).
     // skipTitleSuggestions: set while someone types in the title box, so the
     // suggestion list isn't rebuilt under them (#1427).
-    function updateSharedFilterOptions(skipTitleSuggestions = false) {
+    // holdPicks: this is the page reconciling its saved picks with what it
+    // offers (the first snapshot, the server's copy), so a pick it does not
+    // offer is cleared here only, and stays in the saved copy for the page
+    // that does (#1620). A later change that makes a pick stale is the
+    // user's own, and clears it for good.
+    function updateSharedFilterOptions(
+      skipTitleSuggestions = false,
+      holdPicks = !sharedControlsRestored,
+    ) {
       const staleRepo = Filters.populateRepoSelect(
         document.getElementById(
           "shared-repo-select",
         ) as HTMLSelectElement | null,
         sharedPoolExcluding("repo"),
+        sharedState.shared.repo,
       );
       const staleAuthor = Filters.populateSelect(
         document.getElementById(
@@ -4547,19 +4534,32 @@
           sharedState.pr.status,
         );
       updateGroupByOptions();
-      if (staleRepo) sharedState.shared.repo = "";
-      if (staleAuthor) sharedState.shared.author = "";
-      if (staleLabel) sharedState.shared.label = "";
-      if (staleCreated) sharedState.shared.created = "";
-      if (staleUpdated) sharedState.shared.updated = "";
-      if (staleStatus) sharedState.pr.status = "";
+      const clearPick = (
+        stale: boolean,
+        group: "shared" | "pr",
+        key: string,
+      ) => {
+        if (!stale) return;
+        if (holdPicks) Filters.holdStale(sharedState, group, key);
+        else {
+          Filters.releaseHeld(group, key);
+          sharedState[group][key] = "";
+        }
+      };
+      clearPick(staleRepo, "shared", "repo");
+      clearPick(staleAuthor, "shared", "author");
+      clearPick(staleLabel, "shared", "label");
+      clearPick(staleCreated, "shared", "created");
+      clearPick(staleUpdated, "shared", "updated");
+      clearPick(Boolean(staleStatus), "pr", "status");
       if (
-        staleRepo ||
-        staleAuthor ||
-        staleLabel ||
-        staleCreated ||
-        staleUpdated ||
-        staleStatus
+        !holdPicks &&
+        (staleRepo ||
+          staleAuthor ||
+          staleLabel ||
+          staleCreated ||
+          staleUpdated ||
+          staleStatus)
       )
         Filters.saveState(sharedState);
       // A quick pill is offered only if clicking it would show something
@@ -4661,6 +4661,7 @@
       const lower = label.toLowerCase();
       const next = sharedState.shared.label === lower ? "" : lower;
       sharedState.shared.label = next;
+      Filters.releaseHeld("shared", "label");
       prBoard.resetPage();
       issueBoard.resetPage();
       Filters.saveState(sharedState);
@@ -4976,6 +4977,7 @@
           statusSelect.addEventListener("change", () => {
             onUserChange?.();
             extraState.status = statusSelect.value.trim().toLowerCase();
+            Filters.releaseHeld("pr", "status");
             state.page = 1;
             Filters.saveState(sharedState);
             // The age ranges are worth choosing only if something in this CI
@@ -5197,6 +5199,7 @@
               ? c.value
               : c.value.trim().toLowerCase();
           sharedState.shared[col] = value;
+          Filters.releaseHeld("shared", col);
           prBoard.resetPage();
           issueBoard.resetPage();
           // Repo/Author/Label options (and "Group by forge") are scoped
@@ -5562,6 +5565,7 @@
       for (const filter of failing) {
         if (filter === "quick") sharedState.pr.quick = "";
         else sharedState.shared[filter] = "";
+        Filters.releaseHeld(filter === "quick" ? "pr" : "shared", filter);
       }
       if (failing.length > 0) {
         syncQuickPills();
@@ -5602,6 +5606,7 @@
       for (const k of Object.keys(sharedState.issue))
         delete sharedState.issue[k];
       sharedState.issue.hideDependencyDashboard = "1";
+      Filters.releaseAllHeld();
       syncQuickPills();
       syncAutoMerge();
 

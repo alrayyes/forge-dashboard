@@ -57,6 +57,17 @@ export const STATUS_LABEL: Record<MainBranchStatus, string> = {
   none: 'No pipeline',
 };
 
+// The CI slot draws a running branch as a state and a failed or passed one
+// as an outcome, with the pull request row's classes and glyphs (#1563). A
+// branch with no pipeline is neither, so it has no entry.
+export const CI_SLOT: Partial<
+  Record<MainBranchStatus, { cls: string; glyphs: string }>
+> = {
+  failed: { cls: 'failure', glyphs: 'failure' },
+  running: { cls: 'pending', glyphs: 'running' },
+  passed: { cls: 'success', glyphs: 'success' },
+};
+
 export function isFiltered(filter: MainBranchFilter): boolean {
   return (
     filter.status !== 'all' || filter.forge !== 'all' || filter.query !== ''
