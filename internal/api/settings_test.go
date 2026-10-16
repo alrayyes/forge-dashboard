@@ -699,8 +699,17 @@ func TestSettingsPut_IgnoredTitles_RejectsABadListNamingTheEntry(t *testing.T) {
 	for name, c := range map[string]struct{ body, message string }{
 		"an unclosed group":       {`{"ignoredTitles":["fine","("]}`, `ignoredTitles entry 2 ("("): missing closing )`},
 		"an unopened group":       {`{"ignoredTitles":["a)"]}`, `ignoredTitles entry 1 ("a)"): unexpected )`},
-		"a lookahead":             {`{"ignoredTitles":["a(?=b)"]}`, `ignoredTitles entry 1 ("a(?=b)"): lookahead and lookbehind are not supported`},
+		"a lookahead":             {`{"ignoredTitles":["a(?=b)"]}`, `ignoredTitles entry 1 ("a(?=b)"): lookahead is not supported`},
 		"a backreference":         {`{"ignoredTitles":["(a)\\1"]}`, `ignoredTitles entry 1 ("(a)\\1"): backreferences are not supported`},
+		"a lookbehind":            {`{"ignoredTitles":["(?<=a)b"]}`, `ignoredTitles entry 1 ("(?<=a)b"): lookbehind is not supported`},
+		"a negative lookbehind":   {`{"ignoredTitles":["(?<!a)b"]}`, `ignoredTitles entry 1 ("(?<!a)b"): lookbehind is not supported`},
+		"a negative lookahead":    {`{"ignoredTitles":["a(?!b)"]}`, `ignoredTitles entry 1 ("a(?!b)"): lookahead is not supported`},
+		"an unterminated flag":    {`{"ignoredTitles":["(?i"]}`, `ignoredTitles entry 1 ("(?i"): invalid or unsupported (?...) group`},
+		"anything":                {`{"ignoredTitles":["ok",".*"]}`, `ignoredTitles entry 2 (".*"): matches every title, so it would hide all issues`},
+		"only an anchor":          {`{"ignoredTitles":["^"]}`, `ignoredTitles entry 1 ("^"): matches every title, so it would hide all issues`},
+		"an end anchor":           {`{"ignoredTitles":["$"]}`, `ignoredTitles entry 1 ("$"): matches every title, so it would hide all issues`},
+		"an optional repeat":      {`{"ignoredTitles":["x*"]}`, `ignoredTitles entry 1 ("x*"): matches every title, so it would hide all issues`},
+		"an empty group":          {`{"ignoredTitles":["(?:)"]}`, `ignoredTitles entry 1 ("(?:)"): matches every title, so it would hide all issues`},
 		"an entry over 200 chars": {`{"ignoredTitles":["` + strings.Repeat("a", 201) + `"]}`, `ignoredTitles entry 1 is longer than 200 characters`},
 		"more than 20 entries":    {`{"ignoredTitles":[` + twentyOne + `]}`, `ignoredTitles lists more than 20 entries`},
 	} {

@@ -1,7 +1,7 @@
 package dashboard
 
 import (
-	"fmt"
+	"errors"
 	"regexp"
 	"regexp/syntax"
 	"strings"
@@ -32,11 +32,18 @@ func CompileTitlePatterns(patterns []string) (TitlePatterns, error) {
 		if err != nil {
 			return TitlePatterns{}, &PatternError{Reason: patternReason(err)}
 		}
+		if re.MatchString("") {
+			return TitlePatterns{}, &PatternError{Reason: matchesEverything}
+		}
 		out.compiled = append(out.compiled, re)
 	}
 
 	return out, nil
 }
+
+// matchesEverything is the reason for a pattern that matches the empty
+// string: it would match every title and hide every issue.
+const matchesEverything = "matches every title, so it would hide all issues"
 
 // Matches reports whether any pattern matches title.
 func (t TitlePatterns) Matches(title string) bool {
@@ -50,21 +57,23 @@ func (t TitlePatterns) Matches(title string) bool {
 }
 
 // patternReason words a compile error. Go's own message names the whole
-// wrapped pattern, which the user never typed.
+// wrapped pattern, which the user never typed. It goes by the parser's error
+// code and the piece of the pattern it points at, never by searching the text.
 func patternReason(err error) string {
-	synErr, ok := err.(*syntax.Error) //nolint:errorlint // regexp.Compile returns it unwrapped
-	if !ok {
+	var synErr *syntax.Error
+	if !errors.As(err, &synErr) {
 		return "not a valid pattern"
 	}
-	switch synErr.Code {
-	case syntax.ErrInvalidPerlOp:
-		return "lookahead and lookbehind are not supported"
-	case syntax.ErrInvalidEscape:
-		if len(synErr.Expr) == 2 && synErr.Expr[0] == '\\' && strings.ContainsRune("123456789", rune(synErr.Expr[1])) {
-			return "backreferences are not supported"
-		}
-	default:
+	switch {
+	case synErr.Code == syntax.ErrInvalidPerlOp && (synErr.Expr == "(?=" || synErr.Expr == "(?!"):
+		return "lookahead is not supported"
+	case synErr.Code == syntax.ErrInvalidNamedCapture && (strings.HasPrefix(synErr.Expr, "(?<=") || strings.HasPrefix(synErr.Expr, "(?<!")):
+		return "lookbehind is not supported"
+	case synErr.Code == syntax.ErrInvalidEscape && len(synErr.Expr) == 2 && synErr.Expr[0] == '\\' && synErr.Expr[1] >= '1' && synErr.Expr[1] <= '9':
+		return "backreferences are not supported"
+	case synErr.Code == syntax.ErrInvalidPerlOp:
+		return "invalid or unsupported (?...) group"
 	}
 
-	return fmt.Sprint(synErr.Code)
+	return string(synErr.Code)
 }
