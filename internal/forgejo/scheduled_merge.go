@@ -77,29 +77,12 @@ func (c *Client) scheduledMerge(ctx context.Context, owner, name string, number 
 // most maxTimelineReads per call, least recently read first. A pull request not
 // read, or whose read failed, gets its last known value, or stays nil (unknown).
 func (c *Client) applyScheduledMerges(ctx context.Context, owner, name string, prs []dashboard.PullRequest) {
-	var eligible []int
-	for i, pr := range prs {
-		if !pr.Draft && !pr.Empty {
-			eligible = append(eligible, i)
-		}
-	}
-
-	c.scheduleMu.Lock()
-	sort.SliceStable(eligible, func(a, b int) bool {
-		return c.schedule[reviewKey(owner, name, int64(prs[eligible[a]].Number))].seq <
-			c.schedule[reviewKey(owner, name, int64(prs[eligible[b]].Number))].seq
-	})
-	c.scheduleMu.Unlock()
-	if len(eligible) > maxTimelineReads {
-		eligible = eligible[:maxTimelineReads]
-	}
+	eligible := c.nextToRead(owner, name, prs)
 
 	reads := make([]*bool, len(prs))
 	var wg sync.WaitGroup
 	for _, i := range eligible {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			scheduled, err := c.scheduledMerge(ctx, owner, name, int64(prs[i].Number))
 			if err != nil {
 				slog.Debug("forgejo timeline unavailable", "repo", owner+"/"+name, "pr", prs[i].Number, "err", err)
@@ -107,7 +90,7 @@ func (c *Client) applyScheduledMerges(ctx context.Context, owner, name string, p
 				return
 			}
 			reads[i] = &scheduled
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -128,6 +111,29 @@ func (c *Client) applyScheduledMerges(ctx context.Context, owner, name string, p
 			prs[i].AutoMergeEnabled = &on
 		}
 	}
+}
+
+// nextToRead picks the indexes of the pull requests whose timelines this
+// listing reads: the eligible ones checked longest ago, up to maxTimelineReads.
+func (c *Client) nextToRead(owner, name string, prs []dashboard.PullRequest) []int {
+	var eligible []int
+	for i, pr := range prs {
+		if !pr.Draft && !pr.Empty {
+			eligible = append(eligible, i)
+		}
+	}
+
+	c.scheduleMu.Lock()
+	sort.SliceStable(eligible, func(a, b int) bool {
+		return c.schedule[reviewKey(owner, name, int64(prs[eligible[a]].Number))].seq <
+			c.schedule[reviewKey(owner, name, int64(prs[eligible[b]].Number))].seq
+	})
+	c.scheduleMu.Unlock()
+	if len(eligible) > maxTimelineReads {
+		eligible = eligible[:maxTimelineReads]
+	}
+
+	return eligible
 }
 
 // pruneSchedules drops the cached schedule of owner/name's pull requests that
