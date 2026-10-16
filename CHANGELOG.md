@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.194.1](https://github.com/alrayyes/forge-dashboard/compare/v0.194.0...v0.194.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **web:** say Branches come newest commit first in the tool and page descriptions ([#1588](https://github.com/alrayyes/forge-dashboard/issues/1588)) ([e2b0d90](https://github.com/alrayyes/forge-dashboard/commit/e2b0d9038792c67457a0a514d526f77aa266ba08)), closes [#1552](https://github.com/alrayyes/forge-dashboard/issues/1552)
+
+## [0.194.0](https://github.com/alrayyes/forge-dashboard/compare/v0.193.2...v0.194.0) (2026-10-16)
+
+
+### Features
+
+* **web:** count the branches without a pipeline in the Branches pill ([#1536](https://github.com/alrayyes/forge-dashboard/issues/1536)) ([448202c](https://github.com/alrayyes/forge-dashboard/commit/448202c3c78479d0b816c7fe06258262f5134f6c))
+
 ## [0.193.2](https://github.com/alrayyes/forge-dashboard/compare/v0.193.1...v0.193.2) (2026-10-15)
 
 

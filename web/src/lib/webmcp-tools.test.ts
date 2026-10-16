@@ -133,6 +133,14 @@ describe('WebMCP read tools', () => {
     );
   });
 
+  test('get_main_branches says rows come newest commit first, not failed first (#1552)', () => {
+    const { tool } = setup();
+    const description = tool('get_main_branches').description;
+    expect(description).toContain('latest commit first');
+    expect(description).toContain('no commit time last');
+    expect(description).not.toMatch(/failed first|failing first/i);
+  });
+
   test('numbers and names are bounded in the schema and in the check', async () => {
     const { tool, calls } = setup();
     const t = tool('get_pull_request_checks');

@@ -13,7 +13,7 @@ per-user tokens, sharing and an admin role.
 
 | Page                                                                                                 | Light                                                                      | Dark                                                                     |
 | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| **Branches**. The CI status of every default branch, failing first.                                  | ![Branches, light mode](docs/screenshots/branches-light.png)               | ![Branches, dark mode](docs/screenshots/branches-dark.png)               |
+| **Branches**. The CI status of every default branch, latest commit first.                            | ![Branches, light mode](docs/screenshots/branches-light.png)               | ![Branches, dark mode](docs/screenshots/branches-dark.png)               |
 | **Pull requests**. Open pull requests across both forges, with CI status, filters, and sorting.      | ![Pull requests, light mode](docs/screenshots/pull-requests-light.png)     | ![Pull requests, dark mode](docs/screenshots/pull-requests-dark.png)     |
 | **Pipeline checks**. A pull request's checks with state, time and failure excerpt, from its CI pill. | ![Pipeline checks, light mode](docs/screenshots/pipeline-checks-light.png) | ![Pipeline checks, dark mode](docs/screenshots/pipeline-checks-dark.png) |
 | **Issues**. Open issues across both forges.                                                          | ![Issues, light mode](docs/screenshots/issues-light.png)                   | ![Issues, dark mode](docs/screenshots/issues-dark.png)                   |
@@ -1006,8 +1006,7 @@ icon and a word (Failed, Running, Passed or No pipeline), the repo, the
 branch, the short SHA, subject and author of the newest commit, how long ago the
 run finished and how long it ran. A failed row names its failing jobs and
 expands to list them. **View run** opens the run on the forge. Rows come
-failing first, then running, passing and no pipeline, in the order the server
-sends them.
+latest commit first, in the order the server sends them.
 
 The pills (All, Failing, Passing, Running, No pipeline) carry the server's
 counts. A pill, and each forge in the toggle, is offered only when a row would
