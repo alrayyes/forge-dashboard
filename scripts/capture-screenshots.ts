@@ -2,11 +2,11 @@
 // Regenerates docs/screenshots/<page>-{light,dark}.png for every page in the
 // menu (branches, pull requests, issues, releases, bots, insights, webhooks,
 // settings, admin), the pipeline checks panel, the pull request dialogs
-// (a pull request, a release, a bot, and the phone sheet) and the login page (the footer
-// pages are left out) against a real
-// build of the binary, run by the release workflow's screenshots job —
-// not a Playwright *test* (playwright.config.js only looks in tests/),
-// so the main e2e suite never picks this up.
+// (a pull request, a release, a bot, and the phone sheet) and the login page
+// (the footer pages are left out) against a real build of the binary, run by
+// the release workflow's screenshots job — not a Playwright *test*
+// (playwright.config.js only looks in tests/), so the main e2e suite never
+// picks this up.
 //
 // Every page's /api/dashboard fetch is mocked with fixture data,
 // the same way tests/dashboard.spec.ts's own route mocks work: this runs
@@ -391,12 +391,6 @@ const DETAILS: Record<number, unknown> = {
         '```ts',
         'const repos = rows.filter((r) => r.forge === active).map((r) => r.repo);',
         '```',
-        '',
-        '## Checklist',
-        '',
-        '- [x] Unit tests',
-        '- [x] End-to-end test',
-        '- [ ] Release notes',
       ].join('\n'),
       reactions(['demo-colleague', 'demo-reviewer'], ['demo-guest']),
     ),
@@ -652,11 +646,11 @@ async function main() {
       });
       if (name === 'pull-requests') {
         await shootPipelineChecks(page, theme);
-        // Taller than a page shot, so all three comments fit.
+        // Taller than a page shot, so all three comments fit without scrolling.
         await page.setViewportSize({ width: 1280, height: 1330 });
         await shootDialog(page, 142, 'pull-request-dialog', theme, '.markdown');
         // The same dialog as the phone sheet, at 360px wide.
-        await page.setViewportSize({ width: 360, height: 780 });
+        await page.setViewportSize({ width: 360, height: 1150 });
         await shootDialog(page, 142, 'pull-request-sheet', theme, '.markdown');
         await page.setViewportSize({ width: 1280, height: 900 });
       }
