@@ -3445,12 +3445,14 @@ components:
             Replaces the saved list; omitted or empty clears it. Entries are
             trimmed; blanks and repeats (ignoring case) are dropped. Each
             must compile as a Go RE2 regular expression: one that does not
-            is a 400 naming `ignoredTitles` and the entry, with the reason in
-            plain words (`ignoredTitles entry 2 ("("): missing closing )`;
-            the number is the entry's place in the list as sent, from 1), and
-            nothing is saved. A pattern that matches the empty string (`.*`,
-            `^`, `x*`) would hide every issue, so it is a 400 too, as are more
-            than 20 entries and an entry over 200 characters. See SettingsResponse.ignoredTitles.
+            is a 400 whose `field` is `ignoredTitles`, with the entry and the
+            reason in plain words in `error`
+            (`ignoredTitles entry 2 ("("): missing closing )`; the number is
+            the entry's place in the list as sent, from 1), and nothing is
+            saved. A pattern that matches the empty string (`.*`, `^`, `x*`)
+            would hide every issue, so it is a 400 too, as are more than 20
+            entries and an entry over 200 characters. See
+            SettingsResponse.ignoredTitles.
 
     ThemeResponse:
       type: object
@@ -4880,6 +4882,8 @@ components:
           issues,
           openIssueCount,
           settingsHiddenIssueCount,
+          hideDependencyDashboard,
+          ignoredTitlesSet,
           navCounts,
           repos,
           hiddenDrafts,
@@ -4925,6 +4929,22 @@ components:
             that out, the issues are not sent. Always present; 0 when none are
             hidden. On another user's shared dashboard these are the
             viewer's settings, not the owner's.
+        hideDependencyDashboard:
+          type: boolean
+          description: |
+            The user's own `hideDependencyDashboard` setting, on every
+            response. It always reflects the setting, so a client never reads
+            GET /api/settings (which also carries the webhook secret) just to
+            know whether to draw its own "Hide Dependency Dashboard" field. On
+            another user's shared dashboard it is the viewer's setting.
+        ignoredTitlesSet:
+          type: boolean
+          description: |
+            True when the user's own `ignoredTitles` list is not empty, on
+            every response, whether or not a pattern matches anything now
+            (`settingsHiddenIssueCount` can be 0 with this true). Like
+            `hideDependencyDashboard` it always reflects the setting and is
+            the viewer's on a shared dashboard.
         navCounts:
           $ref: "#/components/schemas/NavCounts"
         generatedAt:

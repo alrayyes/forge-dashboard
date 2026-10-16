@@ -259,6 +259,8 @@ func TestContract_IssueSettings(t *testing.T) {
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 		require.Contains(t, string(got.body), `"settingsHiddenIssueCount":1`)
+		require.Contains(t, string(got.body), `"hideDependencyDashboard":true`)
+		require.Contains(t, string(got.body), `"ignoredTitlesSet":true`)
 	})
 	t.Run("PUT /api/settings with a pattern that does not compile", func(t *testing.T) {
 		req, got := send(http.MethodPut, "/api/settings", `{"ignoredTitles":["("]}`)
