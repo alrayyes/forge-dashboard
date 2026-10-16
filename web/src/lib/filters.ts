@@ -226,6 +226,7 @@ export function loadState(): SharedFilterState {
   if (parsed.view && typeof parsed.view === 'object')
     Object.assign(state.view, parsed.view);
   dropUnknownAutoMerge(state);
+  dropNonStringTitleRule(state);
   return state;
 }
 
@@ -236,6 +237,13 @@ function dropUnknownAutoMerge(state: SharedFilterState): void {
   const value = state.pr.autoMerge;
   if (value !== undefined && value !== 'on' && value !== 'off')
     delete state.pr.autoMerge;
+}
+
+// A saved title pattern is a string; anything else is a stale or hand-edited
+// value and reads as no rule (#1593).
+function dropNonStringTitleRule(state: SharedFilterState): void {
+  if (typeof state.issue.hideTitleRegex !== 'string')
+    delete state.issue.hideTitleRegex;
 }
 
 const FILTER_STATE_ENDPOINT = '/api/settings/filter-state';
@@ -284,7 +292,7 @@ export function saveState(
     /* ignore */
   }
 
-  if (debouncedCol === 'title') {
+  if (debouncedCol === 'title' || debouncedCol === 'hideTitleRegex') {
     if (titleSaveTimer) clearTimeout(titleSaveTimer);
     titleSaveTimer = setTimeout(() => {
       titleSaveTimer = null;
@@ -346,6 +354,7 @@ export function applyServerState(
   if (got.view && typeof got.view === 'object')
     Object.assign(state.view, got.view);
   dropUnknownAutoMerge(state);
+  dropNonStringTitleRule(state);
 }
 
 export function minutesAgo(iso: string): number {
@@ -406,7 +415,110 @@ export function failingFilters(
   // server says which ones those are (#980), so this only reads the flag.
   if (!isPR && extra?.hideDependencyDashboard && item.housekeeping)
     failing.push('hideDependencyDashboard');
+  // The user's own hide rule on the Issues page (#1593).
+  if (!isPR && titleRuleHides(extra?.hideTitleRegex, item.title))
+    failing.push('hideTitleRegex');
   return failing;
+}
+
+// ---- "Hide titles matching (regex)" on the Issues page (#1593) ----
+//
+// JavaScript regular expressions have no timeout, so a pattern like (a+)+$ can
+// freeze the tab on a title that almost matches. Three limits keep that out:
+// the pattern is capped in length, a quantified group that holds a
+// quantifier or an alternation is refused as invalid (the shape behind
+// exponential backtracking), a pattern with more than MAX_OPEN_REPEATS
+// open-ended repeats is refused (each one adds a power to the worst case:
+// .*.*.*b takes about 0.7s on one 256-character title), and only the first
+// MAX_TITLE_TESTED characters of a title are tested (forges cap titles near
+// 256). What is left is at most quadratic over a short string, and each
+// distinct title is matched once per pattern.
+export const MAX_TITLE_REGEX_LENGTH = 200;
+const MAX_TITLE_TESTED = 256;
+const MAX_OPEN_REPEATS = 2;
+
+export type TitleRule =
+  | { status: 'none' }
+  | { status: 'invalid' }
+  | { status: 'ok'; regex: RegExp; seen: Map<string, boolean> };
+
+const REPEAT_AFTER_GROUP = /^(?:[+*]|\{\d+,\d*\})/;
+const OPEN_RANGE = /^\{\d+,\d*\}/;
+
+// True when a group that holds a quantifier or an alternation is itself
+// quantified with +, * or {n,} ((a+)+, (a|aa)*, (.*a){3,}), or when the
+// pattern has too many open-ended repeats.
+function hasRiskyNesting(pattern: string): boolean {
+  const groups: { risky: boolean }[] = [];
+  let inClass = false;
+  let repeats = 0;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === '\\') {
+      i++;
+    } else if (inClass) {
+      if (c === ']') inClass = false;
+    } else if (c === '[') {
+      inClass = true;
+    } else if (c === '(') {
+      groups.push({ risky: false });
+    } else if (c === ')') {
+      const group = groups.pop();
+      const repeated = REPEAT_AFTER_GROUP.test(pattern.slice(i + 1));
+      if (group?.risky && repeated) return true;
+      const parent = groups[groups.length - 1];
+      if (parent && (group?.risky || repeated)) parent.risky = true;
+    } else if (
+      c === '|' ||
+      c === '+' ||
+      c === '*' ||
+      (c === '{' && OPEN_RANGE.test(pattern.slice(i)))
+    ) {
+      const parent = groups[groups.length - 1];
+      if (parent) parent.risky = true;
+      if (c !== '|' && ++repeats > MAX_OPEN_REPEATS) return true;
+    }
+  }
+  return false;
+}
+
+// Compiled once per pattern text: typing and every re-render ask the same
+// question, and a bad pattern is judged once.
+const titleRuleCache = new Map<string, TitleRule>();
+
+export function compileTitleRule(pattern: unknown): TitleRule {
+  if (typeof pattern !== 'string' || pattern === '') return { status: 'none' };
+  const cached = titleRuleCache.get(pattern);
+  if (cached) return cached;
+  let rule: TitleRule = { status: 'invalid' };
+  if (pattern.length <= MAX_TITLE_REGEX_LENGTH && !hasRiskyNesting(pattern)) {
+    try {
+      rule = {
+        status: 'ok',
+        regex: new RegExp(pattern, 'i'),
+        seen: new Map(),
+      };
+    } catch {
+      // The engine's message stays out of the page.
+    }
+  }
+  if (titleRuleCache.size > 50) titleRuleCache.clear();
+  titleRuleCache.set(pattern, rule);
+  return rule;
+}
+
+function titleRuleHides(pattern: unknown, title: string): boolean {
+  const rule = compileTitleRule(pattern);
+  if (rule.status !== 'ok') return false;
+  // Every render asks again for every issue; each distinct title is matched
+  // once per pattern.
+  let hidden = rule.seen.get(title);
+  if (hidden === undefined) {
+    if (rule.seen.size > 5000) rule.seen.clear();
+    hidden = rule.regex.test(title.slice(0, MAX_TITLE_TESTED));
+    rule.seen.set(title, hidden);
+  }
+  return hidden;
 }
 
 // The items a filter's own choices are built from (#1427): what the page can
@@ -449,6 +561,7 @@ export const FILTER_NAMES: Record<string, string> = {
   status: 'CI status',
   quick: 'quick',
   autoMerge: 'Auto-merge',
+  hideTitleRegex: 'Hide titles matching',
 };
 
 // Distinct, sorted values of getValues(item) across items — what both

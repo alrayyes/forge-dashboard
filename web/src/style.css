@@ -675,6 +675,41 @@ section.board {
   cursor: pointer;
 }
 
+.text-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.text-filter input[type="text"] {
+  width: 160px;
+  max-width: 100%;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+.text-filter input[aria-invalid="true"] {
+  border-color: var(--critical);
+}
+
+.rule-note,
+.rule-error {
+  flex-basis: 100%;
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+.rule-note {
+  color: var(--ink-2);
+}
+.rule-error {
+  color: var(--critical);
+}
+
 .group-select {
   font-family: inherit;
   border-radius: 6px;

@@ -1056,6 +1056,18 @@ default. The badge is set from each snapshot on the dashboard and issues
 pages, and loaded once on the other signed-in pages. The pull request page no
 longer lists issues.
 
+Next to **Hide Dependency Dashboard**, the **Hide titles matching (regex)**
+box hides the issues whose title matches a regular expression. The match is
+case-insensitive and can fall anywhere in the title, so `^Weekly report` hides
+every issue whose title starts with "Weekly report". Empty hides nothing. A
+note says how many issues the pattern hides, and the repo, author and label
+choices leave out what it hides. The pattern is saved with the other filters,
+and **Clear filters** empties it. A pattern the page can't use shows "That
+pattern isn't valid." and is ignored: that covers a syntax error, a pattern
+over 200 characters, more than two open-ended repeats (`*`, `+`, `{2,}`), and
+a repeated group that holds a repeat or an alternative, such as `(a+)+`.
+Those limits keep a pathological pattern from freezing the page.
+
 The repo, author and label choices on the pull request, release, bot and issue
 pages and on Insights come from what the page can show: the items every other
 filter lets through, and without the Dependency Dashboard while it is hidden. A

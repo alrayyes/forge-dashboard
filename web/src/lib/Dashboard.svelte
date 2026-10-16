@@ -4556,6 +4556,11 @@
         "shared-group-select",
       ) as HTMLSelectElement | null;
       if (groupSelect) groupSelect.value = sharedState.shared.groupBy || "";
+      const titleRegexField = document.getElementById(
+        "issue-hide-title-regex",
+      ) as HTMLInputElement | null;
+      if (titleRegexField)
+        titleRegexField.value = sharedState.issue.hideTitleRegex ?? "";
       const sortSelect = document.getElementById(
         "pr-sort-select",
       ) as HTMLSelectElement | null;
@@ -4869,6 +4874,7 @@
         // updateClearFiltersButton is declared later in this same
         // closure but hoists, so this stays the one place the button's
         // disabled state can go stale.
+        renderTitleRuleNotes();
         updateClearFiltersButton();
       }
 
@@ -4925,6 +4931,58 @@
           updateSharedFilterOptions();
           render();
         });
+      }
+
+      // The pattern box feeds the same matchesFilters/optionPool path the
+      // checkbox above does, so the list, count, pages and the other filters'
+      // choices follow with no second implementation (#1593).
+      const titleRegexInput = document.getElementById(
+        `${idPrefix}-hide-title-regex`,
+      ) as HTMLInputElement | null;
+      if (titleRegexInput) {
+        titleRegexInput.value = extraState.hideTitleRegex ?? "";
+        titleRegexInput.addEventListener("input", () => {
+          onUserChange?.();
+          extraState.hideTitleRegex = titleRegexInput.value;
+          state.page = 1;
+          Filters.saveState(sharedState, "hideTitleRegex");
+          updateSharedFilterOptions();
+          render();
+        });
+      }
+
+      // What the rule does right now: the error when the pattern can't be
+      // used, else how many issues it hides on top of the other filters.
+      function renderTitleRuleNotes() {
+        const field = document.getElementById(`${idPrefix}-hide-title-regex`);
+        const errorEl = document.getElementById(
+          `${idPrefix}-hide-title-regex-error`,
+        );
+        const noteEl = document.getElementById(`${idPrefix}-hide-title-note`);
+        if (isPR || !field || !errorEl || !noteEl) return;
+        const invalid =
+          Filters.compileTitleRule(extraState.hideTitleRegex).status ===
+          "invalid";
+        errorEl.hidden = !invalid;
+        if (invalid) {
+          field.setAttribute("aria-invalid", "true");
+          field.setAttribute("aria-describedby", errorEl.id);
+        } else {
+          field.removeAttribute("aria-invalid");
+          field.removeAttribute("aria-describedby");
+        }
+        const hidden = state.items.filter(
+          (item) =>
+            Filters.failingFilters(
+              item,
+              isPR,
+              sharedState.shared,
+              extraState,
+            ).join() === "hideTitleRegex",
+        ).length;
+        noteEl.hidden = hidden === 0;
+        noteEl.textContent =
+          hidden === 0 ? "" : `${hidden} hidden by this pattern`;
       }
 
       return {
@@ -5197,7 +5255,7 @@
     });
 
     // #354: true once nothing in sharedState differs from Filters' own
-    // defaultState() — shared is empty, no CI status, and
+    // defaultState() — shared is empty, no CI status, no title pattern, and
     // hideDependencyDashboard is back at its default-checked '1'.
     function filtersAreDefault(): boolean {
       return (
@@ -5205,7 +5263,8 @@
         !sharedState.pr.status &&
         !sharedState.pr.quick &&
         !sharedState.pr.autoMerge &&
-        sharedState.issue.hideDependencyDashboard === "1"
+        sharedState.issue.hideDependencyDashboard === "1" &&
+        !sharedState.issue.hideTitleRegex
       );
     }
 
@@ -5482,6 +5541,10 @@
       ) as HTMLInputElement | null;
       if (hideDependencyDashboardCheckbox)
         hideDependencyDashboardCheckbox.checked = true;
+      const hideTitleRegexInput = document.getElementById(
+        "issue-hide-title-regex",
+      ) as HTMLInputElement | null;
+      if (hideTitleRegexInput) hideTitleRegexInput.value = "";
 
       updateSharedFilterOptions();
       prBoard.resetPage();
@@ -7231,8 +7294,28 @@
             />
             Hide Dependency Dashboard
           </label>
+          <label class="text-filter">
+            Hide titles matching (regex)
+            <input
+              type="text"
+              id="issue-hide-title-regex"
+              maxlength="200"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="^Weekly report"
+            />
+          </label>
           <span class="count" id="issue-count">&ndash;</span>
         </div>
+        <p
+          class="rule-note"
+          id="issue-hide-title-note"
+          role="status"
+          hidden
+        ></p>
+        <p class="rule-error" id="issue-hide-title-regex-error" hidden>
+          That pattern isn't valid.
+        </p>
       </div>
 
       <div id="issue-rows"></div>
