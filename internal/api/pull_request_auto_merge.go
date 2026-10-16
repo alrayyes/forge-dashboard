@@ -142,6 +142,7 @@ func withAutoMergeIntent(pr dashboard.PullRequest, intents map[string]struct{}) 
 	if _, armed := intents[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)]; armed {
 		on := true
 		pr.AutoMergeEnabled = &on
+		pr.AutoMergeHeldBy = dashboard.AutoMergeHeldByDashboard
 	}
 
 	return pr

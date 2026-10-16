@@ -68,7 +68,10 @@ func scheduledBoard(t *testing.T, src *scheduleCancelSource, prs ...dashboard.Pu
 func scheduledPR() dashboard.PullRequest {
 	on := true
 
-	return forgejoPR(func(p *dashboard.PullRequest) { p.AutoMergeEnabled = &on })
+	return forgejoPR(func(p *dashboard.PullRequest) {
+		p.AutoMergeEnabled = &on
+		p.AutoMergeHeldBy = dashboard.AutoMergeHeldByForge
+	})
 }
 
 func TestForgejoScheduledMerge_ShowsAsAutoMergingAndOffersCancel(t *testing.T) {
@@ -121,4 +124,34 @@ func TestForgejoScheduledMerge_Cancel_ForgeFailureKeepsTheIntent(t *testing.T) {
 
 	assert.GreaterOrEqual(t, resp.StatusCode, 400)
 	assert.Equal(t, true, boardPR(t, srv, cookie)["autoMergeEnabled"], "a cancel that didn't happen leaves the pull request armed")
+}
+
+func TestForgejoAutoMerge_HeldBy(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		pr     dashboard.PullRequest
+		arm    bool
+		heldBy any
+	}{
+		"scheduled on the forge": {scheduledPR(), false, "forge"},
+		"armed in the app":       {forgejoPR(nil), true, "dashboard"},
+		"neither":                {forgejoPR(nil), false, nil},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			srv, cookie := scheduledBoard(t, &scheduleCancelSource{}, tc.pr)
+			if tc.arm {
+				armed := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+				_ = armed.Body.Close()
+			}
+
+			pr := boardPR(t, srv, cookie)
+
+			assert.Equal(t, tc.heldBy, pr["autoMergeHeldBy"])
+			if tc.heldBy == nil {
+				assert.NotContains(t, pr, "autoMergeHeldBy")
+			}
+		})
+	}
 }

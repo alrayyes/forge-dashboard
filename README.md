@@ -600,6 +600,13 @@ state too and never fails the refresh. Cancel auto-merge also calls Forgejo's
 cancel endpoint (`DELETE /repos/{owner}/{repo}/pulls/{n}/merge`), and treats
 "nothing scheduled" (404 or 409) as done.
 
+Each pull request that is auto-merging also carries `autoMergeHeldBy`, so a
+client can word it right: `dashboard` when this app holds the intent and merges
+itself, `forge` when the merge is scheduled on the forge (Forgejo's scheduled
+merge, or GitHub's auto-merge). With both on Forgejo it is `dashboard`, since
+this app's loop merges and Cancel clears both. It is absent whenever
+`autoMergeEnabled` isn't true, and absent means unknown: don't guess it.
+
 Under a Forgejo repo's heading, when pull requests are grouped, a note says that
 Forge Dashboard handles auto-merge there, not Forgejo, and links to the "Forgejo
 auto-merge" card in Settings, which explains it in plain words.

@@ -2276,6 +2276,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		RenovateRebaseRequested: dashboard.RebaseCheckboxOf(p.Body) == dashboard.RebaseCheckboxTicked,
 		Empty:                   p.Additions == 0 && p.Deletions == 0 && p.ChangedFiles == 0,
 		AutoMergeEnabled:        new(p.AutoMergeRequest != nil),
+		AutoMergeHeldBy:         heldByForge(p.AutoMergeRequest != nil),
 		AutoMergeAllowed:        p.ViewerCanEnableAutoMerge,
 		Review:                  reviewFromGraphQL(p),
 
@@ -2808,6 +2809,7 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				// either, and resolving them here would cost a per-PR Get
 				// this unauthenticated path exists to avoid.
 				AutoMergeEnabled: new(p.GetAutoMerge() != nil),
+				AutoMergeHeldBy:  heldByForge(p.GetAutoMerge() != nil),
 			})
 		}
 		if resp.NextPage == 0 {
@@ -3311,4 +3313,14 @@ func excerptFromLog(tail string, partial bool) string {
 	}
 
 	return out
+}
+
+// heldByForge names GitHub as the holder of an enabled auto-merge, and nobody
+// when it's off (#1596).
+func heldByForge(enabled bool) dashboard.AutoMergeHolder {
+	if enabled {
+		return dashboard.AutoMergeHeldByForge
+	}
+
+	return ""
 }

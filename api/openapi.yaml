@@ -4283,6 +4283,19 @@ components:
             requests, a bounded number per refresh). It is false once the
             timeline shows no schedule. Omitted when it hasn't been read yet
             or the read failed, since this service then doesn't know.
+        autoMergeHeldBy:
+          type: string
+          x-extensible-enum: [dashboard, forge]
+          description: |
+            Who holds the auto-merge, so a client can word it right. Present
+            only when `autoMergeEnabled` is true. `dashboard` means this app
+            holds a stored intent and performs the merge itself (Forgejo).
+            `forge` means the merge is scheduled on the forge: Forgejo's own
+            scheduled merge, or GitHub's auto-merge. When both exist on
+            Forgejo it is `dashboard`, since this app's loop merges and
+            Cancel clears both. Omitted means unknown: a client must not
+            guess it from other fields, and should treat a value it doesn't
+            know like an omitted one.
         autoMergeAllowed:
           type: boolean
           description: |

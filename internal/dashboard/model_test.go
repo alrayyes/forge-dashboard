@@ -79,3 +79,15 @@ func TestDeriveReviewDecision(t *testing.T) {
 		})
 	}
 }
+
+func TestPullRequest_AutoMergeHeldByIsAbsentUnlessSet(t *testing.T) {
+	t.Parallel()
+
+	off, err := json.Marshal(dashboard.PullRequest{})
+	require.NoError(t, err)
+	assert.NotContains(t, string(off), "autoMergeHeldBy")
+
+	on, err := json.Marshal(dashboard.PullRequest{AutoMergeHeldBy: dashboard.AutoMergeHeldByDashboard})
+	require.NoError(t, err)
+	assert.Contains(t, string(on), `"autoMergeHeldBy":"dashboard"`)
+}

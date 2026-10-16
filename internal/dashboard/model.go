@@ -233,6 +233,11 @@ type PullRequest struct {
 	// same "doesn't report it" shape RateLimit's own nilable pointer
 	// already uses, so an unknown never renders as a false "not enabled."
 	AutoMergeEnabled *bool `json:"autoMergeEnabled,omitempty"`
+	// AutoMergeHeldBy says who holds the auto-merge (#1596): this app, which
+	// stores the intent and merges itself, or the forge, which scheduled the
+	// merge. Set only while AutoMergeEnabled is true, and empty (omitted)
+	// when the holder isn't known, so a client must not guess it.
+	AutoMergeHeldBy AutoMergeHolder `json:"autoMergeHeldBy,omitempty"`
 	// AutoMergeAllowed is GitHub's per-viewer viewerCanEnableAutoMerge
 	// answer (#738): false when GitHub would refuse "Enable auto-merge",
 	// e.g. a stacked PR whose base branch has no protection rule. Nil when
@@ -489,3 +494,14 @@ func newEmptySnapshot() Snapshot {
 		MainBranches: []MainBranch{},
 	}
 }
+
+// AutoMergeHolder names who performs an enabled auto-merge.
+type AutoMergeHolder string
+
+const (
+	// AutoMergeHeldByDashboard means this app holds a stored intent and merges.
+	AutoMergeHeldByDashboard AutoMergeHolder = "dashboard"
+	// AutoMergeHeldByForge means the forge itself scheduled the merge (Forgejo's
+	// scheduled merge, GitHub's auto-merge).
+	AutoMergeHeldByForge AutoMergeHolder = "forge"
+)
