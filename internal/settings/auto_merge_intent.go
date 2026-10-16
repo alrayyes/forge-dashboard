@@ -14,8 +14,8 @@ func AutoMergeKey(forge, repoFullName string, number int) string {
 }
 
 // ArmAutoMerge records that userID asked this app to merge the pull request
-// once its checks pass. Forgejo can't report a scheduled merge back, so the
-// intent lives here. Idempotent: arming an armed pull request keeps the
+// once its checks pass. Forgejo's pull request JSON has no auto-merge field, so
+// the app's own intent lives here. Idempotent: arming an armed pull request keeps the
 // original time.
 func (s *Store) ArmAutoMerge(ctx context.Context, userID []byte, forge, repoFullName string, number int) error {
 	_, err := s.db.ExecContext(ctx, `
