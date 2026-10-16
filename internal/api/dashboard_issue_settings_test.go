@@ -1,0 +1,251 @@
+package api_test
+
+import (
+	"bufio"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// The user's own issue settings (#1630) are applied by the server, so the
+// board, the nav pill and Insights agree with no client arithmetic.
+
+func settingsIssues() []dashboard.Issue {
+	gh := func(n int, title string) dashboard.Issue {
+		return dashboard.Issue{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: n, Title: title}
+	}
+	dep := gh(1, "Dependency Dashboard")
+	dep.Author = "renovate[bot]"
+
+	return []dashboard.Issue{
+		dep,
+		gh(2, "A real bug"),
+		gh(3, "Weekly report for May"),
+		gh(4, "Please see the WEEKLY REPORT"),
+		gh(5, "Another real bug"),
+	}
+}
+
+// issueSettingsServer is a server whose first user has the issues above, once
+// the board shows all five.
+func issueSettingsServer(t *testing.T) (*httptest.Server, *http.Cookie) {
+	t.Helper()
+
+	const token = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
+	src := &fakeConfiguredSource{
+		health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1},
+		issues: settingsIssues(),
+	}
+	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+		if c.GitHubToken != token {
+			return nil
+		}
+
+		return []dashboard.Source{src}
+	})
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+token+`"}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+	require.Eventually(t, func() bool {
+		issues, _ := fetchDashboard(t, srv.URL, cookie)["issues"].([]any)
+
+		return len(issues) == 5
+	}, time.Second, 10*time.Millisecond)
+
+	return srv, cookie
+}
+
+func issueNumbers(board map[string]any) []int {
+	var out []int
+	for _, raw := range board["issues"].([]any) {
+		out = append(out, int(raw.(map[string]any)["number"].(float64)))
+	}
+
+	return out
+}
+
+func navIssueTotal(board map[string]any) float64 {
+	return board["navCounts"].(map[string]any)["issues"].(map[string]any)["total"].(float64)
+}
+
+func TestDashboard_WithNoIssueSettings_ListsEveryIssueAndHidesNone(t *testing.T) {
+	t.Parallel()
+	srv, cookie := issueSettingsServer(t)
+
+	board := fetchDashboard(t, srv.URL, cookie)
+
+	assert.Equal(t, []int{1, 2, 3, 4, 5}, issueNumbers(board))
+	assert.InDelta(t, 0, board["settingsHiddenIssueCount"], 0, "present and zero")
+}
+
+func TestDashboard_HideDependencyDashboard_LeavesOutTheHousekeepingIssue(t *testing.T) {
+	t.Parallel()
+	srv, cookie := issueSettingsServer(t)
+	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	board := fetchDashboard(t, srv.URL, cookie)
+
+	assert.Equal(t, []int{2, 3, 4, 5}, issueNumbers(board))
+	assert.InDelta(t, 1, board["settingsHiddenIssueCount"], 0)
+}
+
+func TestDashboard_IgnoredTitles_LeaveOutMatchesAnywhereIgnoringCase(t *testing.T) {
+	t.Parallel()
+	srv, cookie := issueSettingsServer(t)
+	status, _ := putSettings(t, srv.URL, `{"ignoredTitles":["weekly report"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	board := fetchDashboard(t, srv.URL, cookie)
+
+	assert.Equal(t, []int{1, 2, 5}, issueNumbers(board), "3 matches at the start, 4 in the middle in capitals")
+	assert.InDelta(t, 2, board["settingsHiddenIssueCount"], 0)
+}
+
+func TestDashboard_IgnoredTitles_AnchorsAreHonoured(t *testing.T) {
+	t.Parallel()
+	srv, cookie := issueSettingsServer(t)
+	status, _ := putSettings(t, srv.URL, `{"ignoredTitles":["^Weekly report"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	assert.Equal(t, []int{1, 2, 4, 5}, issueNumbers(fetchDashboard(t, srv.URL, cookie)))
+}
+
+func TestDashboard_BothSettings_CountAnIssueTheyBothMatchOnce(t *testing.T) {
+	t.Parallel()
+	srv, cookie := issueSettingsServer(t)
+	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["dependency","bug"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	board := fetchDashboard(t, srv.URL, cookie)
+
+	assert.Equal(t, []int{3, 4}, issueNumbers(board))
+	assert.InDelta(t, 3, board["settingsHiddenIssueCount"], 0)
+}
+
+func TestDashboard_IssueCounts_FollowTheIssuesThatRemain(t *testing.T) {
+	t.Parallel()
+	srv, cookie := issueSettingsServer(t)
+	before := fetchDashboard(t, srv.URL, cookie)
+	require.InDelta(t, 4, before["openIssueCount"], 0, "the housekeeping issue was never counted")
+	require.InDelta(t, 4, navIssueTotal(before), 0)
+
+	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["^Weekly"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+	after := fetchDashboard(t, srv.URL, cookie)
+
+	assert.InDelta(t, 3, after["openIssueCount"], 0, "bug, capitals report, other bug")
+	assert.InDelta(t, 3, navIssueTotal(after), 0)
+}
+
+func TestDashboard_IssueSettings_DoNotChangeAnotherUsersBoard(t *testing.T) {
+	t.Parallel()
+	srv, owner := issueSettingsServer(t)
+	token := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
+	other, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
+	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["bug"]}`, other)
+	require.Equal(t, http.StatusOK, status)
+
+	assert.Equal(t, []int{1, 2, 3, 4, 5}, issueNumbers(fetchDashboard(t, srv.URL, owner)))
+}
+
+// On a shared dashboard the data is the owner's and the settings are the
+// viewer's: what a viewer hides is their own choice, and the owner's choices
+// don't reach into what someone else sees.
+func TestDashboard_SharedDashboard_AppliesTheViewersSettingsNotTheOwners(t *testing.T) {
+	t.Parallel()
+	srv, owner := issueSettingsServer(t)
+	token := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
+	viewer, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
+	share := doJSON(t, http.MethodPut, srv.URL+"/api/sharing/"+testOtherUser, "", owner)
+	_ = share.Body.Close()
+	require.Equal(t, http.StatusNoContent, share.StatusCode)
+
+	t.Run("the owner's settings are not applied to the viewer", func(t *testing.T) {
+		status, _ := putSettings(t, srv.URL, `{"githubToken":"sekrit-token","ignoredTitles":["bug"]}`, owner)
+		require.Equal(t, http.StatusOK, status)
+
+		board := fetchDashboardWith(t, srv.URL, viewer, "?owner="+testUser)
+
+		assert.Equal(t, []int{1, 2, 3, 4, 5}, issueNumbers(board))
+		assert.InDelta(t, 0, board["settingsHiddenIssueCount"], 0)
+		assert.Equal(t, []int{1, 3, 4}, issueNumbers(fetchDashboard(t, srv.URL, owner)), "the owner's own board still follows them")
+	})
+
+	t.Run("the viewer's settings are applied, counts included", func(t *testing.T) {
+		status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["^Weekly"]}`, viewer)
+		require.Equal(t, http.StatusOK, status)
+
+		board := fetchDashboardWith(t, srv.URL, viewer, "?owner="+testUser)
+
+		assert.Equal(t, []int{2, 4, 5}, issueNumbers(board))
+		assert.InDelta(t, 2, board["settingsHiddenIssueCount"], 0)
+		assert.InDelta(t, 3, board["openIssueCount"], 0)
+		assert.InDelta(t, 3, navIssueTotal(board), 0)
+	})
+}
+
+func TestDashboardStream_AppliesTheIssueSettings(t *testing.T) {
+	t.Parallel()
+	srv, cookie := issueSettingsServer(t)
+	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["^Weekly"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+	webhookToken, webhookSecret := webhookCredentials(t, srv.URL, cookie)
+
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
+	require.NoError(t, err)
+	req.AddCookie(cookie)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	events := make(chan string, 4)
+	go streamSSEEvents(bufio.NewReader(resp.Body), events)
+
+	body := []byte(`{"action":"opened"}`)
+	hook, err := http.NewRequest(http.MethodPost, srv.URL+"/api/webhooks/github/"+webhookToken, strings.NewReader(string(body)))
+	require.NoError(t, err)
+	hook.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, webhookSecret))
+	hookResp, err := http.DefaultClient.Do(hook)
+	require.NoError(t, err)
+	_ = hookResp.Body.Close()
+	require.Equal(t, http.StatusNoContent, hookResp.StatusCode)
+
+	select {
+	case data := <-events:
+		var board map[string]any
+		require.NoError(t, json.Unmarshal([]byte(data), &board))
+		assert.Equal(t, []int{2, 4, 5}, issueNumbers(board))
+		assert.InDelta(t, 2, board["settingsHiddenIssueCount"], 0)
+		assert.InDelta(t, 3, navIssueTotal(board), 0)
+	case <-time.After(2 * time.Second):
+		t.Fatal("no SSE event received after the webhook-triggered refresh")
+	}
+}
+
+func TestMCP_GetDashboard_AppliesTheIssueSettings(t *testing.T) {
+	t.Parallel()
+	srv, cookie := issueSettingsServer(t)
+	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["^Weekly"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, cookie))
+
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_dashboard"})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	board, ok := result.StructuredContent.(map[string]any)
+	require.True(t, ok)
+
+	assert.Equal(t, []int{2, 4, 5}, issueNumbers(board))
+	assert.InDelta(t, 2, board["settingsHiddenIssueCount"], 0)
+	assert.InDelta(t, 3, board["openIssueCount"], 0)
+}
