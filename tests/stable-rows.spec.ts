@@ -188,7 +188,7 @@ test.describe('stable rows (#710)', () => {
     await push(page, [makePR(1, { ci: 'failure' }), initial[1]]);
 
     const first = page.locator('#pr-rows .row').first();
-    await expect(first).toContainText('Failing');
+    await expect(first).toContainText('Failed');
     await expect(first).toContainText('Pull request 1');
     await expect(first.getByText('Updated just now')).toBeVisible();
     await expect(page.locator('#updates-count')).toHaveText('');
@@ -225,7 +225,7 @@ test.describe('stable rows (#710)', () => {
       '1 update available',
     );
     await expect(page.locator('#pr-rows .row').first()).not.toContainText(
-      'Failing',
+      'Failed',
     );
 
     await page.reload();
@@ -235,9 +235,7 @@ test.describe('stable rows (#710)', () => {
 
     await page.getByRole('button', { name: 'Pause live updates' }).click();
     await push(page, [makePR(1, { ci: 'failure' }), initial[1]]);
-    await expect(page.locator('#pr-rows .row').first()).toContainText(
-      'Failing',
-    );
+    await expect(page.locator('#pr-rows .row').first()).toContainText('Failed');
   });
 
   // #1109: with nothing held the bar was a grey strip holding only the
