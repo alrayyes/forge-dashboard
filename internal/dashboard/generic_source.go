@@ -242,6 +242,21 @@ func (s *GenericSource) EnsureWebhook(ctx context.Context, owner, name, targetUR
 	return nil
 }
 
+// UpgradeWebhook implements WebhookUpgrader at the Source level by delegating
+// to the underlying client, the same shape EnsureWebhook uses.
+func (s *GenericSource) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
+	upgrader, ok := s.client.(WebhookUpgrader)
+	if !ok {
+		return false, fmt.Errorf("dashboard: %s's client can't upgrade webhooks: %w", s.forge, errUnsupportedByClient)
+	}
+	updated, err := upgrader.UpgradeWebhook(ctx, owner, name, targetURL, secret)
+	if err != nil {
+		return false, fmt.Errorf("dashboard: upgrade webhook: %w", err)
+	}
+
+	return updated, nil
+}
+
 // MergePullRequest implements PullRequestMerger at the Source level by
 // delegating to the underlying client, the same "Source unwraps to its
 // ForgeClient" shape EnsureWebhook already uses.

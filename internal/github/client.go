@@ -501,28 +501,9 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 		return asClientError(err)
 	}
 
-	contentType := "json"
-	active := true
-	hook := &ghsdk.Hook{
-		Config: &ghsdk.HookConfig{
-			URL:         &targetURL,
-			ContentType: &contentType,
-			Secret:      &secret,
-		},
-		Events: githubWebhookEvents,
-		Active: &active,
-	}
-
+	hook := ownHook(targetURL, secret)
 	if existing != nil {
-		path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, existing.GetID())
-		slog.Debug("github request", "method", http.MethodPatch, "url", path)
-		_, resp, err := c.restClient.Repositories.EditHook(ctx, owner, name, existing.GetID(), hook)
-		if err != nil {
-			return asClientError(c.restError(ctx, http.MethodPatch, path, err))
-		}
-		c.recordRESTSuccess(ctx, http.MethodPatch, path, resp)
-
-		return nil
+		return c.editHook(ctx, owner, name, existing.GetID(), hook)
 	}
 
 	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
@@ -534,6 +515,57 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 	c.recordRESTSuccess(ctx, http.MethodPost, path, resp)
 
 	return nil
+}
+
+// ownHook is the hook body this app writes: json, active, current events.
+func ownHook(targetURL, secret string) *ghsdk.Hook {
+	contentType := "json"
+	active := true
+
+	return &ghsdk.Hook{
+		Config: &ghsdk.HookConfig{
+			URL:         &targetURL,
+			ContentType: &contentType,
+			Secret:      &secret,
+		},
+		Events: githubWebhookEvents,
+		Active: &active,
+	}
+}
+
+// editHook PATCHes hook id with hook.
+func (c *Client) editHook(ctx context.Context, owner, name string, id int64, hook *ghsdk.Hook) error {
+	path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, id)
+	slog.Debug("github request", "method", http.MethodPatch, "url", path)
+	_, resp, err := c.restClient.Repositories.EditHook(ctx, owner, name, id, hook)
+	if err != nil {
+		return asClientError(c.restError(ctx, http.MethodPatch, path, err))
+	}
+	c.recordRESTSuccess(ctx, http.MethodPatch, path, resp)
+
+	return nil
+}
+
+// UpgradeWebhook implements dashboard.WebhookUpgrader: one hooks listing, and
+// a PATCH only when this app's hook lacks an event it subscribes to now. It
+// never creates a hook (#1555).
+func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return false, fmt.Errorf("github: invalid webhook target URL: %w", err)
+	}
+	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
+	if err != nil {
+		return false, asClientError(err)
+	}
+	if existing == nil || dashboard.WebhookCoversEvents(existing.Events, githubWebhookEvents) {
+		return false, nil
+	}
+	if err := c.editHook(ctx, owner, name, existing.GetID(), ownHook(targetURL, secret)); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // MergePullRequest implements dashboard.PullRequestMerger: merges
