@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.201.0](https://github.com/alrayyes/forge-dashboard/compare/v0.200.2...v0.201.0) (2026-10-16)
+
+
+### Features
+
+* **mcp:** add the list_queued_actions tool ([#1656](https://github.com/alrayyes/forge-dashboard/issues/1656)) ([4a54b76](https://github.com/alrayyes/forge-dashboard/commit/4a54b766669b278e28712436ceaf7c9c34b3272f))
+
 ## [0.200.2](https://github.com/alrayyes/forge-dashboard/compare/v0.200.1...v0.200.2) (2026-10-16)
 
 
