@@ -1129,7 +1129,7 @@ out of everything you see:
 - **Hide Dependency Dashboard** (`hideDependencyDashboard` in the API) leaves
   out the bot-kept Dependency Dashboard issue.
 - **Ignored titles** (`ignoredTitles`) is a list of patterns. An issue whose
-  title matches any one is left out. A pattern matches anywhere in the title
+  title matches at least one is left out. A pattern matches anywhere in the title
   and ignores case, so `^Weekly report` leaves out every issue whose title
   starts with "Weekly report".
 

@@ -3,6 +3,9 @@
   "ltex.dictionary": {
     "en-GB": [
       "Dependabot",
+      "lookahead",
+      "lookbehind",
+      "backreferences",
       "brotli",
       "gzip",
       "Cobertura",
