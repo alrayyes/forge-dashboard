@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.200.2](https://github.com/alrayyes/forge-dashboard/compare/v0.200.1...v0.200.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* **dashboard:** drop the checks-pending next step when auto-merge is on ([#1644](https://github.com/alrayyes/forge-dashboard/issues/1644)) ([e92899e](https://github.com/alrayyes/forge-dashboard/commit/e92899e73dca7c48eb01752dbd773e20e426a935))
+
 ## [0.200.1](https://github.com/alrayyes/forge-dashboard/compare/v0.200.0...v0.200.1) (2026-10-16)
 
 
