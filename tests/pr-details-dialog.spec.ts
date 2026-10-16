@@ -788,6 +788,64 @@ test.describe('pull request details dialog', () => {
     });
   }
 
+  test("a pull request with no CI shows the row's No checks badge in the header", async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR({ ci: 'none' })]);
+    await mockDetails(page, details());
+    await page.goto('/pull-requests.html');
+    const rowText = (
+      await page
+        .locator('#pr-rows .row')
+        .first()
+        .locator('.ci-pill')
+        .textContent()
+    )?.trim();
+    expect(rowText).toBe('No checks');
+    await trigger(page).click();
+    await expect(dialog(page).locator('.details-status .ci-pill')).toHaveText(
+      rowText ?? '',
+    );
+  });
+
+  test('a mergeable pull request draws no merge pill in the header, like the row', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR({ mergeStatus: 'mergeable' })]);
+    await mockDetails(page, details());
+    await page.goto('/pull-requests.html');
+    await expect(page.locator('#pr-rows .row .merge-pill')).toHaveCount(0);
+    await trigger(page).click();
+    await expect(dialog(page).locator('.details-status')).toBeVisible();
+    await expect(dialog(page).locator('.merge-pill')).toHaveCount(0);
+    await expect(dialog(page)).not.toContainText('Mergeable');
+  });
+
+  for (const [mergeStatus, ci] of [
+    ['conflicting', 'failure'],
+    ['blocked', 'success'],
+  ] as const) {
+    test(`the header's merge pill reads like the row's (${mergeStatus})`, async ({
+      page,
+    }) => {
+      await mockDashboard(page, [makePR({ mergeStatus, ci })]);
+      await mockDetails(page, details());
+      await page.goto('/pull-requests.html');
+      const rowPill = page
+        .locator('#pr-rows .row')
+        .first()
+        .locator('.merge-pill');
+      const rowText = (await rowPill.textContent())?.trim();
+      expect(rowText).toBe(
+        mergeStatus === 'blocked' ? 'Blocked' : 'Conflicting',
+      );
+      await trigger(page).click();
+      await expect(
+        dialog(page).locator(`.details-status .merge-pill.${mergeStatus}`),
+      ).toHaveText(rowText ?? '');
+    });
+  }
+
   test('attributes are quiet outlined chips with no fill or state colour', async ({
     page,
   }) => {

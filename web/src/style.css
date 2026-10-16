@@ -1543,14 +1543,6 @@ button.ci-pill:hover {
 .merge-pill.blocked .dot {
   background: var(--warning);
 }
-/* Only the details header draws this one; a clean row stays silent. */
-.merge-pill.mergeable {
-  background: var(--good-bg);
-  color: var(--good);
-}
-.merge-pill.mergeable .dot {
-  background: var(--good);
-}
 /* "Managed by Forge Dashboard": the app, not the forge, does this merge. */
 .attr-chip .pill-note {
   font-weight: 400;
