@@ -94,6 +94,9 @@ async function expectLockedWithoutRetry(row: Locator, label: string) {
 
 test.describe('rate-limited actions (#732)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
+    // The live stream would push the server's own, newer snapshot over the
+    // mock, and the page drops the older one as stale.
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
     await registerAndSignIn(page, request, baseURL);
   });
 
