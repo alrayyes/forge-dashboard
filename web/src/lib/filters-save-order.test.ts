@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
 import { releaseAllHeld, type SharedFilterState, saveState } from './filters';
 
 // Two picks in quick succession send two PUTs. The server keeps whichever
@@ -83,5 +83,56 @@ describe('saveState ordering', () => {
     saveState(pick('ryan', 'bug'));
     await tick();
     expect(sent).toHaveLength(1);
+  });
+
+  test('sends the queued snapshot when the in-flight PUT fails', async () => {
+    const bodies: SharedFilterState[] = [];
+    let calls = 0;
+    globalThis.fetch = ((_u: string, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      calls++;
+      return calls === 1
+        ? new Promise<Response>((_, reject) => {
+            failFirst = () => reject(new Error('offline'));
+          })
+        : Promise.resolve(new Response('{}'));
+    }) as typeof fetch;
+    let failFirst = () => {};
+    saveState(pick('ryan', ''));
+    saveState(pick('ryan', 'bug'));
+    failFirst();
+    await tick();
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1].shared).toEqual({ author: 'ryan', label: 'bug' });
+  });
+
+  test('a PUT that never settles is aborted and later saves go out', async () => {
+    jest.useFakeTimers();
+    try {
+      const bodies: SharedFilterState[] = [];
+      const signals: (AbortSignal | null | undefined)[] = [];
+      globalThis.fetch = ((_u: string, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        signals.push(init?.signal);
+        if (bodies.length > 1) return Promise.resolve(new Response('{}'));
+        return new Promise<Response>((_, reject) =>
+          init?.signal?.addEventListener('abort', () =>
+            reject(new Error('aborted')),
+          ),
+        );
+      }) as typeof fetch;
+      saveState(pick('ryan', ''));
+      saveState(pick('ryan', 'bug'));
+      expect(bodies).toHaveLength(1);
+      jest.advanceTimersByTime(10_000);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(signals[0]?.aborted).toBe(true);
+      expect(bodies).toHaveLength(2);
+      expect(bodies[1].shared.label).toBe('bug');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
