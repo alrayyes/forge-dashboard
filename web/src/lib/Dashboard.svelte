@@ -6316,7 +6316,6 @@
             entry.phase = "rebasing";
             feedback.update(fkey, {
               phase: "rebasing",
-              inline: "Rebasing…",
               message: kind.pickedUpMessage,
               announce: kind.pickedUpMessage,
             });
@@ -6347,7 +6346,6 @@
           if (found.request.phase === "rebasing")
             feedback.update(fkey, {
               phase: "rebasing",
-              inline: "Rebasing…",
               message: kind.pickedUpMessage,
             });
         }
