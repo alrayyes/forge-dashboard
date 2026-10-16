@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.196.0](https://github.com/alrayyes/forge-dashboard/compare/v0.195.0...v0.196.0) (2026-10-16)
+
+
+### Features
+
+* **web:** draw state, outcome and attributes as three tiers on a row ([#1595](https://github.com/alrayyes/forge-dashboard/issues/1595)) ([409fa3c](https://github.com/alrayyes/forge-dashboard/commit/409fa3c7b004d3f8ff31f28121f34c18afa6f9e4))
+* **web:** group the running state after the outcomes in the nav pill ([#1600](https://github.com/alrayyes/forge-dashboard/issues/1600)) ([7d12158](https://github.com/alrayyes/forge-dashboard/commit/7d121588386046ed3bba0273eca923153267987c))
+
 ## [0.195.0](https://github.com/alrayyes/forge-dashboard/compare/v0.194.2...v0.195.0) (2026-10-16)
 
 
