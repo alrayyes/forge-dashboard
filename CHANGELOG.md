@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.200.0](https://github.com/alrayyes/forge-dashboard/compare/v0.199.0...v0.200.0) (2026-10-16)
+
+
+### Features
+
+* **api:** store and apply the hide-Dependency-Dashboard and ignored-titles settings ([#1635](https://github.com/alrayyes/forge-dashboard/issues/1635)) ([5ec8602](https://github.com/alrayyes/forge-dashboard/commit/5ec8602cf54b5b0942c0fd946694bdbea25ab06d))
+
 ## [0.199.0](https://github.com/alrayyes/forge-dashboard/compare/v0.198.1...v0.199.0) (2026-10-16)
 
 
