@@ -67,9 +67,9 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    const pill = row.getByRole('button', { name: 'Failing. Open pipeline' });
+    const pill = row.getByRole('button', { name: 'Failed. Open pipeline' });
     await expect(pill).toBeVisible();
-    await expect(pill).toContainText('Failing');
+    await expect(pill).toContainText('Failed');
     await expect(
       row.getByRole('button', { name: /View pipeline/ }),
     ).toHaveCount(0);
