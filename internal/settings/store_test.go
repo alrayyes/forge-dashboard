@@ -735,3 +735,29 @@ func TestStore_Get_NeverSaved_TimezoneDefaultsToEmptyMeaningBrowser(t *testing.T
 	require.ErrorIs(t, err, settings.ErrNotFound)
 	assert.Empty(t, got.Timezone)
 }
+
+func TestStore_SetThenGet_RoundTripsTheIssueHidingSettings(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+
+	want := settings.Credentials{HideDependencyDashboard: true, IgnoredTitles: []string{"^Weekly report", "a,b"}}
+	require.NoError(t, store.Set(t.Context(), userID, want))
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.True(t, got.HideDependencyDashboard)
+	assert.Equal(t, []string{"^Weekly report", "a,b"}, got.IgnoredTitles, "a comma inside a pattern survives")
+}
+
+func TestStore_NeverSavedIssueHidingSettings_AreOffAndEmpty(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	userID := []byte("user-1")
+	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{Theme: "dark"}))
+
+	got, err := store.Get(t.Context(), userID)
+	require.NoError(t, err)
+	assert.False(t, got.HideDependencyDashboard)
+	assert.Empty(t, got.IgnoredTitles)
+}

@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
@@ -39,6 +41,11 @@ type SettingsResponse struct {
 	// RenovateAuthors — see settings.Credentials' own doc comment. Always a
 	// list on the wire, never null.
 	RenovateAuthors []string `json:"renovateAuthors"`
+	// HideDependencyDashboard and IgnoredTitles (#1630) — see
+	// settings.Credentials' own doc comments. IgnoredTitles is always a list
+	// on the wire, never null.
+	HideDependencyDashboard bool     `json:"hideDependencyDashboard"`
+	IgnoredTitles           []string `json:"ignoredTitles"`
 	// Theme — see settings.Credentials' own doc comment. Round-tripped
 	// here too so the Settings page's own save confirms what it just set,
 	// even though the lightweight GET /api/settings/theme below is what
@@ -63,6 +70,8 @@ func settingsResponseOf(c settings.Credentials, githubAppConfigured bool) Settin
 		WebhookSecret:           c.WebhookSecret,
 		RenovateRebaseLabel:     c.RenovateRebaseLabel,
 		RenovateAuthors:         append([]string{}, c.RenovateAuthors...),
+		HideDependencyDashboard: c.HideDependencyDashboard,
+		IgnoredTitles:           append([]string{}, c.IgnoredTitles...),
 		Theme:                   c.Theme,
 		Timezone:                c.Timezone,
 	}
@@ -200,6 +209,48 @@ type settingsPutRequest struct {
 	RenovateRebaseLabel     string `json:"renovateRebaseLabel"`
 	// RenovateAuthors replaces the saved list. Omitted or empty clears it.
 	RenovateAuthors []string `json:"renovateAuthors"`
+	// HideDependencyDashboard and IgnoredTitles (#1630) replace the saved
+	// values; omitted means false and empty, like RenovateAuthors.
+	HideDependencyDashboard bool     `json:"hideDependencyDashboard"`
+	IgnoredTitles           []string `json:"ignoredTitles"`
+}
+
+// cleanTitlePatterns trims the patterns, drops blanks and repeats (ignoring
+// case), and answers whether the list is acceptable: at most
+// maxIgnoredTitles entries, each at most maxIgnoredTitleLen characters and
+// valid Go RE2 syntax. A rejection names the entry by its 1-based place in the
+// list as sent, and says why in plain words (#1630).
+func cleanTitlePatterns(w http.ResponseWriter, patterns []string) ([]string, bool) {
+	reject := func(msg string) ([]string, bool) {
+		writeJSON(w, http.StatusBadRequest, fieldErrorBody("ignoredTitles", msg))
+
+		return nil, false
+	}
+	if len(patterns) > maxIgnoredTitles {
+		return reject(fmt.Sprintf("ignoredTitles lists more than %d entries", maxIgnoredTitles))
+	}
+
+	var out []string
+	seen := map[string]struct{}{}
+	for i, p := range patterns {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if utf8.RuneCountInString(p) > maxIgnoredTitleLen {
+			return reject(fmt.Sprintf("ignoredTitles entry %d is longer than %d characters", i+1, maxIgnoredTitleLen))
+		}
+		if _, err := dashboard.CompileTitlePatterns([]string{p}); err != nil {
+			return reject(fmt.Sprintf("ignoredTitles entry %d (%q): %s", i+1, p, err))
+		}
+		if _, dup := seen[strings.ToLower(p)]; dup {
+			continue
+		}
+		seen[strings.ToLower(p)] = struct{}{}
+		out = append(out, p)
+	}
+
+	return out, true
 }
 
 // cleanLogins trims the logins, drops blanks and repeats (a forge login isn't
@@ -263,6 +314,10 @@ func decodeSettingsPut(w http.ResponseWriter, r *http.Request) (settingsPutReque
 		return settingsPutRequest{}, false
 	}
 
+	if req.IgnoredTitles, ok = cleanTitlePatterns(w, req.IgnoredTitles); !ok {
+		return settingsPutRequest{}, false
+	}
+
 	return req, true
 }
 
@@ -278,6 +333,8 @@ func mergeSettings(req settingsPutRequest, existing settings.Credentials) settin
 		ForgejoUsername:         req.ForgejoUsername,
 		RenovateRebaseLabel:     req.RenovateRebaseLabel,
 		RenovateAuthors:         req.RenovateAuthors,
+		HideDependencyDashboard: req.HideDependencyDashboard,
+		IgnoredTitles:           req.IgnoredTitles,
 		// Theme isn't part of this request at all — it has its own
 		// dedicated PUT /api/settings/theme (handleThemePut) so
 		// picking it applies and saves instantly rather than

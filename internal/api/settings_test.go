@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -619,4 +620,129 @@ func TestSettingsPut_WrongTypeMessageIsPlainWords(t *testing.T) {
 	var body map[string]string
 	require.NoError(t, readJSON(resp, &body))
 	assert.Equal(t, "githubAppInstallationId must be a whole number", body["error"])
+}
+
+// putSettings sends body to PUT /api/settings and answers the status and the
+// decoded body.
+func putSettings(t *testing.T, srvURL, body string, cookie *http.Cookie) (int, map[string]any) {
+	t.Helper()
+
+	resp := doJSON(t, http.MethodPut, srvURL+"/api/settings", body, cookie)
+	defer func() { _ = resp.Body.Close() }()
+	var got map[string]any
+	require.NoError(t, readJSON(resp, &got))
+
+	return resp.StatusCode, got
+}
+
+func getSettings(t *testing.T, srvURL string, cookie *http.Cookie) api.SettingsResponse {
+	t.Helper()
+
+	resp := doJSON(t, http.MethodGet, srvURL+"/api/settings", "", cookie)
+	defer func() { _ = resp.Body.Close() }()
+	var got api.SettingsResponse
+	require.NoError(t, readJSON(resp, &got))
+
+	return got
+}
+
+func TestSettingsPut_ThenGet_RoundTripsTheIssueHidingSettings(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["^Weekly report","(?i)stale"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	got := getSettings(t, srv.URL, cookie)
+	assert.True(t, got.HideDependencyDashboard)
+	assert.Equal(t, []string{"^Weekly report", "(?i)stale"}, got.IgnoredTitles)
+}
+
+func TestSettingsPut_OmittedIssueHidingSettingsClearThem(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["x"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	status, _ = putSettings(t, srv.URL, `{}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	got := getSettings(t, srv.URL, cookie)
+	assert.False(t, got.HideDependencyDashboard)
+	assert.NotNil(t, got.IgnoredTitles, "[] on the wire, not null")
+	assert.Empty(t, got.IgnoredTitles)
+}
+
+func TestSettingsPut_IgnoredTitles_AreTrimmedAndBlanksAndRepeatsDropped(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+
+	status, _ := putSettings(t, srv.URL, `{"ignoredTitles":["  ^Weekly  ","","   ","^weekly","Other"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	assert.Equal(t, []string{"^Weekly", "Other"}, getSettings(t, srv.URL, cookie).IgnoredTitles)
+}
+
+func TestSettingsPut_IgnoredTitles_RejectsABadListNamingTheEntry(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	twentyOne := `"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21"`
+
+	for name, c := range map[string]struct{ body, message string }{
+		"an unclosed group":       {`{"ignoredTitles":["fine","("]}`, `ignoredTitles entry 2 ("("): missing closing )`},
+		"an unopened group":       {`{"ignoredTitles":["a)"]}`, `ignoredTitles entry 1 ("a)"): unexpected )`},
+		"a lookahead":             {`{"ignoredTitles":["a(?=b)"]}`, `ignoredTitles entry 1 ("a(?=b)"): lookahead and lookbehind are not supported`},
+		"a backreference":         {`{"ignoredTitles":["(a)\\1"]}`, `ignoredTitles entry 1 ("(a)\\1"): backreferences are not supported`},
+		"an entry over 200 chars": {`{"ignoredTitles":["` + strings.Repeat("a", 201) + `"]}`, `ignoredTitles entry 1 is longer than 200 characters`},
+		"more than 20 entries":    {`{"ignoredTitles":[` + twentyOne + `]}`, `ignoredTitles lists more than 20 entries`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			status, body := putSettings(t, srv.URL, c.body, cookie)
+			assert.Equal(t, http.StatusBadRequest, status)
+			assert.Equal(t, c.message, body["error"])
+			assert.Equal(t, "ignoredTitles", body["field"])
+		})
+	}
+}
+
+func TestSettingsPut_IgnoredTitles_ExactlyTheLimitsAreAccepted(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	var entries []string
+	for i := range 20 {
+		entries = append(entries, `"`+strings.Repeat("a", 190)+strconv.Itoa(i+10)+`"`)
+	}
+
+	status, _ := putSettings(t, srv.URL, `{"ignoredTitles":[`+strings.Join(entries, ",")+`]}`, cookie)
+
+	assert.Equal(t, http.StatusOK, status)
+}
+
+func TestSettingsPut_AnInvalidPatternSavesNothing(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	status, _ := putSettings(t, srv.URL, `{"githubUsername":"ryan","hideDependencyDashboard":true,"ignoredTitles":["keep"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	status, _ = putSettings(t, srv.URL, `{"githubUsername":"changed","hideDependencyDashboard":false,"ignoredTitles":["ok","("]}`, cookie)
+	require.Equal(t, http.StatusBadRequest, status)
+
+	got := getSettings(t, srv.URL, cookie)
+	assert.Equal(t, []string{"keep"}, got.IgnoredTitles, "the list as it was")
+	assert.True(t, got.HideDependencyDashboard, "the checkbox as it was")
+	assert.Equal(t, "ryan", got.GitHubUsername, "nothing else changed either")
 }

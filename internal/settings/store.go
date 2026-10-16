@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -44,6 +45,12 @@ type Credentials struct {
 	// there, named whatever the instance chose. Only the user knows it, so
 	// nothing is assumed (#1062). Empty means none beyond the built-in slugs.
 	RenovateAuthors []string
+	// HideDependencyDashboard leaves the bot-kept Dependency Dashboard issue
+	// out of the user's dashboard and every count built from it (#1630).
+	HideDependencyDashboard bool
+	// IgnoredTitles are patterns (Go RE2) for issue titles to leave out of the
+	// user's dashboard and its counts (#1630). Empty means none.
+	IgnoredTitles []string
 	// Theme is "light", "dark", or "" (system — the default, matching
 	// the pre-paint theme script's cookie-unset behavior). Set only from Settings
 	// (#352: no header toggle anywhere else) and read on every page load
@@ -108,6 +115,8 @@ func (s *Store) Init(ctx context.Context) error {
 		webhook_secret TEXT NOT NULL DEFAULT '',
 		renovate_rebase_label TEXT NOT NULL DEFAULT '',
 		renovate_authors TEXT NOT NULL DEFAULT '',
+		hide_dependency_dashboard INTEGER NOT NULL DEFAULT 0,
+		ignored_titles TEXT NOT NULL DEFAULT '[]',
 		filter_state TEXT NOT NULL DEFAULT '{}',
 		theme TEXT NOT NULL DEFAULT '',
 		timezone TEXT NOT NULL DEFAULT '',
@@ -167,6 +176,8 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 		`ALTER TABLE user_credentials ADD COLUMN timezone TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE user_credentials ADD COLUMN github_app_installation_id INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE user_credentials ADD COLUMN renovate_authors TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE user_credentials ADD COLUMN hide_dependency_dashboard INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE user_credentials ADD COLUMN ignored_titles TEXT NOT NULL DEFAULT '[]'`,
 		// Default 1 (true): a repo ignored before #511 was all-or-nothing,
 		// so it keeps ignoring both PRs and issues after upgrading.
 		`ALTER TABLE ignored_repos ADD COLUMN ignore_prs BOOLEAN NOT NULL DEFAULT 1`,
@@ -197,10 +208,15 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 		return err
 	}
 
+	titles, err := json.Marshal(append([]string{}, c.IgnoredTitles...))
+	if err != nil {
+		return fmt.Errorf("settings: encode ignored titles: %w", err)
+	}
+
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO user_credentials
-			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, renovate_rebase_label, renovate_authors, theme, timezone, github_app_installation_id, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, renovate_rebase_label, renovate_authors, hide_dependency_dashboard, ignored_titles, theme, timezone, github_app_installation_id, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (user_id) DO UPDATE SET
 			github_token = excluded.github_token,
 			github_username = excluded.github_username,
@@ -209,11 +225,13 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 			forgejo_username = excluded.forgejo_username,
 			renovate_rebase_label = excluded.renovate_rebase_label,
 			renovate_authors = excluded.renovate_authors,
+			hide_dependency_dashboard = excluded.hide_dependency_dashboard,
+			ignored_titles = excluded.ignored_titles,
 			theme = excluded.theme,
 			timezone = excluded.timezone,
 			github_app_installation_id = excluded.github_app_installation_id,
 			updated_at = excluded.updated_at`,
-		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.RenovateRebaseLabel, strings.Join(c.RenovateAuthors, ","), c.Theme, c.Timezone, c.GitHubAppInstallationID, time.Now().UTC(),
+		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.RenovateRebaseLabel, strings.Join(c.RenovateAuthors, ","), c.HideDependencyDashboard, titles, c.Theme, c.Timezone, c.GitHubAppInstallationID, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("settings: save credentials: %w", err)
@@ -228,12 +246,12 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 		c                               Credentials
 		encGitHubToken, encForgejoToken string
 	)
-	var authors string
+	var authors, titles string
 	err := s.db.QueryRowContext(ctx, `
-		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, renovate_rebase_label, renovate_authors, theme, timezone, github_app_installation_id, updated_at
+		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, renovate_rebase_label, renovate_authors, hide_dependency_dashboard, ignored_titles, theme, timezone, github_app_installation_id, updated_at
 		FROM user_credentials WHERE user_id = ?`,
 		encodeUserID(userID),
-	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.RenovateRebaseLabel, &authors, &c.Theme, &c.Timezone, &c.GitHubAppInstallationID, &c.UpdatedAt)
+	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.RenovateRebaseLabel, &authors, &c.HideDependencyDashboard, &titles, &c.Theme, &c.Timezone, &c.GitHubAppInstallationID, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Credentials{}, ErrNotFound
 	}
@@ -242,6 +260,12 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 	}
 
 	c.RenovateAuthors = splitLogins(authors)
+	if err := json.Unmarshal([]byte(titles), &c.IgnoredTitles); err != nil {
+		return Credentials{}, fmt.Errorf("settings: decode ignored titles: %w", err)
+	}
+	if len(c.IgnoredTitles) == 0 {
+		c.IgnoredTitles = nil
+	}
 
 	if c.GitHubToken, err = s.cipher.Decrypt(encGitHubToken); err != nil {
 		return Credentials{}, err
