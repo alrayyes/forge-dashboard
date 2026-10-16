@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -227,6 +228,55 @@ func TestContract_DashboardAndRefresh(t *testing.T) {
 		req, got = record(t, http.MethodPost, srv.URL+"/api/dashboard/refresh", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		require.NotEmpty(t, got.header.Get("Retry-After"))
+		validateAgainstSpec(t, req, got)
+	})
+}
+
+// TestContract_IssueSettings records the settings calls that carry the issue
+// settings (#1630), and a dashboard that applied them, against the spec.
+func TestContract_IssueSettings(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie := populatedBoard(t)
+	send := func(method, path, body string) (*http.Request, recorded) {
+		t.Helper()
+
+		req, err := http.NewRequest(method, srv.URL+path, strings.NewReader(body))
+		require.NoError(t, err)
+		req.AddCookie(cookie)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		// kin-openapi reads the request body to validate it; give it its own copy.
+		req.Body = nil
+
+		return req, recorded{status: resp.StatusCode, header: resp.Header, body: respBody}
+	}
+
+	t.Run("PUT /api/settings with both settings", func(t *testing.T) {
+		req, got := send(http.MethodPut, "/api/settings", `{"githubToken":"sekrit-token","hideDependencyDashboard":true,"ignoredTitles":["^Weekly report"]}`)
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+	})
+	t.Run("GET /api/settings", func(t *testing.T) {
+		req, got := send(http.MethodGet, "/api/settings", "")
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+	})
+	t.Run("GET /api/dashboard with the settings applied", func(t *testing.T) {
+		req, got := send(http.MethodGet, "/api/dashboard", "")
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+		require.Contains(t, string(got.body), `"settingsHiddenIssueCount":1`)
+		require.Contains(t, string(got.body), `"hideDependencyDashboard":true`)
+		require.Contains(t, string(got.body), `"ignoredTitlesSet":true`)
+	})
+	t.Run("PUT /api/settings with a pattern that does not compile", func(t *testing.T) {
+		req, got := send(http.MethodPut, "/api/settings", `{"ignoredTitles":["("]}`)
+		require.Equal(t, http.StatusBadRequest, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 	})
 }

@@ -1008,13 +1008,14 @@ same order: "Pull requests, 15 total, 2 failing, 10 passing, 3 running", and
 "Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline". On
 a phone the total sits on its own line above the counts, and with three-digit
 numbers each count takes a line, so the busy tabs grow to about 110px. Issues
-counts open issues, without Renovate's Dependency Dashboard, and has no failed
-count. The server works the numbers out from the same lists the pages show
-(`navCounts` on `/api/dashboard`), so a page agrees with its icon, and a hidden
-pull request is in neither. The dashboard pages set them from each snapshot.
-The other signed-in pages (Branches, Insights, Settings and the rest) load them
-and ask again every 30 seconds while the tab is visible, so a refresh or a
-webhook changes them without a reload.
+counts open issues, without Renovate's Dependency Dashboard or what your
+settings hide, and has no failed count. The server works the numbers out from
+the same lists the pages show (`navCounts` on `/api/dashboard`), so a page
+agrees with its icon, and a hidden pull request is in neither. The dashboard
+pages set them from each snapshot. The other signed-in pages (Branches,
+Insights, Settings and the rest) load them and ask again every 30 seconds
+while the tab is visible, so a refresh or a webhook changes them without a
+reload.
 
 A zero is never drawn: a page with nothing in it has no total, and nothing
 failing means no red pill. A page with nothing to show leaves the navigation:
@@ -1137,6 +1138,41 @@ too many: more than 200 characters, two or more open-ended repeats (`*`, `+`,
 the first 128 characters of a title. This is a safety margin tested by
 fuzzing, not a proof. The rule applies to the Issues board only; Insights
 charts ignore it.
+
+### Issues your settings hide
+
+Two settings, saved with your account and applied by the server, keep issues
+out of everything you see:
+
+- **Hide Dependency Dashboard** (`hideDependencyDashboard` in the API) leaves
+  out the bot-kept Dependency Dashboard issue.
+- **Ignored titles** (`ignoredTitles`) is a list of patterns. An issue whose
+  title matches at least one is left out. A pattern matches anywhere in the title
+  and ignores case, so `^Weekly report` leaves out every issue whose title
+  starts with "Weekly report".
+
+The server drops those issues from `issues` in `GET /api/dashboard`, its
+stream and the `get_dashboard` MCP tool. `openIssueCount` and
+`navCounts.issues.total` count what remains, so the navigation badge, the
+Issues board and Insights agree with no arithmetic in the client.
+`settingsHiddenIssueCount` says how many issues the settings dropped, and is
+`0` when none were. The same response carries `hideDependencyDashboard` and
+`ignoredTitlesSet` (true when the list isn't empty), so a client knows whether
+to draw its own fields without reading `/api/settings`.
+
+Patterns use Go's RE2 syntax. It has no lookahead, lookbehind or
+backreferences, and it can't run slowly, so no pattern is refused for being
+complex. A pattern that matches the empty string, such as `.*` or `^`, is
+refused: it would match every title and hide every issue. Saving trims each
+pattern, drops blanks and repeats (ignoring case), and takes at most 20
+patterns of at most 200 characters. A pattern that doesn't compile is a 400
+that names `ignoredTitles` and the entry, counted from 1 in the list as sent,
+and says why, as in `ignoredTitles entry 2 ("("): missing closing )`.
+Nothing is saved then, not the other patterns and not the other settings.
+
+On a dashboard someone shared with you (`?owner=`), the issues are theirs and
+the settings are yours: your own choices decide what you see, and theirs don't
+reach you.
 
 The repo, author and label choices on the pull request, release, bot and issue
 pages and on Insights come from what the page can show: the items every other

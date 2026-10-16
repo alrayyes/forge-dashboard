@@ -94,3 +94,6 @@ brotli
 gzip
 rebas(e|ed|es|ing)
 Vitest
+lookahead
+lookbehind
+backreferences?
