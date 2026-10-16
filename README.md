@@ -929,10 +929,13 @@ it yet: Merge, Update branch and the rest stay on the row.
 The pop-up loads when it opens, from `GET /api/pull-requests/details`, and
 never as part of the dashboard snapshot, so a forge's budget isn't spent on
 rows nobody opens. It shows the first 50 comments and says so when there are
-more. The header shows status chips taken from the row (draft, CI, merge state,
-out of date, auto-merge) as they were when it opened, and the version on the
-Releases page. Each comment carries the author's avatar (the forge's own HTTPS
-image URL, or an initial if it isn't one or can't load), a relative time and an
+more. The header draws the row's three tiers as they were when it opened: the CI
+slot first (Running, Failed or Passed, the row's glyphs and words) with a
+Conflicting or Blocked pill beside it when the row has one, then the title,
+then the attributes as quiet outlined chips (auto-merge, draft, bot, out of
+date, labels, and the version on the Releases page). Each comment carries the
+author's avatar (the forge's own HTTPS image URL, or an initial if it isn't one
+or can't load), a relative time and an
 "edited" mark. A deleted author reads "ghost". Hovering or focusing a reaction
 lists who gave it, up to ten names and then "and N more"; Escape hides that
 list first and a second press closes the pop-up. Reactions are display only.
