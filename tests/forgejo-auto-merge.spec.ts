@@ -72,9 +72,13 @@ function mockDashboard(page: Page, body: unknown) {
   );
 }
 
-function armed(status: AutoMergeStatus) {
+function armed(
+  status: AutoMergeStatus,
+  heldBy: 'dashboard' | 'forge' | null = 'dashboard',
+) {
   return makePR({
     autoMergeEnabled: true,
+    ...(heldBy ? { autoMergeHeldBy: heldBy } : {}),
     autoMerge: status,
     allowedActions: [
       { action: 'merge' },
@@ -260,6 +264,135 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await refreshed;
     await expect(toasts).not.toHaveCount(2);
   });
+
+  // #1596: the note and the words say who holds the merge, as the server
+  // names it, and say nothing about it when the server doesn't.
+  const HOLDERS = [
+    ['dashboard', 'Managed by Forge Dashboard'],
+    ['forge', 'Scheduled on Forgejo'],
+  ] as const;
+
+  for (const [holder, note] of HOLDERS) {
+    test(`a ${holder}-held auto-merge says "${note}"`, async ({ page }) => {
+      await mockDashboard(
+        page,
+        snapshot(
+          armed({ state: 'waiting', code: '', message: 'Ready.' }, holder),
+        ),
+      );
+      await page.reload();
+      const row = page.locator('#pr-rows .row').first();
+      const pill = row.locator('.attr-chip.auto-merge');
+      await expect(pill).toContainText('Auto-merge on');
+      await expect(pill.locator('.pill-note')).toHaveText(note);
+      const others = HOLDERS.filter(([h]) => h !== holder);
+      for (const [, other] of others)
+        await expect(pill).not.toContainText(other);
+      await expect(row.locator('.wait-chip-label')).toHaveText(
+        holder === 'forge' ? 'Merging' : 'Merging next',
+      );
+      await expect(row.locator('.wait-chip-detail')).toHaveText(
+        holder === 'forge'
+          ? 'Forgejo merges it when checks pass'
+          : 'On the next refresh',
+      );
+    });
+  }
+
+  test('an auto-merge with no named holder claims no ownership', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      snapshot(armed({ state: 'waiting', code: '', message: 'Ready.' }, null)),
+    );
+    await page.reload();
+    const row = page.locator('#pr-rows .row').first();
+    const pill = row.locator('.attr-chip.auto-merge');
+    await expect(pill).toContainText('Auto-merge on');
+    await expect(pill.locator('.pill-note')).toHaveCount(0);
+    await expect(row.locator('.wait-chip-label')).toHaveText('Merging next');
+  });
+
+  test('Cancel on a forge-held auto-merge says it cancels the scheduled merge', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      snapshot(
+        armed({ state: 'waiting', code: '', message: 'Ready.' }, 'forge'),
+      ),
+    );
+    await page.route('**/api/pull-requests/auto-merge/cancel', (route: Route) =>
+      route.fulfill({ status: 204 }),
+    );
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snapshot(makePR())),
+      }),
+    );
+    await page.reload();
+    const row = page.locator('#pr-rows .row').first();
+    await row
+      .getByRole('button', {
+        name: 'Disarm the merge scheduled on Forgejo',
+        exact: true,
+      })
+      .click();
+    await expect(
+      page
+        .getByText('Merge scheduled on Forgejo cancelled.')
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
+  });
+
+  for (const width of [360, 768, 1280]) {
+    for (const theme of ['light', 'dark'] as const) {
+      test(`the forge note stays inside the chip at ${width}px in ${theme} mode, with no axe-core violations`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        await page.setViewportSize({ width, height: 900 });
+        await mockDashboard(
+          page,
+          snapshot(
+            armed({ state: 'waiting', code: '', message: 'Ready.' }, 'forge'),
+          ),
+        );
+        await page.reload();
+        const chip = page
+          .locator('#pr-rows .row')
+          .first()
+          .locator('.attr-chip.auto-merge');
+        await expect(chip.locator('.pill-note')).toHaveText(
+          'Scheduled on Forgejo',
+        );
+        const fit = await chip.evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          const note = (
+            el.querySelector('.pill-note') as HTMLElement
+          ).getBoundingClientRect();
+          return {
+            inside:
+              note.left >= box.left - 0.5 &&
+              note.right <= box.right + 0.5 &&
+              note.top >= box.top - 0.5 &&
+              note.bottom <= box.bottom + 0.5,
+            clipped: el.scrollWidth > el.clientWidth,
+          };
+        });
+        expect(fit.inside).toBe(true);
+        expect(fit.clipped).toBe(false);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  }
 
   test('an armed row has no axe-core violations', async ({ page }) => {
     await mockDashboard(

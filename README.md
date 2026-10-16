@@ -582,7 +582,10 @@ Forgejo's pull request JSON doesn't say whether a merge is scheduled, so on
 Forgejo this app keeps the auto-merge itself. "Enable auto-merge" stores your
 intent for that pull request and sends nothing to Forgejo. The pull request
 then shows "Auto-merge on" and "Managed by Forge Dashboard", and a waiting chip
-(below) with a `Disarm` button. After each refresh the server merges an armed
+(below) with a `Disarm` button. The note follows the server's `autoMergeHeldBy`
+field: a merge scheduled on Forgejo itself reads "Scheduled on Forgejo", and
+when the server doesn't say who holds it the chip has no note, since the page
+never guesses. After each refresh the server merges an armed
 pull request once its checks have passed and Forgejo says it can merge, with
 the repo's own merge method, the same as Merge. A pull request you didn't arm
 is never merged. Checks that fail, conflicts, a draft, a stack parent that
@@ -674,9 +677,12 @@ and `Closing` while the forge answers, `Arming` and `Disarming` for auto-merge,
 and `Waiting for CI` (or `Waiting for parent`, `Rate limited`, `Waiting for
 ready`, `Waiting for forge`) for an armed auto-merge on either forge, with `Disarm`.
 Once nothing is left to wait for, Forgejo's reads `Merging next` (this app
-merges it on its next refresh) and GitHub's reads `Merging` (GitHub merges it
-as soon as it can). On GitHub, Disarm turns GitHub's own auto-merge off with
-`disablePullRequestAutoMerge`. When a pull request goes empty, because its branch
+merges it on its next refresh, also when the holder is unknown), `Merging` when
+the server says Forgejo itself holds the merge (it merges when checks pass),
+and GitHub's reads `Merging` (GitHub merges it as soon as it can). Cancel on a
+merge Forgejo holds says it cancels the merge scheduled on Forgejo. On GitHub,
+Disarm turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
+When a pull request goes empty, because its branch
 landed on the base some other way, the app cancels an armed auto-merge on it
 (GitHub's with the same mutation, Forgejo's by dropping its intent) and the
 row's `autoMerge` status says "Auto-merge was cancelled: there is nothing left
