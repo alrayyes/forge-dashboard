@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.198.0](https://github.com/alrayyes/forge-dashboard/compare/v0.197.1...v0.198.0) (2026-10-16)
+
+
+### Features
+
+* **web:** draw the details header as state, outcome and attributes ([#1619](https://github.com/alrayyes/forge-dashboard/issues/1619)) ([6912ce4](https://github.com/alrayyes/forge-dashboard/commit/6912ce4eebd556235ec941d257d62fa190604639))
+
 ## [0.197.1](https://github.com/alrayyes/forge-dashboard/compare/v0.197.0...v0.197.1) (2026-10-16)
 
 
