@@ -164,7 +164,7 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.locator('.merge-pill.auto-merge')).toBeVisible();
+    await expect(row.locator('.attr-chip.auto-merge')).toBeVisible();
     // No other overflow-eligible action applies (not Dependabot/Renovate,
     // View pipeline is inline — #636), so there's nothing left for "More
     // actions" to hold but Close.
@@ -266,11 +266,11 @@ test.describe('pull request Enable auto-merge action', () => {
     await expect(
       row.getByRole('button', { name: 'More actions' }),
     ).toBeVisible();
-    await expect(row.locator('.merge-pill.auto-merge')).toHaveCount(0);
+    await expect(row.locator('.attr-chip.auto-merge')).toHaveCount(0);
     await openMoreActions(row);
     await row.getByRole('button', { name: 'Enable auto-merge' }).click();
 
-    await expect(row.locator('.merge-pill.auto-merge')).toBeVisible();
+    await expect(row.locator('.attr-chip.auto-merge')).toBeVisible();
   });
 
   test('shows an in-progress status while enabling, then a success status', async ({

@@ -382,12 +382,25 @@ and the title is what gets cut. The server works out stacks from the branches
 (`stack`, `stackedOn` and `stackChildren` on each pull request).
 
 On GitHub, a pull request whose workflow runs are held until someone approves
-them (`awaitingWorkflowApproval`) doesn't read "Failing". The CI pill says
+them (`awaitingWorkflowApproval`) doesn't read "Failed". The CI pill says
 "Waiting for workflow approval" and still opens the pipeline panel. An
 "Approve on GitHub" link beside it opens the pull request's checks page in a new
 tab, where GitHub's own button approves the runs. The dashboard doesn't approve
 anything itself. These runs still count as failing CI, so the Failing CI quick
 filter keeps matching them.
+
+A pull request row draws what it shows as three tiers (#1563). A **state**
+(`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
+CI slot: one pill of a fixed size with a glyph and a word, so a finished run
+turns into its result in the same place and the row doesn't move. The glyphs
+are the ones in the pipeline panel, and `Failed` is the heaviest weight. The
+running glyph spins, and holds still under reduced motion. An **attribute** is
+something set on the pull request that holds until someone changes it: `Auto-merge`
+on, `Draft`, `Bot` (a Dependabot or Renovate pull request) and `Out of date`.
+Attributes are quiet outlined chips with a small icon and no fill or motion,
+in a cluster beside the CI slot, never inside it. Conflicts and Blocked stay
+as merge pills, since they say what the merge needs. On a phone the CI slot sits
+at the top right and the attributes take a line of their own.
 
 Every open pull request row has a Merge button. It's clickable when the forge
 reports the merge is actually possible. Otherwise it stays on the row, locked

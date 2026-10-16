@@ -124,7 +124,7 @@ test.describe('show drafts (#791)', () => {
     const seen = await setup(page);
 
     await expect(rows(page)).toHaveCount(5);
-    await expect(page.locator('#pr-rows .draft-badge')).toHaveCount(0);
+    await expect(page.locator('#pr-rows .attr-chip.draft')).toHaveCount(0);
     await expect(toggle(page)).toHaveAttribute('aria-pressed', 'false');
     await expect(toggle(page)).toContainText('3 hidden');
     expect(seen.some((u) => u.includes('includeDrafts'))).toBe(false);
@@ -137,7 +137,7 @@ test.describe('show drafts (#791)', () => {
     await toggle(page).click();
 
     await expect(rows(page)).toHaveCount(8);
-    await expect(page.locator('#pr-rows .draft-badge')).toHaveCount(3);
+    await expect(page.locator('#pr-rows .attr-chip.draft')).toHaveCount(3);
     await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
     await expect(toggle(page)).not.toContainText('hidden');
     expect(seen.some((u) => u.includes('includeDrafts=true'))).toBe(true);

@@ -756,7 +756,7 @@ section.board {
      "alrayyes/forge-dashboard") without one. Every .row shares this
      exact list, which is what keeps columns aligned down the board
      with no shared grid/subgrid — widen it here only, never per-row. */
-  grid-template-columns: 280px 1fr 96px 82px 82px 240px 22px;
+  grid-template-columns: 280px 1fr 96px 82px 82px 280px 22px;
   gap: 12px;
   align-items: center;
   padding: 12px 18px;
@@ -1139,18 +1139,6 @@ select.col-filter {
   }
 }
 
-.draft-badge {
-  font-size: 10.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink-3);
-  background: var(--neutral-bg);
-  border-radius: 4px;
-  padding: 1px 5px;
-  flex: none;
-}
-
 /* The version on the Releases page (#1107): text, so it never relies on
    colour. */
 .release-version {
@@ -1219,6 +1207,59 @@ select.col-filter {
   text-transform: uppercase;
 }
 
+/* The CI slot (#1563): a running state and the outcome it leads to share one
+   box of one size, so a run turns into its result without the row moving. */
+.state-group {
+  flex: 1 1 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ci-slot {
+  flex: none;
+  width: 104px;
+  display: flex;
+}
+/* The attribute tier: quiet outlined chips with a small icon, in a group of
+   their own. Outline and --ink-2 only, no fill, no motion, no state colour,
+   and smaller than the CI slot. The colours are held to 4.5:1 by
+   web/src/lib/attr-chip-contrast.test.ts. */
+.attr-cluster {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.attr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  max-width: 100%;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.attr-icon {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .ci-pill {
   /* Above .title::after's stretched-link overlay, or the pill would be
      unreachable under it. */
@@ -1248,6 +1289,11 @@ button.ci-pill:hover {
   outline-offset: 1px;
 }
 
+.ci-slot .ci-pill {
+  box-sizing: border-box;
+  width: 100%;
+}
+
 /* biome-ignore lint/style/noDescendingSpecificity: .forge-badge.gh .dot
    (higher specificity, earlier) sets only background -- never width/
    height/border-radius/flex, so no property actually collides. */
@@ -1264,9 +1310,13 @@ button.ci-pill:hover {
 .ci-pill.success .dot {
   background: var(--good);
 }
+/* Failed is the strongest weight: bold, and ringed inside its own box so the
+   ring never changes the size. Passed stays calm. */
 .ci-pill.failure {
   background: var(--critical-bg);
   color: var(--critical);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px currentColor;
 }
 .ci-pill.failure .dot {
   background: var(--critical);
@@ -1274,10 +1324,6 @@ button.ci-pill:hover {
 .ci-pill.pending {
   background: var(--warning-bg);
   color: var(--warning);
-}
-.ci-pill.pending .dot {
-  background: var(--warning);
-  animation: pulse-amber 1.6s infinite;
 }
 .ci-pill.none {
   background: var(--neutral-bg);
@@ -1292,9 +1338,11 @@ button.ci-pill:hover {
 .ci-pill.awaiting {
   background: var(--warning-bg);
   color: var(--warning);
-}
-.ci-pill.awaiting .dot {
-  background: var(--warning);
+  /* The long words wrap inside the slot rather than widen it. */
+  white-space: normal;
+  text-align: left;
+  border-radius: 14px;
+  line-height: 1.2;
 }
 .approve-link {
   position: relative;
@@ -1315,22 +1363,6 @@ button.ci-pill:hover {
   .approve-link {
     min-height: 44px;
     min-width: 44px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ci-pill.pending .dot {
-    animation: none;
-  }
-}
-
-@keyframes pulse-amber {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
   }
 }
 
@@ -1447,18 +1479,11 @@ button.ci-pill:hover {
 .merge-pill.blocked .dot {
   background: var(--warning);
 }
-.merge-pill.auto-merge {
-  background: var(--good-bg);
-  color: var(--good);
-}
-.merge-pill.auto-merge .dot {
-  background: var(--good);
-}
 /* "Managed by Forge Dashboard": the app, not the forge, does this merge. */
-.merge-pill .pill-note {
+.attr-chip .pill-note {
   font-weight: 400;
 }
-.merge-pill .pill-note::before {
+.attr-chip .pill-note::before {
   content: "\00b7";
   margin-right: 6px;
 }
@@ -1468,21 +1493,6 @@ button.ci-pill:hover {
   font-size: 12px;
   color: var(--ink);
 }
-/* Neutral, not warning/critical: being behind is routine for a
-   bot-managed pull request, not a problem the way conflicting/blocked
-   are. --neutral itself is only ~3.1:1 against --neutral-bg though —
-   fails WCAG AA text contrast the same way .merge-pill.blocked's own
-   pairing once did (#305) — so the label text uses --ink-3 instead, the
-   same substitution .draft-badge already makes for the identical
-   background; --neutral stays for the (non-text) dot only. */
-.merge-pill.behind {
-  background: var(--neutral-bg);
-  color: var(--ink-3);
-}
-.merge-pill.behind .dot {
-  background: var(--neutral);
-}
-
 /* Same "above .title::after's stretched-link overlay" reasoning .ci-pill
    already needs — a real button, not a badge, so it gets the same
    cursor/focus-visible treatment too.
@@ -2547,6 +2557,16 @@ footer a.mono:focus-visible {
   .wait-slot {
     height: 52px;
   }
+  /* The CI slot at the top right of the status area, the attributes on a
+     line of their own below it (#1563). */
+  .state-group {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .attr-cluster {
+    flex: 1 1 100%;
+    order: 1;
+  }
   .wait-chip-action {
     min-width: 44px;
     min-height: 44px;
@@ -2725,7 +2745,8 @@ footer a.mono:focus-visible {
   border-radius: 50%;
   flex: none;
 }
-.pipeline-check-status .check-glyph {
+.pipeline-check-status .check-glyph,
+.ci-pill .check-glyph {
   width: 14px;
   height: 14px;
   flex: none;
@@ -2750,10 +2771,12 @@ footer a.mono:focus-visible {
 }
 /* Running carries both glyphs: the spinning arc, and a still clock for
    prefers-reduced-motion. Amber stays Running's colour; Queued is blue. */
-.pipeline-check-status .check-glyph-clock {
+.pipeline-check-status .check-glyph-clock,
+.ci-pill .check-glyph-clock {
   display: none;
 }
-.pipeline-check-status .check-glyph-arc {
+.pipeline-check-status .check-glyph-arc,
+.ci-pill .check-glyph-arc {
   animation: check-spin 1.2s linear infinite;
 }
 .pipeline-check-status.queued {
@@ -2776,10 +2799,12 @@ footer a.mono:focus-visible {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pipeline-check-status .check-glyph-arc {
+  .pipeline-check-status .check-glyph-arc,
+  .ci-pill .check-glyph-arc {
     display: none;
   }
-  .pipeline-check-status .check-glyph-clock {
+  .pipeline-check-status .check-glyph-clock,
+  .ci-pill .check-glyph-clock {
     display: block;
   }
 }

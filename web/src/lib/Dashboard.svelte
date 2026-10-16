@@ -392,8 +392,8 @@
       });
     }
     const CI_LABELS: Record<string, string> = {
-      success: "Passing",
-      failure: "Failing",
+      success: "Passed",
+      failure: "Failed",
       pending: "Running",
       none: "No checks",
     };
@@ -591,7 +591,6 @@
       text.appendChild(document.createTextNode(item.title));
       title.appendChild(text);
       wrap.appendChild(title);
-      if (item.draft) wrap.appendChild(el("span", "draft-badge", "Draft"));
       (item.labels || []).slice(0, 3).forEach((label) => {
         wrap.appendChild(labelChip(label, onLabelClick, activeLabel));
       });
@@ -601,28 +600,34 @@
     // status is a real button — see titleCell's comment on why the row
     // isn't an <a> around everything. It opens the pipeline panel
     // (#1139); filtering by CI status lives in the column filter.
-    // "Passing" reads fine right next to a Merge button already
-    // prompting action on the same row — "Passed" there is just a
-    // second, redundant way of saying "ready." Once there's no merge
-    // action on the row for the pill to sit beside, "Passed" is the
-    // plainer, more finished-sounding word, matching GitHub's and
-    // GitLab's own terminal-state convention (both say "passed", not
-    // "passing", for a completed successful run).
-    function ciPill(
-      item: PullRequestItem,
-      showsMergeButton: boolean,
-    ): HTMLElement {
+    //
+    // The CI slot (#1563) holds a state (running) and the outcomes it leads to
+    // (failed, passed): one pill in one fixed-size slot, a glyph and a word,
+    // so a run turns into its result without the row moving. The glyphs are
+    // the pipeline panel's own (#1473). A run held for approval is not
+    // running, so it gets the queued hourglass.
+    const CI_SLOT_GLYPHS: Record<string, string> = {
+      pending: "running",
+      failure: "failure",
+      success: "success",
+    };
+    function ciPill(item: PullRequestItem): HTMLElement {
       const status = item.ci;
       const awaiting = item.awaitingWorkflowApproval === true;
       const label = awaiting
         ? "Waiting for workflow approval"
-        : status === "success" && !showsMergeButton
-          ? "Passed"
-          : CI_LABELS[status] || status;
+        : CI_LABELS[status] || status;
+      const glyphs = pipelineCheckGlyphs(
+        awaiting ? "queued" : (CI_SLOT_GLYPHS[status] ?? ""),
+      );
+      const addMark = (pill: HTMLElement) => {
+        if (glyphs.length > 0) glyphs.forEach((g) => pill.appendChild(g));
+        else pill.appendChild(el("span", "dot"));
+      };
       // No CI, no pipeline to open: a plain badge (#1139).
       if (status === "none") {
         const badge = el("span", `ci-pill ${status}`);
-        badge.appendChild(el("span", "dot"));
+        addMark(badge);
         badge.appendChild(document.createTextNode(label));
         return badge;
       }
@@ -632,7 +637,7 @@
       // Given a stable id: openPipelineDialog's "close" handler refocuses
       // it by this id once a later render has rebuilt the row.
       pill.id = `pipeline-trigger-${domSafeId(prKey(item))}`;
-      pill.appendChild(el("span", "dot"));
+      addMark(pill);
       pill.appendChild(document.createTextNode(label));
       // The visible word leads the name (WCAG 2.5.3).
       pill.setAttribute("aria-label", `${label}. Open pipeline`);
@@ -718,10 +723,7 @@
         )
       )
         return null;
-      const pill = el("span", "merge-pill behind");
-      pill.appendChild(el("span", "dot"));
-      pill.appendChild(document.createTextNode("Out of date"));
-      return pill;
+      return attrChip("behind", "Out of date");
     }
 
     // The review activity pill (#1335): how many review comments there are
@@ -792,17 +794,56 @@
     // true, not a truthy check.
     function autoMergePill(pr: PullRequestItem): HTMLElement | null {
       if (pr.autoMergeEnabled !== true) return null;
-      const pill = el("span", "merge-pill auto-merge");
-      pill.appendChild(el("span", "dot"));
-      // On Forgejo this app does the merging, not the forge, and the pill
+      // On Forgejo this app does the merging, not the forge, and the chip
       // says so in words (it has no GitHub-style setting to point at).
       if (pr.forge === "forgejo") {
-        pill.appendChild(document.createTextNode("Auto-merge on"));
-        pill.appendChild(el("span", "pill-note", "Managed by Forge Dashboard"));
-        return pill;
+        const chip = attrChip("auto-merge", "Auto-merge on");
+        chip.appendChild(el("span", "pill-note", "Managed by Forge Dashboard"));
+        return chip;
       }
-      pill.appendChild(document.createTextNode("Auto-merge"));
-      return pill;
+      return attrChip("auto-merge", "Auto-merge");
+    }
+
+    // The attribute tier (#1563): something set on the pull request that
+    // holds until someone changes it. A quiet outlined chip with a small
+    // icon and its word, no fill, no motion and no state colour, so it never
+    // reads as a CI state. Not a button: there is nothing to press.
+    const ATTR_ICONS: Record<string, string> = {
+      "auto-merge":
+        '<circle cx="4" cy="3.5" r="1.5"/><circle cx="4" cy="12.5" r="1.5"/>' +
+        '<circle cx="12" cy="8" r="1.5"/><path d="M4 5v6M4 8h6.5"/>',
+      draft: '<path d="M3 13l.7-3L11 2.7 13.3 5 6 12.3z"/>',
+      bot:
+        '<rect x="2.5" y="5" width="11" height="8" rx="2"/>' +
+        '<path d="M8 2.5V5M5.8 8.5v1M10.2 8.5v1"/>',
+      behind: '<path d="M8 2.5v8M4.5 7.5L8 11l3.5-3.5M3.5 13.5h9"/>',
+    };
+    function attrChip(name: string, label: string): HTMLElement {
+      const chip = el("span", `attr-chip ${name}`);
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("class", "attr-icon");
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("focusable", "false");
+      svg.innerHTML = ATTR_ICONS[name] ?? "";
+      chip.appendChild(svg);
+      chip.appendChild(document.createTextNode(label));
+      return chip;
+    }
+
+    // The chips of a row's attribute cluster, in one order: auto-merge, draft,
+    // bot, out of date. Draft and bot come from the fields the row already has
+    // (a bot's pull request is the server's `kind: dependency`).
+    function attributeCluster(pr: PullRequestItem): HTMLElement {
+      const cluster = el("div", "attr-cluster");
+      const chips = [
+        autoMergePill(pr),
+        pr.draft ? attrChip("draft", "Draft") : null,
+        pr.kind === "dependency" ? attrChip("bot", "Bot") : null,
+        behindPill(pr),
+      ];
+      for (const chip of chips) if (chip) cluster.appendChild(chip);
+      return cluster;
     }
 
     // An armed pull request that has stopped needs a person, so it reads as a
@@ -1043,23 +1084,20 @@
         }
         statusCell.appendChild(waitSlot);
         const mergeAction = mergeActionCell(pr);
-        statusCell.appendChild(
-          ciPill(
-            pr,
-            mergeAction !== null &&
-              !mergeAction.classList.contains("row-action-locked"),
-          ),
-        );
+        // The CI slot (state and outcome, fixed size) and the attribute
+        // cluster, side by side (#1563).
+        const stateGroup = el("div", "state-group");
+        const ciSlot = el("div", "ci-slot");
+        ciSlot.appendChild(ciPill(pr));
+        stateGroup.appendChild(ciSlot);
+        stateGroup.appendChild(attributeCluster(pr));
+        statusCell.appendChild(stateGroup);
         const approveLink = approveOnGithubLink(pr);
         if (approveLink) statusCell.appendChild(approveLink);
         const conflictPill = mergeStatusPill(pr.mergeStatus, pr.ci);
         if (conflictPill) statusCell.appendChild(conflictPill);
-        const outOfDatePill = behindPill(pr);
-        if (outOfDatePill) statusCell.appendChild(outOfDatePill);
         const reviewActivity = reviewPill(pr);
         if (reviewActivity) statusCell.appendChild(reviewActivity);
-        const mergePill = autoMergePill(pr);
-        if (mergePill) statusCell.appendChild(mergePill);
         const mergeStatusLine = autoMergeStatusLine(pr);
         if (mergeStatusLine) statusCell.appendChild(mergeStatusLine);
 

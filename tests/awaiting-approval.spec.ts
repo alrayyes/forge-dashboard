@@ -61,7 +61,7 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     await expect(
       held.getByRole('button', { name: /Waiting for workflow approval/ }),
     ).toBeVisible();
-    await expect(held.locator('.ci-pill')).not.toContainText('Failing');
+    await expect(held.locator('.ci-pill')).not.toContainText('Failed');
     const link = held.getByRole('link', { name: /approve.*GitHub/i });
     await expect(link).toHaveAttribute(
       'href',
@@ -79,7 +79,7 @@ test.describe('Awaiting workflow approval (#1280)', () => {
   test('a failing row without the flag is unchanged', async ({ page }) => {
     await open(page);
     const failing = row(page, 'Really failing');
-    await expect(failing.locator('.ci-pill')).toHaveText('Failing');
+    await expect(failing.locator('.ci-pill')).toHaveText('Failed');
     await expect(
       failing.getByRole('link', { name: /approve.*GitHub/i }),
     ).toHaveCount(0);
