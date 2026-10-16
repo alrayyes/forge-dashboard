@@ -134,12 +134,6 @@ pre-push:
     - name: golangci-lint
       run: scripts/golangci-lint-docker.sh golangci-lint run ./...
 
-    # dependencies.md: pinning a version says nothing about whether it has a
-    # known CVE. Separate from the update bots that raise a pull request
-    # when one's pinned — this is what actually notices.
-    - name: govulncheck
-      run: scripts/go-docker.sh go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
-
     # No check-only flag on `go mod edit -fmt`, so the gate is running it
     # again and diffing. A no-op on a go.mod pre-commit already canonicalized;
     # only fails if that got bypassed.

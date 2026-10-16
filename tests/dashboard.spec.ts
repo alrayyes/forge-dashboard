@@ -2021,14 +2021,9 @@ test.describe('dashboard page', () => {
       );
     }
 
-    // "Passing" reads fine right next to a big Merge button prompting
-    // action on the same row — "Passed" there would just be a second,
-    // redundant way of saying "ready." Once there's no merge action on
-    // the row for CI to sit beside, "Passed" is the plainer, more
-    // finished-sounding word — matching GitHub's and GitLab's own
-    // terminal-state convention (both say "passed", not "passing", for
-    // a completed successful run).
-    test('shows "Passing" when a Merge button is also on the row', async ({
+    // #1563: an outcome reads "Passed" whether or not a Merge button sits
+    // beside it, so the CI slot's word never changes with the actions.
+    test('shows "Passed" when a Merge button is also on the row', async ({
       page,
     }) => {
       await mockOnePR(page, { mergeStatus: 'mergeable' });
@@ -2036,7 +2031,7 @@ test.describe('dashboard page', () => {
 
       const row = page.locator('#pr-rows .row').first();
       await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
-      await expect(row.locator('.ci-pill')).toContainText('Passing');
+      await expect(row.locator('.ci-pill')).toContainText('Passed');
     });
 
     // #705: the row now keeps a locked Merge, so "no Merge button" means
@@ -2060,7 +2055,7 @@ test.describe('dashboard page', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows .row').first();
-      await expect(row.locator('.ci-pill')).toContainText('Failing');
+      await expect(row.locator('.ci-pill')).toContainText('Failed');
     });
   });
 
@@ -2156,7 +2151,7 @@ test.describe('dashboard page', () => {
       await page.reload();
 
       const row = page.locator('#pr-rows > .row');
-      await expect(row.locator('.ci-pill')).toContainText('Failing');
+      await expect(row.locator('.ci-pill')).toContainText('Failed');
       await expect(page.locator('#pr-rows .merge-pill.blocked')).toHaveCount(0);
 
       const results = await new AxeBuilder({ page })
@@ -2195,7 +2190,7 @@ test.describe('dashboard page', () => {
       await mockDashboard(page, [pr({ autoMergeEnabled: true })]);
       await page.reload();
 
-      const pill = page.locator('#pr-rows .merge-pill.auto-merge');
+      const pill = page.locator('#pr-rows .attr-chip.auto-merge');
       await expect(pill).toHaveCount(1);
       await expect(pill).toContainText('Auto-merge');
     });
@@ -2208,7 +2203,7 @@ test.describe('dashboard page', () => {
       await mockDashboard(page, [pr({ forge: 'forgejo' })]);
       await page.reload();
 
-      await expect(page.locator('.merge-pill.auto-merge')).toHaveCount(0);
+      await expect(page.locator('.attr-chip.auto-merge')).toHaveCount(0);
     });
 
     test('has no axe-core violations with both pills and a Forgejo badge rendered', async ({
@@ -2250,7 +2245,7 @@ test.describe('dashboard page', () => {
       // Bot pull requests are on the Bots page (#1192).
       await page.goto('/bots.html');
 
-      const pill = page.locator('#pr-rows .merge-pill.behind');
+      const pill = page.locator('#pr-rows .attr-chip.behind');
       await expect(pill).toHaveCount(1);
       await expect(pill).toContainText('Out of date');
     });
@@ -2264,7 +2259,7 @@ test.describe('dashboard page', () => {
       // Bot pull requests are on the Bots page (#1192).
       await page.goto('/bots.html');
 
-      const pill = page.locator('#pr-rows .merge-pill.behind');
+      const pill = page.locator('#pr-rows .attr-chip.behind');
       await expect(pill).toHaveCount(1);
       await expect(pill).toContainText('Out of date');
     });
@@ -2283,7 +2278,7 @@ test.describe('dashboard page', () => {
       await expect(
         row.getByRole('button', { name: 'Update branch' }),
       ).toBeVisible();
-      await expect(row.locator('.merge-pill.behind')).toHaveCount(0);
+      await expect(row.locator('.attr-chip.behind')).toHaveCount(0);
     });
 
     test('a Dependabot pull request that is not behind shows no Out of date pill', async ({
@@ -2293,7 +2288,7 @@ test.describe('dashboard page', () => {
       // Bot pull requests are on the Bots page (#1192).
       await page.goto('/bots.html');
 
-      await expect(page.locator('.merge-pill.behind')).toHaveCount(0);
+      await expect(page.locator('.attr-chip.behind')).toHaveCount(0);
     });
 
     // Mirrors updateBranchActionCell's own empty-pull-request exception
@@ -2309,7 +2304,7 @@ test.describe('dashboard page', () => {
       // Bot pull requests are on the Bots page (#1192).
       await page.goto('/bots.html');
 
-      await expect(page.locator('.merge-pill.behind')).toHaveCount(0);
+      await expect(page.locator('.attr-chip.behind')).toHaveCount(0);
     });
   });
 

@@ -65,7 +65,7 @@ const PRS = '/pull-requests.html';
 test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('the nav pill shows failing, running and passing (#1439)', () => {
-  test('Pull requests shows the total, then failed, running and passed, each with its glyph', async ({
+  test('Pull requests shows the total, then failed, passed and running, each with its glyph', async ({
     page,
   }) => {
     await open(page);
@@ -79,7 +79,8 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
     for (const kind of ['failed', 'running', 'passed']) {
       await expect(pill.locator(`.nav-${kind} svg`).first()).toBeAttached();
     }
-    // The order is the triage order: failed, then running, then passed.
+    // Outcomes first, then a divider, then the state (#1563): failed, passed,
+    // a thin hairline, running.
     const order = await pill.evaluate((el) =>
       [...el.children].map(
         (c) => c.className.split(' ').find((n) => n !== 'nav-count') ?? '',
@@ -88,9 +89,36 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
     expect(order).toEqual([
       'nav-total',
       'nav-failed',
-      'nav-running',
       'nav-passed',
+      'nav-divider',
+      'nav-running',
     ]);
+    // The divider is decoration, and a count's glyph is not.
+    await expect(pill.locator('.nav-divider')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
+  });
+
+  test('the divider is drawn only when a running count follows an outcome (#1563)', async ({
+    page,
+  }) => {
+    await open(page, {
+      pullRequests: { total: 8, running: 0, failed: 1, passed: 7 },
+      releases: { total: 6, running: 6, failed: 0, passed: 0 },
+      bots: { total: 4, running: 2, failed: 0, passed: 2 },
+    });
+    // No running count: nothing to separate.
+    await expect(
+      header(page, PRS).locator('.nav-pills .nav-divider'),
+    ).toHaveCount(0);
+    // Running alone: the total's own hairline already separates it.
+    await expect(
+      header(page, '/releases.html').locator('.nav-pills .nav-divider'),
+    ).toHaveCount(0);
+    await expect(
+      header(page, '/bots.html').locator('.nav-pills .nav-divider'),
+    ).toHaveCount(1);
   });
 
   test('the link says it in words, in the same order, and the pills stay hidden from a screen reader', async ({
@@ -100,11 +128,11 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
 
     await expect(header(page, PRS)).toHaveAttribute(
       'aria-label',
-      'Pull requests, 15 total, 2 failing, 3 running, 10 passing',
+      'Pull requests, 15 total, 2 failing, 10 passing, 3 running',
     );
     await expect(tab(page, PRS)).toHaveAttribute(
       'aria-label',
-      '15 PRs, 2 failing, 3 running, 10 passing',
+      '15 PRs, 2 failing, 10 passing, 3 running',
     );
     await expect(header(page, PRS).locator('.nav-pills')).toHaveAttribute(
       'aria-hidden',
@@ -212,6 +240,27 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
         expect(b.pillRight).toBeLessThanOrEqual(b.right + 1);
       }
     }
+  });
+
+  test('on a phone the divider is hidden, so it never dangles at the end of a wrapped line (#1563)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await open(page);
+    const phone = page.locator('.bottom-nav .nav-pills .nav-divider');
+    await expect(phone).toHaveCount(1);
+    await expect(phone).toHaveCSS('display', 'none');
+    await expect(
+      page.locator('.bottom-nav .nav-pills .nav-running'),
+    ).toBeVisible();
+
+    // On desktop it is a real, visible hairline.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const desktop = header(page, PRS).locator('.nav-pills .nav-divider');
+    await expect(desktop).toHaveCount(1);
+    const box = await desktop.boundingBox();
+    expect(box?.width).toBeGreaterThan(0);
+    expect(box?.height).toBeGreaterThan(0);
   });
 
   for (const [label, counts, maxBar] of [
