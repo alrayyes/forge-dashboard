@@ -176,5 +176,15 @@ export function createWebMCPTools(deps: WebMCPToolDeps): WebMCPToolDef[] {
       execute: async (input) =>
         getJSON(`/api/pull-requests/details?${pullRequestQuery(input)}`),
     },
+    {
+      name: 'list_queued_actions',
+      operationId: 'listQueuedActions',
+      description:
+        "List the signed-in user's queued actions: the ones waiting for a rate-limited forge to reset, and the finished ones (done, skipped, failed) kept for 24 hours, oldest first. Read-only: it never queues, runs or cancels anything. Served from this app's own store, with no forge budget. The same list rides along on get_dashboard as queuedActions.",
+      inputSchema: { type: 'object', properties: {} },
+      execute: async () => ({
+        queuedActions: await getJSON('/api/queued-actions'),
+      }),
+    },
   ];
 }
