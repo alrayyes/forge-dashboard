@@ -43,6 +43,7 @@ interface Stand {
   hideDependencyDashboard: boolean;
   ignoredTitles: string[];
   hidden: number | undefined;
+  pullRequests: Record<string, unknown>[];
 }
 
 async function standIn(page: Page, init: Partial<Stand> = {}) {
@@ -50,6 +51,7 @@ async function standIn(page: Page, init: Partial<Stand> = {}) {
     hideDependencyDashboard: false,
     ignoredTitles: [],
     hidden: undefined,
+    pullRequests: [],
     ...init,
   };
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
@@ -61,7 +63,7 @@ async function standIn(page: Page, init: Partial<Stand> = {}) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: [],
+        pullRequests: stand.pullRequests,
         issues,
         openIssueCount: issues.length,
         hideDependencyDashboard: stand.hideDependencyDashboard,
@@ -235,6 +237,84 @@ test.describe('Issues page follows the settings (#1630)', () => {
     await expect(dependencyBox(page)).toBeHidden();
     await expect(patternBox(page)).toBeHidden();
     await expect(note(page)).toContainText('2 hidden by your settings');
+  });
+
+  // Pins how Clear filters meets both of its rules at once: it forgets a pick
+  // held from another page (#1620), and it keeps the saved values of a field
+  // the settings replace (#1630). Undoing either on a merge fails this.
+  test('Clear filters drops a held pick and keeps the hidden fields saved values', async ({
+    page,
+  }) => {
+    const pr = (number: number, author: string) => ({
+      forge: 'github',
+      repo: 'alrayyes/app',
+      number,
+      title: `Pull request ${number}`,
+      url: `https://example.com/pull/${number}`,
+      author,
+      draft: false,
+      ci: 'success',
+      labels: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mergeStatus: 'mergeable',
+    });
+    const stand = await standIn(page);
+    stand.pullRequests = [pr(1, 'claude'), pr(2, 'dana')];
+    const savedFilters = () =>
+      page.waitForResponse(
+        (r) =>
+          r.url().endsWith('/api/settings/filter-state') &&
+          r.request().method() === 'PUT',
+      );
+    const nav = (name: string) =>
+      page.locator(`.app-nav a[href="/${name}.html"]`);
+
+    // Settings off: the page's own values, an unchecked box and a pattern.
+    await page.goto('/issues.html');
+    let saved = savedFilters();
+    await patternBox(page).fill('^Add');
+    await saved;
+    saved = savedFilters();
+    await dependencyBox(page).uncheck();
+    await saved;
+
+    // Settings on: hold an author pick that Issues does not offer.
+    stand.hideDependencyDashboard = true;
+    stand.ignoredTitles = ['^Weekly report'];
+    await page.goto('/issues.html');
+    await expect(rows(page)).toHaveCount(2);
+    await expect(patternBox(page)).toBeHidden();
+    await nav('pull-requests').click();
+    const author = page.locator('#shared-author-select');
+    await author.selectOption('claude');
+    await nav('issues').click();
+    await expect(rows(page)).toHaveCount(2);
+
+    // Something visible to clear, then Clear filters.
+    await page.locator('.col-filter[data-col="title"]').first().fill('login');
+    saved = savedFilters();
+    await page.locator('#clear-filters-button').click();
+    await saved;
+
+    // Settings off again: the page's values are back, the held pick is gone.
+    stand.hideDependencyDashboard = false;
+    stand.ignoredTitles = [];
+    await page.goto('/issues.html');
+    await expect(dependencyBox(page)).not.toBeChecked();
+    await expect(patternBox(page)).toHaveValue('^Add');
+    await nav('pull-requests').click();
+    await page.waitForLoadState('networkidle');
+    await expect(author).toHaveValue('');
+    // What the account keeps, which another browser would read.
+    const keptFilters = await (
+      await page.request.get('/api/settings/filter-state')
+    ).json();
+    expect(keptFilters.shared.author ?? '').toBe('');
+    expect(keptFilters.issue).toMatchObject({
+      hideDependencyDashboard: '',
+      hideTitleRegex: '^Add',
+    });
   });
 
   test('Clear filters is off when only a hidden field differs from the default', async ({
