@@ -1923,3 +1923,88 @@ func TestListOpenPullRequests_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.
 	assert.False(t, prs[1].RenovateRebaseRequested)
 	assert.False(t, prs[2].RenovateRebaseRequested)
 }
+
+func TestUpgradeWebhook_HookLacksAnEvent_PatchesOnceAndNeverPosts(t *testing.T) {
+	t.Parallel()
+
+	var patches int
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"id": 7, "type": "forgejo", "events": []string{"pull_request", "issues", "push", "status"}, "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": true},
+		})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks/7", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPatch, r.Method)
+		patches++
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.True(t, updated)
+	assert.Equal(t, 1, patches)
+}
+
+func TestUpgradeWebhook_HookAlreadyHasEveryEvent_WritesNothing(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("unexpected write: %s", r.Method)
+		}
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"id": 7, "type": "forgejo", "events": []string{"status", "push", "pull_request_review_rejected", "pull_request_review_approved", "pull_request_review_comment", "pull_request_comment", "issue_comment", "issues", "pull_request"}, "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": true},
+		})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks/7", func(_ http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected write: %s", r.Method)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.False(t, updated)
+}
+
+func TestUpgradeWebhook_NoHookOfOurs_DoesNotCreateOne(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("unexpected write: %s", r.Method)
+		}
+		writeJSON(t, w, []map[string]any{})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.False(t, updated)
+}

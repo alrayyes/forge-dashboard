@@ -259,22 +259,8 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 		"secret":       secret,
 	}
 
-	c.setContext(ctx)
 	if existing != nil {
-		path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, existing.ID)
-		slog.Debug("forgejo request", "method", http.MethodPatch, "url", path)
-		active := true
-		resp, err := c.sdk.EditRepoHook(owner, name, existing.ID, gitea.EditHookOption{
-			Config: config,
-			Events: forgejoWebhookEvents,
-			Active: &active,
-		})
-		if err != nil {
-			return c.forgejoError(ctx, http.MethodPatch, path, resp, err)
-		}
-		c.recordRequest(ctx, http.MethodPatch, path, resp.StatusCode, requestlog.OutcomeSuccess)
-
-		return nil
+		return c.editHook(ctx, owner, name, existing.ID, config)
 	}
 
 	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
@@ -295,6 +281,46 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 	c.recordRequest(ctx, http.MethodPost, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	return nil
+}
+
+// editHook PATCHes hook id back to active with config and the current event
+// list.
+func (c *Client) editHook(ctx context.Context, owner, name string, id int64, config map[string]string) error {
+	c.setContext(ctx)
+	path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, id)
+	slog.Debug("forgejo request", "method", http.MethodPatch, "url", path)
+	active := true
+	resp, err := c.sdk.EditRepoHook(owner, name, id, gitea.EditHookOption{
+		Config: config,
+		Events: forgejoWebhookEvents,
+		Active: &active,
+	})
+	if err != nil {
+		return c.forgejoError(ctx, http.MethodPatch, path, resp, err)
+	}
+	c.recordRequest(ctx, http.MethodPatch, path, resp.StatusCode, requestlog.OutcomeSuccess)
+
+	return nil
+}
+
+// UpgradeWebhook implements dashboard.WebhookUpgrader: one hooks listing, and
+// a PATCH only when this app's hook lacks an event it subscribes to now. It
+// never creates a hook (#1555).
+func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return false, fmt.Errorf("forgejo: invalid webhook target URL: %w", err)
+	}
+	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
+	if err != nil || existing == nil || dashboard.WebhookCoversEvents(existing.Events, forgejoWebhookEvents) {
+		return false, err
+	}
+	config := map[string]string{"url": targetURL, "content_type": "json", "secret": secret}
+	if err := c.editHook(ctx, owner, name, existing.ID, config); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // forgejoError turns a failed gitea SDK call into the reason a person

@@ -4008,3 +4008,101 @@ func TestFetch_NoToken_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
 	require.Len(t, result.PullRequests, 1)
 	assert.True(t, result.PullRequests[0].RenovateRebaseRequested)
 }
+
+func TestUpgradeWebhook_HookLacksAnEvent_PatchesOnceAndNeverPosts(t *testing.T) {
+	t.Parallel()
+
+	var patches, lists int
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		lists++
+		writeJSON(t, w, []map[string]any{
+			{"id": 7, "events": []string{"pull_request", "issues", "status", "check_run"}, "config": map[string]any{"url": "https://dashboard.example/api/webhooks/github/tok123"}, "active": true},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks/7", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPatch, r.Method)
+		patches++
+		writeJSON(t, w, map[string]any{"id": 7})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.True(t, updated)
+	assert.Equal(t, 1, lists)
+	assert.Equal(t, 1, patches)
+}
+
+func TestUpgradeWebhook_HookAlreadyHasEveryEvent_WritesNothing(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		writeJSON(t, w, []map[string]any{
+			{"id": 7, "events": []string{"check_run", "status", "pull_request_review_comment", "pull_request_review", "issue_comment", "issues", "pull_request", "push"}, "config": map[string]any{"url": "https://dashboard.example/api/webhooks/github/tok123"}, "active": true},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks/7", func(_ http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected write: %s", r.Method)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.False(t, updated)
+}
+
+func TestUpgradeWebhook_NoHookOfOurs_DoesNotCreateOne(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("unexpected write: %s", r.Method)
+		}
+		writeJSON(t, w, []map[string]any{
+			{"id": 3, "events": []string{"push"}, "config": map[string]any{"url": "https://elsewhere.example/hook"}, "active": true},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.False(t, updated)
+}
+
+func TestUpgradeWebhook_RateLimited_ClassifiesAsDashboardClientError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]any{"message": "API rate limit exceeded"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	_, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/tok123", "sekret")
+
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorRateLimited, clientErr.Kind)
+}
