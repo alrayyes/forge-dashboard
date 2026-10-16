@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.194.0](https://github.com/alrayyes/forge-dashboard/compare/v0.193.2...v0.194.0) (2026-10-16)
+
+
+### Features
+
+* **web:** count the branches without a pipeline in the Branches pill ([#1536](https://github.com/alrayyes/forge-dashboard/issues/1536)) ([448202c](https://github.com/alrayyes/forge-dashboard/commit/448202c3c78479d0b816c7fe06258262f5134f6c))
+
 ## [0.193.2](https://github.com/alrayyes/forge-dashboard/compare/v0.193.1...v0.193.2) (2026-10-15)
 
 
