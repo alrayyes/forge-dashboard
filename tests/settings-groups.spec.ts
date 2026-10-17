@@ -179,6 +179,8 @@ test.describe('settings groups', () => {
     page,
   }) => {
     await page.goto('/settings.html#connections');
+    // Settings loaded means the page has hydrated, so clicks reach handlers.
+    await expect(page.locator('#save-connections-button')).toBeEnabled();
     const toggles = page.getByRole('button', {
       name: 'What does this token need?',
     });
@@ -198,6 +200,7 @@ test.describe('settings groups', () => {
       await expect(panel).toBeHidden();
     }
     await page.goto('/settings.html#integrations');
+    await expect(page.locator('#save-connections-button')).toBeEnabled();
     const how = page.getByRole('button', {
       name: 'How do I add these to a repo?',
     });
