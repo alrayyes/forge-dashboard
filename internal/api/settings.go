@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -68,7 +69,7 @@ func settingsResponseOf(c settings.Credentials, githubAppConfigured bool, titleC
 		GitHubTokenSet:          c.GitHubToken != "",
 		GitHubAppInstallationID: c.GitHubAppInstallationID,
 		GitHubAppConfigured:     githubAppConfigured,
-		ForgejoURL:              c.ForgejoURL,
+		ForgejoURL:              publicForgejoURL(c.ForgejoURL),
 		ForgejoUsername:         c.ForgejoUsername,
 		ForgejoTokenSet:         c.ForgejoToken != "",
 		WebhookToken:            c.WebhookToken,
@@ -197,6 +198,29 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 	}
 }
 
+// handleSettingsSummaryGet answers GET /api/settings/summary: the same body as
+// the get_settings MCP tool. Unlike handleSettingsGet it never provisions
+// webhook credentials and never returns them.
+func handleSettingsSummaryGet(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
+			return
+		}
+
+		summary, err := resolveSettingsSummary(r.Context(), deps, u)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorBody(err.Error()))
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, summary)
+	}
+}
+
 // settingsPutRequest matches components.schemas.SettingsRequest. A blank
 // token field means "leave the saved one alone" — the only way a secret
 // field can behave once the browser can't be shown what's already saved.
@@ -292,6 +316,49 @@ func cleanLogins(w http.ResponseWriter, logins []string) ([]string, bool) {
 	return out, true
 }
 
+// validForgejoURL answers 400 itself when raw isn't a plain http(s) base URL:
+// one with a username, password, query string or fragment could carry a
+// credential, and the settings endpoints echo this field back. Blank is fine
+// (it clears the setting). The message never quotes the URL, since a rejected
+// one is exactly the kind that holds a secret.
+func validForgejoURL(w http.ResponseWriter, raw string) bool {
+	if raw == "" {
+		return true
+	}
+	reject := func(msg string) bool {
+		writeJSON(w, http.StatusBadRequest, fieldErrorBody("forgejoUrl", msg))
+
+		return false
+	}
+	u, err := url.Parse(raw)
+	switch {
+	case err != nil:
+		return reject("forgejoUrl is not a valid URL")
+	case (u.Scheme != "http" && u.Scheme != "https") || u.Host == "":
+		return reject("forgejoUrl must be an http:// or https:// address with a host")
+	case u.User != nil:
+		return reject("forgejoUrl must not contain a username or password")
+	case u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(raw, "#"):
+		return reject("forgejoUrl must not contain a query string or fragment")
+	}
+
+	return true
+}
+
+// publicForgejoURL is a stored Forgejo URL as it may be shown: without any
+// userinfo, query or fragment. Saves refuse those now, but a row saved before
+// that can still hold one. A value that no longer parses is shown as empty,
+// since there's no telling where its credentials end.
+func publicForgejoURL(stored string) string {
+	u, err := url.Parse(stored)
+	if err != nil {
+		return ""
+	}
+	u.User, u.RawQuery, u.ForceQuery, u.Fragment, u.RawFragment = nil, "", false, "", ""
+
+	return u.String()
+}
+
 // decodeSettingsPut reads the body, and answers 400 itself when it can't. A
 // value of the wrong type names its field, so a client can mark that input
 // (#810).
@@ -314,6 +381,9 @@ func decodeSettingsPut(w http.ResponseWriter, r *http.Request) (settingsPutReque
 		bound{"forgejoToken", req.ForgejoToken, maxForgeTokenLen},
 		bound{"forgejoUsername", req.ForgejoUsername, maxUsernameLen},
 		bound{"renovateRebaseLabel", req.RenovateRebaseLabel, maxLabelLen}) {
+		return settingsPutRequest{}, false
+	}
+	if !validForgejoURL(w, req.ForgejoURL) {
 		return settingsPutRequest{}, false
 	}
 	var ok bool
@@ -610,10 +680,11 @@ func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 	}
 }
 
-// MCPSettingsResponse is get_settings's output: SettingsResponse without the
-// webhook token and secret, which never leave over MCP, plus whether they
-// exist. Kept in step with SettingsResponse by a test that compares the two.
-type MCPSettingsResponse struct {
+// SettingsSummary matches components.schemas.SettingsSummary, and is the
+// output of the get_settings MCP tool: SettingsResponse without the webhook
+// token and secret, which are never returned, plus whether they exist. Kept in
+// step with SettingsResponse by a test that compares the two.
+type SettingsSummary struct {
 	GitHubUsername          string   `json:"githubUsername"`
 	GitHubTokenSet          bool     `json:"githubTokenSet"`
 	GitHubAppInstallationID int64    `json:"githubAppInstallationId"`
@@ -633,17 +704,18 @@ type MCPSettingsResponse struct {
 
 var errCouldNotLoadSettings = errors.New("could not load settings")
 
-// resolveSettingsForMCP reads u's saved settings without writing anything: no
+// resolveSettingsSummary reads u's saved settings without writing anything: no
 // webhook credentials are created, and the ones that exist are reduced to a
-// flag. A user with no saved row gets the zero settings.
-func resolveSettingsForMCP(ctx context.Context, deps Deps, u *auth.User) (MCPSettingsResponse, error) {
+// flag. A user with no saved row gets the zero settings. It is the one builder
+// behind both GET /api/settings/summary and the get_settings MCP tool.
+func resolveSettingsSummary(ctx context.Context, deps Deps, u *auth.User) (SettingsSummary, error) {
 	creds, err := deps.SettingsStore.Get(ctx, u.ID)
 	if err != nil && !errors.Is(err, settings.ErrNotFound) {
-		return MCPSettingsResponse{}, errCouldNotLoadSettings
+		return SettingsSummary{}, errCouldNotLoadSettings
 	}
 	full := settingsResponseOf(creds, deps.GitHubAppConfigured, ignoredTitleCounts(ctx, deps, u.ID, creds.IgnoredTitles, deps.Manager.Get(u.ID)))
 
-	return MCPSettingsResponse{
+	return SettingsSummary{
 		GitHubUsername:          full.GitHubUsername,
 		GitHubTokenSet:          full.GitHubTokenSet,
 		GitHubAppInstallationID: full.GitHubAppInstallationID,
