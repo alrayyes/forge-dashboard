@@ -21,8 +21,17 @@
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
-  import { firstRefreshPending } from "#lib/first-refresh.js";
-  import { firstRefresh, setFirstRefresh } from "#lib/first-refresh.svelte.js";
+  import {
+    firstRefreshLoading,
+    firstRefreshPending,
+    hasTimestamp,
+  } from "#lib/first-refresh.js";
+  import { adviseReadIntervalMs } from "#lib/read-interval.js";
+  import {
+    firstRefresh,
+    setFirstRefresh,
+    settleFirstRefresh,
+  } from "#lib/first-refresh.svelte.js";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
@@ -310,7 +319,10 @@
   // field that is about to go never flashes in.
   // True until the server says this viewer's first refresh has finished
   // (#1672): the lists draw a skeleton instead of themselves or an empty state.
-  const loadingFirst = $derived(firstRefreshPending(firstRefresh.done));
+  // False while the snapshot's time is the zero time, so no "Refreshed ... ago"
+  // is drawn for a moment that never was.
+  let refreshedKnown = $state(false);
+  const loadingFirst = $derived(firstRefreshLoading(firstRefresh));
   let issueSettingsKnown = $state(false);
   let settingsHideDependencyDashboard = $state(false);
   let settingsIgnoreTitles = $state(false);
@@ -6726,7 +6738,10 @@
       )
         return;
       clearError();
-      lastGeneratedAt = data.generatedAt;
+      // The zero time a snapshot carries before the first refresh is no
+      // moment: keep the last real one and show no "Refreshed ... ago" for it.
+      refreshedKnown = hasTimestamp(data.generatedAt);
+      if (refreshedKnown) lastGeneratedAt = data.generatedAt;
       followReadInterval(data.readIntervalSeconds);
       tickRefreshedAt();
 
@@ -6825,58 +6840,100 @@
 
     // Reused by refresh() below and by the WebMCP tool further down --
     // one fetch layer for /api/dashboard, not two.
-    function fetchDashboardData(): Promise<DashboardSnapshot> {
+    function fetchDashboardData(
+      signal?: AbortSignal,
+    ): Promise<DashboardSnapshot> {
       const url = withDrafts(
         "/api/dashboard" +
           (currentOwner ? `?owner=${encodeURIComponent(currentOwner)}` : ""),
       );
 
-      return fetch(url, { headers: { Accept: "application/json" } }).then(
-        (res) => {
-          if (res.status === 401) {
-            window.location.href = "/login.html";
-            throw new Error("session expired");
-          }
-          if (!res.ok) throw new Error(`backend answered ${res.status}`);
+      return fetch(url, {
+        headers: { Accept: "application/json" },
+        signal,
+      }).then((res) => {
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          throw new Error("session expired");
+        }
+        if (!res.ok) throw new Error(`backend answered ${res.status}`);
 
-          return res.json();
-        },
-      );
+        return res.json();
+      });
     }
 
-    function refresh(userAsked = false) {
+    const READ_TIMEOUT_MS = 20_000;
+    function refresh(userAsked = false, fromPoll = false) {
       const seq = ++requestSeq;
-      fetchDashboardData()
+      if (fromPoll) pollReadInFlight = true;
+      // The next poll is timed from this one's answer or failure, so a server
+      // that holds the read never has two of the poll's reads in flight.
+      // Neither the first read nor a poll may hang for good: a half-open
+      // connection leaves fetch pending, which would keep the skeleton up and
+      // stop the poll. The server holds a read for 15 s at most. A read the
+      // user asked for keeps its own behaviour. The page's timer, not
+      // AbortSignal.timeout, so the clock the tests control also drives it.
+      const abort = userAsked ? undefined : new AbortController();
+      const abortTimer = abort
+        ? setTimeout(() => abort.abort(), READ_TIMEOUT_MS)
+        : undefined;
+      const settled = () => {
+        clearTimeout(abortTimer);
+        if (!fromPoll) return;
+        pollReadInFlight = false;
+        if (!destroyed) schedulePoll();
+      };
+      fetchDashboardData(abort?.signal)
         .then((data) => {
           applySnapshot(data, userAsked, seq);
           streamFailures = 0;
           ensureStream();
+          armFirstPoll();
+          settled();
         })
         .catch((err: Error) => {
-          showError(`Could not reach the backend: ${err.message}`);
+          // No answer means no flag: show the real state, not a skeleton
+          // that would never end.
+          settleFirstRefresh();
+          showError(
+            `Could not reach the backend: ${
+              abort?.signal.aborted ? "it did not answer in time" : err.message
+            }`,
+          );
+          armFirstPoll();
+          settled();
         });
     }
 
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    let pollReadInFlight = false;
+    // The first poll is armed when the first request ends, answered or failed,
+    // not at load: the server can hold that request for 15 s on a cold start,
+    // and a timer started at load would send a second held request meanwhile.
+    function armFirstPoll() {
+      if (destroyed || pollTimer !== undefined) return;
+      schedulePoll();
+    }
     function schedulePoll() {
       clearTimeout(pollTimer);
       nextPollAt = Date.now() + readIntervalMs;
       pollTimer = setTimeout(() => {
-        refresh();
-        schedulePoll();
+        // A re-arm by new advice can land while a poll read is out; that
+        // read's answer arms the next one.
+        if (pollReadInFlight) return;
+        refresh(false, true);
       }, readIntervalMs);
     }
     // Follows the server's advice, and only re-arms when it changes, so a
     // snapshot that arrives between polls doesn't push the next one back.
     function followReadInterval(seconds: number | undefined) {
-      if (typeof seconds !== "number" || !(seconds >= 1)) return;
-      if (seconds * 1000 === readIntervalMs) return;
-      readIntervalMs = seconds * 1000;
+      const next = adviseReadIntervalMs(seconds, readIntervalMs);
+      if (next === readIntervalMs) return;
+      readIntervalMs = next;
       schedulePoll();
     }
 
     refresh();
-    schedulePoll();
 
     // ---- WebMCP (webmachinelearning/webmcp) tools, defined in webmcp-tools.ts ----
     // Experimental browser API -- document.modelContext only exists in
@@ -7100,7 +7157,7 @@
       <option value="">My dashboard</option>
     </select>
     <div id="forge-health" aria-live="polite"></div>
-    <span class="refreshed"
+    <span class="refreshed" hidden={!refreshedKnown || loadingFirst}
       >Refreshed <span class="mono" id="refreshed-at">&mdash;</span></span
     >
     <button

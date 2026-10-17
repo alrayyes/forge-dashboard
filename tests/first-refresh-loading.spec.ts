@@ -393,7 +393,10 @@ test.describe('first refresh loading state (#1672)', () => {
       });
     });
     await page.goto('/');
-    await expect(page.getByTestId('branches-awaiting-flag')).toBeVisible();
+    // Late enough to count as loading, the page shows the skeleton and the
+    // status line (#1672, first paint); the neutral line is only the first
+    // fraction of a second before that.
+    await expect(page.getByTestId('list-skeleton')).toBeVisible();
     await expect(page.getByTestId('no-repos')).toBeHidden();
     release();
     await expect(page.getByTestId('no-repos')).toBeVisible();
