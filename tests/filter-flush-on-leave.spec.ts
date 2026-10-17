@@ -86,4 +86,42 @@ test.describe('a value typed just before leaving is kept (#1620)', () => {
       await expect(page.locator(selector)).toHaveValue(value);
     });
   }
+
+  test('hiding the tab saves at once, a second value saves after coming back, and hidden then pagehide sends once', async ({
+    page,
+  }) => {
+    const puts: string[] = [];
+    await page.route('**/api/settings/filter-state', (route) => {
+      if (route.request().method() === 'PUT')
+        puts.push(route.request().postData() ?? '');
+      return route.fallback();
+    });
+    const show = (state: 'hidden' | 'visible') =>
+      page.evaluate((v) => {
+        Object.defineProperty(document, 'visibilityState', {
+          configurable: true,
+          get: () => v,
+        });
+        document.dispatchEvent(new Event('visibilitychange'));
+      }, state);
+    const input = page.locator('input[data-col="title"]');
+
+    await input.fill('first');
+    await show('hidden');
+    await expect
+      .poll(() => serverCopy(page), { timeout: 5000 })
+      .toContain('first');
+    expect(puts).toHaveLength(1);
+
+    // Leaving for good right after hiding has nothing left to send.
+    await page.evaluate(() => dispatchEvent(new Event('pagehide')));
+    expect(puts).toHaveLength(1);
+
+    await show('visible');
+    await input.fill('second');
+    await expect
+      .poll(() => serverCopy(page), { timeout: 5000 })
+      .toContain('second');
+    expect(puts).toHaveLength(2);
+  });
 });

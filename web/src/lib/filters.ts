@@ -489,9 +489,8 @@ function sendFilterState(state: SharedFilterState): void {
 // copy would lose a value typed in the last 500 ms (#1620). The cookie needs no
 // flush, saveState writes it on every call, so the next load has the latest
 // value even if this request is lost. A PUT already in flight is not waited
-// for: the snapshot goes out beside it with keepalive. Two requests can land in
-// either order, but waiting means the latest one is dropped when the page goes,
-// and the older one was sent first.
+// for: the snapshot goes out beside it with keepalive, and stays queued so the
+// newest value is sent again after it if the page lives on.
 export function flushPendingSave(): void {
   const next = titleSaveState ?? queuedState;
   if (titleSaveTimer) clearTimeout(titleSaveTimer);
@@ -499,6 +498,11 @@ export function flushPendingSave(): void {
   titleSaveState = null;
   queuedState = null;
   if (!next) return;
+  // Beside a PUT in flight, keep the snapshot queued as well. The request just
+  // sent can land before the older one, which would then leave the old value on
+  // the server; the completion path re-sends the newest after it. One duplicate
+  // PUT, and only when the page survives (a tab switch, not an unload).
+  if (putInFlight) queuedState = next;
   sendFilterState(next);
 }
 

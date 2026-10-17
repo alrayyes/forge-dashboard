@@ -122,15 +122,35 @@ describe('flushPendingSave', () => {
     expect(sent[1].body.pr.title).toBe('fix');
   });
 
-  test('after a flush the in-flight finishing does not resend the queued one', async () => {
-    saveState(typed(''));
-    saveState(typed('fix'));
+  test('B flushed beside a held A is sent once while the page goes away', () => {
+    saveState(typed('old'));
+    saveState(typed('new'), 'title');
     flushPendingSave();
-    sent[0].done();
+    expect(sent).toHaveLength(2);
+    expect(sent[1].body.pr.title).toBe('new');
+    expect(sent[1].keepalive).toBe(true);
+  });
+
+  test('A landing late is followed by the newest value again', async () => {
+    saveState(typed('old'));
+    saveState(typed('new'), 'title');
+    flushPendingSave();
     sent[1].done();
     await tick();
+    sent[0].done();
     await tick();
     await tick();
-    expect(sent).toHaveLength(2);
+    expect(sent).toHaveLength(3);
+    expect(sent[2].body.pr.title).toBe('new');
+    expect(sent[2].keepalive).toBe(true);
+  });
+
+  test('with nothing in flight the flush does not leave a copy queued', async () => {
+    saveState(typed('new'), 'title');
+    flushPendingSave();
+    sent[0].done();
+    await tick();
+    await tick();
+    expect(sent).toHaveLength(1);
   });
 });
