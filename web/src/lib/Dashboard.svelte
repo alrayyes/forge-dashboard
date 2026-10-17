@@ -6112,10 +6112,10 @@
         : `resets in ${seconds}s`;
     }
 
-    // Rebuilt only when what it says changes. The ticking countdown is
-    // updated in place and hidden from assistive tech (WCAG 4.1.3): the
-    // banner is an alert, so replacing it every second would have a screen
-    // reader read it out every second. The reset time in the label is the
+    // Rebuilt only when what it says changes. The ticking countdown and a
+    // low row's remaining count are updated in place and hidden from
+    // assistive tech (WCAG 4.1.3): replacing the banner every second or every
+    // poll would have a screen reader read it out each time. The reset time in the label is the
     // static, spoken version of the same fact (#732).
     function renderRateLimitBanner() {
       renderUnreachableBanner();
@@ -6130,7 +6130,7 @@
         ...rateLimitAlerts.map((a) =>
           a.kind === "readonly"
             ? `${a.label}|readonly|${a.rest}|${a.graphql}|${a.resetsAt}`
-            : `${a.label}|low|${a.resetsAt}|${a.remaining}`,
+            : `${a.label}|low|${a.resetsAt}`,
         ),
       ].join(";");
       if (existing && existing.dataset.signature === signature) {
@@ -6145,7 +6145,12 @@
       const banner = el("div", "rate-limit-banner");
       banner.id = "rate-limit-banner";
       banner.dataset.signature = signature;
-      banner.setAttribute("role", "alert");
+      // A budget running low is news, not an emergency, and its count moves
+      // on every poll; only a spent one is assertive (#1791).
+      banner.setAttribute(
+        "role",
+        rateLimitAlerts.some((a) => a.kind === "readonly") ? "alert" : "status",
+      );
       for (const alert of rateLimitAlerts) {
         const readonly = alert.kind === "readonly";
         const row = el("div", `rate-limit-banner-row${readonly ? "" : " low"}`);
