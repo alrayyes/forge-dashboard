@@ -163,6 +163,18 @@
   let sharedLabelSelect: HTMLSelectElement | undefined = $state();
   let sharedTitleDatalist: HTMLDataListElement | undefined = $state();
   let filterBarEl: HTMLDivElement | undefined = $state();
+  // Saved picks this page does not offer, said out loud with a way to drop
+  // each (#1620).
+  let heldList: Filters.HeldPick[] = $state([]);
+
+  function releaseHeldPick(pick: Filters.HeldPick) {
+    Filters.releaseHeld(pick.group, pick.key);
+    Filters.saveState(sharedState);
+    heldList = Filters.heldPicks();
+    filterBarEl
+      ?.querySelector<HTMLElement>('.col-filter[data-col="title"]')
+      ?.focus();
+  }
 
   // skipTitleSuggestions: set while someone types in the title box, so the
   // suggestion list isn't rebuilt under them (#1427).
@@ -216,6 +228,7 @@
     clearPick(staleLabel, "label");
     if (!holdPicks && (staleRepo || staleAuthor || staleLabel))
       Filters.saveState(sharedState);
+    heldList = Filters.heldPicks();
   }
 
   function syncSharedControlsToState() {
@@ -767,6 +780,20 @@
       >
         <option value="">All labels</option>
       </select>
+    </div>
+
+    <div class="held-picks" role="status">
+      {#each heldList as pick (pick.group + pick.key)}
+        <p class="held-pick">
+          <span>{Filters.heldPickNote(pick)}</span>
+          <button
+            type="button"
+            class="held-pick-clear"
+            aria-label={Filters.heldPickClearLabel(pick)}
+            onclick={() => releaseHeldPick(pick)}>Clear</button
+          >
+        </p>
+      {/each}
     </div>
 
     <label

@@ -3607,3 +3607,34 @@ footer a.mono:focus-visible {
 .pipeline-rerun-failure[hidden] {
   display: none;
 }
+
+/* A saved pick the page does not offer (#1620): one quiet line under the
+   filter bar, with a button that drops it. Empty, it takes no room. */
+.held-picks:not(:empty) {
+  margin: -12px 0 14px;
+}
+.held-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.held-pick-clear {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+.held-pick-clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
