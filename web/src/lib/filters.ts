@@ -207,6 +207,8 @@ function defaultState(): SharedFilterState {
 }
 
 export function loadState(): SharedFilterState {
+  // A new page load starts with nothing edited yet (#1713).
+  resetTouched();
   const raw = getCookie(FILTERS_COOKIE);
   const state = defaultState();
   if (!raw) return state;
@@ -586,6 +588,39 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
     .catch(() => null);
 }
 
+// The filter keys the user has changed since this page loaded (#1713). The
+// saved copy is fetched a moment after the cookie is read; an edit made while
+// it is in flight is newer than the copy, so the copy must not overwrite it.
+// Keys are "group.key". Clear filters touches every key of the three filter
+// groups at once, so a late copy cannot bring old values back.
+const touchedKeys = new Set<string>();
+let clearedAll = false;
+const CLEARED_GROUPS: StateGroup[] = ['shared', 'pr', 'issue'];
+
+export function touchKey(group: StateGroup, key: string): void {
+  touchedKeys.add(`${group}.${key}`);
+}
+
+export function touchAll(): void {
+  clearedAll = true;
+}
+
+export function resetTouched(): void {
+  touchedKeys.clear();
+  clearedAll = false;
+}
+
+export function hasTouched(): boolean {
+  return clearedAll || touchedKeys.size > 0;
+}
+
+function isTouched(group: StateGroup, key: string): boolean {
+  return (
+    (clearedAll && CLEARED_GROUPS.includes(group)) ||
+    touchedKeys.has(`${group}.${key}`)
+  );
+}
+
 // Merges got (a real server response from loadStateFromServer, already
 // known non-null) into state in place — mutated, not reassigned, since
 // callers close over this exact state object and a reassignment here
@@ -601,6 +636,9 @@ export function applyServerState(
     const incoming = got[group];
     if (!incoming || typeof incoming !== 'object') continue;
     for (const [key, value] of Object.entries(incoming)) {
+      // The user changed this since the page loaded: their value is newer
+      // than the copy, which was requested before the edit (#1713).
+      if (isTouched(group, key)) continue;
       // The server holds the pick this page cleared for itself: it agrees
       // with what is held, so it stays cleared here. A different value is
       // another device's newer choice and wins.

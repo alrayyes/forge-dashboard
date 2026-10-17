@@ -170,6 +170,7 @@
 
   function releaseHeldPick(pick: Filters.HeldPick) {
     Filters.releaseHeld(pick.group, pick.key);
+    Filters.touchKey(pick.group, pick.key);
     Filters.saveState(sharedState);
     heldList = Filters.heldPicks();
     tick().then(() => heldPicksEl && Filters.focusHeldPicks(heldPicksEl));
@@ -265,6 +266,7 @@
               ? c.value
               : c.value.trim().toLowerCase();
           sharedState.shared[col] = value;
+          Filters.touchKey("shared", col);
           Filters.releaseHeld("shared", col);
           // Each pick narrows what the others can offer (#1427).
           if (
@@ -298,6 +300,7 @@
     sharedState.issue.hideDependencyDashboard = hideDependencyDashboard
       ? "1"
       : "";
+    Filters.touchKey("issue", "hideDependencyDashboard");
     Filters.saveState(sharedState);
     // What the Dependency Dashboard hides is not worth choosing from (#1427).
     updateSharedFilterOptions();
@@ -316,6 +319,7 @@
     // the cookie already has.
     Filters.loadStateFromServer().then((got) => {
       if (got) Filters.applyServerState(sharedState, got);
+      if (got && Filters.hasTouched()) Filters.saveState(sharedState);
       hideDependencyDashboard =
         sharedState.issue.hideDependencyDashboard === "1";
       if (sharedControlsRestored) {
