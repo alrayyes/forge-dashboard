@@ -177,3 +177,80 @@ server log. The tickets' criteria win over those two details.
   name, "Signed Commits", "2 Approvals", "Fast-Forward ready", the latency
   and sync chips, the display-mode and colour-check toggles, and the contrast
   claims.
+
+- `settings-groups/`: Settings split into five groups, one visible at a
+  time. `settings-behaviour-desktop.png`, `settings-connections-desktop.png`
+  and `settings-integrations-security-desktop.png` are the desktop screens,
+  with a group list on the left. `settings-display-mobile.png` and
+  `settings-behaviour-mobile.png` are the 360px screens, with pill tabs.
+  `settings-group-list-desktop.png`, `settings-group-tabs-mobile.png`,
+  `settings-behaviour-desktop-issues-card.png` and
+  `settings-token-disclosure-open.png` are crops of the group list, the tab
+  row, the ignored-title rows and the open token help. Stitch project
+  "Forge Dashboard UI Audit" (`564147752128938905`), screens
+  `656d4ba45c2241f6a434a78536025db1` (Behaviour),
+  `6511c9d18b5f4514a8a1701889cea89b` (Connections),
+  `3fb87c53e96843d98f115f3abc7ed822` (Integrations and security),
+  `ad18f5d5b42d4a3c82949a6948835ac8` (Display, phone) and
+  `516148d48167453cbb0091d68136472a` (Behaviour, phone). The prompt asked for
+  a five-group layout with the group list on desktop, pill tabs on a phone,
+  a disclosure for the long token help, a "hides N issues" chip per pattern
+  and red-outline destructive buttons, with every existing setting kept and
+  none added.
+
+  Build the five groups in this order: Display, Sharing, Connections,
+  Behaviour, Integrations and security. Mark the current group by more than
+  colour, as the accent bar and bold label do here. Put the chip beside each
+  ignored pattern, and say "hides no issues" for zero, not "hides 0 issues".
+  Outline destructive buttons in red, and use pill tabs on a phone. Keep
+  "What does this token need?" closed by default. That comes from the
+  prompt's rule, not from the design: both disclosures on the Connections
+  screen are drawn open, and their chevrons disagree (down on GitHub, up on
+  Forgejo). No screen shows the closed state, so use one convention, open
+  is up.
+
+  Buttons that save: the build keeps each card's present behaviour. The app
+  saves the theme on click, so Display gets no "Save theme" button, and a
+  card that saves on change gets none either. Stitch draws "Save theme",
+  "Save time zone" and "Save density settings" on the Display phone screen
+  and three per-card Saves on Behaviour; add none that the app lacks.
+
+  Defects not to copy:
+
+  - The fifth group has three spellings: "Security" (Behaviour desktop and
+    the group-list crop), "Integrations & Security" (Connections) and
+    "Integrations & security" (Integrations). The build uses "Integrations
+    and security", with "and", not "&".
+  - The phone tab row cuts the current tab off mid-word on Behaviour with no
+    cue that it scrolls, hides the fifth group entirely, and on Display
+    clips the fourth pill to its icon. The build must show a scroll cue or
+    wrap.
+  - Only the current pill has an icon.
+  - The pills are about 40px high, under the prompt's own 44px target.
+  - On a phone the chip reads "hides 3" without "issues", and the pattern is
+    truncated.
+  - The delete icons on a phone are icon-only, so they need an accessible
+    name.
+  - Small grey helper text on pale blue looks low in contrast. Nobody
+    measured it.
+  - Only light screens exist and no focus state is drawn, though the prompt
+    asked for dark and focus rings.
+
+  Not built, because the app has no such data or feature:
+
+  - the second left sidebar ("General Settings", "Repository Rules", "Access
+    Tokens", "Audit Logs"), the global-scope chip, the cluster chip in the
+    top bar and the engine version card with its sync status;
+  - version chips, the sync daemon line, "Synced nodes", "Bridge status",
+    the "Audit posture" meter and the zero-trust agent chip;
+  - the Density card, the 24-hour clock toggle and the phone preview row;
+  - per-card service tags such as "git-pr-v2", the "Policy Match 100%" chip
+    and the encryption-promise banner;
+  - figures and status lines: the request quota, "Last verified",
+    `mTLS Enforced`, the token expiry, the latency line, "Last ping", the
+    "Active" and "Encrypted" badges, the repository coverage count, and the
+    polling interval line (the phone screen says 30 seconds where desktop says
+    45 seconds, so Stitch contradicts itself);
+  - the "FIDO2 LEVEL 2" and "CURRENT SESSION" tags;
+  - the bottom tab bar on a phone, and the rotate-keys and test-delivery
+    buttons.
