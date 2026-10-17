@@ -178,8 +178,8 @@ server half a second after the last key, and at once when you leave the page
 or switch tab, so a value typed just before leaving is kept.
 What is deliberately not remembered: the page you were on and the page size,
 the open Filters sheet on a phone, held updates, open menus and pop-ups, and
-the expanded rows on Branches. Branches keeps its own filter in a cookie
-only, so it doesn't follow you to another browser.
+the expanded rows on Branches. The Branches status, forge and search follow
+you to another browser the same way.
 
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows is held behind an "N updates available" bar while you're scrolled
