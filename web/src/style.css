@@ -3607,3 +3607,14 @@ footer a.mono:focus-visible {
 .pipeline-rerun-failure[hidden] {
   display: none;
 }
+
+/* The footer link for the page you're on (#1679): bolder, underlined and
+   full ink, so it reads as current without colour alone. --ink clears AA on
+   the page background in both schemes. */
+footer a[aria-current="page"] {
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}

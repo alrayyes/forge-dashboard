@@ -58,7 +58,9 @@ test.describe('disclaimer and privacy pages', () => {
     expect(text).toContain('dev build · Disclaimer · Privacy');
   });
 
-  test('the footer links to both from another page, but not from themselves', async ({
+  // The owner decided (#1679) that the footer keeps the link to the page
+  // you're on and marks it current, instead of dropping it.
+  test('the footer keeps both links on each page and marks the current one', async ({
     page,
   }) => {
     await page.goto('/login.html');
@@ -67,24 +69,19 @@ test.describe('disclaimer and privacy pages', () => {
     const privacyLink = page.locator('footer a', { hasText: 'Privacy' });
     await expect(disclaimerLink).toBeVisible();
     await expect(privacyLink).toBeVisible();
+    await expect(disclaimerLink).not.toHaveAttribute('aria-current', 'page');
 
     await disclaimerLink.click();
     await expect(page).toHaveURL(/\/disclaimer\.html$/);
-    await expect(
-      page.locator('footer a', { hasText: 'Disclaimer' }),
-    ).toHaveCount(0);
-    await expect(
-      page.locator('footer a', { hasText: 'Privacy' }),
-    ).toBeVisible();
+    await expect(disclaimerLink).toHaveAttribute('aria-current', 'page');
+    await expect(privacyLink).toBeVisible();
+    await expect(privacyLink).not.toHaveAttribute('aria-current', 'page');
 
-    await page.locator('footer a', { hasText: 'Privacy' }).click();
+    await privacyLink.click();
     await expect(page).toHaveURL(/\/privacy\.html$/);
-    await expect(page.locator('footer a', { hasText: 'Privacy' })).toHaveCount(
-      0,
-    );
-    await expect(
-      page.locator('footer a', { hasText: 'Disclaimer' }),
-    ).toBeVisible();
+    await expect(privacyLink).toHaveAttribute('aria-current', 'page');
+    await expect(disclaimerLink).toBeVisible();
+    await expect(disclaimerLink).not.toHaveAttribute('aria-current', 'page');
   });
 
   test('disclaimer links to the licence, privacy names the webhook credentials doc', async ({

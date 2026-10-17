@@ -1,15 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
+  import { currentFooterLink } from "#lib/footer-links.js";
 
   // Ports internal/api/static/footer.js's DOM-query IIFE to real Svelte
   // state (alrayyes/forge-dashboard#646) — same three outcomes: the
   // version fetch hasn't resolved yet (show nothing), the server is a
   // "dev" build (a plain label, no link), or a real released version (a
-  // v-prefixed link to the changelog page, plain text on that page itself,
-  // #786). The mirror/Disclaimer/Privacy markup below follows footer.js's
-  // own behavior exactly (see that file for the byte-for-byte reference
-  // this was ported from).
+  // v-prefixed link to the changelog page, #786). Every page gets the same links in the
+  // same order; the current page's link keeps its place and carries
+  // aria-current="page" instead of vanishing (#1679).
   type VersionState =
     | { kind: "unresolved" }
     | { kind: "dev" }
@@ -17,18 +17,9 @@
 
   let versionState = $state<VersionState>({ kind: "unresolved" });
 
-  // Matches (app)/+layout.svelte's own isCurrentRoute: tolerant of both
-  // the bare SvelteKit route and today's real ".html" hard-navigation
-  // target, since this component is reached via hard navigation on every
-  // page it's rendered from right now.
-  const currentPath = $derived(page.url.pathname);
-
-  function isCurrentRoute(route: string): boolean {
-    return (
-      currentPath === route ||
-      (route !== "/" && currentPath === `${route}.html`)
-    );
-  }
+  // Which footer link is the page you're on: marked aria-current="page",
+  // never dropped (#1679).
+  const current = $derived(currentFooterLink(page.url.pathname));
 
   onMount(() => {
     fetch("/api/version", { headers: { Accept: "application/json" } })
@@ -68,15 +59,21 @@
   >
   <span id="footer-version"
     >{#if versionState.kind === "dev"}&#183; dev build{:else if versionState.kind === "released"}&#183;
-      {#if isCurrentRoute("/changelog")}<span class="mono"
-          >v{versionState.version}</span
-        >{:else}<a class="mono" href="/changelog.html"
-          >v{versionState.version}</a
-        >{/if}{/if}</span
-  >{#if !isCurrentRoute("/disclaimer")}{" "}&#183;
-    <a href="/disclaimer.html">Disclaimer</a
-    >{/if}{#if !isCurrentRoute("/privacy")}{" "}&#183;
-    <a href="/privacy.html">Privacy</a>{/if}
+      <a
+        class="mono"
+        href="/changelog.html"
+        aria-current={current === "changelog" ? "page" : undefined}
+        >v{versionState.version}</a
+      >{/if}</span
+  >{" "}&#183;
+  <a
+    href="/disclaimer.html"
+    aria-current={current === "disclaimer" ? "page" : undefined}>Disclaimer</a
+  >{" "}&#183;
+  <a
+    href="/privacy.html"
+    aria-current={current === "privacy" ? "page" : undefined}>Privacy</a
+  >
 </footer>
 
 <style>

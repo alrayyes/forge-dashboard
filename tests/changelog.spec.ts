@@ -173,7 +173,7 @@ test.describe('release history page', () => {
 
     // #786: the footer's version is the way in to this page. CI builds a dev
     // binary (plain text, no link), so a released version is mocked.
-    test('the footer version links here from other pages, and is plain text on this one', async ({
+    test('the footer version links here from other pages, and stays a link marked current on this one', async ({
       page,
     }) => {
       await page.route('**/api/version', (route) =>
@@ -192,8 +192,9 @@ test.describe('release history page', () => {
       await versionLink.click();
       await expect(page).toHaveURL(/\/changelog\.html$/);
 
-      await expect(page.locator('#footer-version')).toContainText('v1.2.3');
-      await expect(page.locator('#footer-version a')).toHaveCount(0);
+      // The owner decided (#1679) the link stays on its own page, marked
+      // current, instead of turning into plain text.
+      await expect(versionLink).toHaveAttribute('aria-current', 'page');
       await expect(page.locator('#footer-version')).not.toContainText(
         'Release history',
       );
