@@ -195,7 +195,7 @@ test.describe('WebMCP tools', () => {
     expect(seen).toBe(before + 1);
   });
 
-  test('get_settings calls /api/settings and returns it without the webhook secrets', async ({
+  test('get_settings calls /api/settings/summary and returns the redacted shape', async ({
     page,
   }) => {
     const settings = {
@@ -210,10 +210,12 @@ test.describe('WebMCP tools', () => {
       webhookSecret: 'whk_secret_value_456',
     };
     let seen = 0;
-    await page.route('**/api/settings', (route) => {
+    await page.route('**/api/settings/summary', (route) => {
       seen++;
 
-      return route.fulfill({ json: { ...settings, ...secrets } });
+      return route.fulfill({
+        json: { ...settings, webhookConfigured: false, ...secrets },
+      });
     });
     await stubModelContext(page);
     await page.goto('/pull-requests.html');
@@ -227,7 +229,7 @@ test.describe('WebMCP tools', () => {
       return t.execute({});
     });
 
-    expect(result).toEqual({ ...settings, webhookConfigured: true });
+    expect(result).toEqual({ ...settings, webhookConfigured: false });
     expect(JSON.stringify(result)).not.toContain(secrets.webhookToken);
     expect(JSON.stringify(result)).not.toContain(secrets.webhookSecret);
     expect(seen).toBe(before + 1);

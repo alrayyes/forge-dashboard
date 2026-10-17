@@ -426,6 +426,7 @@ paths:
   /api/settings:
     get:
       operationId: getSettings
+      x-mcp-excluded: "It provisions webhook credentials on first read and returns them. The get_settings tool returns GET /api/settings/summary instead."
       summary: The signed-in user's own forge configuration
       description: |
         Forge tokens are never returned, only whether one is set. The
@@ -491,7 +492,6 @@ paths:
   /api/settings/summary:
     get:
       operationId: getSettingsSummary
-      x-mcp-excluded: "The get_settings tool returns this same body."
       summary: The signed-in user's settings, read without side effects
       description: |
         The same data as `GET /api/settings`, minus the webhook token and
@@ -5068,7 +5068,10 @@ components:
             How often, in seconds, a client should re-read GET
             /api/dashboard. The server's advice, so a client needs no
             interval of its own. The read is cheap and never calls a
-            forge; this is not the backend's refresh schedule.
+            forge; this is not the backend's refresh schedule. It is
+            shorter (2) until the viewer's first refresh has finished, so a
+            page that is still loading picks the data up soon after it is
+            ready, and the normal 30 from then on.
         hiddenDrafts:
           type: integer
           minimum: 0

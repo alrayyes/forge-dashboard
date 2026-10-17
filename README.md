@@ -128,14 +128,12 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   (`fetchDashboardData()`) directly, the same request `/api/dashboard` already
   answers; the others call their endpoint the same way (`list_queued_actions`
   returns `GET /api/queued-actions` under a `queuedActions` key, as the
-  server's tool of that name does; `get_settings` returns `GET /api/settings`
-  without the webhook token and secret and adds `webhookConfigured`, as the
-  server's tool does). Unlike the server's tool, `get_settings` shares its
-  endpoint with the Settings page, so a first read creates the webhook
-  credentials, as opening Settings does. Because of that, `webhookConfigured`
-  is true after the first read: don't treat it as a sign that webhooks are set
-  up on a forge. All ride on the browser's own session cookie exactly like the
-  page's own poll does.
+  server's tool of that name does; `get_settings` returns
+  `GET /api/settings/summary`, the same body as the server's tool, with
+  `webhookConfigured` and no webhook token or secret). Like the server's
+  tool, `get_settings` creates nothing: `webhookConfigured` is false until
+  the user has opened Settings. All ride on the browser's own session
+  cookie exactly like the page's own poll does.
   Nothing new crosses to the browser that the preceding
   "Credentials never reach the browser" bullet doesn't already allow: the tools
   never see a token, only the same already-filtered JSON the page always got.
@@ -1359,7 +1357,8 @@ nothing changes except that the title filter now sits first in the bar.
 ## Live updates
 
 The board polls on the schedule in `readIntervalSeconds` (30 seconds today, set
-by the server) and takes pushes over a live stream, but
+by the server, or 2 until your first refresh has finished) and takes pushes
+over a live stream, but
 rows don't move while you're reading. A change to a row's own content (CI,
 merge status, behind, labels, title) updates that row where it stands and
 marks it "Updated just now" for a couple of seconds. Anything that would
@@ -1387,7 +1386,9 @@ polite "Loading your repositories…" line, not their empty states, and the
 navigation shows a dash where a count would be. After about ten seconds the line
 says the first refresh can take a while. The placeholder doesn't animate under
 reduced motion. A snapshot without the flag counts as loaded. An unreachable
-forge still shows in the forge health banner.
+forge still shows in the forge health banner. While the flag is `false` the
+server also advises a short `readIntervalSeconds` of 2, so the rows appear
+soon after the refresh ends, not up to 30 seconds later.
 
 ## Hiding one pull request
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.209.1](https://github.com/alrayyes/forge-dashboard/compare/v0.209.0...v0.209.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** refetch the Branches list when the first refresh finishes ([#1735](https://github.com/alrayyes/forge-dashboard/issues/1735)) ([3b7beeb](https://github.com/alrayyes/forge-dashboard/commit/3b7beeb14c769d61e2b17359a172309869b8fde3))
+
 ## [0.209.0](https://github.com/alrayyes/forge-dashboard/compare/v0.208.1...v0.209.0) (2026-10-17)
 
 

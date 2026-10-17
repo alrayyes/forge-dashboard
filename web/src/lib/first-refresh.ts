@@ -63,3 +63,14 @@ export function firstRefreshStatus(
 export function branchesAwaitingFlag(settled: boolean, total: number): boolean {
   return !settled && total === 0;
 }
+
+// The Branches page reads its list on its own timer, so a first refresh that
+// finishes between two reads leaves it showing the empty list until the next
+// one. It reads again when the flag turns from false to true. A flag first
+// seen as true (a warm load) is not a flip: the list was read after it.
+export function firstRefreshJustFinished(
+  previous: boolean | null | undefined,
+  next: boolean | null | undefined,
+): boolean {
+  return previous === false && next === true;
+}
