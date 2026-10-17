@@ -10,10 +10,21 @@
   let {
     count,
     stacked = false,
-  }: { count: NavCount | null; stacked?: boolean } = $props();
+    pending = false,
+  }: {
+    count: NavCount | null;
+    stacked?: boolean;
+    pending?: boolean;
+  } = $props();
 </script>
 
-{#if count && count.total > 0}
+{#if pending}
+  <!-- The first refresh has not finished (#1672), so the number is not known:
+       a dash, never a 0. The link's own name says nothing about a count. -->
+  <span class="nav-pills nav-pending" class:stacked aria-hidden="true">
+    <span class="nav-total">&ndash;</span>
+  </span>
+{:else if count && count.total > 0}
   <span class="nav-pills" class:stacked aria-hidden="true">
     <span class="nav-total">{count.total}</span>
     {#if count.failed > 0}
