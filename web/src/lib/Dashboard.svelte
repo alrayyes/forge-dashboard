@@ -5417,6 +5417,8 @@
         !sharedState.pr.status &&
         !sharedState.pr.quick &&
         !sharedState.pr.autoMerge &&
+        // A saved pick this page does not offer is still a filter (#1620).
+        Filters.heldPicks().length === 0 &&
         // A field the Settings page replaced is not drawn, so what the
         // page saved in it is not something to clear (#1630).
         (settingsHideDependencyDashboard ||
@@ -5547,7 +5549,20 @@
 
     let renderedChips = "";
 
+    // A saved pick this page does not offer is kept for the page that does;
+    // say so, with a way to drop it (#1620).
+    const heldPicksEl = document.getElementById("held-picks");
+    function renderHeldNote() {
+      if (!heldPicksEl) return;
+      Filters.renderHeldPicks(heldPicksEl, (pick) => {
+        Filters.releaseHeld(pick.group, pick.key);
+        Filters.saveState(sharedState);
+        updateClearFiltersButton();
+      });
+    }
+
     function renderFilterChrome() {
+      renderHeldNote();
       const chips = activeFilterChips();
       if (filtersButton)
         filtersButton.textContent =
@@ -7338,6 +7353,10 @@
       >
     </div>
   </div>
+
+  <!-- Saved picks this page does not offer (#1620). Always in the page, so a
+       screen reader hears a line appear in it. -->
+  <div class="held-picks" id="held-picks" role="status" tabindex="-1"></div>
 
   <!-- The Filters sheet (#828), phones only: the controls move in here
        while it's open and back when it closes, so every id and handler
