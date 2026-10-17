@@ -26,17 +26,13 @@ async function open(page: Page, health: Record<string, unknown>) {
       }),
     }),
   );
-  await page.reload();
+  await page.goto('/pull-requests.html');
 }
 
 const MINUTES_AGO = (n: number) =>
   new Date(Date.now() - n * 60_000).toISOString();
 
 test.describe('stale data notice (#933)', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/pull-requests.html');
-  });
-
   test('an unreachable forge with staleSince says how old its data is', async ({
     page,
   }) => {
