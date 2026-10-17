@@ -94,7 +94,6 @@ const PENDING_OPERATIONS = [
   'getSession',
   'listCredentials',
   'deleteCredential',
-  'getSettings',
   'putSettings',
   'getTheme',
   'setTheme',

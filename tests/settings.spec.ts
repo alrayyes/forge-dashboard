@@ -47,11 +47,24 @@ test.describe('settings page', () => {
         }),
       }),
     );
-    await page.goto('/settings.html');
-    await expect(page.locator('.app-nav .nav-pills').first()).toBeVisible();
-    await expect(page.locator('#settings-form')).toBeVisible();
+    const small: string[] = [];
+    for (const group of [
+      'display',
+      'sharing',
+      'connections',
+      'behaviour',
+      'integrations',
+    ]) {
+      await page.goto(`/settings.html#${group}`);
+      await expect(page.locator('.app-nav .nav-pills').first()).toBeVisible();
+      await expect(page.locator(`#${group}`)).toBeVisible();
+      small.push(...(await smallTextOnPage(page)));
+    }
+    expect(small).toEqual([]);
+  });
 
-    const small = await page.evaluate(() => {
+  async function smallTextOnPage(page: Page): Promise<string[]> {
+    return page.evaluate(() => {
       const found: string[] = [];
       const walker = document.createTreeWalker(
         document.body,
@@ -72,13 +85,12 @@ test.describe('settings page', () => {
       }
       return found;
     });
-    expect(small).toEqual([]);
-  });
+  }
 
   test.describe('theme control (#352)', () => {
     test('defaults to System, with no theme applied', async ({ page }) => {
-      await page.goto('/settings.html');
-      await expect(page.locator('#settings-form')).toBeVisible();
+      await page.goto('/settings.html#display');
+      await expect(page.locator('#display')).toBeVisible();
 
       await expect(
         page.locator('.theme-segmented input[value=""]'),
@@ -89,7 +101,7 @@ test.describe('settings page', () => {
     test('choosing Dark applies immediately, with no Save step', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#display');
 
       await page.click('.theme-segmented label:has-text("Dark")');
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -112,7 +124,7 @@ test.describe('settings page', () => {
     test('a choice survives a reload and following to another page', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#display');
       await Promise.all([
         page.waitForResponse(
           (res) =>
@@ -144,7 +156,7 @@ test.describe('settings page', () => {
     test('a choice survives a reload that outraces its own save', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#display');
 
       let releasePut: () => void = () => {};
       const putHeld = new Promise<void>((resolve) => {
@@ -188,7 +200,7 @@ test.describe('settings page', () => {
     test('switching back to Light removes the dark attribute', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#display');
       await page.click('.theme-segmented label:has-text("Dark")');
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
@@ -208,7 +220,7 @@ test.describe('settings page', () => {
   test('saved settings persist across a reload, and the token never comes back', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#connections');
 
     await page.fill(
       '#github-token',
@@ -217,9 +229,9 @@ test.describe('settings page', () => {
     await page.fill('#github-username', 'octocat');
     await page.fill('#forgejo-url', 'https://git.example.com');
     await page.fill('#forgejo-username', 'octocat-forgejo');
-    await page.click('#save-button');
+    await page.click('#save-connections-button');
 
-    await expect(page.locator('#status')).toHaveText('Saved.');
+    await expect(page.locator('#connections-status')).toHaveText('Saved.');
     await expect(page.locator('#github-token-badge')).toBeVisible();
     // Cleared after a successful save — the "Configured" badge is what
     // confirms it took, not the input showing the secret back.
@@ -241,7 +253,7 @@ test.describe('settings page', () => {
   test('the show/hide toggle reveals and re-masks a token field', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#connections');
 
     await page.fill('#github-token', 'ghp_e2e-visibility-check');
     await expect(page.locator('#github-token')).toHaveAttribute(
@@ -267,7 +279,7 @@ test.describe('settings page', () => {
   test('the Renovate rebase label persists across a reload', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
 
     await expect(page.locator('#renovate-rebase-label-field')).toBeVisible();
     await page.fill('#renovate-rebase-label', 'retry');
@@ -286,18 +298,20 @@ test.describe('settings page', () => {
   test('a Forgejo username with no instance URL is refused by the server, which names the field', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#connections');
 
     await page.fill('#forgejo-username', 'octocat-forgejo');
     const [saveRequest] = await Promise.all([
       page.waitForRequest(
         (r) => r.url().endsWith('/api/settings') && r.method() === 'PUT',
       ),
-      page.click('#save-button'),
+      page.click('#save-connections-button'),
     ]);
     expect(saveRequest).toBeTruthy();
 
-    await expect(page.locator('#status')).toContainText(/forgejoUrl/);
+    await expect(page.locator('#connections-status')).toContainText(
+      /forgejoUrl/,
+    );
     await expect(page.locator('#forgejo-url')).toBeFocused();
 
     await page.reload();
@@ -309,7 +323,7 @@ test.describe('settings page', () => {
   test('the Forgejo token-settings link tracks the instance URL field and is inert when it is empty', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#connections');
 
     await expect(page.locator('#forgejo-token-link')).not.toHaveAttribute(
       'href',
@@ -329,7 +343,7 @@ test.describe('settings page', () => {
     // The default, realistic state for this test environment — nothing
     // here sets GITHUB_APP_ID, matching an ordinary deployment that
     // hasn't opted into #620's App-based auth.
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#connections');
 
     const input = page.locator('#github-app-installation-id');
     await expect(input).toBeDisabled();
@@ -345,7 +359,7 @@ test.describe('settings page', () => {
     // environment has no App configured, so the value is set directly
     // rather than typed: typing into a genuinely disabled control is a
     // no-op in a real browser.
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#connections');
 
     await page.evaluate(() => {
       const el = document.getElementById(
@@ -359,16 +373,19 @@ test.describe('settings page', () => {
       page.waitForRequest(
         (r) => r.url().endsWith('/api/settings') && r.method() === 'PUT',
       ),
-      page.click('#save-button'),
+      page.click('#save-connections-button'),
     ]);
     expect(saveRequest).toBeTruthy();
 
     // Nothing was saved and the page shows the server's reason, which names
     // the field. (The input stays disabled here, with no App configured, so
     // it can't take focus; the Forgejo URL test above covers focus.)
-    await expect(page.locator('#status')).not.toHaveText('Saved.');
-    await expect(page.locator('#status')).toHaveAttribute('class', /error/);
-    await expect(page.locator('#status')).toContainText(
+    await expect(page.locator('#connections-status')).not.toHaveText('Saved.');
+    await expect(page.locator('#connections-status')).toHaveAttribute(
+      'class',
+      /error/,
+    );
+    await expect(page.locator('#connections-status')).toContainText(
       /githubAppInstallationId/,
     );
   });
@@ -379,7 +396,7 @@ test.describe('settings page', () => {
     // Regression test for a real readability complaint: this hint used
     // to be a single <p>, every sentence and every permission run
     // together with no visual break at all.
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#connections');
 
     const items = page.locator('#github-token-hint ul li');
     await expect(items).toHaveCount(6);
@@ -394,7 +411,7 @@ test.describe('settings page', () => {
     // and read:issue but never read:user, even though GET /user/repos —
     // the README's own Credentials section documents this with a real
     // 403 it hit live — refuses a token missing it.
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#connections');
 
     await expect(page.locator('#forgejo-token-hint')).toContainText(
       'read:user',
@@ -404,7 +421,7 @@ test.describe('settings page', () => {
   test('webhook URLs and secret are populated, and the secret starts masked', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#integrations');
 
     // The webhook fields fill in only after the settings fetch resolves —
     // an auto-retrying toHaveValue, not a one-shot inputValue, is what
@@ -434,7 +451,7 @@ test.describe('settings page', () => {
   test('the webhook secret show/hide toggle works the same as the token fields', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#integrations');
 
     const toggle = page.locator('.token-toggle[data-target="webhook-secret"]');
     await expect(page.locator('#webhook-secret')).toHaveAttribute(
@@ -458,7 +475,7 @@ test.describe('settings page', () => {
     context,
   }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#integrations');
 
     // Wait for the settings fetch to fill the field in before copying it —
     // otherwise this can race the same fetch the field's own value does.
@@ -480,7 +497,7 @@ test.describe('settings page', () => {
     context,
   }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#integrations');
 
     await expect(page.locator('#webhook-secret')).not.toHaveValue('');
     await page.click('.copy-button[data-copy-target="webhook-secret"]');
@@ -496,7 +513,7 @@ test.describe('settings page', () => {
   test('webhook coverage summary is hidden with no tracked repos', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#integrations');
 
     await expect(page.locator('#webhook-coverage-summary')).toBeHidden();
   });
@@ -521,7 +538,7 @@ test.describe('settings page', () => {
         }),
       }),
     );
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#integrations');
 
     const summary = page.locator('#webhook-coverage-summary');
     await expect(summary).toBeVisible();
@@ -543,7 +560,7 @@ test.describe('settings page', () => {
     test('the initial passkey from registration is already listed, with its Remove button disabled', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#integrations');
 
       const items = page.locator('#passkey-list li');
       await expect(items).toHaveCount(1);
@@ -558,7 +575,7 @@ test.describe('settings page', () => {
     test('adding a second passkey lists both, and the Remove button becomes enabled', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#integrations');
 
       await page.fill('#passkey-label', 'YubiKey');
       await page.click('#passkey-form button[type="submit"]');
@@ -580,7 +597,7 @@ test.describe('settings page', () => {
     test('removing a passkey when more than one exists removes just that one', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#integrations');
       await page.fill('#passkey-label', 'YubiKey');
       await page.click('#passkey-form button[type="submit"]');
       await expect(page.locator('#passkey-list li')).toHaveCount(2);
@@ -607,7 +624,7 @@ test.describe('settings page', () => {
     test('has no axe-core violations with two passkeys listed', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#integrations');
       await page.fill('#passkey-label', 'YubiKey');
       await page.click('#passkey-form button[type="submit"]');
       await expect(page.locator('#passkey-list li')).toHaveCount(2);
@@ -623,7 +640,7 @@ test.describe('settings page', () => {
     test('no tokens yet shows the empty state, not a blank list', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#integrations');
 
       await expect(page.locator('#api-token-empty')).toBeVisible();
       await expect(page.locator('#api-token-list li')).toHaveCount(0);
@@ -632,7 +649,7 @@ test.describe('settings page', () => {
     test('generating a token reveals it once, and lists it without the raw value', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#integrations');
 
       await page.fill('#token-label', 'ci script');
       await page.click('#token-form button[type="submit"]');
@@ -655,7 +672,7 @@ test.describe('settings page', () => {
       test('30 days is pre-selected, and there is no "never expires" option', async ({
         page,
       }) => {
-        await page.goto('/settings.html');
+        await page.goto('/settings.html#integrations');
 
         await expect(page.locator('#token-expiry-preset')).toHaveValue('30');
         const optionValues = await page
@@ -669,7 +686,7 @@ test.describe('settings page', () => {
       test('generating with the default 30-day preset shows an expiration date on the listed token', async ({
         page,
       }) => {
-        await page.goto('/settings.html');
+        await page.goto('/settings.html#integrations');
 
         await page.fill('#token-label', 'ci script');
         await page.click('#token-form button[type="submit"]');
@@ -681,7 +698,7 @@ test.describe('settings page', () => {
       test('picking a preset other than 30 still creates and lists the token', async ({
         page,
       }) => {
-        await page.goto('/settings.html');
+        await page.goto('/settings.html#integrations');
 
         await page.selectOption('#token-expiry-preset', '90');
         await page.fill('#token-label', 'ci script');
@@ -694,7 +711,7 @@ test.describe('settings page', () => {
       test('choosing "Custom date…" reveals a date field capped at 366 days out, and requires a value before submitting', async ({
         page,
       }) => {
-        await page.goto('/settings.html');
+        await page.goto('/settings.html#integrations');
         await expect(page.locator('#token-expiry-custom-date')).toHaveCount(0);
 
         await page.selectOption('#token-expiry-preset', 'custom');
@@ -722,7 +739,7 @@ test.describe('settings page', () => {
       test('a custom date within range creates and lists the token', async ({
         page,
       }) => {
-        await page.goto('/settings.html');
+        await page.goto('/settings.html#integrations');
 
         await page.selectOption('#token-expiry-preset', 'custom');
         const inTwoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -740,7 +757,7 @@ test.describe('settings page', () => {
       test('has no axe-core violations with the custom date field revealed', async ({
         page,
       }) => {
-        await page.goto('/settings.html');
+        await page.goto('/settings.html#integrations');
         await page.selectOption('#token-expiry-preset', 'custom');
         await expect(page.locator('#token-expiry-custom-date')).toBeVisible();
 
@@ -754,7 +771,7 @@ test.describe('settings page', () => {
     test('reloading no longer shows the raw token, only its metadata', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#integrations');
       await page.fill('#token-label', 'ci script');
       await page.click('#token-form button[type="submit"]');
       await expect(page.locator('#token-reveal-field')).toBeVisible();
@@ -771,7 +788,7 @@ test.describe('settings page', () => {
       page,
       request,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#integrations');
       await page.fill('#token-label', 'ci script');
       await page.click('#token-form button[type="submit"]');
       await expect(page.locator('#token-reveal-field')).toBeVisible();
@@ -803,7 +820,7 @@ test.describe('settings page', () => {
       context,
     }) => {
       await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#integrations');
       await page.fill('#token-label', 'ci script');
       await page.click('#token-form button[type="submit"]');
       await expect(page.locator('#token-reveal-field')).toBeVisible();
@@ -823,7 +840,7 @@ test.describe('settings page', () => {
     test('has no axe-core violations with a token generated and listed', async ({
       page,
     }) => {
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#integrations');
       await page.fill('#token-label', 'ci script');
       await page.click('#token-form button[type="submit"]');
       await expect(page.locator('#token-reveal-field')).toBeVisible();

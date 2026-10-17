@@ -430,8 +430,9 @@ paths:
       description: |
         Forge tokens are never returned, only whether one is set. The
         webhook token and secret are returned, since the user pastes them
-        into the forge's webhook setup. The `get_settings` MCP tool omits
-        both and reports `webhookConfigured` instead.
+        into the forge's webhook setup, and a first read creates them. For
+        a read that creates nothing and omits both, see
+        `GET /api/settings/summary`.
       tags: [settings]
       security: [{ bearerAuth: [] }]
       responses:
@@ -487,6 +488,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/settings/summary:
+    get:
+      operationId: getSettingsSummary
+      x-mcp-excluded: "The get_settings tool returns this same body."
+      summary: The signed-in user's settings, read without side effects
+      description: |
+        The same data as `GET /api/settings`, minus the webhook token and
+        secret, plus `webhookConfigured`. It never provisions webhook
+        credentials: for a user who has none yet it answers
+        `webhookConfigured: false` and creates nothing. Forge tokens are
+        never returned, only whether one is set. It returns exactly what
+        the `get_settings` MCP tool returns.
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The current settings, without any secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsSummary"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/settings/theme:
     get:
       operationId: getTheme
@@ -3295,6 +3323,9 @@ components:
             it's false.
         forgejoUrl:
           type: string
+          description: |
+            Always without a username, password, query string or fragment,
+            even if the stored value predates those being refused.
         forgejoUsername:
           type: string
           description: Used as a token-free public-repos fallback when no Forgejo token is set.
@@ -3389,6 +3420,79 @@ components:
             response alike: a PUT returns the counts for the list it just
             saved, worked out from the issues the viewer had before the save.
 
+    SettingsSummary:
+      type: object
+      description: |
+        The signed-in user's settings as `GET /api/settings/summary` and the
+        `get_settings` MCP tool return them: every field of
+        SettingsResponse except `webhookToken` and `webhookSecret`, which are
+        never part of it, plus `webhookConfigured`. No forge token appears,
+        only whether one is set. Field meanings are those of the same-named
+        SettingsResponse properties.
+      required:
+        [
+          githubUsername,
+          githubTokenSet,
+          githubAppInstallationId,
+          githubAppConfigured,
+          forgejoUrl,
+          forgejoUsername,
+          forgejoTokenSet,
+          webhookConfigured,
+          renovateRebaseLabel,
+          renovateAuthors,
+          hideDependencyDashboard,
+          ignoredTitles,
+          ignoredTitleCounts,
+          theme,
+          timezone,
+        ]
+      properties:
+        githubUsername:
+          type: string
+        githubTokenSet:
+          type: boolean
+        githubAppInstallationId:
+          type: integer
+          format: int64
+        githubAppConfigured:
+          type: boolean
+        forgejoUrl:
+          type: string
+        forgejoUsername:
+          type: string
+        forgejoTokenSet:
+          type: boolean
+        webhookConfigured:
+          type: boolean
+          description: |
+            Whether this user's webhook token and secret exist. They are
+            created the first time the Settings page reads
+            `GET /api/settings`, never by this read, so this is false for a
+            user who has not opened Settings yet.
+        renovateRebaseLabel:
+          type: string
+        renovateAuthors:
+          type: array
+          items:
+            type: string
+        hideDependencyDashboard:
+          type: boolean
+        ignoredTitles:
+          type: array
+          items:
+            type: string
+        ignoredTitleCounts:
+          type: array
+          items:
+            type: [integer, "null"]
+            minimum: 0
+        theme:
+          type: string
+          enum: ["", light, dark]
+        timezone:
+          type: string
+
     SettingsRequest:
       type: object
       description: |
@@ -3426,6 +3530,12 @@ components:
             whenever a Forgejo token or username is set. That depends on
             stored state, so a schema alone can't express it: a save that
             breaks it is a 400 naming `forgejoUrl`.
+
+            Must be a plain `http://` or `https://` base URL with a host,
+            optionally with a path prefix. One that carries a username,
+            password, query string or fragment, or has another scheme, is a
+            400 naming `forgejoUrl`, and nothing is saved. The error never
+            repeats the URL.
         forgejoToken:
           type: string
           maxLength: 512

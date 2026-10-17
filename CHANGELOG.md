@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.209.0](https://github.com/alrayyes/forge-dashboard/compare/v0.208.1...v0.209.0) (2026-10-17)
+
+
+### Features
+
+* **settings:** group Settings into five groups with help behind disclosures ([#1718](https://github.com/alrayyes/forge-dashboard/issues/1718)) ([6be0e07](https://github.com/alrayyes/forge-dashboard/commit/6be0e076df473543f4598ffcdee010a1a8a89076))
+
+## [0.208.1](https://github.com/alrayyes/forge-dashboard/compare/v0.208.0...v0.208.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **api:** refuse a Forgejo URL that carries credentials ([#1724](https://github.com/alrayyes/forge-dashboard/issues/1724)) ([f6dd988](https://github.com/alrayyes/forge-dashboard/commit/f6dd9889f339cca9c7e51c73b780b35c3b08d258))
+
+## [0.208.0](https://github.com/alrayyes/forge-dashboard/compare/v0.207.0...v0.208.0) (2026-10-17)
+
+
+### Features
+
+* **api:** add a get_version MCP tool for GET /api/version ([#1707](https://github.com/alrayyes/forge-dashboard/issues/1707)) ([956cf72](https://github.com/alrayyes/forge-dashboard/commit/956cf72a25855c28c8b25eb54815a64748606be6)), closes [#1503](https://github.com/alrayyes/forge-dashboard/issues/1503)
+
 ## [0.207.0](https://github.com/alrayyes/forge-dashboard/compare/v0.206.1...v0.207.0) (2026-10-17)
 
 

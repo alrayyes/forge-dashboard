@@ -112,7 +112,7 @@ test.describe('Settings: ignored title counts (#1676)', () => {
       ignoredTitles: ['^three', '^one', '^zero'],
       matches: { '^three': 3, '^one': 1, '^zero': 0 },
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(rows(page)).toHaveCount(3);
     await expect(row(page, '^three')).toContainText('hides 3 issues');
     await expect(row(page, '^one')).toContainText('hides 1 issue');
@@ -136,7 +136,7 @@ test.describe('Settings: ignored title counts (#1676)', () => {
       ignoredTitles: ['^Weekly', 'report$'],
       matches: { '^Weekly': 1, report$: 1 },
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(row(page, '^Weekly')).toContainText('hides 1 issue');
     await expect(row(page, 'report$')).toContainText('hides 1 issue');
   });
@@ -146,7 +146,7 @@ test.describe('Settings: ignored title counts (#1676)', () => {
       ignoredTitles: ['^known', '^unknown'],
       matches: { '^known': 4, '^unknown': null },
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(row(page, '^known')).toContainText('hides 4 issues');
     await expect(row(page, '^unknown')).not.toContainText('hides');
     await expect(chips(page)).toHaveCount(1);
@@ -162,7 +162,7 @@ test.describe('Settings: ignored title counts (#1676)', () => {
       ignoredTitles: ['^old'],
       emit: false,
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(rows(page)).toHaveCount(1);
     await expect(chips(page)).toHaveCount(0);
     await addPattern(page, '^new');
@@ -182,7 +182,7 @@ test.describe('Settings: ignored title counts (#1676)', () => {
       ignoredTitles: ['^three'],
       matches: { '^three': 3, '^fresh': 5 },
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(row(page, '^three')).toContainText('hides 3 issues');
     const getsAfterLoad = server.gets;
 
@@ -218,7 +218,7 @@ test.describe('Settings: ignored title counts (#1676)', () => {
       ignoredTitles: ['^a', '^b'],
       matches: { '^a': 2, '^b': 1 },
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(row(page, '^a')).toContainText('hides 2 issues');
     await remove(page, '^a').click();
     await expect(rows(page)).toHaveCount(1);
@@ -239,7 +239,7 @@ test.describe('Settings: ignored title counts (#1676)', () => {
       matches: { [`^${'a'.repeat(150)}`]: 12, '^short': 1 },
     });
     await page.setViewportSize({ width: 360, height: 780 });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(chips(page)).toHaveCount(2);
     await expect(chips(page).first()).toBeVisible();
     const widths = await page.evaluate(() => ({
@@ -267,7 +267,7 @@ test.describe('Settings: ignored title counts (#1676)', () => {
         matches: { '^three': 3, '^zero': 0 },
       });
       await page.setViewportSize({ width: 360, height: 780 });
-      await page.goto('/settings.html');
+      await page.goto('/settings.html#behaviour');
       await expect(
         section(page).getByRole('heading', { name: 'Issues' }),
       ).toBeVisible();
