@@ -69,6 +69,7 @@ test.describe('WebMCP tools', () => {
       'get_pull_request_checks',
       'get_pull_request_details',
       'list_queued_actions',
+      'get_settings',
     ]);
     expect(tools[0].description).toMatch(/pull requests/i);
   });
@@ -191,6 +192,44 @@ test.describe('WebMCP tools', () => {
     });
 
     expect(result).toEqual({ queuedActions: [] });
+    expect(seen).toBe(before + 1);
+  });
+
+  test('get_settings calls /api/settings and returns it without the webhook secrets', async ({
+    page,
+  }) => {
+    const settings = {
+      githubUsername: 'ryan',
+      githubTokenSet: true,
+      forgejoTokenSet: false,
+      ignoredTitles: ['^Weekly'],
+      theme: 'dark',
+    };
+    const secrets = {
+      webhookToken: 'whk_token_value_123',
+      webhookSecret: 'whk_secret_value_456',
+    };
+    let seen = 0;
+    await page.route('**/api/settings', (route) => {
+      seen++;
+
+      return route.fulfill({ json: { ...settings, ...secrets } });
+    });
+    await stubModelContext(page);
+    await page.goto('/pull-requests.html');
+    await page.waitForFunction(() => window.__webmcpTools.length > 0);
+    const before = seen;
+
+    const result = await page.evaluate(() => {
+      const t = window.__webmcpTools.find((x) => x.name === 'get_settings');
+      if (!t) throw new Error('get_settings tool not registered');
+
+      return t.execute({});
+    });
+
+    expect(result).toEqual({ ...settings, webhookConfigured: true });
+    expect(JSON.stringify(result)).not.toContain(secrets.webhookToken);
+    expect(JSON.stringify(result)).not.toContain(secrets.webhookSecret);
     expect(seen).toBe(before + 1);
   });
 });
