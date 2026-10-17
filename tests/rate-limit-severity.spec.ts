@@ -33,14 +33,10 @@ async function open(
       }),
     }),
   );
-  await page.reload();
+  await page.goto('/pull-requests.html');
 }
 
 test.describe('rate limits follow the server (#806)', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/pull-requests.html');
-  });
-
   test('severity exceeded shows the banner even when the numbers look healthy', async ({
     page,
   }) => {
