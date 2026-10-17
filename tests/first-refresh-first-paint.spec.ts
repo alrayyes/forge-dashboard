@@ -204,6 +204,9 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
         characterData: true,
       });
     });
+    // The page clock is faked so the late timer runs when the test says,
+    // not after a guessed real-time pause.
+    await page.clock.install();
     const release = await holdFirstAnswer(page, {
       done: true,
       withItems: true,
@@ -212,7 +215,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     await page.goto('/pull-requests.html');
     await expect(page.locator('#pr-rows .row')).toHaveCount(1);
     // Let any late timer run, then check nothing ever showed.
-    await page.waitForTimeout(500);
+    await page.clock.runFor(2000);
     expect(
       await page.evaluate(
         () => (window as unknown as { __seen: string[] }).__seen,
