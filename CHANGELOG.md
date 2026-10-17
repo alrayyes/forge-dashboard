@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.214.3](https://github.com/alrayyes/forge-dashboard/compare/v0.214.2...v0.214.3) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** read the navigation counts one at a time ([#1793](https://github.com/alrayyes/forge-dashboard/issues/1793)) ([f5938c4](https://github.com/alrayyes/forge-dashboard/commit/f5938c41b1297f3728317ef676c009f4f39d4f17))
+
 ## [0.214.2](https://github.com/alrayyes/forge-dashboard/compare/v0.214.1...v0.214.2) (2026-10-17)
 
 
