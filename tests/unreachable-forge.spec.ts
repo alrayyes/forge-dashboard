@@ -81,15 +81,11 @@ const MUTATING = [
 ];
 
 test.describe('an unreachable forge goes read-only (#1199)', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/pull-requests.html');
-  });
-
   test('its rows draw no mutating control, no per-row Retry and no pointer to a status line', async ({
     page,
   }) => {
     await mockDashboard(page, [down()], [makePR(1), makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByText(/Pull request/)).toBeVisible();
@@ -115,7 +111,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     page,
   }) => {
     await mockDashboard(page, [down()], [makePR(1), makePR(2)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const banner = page.locator('#unreachable-banner');
     await expect(banner).toHaveAttribute('role', 'status');
@@ -131,7 +127,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     page,
   }) => {
     await mockDashboard(page, [down()], [makePR(1)]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const link = page
       .locator('#unreachable-banner')
@@ -155,7 +151,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
       [down({ forge: 'forgejo' }), up('github')],
       [makePR(1)],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await expect(page.locator('#unreachable-banner')).toContainText(
       'Forgejo is unreachable',
@@ -173,7 +169,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
       [down(), down({ forge: 'forgejo' })],
       [makePR(1)],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const rows = page.locator('.unreachable-banner-row');
     await expect(rows).toHaveCount(2);
@@ -190,9 +186,9 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
   }) => {
     const state: { current?: { forges: unknown[] } } = {};
     await mockDashboard(page, [down()], [makePR(1)], state);
-    await page.reload();
+    await page.goto('/pull-requests.html');
     // The mock builds its body when it answers, so flipping state before the
-    // reload's snapshot has been served and drawn would hand that snapshot the
+    // page's snapshot has been served and drawn would hand that snapshot the
     // reachable forge. A count of 0 passes before anything renders, so wait for
     // the banner first.
     await expect(page.locator('#unreachable-banner')).toBeVisible();
@@ -226,7 +222,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
   }) => {
     const state: { current?: { forges: unknown[] } } = {};
     await mockDashboard(page, [up()], [makePR(1)], state);
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
     await expect(
       row.getByRole('button', { name: 'Merge', exact: true }),
@@ -260,7 +256,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
         }),
       ],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const gh = page.locator('#pr-rows .row', { hasText: 'On GitHub' });
     const fj = page.locator('#pr-rows .row', { hasText: 'On Forgejo' });
@@ -282,7 +278,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
       [down({ errorKind: 'unauthorized', error: 'bad credentials' })],
       [makePR(1)],
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await expect(page.locator('#unreachable-banner')).toContainText(
       'Check the token in Settings',
     );
@@ -296,7 +292,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
   }) => {
     const many = Array.from({ length: 30 }, (_, i) => makePR(i + 1));
     await mockDashboard(page, [down()], many);
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
     expect(
       (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
