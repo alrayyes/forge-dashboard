@@ -119,31 +119,8 @@ test.describe('Merge states on a pull request row', () => {
       row.getByRole('button', { name: 'Confirm merge?' }),
     ).toHaveCount(0);
     expect(mergeCalled).toBe(false);
-  });
 
-  test('ready: Merge is clickable and no reason is shown', async ({ page }) => {
-    await mockDashboard(page, makePR());
-    await page.goto('/pull-requests.html');
-
-    const row = rowOf(page);
-    const merge = row.getByRole('button', { name: 'Merge', exact: true });
-    await expect(merge).toBeEnabled();
-    await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(row.locator('.row-action-note')).toHaveCount(0);
-    await merge.click();
-    await expect(
-      row.getByRole('button', { name: 'Confirm merge?' }),
-    ).toBeVisible();
-  });
-
-  test('blocked Merge: Close is only in More actions', async ({ page }) => {
-    await mockDashboard(page, makePR({ ci: 'pending' }));
-    await page.goto('/pull-requests.html');
-
-    const row = rowOf(page);
-    await expect(
-      row.getByRole('button', { name: 'Merge', exact: true }),
-    ).toBeVisible();
+    // Close stays off the row while Merge is locked; it is in More actions.
     await expect(
       row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toHaveCount(0);
@@ -155,18 +132,29 @@ test.describe('Merge states on a pull request row', () => {
     ).toBeVisible();
   });
 
-  // Close shares More actions with the Hide items now (#841); a lone extra
-  // action is still drawn directly (#1139), but every live row has Hide.
-  test('ready: Close is in More actions, beside the Hide items', async ({
+  test('ready: Merge is clickable with no reason shown, and Close is in More actions beside the Hide items', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
     await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
+    const merge = row.getByRole('button', { name: 'Merge', exact: true });
+    await expect(merge).toBeEnabled();
+    await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(row.locator('.row-action-note')).toHaveCount(0);
+
+    // Close shares More actions with the Hide items now (#841); a lone extra
+    // action is still drawn directly (#1139), but every live row has Hide.
     await row.getByRole('button', { name: 'More actions' }).click();
     await expect(
       row.getByRole('button', { name: 'Close pull request', exact: true }),
+    ).toBeVisible();
+    await row.getByRole('button', { name: 'More actions' }).click();
+
+    await merge.click();
+    await expect(
+      row.getByRole('button', { name: 'Confirm merge?' }),
     ).toBeVisible();
   });
 
