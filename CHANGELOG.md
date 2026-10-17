@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.213.0](https://github.com/alrayyes/forge-dashboard/compare/v0.212.1...v0.213.0) (2026-10-17)
+
+
+### Features
+
+* **api:** mark the one primary action in allowedActions ([#1759](https://github.com/alrayyes/forge-dashboard/issues/1759)) ([4f1c665](https://github.com/alrayyes/forge-dashboard/commit/4f1c665595a9c19a9d7ba6f0c215e90483e0bdb3))
+
 ## [0.212.1](https://github.com/alrayyes/forge-dashboard/compare/v0.212.0...v0.212.1) (2026-10-17)
 
 
