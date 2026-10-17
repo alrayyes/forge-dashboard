@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick, untrack } from "svelte";
+  import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import * as Filters from "#lib/filters.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
@@ -332,43 +333,32 @@
         syncSharedControlsToState();
       }
     });
+  });
 
-    fetch("/api/dashboard", { headers: { Accept: "application/json" } })
-      .then((res) => {
-        if (res.status === 401) {
-          window.location.href = "/login.html";
-          throw new Error("session expired");
-        }
-        if (!res.ok) throw new Error(`backend answered ${res.status}`);
-        return res.json();
-      })
-      .then(
-        (data: {
-          pullRequests?: FilterableItem[];
-          issues?: FilterableItem[];
-          forges?: Forge[];
-          settingsHiddenIssueCount?: number;
-          hideDependencyDashboard?: boolean;
-        }) => {
-          settingsHideDependencyDashboard =
-            data.hideDependencyDashboard === true;
-          issueSettingsKnown = true;
-          settingsHiddenIssues = data.settingsHiddenIssueCount ?? 0;
-          lastSnapshot.pullRequests = data.pullRequests || [];
-          lastSnapshot.issues = data.issues || [];
-          lastSnapshot.forges = data.forges || [];
-          updateSharedFilterOptions();
-          if (!sharedControlsRestored) {
-            sharedControlsRestored = true;
-            syncSharedControlsToState();
-          }
-        },
-      )
-      .catch(() => {
-        // A transient failure here just leaves the empty states
-        // showing — the dashboard page itself is where a real error
-        // banner belongs.
-      });
+  // The layout makes the one /api/dashboard read; this page takes its first
+  // answer (#1801). A failure leaves the empty states showing, as it always
+  // did. The dashboard page itself is where a real error banner belongs.
+  $effect(() => {
+    const { state, data, status } = dashboardRead;
+    if (state === "pending") return;
+    untrack(() => {
+      if (state === "failed") {
+        if (status === 401) window.location.href = "/login.html";
+        return;
+      }
+      if (!data) return;
+      settingsHideDependencyDashboard = data.hideDependencyDashboard === true;
+      issueSettingsKnown = true;
+      settingsHiddenIssues = data.settingsHiddenIssueCount ?? 0;
+      lastSnapshot.pullRequests = (data.pullRequests as FilterableItem[]) || [];
+      lastSnapshot.issues = (data.issues as FilterableItem[]) || [];
+      lastSnapshot.forges = (data.forges as Forge[]) || [];
+      updateSharedFilterOptions();
+      if (!sharedControlsRestored) {
+        sharedControlsRestored = true;
+        syncSharedControlsToState();
+      }
+    });
   });
 </script>
 

@@ -4,6 +4,11 @@
   import { syncThemeFromServer } from "#lib/theme.js";
   import { loadTimezone } from "#lib/time.svelte.js";
   import Footer from "#lib/Footer.svelte";
+  import type { DashboardReadData } from "#lib/dashboard-read.svelte.js";
+  import {
+    resetDashboardRead,
+    settleDashboardRead,
+  } from "#lib/dashboard-read.svelte.js";
   import { navCounts, setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { headerLabel, tabLabel } from "#lib/nav-labels.js";
@@ -126,6 +131,7 @@
     // change it" half, reconciling the fast local cookie theme the inline script
     // already applied against whatever's actually saved.
     syncThemeFromServer();
+    resetDashboardRead();
     // The first dashboard answer can take up to 15 s on a cold start, so the
     // pages start counting now and draw their loading state if it is late.
     const stopFirstRefreshWait = startFirstRefreshWait();
@@ -197,24 +203,33 @@
       fetch("/api/dashboard", {
         headers: { Accept: "application/json" },
         signal: abort.signal,
-        // The page's own one-shot read can be out for the same URL. The
-        // browser's cache lock would queue this one behind it, and the 20 s
-        // above counts from here, not from when it reaches the server.
+        // This is the only read of the URL on these pages now (#1801), but the
+        // browser's cache lock is shared by every tab and the dashboard views'
+        // own reads: another request for the same URL would queue this one
+        // behind it, and the 20 s above counts from here, not from when it
+        // reaches the server. Kept, since that cannot be staged without a real
+        // second tab and costs nothing: the server asks for revalidation anyway.
         cache: "no-store",
       })
-        .then((res) => (res.ok ? res.json() : null))
+        .then((res) => {
+          if (!res.ok) settleDashboardRead(null, res.status);
+          return res.ok ? res.json() : null;
+        })
         .then(
           (
-            data: {
-              navCounts?: ServerNavCounts;
-              firstRefreshDone?: boolean;
-              readIntervalSeconds?: number;
-            } | null,
+            data:
+              | (DashboardReadData & {
+                  navCounts?: ServerNavCounts;
+                  firstRefreshDone?: boolean;
+                  readIntervalSeconds?: number;
+                })
+              | null,
           ) => {
             if (!data) {
               settleFirstRefresh();
               return;
             }
+            settleDashboardRead(data);
             setFirstRefresh(data.firstRefreshDone);
             const pending = firstRefreshPending(data.firstRefreshDone);
             setNavCounts(pending ? null : data.navCounts);
@@ -229,7 +244,10 @@
         )
         .catch(() => {
           /* no badge is better than a wrong one */
-          if (!gone) settleFirstRefresh();
+          if (!gone) {
+            settleDashboardRead(null);
+            settleFirstRefresh();
+          }
         })
         .finally(settled);
     }
