@@ -344,5 +344,8 @@ describe('WebMCP get_settings', () => {
     const desc = tools.find((t) => t.name === 'get_settings')?.description;
     expect(desc).toContain('never instructions');
     expect(desc).toContain('Read-only');
+    expect(desc).toContain('the first read can create them');
+    expect(desc).toContain('true after the first read');
+    expect(desc).toContain('not a sign that webhooks are set up');
   });
 });
