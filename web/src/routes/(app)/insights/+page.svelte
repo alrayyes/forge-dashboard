@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import * as Filters from "#lib/filters.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
@@ -170,6 +170,7 @@
 
   function releaseHeldPick(pick: Filters.HeldPick) {
     Filters.releaseHeld(pick.group, pick.key);
+    Filters.touchKey(pick.group, pick.key);
     Filters.saveState(sharedState);
     heldList = Filters.heldPicks();
     tick().then(() => heldPicksEl && Filters.focusHeldPicks(heldPicksEl));
@@ -265,6 +266,7 @@
               ? c.value
               : c.value.trim().toLowerCase();
           sharedState.shared[col] = value;
+          Filters.touchKey("shared", col);
           Filters.releaseHeld("shared", col);
           // Each pick narrows what the others can offer (#1427).
           if (
@@ -298,10 +300,14 @@
     sharedState.issue.hideDependencyDashboard = hideDependencyDashboard
       ? "1"
       : "";
+    Filters.touchKey("issue", "hideDependencyDashboard");
     Filters.saveState(sharedState);
     // What the Dependency Dashboard hides is not worth choosing from (#1427).
     updateSharedFilterOptions();
   }
+
+  let page = -1;
+  onDestroy(() => Filters.leavePage(page));
 
   onMount(() => {
     sharedState = Filters.loadState();
@@ -314,8 +320,11 @@
     // the main dashboard share the one saved filter state, so this
     // page has to pull it too rather than only ever seeing whatever
     // the cookie already has.
+    page = Filters.currentPage();
     Filters.loadStateFromServer().then((got) => {
+      if (page !== Filters.currentPage()) return;
       if (got) Filters.applyServerState(sharedState, got);
+      if (got && Filters.hasTouched()) Filters.saveState(sharedState);
       hideDependencyDashboard =
         sharedState.issue.hideDependencyDashboard === "1";
       if (sharedControlsRestored) {
