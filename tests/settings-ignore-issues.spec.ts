@@ -114,7 +114,7 @@ test.describe('Settings: Issues (#1630)', () => {
     page,
   }) => {
     await standInSettings(page);
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(
       section(page).getByRole('heading', { name: 'Issues' }),
     ).toBeVisible();
@@ -133,7 +133,7 @@ test.describe('Settings: Issues (#1630)', () => {
     page,
   }) => {
     const server = await standInSettings(page);
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await addPattern(page, '  ^Weekly report  ');
     await expect(entries(page)).toHaveCount(1);
     await expect(entries(page).first()).toContainText('^Weekly report');
@@ -161,7 +161,7 @@ test.describe('Settings: Issues (#1630)', () => {
         return route.fulfill({ status: 500, body: 'nope' });
       },
     );
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(page.locator('#status')).toContainText(
       'saving is turned off so nothing is overwritten',
     );
@@ -178,7 +178,7 @@ test.describe('Settings: Issues (#1630)', () => {
     const server = await standInSettings(page, {
       ignoredTitles: ['^Nightly'],
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(entries(page)).toHaveCount(1);
     await pattern(page).fill('  ^Weekly report ');
     await save(page).click();
@@ -194,7 +194,7 @@ test.describe('Settings: Issues (#1630)', () => {
     const server = await standInSettings(page, {
       ignoredTitles: Array.from({ length: 20 }, (_, i) => `^Report ${i}`),
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(entries(page)).toHaveCount(20);
     await pattern(page).fill('one more');
     await save(page).click();
@@ -211,7 +211,7 @@ test.describe('Settings: Issues (#1630)', () => {
     await standInSettings(page, {
       ignoredTitles: ['^One', '^Two', '^Three'],
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(entries(page)).toHaveCount(3);
     await page.getByRole('button', { name: 'Remove ^Two' }).focus();
     await page.keyboard.press('Enter');
@@ -230,7 +230,7 @@ test.describe('Settings: Issues (#1630)', () => {
     page,
   }) => {
     await standInSettings(page);
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     const emoji = '\u{1F600}';
     await addPattern(page, emoji.repeat(201));
     await expect(entries(page)).toHaveCount(0);
@@ -246,7 +246,7 @@ test.describe('Settings: Issues (#1630)', () => {
     page,
   }) => {
     const server = await standInSettings(page);
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await pattern(page).fill('^Nightly');
     await pattern(page).press('Enter');
     await expect(entries(page)).toHaveCount(1);
@@ -257,7 +257,7 @@ test.describe('Settings: Issues (#1630)', () => {
     const server = await standInSettings(page, {
       ignoredTitles: ['^Weekly report', '^Nightly'],
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(entries(page)).toHaveCount(2);
     await page.getByRole('button', { name: 'Remove ^Weekly report' }).click();
     await expect(entries(page)).toHaveCount(1);
@@ -272,7 +272,7 @@ test.describe('Settings: Issues (#1630)', () => {
     page,
   }) => {
     await standInSettings(page);
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await addPattern(page, '   ');
     await addPattern(page, '^Weekly');
     await addPattern(page, '^weekly');
@@ -286,7 +286,7 @@ test.describe('Settings: Issues (#1630)', () => {
     await standInSettings(page, {
       ignoredTitles: Array.from({ length: 20 }, (_, i) => `^Report ${i}`),
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(entries(page)).toHaveCount(20);
     await addPattern(page, 'one more');
     await expect(entries(page)).toHaveCount(20);
@@ -303,7 +303,7 @@ test.describe('Settings: Issues (#1630)', () => {
     page,
   }) => {
     const server = await standInSettings(page);
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await hideBox(page).check();
     await save(page).click();
     await expect(page.locator('#status')).toHaveText('Saved.');
@@ -319,7 +319,7 @@ test.describe('Settings: Issues (#1630)', () => {
       hideDependencyDashboard: true,
       ignoredTitles: ['^Weekly report'],
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(entries(page)).toHaveCount(1);
     await page.getByLabel('Renovate rebase label').fill('refresh');
     await save(page).click();
@@ -338,7 +338,7 @@ test.describe('Settings: Issues (#1630)', () => {
     const server = await standInSettings(page, {
       ignoredTitles: ['^Weekly report'],
     });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#display');
     await page.locator('.theme-segmented label', { hasText: 'Dark' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     expect(server.puts).toEqual([]);
@@ -349,7 +349,7 @@ test.describe('Settings: Issues (#1630)', () => {
     page,
   }) => {
     const server = await standInSettings(page);
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await addPattern(page, '(');
     await save(page).click();
     const error = section(page).locator('#ignored-titles-error');
@@ -376,7 +376,7 @@ test.describe('Settings: Issues (#1630)', () => {
       ignoredTitles: ['^Weekly report', `^${'a'.repeat(190)}`],
     });
     await page.setViewportSize({ width: 360, height: 780 });
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#behaviour');
     await expect(entries(page)).toHaveCount(2);
     await addPattern(page, 'one');
     const widths = await page.evaluate(() => ({
@@ -410,7 +410,7 @@ test.describe('Settings: Issues (#1630)', () => {
 
       test('empty', async ({ page }) => {
         await standInSettings(page);
-        await page.goto('/settings.html');
+        await page.goto('/settings.html#behaviour');
         await expect(
           section(page).getByRole('heading', { name: 'Issues' }),
         ).toBeVisible();
@@ -428,7 +428,7 @@ test.describe('Settings: Issues (#1630)', () => {
           hideDependencyDashboard: true,
           ignoredTitles: ['^Weekly report', '^Nightly'],
         });
-        await page.goto('/settings.html');
+        await page.goto('/settings.html#behaviour');
         await expect(
           section(page).getByRole('heading', { name: 'Issues' }),
         ).toBeVisible();
@@ -442,7 +442,7 @@ test.describe('Settings: Issues (#1630)', () => {
 
       test('with an error', async ({ page }) => {
         await standInSettings(page, { ignoredTitles: ['('] });
-        await page.goto('/settings.html');
+        await page.goto('/settings.html#behaviour');
         await save(page).click();
         await expect(
           section(page).locator('#ignored-titles-error'),

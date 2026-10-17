@@ -43,6 +43,6 @@ describe('settings groups', () => {
         anchor: id,
       });
     }
-    expect(groupFromHash('#github-token')?.group).toBe('connections');
+    expect(groupFromHash('#github-token').group).toBe('connections');
   });
 });
