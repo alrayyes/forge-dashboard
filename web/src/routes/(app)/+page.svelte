@@ -330,7 +330,8 @@
     }
     .mb-sha,
     .mb-branch {
-      font-family: var(--mono, ui-monospace, monospace);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-variant-numeric: tabular-nums;
       font-size: 12px;
     }
     .mb-failing {
@@ -374,7 +375,8 @@
       grid-column: 1 / -1;
       margin: 0;
       padding: 8px 12px 8px 28px;
-      font-family: var(--mono, ui-monospace, monospace);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-variant-numeric: tabular-nums;
       font-size: 12.5px;
       background: var(--surface-sunken);
       border-radius: 6px;

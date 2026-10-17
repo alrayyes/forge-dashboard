@@ -153,6 +153,13 @@ body {
 
 .mono {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Numeric table cells (the Insights counts) line up in the mono face. */
+td.num {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Visually hidden but still reachable by a screen reader — for a label a
