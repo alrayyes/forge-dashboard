@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,6 +47,10 @@ type SettingsResponse struct {
 	// on the wire, never null.
 	HideDependencyDashboard bool     `json:"hideDependencyDashboard"`
 	IgnoredTitles           []string `json:"ignoredTitles"`
+	// IgnoredTitleCounts (#1677) is, per entry of IgnoredTitles and in the
+	// same order, how many of the viewer's open issues that pattern matches on
+	// its own; nil (null on the wire) while that is unknown. Always a list.
+	IgnoredTitleCounts []*int `json:"ignoredTitleCounts"`
 	// Theme — see settings.Credentials' own doc comment. Round-tripped
 	// here too so the Settings page's own save confirms what it just set,
 	// even though the lightweight GET /api/settings/theme below is what
@@ -57,7 +62,7 @@ type SettingsResponse struct {
 	Timezone string `json:"timezone"`
 }
 
-func settingsResponseOf(c settings.Credentials, githubAppConfigured bool) SettingsResponse {
+func settingsResponseOf(c settings.Credentials, githubAppConfigured bool, titleCounts []*int) SettingsResponse {
 	return SettingsResponse{
 		GitHubUsername:          c.GitHubUsername,
 		GitHubTokenSet:          c.GitHubToken != "",
@@ -72,6 +77,7 @@ func settingsResponseOf(c settings.Credentials, githubAppConfigured bool) Settin
 		RenovateAuthors:         append([]string{}, c.RenovateAuthors...),
 		HideDependencyDashboard: c.HideDependencyDashboard,
 		IgnoredTitles:           append([]string{}, c.IgnoredTitles...),
+		IgnoredTitleCounts:      titleCounts,
 		Theme:                   c.Theme,
 		Timezone:                c.Timezone,
 	}
@@ -186,7 +192,8 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, settingsResponseOf(creds, deps.GitHubAppConfigured))
+		counts := ignoredTitleCounts(r.Context(), deps, u.ID, creds.IgnoredTitles, deps.Manager.Get(u.ID))
+		writeJSON(w, http.StatusOK, settingsResponseOf(creds, deps.GitHubAppConfigured, counts))
 	}
 }
 
@@ -407,6 +414,11 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		// Taken before Ensure below, which swaps in an Aggregator with no
+		// snapshot yet: the counts answer the list just saved, against the
+		// issues the viewer was looking at when they saved it.
+		snap := deps.Manager.Get(u.ID)
+
 		if err := deps.SettingsStore.Set(r.Context(), u.ID, merged); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save settings"))
 
@@ -418,8 +430,43 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// request that started it.
 		deps.Manager.Ensure(deps.AppContext, u.ID, deps.BuildSources(u.ID, merged))
 
-		writeJSON(w, http.StatusOK, settingsResponseOf(merged, deps.GitHubAppConfigured))
+		counts := ignoredTitleCounts(r.Context(), deps, u.ID, merged.IgnoredTitles, snap)
+		writeJSON(w, http.StatusOK, settingsResponseOf(merged, deps.GitHubAppConfigured, counts))
 	}
+}
+
+// ignoredTitleCounts answers, for each of patterns in order, how many of the
+// open issues in snap that pattern matches on its own (#1677). It works from
+// the same issues settingsHiddenIssueCount does (those of repos whose issues
+// aren't ignored) and the same matcher, but per pattern, so an issue two
+// patterns match counts for both. Every entry is nil while the count is
+// unknown: no snapshot yet, which is a zero GeneratedAt, or a pattern that
+// doesn't compile. Never a made-up 0. The slice is never nil.
+func ignoredTitleCounts(ctx context.Context, deps Deps, userID []byte, patterns []string, snap dashboard.Snapshot) []*int {
+	counts := make([]*int, len(patterns))
+	if len(patterns) == 0 || snap.GeneratedAt.IsZero() {
+		return counts
+	}
+
+	board := loadBoardSettings(ctx, deps.SettingsStore, userID)
+	for i, p := range patterns {
+		matcher, err := dashboard.CompileTitlePatterns([]string{p})
+		if err != nil {
+			continue
+		}
+		n := 0
+		for _, issue := range snap.Issues {
+			if board.ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
+				continue
+			}
+			if matcher.Matches(issue.Title) {
+				n++
+			}
+		}
+		counts[i] = &n
+	}
+
+	return counts
 }
 
 func coalesce(newValue, existingValue string) string {
