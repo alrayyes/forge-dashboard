@@ -543,9 +543,9 @@
     });
   });
 
-  // The layout makes the one /api/dashboard read; this page takes its first
-  // answer (#1801). A failure just leaves the empty state showing, as there is
-  // no dashboard-page-style error banner on this page.
+  // The layout makes the one /api/dashboard read; this page follows its
+  // answers until one is done (#1801). A final failure just leaves the empty
+  // state showing: there is no dashboard-page-style error banner on this page.
   $effect(() => {
     const { state, data, status } = dashboardRead;
     if (state === "pending") return;

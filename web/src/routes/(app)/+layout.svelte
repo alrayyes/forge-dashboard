@@ -244,10 +244,9 @@
         )
         .catch(() => {
           /* no badge is better than a wrong one */
-          if (!gone) {
-            settleDashboardRead(null);
-            settleFirstRefresh();
-          }
+          // An aborted or failed read settles nothing for the pages that use
+          // the answer: they wait for the next one.
+          if (!gone) settleFirstRefresh();
         })
         .finally(settled);
     }

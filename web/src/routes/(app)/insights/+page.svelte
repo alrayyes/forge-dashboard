@@ -335,9 +335,9 @@
     });
   });
 
-  // The layout makes the one /api/dashboard read; this page takes its first
-  // answer (#1801). A failure leaves the empty states showing, as it always
-  // did. The dashboard page itself is where a real error banner belongs.
+  // The layout makes the one /api/dashboard read; this page follows its
+  // answers until one is done (#1801). A final failure leaves the empty states
+  // showing; the dashboard page itself is where a real error banner belongs.
   $effect(() => {
     const { state, data, status } = dashboardRead;
     if (state === "pending") return;

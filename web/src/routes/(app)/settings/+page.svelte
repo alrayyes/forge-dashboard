@@ -1033,9 +1033,9 @@
   });
 
   // The webhook coverage summary: the summary-only view of the layout's one
-  // /api/dashboard read (#1801), taking its first answer. /webhooks.html has
-  // the per-repo detail. A failure leaves the summary hidden; this page's own
-  // settings form is where a real error banner belongs.
+  // /api/dashboard read (#1801), following its answers until one is done.
+  // /webhooks.html has the per-repo detail. A final failure leaves the summary
+  // hidden; this page's own settings form is where a real error banner belongs.
   $effect(() => {
     const { state, data } = dashboardRead;
     if (state === "pending") return;
