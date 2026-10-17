@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.213.1](https://github.com/alrayyes/forge-dashboard/compare/v0.213.0...v0.213.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** clear the status and auto-merge filters where Show row finds them ([#1778](https://github.com/alrayyes/forge-dashboard/issues/1778)) ([22f5bb3](https://github.com/alrayyes/forge-dashboard/commit/22f5bb301d4b74177726420c633ff4517bdec935)), closes [#1758](https://github.com/alrayyes/forge-dashboard/issues/1758)
+
 ## [0.213.0](https://github.com/alrayyes/forge-dashboard/compare/v0.212.1...v0.213.0) (2026-10-17)
 
 
