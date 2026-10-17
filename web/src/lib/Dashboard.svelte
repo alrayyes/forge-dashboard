@@ -6833,36 +6833,50 @@
 
     // Reused by refresh() below and by the WebMCP tool further down --
     // one fetch layer for /api/dashboard, not two.
-    function fetchDashboardData(): Promise<DashboardSnapshot> {
+    function fetchDashboardData(
+      signal?: AbortSignal,
+    ): Promise<DashboardSnapshot> {
       const url = withDrafts(
         "/api/dashboard" +
           (currentOwner ? `?owner=${encodeURIComponent(currentOwner)}` : ""),
       );
 
-      return fetch(url, { headers: { Accept: "application/json" } }).then(
-        (res) => {
-          if (res.status === 401) {
-            window.location.href = "/login.html";
-            throw new Error("session expired");
-          }
-          if (!res.ok) throw new Error(`backend answered ${res.status}`);
+      return fetch(url, {
+        headers: { Accept: "application/json" },
+        signal,
+      }).then((res) => {
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          throw new Error("session expired");
+        }
+        if (!res.ok) throw new Error(`backend answered ${res.status}`);
 
-          return res.json();
-        },
-      );
+        return res.json();
+      });
     }
 
+    const READ_TIMEOUT_MS = 20_000;
     function refresh(userAsked = false, fromPoll = false) {
       const seq = ++requestSeq;
       if (fromPoll) pollReadInFlight = true;
       // The next poll is timed from this one's answer or failure, so a server
       // that holds the read never has two of the poll's reads in flight.
+      // Neither the first read nor a poll may hang for good: a half-open
+      // connection leaves fetch pending, which would keep the skeleton up and
+      // stop the poll. The server holds a read for 15 s at most. A read the
+      // user asked for keeps its own behaviour. The page's timer, not
+      // AbortSignal.timeout, so the clock the tests control also drives it.
+      const abort = userAsked ? undefined : new AbortController();
+      const abortTimer = abort
+        ? setTimeout(() => abort.abort(), READ_TIMEOUT_MS)
+        : undefined;
       const settled = () => {
+        clearTimeout(abortTimer);
         if (!fromPoll) return;
         pollReadInFlight = false;
         if (!destroyed) schedulePoll();
       };
-      fetchDashboardData()
+      fetchDashboardData(abort?.signal)
         .then((data) => {
           applySnapshot(data, userAsked, seq);
           streamFailures = 0;
@@ -6874,7 +6888,11 @@
           // No answer means no flag: show the real state, not a skeleton
           // that would never end.
           settleFirstRefresh();
-          showError(`Could not reach the backend: ${err.message}`);
+          showError(
+            `Could not reach the backend: ${
+              abort?.signal.aborted ? "it did not answer in time" : err.message
+            }`,
+          );
           armFirstPoll();
           settled();
         });

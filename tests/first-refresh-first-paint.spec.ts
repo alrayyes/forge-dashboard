@@ -368,9 +368,9 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     });
     await page.goto('/pull-requests.html');
     await expect.poll(() => reads).toBe(1);
-    // Well past the old 10 s default: the poll has not started, so no second
-    // held request joined the first.
-    await page.clock.runFor(30_000);
+    // Past the old 10 s default, within the 15 s the server holds a read: the
+    // poll has not started, so no second held request joined the first.
+    await page.clock.runFor(14_000);
     expect(reads).toBe(1);
 
     // The first answer arms the poll, after the interval it advised.
@@ -427,6 +427,66 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     await page.clock.runFor(700);
     await expect.poll(() => reads).toBe(3);
     expect(maxInFlight).toBe(1);
+  });
+
+  test('a poll read that never answers is aborted, and the poll resumes', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    let reads = 0;
+    await page.route('**/api/dashboard/stream', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/dashboard*', async (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+        return route.fallback();
+      reads++;
+      // The second read hangs for good, like a half-open connection.
+      if (reads === 2) return new Promise<void>(() => {});
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: snapshot({
+          done: reads >= 3,
+          withItems: reads >= 3,
+          readIntervalSeconds: 2,
+        }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+    await expect.poll(() => reads).toBe(1);
+    await page.clock.runFor(2500);
+    await expect.poll(() => reads).toBe(2);
+    await page.clock.runFor(35_000);
+    await expect.poll(() => reads).toBeGreaterThanOrEqual(3);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+  });
+
+  test('a first read that never answers is aborted, so the page settles', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    let reads = 0;
+    await page.route('**/api/dashboard/stream', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/dashboard*', async (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+        return route.fallback();
+      reads++;
+      if (reads === 1) return new Promise<void>(() => {});
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: snapshot({ done: true, withItems: true }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+    await expect.poll(() => reads).toBe(1);
+    await expect(page.getByTestId('list-skeleton')).toBeVisible();
+    await page.clock.runFor(35_000);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    expect(reads).toBe(2);
   });
 
   test('a failed first request still arms the poll, so the page recovers', async ({
