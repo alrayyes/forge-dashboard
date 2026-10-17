@@ -4736,6 +4736,23 @@ components:
             - dependabot_recreate
             - renovate_rebase
             - rerun_checks
+        primary:
+          type: boolean
+          description: |
+            True on the one action a client draws as the pull request's main
+            button, and absent on every other entry. At most one entry in the
+            list has it, never a blocked one, and a pull request can have none.
+            The server decides it, so a client renders it and holds no rule of
+            its own; a client that doesn't know the field still gets the
+            whole list. Which action it is:
+            `close` for an empty pull request; `merge` when Merge is offered
+            and not blocked, unless the CI is failing (Merge is then only open
+            because the failing checks aren't required, and `status` explains
+            it); `update_branch`, or `renovate_rebase` or `dependabot_rebase`
+            for a bot pull request, when being behind the base branch is what
+            holds Merge back. Every other state has none: checks running or
+            failing, a conflict, a draft, a stack parent, or the forge's own
+            block. `status` gives the reason there.
         blocked:
           type: object
           required: [code, message]
