@@ -72,7 +72,7 @@ stale.
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
   Streamable HTTP transport.
-  The aim is that every API operation has a tool (#1503), so an agent is
+  The aim is that every API operation has a tool, so an agent is
   never blocked by something only the API or the page can do. A test lists
   every `operationId` in `api/openapi.yaml` and fails unless it has a tool,
   a written exclusion (the operation's `x-mcp-excluded` reason in
@@ -129,12 +129,11 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   operation it covers. A unit test, `web/src/lib/webmcp-parity.test.ts`, lists
   every `operationId` in `api/openapi.yaml` and fails unless it has a tool, a
   written exclusion (the same `x-mcp-excluded` reason the server MCP uses, so
-  one list serves both) or a place on the test's list of tools still to come
-  (#1503).
+  one list serves both) or a place on the test's list of tools still to come.
 
-### Where this stands against #3
+### What the passkey login covers
 
-This ships every piece of #3: passkey registration and login gating the
+It covers passkey registration and login gating the
 dashboard, per-user GitHub/Forgejo tokens (every signed-in user
 configures their own forges from the Settings page and sees only their
 own dashboard by default), an admin area for whoever registers first
@@ -381,8 +380,9 @@ actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.
 
 A pull request stacked on another open one shows a chip with its place and what
-it waits for: "Stack 2 of 3 · waits for #840", or "Stack 1 of 3 · merges first"
-for the bottom. The members sit together in position order, at the slot of the
+it waits for: `Stack 2 of 3 · waits for #840` (the number is the pull
+request it is stacked on), or `Stack 1 of 3 · merges first` for the bottom.
+The members sit together in position order, at the slot of the
 first one in the list, as a plain nested list with a thin rule beside each row.
 A filter that matches any member keeps the whole stack and dims the rest. A
 child says it targets its parent's branch, not main, so auto-merge isn't
@@ -399,7 +399,7 @@ tab, where GitHub's own button approves the runs. The dashboard doesn't approve
 anything itself. These runs still count as failing CI, so the Failing CI quick
 filter keeps matching them.
 
-A pull request row draws what it shows as three tiers (#1563). A **state**
+A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
 CI slot: one pill of a fixed size with a glyph and a word, so a finished run
 turns into its result in the same place and the row doesn't move. The glyphs
@@ -1254,7 +1254,7 @@ how many have CI `running`, `failed` and `passed` (a branch by its
 default-branch pipeline); and for Issues a `total` only. A pull request with no
 checks counts in the total alone, so the four numbers need not add up. A branch
 with no pipeline is counted as `none`, so a branch's four states add up to its
-total (#1531). They count what each page shows when it opens. Pull requests
+total. They count what each page shows when it opens. Pull requests
 leave out ignored repos, drafts and hidden ones, even while Show drafts or
 Show hidden is on. Branches counts the default branches its page lists, which
 also leave out ignored repos. They are always present, zero when nothing is
@@ -1349,7 +1349,7 @@ its row has **Hide this pull request**, and **Hide for 7 days** under it. It
 leaves the list, the quick-filter counts and Insights at once,
 with no confirm step, since it is reversible. Nothing is sent to the forge.
 
-A status message says "Hid PR #123 ‘title’." with an **Undo** button. It stays
+A status message says `Hid PR #123 ‘title’.` with an **Undo** button. It stays
 until the next message, and the same restore is in the list below, so it isn't
 lost to a timeout. Once anything is hidden, a **Hidden (N)** button by the list
 header opens that list: repo, number, title, "Hidden until you restore it" or
@@ -1470,7 +1470,7 @@ already feeds `review`, so a draft reports 0. Forgejo gives no resolved state
 without a request per review, so its `unresolvedThreads` is `null`: unknown, not
 zero.
 
-Each row shows that as a pill beside the other status pills (#1335): the number
+Each row shows that as a pill beside the other status pills: the number
 of review comments, and `7 · 2 open` in amber, with a dot, when threads are
 still unresolved. A pull request with no review comments shows nothing, and on
 Forgejo, where `unresolvedThreads` is `null`, the pill shows the count with no

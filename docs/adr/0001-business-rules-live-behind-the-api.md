@@ -11,8 +11,7 @@ where it sat. Then there was a second client: the MCP endpoint for agents,
 client libraries generated from the OpenAPI spec, and anything someone builds
 on the API. Each of them would have to copy the page's rules and keep the
 copies in step, and the rules were also unenforced, because a check in the
-browser can be skipped. An audit of the front end
-([#746](https://github.com/alrayyes/forge-dashboard/issues/746)) found the
+browser can be skipped. An audit of the front end found the
 rules scattered through a single page of several thousand lines.
 
 ## Decision

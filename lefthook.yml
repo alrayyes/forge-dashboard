@@ -162,6 +162,11 @@ pre-push:
     - name: markdownlint
       run: bun run lint:md
 
+    # Public docs say it in a sentence, not by ticket number; the script's
+    # header has the why. Its own test runs in the unit job below.
+    - name: doc ticket refs
+      run: bun run lint:refs
+
     # Reads only: pre-commit already sorted what was staged, so this fails
     # only if that got bypassed.
     - name: sort-package-json

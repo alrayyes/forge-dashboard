@@ -18,6 +18,7 @@
     "lint:mechanics": "./scripts/lint-mechanics.sh",
     "lint:pkg": "sort-package-json --check package.json web/package.json",
     "lint:prose": "./scripts/lint-prose.sh",
+    "lint:refs": "bun scripts/check-doc-ticket-refs.ts",
     "prepare": "lefthook install",
     "test:e2e": "playwright test",
     "test:lighthouse": "lhci autorun",
