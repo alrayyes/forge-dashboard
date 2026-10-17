@@ -207,7 +207,9 @@ function defaultState(): SharedFilterState {
 }
 
 export function loadState(): SharedFilterState {
-  // A new page load starts with nothing edited yet (#1713).
+  // A new page starts with nothing edited, and any saved-copy callback of the
+  // page before it is now stale.
+  pageGeneration++;
   resetTouched();
   const raw = getCookie(FILTERS_COOKIE);
   const state = defaultState();
@@ -597,6 +599,31 @@ const touchedKeys = new Set<string>();
 let clearedAll = false;
 const CLEARED_GROUPS: StateGroup[] = ['shared', 'pr', 'issue'];
 
+// Which page the touched keys belong to. loadState starts a new one and
+// leavePage ends the current one. A saved-copy callback captures it when it
+// asks and drops its answer if it changed: the touched keys and filter state
+// it would merge into are another page's by then, and saving from it would
+// write its old state over that page's edits.
+let pageGeneration = 0;
+
+export function currentPage(): number {
+  return pageGeneration;
+}
+
+// Only ends the page it is given: if the next page has already loaded, its
+// state is not touched.
+export function leavePage(page: number): void {
+  if (page !== pageGeneration) return;
+  pageGeneration++;
+  resetTouched();
+}
+
+// Contract: every code path where the user changes a filter, view or sort
+// control must call this for the key it changes, before saving. Without it a
+// copy that is still loading overwrites the change. Page-driven changes (a pick
+// the page can't offer being cleared) must not call it, or the copy would no
+// longer be applied to a key the user never touched. A new page that edits
+// the shared state, such as one for branches, has to follow the same rule.
 export function touchKey(group: StateGroup, key: string): void {
   touchedKeys.add(`${group}.${key}`);
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import * as Filters from "#lib/filters.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
@@ -306,6 +306,9 @@
     updateSharedFilterOptions();
   }
 
+  let page = -1;
+  onDestroy(() => Filters.leavePage(page));
+
   onMount(() => {
     sharedState = Filters.loadState();
     Filters.releaseAllHeld();
@@ -317,7 +320,9 @@
     // the main dashboard share the one saved filter state, so this
     // page has to pull it too rather than only ever seeing whatever
     // the cookie already has.
+    page = Filters.currentPage();
     Filters.loadStateFromServer().then((got) => {
+      if (page !== Filters.currentPage()) return;
       if (got) Filters.applyServerState(sharedState, got);
       if (got && Filters.hasTouched()) Filters.saveState(sharedState);
       hideDependencyDashboard =

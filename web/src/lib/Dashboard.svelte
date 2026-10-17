@@ -4420,7 +4420,11 @@
     // resolving" happens second, via sharedControlsRestored below — a
     // real server value always wins, but this page never sits idle
     // waiting for it first.
+    const page = Filters.currentPage();
     Filters.loadStateFromServer().then((got) => {
+      // Another page has loaded, or this one is gone: its state and touched
+      // keys are not ours any more.
+      if (destroyed || page !== Filters.currentPage()) return;
       const before = JSON.stringify(sharedState);
       if (got) Filters.applyServerState(sharedState, got);
       // An edit made while the copy loaded was saved on top of the cookie's
@@ -7012,6 +7016,7 @@
 
     return () => {
       destroyed = true;
+      Filters.leavePage(page);
       stopTimezone();
       document.removeEventListener("keydown", onSlashShortcut);
       clearTimeout(pollTimer);

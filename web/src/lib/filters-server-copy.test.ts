@@ -2,9 +2,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   applyServerState,
+  currentPage,
   hasTouched,
   heldPicks,
   holdStale,
+  leavePage,
   loadState,
   releaseAllHeld,
   type SharedFilterState,
@@ -127,5 +129,29 @@ describe('applyServerState with keys the user touched', () => {
     applyServerState(state, { shared: { author: 'bob', repo: 'x' } });
     expect(state.shared.author).toBe('');
     expect(heldPicks().length).toBe(1);
+  });
+
+  test('a saved-copy callback can tell its page is no longer the current one', () => {
+    const page = currentPage();
+    loadState();
+    expect(currentPage()).not.toBe(page);
+  });
+
+  test('leaving a page ends it and its touched keys', () => {
+    const page = currentPage();
+    touchKey('shared', 'repo');
+    leavePage(page);
+    expect(currentPage()).not.toBe(page);
+    expect(hasTouched()).toBe(false);
+  });
+
+  test('a page leaving after the next one loaded leaves the next one alone', () => {
+    const old = currentPage();
+    loadState();
+    const next = currentPage();
+    touchKey('shared', 'repo');
+    leavePage(old);
+    expect(currentPage()).toBe(next);
+    expect(hasTouched()).toBe(true);
   });
 });
