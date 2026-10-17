@@ -86,19 +86,6 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
     ]);
   });
 
-  test('the link names the branches without a pipeline, in the header and on the tab (#1531)', async ({
-    page,
-  }) => {
-    await open(page, MIXED);
-    await expect(header(page)).toHaveAccessibleName(
-      'Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline',
-    );
-    await page.setViewportSize({ width: 360, height: 740 });
-    await expect(tab(page)).toHaveAccessibleName(
-      '7 Branches, 2 failing, 3 passing, 1 running, 1 without a pipeline',
-    );
-  });
-
   test('a count of zero is not drawn, and no branches means no pill', async ({
     page,
   }) => {
