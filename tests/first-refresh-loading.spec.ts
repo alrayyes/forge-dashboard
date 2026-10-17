@@ -295,4 +295,170 @@ test.describe('first refresh loading state (#1672)', () => {
       expect(results.violations).toEqual([]);
     });
   }
+
+  test('the nav links keep plain names while pending, the dash is not read', async ({
+    page,
+  }) => {
+    await holdDashboard(page, { done: false, withItems: false });
+    await page.goto('/pull-requests.html');
+    await expect(page.getByTestId('list-skeleton')).toBeVisible();
+
+    const nav = page.getByRole('navigation', { name: 'Main' });
+    for (const name of [
+      'Branches',
+      'Pull requests',
+      'Releases',
+      'Bots',
+      'Issues',
+    ]) {
+      await expect(nav.getByRole('link', { name, exact: true })).toHaveCount(1);
+    }
+  });
+
+  for (const target of [
+    { name: 'Branches', url: '/' },
+    { name: 'Pull requests', url: '/pull-requests.html' },
+  ]) {
+    test(`${target.name}: the status live region is in the page before it has text`, async ({
+      page,
+    }) => {
+      await page.addInitScript(() => {
+        const seen: string[] = [];
+        (window as unknown as { __statusSeen: string[] }).__statusSeen = seen;
+        const look = () => {
+          const el = document.querySelector(
+            '[data-testid="first-refresh-status"]',
+          );
+          if (!el) return;
+          const text = (el.textContent ?? '').trim();
+          if (seen[seen.length - 1] !== text) seen.push(text);
+        };
+        new MutationObserver(look).observe(document, {
+          subtree: true,
+          childList: true,
+          characterData: true,
+        });
+      });
+      const mode: Mode = { done: false, withItems: false };
+      await holdDashboard(page, mode);
+      await page.goto(target.url);
+      await expect(page.getByTestId('first-refresh-status')).toHaveText(
+        'Loading your repositories…',
+      );
+      const seen = await page.evaluate(
+        () => (window as unknown as { __statusSeen: string[] }).__statusSeen,
+      );
+      // First sighting is empty; the text arrives as a change to it.
+      expect(seen[0]).toBe('');
+      expect(seen).toContain('Loading your repositories…');
+    });
+  }
+
+  test('Branches never says nothing is tracked before the flag arrives, and does not hang if the snapshot fails', async ({
+    page,
+  }) => {
+    // The snapshot request fails: the real state shows, not an endless wait.
+    await page.route('**/api/dashboard/stream', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/dashboard', (route: Route) => route.abort());
+    await page.goto('/');
+    await expect(page.getByTestId('no-repos')).toBeVisible();
+    await expect(page.getByTestId('branches-awaiting-flag')).toHaveCount(0);
+  });
+
+  test('Branches shows a neutral line while the snapshot is still on its way', async ({
+    page,
+  }) => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/dashboard/stream', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/dashboard*', async (route: Route) => {
+      await gate;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [],
+          pullRequests: [],
+          issues: [],
+          repos: [],
+          navCounts: navCountsFor([], 0),
+        }),
+      });
+    });
+    await page.goto('/');
+    await expect(page.getByTestId('branches-awaiting-flag')).toBeVisible();
+    await expect(page.getByTestId('no-repos')).toBeHidden();
+    release();
+    await expect(page.getByTestId('no-repos')).toBeVisible();
+    await expect(page.getByTestId('branches-awaiting-flag')).toHaveCount(0);
+  });
+
+  test('the flag flipping false, true, false, true brings rows and filters back and announces once per loading', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const seen: string[] = [];
+      (window as unknown as { __statusSeen: string[] }).__statusSeen = seen;
+      const look = () => {
+        const el = document.querySelector(
+          '[data-testid="first-refresh-status"]',
+        );
+        if (!el) return;
+        const text = (el.textContent ?? '').trim();
+        if (seen[seen.length - 1] !== text) seen.push(text);
+      };
+      new MutationObserver(look).observe(document, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+      });
+    });
+    const mode: Mode = { done: true, withItems: true };
+    await holdDashboard(page, mode);
+    await page.goto('/issues.html');
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+
+    await page
+      .getByRole('combobox', { name: 'Filter by title' })
+      .fill('Issue 2');
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+
+    mode.done = false;
+    await expect(page.getByTestId('list-skeleton')).toBeVisible();
+    await expect(page.locator('.list-region')).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    await expect(page.locator('#issue-rows > .row')).toBeHidden();
+    // Several polls pass while it loads; none may say it again.
+    await page.waitForTimeout(2500);
+
+    mode.done = true;
+    await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+    await expect(
+      page.getByRole('combobox', { name: 'Filter by title' }),
+    ).toHaveValue('Issue 2');
+
+    mode.done = false;
+    await expect(page.getByTestId('list-skeleton')).toBeVisible();
+    mode.done = true;
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+
+    const seen = await page.evaluate(
+      () => (window as unknown as { __statusSeen: string[] }).__statusSeen,
+    );
+    const spoken = seen.filter((t) => t !== '');
+    expect(spoken).toEqual([
+      'Loading your repositories…',
+      'Loading your repositories…',
+    ]);
+  });
 });

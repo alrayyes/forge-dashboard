@@ -22,3 +22,10 @@ export function firstRefreshStatus(
     ? 'Still loading. The first refresh can take a while after a restart.'
     : 'Loading your repositories…';
 }
+
+// Branches reads its list from its own endpoint and the flag from the layout's
+// snapshot request, which lands later. Until that request has settled, an empty
+// list may only mean the flag has not arrived, so say "loading", not "nothing".
+export function branchesAwaitingFlag(settled: boolean, total: number): boolean {
+  return !settled && total === 0;
+}

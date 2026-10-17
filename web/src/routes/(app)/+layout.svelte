@@ -9,7 +9,11 @@
   import { headerLabel, tabLabel } from "#lib/nav-labels.js";
   import NavPills from "#lib/NavPills.svelte";
   import { firstRefreshPending } from "#lib/first-refresh.js";
-  import { firstRefresh, setFirstRefresh } from "#lib/first-refresh.svelte.js";
+  import {
+    firstRefresh,
+    setFirstRefresh,
+    settleFirstRefresh,
+  } from "#lib/first-refresh.svelte.js";
 
   let { children } = $props();
 
@@ -153,7 +157,10 @@
                 firstRefreshDone?: boolean;
               } | null,
             ) => {
-              if (!data) return;
+              if (!data) {
+                settleFirstRefresh();
+                return;
+              }
               setFirstRefresh(data.firstRefreshDone);
               const pending = firstRefreshPending(data.firstRefreshDone);
               setNavCounts(pending ? null : data.navCounts);
@@ -167,6 +174,7 @@
           )
           .catch(() => {
             /* no badge is better than a wrong one */
+            settleFirstRefresh();
           });
       }
     }
@@ -188,7 +196,10 @@
         return res.ok ? res.json() : null;
       })
       .then((session: Session | null) => {
-        if (!session) return;
+        if (!session) {
+          settleFirstRefresh();
+          return;
+        }
         displayName = session.displayName;
         isAdmin = session.isAdmin;
         if (gone) return;
@@ -200,6 +211,7 @@
       })
       .catch(() => {
         /* a transient failure here isn't worth blocking the page over */
+        settleFirstRefresh();
       });
 
     return () => {

@@ -3,7 +3,10 @@
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { formatTime } from "#lib/time.svelte.js";
-  import { firstRefreshPending } from "#lib/first-refresh.js";
+  import {
+    branchesAwaitingFlag,
+    firstRefreshPending,
+  } from "#lib/first-refresh.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
@@ -448,8 +451,10 @@
     <h1>Main branches</h1>
   </div>
 
+  <!-- Always mounted, so it is empty before it speaks and a screen reader
+       announces the change (#1672). -->
+  <FirstRefreshStatus {pending} />
   {#if pending}
-    <FirstRefreshStatus {pending} />
     <div class="list-region" aria-busy="true">
       <ListSkeleton />
     </div>
@@ -474,7 +479,11 @@
       </div>
     {/if}
 
-    {#if data.counts.total === 0}
+    {#if branchesAwaitingFlag(firstRefresh.settled, data.counts.total)}
+      <p class="mb-loading" data-testid="branches-awaiting-flag">
+        Loading the main branches…
+      </p>
+    {:else if data.counts.total === 0}
       <div class="mb-empty" data-testid="no-repos">
         <p>No repositories are tracked yet.</p>
       </div>

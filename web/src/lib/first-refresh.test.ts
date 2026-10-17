@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import {
+  branchesAwaitingFlag,
   FIRST_REFRESH_SLOW_MS,
   firstRefreshPending,
   firstRefreshStatus,
@@ -42,5 +43,19 @@ describe('firstRefreshStatus', () => {
     expect(firstRefreshStatus(true, FIRST_REFRESH_SLOW_MS)).toBe(
       'Still loading. The first refresh can take a while after a restart.',
     );
+  });
+});
+
+describe('branchesAwaitingFlag', () => {
+  test('waits while the flag request is open and the list is empty', () => {
+    expect(branchesAwaitingFlag(false, 0)).toBe(true);
+  });
+
+  test('never waits once the request has settled, even when it failed', () => {
+    expect(branchesAwaitingFlag(true, 0)).toBe(false);
+  });
+
+  test('never hides rows that are already there', () => {
+    expect(branchesAwaitingFlag(false, 3)).toBe(false);
   });
 });
