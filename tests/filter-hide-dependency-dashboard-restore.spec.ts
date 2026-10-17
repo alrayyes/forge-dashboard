@@ -1,0 +1,86 @@
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './fixtures';
+import { registerViaInvite } from './register-helper';
+
+// The page's own "Hide Dependency Dashboard" checkbox has to come back the way
+// it was left, from the cookie and, on a browser without the cookie, from the
+// saved copy on the server. The saved state is per user, so each test
+// registers its own.
+// https://github.com/alrayyes/forge-dashboard/issues/1620
+
+async function open(page: Page, url: string) {
+  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
+  await page.route('**/api/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [],
+        issues: [],
+        openIssueCount: 0,
+        repos: [],
+        hiddenDrafts: 0,
+      }),
+    }),
+  );
+  await page.goto(url);
+}
+
+const checkbox = (page: Page) =>
+  page.locator('#issue-hide-dependency-dashboard');
+const nav = (page: Page, name: string) =>
+  page.locator(`.app-nav a[href="/${name}.html"]`);
+
+const savedValue = async (page: Page) =>
+  (await (await page.request.get('/api/settings/filter-state')).json())?.issue
+    ?.hideDependencyDashboard;
+
+// A browser that has never been here: the session stays, the cookie goes.
+async function dropFilterCookie(page: Page) {
+  await page.evaluate(() => {
+    // biome-ignore lint/suspicious/noDocumentCookie: no Cookie Store API in every browser.
+    document.cookie = 'forge-board-filters=; path=/; max-age=0';
+  });
+  expect(await page.evaluate(() => document.cookie)).not.toContain(
+    'forge-board-filters',
+  );
+}
+
+for (const [label, path] of [
+  ['Issues', '/issues.html'],
+  ['Insights', '/insights.html'],
+] as const) {
+  test.describe(`${label}: Hide Dependency Dashboard is restored`, () => {
+    test.beforeEach(async ({ page, request, baseURL }) => {
+      await registerViaInvite(
+        page,
+        request,
+        baseURL,
+        `hide-dd-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+        'Hide DD',
+      );
+      await open(page, path);
+      await expect(checkbox(page)).toBeChecked();
+      await checkbox(page).uncheck();
+      await expect.poll(() => savedValue(page)).toBe('');
+    });
+
+    test('is still off after leaving the page and coming back', async ({
+      page,
+    }) => {
+      await nav(page, 'pull-requests').click();
+      await nav(page, label === 'Issues' ? 'issues' : 'insights').click();
+      await expect(checkbox(page)).not.toBeChecked();
+    });
+
+    test('is still off on a browser with the server copy only', async ({
+      page,
+    }) => {
+      await dropFilterCookie(page);
+      await page.reload();
+      await expect(checkbox(page)).not.toBeChecked();
+    });
+  });
+}
