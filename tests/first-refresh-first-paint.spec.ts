@@ -382,6 +382,53 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     await expect.poll(() => reads).toBe(2);
   });
 
+  test('a poll held by the server is not joined by more, and the next one follows its answer', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    let reads = 0;
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/dashboard/stream', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/dashboard*', async (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+        return route.fallback();
+      reads++;
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      if (reads === 2) await gate;
+      inFlight--;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: snapshot({ done: reads >= 3, readIntervalSeconds: 2 }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+    await expect.poll(() => reads).toBe(1);
+    // The first answer is false with a 2 s advice; the poll's read is held.
+    await page.clock.runFor(2500);
+    await expect.poll(() => reads).toBe(2);
+    await page.clock.runFor(15_000);
+    expect(reads).toBe(2);
+    expect(maxInFlight).toBe(1);
+
+    // The next poll goes out after the held one's answer, not before.
+    release();
+    await expect(page.getByTestId('list-skeleton')).toBeVisible();
+    await page.clock.runFor(1500);
+    expect(reads).toBe(2);
+    await page.clock.runFor(700);
+    await expect.poll(() => reads).toBe(3);
+    expect(maxInFlight).toBe(1);
+  });
+
   test('a failed first request still arms the poll, so the page recovers', async ({
     page,
   }) => {

@@ -6852,14 +6852,23 @@
       );
     }
 
-    function refresh(userAsked = false) {
+    function refresh(userAsked = false, fromPoll = false) {
       const seq = ++requestSeq;
+      if (fromPoll) pollReadInFlight = true;
+      // The next poll is timed from this one's answer or failure, so a server
+      // that holds the read never has two of the poll's reads in flight.
+      const settled = () => {
+        if (!fromPoll) return;
+        pollReadInFlight = false;
+        if (!destroyed) schedulePoll();
+      };
       fetchDashboardData()
         .then((data) => {
           applySnapshot(data, userAsked, seq);
           streamFailures = 0;
           ensureStream();
           armFirstPoll();
+          settled();
         })
         .catch((err: Error) => {
           // No answer means no flag: show the real state, not a skeleton
@@ -6867,10 +6876,12 @@
           settleFirstRefresh();
           showError(`Could not reach the backend: ${err.message}`);
           armFirstPoll();
+          settled();
         });
     }
 
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    let pollReadInFlight = false;
     // The first poll is armed when the first request ends, answered or failed,
     // not at load: the server can hold that request for 15 s on a cold start,
     // and a timer started at load would send a second held request meanwhile.
@@ -6882,8 +6893,10 @@
       clearTimeout(pollTimer);
       nextPollAt = Date.now() + readIntervalMs;
       pollTimer = setTimeout(() => {
-        refresh();
-        schedulePoll();
+        // A re-arm by new advice can land while a poll read is out; that
+        // read's answer arms the next one.
+        if (pollReadInFlight) return;
+        refresh(false, true);
       }, readIntervalMs);
     }
     // Follows the server's advice, and only re-arms when it changes, so a
