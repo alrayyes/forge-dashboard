@@ -1,13 +1,29 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import {
     type ActionRequestError,
     interpretActionFailure,
     readActionFailure,
   } from "#lib/action-error.js";
+  import {
+    applyServerState,
+    currentPage,
+    hasTouched,
+    leavePage,
+    loadState,
+    loadStateFromServer,
+    readCookieState,
+    type SharedFilterState,
+    saveState,
+    touchKey,
+  } from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
   import { formatTime } from "#lib/time.svelte.js";
+  import {
+    webhooksFilterFromState,
+    webhooksFilterToState,
+  } from "#lib/webhooks-filter.js";
 
   type RateLimit = {
     limit: number;
@@ -221,11 +237,57 @@
       sortKey = key;
       sortDir = "asc";
     }
-    page = 1;
+    onFilterChange(["sort", "dir"]);
   }
 
-  function onFilterChange() {
+  // The filters are saved with the other pages' (#1620): the cookie at once
+  // for the first paint, the server copy for another browser. The page size
+  // and the current page are not saved. The repo search is free text, so it
+  // takes the debounced path the other pages' title boxes use.
+  let pageGeneration = -1;
+  onDestroy(() => leavePage(pageGeneration));
+  let saved: SharedFilterState = {
+    shared: {},
+    pr: {},
+    issue: {},
+    view: {},
+    webhooks: {},
+  };
+
+  function currentFilter() {
+    return webhooksFilterToState({
+      forge: filterForge as "" | "github" | "forgejo",
+      repo: filterRepo,
+      status: filterStatus as "" | "confirmed" | "pending",
+      sort: sortKey,
+      dir: sortDir,
+    });
+  }
+
+  function applySaved() {
+    const f = webhooksFilterFromState(saved.webhooks);
+    filterForge = f.forge;
+    filterRepo = f.repo;
+    filterStatus = f.status;
+    sortKey = f.sort;
+    sortDir = f.dir;
+  }
+
+  // The key is touched before the save, so a server copy still loading does
+  // not overwrite it (#1713).
+  function save(keys: string[], freeText = false) {
+    for (const key of keys) touchKey("webhooks", key);
+    // Another tab may have saved its own filters since this page loaded; the
+    // cookie is shared, so start from it and change only this page's group.
+    if (document.cookie.includes("forge-board-filters="))
+      saved = { ...readCookieState(), webhooks: {} };
+    saved.webhooks = currentFilter();
+    saveState(saved, freeText ? "title" : undefined);
+  }
+
+  function onFilterChange(keys: string[], freeText = false) {
     page = 1;
+    save(keys, freeText);
   }
 
   function setStatus(message: string, kind: "" | "error" = "", detail = "") {
@@ -465,6 +527,19 @@
   }
 
   onMount(() => {
+    saved = loadState();
+    applySaved();
+    pageGeneration = currentPage();
+    // The cookie painted the page; the server copy is what a second browser
+    // sees, and it wins as it does on the other pages (#353).
+    loadStateFromServer().then((got) => {
+      if (pageGeneration !== currentPage() || !got) return;
+      applyServerState(saved, got);
+      applySaved();
+      // An edit made while the copy loaded went out on top of the cookie's
+      // values; save the merged state so the server keeps the rest too.
+      if (hasTouched()) saveState(saved);
+    });
     fetch("/api/dashboard", { headers: { Accept: "application/json" } })
       .then((res) => {
         if (res.status === 401) {
@@ -847,7 +922,7 @@
               checked={filterForge === ""}
               onchange={() => {
                 filterForge = "";
-                onFilterChange();
+                onFilterChange(["forge"]);
               }}
             />
             <span>All</span>
@@ -863,7 +938,7 @@
                 checked={filterForge === "github"}
                 onchange={() => {
                   filterForge = "github";
-                  onFilterChange();
+                  onFilterChange(["forge"]);
                 }}
               />
               <span>GitHub</span>
@@ -880,7 +955,7 @@
                 checked={filterForge === "forgejo"}
                 onchange={() => {
                   filterForge = "forgejo";
-                  onFilterChange();
+                  onFilterChange(["forge"]);
                 }}
               />
               <span>Forgejo</span>
@@ -896,7 +971,10 @@
           aria-label="Filter by repo name"
           autocomplete="off"
           bind:value={filterRepo}
-          oninput={onFilterChange}
+          oninput={(e) => {
+            filterRepo = e.currentTarget.value;
+            onFilterChange(["repo"], true);
+          }}
         />
         <select
           class="col-filter webhooks-filter"
@@ -904,7 +982,10 @@
           id="webhooks-status-filter"
           aria-label="Filter by webhook status"
           bind:value={filterStatus}
-          onchange={onFilterChange}
+          onchange={(e) => {
+            filterStatus = e.currentTarget.value;
+            onFilterChange(["status"]);
+          }}
         >
           <option value="">All statuses</option>
           {#if statusChoices.has("confirmed")}

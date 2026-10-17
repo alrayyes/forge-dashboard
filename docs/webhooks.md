@@ -23,6 +23,11 @@ falls back to whether this app has ever actually received a
 signature-verified delivery for that repo, the same passive signal this
 whole page is otherwise about.
 
+The page remembers its forge buttons, repo search, status select and sort
+the way the pull request and issue pages remember theirs: they are still set
+when you come back, and on another browser once you sign in. The page you were
+on and the page size are not remembered.
+
 ## The easy way: "Add a webhook"
 
 On the Webhooks page, a repo without a confirmed webhook gets an "Add a

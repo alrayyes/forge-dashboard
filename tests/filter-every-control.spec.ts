@@ -162,6 +162,21 @@ const cookieCopy = async (page: Page): Promise<Groups> => {
   return c ? JSON.parse(decodeURIComponent(c.value)) : {};
 };
 
+// The cookie alone: the saved copy is refused for the whole check, so a value
+// that shows can only have come from the cookie read at first paint. (Waiting
+// for the copy would let a broken cookie read pass, since expect retries.)
+const COPY_URL = '**/api/settings/filter-state';
+async function withoutServerCopy(page: Page, check: () => Promise<void>) {
+  const refuse = (route: Route) =>
+    route.request().method() === 'GET' ? route.abort() : route.fallback();
+  await page.route(COPY_URL, refuse);
+  try {
+    await check();
+  } finally {
+    await page.unroute(COPY_URL, refuse);
+  }
+}
+
 interface Control {
   name: string;
   boards: Board[];
@@ -401,6 +416,13 @@ for (const board of ALL) {
         await loaded(page, board);
         await control.show(page, board);
 
+        // First paint from the cookie alone.
+        await withoutServerCopy(page, async () => {
+          await page.reload();
+          await loaded(page, board);
+          await control.show(page, board);
+        });
+
         // A second browser: no cookie, only the server copy.
         await expect
           .poll(
@@ -514,4 +536,214 @@ test.describe('deliberately not remembered', () => {
       );
     });
   }
+});
+
+// Webhooks: its own page with its own controls, saved as the `webhooks` group
+// (the way Branches is). Same four reads as above. The page size and the
+// current page stay unsaved, as on the other pages.
+const WEBHOOKS_URL = '/webhooks.html';
+
+const WEBHOOK_REPOS = [
+  { forge: 'github', fullName: 'acme/app', hasWebhook: true },
+  { forge: 'forgejo', fullName: 'acme/infra', hasWebhook: false },
+  ...Array.from({ length: 28 }, (_, i) => ({
+    forge: 'github',
+    fullName: `acme/lib-${i + 1}`,
+    hasWebhook: true,
+  })),
+].map((r) => ({
+  ...r,
+  ignored: false,
+  ignoredPRs: false,
+  ignoredIssues: false,
+  autoUpdateBranch: false,
+  canManageWebhooks: true,
+}));
+
+async function openWebhooks(page: Page) {
+  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
+  await page.route('**/api/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [],
+        pullRequests: [],
+        issues: [],
+        repos: WEBHOOK_REPOS,
+      }),
+    }),
+  );
+  await page.goto(WEBHOOKS_URL);
+  await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+}
+
+const forgeRadio = (page: Page, value: string) =>
+  page.locator(`input[data-filter="forge"][value="${value}"]`);
+const sortHeader = (page: Page, key: string) =>
+  page.locator(`th:has([data-sort-key="${key}"])`);
+
+interface WebhookControl {
+  name: string;
+  // Every key the control stores in the `webhooks` group.
+  stored: Record<string, string>;
+  set: (page: Page) => Promise<unknown>;
+  show: (page: Page) => Promise<void>;
+}
+
+const WEBHOOK_CONTROLS: WebhookControl[] = [
+  {
+    name: 'Forgejo forge button',
+    stored: { forge: 'forgejo' },
+    set: (page) => forgeRadio(page, 'forgejo').check(),
+    show: (page) => expect(forgeRadio(page, 'forgejo')).toBeChecked(),
+  },
+  {
+    name: 'GitHub forge button',
+    stored: { forge: 'github' },
+    set: (page) => forgeRadio(page, 'github').check(),
+    show: (page) => expect(forgeRadio(page, 'github')).toBeChecked(),
+  },
+  {
+    name: 'repo search',
+    stored: { repo: 'infra' },
+    set: (page) => page.locator('#webhooks-repo-filter').fill('infra'),
+    show: (page) =>
+      expect(page.locator('#webhooks-repo-filter')).toHaveValue('infra'),
+  },
+  {
+    name: 'status select',
+    stored: { status: 'pending' },
+    set: (page) =>
+      page.locator('#webhooks-status-filter').selectOption('pending'),
+    show: (page) =>
+      expect(page.locator('#webhooks-status-filter')).toHaveValue('pending'),
+  },
+  {
+    name: 'sort column',
+    stored: { sort: 'hasWebhook', dir: 'asc' },
+    set: (page) => page.locator('[data-sort-key="hasWebhook"]').click(),
+    show: (page) =>
+      expect(sortHeader(page, 'hasWebhook')).toHaveAttribute(
+        'aria-sort',
+        'ascending',
+      ),
+  },
+  {
+    name: 'sort direction',
+    stored: { sort: 'fullName', dir: 'desc' },
+    set: (page) => page.locator('[data-sort-key="fullName"]').click(),
+    show: (page) =>
+      expect(sortHeader(page, 'fullName')).toHaveAttribute(
+        'aria-sort',
+        'descending',
+      ),
+  },
+];
+
+const webhooksServer = async (page: Page) =>
+  ((await serverCopy(page)).webhooks ?? {}) as Record<string, string>;
+const webhooksCookie = async (page: Page) =>
+  ((await cookieCopy(page)).webhooks ?? {}) as Record<string, string>;
+
+test.describe('webhooks: every remembered control', () => {
+  for (const control of WEBHOOK_CONTROLS) {
+    test(`${control.name} survives leaving and coming back`, async ({
+      page,
+      request,
+      baseURL,
+    }) => {
+      await registerViaInvite(
+        page,
+        request,
+        baseURL,
+        `every-control-webhooks-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+        'Every Control Webhooks',
+      );
+      await openWebhooks(page);
+      await control.set(page);
+      await control.show(page);
+
+      await expect
+        .poll(() => webhooksServer(page))
+        .toMatchObject(control.stored);
+      expect(await webhooksCookie(page)).toMatchObject(control.stored);
+
+      // Client navigation away and back.
+      await link(page, 'issues').click();
+      await loaded(page, 'issues');
+      await page.locator(`.app-nav a[href="${WEBHOOKS_URL}"]`).click();
+      await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+      await control.show(page);
+
+      // Full load away and back.
+      await page.goto(BOARDS.issues.url);
+      await loaded(page, 'issues');
+      await page.goto(WEBHOOKS_URL);
+      await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+      await control.show(page);
+
+      // Reload.
+      await page.reload();
+      await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+      await control.show(page);
+
+      // First paint from the cookie alone.
+      await withoutServerCopy(page, async () => {
+        await page.reload();
+        await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+        await control.show(page);
+      });
+
+      // A second browser: no cookie, only the server copy.
+      await expect
+        .poll(() => webhooksServer(page))
+        .toMatchObject(control.stored);
+      await page.context().clearCookies({ name: 'forge-board-filters' });
+      await page.reload();
+      await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+      await control.show(page);
+    });
+  }
+
+  test('page size and current page are not remembered', async ({
+    page,
+    request,
+    baseURL,
+  }) => {
+    await registerViaInvite(
+      page,
+      request,
+      baseURL,
+      `every-control-webhooks-size-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+      'Every Control Webhooks Size',
+    );
+    await openWebhooks(page);
+    await page.locator('#webhooks-page-size').selectOption('10');
+    await page
+      .locator('#webhooks-pagination-pages .pagination-page', { hasText: '2' })
+      .click();
+    await expect(
+      page.locator('#webhooks-pagination-pages .pagination-page.active'),
+    ).toHaveText('2');
+    // Something else gets saved, so the copies exist to be read.
+    await page.locator('#webhooks-status-filter').selectOption('confirmed');
+    await expect
+      .poll(async () => (await webhooksServer(page)).status)
+      .toBe('confirmed');
+
+    await page.reload();
+    await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+    await expect(page.locator('#webhooks-page-size')).toHaveValue('25');
+    await expect(
+      page.locator('#webhooks-pagination-pages .pagination-page.active'),
+    ).toHaveText('1');
+    for (const copy of [
+      await webhooksServer(page),
+      await webhooksCookie(page),
+    ]) {
+      expect(JSON.stringify(copy)).not.toMatch(/page|size/i);
+    }
+  });
 });

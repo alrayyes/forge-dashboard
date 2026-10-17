@@ -13,6 +13,20 @@ import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 // the shared session instead of registering a user each (#1379).
 test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
+// The filters are saved per user now, and these tests share one: keep what one
+// picks from becoming the next test's starting point.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/settings/filter-state', (route: Route) =>
+    route.request().method() === 'GET'
+      ? route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: '{}',
+        })
+      : route.fulfill({ status: 204 }),
+  );
+});
+
 function mockDashboard(page: Page, repos: Record<string, unknown>[]) {
   return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
