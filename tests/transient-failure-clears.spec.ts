@@ -58,15 +58,29 @@ async function setup(page: Page) {
 const row = (page: Page) => page.locator('#pr-rows .row').first();
 const line = (page: Page) => row(page).locator('.row-feedback-line');
 
+// The click that fails the action leaves the pointer where the line is then
+// drawn. Chrome sends a synthetic mouseenter for that once layout settles,
+// and the line holds its timer while hovered (WCAG 2.2.1), so a late enter
+// pauses the ten seconds for good. Move the pointer off the row and wait for
+// the line to report it is no longer hovered, so the timer is running.
+async function releasePointer(page: Page) {
+  await page.mouse.move(2, 2);
+  await expect
+    .poll(() => line(page).evaluate((el) => el.matches(':hover')))
+    .toBe(false);
+}
+
 async function failMerge(page: Page) {
   await row(page).getByRole('button', { name: 'Merge', exact: true }).click();
   await row(page).getByRole('button', { name: 'Confirm merge?' }).click();
   await expect(line(page)).toContainText('Failed');
+  await releasePointer(page);
 }
 
 async function failUpdateBranch(page: Page) {
   await row(page).getByRole('button', { name: 'Update branch' }).click();
   await expect(line(page)).toContainText('Failed');
+  await releasePointer(page);
 }
 
 test.describe('a network failure line clears itself (#1206)', () => {
