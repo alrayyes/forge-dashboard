@@ -5809,9 +5809,39 @@
       );
     }
 
+    // What the health live region says: each forge's reachability, and
+    // whether a budget is spent. The counts and times in the visible pill
+    // change on every poll and are left out, so an unchanged state yields
+    // the same string.
+    function healthAnnouncement(forges: Forge[]): string {
+      return forges
+        .map((f) => {
+          const name = FORGE_LABELS[f.forge] || f.forge;
+          const limited =
+            isRateLimited(f.rateLimitREST) || isRateLimited(f.rateLimitGraphQL);
+          return (
+            name +
+            (f.reachable ? " reachable" : " unreachable") +
+            (limited ? ", rate limited" : "")
+          );
+        })
+        .join(". ");
+    }
+
+    let lastHealthAnnouncement = "";
+    function announceForgeHealth(forges: Forge[]) {
+      const live = document.getElementById("forge-health-live");
+      if (!live) return;
+      const next = healthAnnouncement(forges);
+      if (next === lastHealthAnnouncement) return;
+      lastHealthAnnouncement = next;
+      live.textContent = next;
+    }
+
     function renderForgeHealth(forges: Forge[]) {
       const container = document.getElementById("forge-health");
       if (!container) return;
+      announceForgeHealth(forges);
       container.innerHTML = "";
       for (const f of forges) {
         const item = el("div", "forge-health-item");
@@ -7184,7 +7214,18 @@
     >
       <option value="">My dashboard</option>
     </select>
-    <div id="forge-health" aria-live="polite"></div>
+    <div id="forge-health"></div>
+    <!-- The one polite live region for forge health. #forge-health is
+         redrawn on every snapshot, so it can't be live itself: this text
+         changes only when the state it states does (WCAG 4.1.3). It exists
+         from first paint so the first announcement is spoken. -->
+    <span
+      id="forge-health-live"
+      class="sr-only"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    ></span>
     <span class="refreshed" hidden={!refreshedKnown || loadingFirst}
       >Refreshed <span class="mono" id="refreshed-at">&mdash;</span></span
     >
