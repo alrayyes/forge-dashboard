@@ -40,7 +40,7 @@ test.describe('dashboard sharing', () => {
           'Sharing Viewer',
         );
 
-        await ownerPage.goto('/settings.html');
+        await ownerPage.goto('/settings.html#sharing');
         await ownerPage.fill('#share-username', viewerUsername);
         await ownerPage.click('#share-form button[type="submit"]');
         await expect(ownerPage.locator('#share-status')).toContainText(
@@ -72,7 +72,7 @@ test.describe('dashboard sharing', () => {
         // would trigger.
         await expect(viewerPage.locator('#error-banner')).toHaveCount(0);
 
-        await ownerPage.goto('/settings.html');
+        await ownerPage.goto('/settings.html#sharing');
         await ownerPage.click(
           '#shared-with-list button.btn-remove[data-username="' +
             viewerUsername +
@@ -123,7 +123,7 @@ test.describe('dashboard sharing', () => {
         await viewerContext.close();
       }
 
-      await ownerPage.goto('/settings.html');
+      await ownerPage.goto('/settings.html#sharing');
       await ownerPage.fill('#share-username', viewerUsername);
       await ownerPage.click('#share-form button[type="submit"]');
       await expect(ownerPage.locator('#shared-with-list')).toContainText(
