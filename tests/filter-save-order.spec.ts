@@ -58,6 +58,14 @@ test('a pick made right after another is the one the server keeps (#1637)', asyn
   await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
   let puts = 0;
+  let landed = 0;
+  page.on('requestfinished', (req) => {
+    if (
+      req.method() === 'PUT' &&
+      req.url().includes('/api/settings/filter-state')
+    )
+      landed++;
+  });
   await page.route('**/api/settings/filter-state', async (route) => {
     if (route.request().method() !== 'PUT') return route.fallback();
     puts++;
@@ -80,8 +88,8 @@ test('a pick made right after another is the one the server keeps (#1637)', asyn
       { timeout: 5000 },
     )
     .toBe('ryan/bug');
-  // Hold for the slow request to have landed too: the answer must not revert.
-  await page.waitForTimeout(1200);
+  // Wait for the slow request to have landed too: the answer must not revert.
+  await expect.poll(() => landed, { timeout: 5000 }).toBe(puts);
   const res = await page.request.get('/api/settings/filter-state');
   const body = await res.json();
   expect(body.shared).toMatchObject({ author: 'ryan', label: 'bug' });

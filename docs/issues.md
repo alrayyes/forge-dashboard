@@ -25,28 +25,6 @@ the first 128 characters of a title. This is a safety margin tested by
 fuzzing, not a proof. The rule applies to the Issues board only; Insights
 charts ignore it.
 
-## First refresh
-
-After a restart the server holds no state, so the first snapshot is empty until
-the first refresh for that user ends. `firstRefreshDone` on the dashboard
-snapshot tells an empty board from one that hasn't loaded: it is `false` from
-process start until the viewer's first refresh has finished, whether it
-succeeded or failed (a failed one shows in the forge health), and `true` from
-then on, including after later refreshes and settings saves. It is per user and
-not stored, so a restart resets it. An account with no saved settings has
-nothing to refresh, so it reads `true` at once. `GET /api/dashboard`, the
-stream and the `get_dashboard` MCP tool all carry it.
-
-The page doesn't wait for that answer to say it is loading. The server can hold
-`GET /api/dashboard` for up to 15 seconds on a cold start, so if nothing has
-answered after 200 ms the list pages show their placeholder rows, the polite
-"Loading your repositories…" line and a dash in the navigation, and a warm
-server that answers inside that time shows none of it. A failed first request
-drops the placeholders. The "Still loading" text appears 10 seconds after the
-page opens, and the page reads again after the interval the server advises
-(`readIntervalSeconds`, between 1 and 300 seconds). The "Refreshed … ago" label
-stays hidden until a snapshot carries a real time.
-
 ## Issues your settings hide
 
 Two settings, saved with your account and applied by the server, keep issues
@@ -132,63 +110,13 @@ an entry. What you had in those fields is kept, not used, and comes back when
 you turn the setting off or empty the list. **Clear filters** changes neither
 setting.
 
-The repo, author and label choices on the pull request, release, bot and issue
-pages and on Insights come from what the page can show: the items every other
-filter lets through, and without the Dependency Dashboard while it is hidden. A
-repo whose only issue is that one isn't offered until **Hide Dependency
-Dashboard** is unchecked. Hiding it again clears a repo picked on that basis.
-The CI status select, the Created and Updated ranges and the forge buttons on
-Insights follow the same rule: a CI state, a range or a forge appears only when
-something in the results is in it, and a pick that nothing matches any more is
-cleared. The CI and age choices also follow the other one and the quick pills,
-so picking one never leaves an empty list. The quick pills do too: a pill is
-offered only when clicking it would show something, and the one that is active
-stays so it can be cleared.
-
-`GET /api/dashboard` and its stream carry `navCounts`, the numbers behind every
-navigation badge: for Branches, Pull requests, Releases and Bots a `total` and
-how many have CI `running`, `failed` and `passed` (a branch by its
-default-branch pipeline); and for Issues a `total` only. A pull request with no
-checks counts in the total alone, so the four numbers need not add up. A branch
-with no pipeline is counted as `none`, so a branch's four states add up to its
-total. They count what each page shows when it opens. Pull requests
-leave out ignored repos, drafts and hidden ones, even while Show drafts or
-Show hidden is on. Branches counts the default branches its page lists, which
-also leave out ignored repos. They are always present, zero when nothing is
-there.
-
 The issues page filters like the pull request page: forge, repo, title,
 author, label, created and updated, plus Group by. Those filters are shared
 and saved with your other filters, so a filter set on one page is still set on
 the other. The pull-request-only controls (CI status, the quick filters for
 failing, ready, needs-review and conflicting pull requests, Show drafts)
-are not on the issues page.
-
-Filters are remembered per account, in a cookie and in a copy on the server,
-so they follow you to another browser. The repo, author, label, created,
-updated and CI status choices each page offers come from its own list. When
-you open a page that doesn't offer a saved choice (an author who wrote no
-pull request, on the pull requests page), that page shows its list without
-it and leaves the saved choice alone, so it is still set when you go back to
-the page that does. The page says so under the filter bar (`Saved author
-"x" is not on this page.`) with a Clear button, and Clear filters is on and
-ends the saved choice too. Changing that control on the page ends it as well.
-Text typed in the title search or the hide-titles pattern is sent to the
-server half a second after the last key, and at once when you leave the page
-or switch tab, so a value typed just before leaving is kept.
-Each save carries a revision number, in the cookie and in the server copy. When
-a page loads, the server copy is applied unless the cookie holds a newer
-revision, so a value typed just before a reload is not replaced by an older
-copy whose save was slow or lost. The page then sends the cookie's state to the
-server. A copy with no revision, or the same one, wins as before.
-What is deliberately not remembered: the page you were on and the page size,
-the open Filters sheet on a phone, held updates, open menus and pop-ups, the
-hidden pull requests panel, and the expanded rows on Branches. The Branches
-status, forge and search follow you to another browser the same way.
-
-The Webhooks page filters (the forge buttons, the repo search, and the status
-select), its sort and its page size are not remembered yet: they reset each
-time you open the page.
+are not on the issues page. Which choices a page offers, and how filters are
+remembered, is in [Live updates and filters](live-updates.md#remembered-filters).
 
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows is held behind an "N updates available" bar while you're scrolled
