@@ -47,6 +47,43 @@ async function freezeClock(page: Page) {
   await page.clock.pauseAt(now + 1000);
 }
 
+// Records, on the page's own clock, every read the layout makes: the layout is
+// the only caller that passes an abort signal. Playwright's routing bypasses
+// the browser's HTTP cache, so the cache lock a same-URL read can sit behind
+// cannot be staged here; what can be pinned is that the layout opts out of it.
+async function spyLayoutReads(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as {
+      __reads: { start: number; end: number; cache?: string }[];
+    };
+    w.__reads = [];
+    const real = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      if (
+        !init?.signal ||
+        new URL(url, location.href).pathname !== '/api/dashboard'
+      )
+        return real(input, init);
+      const rec = { start: Date.now(), end: -1, cache: init.cache };
+      w.__reads.push(rec);
+      return real(input, init).finally(() => {
+        rec.end = Date.now();
+      });
+    };
+  });
+}
+
+const layoutReads = (page: Page) =>
+  page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          __reads: { start: number; end: number; cache?: string }[];
+        }
+      ).__reads,
+  );
+
 async function noStream(page: Page) {
   await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
 }
@@ -77,6 +114,7 @@ for (const { name, url, own } of PAGES) {
     }) => {
       await freezeClock(page);
       await noStream(page);
+      await spyLayoutReads(page);
       await page.route('**/api/dashboard*', (route: Route) =>
         isRead(route.request().url())
           ? route.fulfill({
@@ -97,19 +135,63 @@ for (const { name, url, own } of PAGES) {
       await page.goto(url);
       await expect.poll(() => seen.started - own).toBe(1);
 
-      // The page's clock stands still until its answer has been handled, so
-      // the retry is timed from there.
-      await expect.poll(() => seen.ended).toBe(1 + own);
-      await page.waitForTimeout(150);
-      await page.clock.runFor(1900);
-      expect(seen.started - own).toBe(1);
-      await page.clock.runFor(200);
-      await expect.poll(() => seen.started - own).toBe(2);
-      await expect.poll(() => seen.ended).toBe(2 + own);
-      await page.waitForTimeout(150);
-      await page.clock.runFor(2100);
-      await expect.poll(() => seen.started - own).toBe(3);
+      // The page's clock stands still until the test moves it, so the gap
+      // between an answer and the next request is measured on that clock.
+      const answered = (n: number) =>
+        expect
+          .poll(async () => (await layoutReads(page))[n]?.end ?? -1)
+          .toBeGreaterThan(0);
+      await answered(0);
+      let steps = 0;
+      while (seen.started - own < 2 && steps++ < 60) {
+        await page.clock.runFor(100);
+        await page.evaluate(
+          () => new Promise((r) => queueMicrotask(r as never)),
+        );
+      }
+      const reads = await layoutReads(page);
+      const [first, second] = reads;
+      expect(second).toBeDefined();
+      expect(second.start - first.end).toBeGreaterThanOrEqual(2000);
+      expect(second.start - first.end).toBeLessThanOrEqual(2400);
+      expect(seen.started - own).toBe(2);
+      await answered(1);
+      for (let i = 0; seen.started - own < 3 && i < 60; i++) {
+        await page.clock.runFor(100);
+        await page.evaluate(
+          () => new Promise((r) => queueMicrotask(r as never)),
+        );
+      }
+      const [, answeredSecond, third] = await layoutReads(page);
+      expect(third.start - answeredSecond.end).toBeGreaterThanOrEqual(2000);
+      expect(third.start - answeredSecond.end).toBeLessThanOrEqual(2400);
       expect(seen.max).toBeLessThanOrEqual(1 + own);
+    });
+
+    test("the read opts out of the HTTP cache, so it is never queued behind the page's own", async ({
+      page,
+    }) => {
+      await freezeClock(page);
+      await noStream(page);
+      await spyLayoutReads(page);
+      await page.route('**/api/dashboard*', (route: Route) =>
+        isRead(route.request().url())
+          ? route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                forges: [],
+                pullRequests: [],
+                issues: [],
+              }),
+            })
+          : route.fallback(),
+      );
+      await page.goto(url);
+      await expect.poll(async () => (await layoutReads(page)).length).toBe(1);
+      expect((await layoutReads(page)).map((r) => r.cache)).toEqual([
+        'no-store',
+      ]);
     });
   });
 }

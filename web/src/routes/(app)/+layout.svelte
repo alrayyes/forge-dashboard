@@ -149,6 +149,7 @@
     let navReadMs = NAV_COUNTS_POLL_MS;
     let navTimer: number | undefined;
     let navReadInFlight = false;
+    let navAbort: AbortController | undefined;
     let polling = false;
     // Set on unmount, so a session answer that arrives after it starts nothing.
     let gone = false;
@@ -183,6 +184,7 @@
       navReadInFlight = true;
       window.clearTimeout(navTimer);
       const abort = new AbortController();
+      navAbort = abort;
       const abortTimer = window.setTimeout(
         () => abort.abort(),
         READ_TIMEOUT_MS,
@@ -195,6 +197,10 @@
       fetch("/api/dashboard", {
         headers: { Accept: "application/json" },
         signal: abort.signal,
+        // The page's own one-shot read can be out for the same URL. The
+        // browser's cache lock would queue this one behind it, and the 20 s
+        // above counts from here, not from when it reaches the server.
+        cache: "no-store",
       })
         .then((res) => (res.ok ? res.json() : null))
         .then(
@@ -223,7 +229,7 @@
         )
         .catch(() => {
           /* no badge is better than a wrong one */
-          settleFirstRefresh();
+          if (!gone) settleFirstRefresh();
         })
         .finally(settled);
     }
@@ -265,6 +271,8 @@
       gone = true;
       stopFirstRefreshWait();
       window.clearTimeout(navTimer);
+      // A read still out has nobody left to tell.
+      navAbort?.abort();
       document.removeEventListener("visibilitychange", onVisible);
     };
   });
