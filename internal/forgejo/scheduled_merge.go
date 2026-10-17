@@ -24,7 +24,8 @@ const (
 
 	// Forgejo's names for the timeline events a scheduled merge leaves, from
 	// commentStrings in models/issues/comment.go (CommentTypePRScheduledToAutoMerge
-	// and CommentTypePRUnScheduledToAutoMerge).
+	// and CommentTypePRUnScheduledToAutoMerge), and seen on a real Forgejo 10.0.3
+	// by integration/forgejo_test.go.
 	eventScheduledMerge       = "pull_scheduled_merge"
 	eventCancelScheduledMerge = "pull_cancel_scheduled_merge"
 )
