@@ -1201,6 +1201,13 @@ account and applied by the server, so they follow you to another browser:
   leaves out every issue whose title starts with those words. Type a pattern
   in **Pattern**, then press **Add**. **Remove** drops an entry. Blanks and
   repeats are dropped. Both settings save with the **Save** button.
+  Next to each saved pattern a small label says how many of your open
+  issues it hides on its own: "hides 3 issues", "hides 1 issue" or "hides no
+  issues", so a typo that matches nothing stands out. An issue that two
+  patterns match counts for both. The server does the counting, so the numbers
+  agree with the Issues page. A pattern you just added says "Counted after you
+  save" until the save finishes, and the labels follow each save without a
+  reload. While the server can't count yet, nothing shows next to the pattern.
 
 Because the server applies them, the Issues badge in the navigation, the
 Issues page and the Insights issue charts all leave those issues out, and the
