@@ -177,8 +177,8 @@ Playwright picks up any `tests/*.test.ts` and a bare `bun test` fails on
 Playwright specs. And `bun test` has no Svelte compiler, so it can't load a
 `.svelte.ts` rune module (`$state is not defined`) or render a component. When a
 test first needs one, add Vitest with `vite-plugin-svelte` for those files; the
-options and measurements are on
-[#1383](https://github.com/alrayyes/forge-dashboard/issues/1383).
+options and measurements are in the tracker's "decide where frontend logic
+is tested without a browser" ticket.
 
 ## How it fits together
 
