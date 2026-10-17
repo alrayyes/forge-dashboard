@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.215.1](https://github.com/alrayyes/forge-dashboard/compare/v0.215.0...v0.215.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** speak the share of a rate limit budget left in coarse bands ([#1817](https://github.com/alrayyes/forge-dashboard/issues/1817)) ([89403f4](https://github.com/alrayyes/forge-dashboard/commit/89403f4615d5072f25606104452e55d7fda0482b)), closes [#1812](https://github.com/alrayyes/forge-dashboard/issues/1812)
+
 ## [0.215.0](https://github.com/alrayyes/forge-dashboard/compare/v0.214.4...v0.215.0) (2026-10-17)
 
 
