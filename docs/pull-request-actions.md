@@ -7,6 +7,16 @@ own. Only
 live state is the page's: a rate-limited or unreachable forge, a missing token,
 an action already in flight.
 
+One entry in `allowedActions` can carry `primary: true`, the action the row
+and the phone card draw as the main button. The server picks it, so
+no client does. Merge is primary when it is offered and not blocked, unless CI
+is failing. An empty pull request has Close. When being behind the base branch
+is what holds Merge back, Update branch is primary, or the Renovate or
+Dependabot rebase for a bot pull request. Every other state has no primary
+action: a blocked, waiting, conflicting, draft or stacked pull request leaves
+its reason to `status`. A blocked action is never primary, and at most one
+entry is.
+
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a
 parent it is stacked on), with the same `code`, `message` and `next` as a
