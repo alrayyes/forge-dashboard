@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // Versions, commit hashes and numbers read in the app's own mono face
 // (IBM Plex Mono) with tabular figures, so digits line up and a hash is easy
@@ -59,6 +60,10 @@ const RELEASES = [
   },
 ];
 
+// The tests mock what they read and write nothing per user, so they start from
+// the shared session instead of registering a user each (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
 test.describe('mono face and tabular figures (#1754)', () => {
   test('changelog: versions, pull request numbers and hashes are mono, prose stays sans', async ({
     page,
@@ -94,10 +99,7 @@ test.describe('mono face and tabular figures (#1754)', () => {
 
   test('insights: numeric table cells are mono, their row labels stay sans', async ({
     page,
-    request,
-    baseURL,
   }) => {
-    await registerAndSignIn(page, request, baseURL);
     await page.route('**/api/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
@@ -134,12 +136,7 @@ test.describe('mono face and tabular figures (#1754)', () => {
     await expectSans(page.locator('#ci-status-table td:not(.num)').first());
   });
 
-  test('branches: commit hashes are mono', async ({
-    page,
-    request,
-    baseURL,
-  }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test('branches: commit hashes are mono', async ({ page }) => {
     const now = new Date().toISOString();
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
     await page.route('**/api/main-branches', (route: Route) =>
@@ -177,26 +174,32 @@ test.describe('mono face and tabular figures (#1754)', () => {
     for (let i = 0; i < 2; i++) await expectMono(shas.nth(i));
   });
 
-  test('settings: webhook URLs, the secret and a new API token are mono', async ({
-    page,
-    request,
-    baseURL,
-  }) => {
-    await registerAndSignIn(page, request, baseURL);
-    await page.goto('/settings.html#integrations');
-    for (const id of [
-      'webhook-url-github',
-      'webhook-url-forgejo',
-      'webhook-secret',
-    ]) {
-      await expectMono(page.locator(`#${id}`));
-    }
-    await page.locator('#token-label').fill('laptop');
-    await page.getByRole('button', { name: 'Generate' }).click();
-    await expect(page.locator('#token-reveal-value')).not.toHaveValue('');
-    await expectMono(page.locator('#token-reveal-value'));
+  // Generating an API token writes per-user server state, so this one keeps
+  // its own user.
+  test.describe('with its own user', () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
 
-    // A text field for prose stays sans.
-    await expectSans(page.locator('#token-label'));
+    test('settings: webhook URLs, the secret and a new API token are mono', async ({
+      page,
+      request,
+      baseURL,
+    }) => {
+      await registerAndSignIn(page, request, baseURL);
+      await page.goto('/settings.html#integrations');
+      for (const id of [
+        'webhook-url-github',
+        'webhook-url-forgejo',
+        'webhook-secret',
+      ]) {
+        await expectMono(page.locator(`#${id}`));
+      }
+      await page.locator('#token-label').fill('laptop');
+      await page.getByRole('button', { name: 'Generate' }).click();
+      await expect(page.locator('#token-reveal-value')).not.toHaveValue('');
+      await expectMono(page.locator('#token-reveal-value'));
+
+      // A text field for prose stays sans.
+      await expectSans(page.locator('#token-label'));
+    });
   });
 });
