@@ -304,6 +304,15 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
     }
+    /* The placeholder rows sit on a card, as on the list pages: the bars are
+       the neutral fill, which is the page background itself in the light
+       scheme and would not show on it. */
+    .mb-wrap .list-region {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
     .mb-list {
       list-style: none;
       margin: 0;

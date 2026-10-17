@@ -7,6 +7,7 @@
   import { navCounts, setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { headerLabel, tabLabel } from "#lib/nav-labels.js";
+  import { adviseReadIntervalMs } from "#lib/read-interval.js";
   import NavPills from "#lib/NavPills.svelte";
   import {
     firstRefreshLoading,
@@ -137,53 +138,100 @@
     // while the page is open changes here (#1315). Asked only once a session
     // exists: the changelog, disclaimer and privacy pages are open to
     // visitors, who have none (#1261).
+    //
+    // One read at a time, like the dashboard's own poll: the next is timed from
+    // this one's answer or failure, at the interval the server advises, so a
+    // server that holds the read never sees a second one beside it.
     const NAV_COUNTS_POLL_MS = 30_000;
-    let navCountsTimer: number | undefined;
-    let pendingTimer: number | undefined;
+    // A half-open connection leaves fetch pending for good, which would stop
+    // the polling. The server holds a read for 15 s at most.
+    const READ_TIMEOUT_MS = 20_000;
+    let navReadMs = NAV_COUNTS_POLL_MS;
+    let navTimer: number | undefined;
+    let navReadInFlight = false;
+    let navAbort: AbortController | undefined;
+    let polling = false;
     // Set on unmount, so a session answer that arrives after it starts nothing.
     let gone = false;
     // A tab shown again reads at once instead of waiting out the interval.
     const onVisible = () => {
-      if (!document.hidden && navCountsTimer !== undefined) loadNavCounts();
+      if (!document.hidden && polling) loadNavCounts();
     };
     document.addEventListener("visibilitychange", onVisible);
 
+    function scheduleNavRead() {
+      window.clearTimeout(navTimer);
+      if (gone) return;
+      navTimer = window.setTimeout(() => {
+        // A hidden tab has nobody to show it to; look again next interval.
+        if (document.hidden) scheduleNavRead();
+        else loadNavCounts();
+      }, navReadMs);
+    }
+
     function loadNavCounts() {
+      if (navReadInFlight || gone) return;
       if (
-        !isCurrentRoute("/pull-requests") &&
-        !isCurrentRoute("/issues") &&
-        !isCurrentRoute("/releases") &&
-        !isCurrentRoute("/bots")
+        isCurrentRoute("/pull-requests") ||
+        isCurrentRoute("/issues") ||
+        isCurrentRoute("/releases") ||
+        isCurrentRoute("/bots")
       ) {
-        fetch("/api/dashboard", { headers: { Accept: "application/json" } })
-          .then((res) => (res.ok ? res.json() : null))
-          .then(
-            (
-              data: {
-                navCounts?: ServerNavCounts;
-                firstRefreshDone?: boolean;
-              } | null,
-            ) => {
-              if (!data) {
-                settleFirstRefresh();
-                return;
-              }
-              setFirstRefresh(data.firstRefreshDone);
-              const pending = firstRefreshPending(data.firstRefreshDone);
-              setNavCounts(pending ? null : data.navCounts);
-              // Ask again soon while the first refresh runs, so the pages that
-              // draw no snapshot of their own leave the loading state at once.
-              if (pending && !gone) {
-                window.clearTimeout(pendingTimer);
-                pendingTimer = window.setTimeout(loadNavCounts, 3000);
-              }
-            },
-          )
-          .catch(() => {
-            /* no badge is better than a wrong one */
-            settleFirstRefresh();
-          });
+        // The dashboard views read their own snapshot.
+        scheduleNavRead();
+        return;
       }
+      navReadInFlight = true;
+      window.clearTimeout(navTimer);
+      const abort = new AbortController();
+      navAbort = abort;
+      const abortTimer = window.setTimeout(
+        () => abort.abort(),
+        READ_TIMEOUT_MS,
+      );
+      const settled = () => {
+        window.clearTimeout(abortTimer);
+        navReadInFlight = false;
+        scheduleNavRead();
+      };
+      fetch("/api/dashboard", {
+        headers: { Accept: "application/json" },
+        signal: abort.signal,
+        // The page's own one-shot read can be out for the same URL. The
+        // browser's cache lock would queue this one behind it, and the 20 s
+        // above counts from here, not from when it reaches the server.
+        cache: "no-store",
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then(
+          (
+            data: {
+              navCounts?: ServerNavCounts;
+              firstRefreshDone?: boolean;
+              readIntervalSeconds?: number;
+            } | null,
+          ) => {
+            if (!data) {
+              settleFirstRefresh();
+              return;
+            }
+            setFirstRefresh(data.firstRefreshDone);
+            const pending = firstRefreshPending(data.firstRefreshDone);
+            setNavCounts(pending ? null : data.navCounts);
+            // The server advises a short interval while the first refresh
+            // runs, so the pages that draw no snapshot of their own leave the
+            // loading state at once.
+            navReadMs = adviseReadIntervalMs(
+              data.readIntervalSeconds,
+              navReadMs,
+            );
+          },
+        )
+        .catch(() => {
+          /* no badge is better than a wrong one */
+          if (!gone) settleFirstRefresh();
+        })
+        .finally(settled);
     }
 
     // ---- who's signed in ----
@@ -210,11 +258,9 @@
         displayName = session.displayName;
         isAdmin = session.isAdmin;
         if (gone) return;
+        // From here on every read arms the next one, answered or not.
+        polling = true;
         loadNavCounts();
-        navCountsTimer = window.setInterval(() => {
-          // A hidden tab has nobody to show it to.
-          if (!document.hidden) loadNavCounts();
-        }, NAV_COUNTS_POLL_MS);
       })
       .catch(() => {
         /* a transient failure here isn't worth blocking the page over */
@@ -224,8 +270,9 @@
     return () => {
       gone = true;
       stopFirstRefreshWait();
-      window.clearInterval(navCountsTimer);
-      window.clearTimeout(pendingTimer);
+      window.clearTimeout(navTimer);
+      // A read still out has nobody left to tell.
+      navAbort?.abort();
       document.removeEventListener("visibilitychange", onVisible);
     };
   });
