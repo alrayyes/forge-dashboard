@@ -1310,6 +1310,17 @@ filter bar, off to start with, brings them back, marked "Draft", and its muted
 "N hidden" count says how many are left out. The choice is saved like the other
 filters and goes with every dashboard request, refresh and the live stream.
 
+### The first load after a restart
+
+A restarted server holds no state until your first refresh has finished, so its
+first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,
+Pull requests, Releases, Bots, Issues and Branches show placeholder rows and one
+polite "Loading your repositories…" line, not their empty states, and the
+navigation shows a dash where a count would be. After about ten seconds the line
+says the first refresh can take a while. The placeholder doesn't animate under
+reduced motion. A snapshot without the flag counts as loaded. An unreachable
+forge still shows in the forge health banner.
+
 ## Hiding one pull request
 
 A pull request you can't or won't act on yet can be hidden. **More actions** on

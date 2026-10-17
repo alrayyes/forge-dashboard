@@ -21,6 +21,10 @@
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
+  import { firstRefreshPending } from "#lib/first-refresh.js";
+  import { firstRefresh, setFirstRefresh } from "#lib/first-refresh.svelte.js";
+  import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
+  import ListSkeleton from "#lib/ListSkeleton.svelte";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { findAction, type AllowedAction } from "#lib/allowed-actions.js";
   import * as Stacks from "#lib/stacks.js";
@@ -239,6 +243,10 @@
     openIssueCount?: number;
     // What each nav item shows: its page's total and failed count (#1315).
     navCounts?: ServerNavCounts;
+    // False from process start until this viewer's first refresh has finished
+    // (succeeded or failed), true after (#1672, spec #1674, server #1673).
+    // Optional in the spec until the server emits it; missing counts as loaded.
+    firstRefreshDone?: boolean;
     // The viewer's issue settings (#1630): whether the Dependency Dashboard is
     // hidden, whether the ignored-titles list has an entry, and how many
     // issues they left out of `issues`.
@@ -299,6 +307,9 @@
   // this page only stops drawing the two fields they replace and says how many
   // issues they hid. The fields stay hidden until the first snapshot says, so a
   // field that is about to go never flashes in.
+  // True until the server says this viewer's first refresh has finished
+  // (#1672): the lists draw a skeleton instead of themselves or an empty state.
+  const loadingFirst = $derived(firstRefreshPending(firstRefresh.done));
   let issueSettingsKnown = $state(false);
   let settingsHideDependencyDashboard = $state(false);
   let settingsIgnoreTitles = $state(false);
@@ -6727,7 +6738,10 @@
       // Release pull requests have their own page: the pull request board
       // shows none of them and the Releases board only them. The server says
       // which are which (#716). The nav counts both from the full list.
-      setNavCounts(data.navCounts);
+      setFirstRefresh(data.firstRefreshDone);
+      setNavCounts(
+        firstRefreshPending(data.firstRefreshDone) ? null : data.navCounts,
+      );
       // The snapshot carries the viewer's two flags (#1630), so no second
       // request decides which fields to draw.
       settingsHideDependencyDashboard = data.hideDependencyDashboard === true;
@@ -7418,28 +7432,34 @@
         <ul class="hidden-prs-list" id="hidden-prs-list"></ul>
       </div>
 
-      <div id="pr-rows"></div>
-      <p class="empty-state" id="pr-empty" hidden>
-        {view === "releases"
-          ? "No release pull requests are open. Nothing is waiting to ship."
-          : view === "bots"
-            ? "No bot pull requests are open. Nothing to review."
-            : "No open pull requests."}
-      </p>
-      <p class="no-results" id="pr-no-results" hidden>
-        No pull requests match these filters.
-      </p>
-      <div class="pagination" id="pr-pagination" hidden>
-        <div class="pagination-pages" id="pr-pagination-pages"></div>
-        <label class="pagination-size">
-          Per page
-          <select id="pr-page-size" aria-label="Results per page">
-            <option value="10">10</option>
-            <option value="25" selected>25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-        </label>
+      <FirstRefreshStatus pending={loadingFirst} />
+      <div class="list-region" aria-busy={loadingFirst ? "true" : undefined}>
+        {#if loadingFirst}<ListSkeleton />{/if}
+        <div hidden={loadingFirst}>
+          <div id="pr-rows"></div>
+          <p class="empty-state" id="pr-empty" hidden>
+            {view === "releases"
+              ? "No release pull requests are open. Nothing is waiting to ship."
+              : view === "bots"
+                ? "No bot pull requests are open. Nothing to review."
+                : "No open pull requests."}
+          </p>
+          <p class="no-results" id="pr-no-results" hidden>
+            No pull requests match these filters.
+          </p>
+          <div class="pagination" id="pr-pagination" hidden>
+            <div class="pagination-pages" id="pr-pagination-pages"></div>
+            <label class="pagination-size">
+              Per page
+              <select id="pr-page-size" aria-label="Results per page">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+          </div>
+        </div>
       </div>
     </section>
   {:else}
@@ -7489,22 +7509,28 @@
         {/if}
       </div>
 
-      <div id="issue-rows"></div>
-      <p class="empty-state" id="issue-empty" hidden>No open issues.</p>
-      <p class="no-results" id="issue-no-results" hidden>
-        No issues match these filters.
-      </p>
-      <div class="pagination" id="issue-pagination" hidden>
-        <div class="pagination-pages" id="issue-pagination-pages"></div>
-        <label class="pagination-size">
-          Per page
-          <select id="issue-page-size" aria-label="Results per page">
-            <option value="10">10</option>
-            <option value="25" selected>25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-        </label>
+      <FirstRefreshStatus pending={loadingFirst} />
+      <div class="list-region" aria-busy={loadingFirst ? "true" : undefined}>
+        {#if loadingFirst}<ListSkeleton />{/if}
+        <div hidden={loadingFirst}>
+          <div id="issue-rows"></div>
+          <p class="empty-state" id="issue-empty" hidden>No open issues.</p>
+          <p class="no-results" id="issue-no-results" hidden>
+            No issues match these filters.
+          </p>
+          <div class="pagination" id="issue-pagination" hidden>
+            <div class="pagination-pages" id="issue-pagination-pages"></div>
+            <label class="pagination-size">
+              Per page
+              <select id="issue-page-size" aria-label="Results per page">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+          </div>
+        </div>
       </div>
     </section>
   {/if}
