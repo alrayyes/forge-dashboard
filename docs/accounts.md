@@ -182,7 +182,7 @@ and puts focus on that input. The page holds no copy of those rules.
   a GitHub App configured, a field next to the token lets you connect
   an installation instead — its own independent rate-limit budget
   rather than your account's shared one. See
-  [GitHub App support](../README.md#github-app-support) under Configuration.
+  [GitHub App support](configuration.md#github-app-support).
 
 ### Forgejo
 

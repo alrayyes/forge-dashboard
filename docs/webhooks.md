@@ -33,8 +33,9 @@ is turned off or missing an event, clicking it fixes that one up in place
 rather than creating a second, duplicate hook. A webhook the button made
 before comment events were added gets them the same way, and the dashboard
 does it for you: once per process start it checks each covered repo's hook and
-replaces an out-of-date event list with the current one (see the README's
-Webhooks section for what that costs). Clicking the button still works.
+replaces an out-of-date event list with the current one (see
+[What the dashboard checks on its own](#what-the-dashboard-checks-on-its-own)
+for what that costs). Clicking the button still works.
 
 This needs a broader token scope than just reading your repos — GitHub's
 fine-grained tokens need the Webhooks permission set to **Read and
@@ -149,6 +150,25 @@ refresh that fails lists nothing, so the delivery itself is trusted. The
 pull request stays off until a refresh stops listing it or two minutes
 pass, and a `reopened` delivery puts it back at once.
 
+## What the dashboard checks on its own
+
+Each refresh also asks GitHub whether every repo's webhook is pointed at the
+dashboard. A GitHub App without the repository webhooks permission gets
+"Resource not accessible by integration" for all of them, so that answer is
+remembered for an hour and the checks are skipped, with one warning in the log.
+A token that can't administer one repo is skipped for that repo alone. Grant
+the permission and the next check after the hour sees it.
+
+A webhook the dashboard created earlier is brought up to date without a click.
+After the first refresh that finds a repo's webhook, the dashboard lists that
+repo's hooks once and, only if the hook lacks an event the dashboard now
+subscribes to, edits it in place. It never creates a hook there. Cost: one
+extra hooks listing per covered repo per process start (plus one edit for a
+hook that is out of date), at most four at a time, each after a short random
+pause. A forge that is unreachable or out of REST budget is skipped and tried
+again on a later refresh, and never fails one. A repo whose hooks the token
+can't administer is tried once and left until the next restart.
+
 ## Troubleshooting
 
 - **Everything about a pull request updates live except its CI colour**:
@@ -166,7 +186,7 @@ pass, and a `reopened` delivery puts it back at once.
   something forge-dashboard's own webhook-creation code is doing
   wrong — worth reporting against your Forgejo instance if you hit it,
   but there's nothing to configure differently here that fixes it.
-  `CI_POLL_INTERVAL` (`README.md`'s Configuration table) is the actual
+  `CI_POLL_INTERVAL` ([Configuration](configuration.md)) is the actual
   fix: forge-dashboard re-checks CI directly, on its own short
   interval, for exactly the open pull requests whose CI is still
   pending — scoped to just those, not every tracked repo — so a broken
