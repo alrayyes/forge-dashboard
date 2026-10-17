@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.211.2](https://github.com/alrayyes/forge-dashboard/compare/v0.211.1...v0.211.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** keep a filter changed while the saved copy loads ([#1752](https://github.com/alrayyes/forge-dashboard/issues/1752)) ([a4c13a0](https://github.com/alrayyes/forge-dashboard/commit/a4c13a021f217b30cfa85e68754878455664db6d))
+
 ## [0.211.1](https://github.com/alrayyes/forge-dashboard/compare/v0.211.0...v0.211.1) (2026-10-17)
 
 
