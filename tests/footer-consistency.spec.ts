@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 import { test } from './fixtures';
@@ -95,33 +93,56 @@ test.describe('the footer is the same on every page', () => {
     }
   });
 
-  // The prerendered 404 and 500 pages are finished HTML with no client
-  // script, so the footer's version fetch never runs and the version is the
-  // one item they can't show until the server fills it in (a separate
-  // backend ticket tracks that). Everything else matches. The hydrated
-  // +error.svelte route can't be reached: an unmatched address is always
-  // answered by the prerendered 404.
-  const STATIC_DIR = join(__dirname, '..', 'internal', 'api', 'static');
-  for (const status of [404, 500]) {
-    test(`the ${status} page shows the same footer items except the version, none current`, async ({
+  // The error pages are prerendered HTML that runs no script, so the Go
+  // server fills the version into their footer when it starts. Every
+  // unmatched address gets the 404 page, including /500.html asked for by
+  // name and a bare /disclaimer, so the real binary is the only place this
+  // can be checked. Dev binary in CI: the version slot is the dev label.
+  for (const path of [
+    '/nope',
+    '/404.html',
+    '/500.html',
+    '/disclaimer',
+    '/disclaimer/',
+  ]) {
+    test(`${path} (an error page) shows the same five footer items, none current`, async ({
       page,
     }) => {
-      const body = readFileSync(join(STATIC_DIR, `${status}.html`), 'utf8');
-      await mockVersion(page);
-      await page.route('**/some/crashed/address', (route) =>
-        route.fulfill({
-          status,
-          contentType: 'text/html; charset=utf-8',
-          body,
-        }),
+      const response = await page.goto(path);
+      expect(response?.status()).toBe(404);
+      await expect(page.locator('footer')).toContainText(
+        'Read-only mirror of both forges',
       );
-      const response = await page.goto('/some/crashed/address');
-      expect(response?.status()).toBe(status);
-      await expect(page.locator('footer a')).toHaveText([
-        'GitHub',
-        'Disclaimer',
-        'Privacy',
-      ]);
+      const slot = (await page.locator('#footer-version').innerText()).trim();
+      const text = await page
+        .locator('footer')
+        .evaluate((el) => (el as HTMLElement).innerText);
+      if (/dev build/.test(slot)) {
+        await expect(page.locator('footer a')).toHaveText([
+          'GitHub',
+          'Disclaimer',
+          'Privacy',
+        ]);
+        expect(text).toMatch(
+          /Read-only mirror.*GitHub\s+· dev build\s+· Disclaimer\s+· Privacy/s,
+        );
+      } else {
+        // A release binary: the version is a link to the changelog.
+        const version = (
+          await page.locator('#footer-version a').innerText()
+        ).trim();
+        expect(version).toMatch(/^v\d\S*$/);
+        await expect(page.locator('footer a')).toHaveText([
+          'GitHub',
+          version,
+          'Disclaimer',
+          'Privacy',
+        ]);
+        await expect(page.locator('#footer-version a')).toHaveAttribute(
+          'href',
+          '/changelog.html',
+        );
+      }
       await expect(page.locator('footer a[aria-current]')).toHaveCount(0);
     });
   }
