@@ -178,4 +178,22 @@ test.describe('the Branches filter follows the account (#1620)', () => {
     await page.goto('/');
     await expect(rows(page)).toHaveCount(2);
   });
+
+  test('a tab left open does not erase a title another tab saved', async ({
+    page,
+    context,
+  }) => {
+    const other = await context.newPage();
+    await other.goto('/pull-requests.html');
+    await other.locator('input[data-col="title"]').fill('newer');
+    await expect
+      .poll(() => serverCopy(page), { timeout: 5000 })
+      .toContain('newer');
+
+    await status(page, 'Failing').click();
+    await expect
+      .poll(() => serverCopy(page), { timeout: 5000 })
+      .toContain('failed');
+    expect(await serverCopy(page)).toContain('newer');
+  });
 });

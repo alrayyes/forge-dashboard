@@ -276,6 +276,16 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await pill(page, /^All forges/).click();
     await page.getByRole('searchbox', { name: /search/i }).fill('billing');
     await expect(rows(page)).toHaveCount(1);
+    // The search reaches the server 500 ms after the last key. A reload before
+    // that races the next page's read of the server copy (a product gap,
+    // https://github.com/alrayyes/forge-dashboard/issues/1760), so wait.
+    await expect
+      .poll(async () =>
+        JSON.stringify(
+          await (await page.request.get('/api/settings/filter-state')).json(),
+        ),
+      )
+      .toContain('billing');
     await page.reload();
     await expect(page.getByRole('searchbox', { name: /search/i })).toHaveValue(
       'billing',

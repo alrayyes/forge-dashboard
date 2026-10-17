@@ -114,6 +114,10 @@
   let touched = false;
   function save(freeText = false) {
     touched = true;
+    // Another tab may have saved its own filters since this page loaded; the
+    // cookie is shared, so start from it and change only this page's group.
+    if (document.cookie.includes("forge-board-filters="))
+      saved = { ...loadState(), branches: {} };
     saved.branches = filterToState(filter);
     saveState(saved, freeText ? "title" : undefined);
   }
