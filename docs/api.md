@@ -29,7 +29,7 @@ designated admin. `redocly lint` validates it, and Go contract tests in
 [CONTRIBUTING.md](../CONTRIBUTING.md#how-it-fits-together)). Rendered docs
 live at `docs/api/index.html` (Scalar, zero-build), published
 to <https://alrayyes.github.io/forge-dashboard/docs/api/> on every push to
-`main` that passes lint.
+`main` that passes CI.
 
 The dashboard response carries `readIntervalSeconds`, the server's advice on
 how often to re-read it. `POST /api/dashboard/refresh` fetches from the forges
@@ -40,11 +40,11 @@ page follows both: it polls at `readIntervalSeconds`, and "Refresh now" locks
 for `Retry-After` seconds. Neither number lives in the front end.
 
 `GET/POST /api/queued-actions` and `DELETE /api/queued-actions/{id}` list,
-queue and cancel the actions that wait for a rate limit reset (see Pull request
-actions).
+queue and cancel the actions that wait for a rate limit reset (see
+[Pull request actions](pull-request-actions.md)).
 
 `GET/POST/DELETE /api/mcp` sits outside this contract — it's the MCP
 Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource
 `redocly`/OpenAPI describes), not a plain request/response endpoint. See
-the preceding **Design** section for what it exposes and how it
-authenticates.
+the **Design** section of the [README](../README.md#design) for what it exposes
+and how it authenticates.
