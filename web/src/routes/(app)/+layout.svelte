@@ -8,11 +8,15 @@
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { headerLabel, tabLabel } from "#lib/nav-labels.js";
   import NavPills from "#lib/NavPills.svelte";
-  import { firstRefreshPending } from "#lib/first-refresh.js";
+  import {
+    firstRefreshLoading,
+    firstRefreshPending,
+  } from "#lib/first-refresh.js";
   import {
     firstRefresh,
     setFirstRefresh,
     settleFirstRefresh,
+    startFirstRefreshWait,
   } from "#lib/first-refresh.svelte.js";
 
   let { children } = $props();
@@ -69,7 +73,7 @@
   // before its word.
   // Until the first refresh has finished the numbers are not real, so each
   // item shows a placeholder and not a 0 (#1672).
-  const navPending = $derived(firstRefreshPending(firstRefresh.done));
+  const navPending = $derived(firstRefreshLoading(firstRefresh));
   const branches = $derived(navCounts.value?.branches ?? null);
   const pulls = $derived(navCounts.value?.pullRequests ?? null);
   const issues = $derived(navCounts.value?.issues ?? null);
@@ -121,6 +125,9 @@
     // change it" half, reconciling the fast local cookie theme the inline script
     // already applied against whatever's actually saved.
     syncThemeFromServer();
+    // The first dashboard answer can take up to 15 s on a cold start, so the
+    // pages start counting now and draw their loading state if it is late.
+    const stopFirstRefreshWait = startFirstRefreshWait();
     // Times on every page below read this; a failure leaves the browser's zone.
     loadTimezone();
 
@@ -216,6 +223,7 @@
 
     return () => {
       gone = true;
+      stopFirstRefreshWait();
       window.clearInterval(navCountsTimer);
       window.clearTimeout(pendingTimer);
       document.removeEventListener("visibilitychange", onVisible);
