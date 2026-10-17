@@ -3715,11 +3715,19 @@ footer a[aria-current="page"] {
    --tap-floor is WCAG 2.2's 2.5.8 minimum and holds at every width.
    --tap is the 44px target for a thumb, and applies under 761px only: the
    desktop layout keeps its density. A link inside a sentence is exempt.
-   The rules are prefixed ":root body" so they outrank a page's own
-   <style> block, which is injected after this file. */
+   The rules are prefixed ":root body", which adds (0,1,1) of specificity,
+   so they outrank a page's own <style> block (injected after this file)
+   when it styles a control with one class, or one class and the Svelte
+   scope class. A scoped rule with two classes would still win, and the
+   sweep in tests/hit-areas.spec.ts is what catches that. */
 :root {
   --tap-floor: 24px;
   --tap: 44px;
+}
+
+#footer-version,
+.footer-pair {
+  white-space: nowrap;
 }
 
 /* A chip is small to read, so the hit area is a pseudo-element, not
@@ -3727,7 +3735,7 @@ footer a[aria-current="page"] {
 :root body .label-chip::after {
   content: "";
   position: absolute;
-  inset: -3px -2px -4px;
+  inset: -4px -2px -5px;
 }
 
 :root body :is(footer a, .group-select, .am-group button, .release-head h2 a) {
@@ -3742,14 +3750,28 @@ footer a[aria-current="page"] {
 /* A checkbox or radio is a 13px box: its label is the target. */
 :root
   body
-  :is(label:has(> input[type="checkbox"]), label:has(> input[type="radio"])) {
+  :is(
+    label:not(.task):has(> input[type="checkbox"]),
+    label:not(.task):has(> input[type="radio"])
+  ) {
   min-height: var(--tap-floor);
 }
 
 @media (max-width: 760px) {
   :root body .label-chip::after {
-    /* Up to the title above (the gap between them), the rest below. */
-    inset: -6px -7px -21px;
+    /* Up to the title above (the gap between them), the rest below, and
+       sideways to the neighbouring chip (see the column gap below). The
+       insets are from the chip's padding box, so they include its 1px
+       border. */
+    inset: -7px -6px -22px;
+  }
+  /* Chips side by side: each reaches 6px sideways, so 12px between them
+     keeps the targets from overlapping, and a short label still gets 44. */
+  :root body .title-cell {
+    column-gap: 12px;
+  }
+  :root body .label-chip {
+    min-width: 34px;
   }
   :root
     body
@@ -3775,8 +3797,8 @@ footer a[aria-current="page"] {
       .release-head h2 a,
       select,
       input:not([type="checkbox"], [type="radio"]),
-      label:has(> input[type="checkbox"]),
-      label:has(> input[type="radio"])
+      label:not(.task):has(> input[type="checkbox"]),
+      label:not(.task):has(> input[type="radio"])
     ) {
     box-sizing: border-box;
     min-height: var(--tap);
@@ -3791,15 +3813,23 @@ footer a[aria-current="page"] {
       .token-copy-button,
       .btn-remove,
       .am-group button,
-      footer a,
       .release-head h2 a,
-      label:has(> input[type="radio"])
+      label:not(.task):has(> input[type="radio"])
     ) {
     min-width: var(--tap);
   }
+  /* 3px each side makes "Privacy" 44 wide. The separator and its link stay
+     together on one line. */
+  :root body footer a {
+    padding-inline: 3px;
+  }
   :root
     body
-    :is(label:has(> input[type="checkbox"]), label:has(> input[type="radio"])) {
+    :is(
+      label:not(.task):has(> input[type="checkbox"]),
+      label:not(.task):has(> input[type="radio"]),
+      a.btn
+    ) {
     display: inline-flex;
     align-items: center;
   }
