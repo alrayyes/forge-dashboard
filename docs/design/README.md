@@ -177,3 +177,39 @@ server log. The tickets' criteria win over those two details.
   name, "Signed Commits", "2 Approvals", "Fast-Forward ready", the latency
   and sync chips, the display-mode and colour-check toggles, and the contrast
   claims.
+
+- `settings-groups/`: Settings split into five groups, one visible at a
+  time. `settings-behaviour-desktop.png`, `settings-connections-desktop.png`
+  and `settings-integrations-security-desktop.png` are the desktop screens,
+  with a group list on the left. `settings-display-mobile.png` and
+  `settings-behaviour-mobile.png` are the 360px screens, with pill tabs.
+  `settings-group-list-desktop.png`, `settings-group-tabs-mobile.png`,
+  `settings-behaviour-desktop-issues-card.png` and
+  `settings-token-disclosure-open.png` are crops of the group list, the tab
+  row, the ignored-title rows and the open token help. Stitch project
+  "Forge Dashboard UI Audit" (`564147752128938905`), screens
+  `656d4ba45c2241f6a434a78536025db1` (Behaviour),
+  `6511c9d18b5f4514a8a1701889cea89b` (Connections),
+  `3fb87c53e96843d98f115f3abc7ed822` (Integrations and security),
+  `ad18f5d5b42d4a3c82949a6948835ac8` (Display, phone) and
+  `516148d48167453cbb0091d68136472a` (Behaviour, phone). The prompt asked for
+  a five-group layout with the group list on desktop, pill tabs on a phone,
+  a disclosure for the long token help, a "hides N issues" chip per pattern
+  and red-outline destructive buttons, with every existing setting kept and
+  none added. Build the five groups in this order: Display, Sharing,
+  Connections, Behaviour, Integrations and security. Mark the current group
+  by more than colour, as the accent bar and bold label do here. Keep
+  "What does this token need?" closed by default. Put the chip beside each
+  ignored pattern, and say "hides no issues" for zero, not "hides 0 issues".
+  Outline destructive buttons in red, and use pill tabs on a phone. Two
+  defects not to copy: the phone tab row cuts the current tab off
+  with no cue that it scrolls, so the build must show a scroll cue or wrap;
+  and Stitch calls the fifth group "Security" on desktop, where the app keeps
+  "Integrations and security". Not built, because the app has no such data
+  or feature: the second left sidebar ("General Settings", "Repository
+  Rules", "Access Tokens", "Audit Logs"), the global-scope chip, "Synced
+  nodes", "Bridge status", the sync daemon line, the "Audit posture" meter,
+  the Density card and 24-hour clock toggle, per-card service tags such as
+  "git-pr-v2", the "Policy Match 100%" chip, the encryption-promise banner,
+  the bottom tab bar on a phone, the rotate-keys and test-delivery buttons,
+  and any Save button beyond the ones the app has today.
