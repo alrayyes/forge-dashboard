@@ -1202,6 +1202,8 @@
       position: relative;
     }
     .token-input input {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-variant-numeric: tabular-nums;
       padding-right: 58px;
     }
     .token-input--dual input {
