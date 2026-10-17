@@ -4438,9 +4438,17 @@
     // resolving" happens second, via sharedControlsRestored below — a
     // real server value always wins, but this page never sits idle
     // waiting for it first.
+    const page = Filters.currentPage();
     Filters.loadStateFromServer().then((got) => {
+      // Another page has loaded, or this one is gone: its state and touched
+      // keys are not ours any more.
+      if (destroyed || page !== Filters.currentPage()) return;
       const before = JSON.stringify(sharedState);
       if (got) Filters.applyServerState(sharedState, got);
+      // An edit made while the copy loaded was saved on top of the cookie's
+      // values; save the merged state so the server keeps the copy's other
+      // fields too (#1713).
+      if (got && Filters.hasTouched()) Filters.saveState(sharedState);
       syncDraftsPreference();
       // Only when the server's copy actually differs from what the cookie
       // already gave the page: a re-render for nothing replaces every row
@@ -4747,6 +4755,7 @@
       const lower = label.toLowerCase();
       const next = sharedState.shared.label === lower ? "" : lower;
       sharedState.shared.label = next;
+      Filters.touchKey("shared", "label");
       Filters.releaseHeld("shared", "label");
       prBoard.resetPage();
       issueBoard.resetPage();
@@ -5070,6 +5079,7 @@
           statusSelect.addEventListener("change", () => {
             onUserChange?.();
             extraState.status = statusSelect.value.trim().toLowerCase();
+            Filters.touchKey("pr", "status");
             Filters.releaseHeld("pr", "status");
             state.page = 1;
             Filters.saveState(sharedState);
@@ -5095,6 +5105,7 @@
         hideDependencyDashboardCheckbox.addEventListener("change", () => {
           extraState.hideDependencyDashboard =
             hideDependencyDashboardCheckbox.checked ? "1" : "";
+          Filters.touchKey("issue", "hideDependencyDashboard");
           state.page = 1;
           Filters.saveState(sharedState);
           // What it hides or shows changes which repos, authors and labels
@@ -5115,6 +5126,7 @@
         titleRegexInput.addEventListener("input", () => {
           onUserChange?.();
           extraState.hideTitleRegex = titleRegexInput.value;
+          Filters.touchKey("issue", "hideTitleRegex");
           state.page = 1;
           Filters.saveState(sharedState, "hideTitleRegex");
           updateSharedFilterOptions();
@@ -5235,6 +5247,7 @@
     });
     pauseUpdatesButton?.addEventListener("click", () => {
       sharedState.view.paused = updatesPaused() ? "" : "1";
+      Filters.touchKey("view", "paused");
       Filters.saveState(sharedState);
       syncPauseControl();
       if (view === "issues") reconcileIssues();
@@ -5243,6 +5256,7 @@
     syncPauseControl();
     showDraftsButton?.addEventListener("click", () => {
       sharedState.view.drafts = draftsOn() ? "" : "1";
+      Filters.touchKey("view", "drafts");
       Filters.saveState(sharedState);
       syncDraftsPreference();
     });
@@ -5292,6 +5306,7 @@
               ? c.value
               : c.value.trim().toLowerCase();
           sharedState.shared[col] = value;
+          Filters.touchKey("shared", col);
           Filters.releaseHeld("shared", col);
           prBoard.resetPage();
           issueBoard.resetPage();
@@ -5349,6 +5364,8 @@
     for (const b of quickPills) {
       b.addEventListener("click", () => {
         Filters.setPill(sharedState, b.dataset.pill ?? "all");
+        Filters.touchKey("shared", "forge");
+        Filters.touchKey("pr", "quick");
         prBoard.resetPage();
         issueBoard.resetPage();
         updateSharedFilterOptions();
@@ -5375,6 +5392,7 @@
         const value = b.dataset.am ?? "any";
         if (value === "any") delete sharedState.pr.autoMerge;
         else sharedState.pr.autoMerge = value;
+        Filters.touchKey("pr", "autoMerge");
         prBoard.resetPage();
         updateSharedFilterOptions();
         Filters.saveState(sharedState);
@@ -5413,6 +5431,7 @@
     ) as HTMLSelectElement | null;
     sharedGroupSelect?.addEventListener("change", () => {
       sharedState.shared.groupBy = sharedGroupSelect.value || "";
+      Filters.touchKey("shared", "groupBy");
       prBoard.resetPage();
       issueBoard.resetPage();
       Filters.saveState(sharedState);
@@ -5427,6 +5446,7 @@
     if (sortSelect) sortSelect.value = sharedState.view.sort || "";
     sortSelect?.addEventListener("change", () => {
       sharedState.view.sort = sortSelect.value;
+      Filters.touchKey("view", "sort");
       prBoard.resetPage();
       issueBoard.resetPage();
       Filters.saveState(sharedState);
@@ -5581,6 +5601,7 @@
       if (!heldPicksEl) return;
       Filters.renderHeldPicks(heldPicksEl, (pick) => {
         Filters.releaseHeld(pick.group, pick.key);
+        Filters.touchKey(pick.group, pick.key);
         Filters.saveState(sharedState);
         updateClearFiltersButton();
       });
@@ -5674,6 +5695,7 @@
         sharedState.pr,
       );
       for (const filter of failing) {
+        Filters.touchKey(filter === "quick" ? "pr" : "shared", filter);
         if (filter === "quick") sharedState.pr.quick = "";
         else sharedState.shared[filter] = "";
         Filters.releaseHeld(filter === "quick" ? "pr" : "shared", filter);
@@ -5727,6 +5749,7 @@
       if (settingsIgnoreTitles && keptTitleRegex)
         sharedState.issue.hideTitleRegex = keptTitleRegex;
       Filters.releaseAllHeld();
+      Filters.touchAll();
       syncQuickPills();
       syncAutoMerge();
 
@@ -7057,6 +7080,7 @@
 
     return () => {
       destroyed = true;
+      Filters.leavePage(page);
       titleHover.destroy();
       stopTimezone();
       document.removeEventListener("keydown", onSlashShortcut);
