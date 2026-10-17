@@ -3709,3 +3709,98 @@ footer a[aria-current="page"] {
   text-decoration-thickness: 2px;
   text-underline-offset: 2px;
 }
+
+/* ---- target sizes ----
+   One token and a few selector groups, not an override per control.
+   --tap-floor is WCAG 2.2's 2.5.8 minimum and holds at every width.
+   --tap is the 44px target for a thumb, and applies under 761px only: the
+   desktop layout keeps its density. A link inside a sentence is exempt.
+   The rules are prefixed ":root body" so they outrank a page's own
+   <style> block, which is injected after this file. */
+:root {
+  --tap-floor: 24px;
+  --tap: 44px;
+}
+
+/* A chip is small to read, so the hit area is a pseudo-element, not
+   padding. Above the stretched title link, like the chip itself. */
+:root body .label-chip::after {
+  content: "";
+  position: absolute;
+  inset: -3px -2px -4px;
+}
+
+:root body :is(footer a, .group-select, .am-group button, .release-head h2 a) {
+  box-sizing: border-box;
+  min-height: var(--tap-floor);
+}
+:root body :is(footer a, .release-head h2 a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* A checkbox or radio is a 13px box: its label is the target. */
+:root
+  body
+  :is(label:has(> input[type="checkbox"]), label:has(> input[type="radio"])) {
+  min-height: var(--tap-floor);
+}
+
+@media (max-width: 760px) {
+  :root body .label-chip::after {
+    /* Up to the title above (the gap between them), the rest below. */
+    inset: -6px -7px -21px;
+  }
+  :root
+    body
+    :is(
+      .brand,
+      .error-brand,
+      .error-links a,
+      .theme-toggle,
+      .activity-toggle,
+      .updates-pause,
+      .quick-pill,
+      .am-group button,
+      .col-filter,
+      .group-select,
+      .row-action,
+      .btn,
+      .btn-remove,
+      .token-toggle,
+      .token-copy-button,
+      .copy-button,
+      .more-releases,
+      footer a,
+      .release-head h2 a,
+      select,
+      input:not([type="checkbox"], [type="radio"]),
+      label:has(> input[type="checkbox"]),
+      label:has(> input[type="radio"])
+    ) {
+    box-sizing: border-box;
+    min-height: var(--tap);
+  }
+  :root
+    body
+    :is(
+      .theme-toggle,
+      .quick-pill,
+      .token-toggle,
+      .copy-button,
+      .token-copy-button,
+      .btn-remove,
+      .am-group button,
+      footer a,
+      .release-head h2 a,
+      label:has(> input[type="radio"])
+    ) {
+    min-width: var(--tap);
+  }
+  :root
+    body
+    :is(label:has(> input[type="checkbox"]), label:has(> input[type="radio"])) {
+    display: inline-flex;
+    align-items: center;
+  }
+}
