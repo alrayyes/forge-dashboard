@@ -375,7 +375,7 @@ test.describe('nav counts on a phone (#1315)', () => {
     await page.setViewportSize({ width: 360, height: 740 });
   });
 
-  test('the tab bar keeps both numbers, above the icon, and every tab fits', async ({
+  test('the tab bar keeps both numbers, above the icon, every tab fits and is named for them', async ({
     page,
   }) => {
     await serve(page, { counts: MIXED });
@@ -405,15 +405,10 @@ test.describe('nav counts on a phone (#1315)', () => {
       );
       expect(box?.height).toBeGreaterThanOrEqual(44);
     }
-  });
 
-  test('a tab’s name carries its visible words and both numbers', async ({
-    page,
-  }) => {
-    await serve(page, { counts: MIXED });
-    await page.goto('/settings.html');
-
-    await expect(tab(page, '/')).toHaveAccessibleName('12 Branches, 3 failing');
+    // The wording for each combination of counts is proved in
+    // web/src/lib/nav-labels.test.ts; this only checks each tab is wired to it.
+    await expect(branches).toHaveAccessibleName('12 Branches, 3 failing');
     await expect(tab(page, '/pull-requests.html')).toHaveAccessibleName(
       '27 PRs, 5 failing',
     );
