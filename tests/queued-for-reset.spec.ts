@@ -127,15 +127,11 @@ const row = (page: Page) => page.locator('#pr-rows .row').first();
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('queue a safe action for the rate limit reset (#756)', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/pull-requests.html');
-  });
-
   test('a behind pull request on a limited forge offers Queue for the reset, never Merge or Close', async ({
     page,
   }) => {
     await setup(page, limited(), makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await expect(
       row(page).getByRole('button', {
@@ -155,7 +151,7 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
     page,
   }) => {
     const state = await setup(page, limited(), makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await row(page)
       .getByRole('button', { name: /^Queue update for/ })
@@ -192,7 +188,7 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
 
   test('Cancel removes it and the control returns', async ({ page }) => {
     const state = await setup(page, limited(), makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await row(page)
       .getByRole('button', { name: /^Queue update for/ })
       .click();
@@ -220,7 +216,7 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
         allowedActions: [{ action: 'dependabot_rebase' }],
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await row(page)
       .getByRole('button', { name: /^Queue rebase for \d/ })
@@ -233,7 +229,7 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
     page,
   }) => {
     await setup(page, healthy(), makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await expect(row(page).getByRole('button', { name: /^Queue/ })).toHaveCount(
       0,
     );
@@ -241,6 +237,8 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
       row(page).getByRole('button', { name: 'Update branch' }),
     ).toBeVisible();
 
+    // The second state replaces the first on the same page, so this one needs a
+    // second load; the routes go in first, so it is the only extra one.
     await setup(page, limited(), makePR({ behind: false }));
     await page.reload();
     await expect(row(page).getByRole('button', { name: /^Queue/ })).toHaveCount(
@@ -252,7 +250,7 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
     page,
   }) => {
     const state = await setup(page, limited(), makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await expect(
       row(page).getByRole('button', { name: /^Queue update for/ }),
     ).toBeVisible();
@@ -290,7 +288,7 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
     page,
   }) => {
     await setup(page, limited(), makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await row(page)
       .getByRole('button', { name: /^Queue update for/ })
       .click();
