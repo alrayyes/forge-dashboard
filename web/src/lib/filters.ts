@@ -285,6 +285,69 @@ export function releaseAllHeld(): void {
   held.length = 0;
 }
 
+export type HeldPick = {
+  group: StateGroup;
+  key: string;
+  // What the control is called ("author", "CI status").
+  name: string;
+  // The saved value as a reader knows it ("acme/docs", "< 7 days").
+  text: string;
+};
+
+// The picks this page cleared for itself but still has saved, so it can say
+// so instead of showing an unfiltered list with nothing to explain it (#1620).
+export function heldPicks(): HeldPick[] {
+  return held.map((h) => {
+    let text = h.value;
+    if (h.key === 'repo') text = h.value.slice(h.value.indexOf(':') + 1);
+    const choices =
+      h.key === 'created' || h.key === 'updated'
+        ? AGE_RANGES
+        : h.key === 'status'
+          ? CI_CHOICES
+          : [];
+    text = choices.find((c) => c.value === h.value)?.label ?? text;
+    const name = h.key === 'status' ? FILTER_NAMES.status : h.key;
+    return { group: h.group, key: h.key, name, text };
+  });
+}
+
+export function heldPickNote(pick: HeldPick): string {
+  return `Saved ${pick.name} "${pick.text}" is not on this page.`;
+}
+
+export function heldPickClearLabel(pick: HeldPick): string {
+  return `Clear saved ${pick.name} "${pick.text}"`;
+}
+
+// Fills the note's container: one line per held pick, with a real button that
+// removes it. The container stays in the page (a polite status region), so a
+// screen reader hears a change in it.
+export function renderHeldPicks(
+  container: HTMLElement,
+  onRemove: (pick: HeldPick) => void,
+): void {
+  const picks = heldPicks();
+  const signature = picks.map((p) => `${p.group}.${p.key}=${p.text}`).join('|');
+  if (container.dataset.signature === signature) return;
+  container.dataset.signature = signature;
+  container.replaceChildren();
+  for (const pick of picks) {
+    const line = document.createElement('p');
+    line.className = 'held-pick';
+    const text = document.createElement('span');
+    text.textContent = heldPickNote(pick);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'held-pick-clear';
+    button.textContent = 'Clear';
+    button.setAttribute('aria-label', heldPickClearLabel(pick));
+    button.addEventListener('click', () => onRemove(pick));
+    line.append(text, button);
+    container.appendChild(line);
+  }
+}
+
 // What gets saved: the state with every held pick put back where the page
 // cleared it.
 function savedCopy(state: SharedFilterState): SharedFilterState {
