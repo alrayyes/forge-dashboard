@@ -2,11 +2,16 @@
 import { describe, expect, test } from 'bun:test';
 import {
   addIgnoredTitle,
+  COUNT_RETRY_DELAY_MS,
+  COUNT_RETRY_TRIES,
+  countsArePending,
+  countsHaveAnswer,
   ignoredCountLabel,
   ignoredCountsFrom,
   issueSettingsFrom,
   MAX_IGNORED_TITLES,
   MAX_PATTERN_LENGTH,
+  nextCountRetry,
   normaliseIgnoredTitles,
 } from './issue-settings';
 
@@ -156,5 +161,61 @@ describe('ignoredCountsFrom', () => {
     });
     expect(counts?.get('a')).toBeNull();
     expect(counts?.get('b')).toBeNull();
+  });
+});
+
+describe('counting after a save', () => {
+  const nulls = (...keys: string[]) =>
+    new Map<string, number | null>(keys.map((k) => [k, null]));
+
+  test('every count null on a non-empty list is pending', () => {
+    expect(countsArePending(['a', 'b'], nulls('a', 'b'))).toBe(true);
+  });
+
+  test('any known count, an empty list or no counts at all is not pending', () => {
+    expect(
+      countsArePending(
+        ['a', 'b'],
+        new Map<string, number | null>([
+          ['a', null],
+          ['b', 0],
+        ]),
+      ),
+    ).toBe(false);
+    expect(countsArePending([], new Map())).toBe(false);
+    expect(countsArePending(['a'], null)).toBe(false);
+  });
+
+  test('a response with any non-null count has answered', () => {
+    expect(countsHaveAnswer(nulls('a'))).toBe(false);
+    expect(countsHaveAnswer(null)).toBe(false);
+    expect(
+      countsHaveAnswer(
+        new Map<string, number | null>([
+          ['a', null],
+          ['b', 0],
+        ]),
+      ),
+    ).toBe(true);
+  });
+
+  test('the retry budget is five tries, two seconds apart', () => {
+    expect(COUNT_RETRY_TRIES).toBe(5);
+    expect(COUNT_RETRY_DELAY_MS).toBe(2000);
+    const delays: number[] = [];
+    for (let done = 0; ; done++) {
+      const next = nextCountRetry(done);
+      if (next === null) break;
+      delays.push(next);
+    }
+    expect(delays).toEqual([2000, 2000, 2000, 2000, 2000]);
+  });
+
+  test('Counting… stands in for an unknown count while pending only', () => {
+    expect(ignoredCountLabel(null, true, true)).toBe('Counting…');
+    expect(ignoredCountLabel(undefined, true, true)).toBe('Counting…');
+    expect(ignoredCountLabel(null, true)).toBe('');
+    expect(ignoredCountLabel(2, true, true)).toBe('hides 2 issues');
+    expect(ignoredCountLabel(null, false, true)).toBe('Counted after you save');
   });
 });
