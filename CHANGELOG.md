@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.205.1](https://github.com/alrayyes/forge-dashboard/compare/v0.205.0...v0.205.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** restore the Issues page's Hide Dependency Dashboard box from the server copy ([#1710](https://github.com/alrayyes/forge-dashboard/issues/1710)) ([0ed055a](https://github.com/alrayyes/forge-dashboard/commit/0ed055acf50c19dbf520a7b8eb6c3d060fee934a))
+
 ## [0.205.0](https://github.com/alrayyes/forge-dashboard/compare/v0.204.2...v0.205.0) (2026-10-17)
 
 

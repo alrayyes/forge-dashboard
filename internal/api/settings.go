@@ -47,6 +47,10 @@ type SettingsResponse struct {
 	// on the wire, never null.
 	HideDependencyDashboard bool     `json:"hideDependencyDashboard"`
 	IgnoredTitles           []string `json:"ignoredTitles"`
+	// IgnoredTitleCounts (#1677) is, per entry of IgnoredTitles and in the
+	// same order, how many of the viewer's open issues that pattern matches on
+	// its own; nil (null on the wire) while that is unknown. Always a list.
+	IgnoredTitleCounts []*int `json:"ignoredTitleCounts"`
 	// Theme — see settings.Credentials' own doc comment. Round-tripped
 	// here too so the Settings page's own save confirms what it just set,
 	// even though the lightweight GET /api/settings/theme below is what
@@ -58,7 +62,7 @@ type SettingsResponse struct {
 	Timezone string `json:"timezone"`
 }
 
-func settingsResponseOf(c settings.Credentials, githubAppConfigured bool) SettingsResponse {
+func settingsResponseOf(c settings.Credentials, githubAppConfigured bool, titleCounts []*int) SettingsResponse {
 	return SettingsResponse{
 		GitHubUsername:          c.GitHubUsername,
 		GitHubTokenSet:          c.GitHubToken != "",
@@ -73,6 +77,7 @@ func settingsResponseOf(c settings.Credentials, githubAppConfigured bool) Settin
 		RenovateAuthors:         append([]string{}, c.RenovateAuthors...),
 		HideDependencyDashboard: c.HideDependencyDashboard,
 		IgnoredTitles:           append([]string{}, c.IgnoredTitles...),
+		IgnoredTitleCounts:      titleCounts,
 		Theme:                   c.Theme,
 		Timezone:                c.Timezone,
 	}
@@ -187,7 +192,8 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, settingsResponseOf(creds, deps.GitHubAppConfigured))
+		counts := ignoredTitleCounts(r.Context(), deps, u.ID, creds.IgnoredTitles, deps.Manager.Get(u.ID))
+		writeJSON(w, http.StatusOK, settingsResponseOf(creds, deps.GitHubAppConfigured, counts))
 	}
 }
 
@@ -408,6 +414,11 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		// Taken before Ensure below, which swaps in an Aggregator with no
+		// snapshot yet: the counts answer the list just saved, against the
+		// issues the viewer was looking at when they saved it.
+		snap := deps.Manager.Get(u.ID)
+
 		if err := deps.SettingsStore.Set(r.Context(), u.ID, merged); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save settings"))
 
@@ -419,8 +430,66 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// request that started it.
 		deps.Manager.Ensure(deps.AppContext, u.ID, deps.BuildSources(u.ID, merged))
 
-		writeJSON(w, http.StatusOK, settingsResponseOf(merged, deps.GitHubAppConfigured))
+		counts := ignoredTitleCounts(r.Context(), deps, u.ID, merged.IgnoredTitles, snap)
+		writeJSON(w, http.StatusOK, settingsResponseOf(merged, deps.GitHubAppConfigured, counts))
 	}
+}
+
+// ignoredTitleCounts answers, for each of patterns in order, how many of the
+// open issues in snap that pattern matches on its own (#1677). It works from
+// the same issues settingsHiddenIssueCount does (those of repos whose issues
+// aren't ignored) and the same matcher, but per pattern, so an issue two
+// patterns match counts for both. Every entry is nil while the count is
+// unknown, never a made-up 0: see snapshotKnown. The slice is never nil.
+func ignoredTitleCounts(ctx context.Context, deps Deps, userID []byte, patterns []string, snap dashboard.Snapshot) []*int {
+	if len(patterns) == 0 || !snapshotKnown(snap) {
+		return make([]*int, len(patterns))
+	}
+
+	board := loadBoardSettings(ctx, deps.SettingsStore, userID)
+
+	return titleCounts(patterns, snap.Issues, func(issue dashboard.Issue) bool {
+		return board.ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues
+	})
+}
+
+// snapshotKnown reports whether snap says anything about the viewer's issues.
+// A zero GeneratedAt is no snapshot at all. A stamped one can still be empty
+// because every forge failed its first fetch, which tells us nothing: it
+// counts only when some forge answered (Reachable) or has older data on show
+// (StaleSince).
+func snapshotKnown(snap dashboard.Snapshot) bool {
+	if snap.GeneratedAt.IsZero() {
+		return false
+	}
+	for _, f := range snap.Forges {
+		if f.Reachable || f.StaleSince != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+// titleCounts counts, per pattern, the issues it matches that skip doesn't
+// leave out. A pattern that doesn't compile gets nil, not 0.
+func titleCounts(patterns []string, issues []dashboard.Issue, skip func(dashboard.Issue) bool) []*int {
+	counts := make([]*int, len(patterns))
+	for i, p := range patterns {
+		matcher, err := dashboard.CompileTitlePatterns([]string{p})
+		if err != nil {
+			continue
+		}
+		n := 0
+		for _, issue := range issues {
+			if !skip(issue) && matcher.Matches(issue.Title) {
+				n++
+			}
+		}
+		counts[i] = &n
+	}
+
+	return counts
 }
 
 func coalesce(newValue, existingValue string) string {
