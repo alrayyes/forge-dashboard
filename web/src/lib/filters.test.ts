@@ -237,4 +237,22 @@ describe('matchesQuickFilter follows the server flags', () => {
     expect(matchesQuickFilter(bare, 'ready')).toBe(false);
     expect(matchesQuickFilter(bare, 'needs-review')).toBe(false);
   });
+
+  test('review-requested keeps the items the server says ask me, on either forge', () => {
+    const github = choiceItem({ reviewRequestedFromMe: true });
+    const forgejo = choiceItem({
+      forge: 'forgejo',
+      repo: 'ryan/infra',
+      reviewRequestedFromMe: true,
+    });
+    expect(matchesQuickFilter(github, 'review-requested')).toBe(true);
+    expect(matchesQuickFilter(forgejo, 'review-requested')).toBe(true);
+    expect(
+      matchesQuickFilter(
+        choiceItem({ reviewRequestedFromMe: false }),
+        'review-requested',
+      ),
+    ).toBe(false);
+    expect(matchesQuickFilter(choiceItem(), 'review-requested')).toBe(false);
+  });
 });
