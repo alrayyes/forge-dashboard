@@ -1218,7 +1218,10 @@ account and applied by the server, so they follow you to another browser:
   patterns match counts for both. The server does the counting, so the numbers
   agree with the Issues page. A pattern you just added says "Counted after you
   save" until the save finishes, and the labels follow each save without a
-  reload. While the server can't count yet, nothing shows next to the pattern.
+  reload. When a save comes back before the server can count (your first save,
+  or one before the first refresh finished), the labels say "Counting…" and the
+  page asks again, up to five times two seconds apart. If no count arrives,
+  nothing shows next to the pattern.
 
 Because the server applies them, the Issues badge in the navigation, the
 Issues page and the Insights issue charts all leave those issues out, and the
