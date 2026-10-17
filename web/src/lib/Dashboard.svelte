@@ -28,6 +28,7 @@
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { findAction, type AllowedAction } from "#lib/allowed-actions.js";
   import * as Stacks from "#lib/stacks.js";
+  import { createTitleHover } from "#lib/title-hover.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import {
     type ActionCode,
@@ -609,6 +610,8 @@
       return chip;
     }
 
+    const titleHover = createTitleHover();
+
     function titleCell(
       item: FilterableItem & { number: number; url: string; draft?: boolean },
       onLabelClick: (name: string) => void,
@@ -665,6 +668,9 @@
       text.appendChild(el("span", "num", `#${item.number}`));
       // A real space, so the visible text reads like the accessible name.
       text.appendChild(document.createTextNode(` ${item.title}`));
+      // The whole title as hover text, while it is cut (on the visible text,
+      // not the button: a second description would be announced twice).
+      titleHover.track(text, item.title);
       title.appendChild(text);
       wrap.appendChild(title);
       (item.labels || []).slice(0, 3).forEach((label) => {
@@ -4992,6 +4998,7 @@
         );
 
         container.innerHTML = "";
+        titleHover.prune();
 
         const groupBy = sharedState.shared.groupBy;
         if (groupBy) {
@@ -7017,6 +7024,7 @@
     return () => {
       destroyed = true;
       Filters.leavePage(page);
+      titleHover.destroy();
       stopTimezone();
       document.removeEventListener("keydown", onSlashShortcut);
       clearTimeout(pollTimer);
