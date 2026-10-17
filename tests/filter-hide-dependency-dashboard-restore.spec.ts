@@ -8,6 +8,33 @@ import { registerViaInvite } from './register-helper';
 // registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 
+const now = () => new Date().toISOString();
+const ISSUES = [
+  {
+    forge: 'github',
+    repo: 'acme/app',
+    number: 1,
+    title: 'Dependency Dashboard',
+    url: 'https://example.com/issues/1',
+    author: 'renovate[bot]',
+    labels: [],
+    housekeeping: true,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+  {
+    forge: 'github',
+    repo: 'acme/app',
+    number: 2,
+    title: 'A real issue',
+    url: 'https://example.com/issues/2',
+    author: 'ryan',
+    labels: [],
+    createdAt: now(),
+    updatedAt: now(),
+  },
+];
+
 async function open(page: Page, url: string) {
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) =>
@@ -18,8 +45,8 @@ async function open(page: Page, url: string) {
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
         pullRequests: [],
-        issues: [],
-        openIssueCount: 0,
+        issues: ISSUES,
+        openIssueCount: ISSUES.length,
         repos: [],
         hiddenDrafts: 0,
       }),
@@ -30,6 +57,14 @@ async function open(page: Page, url: string) {
 
 const checkbox = (page: Page) =>
   page.locator('#issue-hide-dependency-dashboard');
+// What the page lists for the box: Issues rows, or Insights' newest-age count.
+const listed = (page: Page, label: string) =>
+  label === 'Issues'
+    ? page.locator('#issue-rows > .row')
+    : page.locator('#issue-age-chart [data-age-bucket="lt1"] .age-count');
+const listedValue = (on: boolean, label: string) =>
+  label === 'Issues' ? (on ? 1 : 2) : on ? '1' : '2';
+
 const nav = (page: Page, name: string) =>
   page.locator(`.app-nav a[href="/${name}.html"]`);
 
@@ -48,6 +83,13 @@ async function dropFilterCookie(page: Page) {
   );
 }
 
+async function expectList(page: Page, label: string, hidden: boolean) {
+  const where = listed(page, label);
+  const want = listedValue(hidden, label);
+  if (typeof want === 'number') await expect(where).toHaveCount(want);
+  else await expect(where).toHaveText(want);
+}
+
 for (const [label, path] of [
   ['Issues', '/issues.html'],
   ['Insights', '/insights.html'],
@@ -63,6 +105,7 @@ for (const [label, path] of [
       );
       await open(page, path);
       await expect(checkbox(page)).toBeChecked();
+      await expectList(page, label, true);
       await checkbox(page).uncheck();
       await expect.poll(() => savedValue(page)).toBe('');
     });
@@ -81,6 +124,9 @@ for (const [label, path] of [
       await dropFilterCookie(page);
       await page.reload();
       await expect(checkbox(page)).not.toBeChecked();
+      await expectList(page, label, false);
+      await checkbox(page).check();
+      await expectList(page, label, true);
     });
   });
 }
