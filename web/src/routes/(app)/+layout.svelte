@@ -8,6 +8,12 @@
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { headerLabel, tabLabel } from "#lib/nav-labels.js";
   import NavPills from "#lib/NavPills.svelte";
+  import { firstRefreshPending } from "#lib/first-refresh.js";
+  import {
+    firstRefresh,
+    setFirstRefresh,
+    settleFirstRefresh,
+  } from "#lib/first-refresh.svelte.js";
 
   let { children } = $props();
 
@@ -61,6 +67,9 @@
   // link's own name carries them: "Branches, 12 total, 3 failing" on the
   // header icon, "12 Branches, 3 failing" on the tab, which shows its numbers
   // before its word.
+  // Until the first refresh has finished the numbers are not real, so each
+  // item shows a placeholder and not a 0 (#1672).
+  const navPending = $derived(firstRefreshPending(firstRefresh.done));
   const branches = $derived(navCounts.value?.branches ?? null);
   const pulls = $derived(navCounts.value?.pullRequests ?? null);
   const issues = $derived(navCounts.value?.issues ?? null);
@@ -123,6 +132,7 @@
     // visitors, who have none (#1261).
     const NAV_COUNTS_POLL_MS = 30_000;
     let navCountsTimer: number | undefined;
+    let pendingTimer: number | undefined;
     // Set on unmount, so a session answer that arrives after it starts nothing.
     let gone = false;
     // A tab shown again reads at once instead of waiting out the interval.
@@ -140,11 +150,31 @@
       ) {
         fetch("/api/dashboard", { headers: { Accept: "application/json" } })
           .then((res) => (res.ok ? res.json() : null))
-          .then((data: { navCounts?: ServerNavCounts } | null) => {
-            if (data) setNavCounts(data.navCounts);
-          })
+          .then(
+            (
+              data: {
+                navCounts?: ServerNavCounts;
+                firstRefreshDone?: boolean;
+              } | null,
+            ) => {
+              if (!data) {
+                settleFirstRefresh();
+                return;
+              }
+              setFirstRefresh(data.firstRefreshDone);
+              const pending = firstRefreshPending(data.firstRefreshDone);
+              setNavCounts(pending ? null : data.navCounts);
+              // Ask again soon while the first refresh runs, so the pages that
+              // draw no snapshot of their own leave the loading state at once.
+              if (pending && !gone) {
+                window.clearTimeout(pendingTimer);
+                pendingTimer = window.setTimeout(loadNavCounts, 3000);
+              }
+            },
+          )
           .catch(() => {
             /* no badge is better than a wrong one */
+            settleFirstRefresh();
           });
       }
     }
@@ -166,7 +196,10 @@
         return res.ok ? res.json() : null;
       })
       .then((session: Session | null) => {
-        if (!session) return;
+        if (!session) {
+          settleFirstRefresh();
+          return;
+        }
         displayName = session.displayName;
         isAdmin = session.isAdmin;
         if (gone) return;
@@ -178,11 +211,13 @@
       })
       .catch(() => {
         /* a transient failure here isn't worth blocking the page over */
+        settleFirstRefresh();
       });
 
     return () => {
       gone = true;
       window.clearInterval(navCountsTimer);
+      window.clearTimeout(pendingTimer);
       document.removeEventListener("visibilitychange", onVisible);
     };
   });
@@ -242,7 +277,7 @@
               d="M7 11v4a2 2 0 0 0 2 2h4"
             /><rect width="8" height="8" x="13" y="13" rx="2" /></svg
           >
-          <NavPills count={branches} />
+          <NavPills pending={navPending} count={branches} />
         </a>
         {#if showPulls}
           <a
@@ -272,7 +307,7 @@
                 y1="9"
                 y2="21"
               /></svg
-            ><NavPills count={pulls} />
+            ><NavPills pending={navPending} count={pulls} />
           </a>
         {/if}
         {#if showReleases}
@@ -296,7 +331,7 @@
               ><path
                 d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
               /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
-            ><NavPills count={releases} />
+            ><NavPills pending={navPending} count={releases} />
           </a>
         {/if}
         {#if showBots}
@@ -326,7 +361,7 @@
               /><path d="M2 14h2" /><path d="M20 14h2" /><path
                 d="M15 13v2"
               /><path d="M9 13v2" /></svg
-            ><NavPills count={bots} />
+            ><NavPills pending={navPending} count={bots} />
           </a>
         {/if}
         {#if showIssues}
@@ -352,7 +387,7 @@
                 cy="12"
                 r="1"
               /></svg
-            ><NavPills count={issues} />
+            ><NavPills pending={navPending} count={issues} />
           </a>
         {/if}
         <a
@@ -495,7 +530,7 @@
     aria-label={branchesTabLabel}
     aria-current={isCurrentRoute("/") ? "page" : undefined}
   >
-    <NavPills count={branches} stacked />
+    <NavPills pending={navPending} count={branches} stacked />
     <svg
       width="16"
       height="16"
@@ -522,7 +557,7 @@
       aria-label={pullsTabLabel}
       aria-current={isCurrentRoute("/pull-requests") ? "page" : undefined}
     >
-      <NavPills count={pulls} stacked />
+      <NavPills pending={navPending} count={pulls} stacked />
       <svg
         width="16"
         height="16"
@@ -546,7 +581,7 @@
       aria-label={releasesTabLabel}
       aria-current={isCurrentRoute("/releases") ? "page" : undefined}
     >
-      <NavPills count={releases} stacked />
+      <NavPills pending={navPending} count={releases} stacked />
       <svg
         width="16"
         height="16"
@@ -570,7 +605,7 @@
       aria-label={botsTabLabel}
       aria-current={isCurrentRoute("/bots") ? "page" : undefined}
     >
-      <NavPills count={bots} stacked />
+      <NavPills pending={navPending} count={bots} stacked />
       <svg
         width="16"
         height="16"
@@ -600,7 +635,7 @@
       aria-label={issuesTabLabel}
       aria-current={isCurrentRoute("/issues") ? "page" : undefined}
     >
-      <NavPills count={issues} stacked />
+      <NavPills pending={navPending} count={issues} stacked />
       <svg
         width="16"
         height="16"
