@@ -107,10 +107,45 @@ export function ignoredCountsFrom(
 export function ignoredCountLabel(
   count: number | null | undefined,
   saved: boolean,
+  counting = false,
 ): string {
   if (!saved) return 'Counted after you save';
   if (typeof count !== 'number' || !Number.isInteger(count) || count < 0)
-    return '';
+    return counting ? 'Counting…' : '';
   if (count === 0) return 'hides no issues';
   return count === 1 ? 'hides 1 issue' : `hides ${count} issues`;
+}
+
+// The server counts against the snapshot the viewer had before a save, so a
+// first-ever save, or one before the first refresh finished, answers every
+// count null. Then the page asks again a few times instead of leaving the
+// rows blank until a reload.
+export const COUNT_RETRY_TRIES = 5;
+export const COUNT_RETRY_DELAY_MS = 2000;
+
+// True when there are patterns and the server knows none of their counts yet.
+// No counts at all (an older server) is not pending: nothing will arrive.
+export function countsArePending(
+  titles: string[],
+  counts: Map<string, number | null> | null,
+): boolean {
+  if (titles.length === 0 || counts === null) return false;
+  return titles.every(
+    (title) => !counts.has(title) || counts.get(title) === null,
+  );
+}
+
+// True once a response carries at least one real count.
+export function countsHaveAnswer(
+  counts: Map<string, number | null> | null,
+): boolean {
+  if (counts === null) return false;
+  for (const count of counts.values()) if (count !== null) return true;
+  return false;
+}
+
+// How long to wait before the next re-read, given how many are done; null
+// when the budget is spent and the rows should settle on showing nothing.
+export function nextCountRetry(done: number): number | null {
+  return done < COUNT_RETRY_TRIES ? COUNT_RETRY_DELAY_MS : null;
 }
