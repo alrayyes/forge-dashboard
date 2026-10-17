@@ -343,6 +343,71 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
   });
 
+  test('only one /api/dashboard request is in flight while the first answer is held', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    let reads = 0;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/dashboard/stream', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/dashboard*', async (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+        return route.fallback();
+      reads++;
+      await gate;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: snapshot({ done: false, readIntervalSeconds: 2 }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+    await expect.poll(() => reads).toBe(1);
+    // Well past the old 10 s default: the poll has not started, so no second
+    // held request joined the first.
+    await page.clock.runFor(30_000);
+    expect(reads).toBe(1);
+
+    // The first answer arms the poll, after the interval it advised.
+    release();
+    await expect(page.getByTestId('list-skeleton')).toBeVisible();
+    await page.clock.runFor(1500);
+    expect(reads).toBe(1);
+    await page.clock.runFor(700);
+    await expect.poll(() => reads).toBe(2);
+  });
+
+  test('a failed first request still arms the poll, so the page recovers', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    let reads = 0;
+    await page.route('**/api/dashboard/stream', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/dashboard*', (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+        return route.fallback();
+      reads++;
+      if (reads === 1) return route.abort();
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: snapshot({ done: true, withItems: true }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+    await expect.poll(() => reads).toBe(1);
+    await page.clock.runFor(10_500);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    expect(reads).toBe(2);
+  });
+
   for (const advice of [0, -3, 1e12]) {
     test(`an advised interval of ${advice} falls back to a safe poll`, async ({
       page,

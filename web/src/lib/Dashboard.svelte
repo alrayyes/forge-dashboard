@@ -6839,16 +6839,25 @@
           applySnapshot(data, userAsked, seq);
           streamFailures = 0;
           ensureStream();
+          armFirstPoll();
         })
         .catch((err: Error) => {
           // No answer means no flag: show the real state, not a skeleton
           // that would never end.
           settleFirstRefresh();
           showError(`Could not reach the backend: ${err.message}`);
+          armFirstPoll();
         });
     }
 
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    // The first poll is armed when the first request ends, answered or failed,
+    // not at load: the server can hold that request for 15 s on a cold start,
+    // and a timer started at load would send a second held request meanwhile.
+    function armFirstPoll() {
+      if (destroyed || pollTimer !== undefined) return;
+      schedulePoll();
+    }
     function schedulePoll() {
       clearTimeout(pollTimer);
       nextPollAt = Date.now() + readIntervalMs;
@@ -6867,7 +6876,6 @@
     }
 
     refresh();
-    schedulePoll();
 
     // ---- WebMCP (webmachinelearning/webmcp) tools, defined in webmcp-tools.ts ----
     // Experimental browser API -- document.modelContext only exists in
