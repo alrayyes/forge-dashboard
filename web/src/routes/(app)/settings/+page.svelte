@@ -414,7 +414,9 @@
       if (ignoredError) {
         status = ignoredError;
         statusKind = "error";
-        document.getElementById("ignored-pattern")?.focus();
+        void revealGroup("behaviour").then(() =>
+          document.getElementById("ignored-pattern")?.focus(),
+        );
         return;
       }
     }
@@ -423,6 +425,19 @@
     // with what is stored, checks it, and names the field it refused
     // (`field`), which gets focus below (#810). This only sends what was
     // typed.
+    // The group whose Save was pressed; edits in the other one ride along.
+    const submitter = (e.submitter as HTMLElement | null)?.id;
+    const own =
+      submitter === "save-connections-button" ? "connections" : "behaviour";
+    const now = groupSnapshots();
+    const alsoSaved = Object.keys(GROUP_LABELS)
+      .filter(
+        (g) =>
+          g !== own &&
+          now[g as keyof typeof now] !== savedSnapshots[g as keyof typeof now],
+      )
+      .map((g) => GROUP_LABELS[g]);
+
     const trimmedForgejoUrl = forgejoUrl.trim();
     const trimmedForgejoUsername = forgejoUsername.trim();
     const trimmedInstallationId = githubAppInstallationId.trim();
@@ -493,7 +508,10 @@
         ignoredTitles = issueSettings.ignoredTitles;
         ignoredCounts = ignoredCountsFrom(data);
         savedTitles = new Set(issueSettings.ignoredTitles);
-        status = "Saved.";
+        savedSnapshots = groupSnapshots();
+        status = alsoSaved.length
+          ? `Saved, including your changes in ${alsoSaved.join(" and ")}.`
+          : "Saved.";
         statusKind = "ok";
       })
       .catch((err: Error & { field?: string }) => {
@@ -501,11 +519,23 @@
         statusKind = "error";
         // The server names the entry it refused; say so beside the list.
         if (err.field === "ignoredTitles") ignoredError = status;
-        // Its inputs are named for the API's own field names.
-        if (err.field)
-          document
-            .querySelector<HTMLElement>(`[name="${CSS.escape(err.field)}"]`)
-            ?.focus();
+        // Its inputs are named for the API's own field names. The field may
+        // sit in a group that isn't showing: open it first, so the focus
+        // lands and the error is on screen.
+        const refusedField = err.field;
+        if (refusedField) {
+          const refusedGroup = FIELD_GROUPS[refusedField];
+          void (refusedGroup ? revealGroup(refusedGroup) : tick()).then(() => {
+            const el =
+              document.querySelector<HTMLElement>(
+                `[name="${CSS.escape(refusedField)}"]`,
+              ) ??
+              (refusedField === "ignoredTitles"
+                ? document.getElementById("ignored-pattern")
+                : null);
+            el?.focus();
+          });
+        }
       })
       .finally(() => {
         saving = false;
@@ -799,6 +829,56 @@
   // switch.
   let group = $state<SettingsGroupId>(DEFAULT_GROUP);
 
+  // Which group each saved field lives in, so a refused save can open the
+  // group of the field it names before focusing it.
+  const FIELD_GROUPS: Record<string, SettingsGroupId> = {
+    githubToken: "connections",
+    githubUsername: "connections",
+    githubAppInstallationId: "connections",
+    forgejoUrl: "connections",
+    forgejoToken: "connections",
+    forgejoUsername: "connections",
+    renovateRebaseLabel: "behaviour",
+    hideDependencyDashboard: "behaviour",
+    ignoredTitles: "behaviour",
+  };
+
+  // Opens a group without adding a history entry: the page moved the user,
+  // the user didn't choose to navigate, so Back shouldn't step through it.
+  async function revealGroup(target: SettingsGroupId) {
+    if (group !== target) {
+      group = target;
+      history.replaceState(history.state, "", `#${target}`);
+    }
+    await tick();
+  }
+
+  // One form saves Connections and Behaviour together. Remember what each
+  // group held at the last load or save, so a save can say when it also
+  // carried edits from the group the person wasn't looking at.
+  const GROUP_LABELS: Record<string, string> = {
+    connections: "Connections",
+    behaviour: "Behaviour",
+  };
+  function groupSnapshots() {
+    return {
+      connections: JSON.stringify([
+        githubToken,
+        githubUsername,
+        githubAppInstallationId,
+        forgejoUrl,
+        forgejoToken,
+        forgejoUsername,
+      ]),
+      behaviour: JSON.stringify([
+        renovateRebaseLabel,
+        hideDependencyDashboard,
+        ignoredTitles,
+      ]),
+    };
+  }
+  let savedSnapshots = { connections: "", behaviour: "" };
+
   async function openFromHash() {
     const target = groupFromHash(window.location.hash);
     group = target.group;
@@ -863,6 +943,7 @@
           ignoredCounts = ignoredCountsFrom(data);
           savedTitles = new Set(issueSettings.ignoredTitles);
         }
+        savedSnapshots = groupSnapshots();
         // Just the control's own displayed value — (app)/+layout.svelte's
         // syncThemeFromServer already applies the theme itself and syncs
         // the cookie on every page, this one included. Skipped while a
@@ -1830,7 +1911,8 @@
             <p class="field-hint">
               These apply to every issue list and total: the Issues page,
               Insights and the count in the navigation. They are saved with the
-              Save button below.
+              Save button below, which also saves any unsaved GitHub and Forgejo
+              changes.
             </p>
             <label class="check-row">
               <input

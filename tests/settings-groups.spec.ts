@@ -312,6 +312,81 @@ test.describe('settings groups', () => {
     });
   });
 
+  test.describe('a refused save brings the refused field into view', () => {
+    test('a server refusal names a field in another group: that group opens and the field is focused', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html#connections');
+      await expect(page.locator('#save-connections-button')).toBeEnabled();
+      await page.locator('#forgejo-username').fill('octocat-forgejo');
+      await groupLink(page, 'Behaviour').click();
+      await expect(page.locator('#forgejo-username')).toBeHidden();
+      const historyBefore = await page.evaluate(() => history.length);
+      await page.locator('#save-button').click();
+
+      await expect(groupLink(page, 'Connections')).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      await expect(page.locator('#forgejo-url')).toBeFocused();
+      await expect(page.locator('#connections-status')).toContainText(
+        /forgejoUrl/,
+      );
+      await expect(page.locator('#connections-status')).toBeVisible();
+      expect(new URL(page.url()).hash).toBe('#connections');
+      // The switch replaces the current entry: no history entry of its own.
+      expect(await page.evaluate(() => history.length)).toBe(historyBefore);
+    });
+
+    test('a bad pattern left in the box, saved from another group: Behaviour opens with the box focused and its error shown', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html#behaviour');
+      await expect(page.locator('#save-connections-button')).toBeEnabled();
+      await page.locator('#ignored-pattern').fill('(');
+      await groupLink(page, 'Connections').click();
+      await expect(page.locator('#ignored-pattern')).toBeHidden();
+      await page.locator('#save-connections-button').click();
+
+      await expect(groupLink(page, 'Behaviour')).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      await expect(page.locator('#ignored-pattern')).toBeFocused();
+      await expect(page.locator('#ignored-titles-error')).toBeVisible();
+      await expect(page.locator('#status')).toBeVisible();
+    });
+  });
+
+  test.describe('a save says when it included edits from another group', () => {
+    test('Connections Save names Behaviour edits', async ({ page }) => {
+      await page.goto('/settings.html#behaviour');
+      await expect(page.locator('#save-connections-button')).toBeEnabled();
+      await page.locator('#renovate-rebase-label').fill('from-behaviour');
+      await groupLink(page, 'Connections').click();
+      await page.locator('#save-connections-button').click();
+      await expect(page.locator('#connections-status')).toHaveText(
+        'Saved, including your changes in Behaviour.',
+      );
+    });
+
+    test('Behaviour Save names Connections edits, and a plain save just says Saved.', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html#connections');
+      await expect(page.locator('#save-connections-button')).toBeEnabled();
+      await page.locator('#github-username').fill('from-connections');
+      await groupLink(page, 'Behaviour').click();
+      await page.locator('#save-button').click();
+      await expect(page.locator('#status')).toHaveText(
+        'Saved, including your changes in Connections.',
+      );
+      await page.locator('#renovate-rebase-label').fill('own-edit');
+      await page.locator('#save-button').click();
+      await expect(page.locator('#status')).toHaveText('Saved.');
+    });
+  });
+
   for (const scheme of ['light', 'dark'] as const) {
     for (const width of [1280, 360]) {
       test(`axe passes in every group, ${scheme}, ${width}px`, async ({
