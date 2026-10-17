@@ -21,7 +21,7 @@ declare global {
 
 // Playwright's own bundled Chromium doesn't implement document.modelContext
 // -- WebMCP is still Chrome/Edge Origin Trial only as of this writing (see
-// README's Design section), and confirmed live: a real page.evaluate() check
+// ARCHITECTURE.md's Design section), and confirmed live: a real page.evaluate() check
 // against it here comes back undefined. There's no way to exercise the
 // browser's own tool-discovery/execution mediation in this suite. What IS
 // testable, and what this file covers: that the page's own code registers
