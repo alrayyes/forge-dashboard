@@ -35,8 +35,10 @@ function sweepInPage([target, overlap, within]: readonly [
 ]): Sweep {
   const CONTROLS =
     'button, a[href], select, textarea, summary, input:not([type="hidden"]), [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="switch"]';
-  const STEP = 1;
-  const SLACK = 0.5;
+  // Quarter pixels, and no slack beyond rounding: a hit area half a pixel
+  // short of the target is short of it.
+  const STEP = 0.25;
+  const SLACK = 0.01;
 
   const modal = document.querySelector('dialog:modal');
   const scope: ParentNode =
@@ -87,6 +89,13 @@ function sweepInPage([target, overlap, within]: readonly [
 
   for (const el of scope.querySelectorAll(CONTROLS)) {
     if (inProse(el)) continue;
+    // A disabled checkbox or radio shows a state (a Markdown task list), it
+    // is not something to hit.
+    if (
+      (el as HTMLInputElement).disabled &&
+      ['checkbox', 'radio'].includes((el as HTMLInputElement).type)
+    )
+      continue;
     const style = getComputedStyle(el);
     if (style.visibility !== 'visible' || style.display === 'none') continue;
     let rect = el.getBoundingClientRect();
@@ -135,8 +144,8 @@ function sweepInPage([target, overlap, within]: readonly [
         else canDown = false;
       }
     }
-    const w = Math.round(box.r - box.l);
-    const h = Math.round(box.b - box.t);
+    const w = Math.round((box.r - box.l) * 10) / 10;
+    const h = Math.round((box.b - box.t) * 10) / 10;
     if (w < target - SLACK || h < target - SLACK)
       offenders.push(`${nameOf(el)} hit area ${w}x${h}`);
 
@@ -386,6 +395,20 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     await page.goto('/pull-requests.html');
     await ready(page, '#pr-rows .row');
     await sweepAll(page, 'pull requests', problems);
+    expectNone(problems);
+  });
+
+  test('pull requests: several short chips on one line', async ({ page }) => {
+    const problems: string[] = [];
+    const labels = ['ui', 'bug', 'ci'].map((name) => ({
+      name,
+      color: 'd73a4a',
+    }));
+    await mockDashboard(page, [makePR(1, { labels }), makePR(2, { labels })]);
+    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
+    await page.goto('/pull-requests.html');
+    await ready(page, '#pr-rows .row');
+    await sweepAll(page, 'pull requests with three chips', problems);
     expectNone(problems);
   });
 
