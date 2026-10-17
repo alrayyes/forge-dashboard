@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.206.0](https://github.com/alrayyes/forge-dashboard/compare/v0.205.1...v0.206.0) (2026-10-17)
+
+
+### Features
+
+* **api:** count the open issues each ignored title pattern hides ([#1688](https://github.com/alrayyes/forge-dashboard/issues/1688)) ([1e67140](https://github.com/alrayyes/forge-dashboard/commit/1e67140d96055d77aaad0207ab63d5a9ab2997fe))
+
 ## [0.205.1](https://github.com/alrayyes/forge-dashboard/compare/v0.205.0...v0.205.1) (2026-10-17)
 
 
