@@ -16,7 +16,7 @@ var mcpToolOperations = map[string]string{
 	"get_pull_request_checks":  "getPullRequestChecks",
 	"list_queued_actions":      "listQueuedActions",
 	"get_version":              "getVersion",
-	"get_settings":             "getSettings",
+	"get_settings":             "getSettingsSummary",
 }
 
 // mcpPending are the operations whose tool is still to come, in small pull

@@ -128,14 +128,12 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   (`fetchDashboardData()`) directly, the same request `/api/dashboard` already
   answers; the others call their endpoint the same way (`list_queued_actions`
   returns `GET /api/queued-actions` under a `queuedActions` key, as the
-  server's tool of that name does; `get_settings` returns `GET /api/settings`
-  without the webhook token and secret and adds `webhookConfigured`, as the
-  server's tool does). Unlike the server's tool, `get_settings` shares its
-  endpoint with the Settings page, so a first read creates the webhook
-  credentials, as opening Settings does. Because of that, `webhookConfigured`
-  is true after the first read: don't treat it as a sign that webhooks are set
-  up on a forge. All ride on the browser's own session cookie exactly like the
-  page's own poll does.
+  server's tool of that name does; `get_settings` returns
+  `GET /api/settings/summary`, the same body as the server's tool, with
+  `webhookConfigured` and no webhook token or secret). Like the server's
+  tool, `get_settings` creates nothing: `webhookConfigured` is false until
+  the user has opened Settings. All ride on the browser's own session
+  cookie exactly like the page's own poll does.
   Nothing new crosses to the browser that the preceding
   "Credentials never reach the browser" bullet doesn't already allow: the tools
   never see a token, only the same already-filtered JSON the page always got.

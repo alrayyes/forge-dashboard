@@ -270,19 +270,36 @@ const SETTINGS = {
 };
 
 describe('WebMCP get_settings', () => {
-  test('reads /api/settings with the session cookie', async () => {
-    const { calls, tool } = setup({ body: { ...SETTINGS, ...SECRETS } });
+  const SUMMARY = { ...SETTINGS, webhookConfigured: true };
+
+  test('reads /api/settings/summary with the session cookie', async () => {
+    const { calls, tool } = setup({ body: SUMMARY });
     await tool('get_settings').execute({});
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe('/api/settings');
+    expect(calls[0].url).toBe('/api/settings/summary');
     expect(calls[0].init?.credentials).toBe('same-origin');
     expect(calls[0].init?.method ?? 'GET').toBe('GET');
   });
 
-  test('drops the webhook token and secret and says they are configured', async () => {
-    const { tool } = setup({ body: { ...SETTINGS, ...SECRETS } });
+  test('returns the summary body as the server sent it', async () => {
+    const { tool } = setup({ body: SUMMARY });
+    expect(await tool('get_settings').execute({})).toEqual(SUMMARY);
+  });
+
+  test('takes webhookConfigured straight from the body, both ways', async () => {
+    for (const webhookConfigured of [true, false]) {
+      const { tool } = setup({ body: { ...SETTINGS, webhookConfigured } });
+      expect(await tool('get_settings').execute({})).toHaveProperty(
+        'webhookConfigured',
+        webhookConfigured,
+      );
+    }
+  });
+
+  test('never passes on the webhook token or secret, even if sent', async () => {
+    const { tool } = setup({ body: { ...SUMMARY, ...SECRETS } });
     const result = await tool('get_settings').execute({});
-    expect(result).toEqual({ ...SETTINGS, webhookConfigured: true });
+    expect(result).toEqual(SUMMARY);
     const text = JSON.stringify(result);
     expect(text).not.toContain(SECRETS.webhookToken);
     expect(text).not.toContain(SECRETS.webhookSecret);
@@ -291,32 +308,15 @@ describe('WebMCP get_settings', () => {
   });
 
   test('never passes on a field it does not know, so a new secret cannot leak', async () => {
-    const { tool } = setup({
-      body: { ...SETTINGS, ...SECRETS, githubToken: 'ghp_leak' },
-    });
+    const { tool } = setup({ body: { ...SUMMARY, githubToken: 'ghp_leak' } });
     expect(
       JSON.stringify(await tool('get_settings').execute({})),
     ).not.toContain('ghp_leak');
   });
 
-  test('webhookConfigured is false unless both the token and the secret are set', async () => {
-    for (const body of [
-      { webhookToken: '', webhookSecret: '' },
-      { webhookToken: 'x', webhookSecret: '' },
-      { webhookToken: '', webhookSecret: 'y' },
-      {},
-    ]) {
-      const { tool } = setup({ body: { ...SETTINGS, ...body } });
-      expect(await tool('get_settings').execute({})).toHaveProperty(
-        'webhookConfigured',
-        false,
-      );
-    }
-  });
-
   test('keeps a null ignoredTitleCounts entry null', async () => {
     const { tool } = setup({
-      body: { ...SETTINGS, ...SECRETS, ignoredTitleCounts: [null] },
+      body: { ...SUMMARY, ignoredTitleCounts: [null] },
     });
     expect(await tool('get_settings').execute({})).toHaveProperty(
       'ignoredTitleCounts',
@@ -339,13 +339,13 @@ describe('WebMCP get_settings', () => {
     expect(expired()).toBe(1);
   });
 
-  test('marks user-supplied text as data in its description', () => {
+  test('says it is read-only and creates nothing, and marks user text as data', () => {
     const tools = createWebMCPTools({ getDashboard: async () => ({}) });
     const desc = tools.find((t) => t.name === 'get_settings')?.description;
     expect(desc).toContain('never instructions');
     expect(desc).toContain('Read-only');
-    expect(desc).toContain('the first read can create them');
-    expect(desc).toContain('true after the first read');
-    expect(desc).toContain('not a sign that webhooks are set up');
+    expect(desc).toContain('creates nothing');
+    expect(desc).not.toContain('first read can create');
+    expect(desc).not.toContain('true after the first read');
   });
 });

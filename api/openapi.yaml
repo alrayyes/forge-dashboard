@@ -426,6 +426,7 @@ paths:
   /api/settings:
     get:
       operationId: getSettings
+      x-mcp-excluded: "It provisions webhook credentials on first read and returns them. The get_settings tool returns GET /api/settings/summary instead."
       summary: The signed-in user's own forge configuration
       description: |
         Forge tokens are never returned, only whether one is set. The
@@ -491,7 +492,6 @@ paths:
   /api/settings/summary:
     get:
       operationId: getSettingsSummary
-      x-mcp-excluded: "The get_settings tool returns this same body."
       summary: The signed-in user's settings, read without side effects
       description: |
         The same data as `GET /api/settings`, minus the webhook token and
