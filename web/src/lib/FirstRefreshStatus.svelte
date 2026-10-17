@@ -1,5 +1,6 @@
 <script lang="ts">
   import { firstRefreshStatus } from "#lib/first-refresh.js";
+  import { firstRefresh } from "#lib/first-refresh.svelte.js";
 
   // The one polite status line for the first refresh (#1672). It stays in the
   // page and only its text changes, so a screen reader hears "loading" once
@@ -13,10 +14,13 @@
       elapsed = 0;
       return;
     }
-    const started = Date.now();
-    const timer = setInterval(() => {
+    // Counted from page load, not from when the skeleton appeared.
+    const started = firstRefresh.startedAt ?? Date.now();
+    const tick = () => {
       elapsed = Date.now() - started;
-    }, 1000);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   });
 
