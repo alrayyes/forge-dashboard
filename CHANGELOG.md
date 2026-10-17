@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.208.1](https://github.com/alrayyes/forge-dashboard/compare/v0.208.0...v0.208.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **api:** refuse a Forgejo URL that carries credentials ([#1724](https://github.com/alrayyes/forge-dashboard/issues/1724)) ([f6dd988](https://github.com/alrayyes/forge-dashboard/commit/f6dd9889f339cca9c7e51c73b780b35c3b08d258))
+
 ## [0.208.0](https://github.com/alrayyes/forge-dashboard/compare/v0.207.0...v0.208.0) (2026-10-17)
 
 
