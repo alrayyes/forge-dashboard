@@ -119,17 +119,23 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   hook itself.
 - **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
   itself: `get_dashboard`, `get_main_branches`, `get_pull_request_checks`,
-  `get_pull_request_details` and `list_queued_actions`.** Experimental — as of
-  this writing it's an Origin Trial in Chrome 149+/Edge 150+ only, with no
-  stable spec yet — so this is a
-  no-op everywhere else rather than a real dependency the page needs. Where it's
-  present, it lets an in-browser AI agent fetch the same data the page itself
-  renders. `get_dashboard` calls the page's own already-authenticated fetch
-  layer (`fetchDashboardData()`) directly, the same request `/api/dashboard`
-  already answers; the others call their endpoint the same way
-  (`list_queued_actions` returns `GET /api/queued-actions` under a
-  `queuedActions` key, as the server's tool of that name does). All ride on the
-  browser's own session cookie exactly like the page's own poll does.
+  `get_pull_request_details`, `list_queued_actions` and `get_settings`.**
+  Experimental — as of this writing it's an Origin Trial in Chrome 149+/Edge
+  150+ only, with no stable spec yet — so this is a no-op everywhere else rather
+  than a real dependency the page needs. Where it's present, it lets an
+  in-browser AI agent fetch the same data the page itself renders.
+  `get_dashboard` calls the page's own already-authenticated fetch layer
+  (`fetchDashboardData()`) directly, the same request `/api/dashboard` already
+  answers; the others call their endpoint the same way (`list_queued_actions`
+  returns `GET /api/queued-actions` under a `queuedActions` key, as the
+  server's tool of that name does; `get_settings` returns `GET /api/settings`
+  without the webhook token and secret and adds `webhookConfigured`, as the
+  server's tool does). Unlike the server's tool, `get_settings` shares its
+  endpoint with the Settings page, so a first read creates the webhook
+  credentials, as opening Settings does. Because of that, `webhookConfigured`
+  is true after the first read: don't treat it as a sign that webhooks are set
+  up on a forge. All ride on the browser's own session cookie exactly like the
+  page's own poll does.
   Nothing new crosses to the browser that the preceding
   "Credentials never reach the browser" bullet doesn't already allow: the tools
   never see a token, only the same already-filtered JSON the page always got.
