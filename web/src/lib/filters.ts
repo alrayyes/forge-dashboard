@@ -423,6 +423,9 @@ const FILTER_STATE_ENDPOINT = '/api/settings/filter-state';
 // see saveState's own comment for which callers hit which path.
 const TITLE_SAVE_DEBOUNCE_MS = 500;
 let titleSaveTimer: ReturnType<typeof setTimeout> | null = null;
+// The snapshot the timer will send. Kept so a flush on leaving the page can
+// send it without waiting for the timer (#1620).
+let titleSaveState: SharedFilterState | null = null;
 
 // One PUT at a time. The server keeps whichever request lands last, and two
 // in flight can land in either order, so a pick made right after another
@@ -442,6 +445,11 @@ function putFilterStateToServer(state: SharedFilterState): void {
     queuedState = state;
     return;
   }
+  sendFilterState(state);
+}
+
+function sendFilterState(state: SharedFilterState): void {
+  const alone = !putInFlight;
   putInFlight = true;
   // keepalive lets the request outlive the page: the dashboard and issues
   // pages share this state, and a click on the other page's nav item right
@@ -465,11 +473,47 @@ function putFilterStateToServer(state: SharedFilterState): void {
     })
     .then(() => {
       clearTimeout(timer);
-      putInFlight = false;
+      // A flush can send beside a PUT in flight; only the one that took the
+      // slot gives it back, or the queue would open early.
+      if (alone) putInFlight = false;
+      else return;
       const next = queuedState;
       queuedState = null;
       if (next) putFilterStateToServer(next);
     });
+}
+
+// Sends the save still waiting on the debounce timer, or queued behind a PUT
+// in flight, right now. Called when the page is going away (pagehide, or the
+// tab turning hidden): a timer or a queue does not survive that, and the server
+// copy would lose a value typed in the last 500 ms (#1620). The cookie needs no
+// flush, saveState writes it on every call, so the next load has the latest
+// value even if this request is lost. A PUT already in flight is not waited
+// for: the snapshot goes out beside it with keepalive. Two requests can land in
+// either order, but waiting means the latest one is dropped when the page goes,
+// and the older one was sent first.
+export function flushPendingSave(): void {
+  const next = titleSaveState ?? queuedState;
+  if (titleSaveTimer) clearTimeout(titleSaveTimer);
+  titleSaveTimer = null;
+  titleSaveState = null;
+  queuedState = null;
+  if (!next) return;
+  sendFilterState(next);
+}
+
+let leaveListenersAdded = false;
+function listenForLeaving(): void {
+  if (leaveListenersAdded) return;
+  if (typeof addEventListener !== 'function') return;
+  if (typeof document?.addEventListener !== 'function') return;
+  leaveListenersAdded = true;
+  // pagehide and visibilitychange are the events that fire reliably on
+  // leaving, on mobile too; unload and beforeunload do not (MDN).
+  addEventListener('pagehide', flushPendingSave);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingSave();
+  });
 }
 
 // Writes the cookie synchronously and immediately, every call — the
@@ -491,10 +535,13 @@ export function saveState(
     /* ignore */
   }
 
+  listenForLeaving();
   if (debouncedCol === 'title' || debouncedCol === 'hideTitleRegex') {
     if (titleSaveTimer) clearTimeout(titleSaveTimer);
+    titleSaveState = state;
     titleSaveTimer = setTimeout(() => {
       titleSaveTimer = null;
+      titleSaveState = null;
       putFilterStateToServer(state);
     }, TITLE_SAVE_DEBOUNCE_MS);
     return;
@@ -502,6 +549,7 @@ export function saveState(
   if (titleSaveTimer) {
     clearTimeout(titleSaveTimer);
     titleSaveTimer = null;
+    titleSaveState = null;
   }
   putFilterStateToServer(state);
 }
