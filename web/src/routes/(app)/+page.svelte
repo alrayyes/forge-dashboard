@@ -4,6 +4,13 @@
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
+    branchesAwaitingFlag,
+    firstRefreshPending,
+  } from "#lib/first-refresh.js";
+  import { firstRefresh } from "#lib/first-refresh.svelte.js";
+  import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
+  import ListSkeleton from "#lib/ListSkeleton.svelte";
+  import {
     ago,
     applyFilter,
     DEFAULT_FILTER,
@@ -31,6 +38,9 @@
   let filter = $state<MainBranchFilter>({ ...DEFAULT_FILTER });
   let expanded = $state<Record<string, boolean>>({});
 
+  // The server's first refresh after a restart has not finished (#1672): the
+  // list is empty because nothing is read yet, not because nothing is tracked.
+  const pending = $derived(firstRefreshPending(firstRefresh.done));
   const branches = $derived(data?.branches ?? []);
   const visible = $derived(applyFilter(branches, filter));
   const perForge = $derived(forgeCounts(branches));
@@ -441,7 +451,14 @@
     <h1>Main branches</h1>
   </div>
 
-  {#if loading}
+  <!-- Always mounted, so it is empty before it speaks and a screen reader
+       announces the change (#1672). -->
+  <FirstRefreshStatus {pending} />
+  {#if pending}
+    <div class="list-region" aria-busy="true">
+      <ListSkeleton />
+    </div>
+  {:else if loading}
     <p class="mb-loading" role="status">Loading the main branches…</p>
   {:else if failed}
     <div class="mb-note" role="alert">
@@ -462,7 +479,11 @@
       </div>
     {/if}
 
-    {#if data.counts.total === 0}
+    {#if branchesAwaitingFlag(firstRefresh.settled, data.counts.total)}
+      <p class="mb-loading" data-testid="branches-awaiting-flag">
+        Loading the main branches…
+      </p>
+    {:else if data.counts.total === 0}
       <div class="mb-empty" data-testid="no-repos">
         <p>No repositories are tracked yet.</p>
       </div>

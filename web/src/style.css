@@ -3608,11 +3608,73 @@ footer a.mono:focus-visible {
   display: none;
 }
 
-/* The footer link for the page you're on (#1679): bolder, underlined and
-   full ink, so it reads as current without colour alone. --ink clears AA on
-   the page background in both schemes. */
+/* The first refresh after a restart (#1672): a status line and placeholder
+   rows in place of the list and its empty states. */
+.first-refresh-status {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.first-refresh-status.active {
+  padding: 12px 18px 0;
+}
+.list-skeleton {
+  display: flex;
+  flex-direction: column;
+}
+.skeleton-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 64px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.skeleton-row:last-child {
+  border-bottom: none;
+}
+.skeleton-bar {
+  display: block;
+  max-width: 100%;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--neutral-bg);
+}
+.skeleton-bar-repo {
+  width: 220px;
+}
+.skeleton-bar-title {
+  width: 60%;
+}
+.skeleton-bar-meta {
+  width: 140px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton-bar {
+    background: linear-gradient(
+      90deg,
+      var(--neutral-bg) 25%,
+      var(--surface-sunken) 50%,
+      var(--neutral-bg) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  }
+}
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* The footer link for the page you're on (#1679): full ink and a 2px
+   underline, so it reads as current without colour alone. No weight change:
+   a bolder face is wider and taller and shifts the neighbouring links
+   between pages. --ink clears AA on the page background in both schemes. */
 footer a[aria-current="page"] {
-  font-weight: 700;
   color: var(--ink);
   text-decoration: underline;
   text-decoration-thickness: 2px;
