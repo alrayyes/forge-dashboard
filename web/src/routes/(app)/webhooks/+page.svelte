@@ -285,6 +285,23 @@
     saveState(saved, freeText ? "title" : undefined);
   }
 
+  const filtersAreDefault = $derived(
+    filterForge === "" &&
+      filterRepo === "" &&
+      filterStatus === "" &&
+      sortKey === "fullName" &&
+      sortDir === "asc",
+  );
+
+  function clearFilters() {
+    filterForge = "";
+    filterRepo = "";
+    filterStatus = "";
+    sortKey = "fullName";
+    sortDir = "asc";
+    onFilterChange(["forge", "repo", "status", "sort", "dir"]);
+  }
+
   function onFilterChange(keys: string[], freeText = false) {
     page = 1;
     save(keys, freeText);
@@ -995,6 +1012,11 @@
             <option value="pending">Not yet</option>
           {/if}
         </select>
+        {#if !filtersAreDefault}
+          <button type="button" class="clear-filters" onclick={clearFilters}>
+            Clear filters
+          </button>
+        {/if}
       </div>
 
       {#if sortedRepos.length === 0}
