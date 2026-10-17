@@ -1171,6 +1171,16 @@ not stored, so a restart resets it. An account with no saved settings has
 nothing to refresh, so it reads `true` at once. `GET /api/dashboard`, the
 stream and the `get_dashboard` MCP tool all carry it.
 
+The page doesn't wait for that answer to say it is loading. The server can hold
+`GET /api/dashboard` for up to 15 seconds on a cold start, so if nothing has
+answered after 200 ms the list pages show their placeholder rows, the polite
+"Loading your repositories…" line and a dash in the navigation, and a warm
+server that answers inside that time shows none of it. A failed first request
+drops the placeholders. The "Still loading" text appears 10 seconds after the
+page opens, and the page reads again after the interval the server advises
+(`readIntervalSeconds`, between 1 and 300 seconds). The "Refreshed … ago" label
+stays hidden until a snapshot carries a real time.
+
 ### Issues your settings hide
 
 Two settings, saved with your account and applied by the server, keep issues

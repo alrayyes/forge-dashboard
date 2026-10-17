@@ -9,6 +9,40 @@
 // expects more than a spinner).
 export const FIRST_REFRESH_SLOW_MS = 10_000;
 
+// Until the first dashboard answer arrives the page cannot know the flag, and
+// the server may hold that answer for 15 s on a cold start. So after this short
+// wait with no answer the page counts as loading. A warm server answers well
+// inside it and the page never shows a skeleton it would take away again. NN/g:
+// up to 0.1 s feels instant and past 1 s the user needs feedback; 200 ms sits
+// between, long enough to spare a warm load and short enough to feel prompt.
+export const FIRST_REFRESH_SHOW_DELAY_MS = 200;
+
+export type FirstRefreshState = {
+  // The latest flag a snapshot carried; undefined when none did.
+  done: boolean | undefined;
+  // A snapshot request has answered or failed.
+  settled: boolean;
+  // The show delay has run out.
+  waited: boolean;
+};
+
+// Whether the lists, the nav pills and the status line draw their loading
+// state. Before any answer: only once the delay has run out. After an answer:
+// by its flag (a missing one counts as loaded). After a failure: never, so the
+// skeleton cannot hang.
+export function firstRefreshLoading(state: FirstRefreshState): boolean {
+  if (!state.settled) return state.waited;
+  return firstRefreshPending(state.done);
+}
+
+// Go's zero time, which a snapshot carries before the first refresh has
+// produced anything, is not a moment to show.
+export function hasTimestamp(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const t = Date.parse(iso);
+  return Number.isFinite(t) && new Date(t).getUTCFullYear() > 1;
+}
+
 export function firstRefreshPending(done: boolean | null | undefined): boolean {
   return done === false;
 }

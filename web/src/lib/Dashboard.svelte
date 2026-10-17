@@ -21,8 +21,17 @@
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
-  import { firstRefreshPending } from "#lib/first-refresh.js";
-  import { firstRefresh, setFirstRefresh } from "#lib/first-refresh.svelte.js";
+  import {
+    firstRefreshLoading,
+    firstRefreshPending,
+    hasTimestamp,
+  } from "#lib/first-refresh.js";
+  import { adviseReadIntervalMs } from "#lib/read-interval.js";
+  import {
+    firstRefresh,
+    setFirstRefresh,
+    settleFirstRefresh,
+  } from "#lib/first-refresh.svelte.js";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
@@ -309,7 +318,10 @@
   // field that is about to go never flashes in.
   // True until the server says this viewer's first refresh has finished
   // (#1672): the lists draw a skeleton instead of themselves or an empty state.
-  const loadingFirst = $derived(firstRefreshPending(firstRefresh.done));
+  // False while the snapshot's time is the zero time, so no "Refreshed ... ago"
+  // is drawn for a moment that never was.
+  let refreshedKnown = $state(false);
+  const loadingFirst = $derived(firstRefreshLoading(firstRefresh));
   let issueSettingsKnown = $state(false);
   let settingsHideDependencyDashboard = $state(false);
   let settingsIgnoreTitles = $state(false);
@@ -6699,7 +6711,10 @@
       )
         return;
       clearError();
-      lastGeneratedAt = data.generatedAt;
+      // The zero time a snapshot carries before the first refresh is no
+      // moment: keep the last real one and show no "Refreshed ... ago" for it.
+      refreshedKnown = hasTimestamp(data.generatedAt);
+      if (refreshedKnown) lastGeneratedAt = data.generatedAt;
       followReadInterval(data.readIntervalSeconds);
       tickRefreshedAt();
 
@@ -6826,6 +6841,9 @@
           ensureStream();
         })
         .catch((err: Error) => {
+          // No answer means no flag: show the real state, not a skeleton
+          // that would never end.
+          settleFirstRefresh();
           showError(`Could not reach the backend: ${err.message}`);
         });
     }
@@ -6842,9 +6860,9 @@
     // Follows the server's advice, and only re-arms when it changes, so a
     // snapshot that arrives between polls doesn't push the next one back.
     function followReadInterval(seconds: number | undefined) {
-      if (typeof seconds !== "number" || !(seconds >= 1)) return;
-      if (seconds * 1000 === readIntervalMs) return;
-      readIntervalMs = seconds * 1000;
+      const next = adviseReadIntervalMs(seconds, readIntervalMs);
+      if (next === readIntervalMs) return;
+      readIntervalMs = next;
       schedulePoll();
     }
 
@@ -7072,7 +7090,7 @@
       <option value="">My dashboard</option>
     </select>
     <div id="forge-health" aria-live="polite"></div>
-    <span class="refreshed"
+    <span class="refreshed" hidden={!refreshedKnown || loadingFirst}
       >Refreshed <span class="mono" id="refreshed-at">&mdash;</span></span
     >
     <button
