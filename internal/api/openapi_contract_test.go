@@ -225,6 +225,7 @@ func TestContract_DashboardAndRefresh(t *testing.T) {
 		req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard?includeDrafts=true", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
+		require.Contains(t, string(got.body), `"firstRefreshDone":true`, "required by the spec (#1673)")
 	})
 	t.Run("POST /api/dashboard/refresh", func(t *testing.T) {
 		t.Parallel()
@@ -270,11 +271,13 @@ func TestContract_IssueSettings(t *testing.T) {
 		req, got := send(http.MethodPut, "/api/settings", `{"githubToken":"sekrit-token","hideDependencyDashboard":true,"ignoredTitles":["^Weekly report"]}`)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
+		require.Contains(t, string(got.body), `"ignoredTitleCounts":[`, "one entry per pattern, null while unknown")
 	})
 	t.Run("GET /api/settings", func(t *testing.T) {
 		req, got := send(http.MethodGet, "/api/settings", "")
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
+		require.Contains(t, string(got.body), `"ignoredTitleCounts":[`)
 	})
 	t.Run("GET /api/dashboard with the settings applied", func(t *testing.T) {
 		req, got := send(http.MethodGet, "/api/dashboard", "")

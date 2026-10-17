@@ -49,7 +49,7 @@ stale.
   frontend its own already-filtered JSON. Confirm this yourself: open the
   browser's network tab and watch it call nothing but `/api/dashboard`,
   `/api/settings`, `/api/auth/*` and `/healthz` — and that `/api/settings`
-  never echoes a token back, only whether one is set.
+  never echoes a forge token back, only whether one is set.
 - **An MCP endpoint for agents, `/api/mcp`, read-only like the rest of
   this app.** Authenticated the same way any other `/api/*` route already
   is — a personal API token (Settings → API tokens),
@@ -70,6 +70,10 @@ stale.
   hours, under a `queuedActions` key). It costs no forge budget.
   `get_version` mirrors `GET /api/version` (the running server's release
   tag, under a `version` key). It costs no forge budget.
+  `get_settings` mirrors `GET /api/settings` without the webhook token and
+  secret, which are never sent over MCP; it reports `webhookConfigured`
+  instead, and unlike the HTTP read it never creates them. It carries
+  `ignoredTitleCounts` too, null per entry until the first refresh ends.
   Each calls the same function as its handler rather than adding a second,
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
@@ -1155,6 +1159,18 @@ the first 128 characters of a title. This is a safety margin tested by
 fuzzing, not a proof. The rule applies to the Issues board only; Insights
 charts ignore it.
 
+### First refresh
+
+After a restart the server holds no state, so the first snapshot is empty until
+the first refresh for that user ends. `firstRefreshDone` on the dashboard
+snapshot tells an empty board from one that hasn't loaded: it is `false` from
+process start until the viewer's first refresh has finished, whether it
+succeeded or failed (a failed one shows in the forge health), and `true` from
+then on, including after later refreshes and settings saves. It is per user and
+not stored, so a restart resets it. An account with no saved settings has
+nothing to refresh, so it reads `true` at once. `GET /api/dashboard`, the
+stream and the `get_dashboard` MCP tool all carry it.
+
 ### Issues your settings hide
 
 Two settings, saved with your account and applied by the server, keep issues
@@ -1175,6 +1191,17 @@ Issues board and Insights agree with no arithmetic in the client.
 `0` when none were. The same response carries `hideDependencyDashboard` and
 `ignoredTitlesSet` (true when the list isn't empty), so a client knows whether
 to draw its own fields without reading `/api/settings`.
+
+`GET /api/settings` and the response to saving it also carry
+`ignoredTitleCounts`: for each pattern in `ignoredTitles`, in the same order,
+how many of your open issues that pattern matches on its own. An issue two
+patterns match counts for both, so the entries can add up to more than
+`settingsHiddenIssueCount`. Issues of a repo whose issues you ignore aren't
+counted, as with that total. Every entry is `null` while the answer isn't known
+yet, because your first refresh hasn't finished or no forge answered it, and
+never a made-up `0`. The
+response to a save counts the list just saved, against the issues you had
+before the save.
 
 Patterns use Go's RE2 syntax. It has no lookahead, lookbehind or
 backreferences, and it can't run slowly, so no pattern is refused for being
@@ -1267,6 +1294,9 @@ it and leaves the saved choice alone, so it is still set when you go back to
 the page that does. The page says so under the filter bar (`Saved author
 "x" is not on this page.`) with a Clear button, and Clear filters is on and
 ends the saved choice too. Changing that control on the page ends it as well.
+Text typed in the title search or the hide-titles pattern is sent to the
+server half a second after the last key, and at once when you leave the page
+or switch tab, so a value typed just before leaving is kept.
 What is deliberately not remembered: the page you were on and the page size,
 the open Filters sheet on a phone, held updates, open menus and pop-ups, and
 the expanded rows on Branches. Branches keeps its own filter in a cookie

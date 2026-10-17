@@ -106,6 +106,7 @@ func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
 	addPullRequestTools(server, deps, u, ok)
 
 	addStoreTools(server, deps, u, ok)
+	addSettingsTool(server, deps, u, ok)
 
 	return server
 }
@@ -199,5 +200,29 @@ func addPullRequestTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 		}
 
 		return nil, pullRequestChecksResponse{Checks: checks}, nil
+	})
+}
+
+// addSettingsTool registers get_settings.
+func addSettingsTool(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "get_settings",
+		Description: "Fetch the signed-in user's own forge configuration: usernames, the Forgejo " +
+			"URL, whether a GitHub or Forgejo token is set (never the token), the Renovate " +
+			"and issue-hiding settings, theme and timezone, and webhookConfigured. " +
+			"Read-only: it writes nothing, and never creates webhook credentials. The " +
+			"webhook token and secret are never returned over MCP; read them in the web " +
+			"UI's Settings page.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, MCPSettingsResponse, error) {
+		if !ok {
+			return nil, MCPSettingsResponse{}, errNoAuthenticatedUser
+		}
+
+		resp, err := resolveSettingsForMCP(ctx, deps, u)
+		if err != nil {
+			return nil, MCPSettingsResponse{}, err
+		}
+
+		return nil, resp, nil
 	})
 }

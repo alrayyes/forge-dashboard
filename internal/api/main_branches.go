@@ -65,7 +65,7 @@ func buildMainBranchesResponse(generatedAt time.Time, branches []dashboard.MainB
 // two can't drift.
 func resolveMainBranchesFor(ctx context.Context, deps Deps, u *auth.User) mainBranchesResponse {
 	warmUpAggregator(ctx, deps, u.ID, u.Username)
-	deps.Manager.WaitFirstRefresh(ctx, u.ID, firstLoadWait)
+	deps.Manager.WaitFirstRefresh(ctx, u.ID, deps.firstLoadWait())
 
 	snap := deps.Manager.Get(u.ID)
 	board := loadBoardSettings(ctx, deps.SettingsStore, u.ID)
