@@ -209,7 +209,7 @@ server log. The tickets' criteria win over those two details.
   Forgejo). No screen shows the closed state, so use one convention, open
   is up.
 
-  Save buttons: the build keeps today's save behaviour per card. The app
+  Buttons that save: the build keeps each card's present behaviour. The app
   saves the theme on click, so Display gets no "Save theme" button, and a
   card that saves on change gets none either. Stitch draws "Save theme",
   "Save time zone" and "Save density settings" on the Display phone screen
@@ -229,7 +229,7 @@ server log. The tickets' criteria win over those two details.
   - The pills are about 40px high, under the prompt's own 44px target.
   - On a phone the chip reads "hides 3" without "issues", and the pattern is
     truncated.
-  - The trash buttons on a phone are icon-only, so they need an accessible
+  - The delete icons on a phone are icon-only, so they need an accessible
     name.
   - Small grey helper text on pale blue looks low in contrast. Nobody
     measured it.
@@ -247,7 +247,7 @@ server log. The tickets' criteria win over those two details.
   - per-card service tags such as "git-pr-v2", the "Policy Match 100%" chip
     and the encryption-promise banner;
   - figures and status lines: the request quota, "Last verified",
-    "mTLS Enforced", the token expiry, the latency line, "Last ping", the
+    `mTLS Enforced`, the token expiry, the latency line, "Last ping", the
     "Active" and "Encrypted" badges, the repository coverage count, and the
     polling interval line (the phone screen says 30 seconds where desktop says
     45 seconds, so Stitch contradicts itself);
