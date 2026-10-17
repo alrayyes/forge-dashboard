@@ -8,6 +8,11 @@
 * **api:** add a get_settings MCP tool that leaves out the webhook secrets ([#1711](https://github.com/alrayyes/forge-dashboard/issues/1711)) ([d66e927](https://github.com/alrayyes/forge-dashboard/commit/d66e9278e328263e4e8153b769c0b7a22e7ca666))
 * **api:** say on the dashboard snapshot whether the first refresh has finished ([#1683](https://github.com/alrayyes/forge-dashboard/issues/1683)) ([17a5d49](https://github.com/alrayyes/forge-dashboard/commit/17a5d49b8e61c439604e5637c58473bd7ab50d81))
 
+
+### Bug Fixes
+
+* **web:** show Counting… and re-read ignored title counts after a first save ([#1717](https://github.com/alrayyes/forge-dashboard/issues/1717)) ([2b96ca8](https://github.com/alrayyes/forge-dashboard/commit/2b96ca81e86a10c0d5cb28698e100c8d93441c14))
+
 ## [0.206.1](https://github.com/alrayyes/forge-dashboard/compare/v0.206.0...v0.206.1) (2026-10-17)
 
 
