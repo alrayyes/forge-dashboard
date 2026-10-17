@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
+  import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import {
     type ActionRequestError,
     interpretActionFailure,
@@ -567,25 +568,23 @@
       // values; save the merged state so the server keeps the rest too.
       if (hasTouched()) saveState(saved);
     });
-    fetch("/api/dashboard", { headers: { Accept: "application/json" } })
-      .then((res) => {
-        if (res.status === 401) {
-          window.location.href = "/login.html";
-          throw new Error("session expired");
-        }
-        if (!res.ok) throw new Error(`backend answered ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        repos = data.repos || [];
-        forges = data.forges || [];
-        loaded = true;
-      })
-      .catch(() => {
-        // A transient failure here just leaves the empty state showing
-        // — there's no dashboard-page-style error banner on this page.
-        loaded = true;
-      });
+  });
+
+  // The layout makes the one /api/dashboard read; this page follows its
+  // answers until one is done (#1801). A final failure just leaves the empty
+  // state showing: there is no dashboard-page-style error banner on this page.
+  $effect(() => {
+    const { state, data, status } = dashboardRead;
+    if (state === "pending") return;
+    untrack(() => {
+      if (state === "failed" && status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      repos = (data?.repos as Repo[]) || [];
+      forges = (data?.forges as ForgeHealthEntry[]) || [];
+      loaded = true;
+    });
   });
 </script>
 

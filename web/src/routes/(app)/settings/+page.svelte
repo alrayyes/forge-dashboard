@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick, untrack } from "svelte";
+  import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import Disclosure from "#lib/Disclosure.svelte";
   import SettingsNav from "#lib/SettingsNav.svelte";
   import {
@@ -1015,29 +1016,6 @@
         statusKind = "error";
       });
 
-    // webhook coverage summary — see settings.js's own comment on
-    // hasWebhook for why this is the summary-only view, and
-    // /webhooks.html the per-repo detail.
-    fetch("/api/dashboard", { headers: { Accept: "application/json" } })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        const repos = data?.repos || [];
-        if (!repos.length) {
-          webhookCoverageVisible = false;
-          return;
-        }
-        const withWebhook = repos.filter(
-          (r: { hasWebhook: boolean }) => r.hasWebhook,
-        ).length;
-        webhookCoverageCount = `${withWebhook} of ${repos.length} confirmed`;
-        webhookCoverageVisible = true;
-      })
-      .catch(() => {
-        // A transient failure here just leaves the summary hidden —
-        // this page's own settings form is where a real error banner
-        // belongs.
-      });
-
     loadTokens().catch((err) => {
       tokenStatus = err.message || "Could not load API tokens.";
       tokenStatusKind = "error";
@@ -1052,6 +1030,25 @@
       clearInterval(clock);
       window.removeEventListener("hashchange", openFromHash);
     };
+  });
+
+  // The webhook coverage summary: the summary-only view of the layout's one
+  // /api/dashboard read (#1801), following its answers until one is done.
+  // /webhooks.html has the per-repo detail. A final failure leaves the summary
+  // hidden; this page's own settings form is where a real error banner belongs.
+  $effect(() => {
+    const { state, data } = dashboardRead;
+    if (state === "pending") return;
+    untrack(() => {
+      const repos = (data?.repos as { hasWebhook: boolean }[]) || [];
+      if (!repos.length) {
+        webhookCoverageVisible = false;
+        return;
+      }
+      const withWebhook = repos.filter((r) => r.hasWebhook).length;
+      webhookCoverageCount = `${withWebhook} of ${repos.length} confirmed`;
+      webhookCoverageVisible = true;
+    });
   });
 </script>
 
