@@ -285,6 +285,122 @@ export function releaseAllHeld(): void {
   held.length = 0;
 }
 
+export type HeldPick = {
+  group: StateGroup;
+  key: string;
+  // What the control is called ("author", "CI status").
+  name: string;
+  // The saved value as a reader knows it ("acme/docs", "< 7 days").
+  text: string;
+};
+
+// The picks this page cleared for itself but still has saved, so it can say
+// so instead of showing an unfiltered list with nothing to explain it (#1620).
+export function heldPicks(): HeldPick[] {
+  return held.map((h) => {
+    let text = h.value;
+    if (h.key === 'repo') text = h.value.slice(h.value.indexOf(':') + 1);
+    const choices =
+      h.key === 'created' || h.key === 'updated'
+        ? AGE_RANGES
+        : h.key === 'status'
+          ? CI_CHOICES
+          : [];
+    text = choices.find((c) => c.value === h.value)?.label ?? text;
+    const name = h.key === 'status' ? FILTER_NAMES.status : h.key;
+    return { group: h.group, key: h.key, name, text };
+  });
+}
+
+const HELD_TEXT_MAX = 40;
+
+// A saved value can be anything a hand-edited copy holds; the page shows the
+// start of it. The full value stays in the saved state, never in the markup.
+function shortText(text: string): string {
+  return text.length > HELD_TEXT_MAX
+    ? `${text.slice(0, HELD_TEXT_MAX)}…`
+    : text;
+}
+
+// How the pick reads in a sentence: a name and value for the text kinds, and
+// "filter" with the control's name for the date and CI kinds.
+function heldPickPhrase(pick: HeldPick): string {
+  const value = shortText(pick.text);
+  if (['created', 'updated', 'status'].includes(pick.key))
+    return `filter "${FILTER_NAMES[pick.key]}: ${value}"`;
+  return `${pick.name} "${value}"`;
+}
+
+export function heldPickNote(pick: HeldPick): string {
+  return `Saved ${heldPickPhrase(pick)} is not on this page.`;
+}
+
+export function heldPickClearLabel(pick: HeldPick): string {
+  return `Clear saved ${heldPickPhrase(pick)}`;
+}
+
+function heldPickId(pick: HeldPick): string {
+  return `${pick.group}.${pick.key}`;
+}
+
+// Keeps the note's container in step with the held picks, touching only the
+// lines that changed so a screen reader isn't handed the others again. The
+// container stays in the page (a polite status region), so a change in it is
+// heard. Focus after a Clear goes to the next Clear button, or the container.
+export function renderHeldPicks(
+  container: HTMLElement,
+  onRemove: (pick: HeldPick) => void,
+): void {
+  const picks = heldPicks();
+  const lines = new Map<string, HTMLElement>();
+  for (const child of Array.from(container.children)) {
+    const line = child as HTMLElement;
+    lines.set(line.dataset.pick ?? '', line);
+  }
+  const wanted = new Set(picks.map(heldPickId));
+  for (const [id, line] of lines)
+    if (!wanted.has(id)) {
+      line.remove();
+      lines.delete(id);
+    }
+  for (const pick of picks) {
+    const id = heldPickId(pick);
+    const note = heldPickNote(pick);
+    const existing = lines.get(id);
+    if (existing) {
+      const text = existing.querySelector('span');
+      if (text && text.textContent !== note) text.textContent = note;
+      existing
+        .querySelector('button')
+        ?.setAttribute('aria-label', heldPickClearLabel(pick));
+      continue;
+    }
+    const line = document.createElement('p');
+    line.className = 'held-pick';
+    line.dataset.pick = id;
+    const text = document.createElement('span');
+    text.textContent = note;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'held-pick-clear';
+    button.textContent = 'Clear';
+    button.setAttribute('aria-label', heldPickClearLabel(pick));
+    button.addEventListener('click', () => {
+      onRemove(pick);
+      focusHeldPicks(container);
+    });
+    line.append(text, button);
+    container.appendChild(line);
+  }
+}
+
+// A gentle place to land once a Clear button is gone: the next one, or the
+// container itself (not a text box, so a phone keeps its keyboard down).
+export function focusHeldPicks(container: HTMLElement): void {
+  const next = container.querySelector<HTMLElement>('.held-pick-clear');
+  (next ?? container).focus();
+}
+
 // What gets saved: the state with every held pick put back where the page
 // cleared it.
 function savedCopy(state: SharedFilterState): SharedFilterState {
