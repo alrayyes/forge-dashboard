@@ -167,6 +167,11 @@ pre-push:
     - name: doc ticket refs
       run: bun run lint:refs
 
+    # A moved page or renamed heading must not leave a dead link or anchor;
+    # the script's header has the rules. Its own test runs in the unit job.
+    - name: doc links
+      run: bun run lint:links
+
     # Reads only: pre-commit already sorted what was staged, so this fails
     # only if that got bypassed.
     - name: sort-package-json

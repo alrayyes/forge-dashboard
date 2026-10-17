@@ -14,6 +14,7 @@
     "lint:api": "redocly lint",
     "lint:api:security": "spectral lint api/openapi.yaml",
     "lint:js": "biome check",
+    "lint:links": "bun scripts/check-doc-links.ts",
     "lint:md": "markdownlint-cli2",
     "lint:mechanics": "./scripts/lint-mechanics.sh",
     "lint:pkg": "sort-package-json --check package.json web/package.json",
