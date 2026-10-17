@@ -5810,19 +5810,25 @@
     }
 
     // What the health live region says: each forge's reachability, and
-    // whether a budget is spent. The counts and times in the visible pill
-    // change on every poll and are left out, so an unchanged state yields
-    // the same string.
+    // whether a budget is spent or running low. The counts and times in the
+    // visible pill change on every poll and are left out, so an unchanged
+    // state yields the same string.
     function healthAnnouncement(forges: Forge[]): string {
       return forges
         .map((f) => {
           const name = FORGE_LABELS[f.forge] || f.forge;
           const limited =
             isRateLimited(f.rateLimitREST) || isRateLimited(f.rateLimitGraphQL);
+          // A spent budget outranks a low one, so the text changes at low
+          // and again at spent, never on the count in between.
+          const low =
+            !limited &&
+            (f.rateLimitREST?.severity === "low" ||
+              f.rateLimitGraphQL?.severity === "low");
           return (
             name +
             (f.reachable ? " reachable" : " unreachable") +
-            (limited ? ", rate limited" : "")
+            (limited ? ", rate limited" : low ? ", rate limit low" : "")
           );
         })
         .join(". ");
@@ -6112,10 +6118,10 @@
         : `resets in ${seconds}s`;
     }
 
-    // Rebuilt only when what it says changes. The ticking countdown is
-    // updated in place and hidden from assistive tech (WCAG 4.1.3): the
-    // banner is an alert, so replacing it every second would have a screen
-    // reader read it out every second. The reset time in the label is the
+    // Rebuilt only when what it says changes. The ticking countdown and a
+    // low row's remaining count are updated in place and hidden from
+    // assistive tech (WCAG 4.1.3): replacing the banner every second or every
+    // poll would have a screen reader read it out each time. The reset time in the label is the
     // static, spoken version of the same fact (#732).
     function renderRateLimitBanner() {
       renderUnreachableBanner();
@@ -6130,7 +6136,7 @@
         ...rateLimitAlerts.map((a) =>
           a.kind === "readonly"
             ? `${a.label}|readonly|${a.rest}|${a.graphql}|${a.resetsAt}`
-            : `${a.label}|low|${a.resetsAt}|${a.remaining}`,
+            : `${a.label}|low|${a.resetsAt}`,
         ),
       ].join(";");
       if (existing && existing.dataset.signature === signature) {
@@ -6145,7 +6151,14 @@
       const banner = el("div", "rate-limit-banner");
       banner.id = "rate-limit-banner";
       banner.dataset.signature = signature;
-      banner.setAttribute("role", "alert");
+      // A budget running low is news, not an emergency, and its count
+      // moves on every poll; only a spent one is assertive (#1791). The
+      // health live region says "rate limit low" once, so a banner that
+      // appears as a status is a second, polite mention of the same event.
+      banner.setAttribute(
+        "role",
+        rateLimitAlerts.some((a) => a.kind === "readonly") ? "alert" : "status",
+      );
       for (const alert of rateLimitAlerts) {
         const readonly = alert.kind === "readonly";
         const row = el("div", `rate-limit-banner-row${readonly ? "" : " low"}`);

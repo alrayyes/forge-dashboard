@@ -190,4 +190,33 @@ test.describe('the forge health live region (WCAG 4.1.3)', () => {
     await expect(page.locator(LIVE)).not.toContainText(/rate limited/i);
     expect(await mutations(page)).toBeGreaterThan(spent);
   });
+
+  test('a budget running low announces once, and again only when spent', async ({
+    page,
+  }) => {
+    const reset = new Date(Date.now() + 40 * 60_000).toISOString();
+    const at = (remaining: number) =>
+      up({ rateLimitREST: rateLimit(5000, remaining, reset) });
+    const state = { forge: at(4000), requests: 0 };
+    await open(page, state);
+
+    state.forge = at(200);
+    await poll(page, state);
+    await expect(page.locator(LIVE)).toContainText(/rate limit low/i);
+    await expect(page.locator(LIVE)).not.toContainText(/rate limited/i);
+    const low = await mutations(page);
+    expect(low).toBeGreaterThan(0);
+
+    // The count falls, the state holds: nothing is said again.
+    state.forge = at(190);
+    await poll(page, state);
+    state.forge = at(180);
+    await poll(page, state);
+    expect(await mutations(page)).toBe(low);
+
+    state.forge = at(0);
+    await poll(page, state);
+    await expect(page.locator(LIVE)).toContainText(/rate limited/i);
+    expect(await mutations(page)).toBeGreaterThan(low);
+  });
 });
