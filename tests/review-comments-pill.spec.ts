@@ -74,7 +74,7 @@ async function open(page: Page, scheme: 'light' | 'dark' = 'light') {
 
 const row = (page: Page, title: string) =>
   page.locator('#pr-rows > .row').filter({
-    has: page.locator('.title-text', { hasText: new RegExp(`\\d${title}$`) }),
+    has: page.locator('.title-text', { hasText: new RegExp(`\\d ${title}$`) }),
   });
 const pill = (page: Page, title: string) =>
   row(page, title).locator('.review-pill');

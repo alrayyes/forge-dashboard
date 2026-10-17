@@ -105,9 +105,17 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await expect(
       row.getByRole('button', { name: /Open pipeline/ }),
     ).toBeEnabled();
-    await expect(
-      row.getByRole('link', { name: /A pull request/ }),
-    ).toBeVisible();
+    const open = row.getByRole('button', { name: /A pull request/ });
+    await expect(open).toBeVisible();
+    // The title opens the dialog, which is read-only too: no mutating control.
+    await open.click();
+    const dialog = page.getByRole('dialog', { name: /^Pull request details/ });
+    await expect(dialog).toBeVisible();
+    for (const name of MUTATING) {
+      await expect(
+        dialog.getByRole('button', { name, exact: true }),
+      ).toHaveCount(0);
+    }
   });
 
   test('one banner for the forge says it is read-only until the reset, and what still works', async ({

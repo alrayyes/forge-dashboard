@@ -118,9 +118,7 @@ const trigger = (page: Page) =>
   page
     .locator('#pr-rows .row')
     .first()
-    .getByRole('button', {
-      name: /^Details/,
-    });
+    .getByRole('button', { name: /^#\d+ / });
 const dialog = (page: Page) =>
   page.getByRole('dialog', { name: /^Pull request details/ });
 
@@ -497,13 +495,13 @@ test.describe('pull request details dialog', () => {
     await page
       .locator('#pr-rows .row')
       .nth(0)
-      .getByRole('button', { name: /^Details/ })
+      .getByRole('button', { name: /^#\d+ / })
       .click();
     await page.keyboard.press('Escape');
     await page
       .locator('#pr-rows .row')
       .nth(1)
-      .getByRole('button', { name: /^Details/ })
+      .getByRole('button', { name: /^#\d+ / })
       .click();
     await expect(dialog(page)).toContainText('description for 43');
     const stale = page.waitForResponse((r) => r.url().includes('number=42'));
@@ -566,8 +564,9 @@ test.describe('pull request details dialog', () => {
       }),
     );
     await page.goto('/pull-requests.html');
-    const rowTrigger = await trigger(page).boundingBox();
-    expect(rowTrigger?.height).toBeGreaterThanOrEqual(44);
+    // The trigger's hit area is the whole row (its stretched overlay).
+    const rowBox = await page.locator('#pr-rows .row').first().boundingBox();
+    expect(rowBox?.height).toBeGreaterThanOrEqual(44);
     await trigger(page).click();
     const d = dialog(page);
     await expect(d).toBeVisible();
@@ -690,16 +689,6 @@ test.describe('pull request details dialog', () => {
     await expect(content).toContainText('proto');
     await expect(content).toContainText('frag');
     await expect(content.locator('a[href^="/"], a[href^="#"]')).toHaveCount(0);
-  });
-
-  test('the row Details button is at least 24px high on a desktop and 44px on a phone', async ({
-    page,
-  }) => {
-    await mockDashboard(page, [makePR()]);
-    await page.goto('/pull-requests.html');
-    const box = await trigger(page).boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(24);
-    expect(box?.width).toBeGreaterThanOrEqual(24);
   });
 
   test('the header shows attributes from the row data, and the version on Releases', async ({

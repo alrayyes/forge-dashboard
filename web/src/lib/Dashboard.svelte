@@ -300,7 +300,7 @@
     };
   };
 
-  // The read-only details dialog (#943); a row's Details button opens it.
+  // The read-only details dialog (#943); a pull request's title button opens it.
   let detailsDialog = $state<PullRequestDetailsDialog>();
 
   // The Issues settings (#1630). The server applies them to what it sends, so
@@ -613,6 +613,7 @@
       item: FilterableItem & { number: number; url: string; draft?: boolean },
       onLabelClick: (name: string) => void,
       activeLabel: string,
+      onOpen?: (triggerId: string) => void,
     ): HTMLElement {
       const wrap = el("div", "title-cell");
       // The real, keyboard-focusable link — a "stretched link" (see
@@ -621,18 +622,49 @@
       // the CI pill and label chips invalid/inaccessible nested
       // interactive elements.
       // https://css-tricks.com/block-links-the-search-for-a-perfect-solution/
-      const title = document.createElement("a");
+      //
+      // A pull request's title is a button that opens its dialog (the dialog
+      // links on to the forge); an issue has no dialog, so its title still
+      // links to the forge.
+      const title = document.createElement(onOpen ? "button" : "a");
       title.className = "title";
-      title.href = item.url;
-      title.target = "_blank";
-      title.rel = "noopener noreferrer";
+      if (title instanceof HTMLAnchorElement) {
+        title.href = item.url;
+        title.target = "_blank";
+        title.rel = "noopener noreferrer";
+      } else if (onOpen) {
+        const button = title as HTMLButtonElement;
+        button.type = "button";
+        button.setAttribute("aria-label", `#${item.number} ${item.title}`);
+        // Stable, so the dialog can hand focus back after a re-render.
+        button.id = `details-trigger-${domSafeId(prKey(item as PullRequestItem))}`;
+        // A drag that starts and ends on the overlay is a text-selection
+        // gesture, not a click (a link never opens on one either).
+        let down: { x: number; y: number } | null = null;
+        button.addEventListener("pointerdown", (event) => {
+          down = { x: event.clientX, y: event.clientY };
+        });
+        button.addEventListener("click", (event) => {
+          const start = down;
+          down = null;
+          // detail 0 is a keyboard click: no pointer path to judge.
+          if (
+            event.detail > 0 &&
+            start &&
+            Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5
+          )
+            return;
+          onOpen(button.id);
+        });
+      }
       // The ellipsis truncation lives on this inner span, not .title
       // itself — overflow:hidden on .title would clip its own ::after
       // stretched overlay down to .title's box instead of letting it
       // cover the whole row (see the comment on .title in style.css).
       const text = el("span", "title-text");
       text.appendChild(el("span", "num", `#${item.number}`));
-      text.appendChild(document.createTextNode(item.title));
+      // A real space, so the visible text reads like the accessible name.
+      text.appendChild(document.createTextNode(` ${item.title}`));
       title.appendChild(text);
       wrap.appendChild(title);
       (item.labels || []).slice(0, 3).forEach((label) => {
@@ -1059,31 +1091,6 @@
       return { state, attributes };
     }
 
-    // Opens the read-only details dialog (#943). A real button of its own, not
-    // stretched over the row: the row's stretched link still opens the pull
-    // request on the forge until the dialog takes over the whole row.
-    function detailsButton(item: PullRequestItem): HTMLButtonElement {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "row-details";
-      button.id = `details-trigger-${domSafeId(prKey(item))}`;
-      button.textContent = "Details";
-      button.setAttribute(
-        "aria-label",
-        `Details, #${item.number} ${item.title}`,
-      );
-      button.addEventListener("click", () => {
-        detailsDialog?.open(
-          {
-            ...item,
-            status: detailsStatus(item),
-          },
-          button.id,
-        );
-      });
-      return button;
-    }
-
     function buildRow(
       item: PullRequestItem | IssueItem,
       isPR: boolean,
@@ -1093,10 +1100,23 @@
       const row = el("div", "row");
 
       row.appendChild(repoCell(item));
-      const titleCellEl = titleCell(item, onLabelClick, activeLabel);
+      const titleCellEl = titleCell(
+        item,
+        onLabelClick,
+        activeLabel,
+        isPR
+          ? (triggerId) =>
+              detailsDialog?.open(
+                {
+                  ...(item as PullRequestItem),
+                  status: detailsStatus(item as PullRequestItem),
+                },
+                triggerId,
+              )
+          : undefined,
+      );
       row.appendChild(titleCellEl);
       if (!isPR) row.dataset.issueKey = prKey(item);
-      if (isPR) titleCellEl.appendChild(detailsButton(item as PullRequestItem));
       if (isPR && (item as PullRequestItem).stack)
         titleCellEl.appendChild(stackInfo(item as PullRequestItem));
       // The Releases page shows the version being released, and says why a
