@@ -64,6 +64,26 @@ describe('populateSelect with a saved lowercase pick', () => {
   });
 });
 
+describe('options that differ only by case', () => {
+  test('a saved pick that is exact picks that option', () => {
+    const select = fakeSelect();
+    populateSelect(select, ['Ryan', 'ryan'], 'ryan');
+    expect(select.value).toBe('ryan');
+  });
+
+  test('a saved pick matching only one by case picks the first of them', () => {
+    const select = fakeSelect();
+    populateSelect(select, ['Ryan', 'ryan'], 'RYAN');
+    expect(select.value).toBe('Ryan');
+  });
+
+  test('a lowercase pick is kept when only the capitalised option exists', () => {
+    const select = fakeSelect();
+    populateSelect(select, ['Ryan'], 'ryan');
+    expect(select.value).toBe('Ryan');
+  });
+});
+
 describe('populateChoices', () => {
   test('matches case-insensitively and keeps the option value as offered', () => {
     const select = fakeSelect();
