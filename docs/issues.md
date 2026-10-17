@@ -176,6 +176,11 @@ ends the saved choice too. Changing that control on the page ends it as well.
 Text typed in the title search or the hide-titles pattern is sent to the
 server half a second after the last key, and at once when you leave the page
 or switch tab, so a value typed just before leaving is kept.
+Each save carries a revision number, in the cookie and in the server copy. When
+a page loads, the server copy is applied unless the cookie holds a newer
+revision, so a value typed just before a reload is not replaced by an older
+copy whose save was slow or lost. The page then sends the cookie's state to the
+server. A copy with no revision, or the same one, wins as before.
 What is deliberately not remembered: the page you were on and the page size,
 the open Filters sheet on a phone, held updates, open menus and pop-ups, and
 the expanded rows on Branches. The Branches status, forge and search follow
