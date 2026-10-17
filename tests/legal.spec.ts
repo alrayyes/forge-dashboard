@@ -52,9 +52,11 @@ test.describe('disclaimer and privacy pages', () => {
     page,
   }) => {
     await page.goto('/login.html');
+    // A separator and its link are joined by a no-break space, so they never
+    // split across two lines; it reads as a space.
     const text = await page
       .locator('footer')
-      .evaluate((el) => (el as HTMLElement).innerText);
+      .evaluate((el) => (el as HTMLElement).innerText.replace(/\u00a0/g, ' '));
     expect(text).toContain('dev build · Disclaimer · Privacy');
   });
 
