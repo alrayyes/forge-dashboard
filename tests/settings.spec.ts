@@ -409,7 +409,7 @@ test.describe('settings page', () => {
   }) => {
     // Regression test: the hint's old prose form named write:repository
     // and read:issue but never read:user, even though GET /user/repos —
-    // the README's own Credentials section documents this with a real
+    // the accounts page's Credentials section documents this with a real
     // 403 it hit live — refuses a token missing it.
     await page.goto('/settings.html#connections');
 
