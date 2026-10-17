@@ -63,19 +63,21 @@ stale.
 
 - [Pull request actions](docs/pull-request-actions.md): what a row offers, and
   why a blocked action is blocked.
-- [Issues](docs/issues.md): the issues page, the settings that hide issues, and
-  how filters are remembered.
+- [Issues](docs/issues.md): the issues page and the settings that hide issues.
 - [Main branches](docs/main-branches.md): the default-branch CI page and
   `GET /api/main-branches`.
-- [Live updates](docs/live-updates.md): how the board refreshes, what waits behind
-  "N updates available", and the first load after a restart.
+- [Live updates and filters](docs/live-updates.md): how the board refreshes, what
+  waits behind "N updates available", the first load after a restart, the
+  navigation counts, and how filters are offered, remembered and folded on a
+  phone.
 - [API](docs/api.md): the HTTP endpoints, the OpenAPI contract and the MCP
   endpoint.
 - [Accounts](docs/accounts.md): passkey login, API tokens, the admin area,
   sharing a dashboard and the GitHub and Forgejo credentials.
 - [Configuration](docs/configuration.md): every environment variable, how repositories
   are discovered and the GitHub App option.
-- [Webhooks](docs/webhooks.md): registering the forge webhook.
+- [Webhooks](docs/webhooks.md): registering the forge webhook and the checks the
+  dashboard runs on its own.
 - [Architecture](ARCHITECTURE.md#design): the design choices behind the app, from
   passkey login to the MCP endpoint and the single binary.
 
@@ -162,70 +164,6 @@ the same filters, rows and actions as the main page. The main pull request page
 lists none of them, so it has no quick filter for bots. A filter saved before
 that change is ignored. With no bot pull requests open the page says there is
 nothing to review.
-
-Every item in the navigation shows how many items its page lists, and how many
-of them are failing. It is one pill: a neutral **total**, then the outcomes,
-failing (red) and passing (green), then a thin divider and the state, running
-(amber, a spinner, or a still clock under reduced motion). Each count has its
-own glyph so colour is never the only signal. Branches counts default
-branches. Pull requests, Releases and Bots count their pull requests (without
-the ones that belong to another of the three). All four show those three
-counts, in that order. The divider appears only when a running count follows an
-outcome, and not on a phone. A pull request with no checks is in the total
-only, so its numbers needn't add up. Branches adds a fifth, neutral count with
-a dashed circle for the branches with no pipeline, last, so its numbers do add
-up. A zero is never drawn, and the link's name says the same in words, in the
-same order: "Pull requests, 15 total, 2 failing, 10 passing, 3 running", and
-"Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline". On
-a phone the total sits on its own line above the counts, and with three-digit
-numbers each count takes a line, so the busy tabs grow to about 110px. Issues
-counts open issues, without Renovate's Dependency Dashboard or what your
-settings hide, and has no failed count. The server works the numbers out from
-the same lists the pages show (`navCounts` on `/api/dashboard`), so a page
-agrees with its icon, and a hidden pull request is in neither. The dashboard
-pages set them from each snapshot. The other signed-in pages (Branches,
-Insights, Settings and the rest) load them and ask again every 30 seconds
-while the tab is visible, so a refresh or a webhook changes them without a
-reload.
-
-A zero is never drawn: a page with nothing in it has no total, and nothing
-failing means no red pill. A page with nothing to show leaves the navigation:
-the Pull requests, Releases, Bots and Issues links are not in the header or the
-phone's tab bar while their total is 0. Branches always shows. A count that
-isn't known yet is not 0, so the links stay until the first snapshot says
-otherwise, and the page you are on keeps its own link until you leave it. The
-page still opens when typed into the address bar, and says it is empty.
-
-The pages start with their list, with no row of tiles repeating those numbers.
-One line near the list's heading says how many rows show: "12 open" with no
-filter, "Showing 1 of 12" when a filter narrows it. The Failing CI pill filters
-to failing pull requests, and All clears it. How many repositories are tracked
-is a quiet line under the Insights heading. A page with nothing open says so,
-even when its nav item is hidden.
-
-On a phone the numbers sit above each tab's icon. An item's accessible name says
-both in words: "Branches, 12 total, 3 failing, 8 passing, 1 running" on the
-header icon, "12 Branches, 3 failing, 8 passing, 1 running" on the tab, which
-shows its numbers before its word.
-
-The menu runs Branches, Pull requests, Releases, Bots, Issues, then the rest.
-
-## Filters on a phone
-
-Below 760px wide the filter bar folds down so the first screen shows pull
-requests. Closed, it is one search row (the title filter and a **Filters**
-button) and one row of quick filters that scrolls sideways. The button's count,
-as in "Filters (2)", is how many filters are on: forge, repo, author, label,
-created, updated, CI status, and Show drafts. Each active filter also shows as a
-chip you can tap to remove without opening anything.
-
-**Filters** opens a bottom sheet with the rest of the controls: forge, Show
-drafts, sort, group, repo, author, label, created and updated. Filters apply as
-you change them, and the sheet's **Show N results** button, which closes it,
-says what you would see, so a refresh can't change something you are editing.
-**Clear all** resets everything. Escape, the close button, or a tap outside
-closes the sheet and returns focus to the Filters button. On wider screens
-nothing changes except that the title filter now sits first in the bar.
 
 ## Hiding one pull request
 
