@@ -27,6 +27,9 @@ const (
 type ActionAvailability struct {
 	Action  ActionName `json:"action"`
 	Blocked *Blocked   `json:"blocked,omitempty"`
+	// Primary marks the one action a client draws as the main button. At most
+	// one entry per pull request has it, and never a blocked one.
+	Primary bool `json:"primary,omitempty"`
 }
 
 // Blocked is why an offered action can't be taken right now. Code comes from
@@ -75,8 +78,52 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	if pr.CI == CIFailure {
 		out = append(out, ActionAvailability{Action: ActionRerunChecks})
 	}
+	markPrimary(pr, out)
 
 	return out
+}
+
+// markPrimary sets Primary on the one action that is the pull request's main
+// button, so no client decides it. The rule table, first match wins:
+//   - empty: Close, since nothing can ever merge;
+//   - Merge offered and not blocked: Merge, unless CI is failing (Merge is
+//     only open because the failing checks aren't required, and the status
+//     area explains that);
+//   - Merge blocked because the branch is behind: Update branch, or the
+//     Renovate or Dependabot rebase for a bot pull request, whichever is
+//     offered and not blocked;
+//   - anything else (checks running or failing, conflict, draft, stacked,
+//     blocked by the forge): none, since the status area gives the reason.
+func markPrimary(pr PullRequest, actions []ActionAvailability) {
+	for _, name := range primaryCandidates(pr, actions) {
+		for i := range actions {
+			if actions[i].Action == name && actions[i].Blocked == nil {
+				actions[i].Primary = true
+
+				return
+			}
+		}
+	}
+}
+
+// primaryCandidates is the actions that may be primary, best first.
+func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionName {
+	if pr.Empty {
+		return []ActionName{ActionClose}
+	}
+	for _, a := range actions {
+		if a.Action != ActionMerge {
+			continue
+		}
+		switch {
+		case a.Blocked == nil && pr.CI != CIFailure:
+			return []ActionName{ActionMerge}
+		case a.Blocked != nil && a.Blocked.Code == ActionBehind:
+			return []ActionName{ActionUpdateBranch, ActionRenovateRebase, ActionDependabotRebase}
+		}
+	}
+
+	return nil
 }
 
 // renovateRebaseAvailability: while Renovate's rebase box is ticked, a rebase is
