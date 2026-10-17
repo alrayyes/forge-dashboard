@@ -189,6 +189,31 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+// A saved state carries a revision, `rev`, in the cookie and in the server
+// copy. Every save is one past the newest revision this browser has seen, from
+// the cookie, the server copy or its own last save. A counter, not a clock, so
+// a device whose clock is ahead cannot make a stale state win. On load the
+// copy is applied unless the cookie is strictly newer (see loadStateFromServer).
+let knownRev = 0;
+// The cookie's revision when this page loaded, to compare with the copy's. An
+// edit made while the copy loads raises the cookie's revision, but the copy
+// was still requested before it, and the touched keys already protect the edit.
+let loadedCookieRev: number | null = null;
+
+function revOf(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function cookieRev(): number | null {
+  const raw = getCookie(FILTERS_COOKIE);
+  if (!raw) return null;
+  try {
+    return revOf(JSON.parse(raw)?.rev);
+  } catch {
+    return null;
+  }
+}
+
 function setCookie(name: string, value: string): void {
   const maxAgeSeconds = 365 * 24 * 60 * 60;
   // Cookie Store API isn't in Safari yet, and this repo targets more than just Chromium (browser-compat.md).
@@ -216,6 +241,8 @@ export function loadState(): SharedFilterState {
   // page before it is now stale.
   pageGeneration++;
   resetTouched();
+  loadedCookieRev = cookieRev();
+  if (loadedCookieRev !== null) knownRev = Math.max(knownRev, loadedCookieRev);
   return readCookieState();
 }
 
@@ -478,7 +505,7 @@ function sendFilterState(state: SharedFilterState): void {
   void fetch(FILTER_STATE_ENDPOINT, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(savedCopy(state)),
+    body: JSON.stringify({ ...savedCopy(state), rev: knownRev }),
     keepalive: true,
     signal: abort.signal,
   })
@@ -552,8 +579,13 @@ export function saveState(
   state: SharedFilterState,
   debouncedCol?: string,
 ): void {
+  // Another tab may have saved since: go one past the newest revision known.
+  knownRev = Math.max(knownRev, cookieRev() ?? 0) + 1;
   try {
-    setCookie(FILTERS_COOKIE, JSON.stringify(savedCopy(state)));
+    setCookie(
+      FILTERS_COOKIE,
+      JSON.stringify({ ...savedCopy(state), rev: knownRev }),
+    );
   } catch {
     /* ignore */
   }
@@ -599,6 +631,20 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
         (!parsed.view || Object.keys(parsed.view).length === 0) &&
         (!parsed.branches || Object.keys(parsed.branches).length === 0)
       ) {
+        return null;
+      }
+      const copyRev = revOf((parsed as { rev?: unknown }).rev);
+      if (copyRev !== null) knownRev = Math.max(knownRev, copyRev);
+      // The cookie holds a newer save than the copy: the copy is what a slow or
+      // lost save left behind, so it must not overwrite the cookie. Send the
+      // cookie's state so the server catches up. A missing or equal revision on
+      // either side keeps the copy winning, as it did before revisions.
+      if (
+        copyRev !== null &&
+        loadedCookieRev !== null &&
+        loadedCookieRev > copyRev
+      ) {
+        putFilterStateToServer(readCookieState());
         return null;
       }
       return parsed;
