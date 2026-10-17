@@ -46,27 +46,27 @@ function stripCode(text: string): string {
   return kept.join('\n').replace(/(`+)[\s\S]*?\1/g, blank);
 }
 
-const OWN_URL =
-  /github\.com\/alrayyes\/forge-dashboard\/(?:issues|pull)\/\d+|git\.higherlearning\.eu/gi;
-const OWN_URL_ONCE = new RegExp(OWN_URL.source, 'i');
+const OWN_URL = /alrayyes\/forge-dashboard|git\.higherlearning\.eu/i;
 const URL = /https?:\/\/[^\s)>\]]+/g;
-const BARE = /(?<![&\w])#\d+|[\w.-]+\/[\w.-]+#\d+/g;
+// A relative or own-repo tracker link, and the forge itself.
+const TRACKER = /\/(?:issues|pull)\/\d+|git\.higherlearning\.eu/gi;
+// #12 and owner/repo#12, but not a hex colour (#1a2b3c, #123456), a heading
+// anchor (](#2-sec)), an entity (&#39;) or a six-digit run.
+const BARE =
+  /(?<![&\w])(?<!\]\()#\d{1,5}(?!\w)|[\w.-]+\/[\w.-]+#\d{1,5}(?!\w)/g;
 
 export function findTicketRefs(markdown: string): Finding[] {
-  const text = stripCode(markdown);
+  // A third party's URL may end in #12 or /issues/12; it is a citation.
+  const text = stripCode(markdown).replace(URL, (u) =>
+    OWN_URL.test(u) ? u : blank(u),
+  );
   const findings: Finding[] = [];
-  const add = (source: string, pattern: RegExp) => {
-    for (const m of source.matchAll(pattern)) {
-      const line = source.slice(0, m.index).split('\n').length;
+  for (const pattern of [TRACKER, BARE]) {
+    for (const m of text.matchAll(pattern)) {
+      const line = text.slice(0, m.index).split('\n').length;
       findings.push({ line, match: m[0] });
     }
-  };
-  add(text, OWN_URL);
-  // A third party's URL may end in #123 or /issues/123; it is a citation.
-  add(
-    text.replace(URL, (u) => (OWN_URL_ONCE.test(u) ? u : blank(u))),
-    BARE,
-  );
+  }
   return findings.sort((a, b) => a.line - b.line);
 }
 

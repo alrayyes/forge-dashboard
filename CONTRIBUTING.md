@@ -176,9 +176,9 @@ Two things to know. Unit tests live under `web/src`, not `tests/`, because
 Playwright picks up any `tests/*.test.ts` and a bare `bun test` fails on
 Playwright specs. And `bun test` has no Svelte compiler, so it can't load a
 `.svelte.ts` rune module (`$state is not defined`) or render a component. When a
-test first needs one, add Vitest with `vite-plugin-svelte` for those files; the
-options and measurements are in the tracker's "decide where frontend logic
-is tested without a browser" ticket.
+test first needs one, add Vitest with `vite-plugin-svelte` for those files.
+`bun test` was picked for plain modules because it runs in about 0.01 s with
+nothing new to install, where Vitest takes 0.4 s or more and a dependency.
 
 ## How it fits together
 
