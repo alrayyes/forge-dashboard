@@ -5694,14 +5694,18 @@
         sharedState.shared,
         sharedState.pr,
       );
+      // Each filter is cleared in the group the page keeps it in: the
+      // pull-request ones live in sharedState.pr, the rest in shared.
+      const prKeys = ["status", "quick", "autoMerge"];
       for (const filter of failing) {
-        Filters.touchKey(filter === "quick" ? "pr" : "shared", filter);
-        if (filter === "quick") sharedState.pr.quick = "";
-        else sharedState.shared[filter] = "";
-        Filters.releaseHeld(filter === "quick" ? "pr" : "shared", filter);
+        const group = prKeys.includes(filter) ? "pr" : "shared";
+        Filters.touchKey(group, filter);
+        sharedState[group][filter] = "";
+        Filters.releaseHeld(group, filter);
       }
       if (failing.length > 0) {
         syncQuickPills();
+        syncAutoMerge();
         document
           .querySelectorAll<HTMLInputElement | HTMLSelectElement>(
             `${FILTER_CONTROLS}`,
