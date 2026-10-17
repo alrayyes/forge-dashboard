@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.214.4](https://github.com/alrayyes/forge-dashboard/compare/v0.214.3...v0.214.4) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** keep the low rate-limit banner stable while its count falls ([#1807](https://github.com/alrayyes/forge-dashboard/issues/1807)) ([61496f3](https://github.com/alrayyes/forge-dashboard/commit/61496f3fc391e21cf62b0d0b33d7c7597c0e479c))
+
 ## [0.214.3](https://github.com/alrayyes/forge-dashboard/compare/v0.214.2...v0.214.3) (2026-10-17)
 
 
