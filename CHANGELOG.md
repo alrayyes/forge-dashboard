@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.204.2](https://github.com/alrayyes/forge-dashboard/compare/v0.204.1...v0.204.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** keep every footer link on every page and mark the current one ([#1687](https://github.com/alrayyes/forge-dashboard/issues/1687)) ([9361ca0](https://github.com/alrayyes/forge-dashboard/commit/9361ca02b791e0beed198c8f9581cce714fbbc03))
+
 ## [0.204.1](https://github.com/alrayyes/forge-dashboard/compare/v0.204.0...v0.204.1) (2026-10-17)
 
 
