@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.204.1](https://github.com/alrayyes/forge-dashboard/compare/v0.204.0...v0.204.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **api:** show the version in the footer of the 404 and 500 pages ([#1694](https://github.com/alrayyes/forge-dashboard/issues/1694)) ([ed5e5a9](https://github.com/alrayyes/forge-dashboard/commit/ed5e5a9f20a711d7226e2a31b1f9495c83efb84d))
+* **web:** keep an author or label pick whose option has capitals ([#1681](https://github.com/alrayyes/forge-dashboard/issues/1681)) ([04c37e8](https://github.com/alrayyes/forge-dashboard/commit/04c37e85e4610804c9d7a95c49933ff573004cb7))
+
 ## [0.204.0](https://github.com/alrayyes/forge-dashboard/compare/v0.203.0...v0.204.0) (2026-10-17)
 
 
