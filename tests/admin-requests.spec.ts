@@ -58,12 +58,14 @@ test.describe('admin area — outbound request log', () => {
       // webhooks.spec.ts does this).
       await Promise.all([
         userPage.waitForResponse((res) => res.url().includes('/api/settings')),
-        userPage.goto('/settings.html'),
+        userPage.goto('/settings.html#connections'),
       ]);
       await userPage.fill('#forgejo-url', forgejoURL);
       await userPage.fill('#forgejo-token', 'fj_test_token');
-      await userPage.click('#save-button');
-      await expect(userPage.locator('#status')).toHaveText('Saved.');
+      await userPage.click('#save-connections-button');
+      await expect(userPage.locator('#connections-status')).toHaveText(
+        'Saved.',
+      );
 
       // Landing on the dashboard with Forgejo now configured is the
       // real outbound request this whole test is actually about —
