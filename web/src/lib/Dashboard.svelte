@@ -4699,6 +4699,12 @@
       ) as HTMLInputElement | null;
       if (titleRegexField)
         titleRegexField.value = sharedState.issue.hideTitleRegex ?? "";
+      const hideDependencyDashboardField = document.getElementById(
+        "issue-hide-dependency-dashboard",
+      ) as HTMLInputElement | null;
+      if (hideDependencyDashboardField)
+        hideDependencyDashboardField.checked =
+          sharedState.issue.hideDependencyDashboard === "1";
       const sortSelect = document.getElementById(
         "pr-sort-select",
       ) as HTMLSelectElement | null;
