@@ -11,6 +11,10 @@ export interface SharedFilterState {
   // paused ('1' = hold live updates). Kept apart from shared/pr/issue so
   // "Clear filters" never resets them.
   view: Record<string, string>;
+  // The Branches page's status, forge and search (#1620). Optional so a
+  // state built without it, or a saved copy from before it existed, still
+  // reads as "nothing set".
+  branches?: Record<string, string>;
 }
 
 export interface FilterableItem {
@@ -203,6 +207,7 @@ function defaultState(): SharedFilterState {
     pr: {},
     issue: { hideDependencyDashboard: '1' },
     view: {},
+    branches: {},
   };
 }
 
@@ -211,6 +216,13 @@ export function loadState(): SharedFilterState {
   // page before it is now stale.
   pageGeneration++;
   resetTouched();
+  return readCookieState();
+}
+
+// The state the cookie holds right now, without starting a new page. A page
+// that saves later reads it again so it changes only its own keys, not what
+// another tab saved in between.
+export function readCookieState(): SharedFilterState {
   const raw = getCookie(FILTERS_COOKIE);
   const state = defaultState();
   if (!raw) return state;
@@ -229,6 +241,8 @@ export function loadState(): SharedFilterState {
     Object.assign(state.issue, parsed.issue);
   if (parsed.view && typeof parsed.view === 'object')
     Object.assign(state.view, parsed.view);
+  if (parsed.branches && typeof parsed.branches === 'object')
+    state.branches = { ...state.branches, ...parsed.branches };
   dropUnknownAutoMerge(state);
   dropNonStringTitleRule(state);
   return state;
@@ -256,7 +270,7 @@ function dropNonStringTitleRule(state: SharedFilterState): void {
 // this page, not about the choice: it is held back from the saved copy, so the
 // page that does offer it finds it still set (#1620). The user's own change to
 // the same control ends the hold.
-type StateGroup = keyof SharedFilterState;
+type StateGroup = 'shared' | 'pr' | 'issue' | 'view';
 const held: { group: StateGroup; key: string; value: string }[] = [];
 
 function heldValue(group: StateGroup, key: string): string | undefined {
@@ -414,6 +428,7 @@ function savedCopy(state: SharedFilterState): SharedFilterState {
     pr: { ...state.pr },
     issue: { ...state.issue },
     view: { ...state.view },
+    branches: { ...state.branches },
   };
   for (const h of held)
     if (!copy[h.group][h.key]) copy[h.group][h.key] = h.value;
@@ -581,7 +596,8 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
         (!parsed.shared || Object.keys(parsed.shared).length === 0) &&
         (!parsed.pr || Object.keys(parsed.pr).length === 0) &&
         (!parsed.issue || Object.keys(parsed.issue).length === 0) &&
-        (!parsed.view || Object.keys(parsed.view).length === 0)
+        (!parsed.view || Object.keys(parsed.view).length === 0) &&
+        (!parsed.branches || Object.keys(parsed.branches).length === 0)
       ) {
         return null;
       }
@@ -595,9 +611,10 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
 // it is in flight is newer than the copy, so the copy must not overwrite it.
 // Keys are "group.key". Clear filters touches every key of the three filter
 // groups at once, so a late copy cannot bring old values back.
+type TouchGroup = StateGroup | 'branches';
 const touchedKeys = new Set<string>();
 let clearedAll = false;
-const CLEARED_GROUPS: StateGroup[] = ['shared', 'pr', 'issue'];
+const CLEARED_GROUPS: TouchGroup[] = ['shared', 'pr', 'issue'];
 
 // Which page the touched keys belong to. loadState starts a new one and
 // leavePage ends the current one. A saved-copy callback captures it when it
@@ -624,7 +641,7 @@ export function leavePage(page: number): void {
 // the page can't offer being cleared) must not call it, or the copy would no
 // longer be applied to a key the user never touched. A new page that edits
 // the shared state, such as one for branches, has to follow the same rule.
-export function touchKey(group: StateGroup, key: string): void {
+export function touchKey(group: TouchGroup, key: string): void {
   touchedKeys.add(`${group}.${key}`);
 }
 
@@ -641,7 +658,7 @@ export function hasTouched(): boolean {
   return clearedAll || touchedKeys.size > 0;
 }
 
-function isTouched(group: StateGroup, key: string): boolean {
+function isTouched(group: TouchGroup, key: string): boolean {
   return (
     (clearedAll && CLEARED_GROUPS.includes(group)) ||
     touchedKeys.has(`${group}.${key}`)
@@ -673,6 +690,12 @@ export function applyServerState(
       releaseHeld(group, key);
       state[group][key] = value;
     }
+  }
+  // Branches has no held picks: its pills keep the active one on offer.
+  if (got.branches && typeof got.branches === 'object') {
+    state.branches ??= {};
+    for (const [key, value] of Object.entries(got.branches))
+      if (!isTouched('branches', key)) state.branches[key] = value;
   }
   dropUnknownAutoMerge(state);
   dropNonStringTitleRule(state);
