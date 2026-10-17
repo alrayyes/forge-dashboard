@@ -216,7 +216,7 @@ test.describe('a low rate limit banner stays put while the count moves (#1791)',
     );
   });
 
-  test('crossing to exhausted announces again, assertively', async ({
+  test('guard: crossing to exhausted still announces again, assertively', async ({
     page,
   }) => {
     const state: State = { remaining: 200, requests: 0, exhausted: false };

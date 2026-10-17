@@ -5810,19 +5810,25 @@
     }
 
     // What the health live region says: each forge's reachability, and
-    // whether a budget is spent. The counts and times in the visible pill
-    // change on every poll and are left out, so an unchanged state yields
-    // the same string.
+    // whether a budget is spent or running low. The counts and times in the
+    // visible pill change on every poll and are left out, so an unchanged
+    // state yields the same string.
     function healthAnnouncement(forges: Forge[]): string {
       return forges
         .map((f) => {
           const name = FORGE_LABELS[f.forge] || f.forge;
           const limited =
             isRateLimited(f.rateLimitREST) || isRateLimited(f.rateLimitGraphQL);
+          // A spent budget outranks a low one, so the text changes at low
+          // and again at spent, never on the count in between.
+          const low =
+            !limited &&
+            (f.rateLimitREST?.severity === "low" ||
+              f.rateLimitGraphQL?.severity === "low");
           return (
             name +
             (f.reachable ? " reachable" : " unreachable") +
-            (limited ? ", rate limited" : "")
+            (limited ? ", rate limited" : low ? ", rate limit low" : "")
           );
         })
         .join(". ");
@@ -6145,8 +6151,10 @@
       const banner = el("div", "rate-limit-banner");
       banner.id = "rate-limit-banner";
       banner.dataset.signature = signature;
-      // A budget running low is news, not an emergency, and its count moves
-      // on every poll; only a spent one is assertive (#1791).
+      // A budget running low is news, not an emergency, and its count
+      // moves on every poll; only a spent one is assertive (#1791). The
+      // health live region says "rate limit low" once, so a banner that
+      // appears as a status is a second, polite mention of the same event.
       banner.setAttribute(
         "role",
         rateLimitAlerts.some((a) => a.kind === "readonly") ? "alert" : "status",
