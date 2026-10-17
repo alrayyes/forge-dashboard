@@ -3608,6 +3608,46 @@ footer a.mono:focus-visible {
   display: none;
 }
 
+/* A saved pick the page does not offer (#1620): one quiet line under the
+   filter bar, with a button that drops it. Empty, it takes no room. */
+.held-picks:not(:empty) {
+  margin: 0 0 14px;
+}
+.held-picks:focus {
+  outline: none;
+}
+/* The text takes the width and wraps (a long value breaks anywhere); the
+   button keeps its own column and one line. */
+.held-pick {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 10px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.held-pick span {
+  overflow-wrap: anywhere;
+}
+.held-pick-clear {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  white-space: nowrap;
+  font-family: inherit;
+  font-size: 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+.held-pick-clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* The first refresh after a restart (#1672): a status line and placeholder
    rows in place of the list and its empty states. */
 .first-refresh-status {
