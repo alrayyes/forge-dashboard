@@ -87,6 +87,7 @@
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
+  import { remainingBand } from "#lib/rate-limit-band.js";
   import {
     formatClock,
     formatTime,
@@ -5821,14 +5822,23 @@
             isRateLimited(f.rateLimitREST) || isRateLimited(f.rateLimitGraphQL);
           // A spent budget outranks a low one, so the text changes at low
           // and again at spent, never on the count in between.
-          const low =
-            !limited &&
-            (f.rateLimitREST?.severity === "low" ||
-              f.rateLimitGraphQL?.severity === "low");
+          // The band is spoken with it, so a drain from under 5% to under 1%
+          // is told as it happens and the count inside a band is not.
+          const lows = [f.rateLimitREST, f.rateLimitGraphQL].filter(
+            (l): l is RateLimit => l?.severity === "low",
+          );
+          const band = lows
+            .map((l) => remainingBand(l))
+            .filter((b): b is string => b !== null)
+            .sort((a, b) => parseInt(a.slice(6)) - parseInt(b.slice(6)))[0];
           return (
             name +
             (f.reachable ? " reachable" : " unreachable") +
-            (limited ? ", rate limited" : low ? ", rate limit low" : "")
+            (limited
+              ? ", rate limited"
+              : lows.length > 0
+                ? `, rate limit low${band ? `, ${band} left` : ""}`
+                : "")
           );
         })
         .join(". ");
@@ -5961,6 +5971,8 @@
           resetsAt: string;
           remaining: number;
           limit: number;
+          // The share left in words, steady within a band.
+          band: string | null;
         };
     let rateLimitAlerts: RateLimitAlert[] = [];
 
@@ -6002,6 +6014,7 @@
             resetsAt: rl.resetsAt,
             remaining: rl.remaining,
             limit: rl.limit,
+            band: remainingBand(rl),
           });
         }
       }
@@ -6136,7 +6149,7 @@
         ...rateLimitAlerts.map((a) =>
           a.kind === "readonly"
             ? `${a.label}|readonly|${a.rest}|${a.graphql}|${a.resetsAt}`
-            : `${a.label}|low|${a.resetsAt}`,
+            : `${a.label}|low|${a.resetsAt}|${a.band}`,
         ),
       ].join(";");
       if (existing && existing.dataset.signature === signature) {
@@ -6193,7 +6206,7 @@
     function bannerLabel(alert: RateLimitAlert): string {
       const until = formatTime(alert.resetsAt);
       if (alert.kind === "low")
-        return `Rate limit running low — ${alert.label}, resets at ${until}`;
+        return `Rate limit running low — ${alert.label}, ${alert.band ? `${alert.band} left, ` : ""}resets at ${until}`;
       if (alert.rest && alert.graphql)
         return `${alert.label} is rate limited. Read-only until ${until}.`;
       if (alert.rest)
