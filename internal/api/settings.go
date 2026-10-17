@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -68,7 +69,7 @@ func settingsResponseOf(c settings.Credentials, githubAppConfigured bool, titleC
 		GitHubTokenSet:          c.GitHubToken != "",
 		GitHubAppInstallationID: c.GitHubAppInstallationID,
 		GitHubAppConfigured:     githubAppConfigured,
-		ForgejoURL:              c.ForgejoURL,
+		ForgejoURL:              publicForgejoURL(c.ForgejoURL),
 		ForgejoUsername:         c.ForgejoUsername,
 		ForgejoTokenSet:         c.ForgejoToken != "",
 		WebhookToken:            c.WebhookToken,
@@ -292,6 +293,49 @@ func cleanLogins(w http.ResponseWriter, logins []string) ([]string, bool) {
 	return out, true
 }
 
+// validForgejoURL answers 400 itself when raw isn't a plain http(s) base URL:
+// one with a username, password, query string or fragment could carry a
+// credential, and the settings endpoints echo this field back. Blank is fine
+// (it clears the setting). The message never quotes the URL, since a rejected
+// one is exactly the kind that holds a secret.
+func validForgejoURL(w http.ResponseWriter, raw string) bool {
+	if raw == "" {
+		return true
+	}
+	reject := func(msg string) bool {
+		writeJSON(w, http.StatusBadRequest, fieldErrorBody("forgejoUrl", msg))
+
+		return false
+	}
+	u, err := url.Parse(raw)
+	switch {
+	case err != nil:
+		return reject("forgejoUrl is not a valid URL")
+	case (u.Scheme != "http" && u.Scheme != "https") || u.Host == "":
+		return reject("forgejoUrl must be an http:// or https:// address with a host")
+	case u.User != nil:
+		return reject("forgejoUrl must not contain a username or password")
+	case u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(raw, "#"):
+		return reject("forgejoUrl must not contain a query string or fragment")
+	}
+
+	return true
+}
+
+// publicForgejoURL is a stored Forgejo URL as it may be shown: without any
+// userinfo, query or fragment. Saves refuse those now, but a row saved before
+// that can still hold one. A value that no longer parses is shown as empty,
+// since there's no telling where its credentials end.
+func publicForgejoURL(stored string) string {
+	u, err := url.Parse(stored)
+	if err != nil {
+		return ""
+	}
+	u.User, u.RawQuery, u.ForceQuery, u.Fragment, u.RawFragment = nil, "", false, "", ""
+
+	return u.String()
+}
+
 // decodeSettingsPut reads the body, and answers 400 itself when it can't. A
 // value of the wrong type names its field, so a client can mark that input
 // (#810).
@@ -314,6 +358,9 @@ func decodeSettingsPut(w http.ResponseWriter, r *http.Request) (settingsPutReque
 		bound{"forgejoToken", req.ForgejoToken, maxForgeTokenLen},
 		bound{"forgejoUsername", req.ForgejoUsername, maxUsernameLen},
 		bound{"renovateRebaseLabel", req.RenovateRebaseLabel, maxLabelLen}) {
+		return settingsPutRequest{}, false
+	}
+	if !validForgejoURL(w, req.ForgejoURL) {
 		return settingsPutRequest{}, false
 	}
 	var ok bool
