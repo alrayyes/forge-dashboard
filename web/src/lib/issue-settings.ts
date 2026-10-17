@@ -69,3 +69,48 @@ export function addIgnoredTitle(
     };
   return { list: [...list, pattern] };
 }
+
+// How many open issues each saved pattern hides, keyed by pattern. The server
+// sends ignoredTitleCounts in the order of ignoredTitles; null means it does
+// not know yet. A missing or mismatched field returns null: no counts at all,
+// so the page shows nothing rather than guess. The page never matches titles
+// itself, because its regular expression engine differs from the server's.
+export function ignoredCountsFrom(
+  raw: unknown,
+): Map<string, number | null> | null {
+  const data = (raw && typeof raw === 'object' ? raw : {}) as Record<
+    string,
+    unknown
+  >;
+  const titles = data.ignoredTitles;
+  const counts = data.ignoredTitleCounts;
+  if (!Array.isArray(titles) || !Array.isArray(counts)) return null;
+  if (titles.length !== counts.length) return null;
+  const out = new Map<string, number | null>();
+  titles.forEach((title, i) => {
+    if (typeof title !== 'string') return;
+    const key = title.trim();
+    if (!key || out.has(key)) return;
+    const count = counts[i];
+    out.set(
+      key,
+      typeof count === 'number' && Number.isInteger(count) && count >= 0
+        ? count
+        : null,
+    );
+  });
+  return out;
+}
+
+// The words beside a pattern. Zero is said, not hidden: "matches nothing" is
+// the point. Unknown says nothing. A pattern not saved yet has no count.
+export function ignoredCountLabel(
+  count: number | null | undefined,
+  saved: boolean,
+): string {
+  if (!saved) return 'Counted after you save';
+  if (typeof count !== 'number' || !Number.isInteger(count) || count < 0)
+    return '';
+  if (count === 0) return 'hides no issues';
+  return count === 1 ? 'hides 1 issue' : `hides ${count} issues`;
+}
