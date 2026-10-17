@@ -1963,22 +1963,21 @@ test.describe('dashboard page', () => {
       await expect(failing).toHaveAttribute('aria-pressed', 'false');
     });
 
-    test('clicking anywhere else in a row still opens the pull request, same as before the row stopped being one big <a>', async ({
+    test('clicking anywhere else in a row opens its dialog, same as before the row stopped being one big <a>', async ({
       page,
     }) => {
-      // force:true — the stretched-link overlay covering .repo (see
+      // force:true — the stretched overlay covering .repo (see
       // .title::after in style.css) is the whole point of this pattern,
       // and Playwright's actionability check refuses a plain .click() on
       // an element another one visually intercepts. A real click here
       // (mouse or touch) hits the overlay exactly the same way.
-      const [popup] = await Promise.all([
-        page.waitForEvent('popup'),
-        page
-          .locator('#pr-rows .row', { hasText: 'A passing PR' })
-          .locator('.repo')
-          .click({ force: true }),
-      ]);
-      await expect(popup).toHaveURL('https://example.com/1');
+      await page
+        .locator('#pr-rows .row', { hasText: 'A passing PR' })
+        .locator('.repo')
+        .click({ force: true });
+      await expect(
+        page.getByRole('dialog', { name: /^Pull request details/ }),
+      ).toBeVisible();
     });
 
     test('has no axe-core violations with real rows rendered, including nested-interactive checks', async ({

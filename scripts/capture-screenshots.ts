@@ -513,7 +513,7 @@ async function shootPipelineChecks(
   await dialog.waitFor({ state: 'hidden' });
 }
 
-// Opens the details dialog on one fixture pull request (the "Details" button
+// Opens the details dialog on one fixture pull request (the title button
 // in its row) and shoots it once the content, not the skeleton, is drawn.
 async function shootDialog(
   page: import('@playwright/test').Page,
@@ -523,7 +523,7 @@ async function shootDialog(
   ready: string,
 ) {
   const row = page.locator('#pr-rows .row', { hasText: `#${number}` }).first();
-  await row.getByRole('button', { name: /^Details/ }).click();
+  await row.getByRole('button', { name: new RegExp(`^#${number} `) }).click();
   const dialog = page.getByRole('dialog', { name: /^Pull request details/ });
   await dialog.waitFor();
   await dialog.locator(ready).first().waitFor();

@@ -310,7 +310,7 @@ test.describe('stable rows (#710)', () => {
   test('nothing re-renders under focus in a row, and the change lands once focus leaves', async ({
     page,
   }) => {
-    const link = page.locator('#pr-rows .row').first().locator('a.title');
+    const link = page.locator('#pr-rows .row').first().locator('button.title');
     await link.focus();
     await push(page, [makePR(1, { title: 'Changed title' }), initial[1]]);
     await expect(page.locator('#updates-count')).toHaveText(

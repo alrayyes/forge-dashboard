@@ -59,7 +59,7 @@ async function open(page: Page, pullRequests: unknown[]) {
 
 const row = (page: Page, title: string) =>
   page.locator('#pr-rows > .row').filter({
-    has: page.locator('.title-text', { hasText: new RegExp(`\\d${title}$`) }),
+    has: page.locator('.title-text', { hasText: new RegExp(`\\d ${title}$`) }),
   });
 
 test.describe('the status area on a pull request row (#1375)', () => {
