@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.214.1](https://github.com/alrayyes/forge-dashboard/compare/v0.214.0...v0.214.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** announce forge health only when its state changes ([#1790](https://github.com/alrayyes/forge-dashboard/issues/1790)) ([d196a27](https://github.com/alrayyes/forge-dashboard/commit/d196a27e3ec3c9268ff81d8d08288066ead53544)), closes [#1771](https://github.com/alrayyes/forge-dashboard/issues/1771)
+
 ## [0.214.0](https://github.com/alrayyes/forge-dashboard/compare/v0.213.1...v0.214.0) (2026-10-17)
 
 
