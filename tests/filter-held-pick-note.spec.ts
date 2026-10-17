@@ -281,4 +281,64 @@ test.describe('seeded saved picks (#1620)', () => {
     await expect(page.locator('#held-picks .held-pick')).toHaveCount(1);
     await expect(labelLine).toHaveAttribute('data-kept', 'yes');
   });
+
+  // #1620 item 6: a pick held for another page rides along in the saved state.
+  // An unrelated save has to write it back, in the cookie and on the server,
+  // or the page it belongs to loses it the next time it opens.
+  const cookieCopy = async (page: Page) => {
+    const c = (await page.context().cookies()).find(
+      (x) => x.name === 'forge-board-filters',
+    );
+    return c ? JSON.parse(decodeURIComponent(c.value)) : {};
+  };
+  const serverCopy = async (page: Page) =>
+    (await (await page.request.get('/api/settings/filter-state')).json()) ?? {};
+
+  for (const [name, change, group, key, value] of [
+    [
+      'Show drafts',
+      (page: Page) => page.locator('#show-drafts-toggle').click(),
+      'view',
+      'drafts',
+      '1',
+    ],
+    [
+      'a quick pill',
+      (page: Page) =>
+        page.locator('.quick-pills [data-pill="passing"]').click(),
+      'pr',
+      'quick',
+      'passing',
+    ],
+    [
+      'the sort',
+      (page: Page) => page.locator('#pr-sort-select').selectOption('created'),
+      'view',
+      'sort',
+      'created',
+    ],
+  ] as const) {
+    test(`a held author survives ${name} changing in the cookie and on the server`, async ({
+      page,
+    }) => {
+      await seed(page, { author: 'ryan' });
+      await open(page, '/pull-requests.html');
+      await expect(prRows(page)).toHaveCount(2);
+      await expect(
+        page
+          .locator('#held-picks')
+          .getByText('Saved author "ryan" is not on this page.'),
+      ).toBeVisible();
+
+      await change(page);
+
+      await expect
+        .poll(async () => (await serverCopy(page))[group]?.[key])
+        .toBe(value);
+      expect((await serverCopy(page)).shared?.author).toBe('ryan');
+      const cookie = await cookieCopy(page);
+      expect(cookie[group]?.[key]).toBe(value);
+      expect(cookie.shared?.author).toBe('ryan');
+    });
+  }
 });
