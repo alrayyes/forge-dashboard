@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   branchesAwaitingFlag,
   FIRST_REFRESH_SLOW_MS,
+  firstRefreshJustFinished,
   firstRefreshPending,
   firstRefreshStatus,
 } from './first-refresh';
@@ -57,5 +58,22 @@ describe('branchesAwaitingFlag', () => {
 
   test('never hides rows that are already there', () => {
     expect(branchesAwaitingFlag(false, 3)).toBe(false);
+  });
+});
+
+describe('firstRefreshJustFinished', () => {
+  test('is true when the flag turns from false to true', () => {
+    expect(firstRefreshJustFinished(false, true)).toBe(true);
+  });
+
+  test('is false when the flag was never seen as false', () => {
+    expect(firstRefreshJustFinished(undefined, true)).toBe(false);
+    expect(firstRefreshJustFinished(true, true)).toBe(false);
+  });
+
+  test('is false while the flag stays false or goes back to false', () => {
+    expect(firstRefreshJustFinished(false, false)).toBe(false);
+    expect(firstRefreshJustFinished(true, false)).toBe(false);
+    expect(firstRefreshJustFinished(false, undefined)).toBe(false);
   });
 });

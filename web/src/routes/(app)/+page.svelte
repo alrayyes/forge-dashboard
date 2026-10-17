@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
     branchesAwaitingFlag,
+    firstRefreshJustFinished,
     firstRefreshPending,
   } from "#lib/first-refresh.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
@@ -131,6 +132,15 @@
     const took = duration(b.durationSeconds);
     return took ? `${ago(b.finishedAt)} (ran ${took})` : ago(b.finishedAt);
   }
+
+  // Read again when the first refresh finishes, instead of showing the empty
+  // list until the next poll (#1729). A failed read keeps the rows on screen.
+  let lastDone: boolean | undefined;
+  $effect(() => {
+    const done = firstRefresh.done;
+    if (firstRefreshJustFinished(lastDone, done)) untrack(() => load());
+    lastDone = done;
+  });
 
   onMount(() => {
     filter = loadFilter();
