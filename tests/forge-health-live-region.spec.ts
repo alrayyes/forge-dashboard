@@ -28,8 +28,15 @@ const down = () => ({
   staleSince: new Date(Date.now() - 5 * 60_000).toISOString(),
 });
 
-async function open(page: Page, state: { forge: Forge; requests: number }) {
+type State = { forge: Forge; requests: number; answered?: number };
+
+async function open(page: Page, state: State) {
   await page.clock.install();
+  state.answered = 0;
+  page.on('requestfinished', (req) => {
+    if (new URL(req.url()).pathname === '/api/dashboard')
+      state.answered = (state.answered ?? 0) + 1;
+  });
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) => {
     state.requests++;
@@ -64,17 +71,32 @@ async function open(page: Page, state: { forge: Forge; requests: number }) {
   }, LIVE);
 }
 
+// A round trip through a real (unfaked) macrotask: whatever the page queued
+// before it, such as handling a response, has run once this resolves.
+const settle = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const { port1, port2 } = new MessageChannel();
+        port1.onmessage = () => resolve();
+        port2.postMessage(0);
+      }),
+  );
+
 // Moves the page clock until the next poll has been sent, then lets the answer
 // be drawn. The poll is armed when the previous answer lands, in real time, so
 // the clock moves in small steps.
-async function poll(page: Page, state: { requests: number }) {
+async function poll(page: Page, state: State) {
   const before = state.requests;
   for (let i = 0; i < 60 && state.requests === before; i++) {
     await page.clock.runFor(1000);
-    await page.waitForTimeout(25);
+    await settle(page);
   }
   expect(state.requests).toBeGreaterThan(before);
-  await page.waitForTimeout(150);
+  // The answer has been delivered once its request has finished.
+  await expect.poll(() => state.answered).toBeGreaterThanOrEqual(before + 1);
+  await settle(page);
+  await settle(page);
 }
 
 const mutations = (page: Page) =>

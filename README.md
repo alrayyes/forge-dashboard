@@ -49,7 +49,8 @@ stale.
   there. In Docker that means a mounted volume at `/data`; see **Docker**
   below.
 - **`ENCRYPTION_KEY`**, a base64-encoded 32-byte key the process refuses
-  to start without — see **Configuration** below for how to generate one.
+  to start without — see [Configuration](docs/configuration.md) for how to
+  generate one.
   It's what encrypts every user's forge tokens at rest; there's no
   sensible default for a secret like this one.
 - Each signed-in user configures their own forge credentials from the
@@ -62,17 +63,21 @@ stale.
 
 - [Pull request actions](docs/pull-request-actions.md): what a row offers, and
   why a blocked action is blocked.
-- [Issues](docs/issues.md): the issues page, the settings that hide issues, and
-  how filters are remembered.
+- [Issues](docs/issues.md): the issues page and the settings that hide issues.
 - [Main branches](docs/main-branches.md): the default-branch CI page and
   `GET /api/main-branches`.
-- [Live updates](docs/live-updates.md): how the board refreshes, what waits behind
-  "N updates available", and the first load after a restart.
+- [Live updates and filters](docs/live-updates.md): how the board refreshes, what
+  waits behind "N updates available", the first load after a restart, the
+  navigation counts, and how filters are offered, remembered and folded on a
+  phone.
 - [API](docs/api.md): the HTTP endpoints, the OpenAPI contract and the MCP
   endpoint.
 - [Accounts](docs/accounts.md): passkey login, API tokens, the admin area,
   sharing a dashboard and the GitHub and Forgejo credentials.
-- [Webhooks](docs/webhooks.md): registering the forge webhook.
+- [Configuration](docs/configuration.md): every environment variable, how repositories
+  are discovered and the GitHub App option.
+- [Webhooks](docs/webhooks.md): registering the forge webhook and the checks the
+  dashboard runs on its own.
 - [Architecture](ARCHITECTURE.md#design): the design choices behind the app, from
   passkey login to the MCP endpoint and the single binary.
 
@@ -160,70 +165,6 @@ lists none of them, so it has no quick filter for bots. A filter saved before
 that change is ignored. With no bot pull requests open the page says there is
 nothing to review.
 
-Every item in the navigation shows how many items its page lists, and how many
-of them are failing. It is one pill: a neutral **total**, then the outcomes,
-failing (red) and passing (green), then a thin divider and the state, running
-(amber, a spinner, or a still clock under reduced motion). Each count has its
-own glyph so colour is never the only signal. Branches counts default
-branches. Pull requests, Releases and Bots count their pull requests (without
-the ones that belong to another of the three). All four show those three
-counts, in that order. The divider appears only when a running count follows an
-outcome, and not on a phone. A pull request with no checks is in the total
-only, so its numbers needn't add up. Branches adds a fifth, neutral count with
-a dashed circle for the branches with no pipeline, last, so its numbers do add
-up. A zero is never drawn, and the link's name says the same in words, in the
-same order: "Pull requests, 15 total, 2 failing, 10 passing, 3 running", and
-"Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline". On
-a phone the total sits on its own line above the counts, and with three-digit
-numbers each count takes a line, so the busy tabs grow to about 110px. Issues
-counts open issues, without Renovate's Dependency Dashboard or what your
-settings hide, and has no failed count. The server works the numbers out from
-the same lists the pages show (`navCounts` on `/api/dashboard`), so a page
-agrees with its icon, and a hidden pull request is in neither. The dashboard
-pages set them from each snapshot. The other signed-in pages (Branches,
-Insights, Settings and the rest) load them and ask again every 30 seconds
-while the tab is visible, so a refresh or a webhook changes them without a
-reload.
-
-A zero is never drawn: a page with nothing in it has no total, and nothing
-failing means no red pill. A page with nothing to show leaves the navigation:
-the Pull requests, Releases, Bots and Issues links are not in the header or the
-phone's tab bar while their total is 0. Branches always shows. A count that
-isn't known yet is not 0, so the links stay until the first snapshot says
-otherwise, and the page you are on keeps its own link until you leave it. The
-page still opens when typed into the address bar, and says it is empty.
-
-The pages start with their list, with no row of tiles repeating those numbers.
-One line near the list's heading says how many rows show: "12 open" with no
-filter, "Showing 1 of 12" when a filter narrows it. The Failing CI pill filters
-to failing pull requests, and All clears it. How many repositories are tracked
-is a quiet line under the Insights heading. A page with nothing open says so,
-even when its nav item is hidden.
-
-On a phone the numbers sit above each tab's icon. An item's accessible name says
-both in words: "Branches, 12 total, 3 failing, 8 passing, 1 running" on the
-header icon, "12 Branches, 3 failing, 8 passing, 1 running" on the tab, which
-shows its numbers before its word.
-
-The menu runs Branches, Pull requests, Releases, Bots, Issues, then the rest.
-
-## Filters on a phone
-
-Below 760px wide the filter bar folds down so the first screen shows pull
-requests. Closed, it is one search row (the title filter and a **Filters**
-button) and one row of quick filters that scrolls sideways. The button's count,
-as in "Filters (2)", is how many filters are on: forge, repo, author, label,
-created, updated, CI status, and Show drafts. Each active filter also shows as a
-chip you can tap to remove without opening anything.
-
-**Filters** opens a bottom sheet with the rest of the controls: forge, Show
-drafts, sort, group, repo, author, label, created and updated. Filters apply as
-you change them, and the sheet's **Show N results** button, which closes it,
-says what you would see, so a refresh can't change something you are editing.
-**Clear all** resets everything. Escape, the close button, or a tap outside
-closes the sheet and returns focus to the Filters button. On wider screens
-nothing changes except that the title filter now sits first in the bar.
-
 ## Hiding one pull request
 
 A pull request you can't or won't act on yet can be hidden. **More actions** on
@@ -242,193 +183,6 @@ A hide for days ends by itself. A hide is forgotten once the pull request is no
 longer open, while its forge answers. A forge that is rate limited or
 unreachable draws no controls on its rows, so Hide is absent there too until it
 answers again.
-
-## Webhooks
-
-Optional. Without one, the dashboard still refreshes on its own schedule
-and the browser tab polls it on the server's schedule (30 seconds
-today); a webhook just means a new
-pull request, a closed issue, a new comment, or a CI status change on a
-tracked repo shows up within seconds instead of at the next poll. Set up from the
-Settings page, one forge at a time — full copy-pasteable steps, exactly
-which events each part of the dashboard needs (CI status specifically
-needs its own, easy-to-miss event), and how delivery verification works:
-[docs/webhooks.md](docs/webhooks.md).
-
-A delivery refreshes just the repository it names, not the account's
-whole tracked-repo set — a much smaller GraphQL query on GitHub than a
-full refresh runs. A payload with no repository (the initial "ping"
-delivery a new webhook sends, say) falls back to a full refresh instead.
-
-Each refresh also asks GitHub whether every repo's webhook is pointed at the
-dashboard. A GitHub App without the repository webhooks permission gets
-"Resource not accessible by integration" for all of them, so that answer is
-remembered for an hour and the checks are skipped, with one warning in the log.
-A token that can't administer one repo is skipped for that repo alone. Grant
-the permission and the next check after the hour sees it.
-
-A webhook the dashboard created earlier is brought up to date without a click.
-After the first refresh that finds a repo's webhook, the dashboard lists that
-repo's hooks once and, only if the hook lacks an event the dashboard now
-subscribes to, edits it in place. It never creates a hook there. Cost: one
-extra hooks listing per covered repo per process start (plus one edit for a
-hook that is out of date), at most four at a time, each after a short random
-pause. A forge that is unreachable or out of REST budget is skipped and tried
-again on a later refresh, and never fails one. A repo whose hooks the token
-can't administer is tried once and left until the next restart.
-
-## Configuration
-
-Everything the process itself needs is environment variables — no
-config file, and nothing forge-related, since that's per-user now (see
-[Credentials](docs/accounts.md#credentials)):
-
-| Variable                        | Required                           | Default                    | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------------- | ---------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ADDR`                          | no                                 | `:8080`                    | Listen address.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `DB_PATH`                       | no                                 | `/data/forge-dashboard.db` | Where passkeys, sessions, and every user's encrypted forge credentials live.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `RP_ID`                         | no                                 | `localhost`                | The WebAuthn relying party ID — set to your real domain in any real deployment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `RP_ORIGIN`                     | no                                 | `http://localhost:8080`    | The WebAuthn relying party origin — set to the real `https://` origin users reach this at.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `ENCRYPTION_KEY`                | **yes**                            | —                          | Base64-encoded 32-byte key for encrypting forge tokens at rest. Generate with `openssl rand -base64 32`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `GITHUB_APP_ID`                 | no                                 | —                          | The numeric ID of a GitHub App this deployment lets users connect instead of pasting a personal access token — see **GitHub App support** below. Unset means the option doesn't exist at all; no other GitHub behaviour changes.                                                                                                                                                                                                                                                                                                                                               |
-| `GITHUB_APP_PRIVATE_KEY_BASE64` | **yes, if `GITHUB_APP_ID` is set** | —                          | Base64-encoded PEM private key for that App, downloaded from its GitHub settings page. Validated at startup — a malformed key fails loudly there, the same way a bad `ENCRYPTION_KEY` does.                                                                                                                                                                                                                                                                                                                                                                                    |
-| `REFRESH_INTERVAL`              | no                                 | `20m`                      | How often the backend re-polls a signed-in user's forges, as a Go duration (`2m30s`, `10m`). A safety net now that every tracked repo gets a webhook — lower it if you're not relying on those.                                                                                                                                                                                                                                                                                                                                                                                |
-| `SHUTDOWN_DRAIN`                | no                                 | `5s`                       | How long `/readyz` answers 503 after SIGTERM before the server stops accepting connections, so a router polling it takes the container out of rotation first. `0s` skips the wait. Keep the container's stop grace period longer than this plus 5 seconds.                                                                                                                                                                                                                                                                                                                     |
-| `CI_POLL_INTERVAL`              | no                                 | `1m`                       | How often the backend re-checks just the open pull requests whose CI is still pending, or that have GitHub's own auto-merge armed (GitHub merges those by itself, and without a webhook the board would otherwise learn of it at the next full refresh; one is polled for as long as it stays armed, a query a minute per repo, and not at all while the forge's budget is spent), as a Go duration. A fallback for real Forgejo instances that silently drop the webhook event CI status rides on (see `docs/webhooks.md`) — set to `0s` to turn it off if you don't need it. |
-| `LOG_LEVEL`                     | no                                 | `info`                     | `debug`, `info`, `warn`, or `error`. `debug` logs every outbound request to GitHub/Forgejo (method, URL) — turn it on to diagnose a request-volume spike from the process's own logs instead of reasoning about the code from the outside.                                                                                                                                                                                                                                                                                                                                     |
-
-Repository discovery is automatic per user. With a token, the dashboard
-lists every repository it has push access to — on GitHub, one GraphQL
-query returns that whole list along with every repo's open pull requests,
-open issues, and CI status in a single request (drawing from GraphQL's
-own separate rate-limit pool, not the REST budget everything else on the
-account shares); on Forgejo, `GET /user/repos`. A GitHub App installation
-discovers its repos differently: GraphQL's `viewer` field means "the
-authenticated user," which an installation access token has none of, so
-this path lists the installation's own granted repos via REST
-`GET /installation/repositories` instead, then still fetches each one's
-open pull requests/issues/CI status via GraphQL (`repository(owner:,
-name:)`, which has no such restriction). With only a username, it lists
-that account's public repositories (`GET /users/<username>/repos` on
-both) with no credential in play at all — GitHub's GraphQL API allows no
-anonymous access, so this mode stays REST-based there too. Either way
-there's no per-repo allowlist to maintain — archived and forked
-repositories are excluded automatically, on both forges, in every mode.
-On Forgejo, a mirrored repository is excluded too — a pull mirror has no
-pull requests or issues of its own to poll, and its canonical home is
-whichever forge it's mirrored from.
-
-Each pull request also carries its review state (`review` in `/api/dashboard`:
-decision, approvals, requested reviewers). The **Ready to Merge** and **Needs
-review** quick filters read the server's own answers, `readyToMerge` and
-`needsReview` on each pull request, so the page holds no definition of either.
-On GitHub that rides on fields of the same GraphQL query, so it costs no extra
-requests. On Forgejo the requested reviewers come with the pull request list,
-but approvals take one `GET /repos/{owner}/{repo}/pulls/{index}/reviews` call
-per open, non-draft pull request. Those results are cached until the pull
-request's `updated_at` changes, so after the first refresh a quiet dashboard
-spends none of them. A pull request that closed or merged drops out of that
-cache on the next refresh of its repo. A pull request whose review state
-couldn't be read has no `review` and never matches the filter. Needs review
-means a review is outstanding: the forge requires one, or a reviewer was asked
-and hasn't answered. A pull request nobody was asked to review doesn't count.
-
-The **Review requested from me** quick filter keeps the pull requests that ask
-you in particular: `reviewRequestedFromMe` on each pull request, which the
-server matches, ignoring case, against the username saved for that forge in
-Settings. It needs that username: with none saved for a forge, none of that
-forge's pull requests match. It adds no requests, since the requested
-reviewers' names come with the data already fetched.
-
-Each pull request also counts its review comments, `reviewComments` in
-`/api/dashboard`, and the review threads still open, `unresolvedThreads`.
-Ordinary conversation comments aren't counted. GitHub reads both from the
-review threads in the pull request query, so it costs no request. It reads the
-first 30 threads, so a pull request with more reports fewer than it has. The
-unauthenticated fallback has no thread data and reports 0 comments and a `null`
-`unresolvedThreads`.
-Forgejo's count is the sum of each review's comments from the reviews call that
-already feeds `review`, so a draft reports 0. Forgejo gives no resolved state
-without a request per review, so its `unresolvedThreads` is `null`: unknown, not
-zero.
-
-Each row shows that as a pill beside the other status pills: the number
-of review comments, and `7 · 2 open` in amber, with a dot, when threads are
-still unresolved. A pull request with no review comments shows nothing, and on
-Forgejo, where `unresolvedThreads` is `null`, the pill shows the count with no
-open state. The pill is a link to the pull request's files-and-review view on
-the forge, opened in a new tab. Its accessible name is the full sentence, such
-as "7 review comments, 2 unresolved threads".
-
-`awaitingWorkflowApproval` is true when GitHub is holding a workflow run on the
-head commit until someone approves it (a check run counted as `ACTION_REQUIRED`
-in the checks summary). It adds no request, and it is false when that summary
-belongs to an earlier commit. It can be true while `ci` is pending or failing
-for another reason. A third-party check that concludes `action_required` counts
-too. Forgejo and the unauthenticated fallback always report false.
-
-The **Conflicts** quick filter keeps the pull requests with a merge conflict, so
-they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
-`conflicting`, the same field behind the row's own Conflicting pill, so the page
-holds no rule of its own. A draft that conflicts is listed too.
-
-Draft pull requests are left out of `/api/dashboard` by default, since nothing
-can be merged or updated on one. The response says how many it left out in
-`hiddenDrafts`. Pass `includeDrafts=true` to get them back, on the dashboard,
-its stream and the refresh endpoint alike. The auto-update-branch feature
-never touches a draft either.
-
-Stacked pull requests are marked in `/api/dashboard`. A pull request is
-stacked on another when its base branch is that one's head branch, in the same
-repository and neither comes from a fork. Each pull request carries `stack`
-(its position and the stack's size, or null), `stackedOn` (the parent) and
-`stackChildren`. Merge on a stacked child is blocked with the code `stacked`,
-since merging it would land it in the parent's branch, and auto-merge isn't
-offered either (GitHub refuses it there, because the parent's branch has no
-protection rule). The snapshot holds open pull requests only, so a parent that
-already merged without the child having its base changed isn't flagged.
-
-When a refresh against a forge fails (a rate limit, a timeout, an error from
-its API), the dashboard keeps showing that forge's last good pull requests,
-issues and repos instead of none, and the forge's health carries `staleSince`,
-the time that data was fetched, next to `reachable: false`. The next good
-refresh replaces it. A forge that has never fetched successfully has nothing
-to show.
-
-### GitHub App support
-
-GitHub's primary rate limit (5,000 requests/hour, both REST and GraphQL)
-is scoped to the _account_, not the token — a personal access token's
-polling shares that exact budget with anything else acting as that same
-account: your own use of `gh`, other tools, CI. A GitHub App
-installation token draws from that installation's own independent
-budget instead, so this is worth setting up once your account's own
-usage is bumping into the shared limit.
-
-To offer this to your users:
-
-1. [Register a GitHub App](https://github.com/settings/apps/new) —
-   any name, no webhook needed. Grant it Contents, Issues, and Pull
-   requests (read and write), which is what "Add a webhook" and repo
-   discovery need; Metadata (read) comes along automatically.
-2. Generate a private key on the App's own settings page, then
-   base64-encode the downloaded `.pem`: `base64 -w0 your-key.pem`.
-3. Set `GITHUB_APP_ID` (the numeric ID the App's settings page shows)
-   and `GITHUB_APP_PRIVATE_KEY_BASE64` (the value from step 2) on the
-   deployment and restart it — a malformed key fails at startup, not on
-   a user's first save.
-
-From there it's per-user, from Settings: each person installs the App
-on their own GitHub account (its own settings page → **Install App**)
-and pastes the installation ID GitHub shows them into the new field
-next to their token. An installation always wins over a saved token
-when both are set for polling and every other action — the token stays
-saved rather than being cleared, and is used for one thing only:
-sending `@dependabot` comments, which Dependabot refuses from a GitHub
-App (see the Dependabot buttons in
-[Pull request actions](docs/pull-request-actions.md)). Leave `GITHUB_APP_ID`
-unset and the field simply doesn't appear; nothing else about GitHub credentials
-changes.
 
 ## Running it
 

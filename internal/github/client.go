@@ -1804,7 +1804,7 @@ func decodeAppRepoBatch(data json.RawMessage, repos []*ghsdk.Repository) ([]grap
 		repo.Name = r.GetName()
 		repo.URL = r.GetHTMLURL()
 		repo.Owner.Login = r.GetOwner().GetLogin()
-		// An App installation's own declared permissions (README's
+		// An App installation's own declared permissions (docs/configuration.md's
 		// "Contents, Issues, and Pull requests (read and write)") apply
 		// uniformly to every repo the installation was granted — never
 		// Administration — so every repo fetchAppRepos returns is WRITE
