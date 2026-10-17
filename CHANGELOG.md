@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.204.0](https://github.com/alrayyes/forge-dashboard/compare/v0.203.0...v0.204.0) (2026-10-17)
+
+
+### Features
+
+* **web:** show a loading state until the first refresh is done ([#1675](https://github.com/alrayyes/forge-dashboard/issues/1675)) ([9e9bdcd](https://github.com/alrayyes/forge-dashboard/commit/9e9bdcd1b73b1339cc1b07355404c77e4f3bd7fe))
+
 ## [0.203.0](https://github.com/alrayyes/forge-dashboard/compare/v0.202.0...v0.203.0) (2026-10-16)
 
 
