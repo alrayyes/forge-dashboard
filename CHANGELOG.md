@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.215.0](https://github.com/alrayyes/forge-dashboard/compare/v0.214.4...v0.215.0) (2026-10-17)
+
+
+### Features
+
+* **webhooks:** remember the webhooks filters in the saved filter state ([#1808](https://github.com/alrayyes/forge-dashboard/issues/1808)) ([b50b51f](https://github.com/alrayyes/forge-dashboard/commit/b50b51f4d06ea226694e06130aee12e07184ab2f))
+
 ## [0.214.4](https://github.com/alrayyes/forge-dashboard/compare/v0.214.3...v0.214.4) (2026-10-17)
 
 
