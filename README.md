@@ -1177,6 +1177,17 @@ Issues board and Insights agree with no arithmetic in the client.
 `ignoredTitlesSet` (true when the list isn't empty), so a client knows whether
 to draw its own fields without reading `/api/settings`.
 
+`GET /api/settings` and the response to saving it also carry
+`ignoredTitleCounts`: for each pattern in `ignoredTitles`, in the same order,
+how many of your open issues that pattern matches on its own. An issue two
+patterns match counts for both, so the entries can add up to more than
+`settingsHiddenIssueCount`. Issues of a repo whose issues you ignore aren't
+counted, as with that total. Every entry is `null` while the answer isn't known
+yet, because your first refresh hasn't finished or no forge answered it, and
+never a made-up `0`. The
+response to a save counts the list just saved, against the issues you had
+before the save.
+
 Patterns use Go's RE2 syntax. It has no lookahead, lookbehind or
 backreferences, and it can't run slowly, so no pattern is refused for being
 complex. A pattern that matches the empty string, such as `.*` or `^`, is
