@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.206.1](https://github.com/alrayyes/forge-dashboard/compare/v0.206.0...v0.206.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** save pending free-text filters when leaving the page ([#1705](https://github.com/alrayyes/forge-dashboard/issues/1705)) ([dc7690f](https://github.com/alrayyes/forge-dashboard/commit/dc7690ffc46f949ce8c1cc26b38bad8f506715a3))
+
 ## [0.206.0](https://github.com/alrayyes/forge-dashboard/compare/v0.205.1...v0.206.0) (2026-10-17)
 
 
