@@ -96,12 +96,11 @@ test.describe('pull request merge button', () => {
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await page.goto('/pull-requests.html');
   });
 
   test('a mergeable pull request shows a Merge button', async ({ page }) => {
     await mockDashboard(page, makePR({ mergeStatus: 'mergeable' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
@@ -114,7 +113,7 @@ test.describe('pull request merge button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ mergeStatus: 'conflicting' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     const button = row.getByRole('button', { name: 'Merge' });
@@ -126,7 +125,7 @@ test.describe('pull request merge button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR({ mergeStatus: 'blocked' }));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     const button = row.getByRole('button', { name: 'Merge' });
@@ -146,7 +145,7 @@ test.describe('pull request merge button', () => {
       page,
       makePR({ mergeStatus: 'mergeable', ci: 'pending' }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     const button = row.getByRole('button', { name: 'Merge' });
@@ -163,7 +162,7 @@ test.describe('pull request merge button', () => {
       page,
       makePR({ mergeStatus: 'mergeable', ci: 'pending' }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByRole('button', { name: 'Merge' })).toHaveAttribute(
@@ -198,7 +197,7 @@ test.describe('pull request merge button', () => {
       page,
       makePR({ mergeStatus: 'mergeable', ci: 'success' }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
@@ -211,7 +210,7 @@ test.describe('pull request merge button', () => {
       page,
       makePR({ mergeStatus: 'mergeable', ci: 'failure' }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
@@ -228,7 +227,7 @@ test.describe('pull request merge button', () => {
       page,
       makePR({ mergeStatus: 'mergeable', empty: true }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.locator('.status-area')).toContainText('Nothing to merge');
@@ -246,7 +245,7 @@ test.describe('pull request merge button', () => {
       mergeCalled = true;
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -265,7 +264,7 @@ test.describe('pull request merge button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -295,7 +294,7 @@ test.describe('pull request merge button', () => {
     await page.clock.install({ time: new Date() });
     const target = makePR({ number: 42, repo: 'alrayyes/backup-git-repos' });
     await mockDashboard(page, target);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await mergeButton(row).focus();
@@ -350,7 +349,7 @@ test.describe('pull request merge button', () => {
       mergeCalled = true;
       return route.fulfill({ status: 204 });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -385,7 +384,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -422,7 +421,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -465,7 +464,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -499,7 +498,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -530,7 +529,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -567,7 +566,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -596,7 +595,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -627,7 +626,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -656,7 +655,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -690,7 +689,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -735,7 +734,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -770,7 +769,7 @@ test.describe('pull request merge button', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Merge' }).click();
@@ -794,7 +793,7 @@ test.describe('pull request merge button', () => {
         [{ forge: 'github', reachable: false, repoCount: 0 }],
         [makePR()],
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(row.getByText('A pull request')).toBeVisible();
@@ -816,7 +815,7 @@ test.describe('pull request merge button', () => {
         [{ forge: 'github', reachable: false, repoCount: 0 }],
         [makePR({ behind: true })],
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
@@ -844,7 +843,7 @@ test.describe('pull request merge button', () => {
         ],
         [makePR()],
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(row.getByText('A pull request')).toBeVisible();
@@ -892,7 +891,7 @@ test.describe('pull request merge button', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const rows = page.locator('#pr-rows .row');
       await rows.nth(0).getByRole('button', { name: 'Merge' }).click();
@@ -927,7 +926,7 @@ test.describe('pull request merge button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     const merge = row.getByRole('button', { name: 'Merge' });
