@@ -143,22 +143,12 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
   test('a count of zero is not drawn', async ({ page }) => {
     await open(page, {
       pullRequests: { total: 8, running: 0, failed: 0, passed: 8 },
-      releases: { total: 6, running: 6, failed: 0, passed: 0 },
-      bots: { total: 4, running: 0, failed: 1, passed: 0 },
     });
 
     const prs = header(page, PRS).locator('.nav-pills');
     await expect(prs.locator('.nav-passed')).toHaveText('8');
     await expect(prs.locator('.nav-failed')).toHaveCount(0);
     await expect(prs.locator('.nav-running')).toHaveCount(0);
-    await expect(header(page, '/releases.html')).toHaveAttribute(
-      'aria-label',
-      'Releases, 6 total, 6 running',
-    );
-    await expect(header(page, '/bots.html')).toHaveAttribute(
-      'aria-label',
-      'Bots, 4 total, 1 failing',
-    );
   });
 
   test('Bots and Releases show the same pill for their own counts', async ({
