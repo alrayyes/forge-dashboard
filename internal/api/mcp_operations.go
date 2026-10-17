@@ -15,6 +15,7 @@ var mcpToolOperations = map[string]string{
 	"get_pull_request_details": "getPullRequestDetails",
 	"get_pull_request_checks":  "getPullRequestChecks",
 	"list_queued_actions":      "listQueuedActions",
+	"get_version":              "getVersion",
 }
 
 // mcpPending are the operations whose tool is still to come, in small pull
@@ -55,7 +56,6 @@ var mcpPending = []string{
 	"revokeInvite",
 	"listRequests",
 	"exportRequests",
-	"getVersion",
 	"refreshDashboard",
 	"getSharing",
 	"shareWith",

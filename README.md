@@ -68,6 +68,8 @@ stale.
   `list_queued_actions` mirrors `GET /api/queued-actions` (your actions
   waiting on a rate-limited forge, and the finished ones from the last 24
   hours, under a `queuedActions` key). It costs no forge budget.
+  `get_version` mirrors `GET /api/version` (the running server's release
+  tag, under a `version` key). It costs no forge budget.
   Each calls the same function as its handler rather than adding a second,
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
