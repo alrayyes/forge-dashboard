@@ -39,6 +39,12 @@ type Manager struct {
 	// firstRefreshGrace is how long an Aggregator's first refresh is waited
 	// for before the process counts as ready anyway (#893).
 	firstRefreshGrace time.Duration
+	// refreshedOnce holds every user whose first refresh since this process
+	// started has finished, whether it succeeded or failed (#1673). It lives
+	// here and not on the Aggregator because a settings save replaces the
+	// Aggregator, and the mark must survive that. Never persisted: a restart
+	// clears it, which is what the loading state is for.
+	refreshedOnce map[string]struct{}
 	// forceRefreshCooldown is the window ForceRefresh throttles inside.
 	forceRefreshCooldown time.Duration
 }
@@ -62,6 +68,7 @@ type managedAggregator struct {
 func NewManager(refreshInterval time.Duration) *Manager {
 	return &Manager{
 		users:             make(map[string]*managedAggregator),
+		refreshedOnce:     make(map[string]struct{}),
 		refreshInterval:   refreshInterval,
 		firstRefreshGrace: defaultFirstRefreshGrace,
 
@@ -145,6 +152,7 @@ func (m *Manager) Ensure(ctx context.Context, userID []byte, sources []Source) {
 	defer m.mu.Unlock()
 
 	if existing, ok := m.users[key]; ok {
+		m.latchFirstRefreshLocked(key, existing)
 		existing.cancel()
 	}
 
@@ -197,6 +205,37 @@ func (m *Manager) startLocked(ctx context.Context, key string, userID []byte, so
 		agg.EnableQueuedActions(userID, m.queuedActionStore)
 		go agg.RunQueuedActions(runCtx)
 	}
+}
+
+// latchFirstRefreshLocked records that entry's Aggregator had finished its
+// first refresh before it goes away. The caller holds m.mu.
+func (m *Manager) latchFirstRefreshLocked(key string, entry *managedAggregator) {
+	if entry.agg.FirstRefreshDone() {
+		m.refreshedOnce[key] = struct{}{}
+	}
+}
+
+// FirstRefreshDone reports whether userID's first refresh since this process
+// started has finished, whether it succeeded or failed (#1673). False until
+// then, and for a user nothing has Ensured yet; true from then on, including
+// while a rebuilt Aggregator refreshes again. It is per user: another user's
+// refresh never flips it. The dashboard snapshot carries it so a page can show
+// a loading state, not an empty board, in the gap after a restart.
+func (m *Manager) FirstRefreshDone(userID []byte) bool {
+	key := string(userID)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.refreshedOnce[key]; ok {
+		return true
+	}
+	if entry, ok := m.users[key]; ok {
+		m.latchFirstRefreshLocked(key, entry)
+	}
+	_, done := m.refreshedOnce[key]
+
+	return done
 }
 
 // FirstRefreshComplete is the readiness answer for the dashboard half of
@@ -474,6 +513,7 @@ func (m *Manager) Remove(userID []byte) {
 		existing.cancel()
 		delete(m.users, key)
 	}
+	delete(m.refreshedOnce, key)
 }
 
 // Stop cancels every running per-user refresh loop.

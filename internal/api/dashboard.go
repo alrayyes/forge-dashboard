@@ -44,6 +44,11 @@ type dashboardResponse struct {
 	Forges       []dashboard.ForgeHealth `json:"forges"`
 	PullRequests []pullRequestView       `json:"pullRequests"`
 	Issues       []issueView             `json:"issues"`
+	// FirstRefreshDone is false from process start until this viewer's first
+	// refresh has finished, whether it succeeded or failed, and true from then
+	// on (#1673). Always serialized: the page shows a loading state, not an
+	// empty board, while it is false.
+	FirstRefreshDone bool `json:"firstRefreshDone"`
 	// OpenIssueCount is how many of Issues are real work, without the
 	// housekeeping ones (#980). Issues already leaves out what the viewer's
 	// own settings hide (#1630), so this follows them.
@@ -91,6 +96,16 @@ const clientReadInterval = 30 * time.Second
 // reads as "no pull requests" (#1194). Past it a slow forge shows its
 // ForgeHealth rather than keeping the page waiting.
 const firstLoadWait = 15 * time.Second
+
+// firstLoadWait is how long a read waits for the first refresh: Deps.FirstLoadWait
+// when set, else the default. Only a test sets it.
+func (d Deps) firstLoadWait() time.Duration {
+	if d.FirstLoadWait > 0 {
+		return d.FirstLoadWait
+	}
+
+	return firstLoadWait
+}
 
 // issueView is an issue as the API serves it: the snapshot's own fields plus
 // whether it is a bot's housekeeping issue, decided here so every client
@@ -262,6 +277,8 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 		Issues:         issues,
 		OpenIssueCount: openIssues,
 
+		FirstRefreshDone: firstRefreshDone(deps.Manager, userID),
+
 		SettingsHiddenIssueCount: settingsHidden,
 		HideDependencyDashboard:  filter.hideHousekeeping,
 		IgnoredTitlesSet:         filter.titlesSet,
@@ -275,6 +292,16 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 
 		ReadIntervalSeconds: int(clientReadInterval / time.Second),
 	}
+}
+
+// firstRefreshDone is the snapshot's flag for userID. A user with no
+// Aggregator after warmUpAggregator has no saved settings, so nothing will
+// ever refresh for them and nothing is loading: report true, or a page waiting
+// on the flag would show its skeleton forever. Ensuring an empty Aggregator
+// instead would change the stream and refresh endpoints, which answer 404
+// while none runs.
+func firstRefreshDone(m *dashboard.Manager, userID []byte) bool {
+	return m.FirstRefreshDone(userID) || !m.Running(userID)
 }
 
 // boardSettings is what the response is built with besides the snapshot: the
@@ -616,7 +643,7 @@ var (
 func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, ownerUsername string, view boardView) (dashboardResponse, error) {
 	if ownerUsername == "" || ownerUsername == requester.Username {
 		warmUpAggregator(ctx, deps, requester.ID, requester.Username)
-		deps.Manager.WaitFirstRefresh(ctx, requester.ID, firstLoadWait)
+		deps.Manager.WaitFirstRefresh(ctx, requester.ID, deps.firstLoadWait())
 
 		return buildDashboardResponse(ctx, deps, requester.ID, requester.ID, deps.Manager.Get(requester.ID), view), nil
 	}
@@ -639,7 +666,7 @@ func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, o
 	}
 
 	warmUpAggregator(ctx, deps, owner.ID, owner.Username)
-	deps.Manager.WaitFirstRefresh(ctx, owner.ID, firstLoadWait)
+	deps.Manager.WaitFirstRefresh(ctx, owner.ID, deps.firstLoadWait())
 
 	return buildDashboardResponse(ctx, deps, owner.ID, requester.ID, deps.Manager.Get(owner.ID), view).withoutQueue(), nil
 }
