@@ -4,9 +4,11 @@
   // The dashboard's own error page (#1175, rules/error-pages.md): what
   // happened in plain words, one sentence that doesn't blame the visitor, a
   // way back, and a short list of the main sections. It shows nothing about
-  // the server: no stack trace, path, host or version. Used by +error.svelte
-  // for errors the router meets, and prerendered at /404 and /500 so the Go
-  // server has finished pages to serve with the real status.
+  // the server: no stack trace, path or host. The footer's version is the one
+  // thing it shows, and the prerendered pages run no script, so the Go server
+  // fills it into the footer slot at startup. Used by +error.svelte for errors
+  // the router meets, and prerendered at /404 and /500 so the Go server has
+  // finished pages to serve with the real status.
   let { status }: { status: number } = $props();
 
   const notFound = $derived(status === 404);
