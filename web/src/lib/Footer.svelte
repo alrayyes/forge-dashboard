@@ -1,14 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
-  import { currentFooterLink } from "#lib/footer-links.js";
+  import { currentFooterLink, FOOTER_PAGES } from "#lib/footer-links.js";
 
-  // Ports internal/api/static/footer.js's DOM-query IIFE to real Svelte
-  // state (alrayyes/forge-dashboard#646) — same three outcomes: the
-  // version fetch hasn't resolved yet (show nothing), the server is a
-  // "dev" build (a plain label, no link), or a real released version (a
-  // v-prefixed link to the changelog page, #786). Every page gets the same links in the
-  // same order; the current page's link keeps its place and carries
+  // The footer every page shares. The version fetch has three outcomes: it
+  // hasn't resolved yet (show nothing), the server is a "dev" build (a plain
+  // label, no link), or a released version (a v-prefixed link to the
+  // changelog, #786). The links are the same and in the same order on every
+  // page; the current page's link keeps its place and carries
   // aria-current="page" instead of vanishing (#1679).
   type VersionState =
     | { kind: "unresolved" }
@@ -19,6 +18,7 @@
 
   // Which footer link is the page you're on: marked aria-current="page",
   // never dropped (#1679).
+  const hrefs = Object.fromEntries(FOOTER_PAGES.map((p) => [p.key, p.href]));
   const current = $derived(currentFooterLink(page.url.pathname));
 
   onMount(() => {
@@ -61,17 +61,17 @@
     >{#if versionState.kind === "dev"}&#183; dev build{:else if versionState.kind === "released"}&#183;
       <a
         class="mono"
-        href="/changelog.html"
+        href={hrefs.changelog}
         aria-current={current === "changelog" ? "page" : undefined}
         >v{versionState.version}</a
       >{/if}</span
   >{" "}&#183;
   <a
-    href="/disclaimer.html"
+    href={hrefs.disclaimer}
     aria-current={current === "disclaimer" ? "page" : undefined}>Disclaimer</a
   >{" "}&#183;
   <a
-    href="/privacy.html"
+    href={hrefs.privacy}
     aria-current={current === "privacy" ? "page" : undefined}>Privacy</a
   >
 </footer>

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 import { test } from './fixtures';
@@ -93,21 +95,100 @@ test.describe('the footer is the same on every page', () => {
     }
   });
 
-  test('the 404 page shows the same footer items except the version, none current', async ({
+  // The prerendered 404 and 500 pages are finished HTML with no client
+  // script, so the footer's version fetch never runs and the version is the
+  // one item they can't show until the server fills it in (a separate
+  // backend ticket tracks that). Everything else matches. The hydrated
+  // +error.svelte route can't be reached: an unmatched address is always
+  // answered by the prerendered 404.
+  const STATIC_DIR = join(__dirname, '..', 'internal', 'api', 'static');
+  for (const status of [404, 500]) {
+    test(`the ${status} page shows the same footer items except the version, none current`, async ({
+      page,
+    }) => {
+      const body = readFileSync(join(STATIC_DIR, `${status}.html`), 'utf8');
+      await mockVersion(page);
+      await page.route('**/some/crashed/address', (route) =>
+        route.fulfill({
+          status,
+          contentType: 'text/html; charset=utf-8',
+          body,
+        }),
+      );
+      const response = await page.goto('/some/crashed/address');
+      expect(response?.status()).toBe(status);
+      await expect(page.locator('footer a')).toHaveText([
+        'GitHub',
+        'Disclaimer',
+        'Privacy',
+      ]);
+      await expect(page.locator('footer a[aria-current]')).toHaveCount(0);
+    });
+  }
+
+  // CI builds a dev binary, so the unmocked version is the dev label.
+  test('a dev build shows the same five items, with a dev build label', async ({
     page,
   }) => {
-    await mockVersion(page);
-    const response = await page.goto('/some/missing/address');
-    expect(response?.status()).toBe(404);
-    // The 404 and 500 pages are finished HTML with no client script
-    // (csr = false, #1175), so the footer's version fetch never runs and the
-    // version is the one item they can't show. Everything else matches.
+    await page.goto('/disclaimer.html');
+    await expect(page.locator('#footer-version')).toContainText('dev build');
     await expect(page.locator('footer a')).toHaveText([
       'GitHub',
       'Disclaimer',
       'Privacy',
     ]);
-    await expect(page.locator('footer a[aria-current]')).toHaveCount(0);
+    const text = await page
+      .locator('footer')
+      .evaluate((el) => (el as HTMLElement).innerText);
+    expect(text).toMatch(
+      /Read-only mirror.*GitHub\s+· dev build\s+· Disclaimer\s+· Privacy/s,
+    );
+    await expect(page.locator('footer a[aria-current]')).toHaveText(
+      'Disclaimer',
+    );
+  });
+
+  test.describe('signed in, nothing moves between pages', () => {
+    test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+    for (const width of [360, 1280]) {
+      test(`footer height and link positions match on every page at ${width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await mockVersion(page);
+        const layouts: { path: string; layout: unknown }[] = [];
+        for (const path of [
+          '/pull-requests.html',
+          '/changelog.html',
+          '/disclaimer.html',
+          '/privacy.html',
+        ]) {
+          await page.goto(path);
+          await expect(page.locator('footer a')).toHaveCount(4);
+          const layout = await page.locator('footer').evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            const origin = box.left;
+            return {
+              height: box.height,
+              links: [...el.querySelectorAll('a')].map((a) => {
+                const r = a.getBoundingClientRect();
+                return [
+                  Math.round(r.left - origin),
+                  Math.round(r.top - box.top),
+                  Math.round(r.width),
+                  Math.round(r.height),
+                ];
+              }),
+            };
+          });
+          layouts.push({ path, layout });
+        }
+        for (const { path, layout } of layouts) {
+          expect(layout, path).toEqual(layouts[0].layout);
+        }
+      });
+    }
   });
 
   for (const scheme of ['light', 'dark'] as const) {
@@ -123,16 +204,21 @@ test.describe('the footer is the same on every page', () => {
           page,
           path === '/disclaimer.html' ? 'Disclaimer' : 'Privacy',
         );
-        // Not colour alone: the current link is bolder than its siblings.
-        const weights = await page
+        // Not colour alone: the current link is underlined 2px; the others 1px.
+        const thickness = await page
           .locator('footer a')
           .evaluateAll((els) =>
-            els.map((el) => Number(getComputedStyle(el).fontWeight)),
+            els.map((el) =>
+              el.getAttribute('aria-current')
+                ? getComputedStyle(el).textDecorationThickness
+                : null,
+            ),
           );
-        const marked = await page
+        expect(thickness.filter(Boolean)).toEqual(['2px']);
+        const underlined = await page
           .locator('footer a[aria-current]')
-          .evaluate((el) => Number(getComputedStyle(el).fontWeight));
-        expect(marked).toBeGreaterThan(Math.min(...weights));
+          .evaluate((el) => getComputedStyle(el).textDecorationLine);
+        expect(underlined).toContain('underline');
         await expectAxeAndNoSidewaysScroll(page);
       });
     }
