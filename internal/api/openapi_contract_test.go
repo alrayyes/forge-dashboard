@@ -225,6 +225,7 @@ func TestContract_DashboardAndRefresh(t *testing.T) {
 		req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard?includeDrafts=true", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
+		require.Contains(t, string(got.body), `"firstRefreshDone":true`, "required by the spec (#1673)")
 	})
 	t.Run("POST /api/dashboard/refresh", func(t *testing.T) {
 		t.Parallel()

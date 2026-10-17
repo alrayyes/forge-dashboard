@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import Disclosure from "#lib/Disclosure.svelte";
   import SettingsNav from "#lib/SettingsNav.svelte";
   import {
@@ -10,7 +10,10 @@
   import {
     addIgnoredTitle,
     ignoredCountLabel,
+    countsArePending,
+    countsHaveAnswer,
     ignoredCountsFrom,
+    nextCountRetry,
     issueSettingsFrom,
     MAX_IGNORED_TITLES,
     MAX_PATTERN_LENGTH,
@@ -248,7 +251,58 @@
   const SETTINGS_NOT_LOADED =
     "Settings could not be loaded; saving is turned off so nothing is overwritten. Reload the page.";
 
+  // After a save whose counts all came back null, re-read the saved settings
+  // a few times for the numbers (#1676). Only the counts are taken from the
+  // answer, never the form fields. A run token ends stale answers.
+  let countingPending = $state(false);
+  let countingRun = 0;
+  let countingTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function stopCounting() {
+    countingRun++;
+    clearTimeout(countingTimer);
+    countingTimer = undefined;
+    countingPending = false;
+  }
+
+  function startCounting() {
+    stopCounting();
+    countingPending = true;
+    const run = countingRun;
+    let done = 0;
+    const schedule = () => {
+      const delay = nextCountRetry(done);
+      if (delay === null) {
+        countingPending = false;
+        return;
+      }
+      countingTimer = setTimeout(() => {
+        done++;
+        fetch("/api/settings", {
+          headers: { Accept: "application/json" },
+          credentials: "same-origin",
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .catch(() => null)
+          .then((data) => {
+            if (run !== countingRun) return;
+            const counts = data ? ignoredCountsFrom(data) : null;
+            if (countsHaveAnswer(counts)) {
+              ignoredCounts = counts;
+              countingPending = false;
+              return;
+            }
+            schedule();
+          });
+      }, delay);
+    };
+    schedule();
+  }
+
+  onDestroy(stopCounting);
+
   function addIgnoredPattern() {
+    stopCounting();
     issueSettingsTouched = true;
     const added = addIgnoredTitle(ignoredTitles, ignoredPattern);
     ignoredTitles = added.list;
@@ -257,6 +311,7 @@
   }
 
   function removeIgnoredPattern(pattern: string) {
+    stopCounting();
     issueSettingsTouched = true;
     const at = ignoredTitles.indexOf(pattern);
     ignoredTitles = ignoredTitles.filter((p) => p !== pattern);
@@ -464,6 +519,7 @@
       ignoredTitles,
     };
     ignoredError = "";
+    stopCounting();
 
     fetch("/api/settings", {
       method: "PUT",
@@ -508,6 +564,8 @@
         ignoredCounts = ignoredCountsFrom(data);
         savedTitles = new Set(issueSettings.ignoredTitles);
         savedSnapshots = groupSnapshots();
+        if (countsArePending(issueSettings.ignoredTitles, ignoredCounts))
+          startCounting();
         status = alsoSaved.length
           ? `Saved, including your changes in ${alsoSaved.join(" and ")}.`
           : "Saved.";
@@ -1946,6 +2004,7 @@
                     : ignoredCountLabel(
                         ignoredCounts.get(pattern),
                         savedTitles.has(pattern),
+                        countingPending,
                       )}
                 <li>
                   <span class="pattern-text">
