@@ -25,9 +25,9 @@ pill, and each forge in the toggle, is offered only when a row would show under
 it, given the search and the other pill, so none leads to an empty list; the one
 that is active always stays, so it can be cleared. A forge toggle and a search
 box narrow the list further; search matches the repo, branch, commit, author and
-failing job names. The filter is saved in a cookie of its own,
-`forge-board-main-branches`, and is still set after a reload. It is not part of
-the shared filter cookie, which holds pull request and issue state.
+failing job names. The filter is saved with the other pages' filters, in the
+shared filter cookie and in the copy on the server, so it is still set after a
+reload and in another browser.
 
 Rows from a forge that can't be read, or whose rate limit is spent, keep their
 last known status, are marked **stale**, and sit under one banner. The page

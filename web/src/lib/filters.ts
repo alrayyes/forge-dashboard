@@ -11,6 +11,10 @@ export interface SharedFilterState {
   // paused ('1' = hold live updates). Kept apart from shared/pr/issue so
   // "Clear filters" never resets them.
   view: Record<string, string>;
+  // The Branches page's status, forge and search (#1620). Optional so a
+  // state built without it, or a saved copy from before it existed, still
+  // reads as "nothing set".
+  branches?: Record<string, string>;
 }
 
 export interface FilterableItem {
@@ -203,6 +207,7 @@ function defaultState(): SharedFilterState {
     pr: {},
     issue: { hideDependencyDashboard: '1' },
     view: {},
+    branches: {},
   };
 }
 
@@ -225,6 +230,8 @@ export function loadState(): SharedFilterState {
     Object.assign(state.issue, parsed.issue);
   if (parsed.view && typeof parsed.view === 'object')
     Object.assign(state.view, parsed.view);
+  if (parsed.branches && typeof parsed.branches === 'object')
+    state.branches = { ...state.branches, ...parsed.branches };
   dropUnknownAutoMerge(state);
   dropNonStringTitleRule(state);
   return state;
@@ -252,7 +259,7 @@ function dropNonStringTitleRule(state: SharedFilterState): void {
 // this page, not about the choice: it is held back from the saved copy, so the
 // page that does offer it finds it still set (#1620). The user's own change to
 // the same control ends the hold.
-type StateGroup = keyof SharedFilterState;
+type StateGroup = 'shared' | 'pr' | 'issue' | 'view';
 const held: { group: StateGroup; key: string; value: string }[] = [];
 
 function heldValue(group: StateGroup, key: string): string | undefined {
@@ -410,6 +417,7 @@ function savedCopy(state: SharedFilterState): SharedFilterState {
     pr: { ...state.pr },
     issue: { ...state.issue },
     view: { ...state.view },
+    branches: { ...state.branches },
   };
   for (const h of held)
     if (!copy[h.group][h.key]) copy[h.group][h.key] = h.value;
@@ -577,7 +585,8 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
         (!parsed.shared || Object.keys(parsed.shared).length === 0) &&
         (!parsed.pr || Object.keys(parsed.pr).length === 0) &&
         (!parsed.issue || Object.keys(parsed.issue).length === 0) &&
-        (!parsed.view || Object.keys(parsed.view).length === 0)
+        (!parsed.view || Object.keys(parsed.view).length === 0) &&
+        (!parsed.branches || Object.keys(parsed.branches).length === 0)
       ) {
         return null;
       }
@@ -609,6 +618,9 @@ export function applyServerState(
       state[group][key] = value;
     }
   }
+  // Branches has no held picks: its pills keep the active one on offer.
+  if (got.branches && typeof got.branches === 'object')
+    state.branches = { ...state.branches, ...got.branches };
   dropUnknownAutoMerge(state);
   dropNonStringTitleRule(state);
 }

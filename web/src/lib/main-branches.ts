@@ -158,38 +158,29 @@ export function duration(seconds: number | null): string {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 }
 
-// The filter is kept in a cookie of its own, like the other pages' filters
-// (filters.ts), not in the shared one: that cookie's shape is pull request
-// and issue state, and a third entity's keys would ride along into every
-// page's save for no gain.
-const COOKIE = 'forge-board-main-branches';
+// The filter is saved with the other pages' filters (filters.ts, #1620): a
+// `branches` group of plain strings in the shared cookie for the first paint
+// and in the server copy for a second browser. These two convert between that
+// group and the filter, and a stale or hand-edited value reads as its default.
+const STATUSES = ['all', 'failed', 'running', 'passed', 'none'];
+const FORGES = ['all', 'github', 'forgejo'];
 
-export function loadFilter(): MainBranchFilter {
-  try {
-    const match = document.cookie.match(
-      new RegExp(`(?:^|; )${COOKIE}=([^;]*)`),
-    );
-    if (!match) return { ...DEFAULT_FILTER };
-    const raw = JSON.parse(decodeURIComponent(match[1]));
-    const status = ['all', 'failed', 'running', 'passed', 'none'].includes(
-      raw?.status,
-    )
-      ? raw.status
-      : 'all';
-    const forge = ['all', 'github', 'forgejo'].includes(raw?.forge)
-      ? raw.forge
-      : 'all';
-    const query = typeof raw?.query === 'string' ? raw.query.slice(0, 200) : '';
-    return { status, forge, query };
-  } catch {
-    return { ...DEFAULT_FILTER };
-  }
+export function filterFromState(
+  saved: Record<string, string> | undefined,
+): MainBranchFilter {
+  const status = STATUSES.includes(saved?.status ?? '')
+    ? (saved?.status as StatusPill)
+    : 'all';
+  const forge = FORGES.includes(saved?.forge ?? '')
+    ? (saved?.forge as ForgeFilter)
+    : 'all';
+  const query =
+    typeof saved?.query === 'string' ? saved.query.slice(0, 200) : '';
+  return { status, forge, query };
 }
 
-export function saveFilter(filter: MainBranchFilter): void {
-  const maxAgeSeconds = 365 * 24 * 60 * 60;
-  const value = encodeURIComponent(JSON.stringify(filter));
-  // Cookie Store API isn't in Safari yet, and this repo targets more than just Chromium (browser-compat.md).
-  // biome-ignore lint/suspicious/noDocumentCookie: see above.
-  document.cookie = `${COOKIE}=${value}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+export function filterToState(
+  filter: MainBranchFilter,
+): Record<string, string> {
+  return { status: filter.status, forge: filter.forge, query: filter.query };
 }

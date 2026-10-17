@@ -12,6 +12,13 @@
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
   import {
+    applyServerState,
+    loadState,
+    loadStateFromServer,
+    saveState,
+    type SharedFilterState,
+  } from "#lib/filters.js";
+  import {
     ago,
     applyFilter,
     DEFAULT_FILTER,
@@ -20,11 +27,11 @@
     offeredForges,
     offeredStatuses,
     isFiltered,
-    loadFilter,
+    filterFromState,
+    filterToState,
     type MainBranch,
     type MainBranches,
     type MainBranchFilter,
-    saveFilter,
     CI_SLOT,
     STATUS_LABEL,
     type StatusPill,
@@ -92,21 +99,39 @@
     load(true);
   }
 
+  // The filter is saved with the other pages' (#1620): the cookie at once for
+  // the first paint, the server copy for another browser. The search box is
+  // free text, so it takes the debounced path the other pages' title boxes use.
+  let saved: SharedFilterState = {
+    shared: {},
+    pr: {},
+    issue: {},
+    view: {},
+    branches: {},
+  };
+  // A filter changed before the server copy arrived is newer than it: the
+  // copy is dropped, and what the page holds was saved by the change itself.
+  let touched = false;
+  function save(freeText = false) {
+    touched = true;
+    saved.branches = filterToState(filter);
+    saveState(saved, freeText ? "title" : undefined);
+  }
   function setStatus(status: StatusPill) {
     filter.status = status;
-    saveFilter(filter);
+    save();
   }
   function setForge(forge: ForgeFilter) {
     filter.forge = forge;
-    saveFilter(filter);
+    save();
   }
   function setQuery(event: Event) {
     filter.query = (event.currentTarget as HTMLInputElement).value;
-    saveFilter(filter);
+    save(true);
   }
   function reset() {
     filter = { ...DEFAULT_FILTER };
-    saveFilter(filter);
+    save();
   }
 
   function listed(b: MainBranch): string {
@@ -143,7 +168,15 @@
   });
 
   onMount(() => {
-    filter = loadFilter();
+    saved = loadState();
+    filter = filterFromState(saved.branches);
+    // The cookie painted the page; the server copy is what a second browser
+    // sees, and it wins as it does on the other pages (#353).
+    loadStateFromServer().then((got) => {
+      if (!got || touched) return;
+      applyServerState(saved, got);
+      filter = filterFromState(saved.branches);
+    });
     load(true);
     const timer = setInterval(() => load(), REFRESH_MS);
     return () => clearInterval(timer);
