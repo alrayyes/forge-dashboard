@@ -474,3 +474,74 @@ func TestManager_FirstRefreshComplete_AnAggregatorAddedLaterGetsItsOwnGraceButCa
 
 	assert.True(t, m.FirstRefreshComplete())
 }
+
+// firstRefreshDone is the per-viewer flag the snapshot carries (#1673).
+
+func TestManager_FirstRefreshDone_NoAggregatorYet_IsFalse(t *testing.T) {
+	t.Parallel()
+
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	assert.False(t, m.FirstRefreshDone([]byte("nobody")))
+}
+
+func TestManager_FirstRefreshDone_FalseWhileTheFirstRefreshRuns_TrueOnceItEnds(t *testing.T) {
+	t.Parallel()
+
+	src := &gatedSource{release: make(chan struct{})}
+	user := []byte("user-a")
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), user, []dashboard.Source{src})
+	assert.False(t, m.FirstRefreshDone(user))
+
+	close(src.release)
+
+	require.Eventually(t, func() bool { return m.FirstRefreshDone(user) }, time.Second, 5*time.Millisecond)
+}
+
+func TestManager_FirstRefreshDone_UnreachableForgeStillCounts(t *testing.T) {
+	t.Parallel()
+
+	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: false}}
+	user := []byte("user-a")
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), user, []dashboard.Source{src})
+
+	require.Eventually(t, func() bool { return m.FirstRefreshDone(user) }, time.Second, 5*time.Millisecond)
+}
+
+func TestManager_FirstRefreshDone_StaysTrueWhenTheAggregatorIsReplaced(t *testing.T) {
+	t.Parallel()
+
+	user := []byte("user-a")
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), user, []dashboard.Source{&countingSource{}})
+	// Wait without reading the flag: the replacement itself must carry the mark.
+	m.WaitFirstRefresh(t.Context(), user, time.Second)
+
+	// A settings save rebuilds the Aggregator, and its first refresh is pending.
+	m.Ensure(t.Context(), user, []dashboard.Source{&gatedSource{release: make(chan struct{})}})
+
+	assert.True(t, m.FirstRefreshDone(user), "a later refresh must not put the loading state back")
+}
+
+func TestManager_FirstRefreshDone_IsPerViewer(t *testing.T) {
+	t.Parallel()
+
+	userA, userB := []byte("user-a"), []byte("user-b")
+	m := dashboard.NewManager(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), userA, []dashboard.Source{&countingSource{}})
+	m.Ensure(t.Context(), userB, []dashboard.Source{&gatedSource{release: make(chan struct{})}})
+	require.Eventually(t, func() bool { return m.FirstRefreshDone(userA) }, time.Second, 5*time.Millisecond)
+
+	assert.False(t, m.FirstRefreshDone(userB), "another user's refresh must not flip this one")
+}

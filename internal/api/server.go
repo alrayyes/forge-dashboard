@@ -50,6 +50,9 @@ type Deps struct {
 	// Manager holds each signed-in user's own Aggregator, built from
 	// their saved Credentials via BuildSources.
 	Manager *dashboard.Manager
+	// FirstLoadWait is how long a read waits for a user's first refresh; zero
+	// means the default. Only tests set it.
+	FirstLoadWait time.Duration
 	// BuildSources takes the signed-in user's own ID (#482: threaded
 	// through so the forge clients it builds can record outbound
 	// requests under the right account) alongside their saved
@@ -127,6 +130,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/mcp", mcpHandler)
 	mux.Handle("DELETE /api/mcp", mcpHandler)
 	mux.Handle("GET /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsGet(deps)))
+	mux.Handle("GET /api/settings/summary", auth.RequireAuth(deps.AuthStore)(handleSettingsSummaryGet(deps)))
 	mux.Handle("PUT /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 	mux.Handle("GET /api/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemeGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemePut(deps.SettingsStore)))
@@ -188,8 +192,8 @@ func NewMux(deps Deps) http.Handler {
 		// guarantee, not a runtime condition to recover from.
 		panic(err)
 	}
-	publicFiles := newStaticHandler(static, false)
-	privateFiles := newStaticHandler(static, true)
+	publicFiles := newStaticHandler(static, false, deps.Version)
+	privateFiles := newStaticHandler(static, true, deps.Version)
 
 	// The dashboard page, the settings page, and the scripts that
 	// populate them all need a session, same as the API they call — an
@@ -231,7 +235,7 @@ func NewMux(deps Deps) http.Handler {
 		writeJSON(w, http.StatusNotFound, errorBody("not found"))
 	})
 
-	return noIndex(accessLogMiddleware(recoverPanics(static, limitRequestBody(mux))))
+	return noIndex(accessLogMiddleware(recoverPanics(static, deps.Version, limitRequestBody(mux))))
 }
 
 // noIndex marks every response, page, script, JSON or error, as not for search

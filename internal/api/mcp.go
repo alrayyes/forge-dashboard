@@ -105,6 +105,15 @@ func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
 
 	addPullRequestTools(server, deps, u, ok)
 
+	addStoreTools(server, deps, u, ok)
+	addSettingsTool(server, deps, u, ok)
+
+	return server
+}
+
+// addStoreTools registers the tools served from this app's own state, with no
+// forge call. Split from newMCPServer to keep it short as tools accrue.
+func addStoreTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "list_queued_actions",
 		Description: "List the signed-in user's queued actions: the ones waiting for a " +
@@ -125,7 +134,18 @@ func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
 		return nil, queuedActionsResponse{QueuedActions: items}, nil
 	})
 
-	return server
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "get_version",
+		Description: "Report the version of the running forge-dashboard server: the " +
+			"release tag its binary was built from (\"dev\" for a build outside the " +
+			"release pipeline). Read-only, and it costs no forge budget.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, Version, error) {
+		if !ok {
+			return nil, Version{}, errNoAuthenticatedUser
+		}
+
+		return nil, Version{Version: deps.Version}, nil
+	})
 }
 
 // addPullRequestTools registers the tools that read one pull request on demand.
@@ -180,5 +200,29 @@ func addPullRequestTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 		}
 
 		return nil, pullRequestChecksResponse{Checks: checks}, nil
+	})
+}
+
+// addSettingsTool registers get_settings.
+func addSettingsTool(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "get_settings",
+		Description: "Fetch the signed-in user's own forge configuration: usernames, the Forgejo " +
+			"URL, whether a GitHub or Forgejo token is set (never the token), the Renovate " +
+			"and issue-hiding settings, theme and timezone, and webhookConfigured. " +
+			"Read-only: it writes nothing, and never creates webhook credentials. The " +
+			"webhook token and secret are never returned over MCP; read them in the web " +
+			"UI's Settings page.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, SettingsSummary, error) {
+		if !ok {
+			return nil, SettingsSummary{}, errNoAuthenticatedUser
+		}
+
+		resp, err := resolveSettingsSummary(ctx, deps, u)
+		if err != nil {
+			return nil, SettingsSummary{}, err
+		}
+
+		return nil, resp, nil
 	})
 }

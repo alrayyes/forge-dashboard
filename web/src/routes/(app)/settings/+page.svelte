@@ -1,7 +1,12 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import {
     addIgnoredTitle,
+    ignoredCountLabel,
+    countsArePending,
+    countsHaveAnswer,
+    ignoredCountsFrom,
+    nextCountRetry,
     issueSettingsFrom,
     MAX_IGNORED_TITLES,
     MAX_PATTERN_LENGTH,
@@ -46,6 +51,9 @@
     // empty.
     hideDependencyDashboard?: boolean;
     ignoredTitles?: string[];
+    // Optional until the server sends it (#1676): per ignored title, in the
+    // same order, how many open issues it hides; null is unknown.
+    ignoredTitleCounts?: (number | null)[];
   };
   type ApiToken = {
     id: string;
@@ -219,6 +227,12 @@
   // every save sends both, even when the save was for something else.
   let hideDependencyDashboard = $state(false);
   let ignoredTitles = $state<string[]>([]);
+  // What each saved pattern hides (#1676), keyed by pattern, straight from
+  // the server's last GET or PUT. null: the server sent no counts, so the page
+  // shows none. savedTitles tells a pattern the server has counted from one
+  // just added in the form.
+  let ignoredCounts = $state<Map<string, number | null> | null>(null);
+  let savedTitles = $state<Set<string>>(new Set());
   let ignoredPattern = $state("");
   let ignoredError = $state("");
   // Set once the person edits either, so the load landing late never
@@ -230,7 +244,58 @@
   const SETTINGS_NOT_LOADED =
     "Settings could not be loaded; saving is turned off so nothing is overwritten. Reload the page.";
 
+  // After a save whose counts all came back null, re-read the saved settings
+  // a few times for the numbers (#1676). Only the counts are taken from the
+  // answer, never the form fields. A run token ends stale answers.
+  let countingPending = $state(false);
+  let countingRun = 0;
+  let countingTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function stopCounting() {
+    countingRun++;
+    clearTimeout(countingTimer);
+    countingTimer = undefined;
+    countingPending = false;
+  }
+
+  function startCounting() {
+    stopCounting();
+    countingPending = true;
+    const run = countingRun;
+    let done = 0;
+    const schedule = () => {
+      const delay = nextCountRetry(done);
+      if (delay === null) {
+        countingPending = false;
+        return;
+      }
+      countingTimer = setTimeout(() => {
+        done++;
+        fetch("/api/settings", {
+          headers: { Accept: "application/json" },
+          credentials: "same-origin",
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .catch(() => null)
+          .then((data) => {
+            if (run !== countingRun) return;
+            const counts = data ? ignoredCountsFrom(data) : null;
+            if (countsHaveAnswer(counts)) {
+              ignoredCounts = counts;
+              countingPending = false;
+              return;
+            }
+            schedule();
+          });
+      }, delay);
+    };
+    schedule();
+  }
+
+  onDestroy(stopCounting);
+
   function addIgnoredPattern() {
+    stopCounting();
     issueSettingsTouched = true;
     const added = addIgnoredTitle(ignoredTitles, ignoredPattern);
     ignoredTitles = added.list;
@@ -239,6 +304,7 @@
   }
 
   function removeIgnoredPattern(pattern: string) {
+    stopCounting();
     issueSettingsTouched = true;
     const at = ignoredTitles.indexOf(pattern);
     ignoredTitles = ignoredTitles.filter((p) => p !== pattern);
@@ -432,6 +498,7 @@
       ignoredTitles,
     };
     ignoredError = "";
+    stopCounting();
 
     fetch("/api/settings", {
       method: "PUT",
@@ -473,6 +540,10 @@
         const issueSettings = issueSettingsFrom(data);
         hideDependencyDashboard = issueSettings.hideDependencyDashboard;
         ignoredTitles = issueSettings.ignoredTitles;
+        ignoredCounts = ignoredCountsFrom(data);
+        savedTitles = new Set(issueSettings.ignoredTitles);
+        if (countsArePending(issueSettings.ignoredTitles, ignoredCounts))
+          startCounting();
         status = "Saved.";
         statusKind = "ok";
       })
@@ -824,6 +895,8 @@
           const issueSettings = issueSettingsFrom(data);
           hideDependencyDashboard = issueSettings.hideDependencyDashboard;
           ignoredTitles = issueSettings.ignoredTitles;
+          ignoredCounts = ignoredCountsFrom(data);
+          savedTitles = new Set(issueSettings.ignoredTitles);
         }
         // Just the control's own displayed value — (app)/+layout.svelte's
         // syncThemeFromServer already applies the theme itself and syncs
@@ -1195,6 +1268,23 @@
     #issue-settings .share-list code {
       overflow-wrap: anywhere;
       min-width: 0;
+    }
+    /* The pattern and its count; the count wraps under a long pattern. */
+    #issue-settings .pattern-text {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 10px;
+      min-width: 0;
+    }
+    #issue-settings .pattern-count {
+      font-size: 12px;
+      line-height: 1.4;
+      padding: 1px 8px;
+      border-radius: 6px;
+      background: var(--surface-sunken);
+      color: var(--ink-2);
+      border: 1px solid var(--border);
     }
     #issue-settings .share-list .btn-remove {
       flex-shrink: 0;
@@ -1739,13 +1829,29 @@
         id="ignored-titles"
         aria-labelledby="ignored-titles-heading"
       >
-        {#each ignoredTitles as pattern (pattern)}
+        {#each ignoredTitles as pattern, i (pattern)}
+          {@const countText =
+            ignoredCounts === null
+              ? ""
+              : ignoredCountLabel(
+                  ignoredCounts.get(pattern),
+                  savedTitles.has(pattern),
+                  countingPending,
+                )}
           <li>
-            <code>{pattern}</code>
+            <span class="pattern-text">
+              <code>{pattern}</code>
+              {#if countText}
+                <span class="pattern-count" id={`ignored-count-${i}`}
+                  >{countText}</span
+                >
+              {/if}
+            </span>
             <button
               class="btn-remove"
               type="button"
               aria-label={`Remove ${pattern}`}
+              aria-describedby={countText ? `ignored-count-${i}` : undefined}
               onclick={() => removeIgnoredPattern(pattern)}>Remove</button
             >
           </li>

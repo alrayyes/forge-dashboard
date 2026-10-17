@@ -49,7 +49,7 @@ stale.
   frontend its own already-filtered JSON. Confirm this yourself: open the
   browser's network tab and watch it call nothing but `/api/dashboard`,
   `/api/settings`, `/api/auth/*` and `/healthz` — and that `/api/settings`
-  never echoes a token back, only whether one is set.
+  never echoes a forge token back, only whether one is set.
 - **An MCP endpoint for agents, `/api/mcp`, read-only like the rest of
   this app.** Authenticated the same way any other `/api/*` route already
   is — a personal API token (Settings → API tokens),
@@ -68,11 +68,19 @@ stale.
   `list_queued_actions` mirrors `GET /api/queued-actions` (your actions
   waiting on a rate-limited forge, and the finished ones from the last 24
   hours, under a `queuedActions` key). It costs no forge budget.
+  `get_version` mirrors `GET /api/version` (the running server's release
+  tag, under a `version` key). It costs no forge budget.
+  `get_settings` mirrors `GET /api/settings` without the webhook token and
+  secret, which are never sent over MCP; it reports `webhookConfigured`
+  instead, and unlike the HTTP read it never creates them. It carries
+  `ignoredTitleCounts` too, null per entry until the first refresh ends.
+  Over HTTP the same body is `GET /api/settings/summary`, which also
+  creates and returns no webhook credentials.
   Each calls the same function as its handler rather than adding a second,
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
   Streamable HTTP transport.
-  The aim is that every API operation has a tool (#1503), so an agent is
+  The aim is that every API operation has a tool, so an agent is
   never blocked by something only the API or the page can do. A test lists
   every `operationId` in `api/openapi.yaml` and fails unless it has a tool,
   a written exclusion (the operation's `x-mcp-excluded` reason in
@@ -111,17 +119,23 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   hook itself.
 - **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
   itself: `get_dashboard`, `get_main_branches`, `get_pull_request_checks`,
-  `get_pull_request_details` and `list_queued_actions`.** Experimental — as of
-  this writing it's an Origin Trial in Chrome 149+/Edge 150+ only, with no
-  stable spec yet — so this is a
-  no-op everywhere else rather than a real dependency the page needs. Where it's
-  present, it lets an in-browser AI agent fetch the same data the page itself
-  renders. `get_dashboard` calls the page's own already-authenticated fetch
-  layer (`fetchDashboardData()`) directly, the same request `/api/dashboard`
-  already answers; the others call their endpoint the same way
-  (`list_queued_actions` returns `GET /api/queued-actions` under a
-  `queuedActions` key, as the server's tool of that name does). All ride on the
-  browser's own session cookie exactly like the page's own poll does.
+  `get_pull_request_details`, `list_queued_actions` and `get_settings`.**
+  Experimental — as of this writing it's an Origin Trial in Chrome 149+/Edge
+  150+ only, with no stable spec yet — so this is a no-op everywhere else rather
+  than a real dependency the page needs. Where it's present, it lets an
+  in-browser AI agent fetch the same data the page itself renders.
+  `get_dashboard` calls the page's own already-authenticated fetch layer
+  (`fetchDashboardData()`) directly, the same request `/api/dashboard` already
+  answers; the others call their endpoint the same way (`list_queued_actions`
+  returns `GET /api/queued-actions` under a `queuedActions` key, as the
+  server's tool of that name does; `get_settings` returns `GET /api/settings`
+  without the webhook token and secret and adds `webhookConfigured`, as the
+  server's tool does). Unlike the server's tool, `get_settings` shares its
+  endpoint with the Settings page, so a first read creates the webhook
+  credentials, as opening Settings does. Because of that, `webhookConfigured`
+  is true after the first read: don't treat it as a sign that webhooks are set
+  up on a forge. All ride on the browser's own session cookie exactly like the
+  page's own poll does.
   Nothing new crosses to the browser that the preceding
   "Credentials never reach the browser" bullet doesn't already allow: the tools
   never see a token, only the same already-filtered JSON the page always got.
@@ -129,12 +143,11 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   operation it covers. A unit test, `web/src/lib/webmcp-parity.test.ts`, lists
   every `operationId` in `api/openapi.yaml` and fails unless it has a tool, a
   written exclusion (the same `x-mcp-excluded` reason the server MCP uses, so
-  one list serves both) or a place on the test's list of tools still to come
-  (#1503).
+  one list serves both) or a place on the test's list of tools still to come.
 
-### Where this stands against #3
+### What the passkey login covers
 
-This ships every piece of #3: passkey registration and login gating the
+It covers passkey registration and login gating the
 dashboard, per-user GitHub/Forgejo tokens (every signed-in user
 configures their own forges from the Settings page and sees only their
 own dashboard by default), an admin area for whoever registers first
@@ -381,8 +394,9 @@ actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.
 
 A pull request stacked on another open one shows a chip with its place and what
-it waits for: "Stack 2 of 3 · waits for #840", or "Stack 1 of 3 · merges first"
-for the bottom. The members sit together in position order, at the slot of the
+it waits for: `Stack 2 of 3 · waits for #840` (the number is the pull
+request it is stacked on), or `Stack 1 of 3 · merges first` for the bottom.
+The members sit together in position order, at the slot of the
 first one in the list, as a plain nested list with a thin rule beside each row.
 A filter that matches any member keeps the whole stack and dims the rest. A
 child says it targets its parent's branch, not main, so auto-merge isn't
@@ -399,7 +413,7 @@ tab, where GitHub's own button approves the runs. The dashboard doesn't approve
 anything itself. These runs still count as failing CI, so the Failing CI quick
 filter keeps matching them.
 
-A pull request row draws what it shows as three tiers (#1563). A **state**
+A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
 CI slot: one pill of a fixed size with a glyph and a word, so a finished run
 turns into its result in the same place and the row doesn't move. The glyphs
@@ -933,9 +947,12 @@ second for a crash, each with its real status code. Asking for either file by
 name gets the 404, never a 200. Each page says what happened in plain words and
 gives a way back: a primary link to the pull requests and a short list of the
 other pages. The 500 page also has a `Try again` link to the same address. They
-show nothing about the server, with no stack trace, path, host or version, and
-follow the light or dark theme. They run no script, so the app's router can't
-swap one for the page whose address it was sent at. Inside the app,
+show nothing about the server beyond the release version the footer shows
+everywhere (no stack trace, path or host), and follow the light or dark theme.
+They run no script, so the app can't fetch that version: the Go server fills it
+into the `#footer-version` slot of the footer when it starts, and a test fails
+if the web build drops the slot. The same no-script rule means the app's router
+can't swap one for the page whose address it was sent at. Inside the app,
 `+error.svelte` renders the same page for an error the router meets, and
 `handleError` keeps the message generic. `src/error.html` is the static fallback
 for an error the app can't render itself.
@@ -1152,6 +1169,18 @@ the first 128 characters of a title. This is a safety margin tested by
 fuzzing, not a proof. The rule applies to the Issues board only; Insights
 charts ignore it.
 
+### First refresh
+
+After a restart the server holds no state, so the first snapshot is empty until
+the first refresh for that user ends. `firstRefreshDone` on the dashboard
+snapshot tells an empty board from one that hasn't loaded: it is `false` from
+process start until the viewer's first refresh has finished, whether it
+succeeded or failed (a failed one shows in the forge health), and `true` from
+then on, including after later refreshes and settings saves. It is per user and
+not stored, so a restart resets it. An account with no saved settings has
+nothing to refresh, so it reads `true` at once. `GET /api/dashboard`, the
+stream and the `get_dashboard` MCP tool all carry it.
+
 ### Issues your settings hide
 
 Two settings, saved with your account and applied by the server, keep issues
@@ -1172,6 +1201,17 @@ Issues board and Insights agree with no arithmetic in the client.
 `0` when none were. The same response carries `hideDependencyDashboard` and
 `ignoredTitlesSet` (true when the list isn't empty), so a client knows whether
 to draw its own fields without reading `/api/settings`.
+
+`GET /api/settings` and the response to saving it also carry
+`ignoredTitleCounts`: for each pattern in `ignoredTitles`, in the same order,
+how many of your open issues that pattern matches on its own. An issue two
+patterns match counts for both, so the entries can add up to more than
+`settingsHiddenIssueCount`. Issues of a repo whose issues you ignore aren't
+counted, as with that total. Every entry is `null` while the answer isn't known
+yet, because your first refresh hasn't finished or no forge answered it, and
+never a made-up `0`. The
+response to a save counts the list just saved, against the issues you had
+before the save.
 
 Patterns use Go's RE2 syntax. It has no lookahead, lookbehind or
 backreferences, and it can't run slowly, so no pattern is refused for being
@@ -1200,6 +1240,16 @@ account and applied by the server, so they follow you to another browser:
   leaves out every issue whose title starts with those words. Type a pattern
   in **Pattern**, then press **Add**. **Remove** drops an entry. Blanks and
   repeats are dropped. Both settings save with the **Save** button.
+  Next to each saved pattern a small label says how many of your open
+  issues it hides on its own: "hides 3 issues", "hides 1 issue" or "hides no
+  issues", so a typo that matches nothing stands out. An issue that two
+  patterns match counts for both. The server does the counting, so the numbers
+  agree with the Issues page. A pattern you just added says "Counted after you
+  save" until the save finishes, and the labels follow each save without a
+  reload. When a save comes back before the server can count (your first save,
+  or one before the first refresh finished), the labels say "Counting…" and the
+  page asks again, up to five times two seconds apart. If no count arrives,
+  nothing shows next to the pattern.
 
 Because the server applies them, the Issues badge in the navigation, the
 Issues page and the Insights issue charts all leave those issues out, and the
@@ -1235,7 +1285,7 @@ how many have CI `running`, `failed` and `passed` (a branch by its
 default-branch pipeline); and for Issues a `total` only. A pull request with no
 checks counts in the total alone, so the four numbers need not add up. A branch
 with no pipeline is counted as `none`, so a branch's four states add up to its
-total (#1531). They count what each page shows when it opens. Pull requests
+total. They count what each page shows when it opens. Pull requests
 leave out ignored repos, drafts and hidden ones, even while Show drafts or
 Show hidden is on. Branches counts the default branches its page lists, which
 also leave out ignored repos. They are always present, zero when nothing is
@@ -1254,7 +1304,12 @@ updated and CI status choices each page offers come from its own list. When
 you open a page that doesn't offer a saved choice (an author who wrote no
 pull request, on the pull requests page), that page shows its list without
 it and leaves the saved choice alone, so it is still set when you go back to
-the page that does. Changing that control on the page ends the saved choice.
+the page that does. The page says so under the filter bar (`Saved author
+"x" is not on this page.`) with a Clear button, and Clear filters is on and
+ends the saved choice too. Changing that control on the page ends it as well.
+Text typed in the title search or the hide-titles pattern is sent to the
+server half a second after the last key, and at once when you leave the page
+or switch tab, so a value typed just before leaving is kept.
 What is deliberately not remembered: the page you were on and the page size,
 the open Filters sheet on a phone, held updates, open menus and pop-ups, and
 the expanded rows on Branches. Branches keeps its own filter in a cookie
@@ -1328,7 +1383,7 @@ its row has **Hide this pull request**, and **Hide for 7 days** under it. It
 leaves the list, the quick-filter counts and Insights at once,
 with no confirm step, since it is reversible. Nothing is sent to the forge.
 
-A status message says "Hid PR #123 ‘title’." with an **Undo** button. It stays
+A status message says `Hid PR #123 ‘title’.` with an **Undo** button. It stays
 until the next message, and the same restore is in the list below, so it isn't
 lost to a timeout. Once anything is hidden, a **Hidden (N)** button by the list
 header opens that list: repo, number, title, "Hidden until you restore it" or
@@ -1449,7 +1504,7 @@ already feeds `review`, so a draft reports 0. Forgejo gives no resolved state
 without a request per review, so its `unresolvedThreads` is `null`: unknown, not
 zero.
 
-Each row shows that as a pill beside the other status pills (#1335): the number
+Each row shows that as a pill beside the other status pills: the number
 of review comments, and `7 · 2 open` in amber, with a dot, when threads are
 still unresolved. A pull request with no review comments shows nothing, and on
 Forgejo, where `unresolvedThreads` is `null`, the pill shows the count with no

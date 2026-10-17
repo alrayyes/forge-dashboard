@@ -46,54 +46,51 @@ show the raw forge error under a disclosure labelled Details. The app does
 neither: that failure can't pass by retrying, and the raw text stays in the
 server log. The tickets' criteria win over those two details.
 
-- `screen-pr-detail-dialog.png`: a pull request opened in a pop-up sized to
-  its content, over the dimmed list: the title, status pills, branch and
-  checks, labels, a failure line, and every action in the footer. Merge is
-  greyed out with an info icon that opens the blocked reason.
-  `crop-pr-detail-dialog.png` is the pop-up alone. Stitch project "Forge
-  Dashboard UI Audit" (`564147752128938905`), screen
-  `4ef3db25112f48d8ab758be286a7c8bd`. It is the design for the pull request pop-up
-  and the greyed-out Merge button.
+- `screen-pr-detail-dialog.png`: a pull request opened in a pop-up sized to its
+  content, over the dimmed list: the title, status pills, branch and checks,
+  labels, a failure line, and every action in the footer. Merge is greyed out
+  with an info icon that opens the blocked reason. `crop-pr-detail-dialog.png`
+  is the pop-up alone. Stitch project "Forge Dashboard UI Audit"
+  (`564147752128938905`), screen `4ef3db25112f48d8ab758be286a7c8bd`. It is the
+  design for the pull request pop-up and the greyed-out Merge button.
 
 - `screen-dependabot-ack.png`: a Dependabot request to bring a branch up to
   date, in four states (requested, acknowledged by Dependabot's thumbs-up, no
   reply after about ten minutes, done) and the acknowledged row in the list.
   `crop-dependabot-ack-states.png` is the four states and
   `crop-dependabot-ack-row.png` the row. Stitch project "Forge Dashboard UI
-  Audit" (`564147752128938905`), screen `2a2e5152e22e47d1af61540a14e50a69`.
-  It's the design for #1082. The banner, "State Lock" and "Worker Task"
-  labels and stage numbers are review chrome and don't ship.
+  Audit" (`564147752128938905`), screen `2a2e5152e22e47d1af61540a14e50a69`. It's
+  the design for the Dependabot update request. The banner, "State Lock" and
+  "Worker Task" labels and stage numbers are review chrome and don't ship.
 
-- `screen-releases-light.png` and `screen-releases-dark.png`: a page for
-  release pull requests only, in light and dark. Rows are grouped by repo
-  with the version large in a fixed-width face, a changelog summary, CI and merge
-  pills, a "What's in this release" list, and Merge, Update branch and a More
-  menu. It also draws the empty, loading and rate-limited states.
-  `crop-releases-behind-row.png` is the Behind row, with the plain-words
-  reason next to Update branch. Stitch project "Forge Dashboard UI Audit"
-  (`564147752128938905`), screens `9f255af3c7674e40af6cd00b3a6e3823` (light)
-  and `164a64303e3046dea0eff04607122151` (dark). It's the design for #1107.
-  The "Trigger Manual Cut", "Pipeline Rules", "Force changelog scan" and
+- `screen-releases-light.png` and `screen-releases-dark.png`: a page for release
+  pull requests only, in light and dark. Rows are grouped by repo with the
+  version large in a fixed-width face, a changelog summary, CI and merge pills,
+  a "What's in this release" list, and Merge, Update branch and a More menu. It
+  also draws the empty, loading and rate-limited states.
+  `crop-releases-behind-row.png` is the Behind row, with the plain-words reason
+  next to Update branch. Stitch project "Forge Dashboard UI Audit"
+  (`564147752128938905`), screens `9f255af3c7674e40af6cd00b3a6e3823` (light) and
+  `164a64303e3046dea0eff04607122151` (dark). It's the design for the releases
+  page. The "Trigger Manual Cut", "Pipeline Rules", "Force changelog scan" and
   "Retry Endpoint" buttons, the hotkeys bar, the queue and latency figures and
   the "Component State" panels are Stitch's own additions: they aren't in the
   ticket and don't ship.
 
 - `screen-main-branches-light.png`, `screen-main-branches-dark.png` and
-  `screen-main-branches-mobile.png`: a page with the CI status of every
-  repo's default branch, in light, dark and at 390px. Rows carry status,
-  branch, latest commit, failing workflow and age; filter pills with counts,
-  a forge toggle and search sit above them, and a failed
-  row shows its failing job and last log lines.
-  `crop-main-branches-filter-bar.png` is the header and filter bar and
+  `screen-main-branches-mobile.png`: a page with the CI status of every repo's
+  default branch, in light, dark and at 390px. Rows carry status, branch, latest
+  commit, failing workflow and age; filter pills with counts, a forge toggle and
+  search sit above them, and a failed row shows its failing job and last log
+  lines. `crop-main-branches-filter-bar.png` is the header and filter bar and
   `crop-main-branches-failing-row.png` a failed row. Stitch project "Forge
   Dashboard UI Audit" (`564147752128938905`), screens
-  `0011e2f09e594d16871f5e7aa4d2af70` (light),
-  `94f04efcc8654316a921472cfbb2e7e1` (dark) and
-  `57560cd0bdea420f92350ea3fee104cd` (phone). It's the design for #1224. The
-  header chips, "Delight Preview", the two cards at the foot, the stability
-  figures, the progress percentage, Cancel, Force sync, the raw-log
-  buttons and the phone's bottom tab bar are Stitch's own additions: they
-  aren't in the ticket and don't ship.
+  `0011e2f09e594d16871f5e7aa4d2af70` (light), `94f04efcc8654316a921472cfbb2e7e1`
+  (dark) and `57560cd0bdea420f92350ea3fee104cd` (phone). It's the design for the
+  main branches page. The header chips, "Delight Preview", the two cards at the
+  foot, the stability figures, the progress percentage, Cancel, Force sync, the
+  raw-log buttons and the phone's bottom tab bar are Stitch's own additions:
+  they aren't in the ticket and don't ship.
 
 - `screen-waiting-states-light.png`, `screen-waiting-states-dark.png` and
   `screen-waiting-states-mobile.png`: one status chip in a pull request row's
@@ -103,42 +100,43 @@ server log. The tickets' criteria win over those two details.
   height. `crop-waiting-chips.png` is the chips on their own. Stitch project
   "Forge Dashboard UI Audit" (`564147752128938905`), screens
   `f231531e0fa24a46a9eaacc36ba8dbfe` (light), `de83d97b0cac412d90be8021301a354c`
-  (dark) and `2b083d7f858a4dd3b33d29ab0819079c` (phone). It's the design for
-  #1229. The progress percentage and estimate, the header chips, "Highlight
-  Pending", the "Timeout" CI pill, the worker names and the "Ergonomic Rules"
-  panel are Stitch's own additions: they aren't in the ticket and don't ship.
+  (dark) and `2b083d7f858a4dd3b33d29ab0819079c` (phone). It's the design for the
+  waiting chips. The progress percentage and estimate, the header chips,
+  "Highlight Pending", the "Timeout" CI pill, the worker names and the
+  "Ergonomic Rules" panel are Stitch's own additions: they aren't in the ticket
+  and don't ship.
 
 - `screen-ci-pill-actions.png`: four pull request rows in a full-width list
-  where the CI pill is the button that opens the pipeline, with a hover
-  label, a focus ring and a chevron, and the separate "View pipeline"
-  button is gone. A row with one extra action (Close) shows it directly.
-  A row with two or more extra actions keeps the More actions menu, drawn open
-  on the second row. `crop-ci-pill-actions-rows.png` is the first two rows.
-  Stitch project "Forge Dashboard UI Audit" (`564147752128938905`), screen
-  `d9f335e35872473abec7a73468b3ce83`. It's the design for #1139. The open menu
-  covers the Dependabot row's actions and part of the draft row's Close, and
-  the hover label sits over the header; both are Stitch drawing slips, not design.
-  The notification bell, Group by repo toggle and footer text aren't in the
-  ticket and don't ship.
-- `screen-pipeline-sheet-mobile.png`: the pipeline as a bottom sheet on a
-  phone, opened from the CI pill: the failing check with its error, the
-  passing checks, Rerun failed checks and Close. Screen
-  `c8c48a12ec30434f949a43b7f7a125c4`. It doesn't draw the cards behind it, so
-  it does not show the single-action rule on a phone. The bottom tab bar and
-  the "Live" chip aren't in the ticket and don't ship.
+  where the CI pill is the button that opens the pipeline, with a hover label, a
+  focus ring and a chevron, and the separate "View pipeline" button is gone. A
+  row with one extra action (Close) shows it directly. A row with two or more
+  extra actions keeps the More actions menu, drawn open on the second row.
+  `crop-ci-pill-actions-rows.png` is the first two rows. Stitch project "Forge
+  Dashboard UI Audit" (`564147752128938905`), screen
+  `d9f335e35872473abec7a73468b3ce83`. It's the design for the CI pill as a
+  button. The open menu covers the Dependabot row's actions and part of the
+  draft row's Close, and the hover label sits over the header; both are Stitch
+  drawing slips, not design. The notification bell, Group by repo toggle and
+  footer text aren't in the ticket and don't ship. -
+  `screen-pipeline-sheet-mobile.png`: the pipeline as a bottom sheet on a phone,
+  opened from the CI pill: the failing check with its error, the passing checks,
+  Rerun failed checks and Close. Screen `c8c48a12ec30434f949a43b7f7a125c4`. It
+  doesn't draw the cards behind it, so it does not show the single-action rule
+  on a phone. The bottom tab bar and the "Live" chip aren't in the ticket and
+  don't ship.
 
 - `screen-error-pages.png`: Stitch's candidate for the 404 and 500 pages, a
-  "Runtime Exception Simulator" with a status chip, headline, a sentence,
-  Back to pull requests, three next-step cards and recovery notes.
+  "Runtime Exception Simulator" with a status chip, headline, a sentence, Back
+  to pull requests, three next-step cards and recovery notes.
   `crop-error-page-head.png` is the head block, the part to build. Stitch
   project "Forge Dashboard UI Audit" (`564147752128938905`), screen
-  `993566920566427190fa5e956129caa1`. It's the design for #1175. Most of it
-  doesn't ship: the status tabs, trace and network panel, diagnostic JSON,
-  stack trace, host names, session key and recovery notes all show internals, which
-  an error page must not (rules/error-pages.md).
+  `993566920566427190fa5e956129caa1`. It's the design for the error pages. Most
+  of it doesn't ship: the status tabs, trace and network panel, diagnostic JSON,
+  stack trace, host names, session key and recovery notes all show internals,
+  which an error page must not (rules/error-pages.md).
 
 - `1473-pipeline-states/`: state indicators for the pipeline checks panel, so
-  Queued, Skipped and Cancelled stop looking alike (#1473). `matrix.png` is
+  Queued, Skipped and Cancelled stop looking alike. `matrix.png` is
   the six states, `variants.png` the two layouts, `pipeline-states-full.png`
   the whole screen. Stitch project "Forge Dashboard UI Audit"
   (`564147752128938905`), screen `53cfc94d10a04ad7bd2383f2e3de0614`. Variant A
@@ -146,7 +144,7 @@ server log. The tickets' criteria win over those two details.
   Stitch's blue, which sits too close to its Queued blue. Its contrast ratios,
   "eye travel latency" and spec labels are invented and don't ship.
 
-- `943-pr-dialog/`: what opens from a pull request row (#943): the
+- `943-pr-dialog/`: what opens from a pull request row: the
   description, comments, avatars and thumbs up and down reactions, and
   release notes on a release pull request. `dialog-regular-dark-full.png` is
   the regular pull request in dark, `dialog-release-light.png` the release
@@ -163,18 +161,96 @@ server log. The tickets' criteria win over those two details.
   Dependency" button, the add-reaction button, the "Design Architecture Spec"
   and "States Preview Drawer" panels, the made-up figures and contrast claims.
 
-- `1563-status-grammar/`: state, outcome and attribute told apart on a row
-  (#1563). `taxonomy-and-lifecycle.png` is the three tiers and the Queued,
+- `1563-status-grammar/`: state, outcome and attribute told apart on a row.
+  `taxonomy-and-lifecycle.png` is the three tiers and the Queued,
   Running, Failed sequence in one fixed slot. `pr-rows-desktop.png` is the rows,
   `dialog-header-and-nav-pill.png` the pop-up header and the nav pill, and
   `phone-card.png` the 360px card. `status-grammar-full.png` is the whole
   screen. Stitch project "Forge Dashboard UI Audit" (`564147752128938905`),
   screen `9729161c2e2a44cbabf05bba5675f927`. Variant A is the one to build: a
   pill in a fixed CI slot, and quiet outlined attribute chips in their own
-  group. Running stays amber and Queued keeps the hourglass from #1473. The
+  group. Running stays amber and Queued keeps the hourglass from
+  `1473-pipeline-states/`. The
   nav pill groups the outcomes, then the running state after a thin divider.
   Not built, because the app has no such data or status: "Standby", queue
   position, run durations, exit codes, "(3/8)" progress, a run id, a worker
   name, "Signed Commits", "2 Approvals", "Fast-Forward ready", the latency
   and sync chips, the display-mode and colour-check toggles, and the contrast
   claims.
+
+- `settings-groups/`: Settings split into five groups, one visible at a
+  time. `settings-behaviour-desktop.png`, `settings-connections-desktop.png`
+  and `settings-integrations-security-desktop.png` are the desktop screens,
+  with a group list on the left. `settings-display-mobile.png` and
+  `settings-behaviour-mobile.png` are the 360px screens, with pill tabs.
+  `settings-group-list-desktop.png`, `settings-group-tabs-mobile.png`,
+  `settings-behaviour-desktop-issues-card.png` and
+  `settings-token-disclosure-open.png` are crops of the group list, the tab
+  row, the ignored-title rows and the open token help. Stitch project
+  "Forge Dashboard UI Audit" (`564147752128938905`), screens
+  `656d4ba45c2241f6a434a78536025db1` (Behaviour),
+  `6511c9d18b5f4514a8a1701889cea89b` (Connections),
+  `3fb87c53e96843d98f115f3abc7ed822` (Integrations and security),
+  `ad18f5d5b42d4a3c82949a6948835ac8` (Display, phone) and
+  `516148d48167453cbb0091d68136472a` (Behaviour, phone). The prompt asked for
+  a five-group layout with the group list on desktop, pill tabs on a phone,
+  a disclosure for the long token help, a "hides N issues" chip per pattern
+  and red-outline destructive buttons, with every existing setting kept and
+  none added.
+
+  Build the five groups in this order: Display, Sharing, Connections,
+  Behaviour, Integrations and security. Mark the current group by more than
+  colour, as the accent bar and bold label do here. Put the chip beside each
+  ignored pattern, and say "hides no issues" for zero, not "hides 0 issues".
+  Outline destructive buttons in red, and use pill tabs on a phone. Keep
+  "What does this token need?" closed by default. That comes from the
+  prompt's rule, not from the design: both disclosures on the Connections
+  screen are drawn open, and their chevrons disagree (down on GitHub, up on
+  Forgejo). No screen shows the closed state, so use one convention, open
+  is up.
+
+  Buttons that save: the build keeps each card's present behaviour. The app
+  saves the theme on click, so Display gets no "Save theme" button, and a
+  card that saves on change gets none either. Stitch draws "Save theme",
+  "Save time zone" and "Save density settings" on the Display phone screen
+  and three per-card Saves on Behaviour; add none that the app lacks.
+
+  Defects not to copy:
+
+  - The fifth group has three spellings: "Security" (Behaviour desktop and
+    the group-list crop), "Integrations & Security" (Connections) and
+    "Integrations & security" (Integrations). The build uses "Integrations
+    and security", with "and", not "&".
+  - The phone tab row cuts the current tab off mid-word on Behaviour with no
+    cue that it scrolls, hides the fifth group entirely, and on Display
+    clips the fourth pill to its icon. The build must show a scroll cue or
+    wrap.
+  - Only the current pill has an icon.
+  - The pills are about 40px high, under the prompt's own 44px target.
+  - On a phone the chip reads "hides 3" without "issues", and the pattern is
+    truncated.
+  - The delete icons on a phone are icon-only, so they need an accessible
+    name.
+  - Small grey helper text on pale blue looks low in contrast. Nobody
+    measured it.
+  - Only light screens exist and no focus state is drawn, though the prompt
+    asked for dark and focus rings.
+
+  Not built, because the app has no such data or feature:
+
+  - the second left sidebar ("General Settings", "Repository Rules", "Access
+    Tokens", "Audit Logs"), the global-scope chip, the cluster chip in the
+    top bar and the engine version card with its sync status;
+  - version chips, the sync daemon line, "Synced nodes", "Bridge status",
+    the "Audit posture" meter and the zero-trust agent chip;
+  - the Density card, the 24-hour clock toggle and the phone preview row;
+  - per-card service tags such as "git-pr-v2", the "Policy Match 100%" chip
+    and the encryption-promise banner;
+  - figures and status lines: the request quota, "Last verified",
+    `mTLS Enforced`, the token expiry, the latency line, "Last ping", the
+    "Active" and "Encrypted" badges, the repository coverage count, and the
+    polling interval line (the phone screen says 30 seconds where desktop says
+    45 seconds, so Stitch contradicts itself);
+  - the "FIDO2 LEVEL 2" and "CURRENT SESSION" tags;
+  - the bottom tab bar on a phone, and the rotate-keys and test-delivery
+    buttons.

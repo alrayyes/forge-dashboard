@@ -89,6 +89,25 @@ func newTestServerWithSourcesAndManager(tb testing.TB, buildSources func([]byte,
 func newTestServerWithAutoMerge(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
 	tb.Helper()
 
+	return newTestServerWithFirstLoadWait(tb, buildSources, autoMerge, 0)
+}
+
+// newTestServerWithFirstLoadWait is newTestServerWithAutoMerge with the time a
+// read waits for a user's first refresh set (zero keeps the default). A test
+// holding a refresh open needs it short, or its read blocks for the default.
+func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
+	tb.Helper()
+	srv, manager, authStore, _ := newTestServerWithSettingsStore(tb, buildSources, autoMerge, firstLoadWait)
+
+	return srv, manager, authStore
+}
+
+// newTestServerWithSettingsStore is newTestServerWithFirstLoadWait plus the
+// *settings.Store, for a test that asserts what the store holds after a call
+// (say, that a read created no webhook credentials).
+func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration) (*httptest.Server, *dashboard.Manager, *authpkg.Store, *settingspkg.Store) {
+	tb.Helper()
+
 	db, err := sql.Open("sqlite", filepath.Join(tb.TempDir(), "app.db"))
 	require.NoError(tb, err)
 	tb.Cleanup(func() { _ = db.Close() })
@@ -131,11 +150,13 @@ func newTestServerWithAutoMerge(tb testing.TB, buildSources func([]byte, setting
 		BuildSources:  buildSources,
 		RequestLog:    requestlogpkg.NewSQLiteRecorder(authStore, ""),
 		AppContext:    appCtx,
+
+		FirstLoadWait: firstLoadWait,
 	})
 	srv := httptest.NewServer(mux)
 	tb.Cleanup(srv.Close)
 
-	return srv, manager, authStore
+	return srv, manager, authStore, settingsStore
 }
 
 func testEncryptionKey(tb testing.TB) string {

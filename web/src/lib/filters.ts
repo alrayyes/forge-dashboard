@@ -285,6 +285,122 @@ export function releaseAllHeld(): void {
   held.length = 0;
 }
 
+export type HeldPick = {
+  group: StateGroup;
+  key: string;
+  // What the control is called ("author", "CI status").
+  name: string;
+  // The saved value as a reader knows it ("acme/docs", "< 7 days").
+  text: string;
+};
+
+// The picks this page cleared for itself but still has saved, so it can say
+// so instead of showing an unfiltered list with nothing to explain it (#1620).
+export function heldPicks(): HeldPick[] {
+  return held.map((h) => {
+    let text = h.value;
+    if (h.key === 'repo') text = h.value.slice(h.value.indexOf(':') + 1);
+    const choices =
+      h.key === 'created' || h.key === 'updated'
+        ? AGE_RANGES
+        : h.key === 'status'
+          ? CI_CHOICES
+          : [];
+    text = choices.find((c) => c.value === h.value)?.label ?? text;
+    const name = h.key === 'status' ? FILTER_NAMES.status : h.key;
+    return { group: h.group, key: h.key, name, text };
+  });
+}
+
+const HELD_TEXT_MAX = 40;
+
+// A saved value can be anything a hand-edited copy holds; the page shows the
+// start of it. The full value stays in the saved state, never in the markup.
+function shortText(text: string): string {
+  return text.length > HELD_TEXT_MAX
+    ? `${text.slice(0, HELD_TEXT_MAX)}…`
+    : text;
+}
+
+// How the pick reads in a sentence: a name and value for the text kinds, and
+// "filter" with the control's name for the date and CI kinds.
+function heldPickPhrase(pick: HeldPick): string {
+  const value = shortText(pick.text);
+  if (['created', 'updated', 'status'].includes(pick.key))
+    return `filter "${FILTER_NAMES[pick.key]}: ${value}"`;
+  return `${pick.name} "${value}"`;
+}
+
+export function heldPickNote(pick: HeldPick): string {
+  return `Saved ${heldPickPhrase(pick)} is not on this page.`;
+}
+
+export function heldPickClearLabel(pick: HeldPick): string {
+  return `Clear saved ${heldPickPhrase(pick)}`;
+}
+
+function heldPickId(pick: HeldPick): string {
+  return `${pick.group}.${pick.key}`;
+}
+
+// Keeps the note's container in step with the held picks, touching only the
+// lines that changed so a screen reader isn't handed the others again. The
+// container stays in the page (a polite status region), so a change in it is
+// heard. Focus after a Clear goes to the next Clear button, or the container.
+export function renderHeldPicks(
+  container: HTMLElement,
+  onRemove: (pick: HeldPick) => void,
+): void {
+  const picks = heldPicks();
+  const lines = new Map<string, HTMLElement>();
+  for (const child of Array.from(container.children)) {
+    const line = child as HTMLElement;
+    lines.set(line.dataset.pick ?? '', line);
+  }
+  const wanted = new Set(picks.map(heldPickId));
+  for (const [id, line] of lines)
+    if (!wanted.has(id)) {
+      line.remove();
+      lines.delete(id);
+    }
+  for (const pick of picks) {
+    const id = heldPickId(pick);
+    const note = heldPickNote(pick);
+    const existing = lines.get(id);
+    if (existing) {
+      const text = existing.querySelector('span');
+      if (text && text.textContent !== note) text.textContent = note;
+      existing
+        .querySelector('button')
+        ?.setAttribute('aria-label', heldPickClearLabel(pick));
+      continue;
+    }
+    const line = document.createElement('p');
+    line.className = 'held-pick';
+    line.dataset.pick = id;
+    const text = document.createElement('span');
+    text.textContent = note;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'held-pick-clear';
+    button.textContent = 'Clear';
+    button.setAttribute('aria-label', heldPickClearLabel(pick));
+    button.addEventListener('click', () => {
+      onRemove(pick);
+      focusHeldPicks(container);
+    });
+    line.append(text, button);
+    container.appendChild(line);
+  }
+}
+
+// A gentle place to land once a Clear button is gone: the next one, or the
+// container itself (not a text box, so a phone keeps its keyboard down).
+export function focusHeldPicks(container: HTMLElement): void {
+  const next = container.querySelector<HTMLElement>('.held-pick-clear');
+  (next ?? container).focus();
+}
+
 // What gets saved: the state with every held pick put back where the page
 // cleared it.
 function savedCopy(state: SharedFilterState): SharedFilterState {
@@ -307,6 +423,9 @@ const FILTER_STATE_ENDPOINT = '/api/settings/filter-state';
 // see saveState's own comment for which callers hit which path.
 const TITLE_SAVE_DEBOUNCE_MS = 500;
 let titleSaveTimer: ReturnType<typeof setTimeout> | null = null;
+// The snapshot the timer will send. Kept so a flush on leaving the page can
+// send it without waiting for the timer (#1620).
+let titleSaveState: SharedFilterState | null = null;
 
 // One PUT at a time. The server keeps whichever request lands last, and two
 // in flight can land in either order, so a pick made right after another
@@ -326,6 +445,11 @@ function putFilterStateToServer(state: SharedFilterState): void {
     queuedState = state;
     return;
   }
+  sendFilterState(state);
+}
+
+function sendFilterState(state: SharedFilterState): void {
+  const alone = !putInFlight;
   putInFlight = true;
   // keepalive lets the request outlive the page: the dashboard and issues
   // pages share this state, and a click on the other page's nav item right
@@ -349,11 +473,51 @@ function putFilterStateToServer(state: SharedFilterState): void {
     })
     .then(() => {
       clearTimeout(timer);
-      putInFlight = false;
+      // A flush can send beside a PUT in flight; only the one that took the
+      // slot gives it back, or the queue would open early.
+      if (alone) putInFlight = false;
+      else return;
       const next = queuedState;
       queuedState = null;
       if (next) putFilterStateToServer(next);
     });
+}
+
+// Sends the save still waiting on the debounce timer, or queued behind a PUT
+// in flight, right now. Called when the page is going away (pagehide, or the
+// tab turning hidden): a timer or a queue does not survive that, and the server
+// copy would lose a value typed in the last 500 ms (#1620). The cookie needs no
+// flush, saveState writes it on every call, so the next load has the latest
+// value even if this request is lost. A PUT already in flight is not waited
+// for: the snapshot goes out beside it with keepalive, and stays queued so the
+// newest value is sent again after it if the page lives on.
+export function flushPendingSave(): void {
+  const next = titleSaveState ?? queuedState;
+  if (titleSaveTimer) clearTimeout(titleSaveTimer);
+  titleSaveTimer = null;
+  titleSaveState = null;
+  queuedState = null;
+  if (!next) return;
+  // Beside a PUT in flight, keep the snapshot queued as well. The request just
+  // sent can land before the older one, which would then leave the old value on
+  // the server; the completion path re-sends the newest after it. One duplicate
+  // PUT, and only when the page survives (a tab switch, not an unload).
+  if (putInFlight) queuedState = next;
+  sendFilterState(next);
+}
+
+let leaveListenersAdded = false;
+function listenForLeaving(): void {
+  if (leaveListenersAdded) return;
+  if (typeof addEventListener !== 'function') return;
+  if (typeof document?.addEventListener !== 'function') return;
+  leaveListenersAdded = true;
+  // pagehide and visibilitychange are the events that fire reliably on
+  // leaving, on mobile too; unload and beforeunload do not (MDN).
+  addEventListener('pagehide', flushPendingSave);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingSave();
+  });
 }
 
 // Writes the cookie synchronously and immediately, every call — the
@@ -375,10 +539,13 @@ export function saveState(
     /* ignore */
   }
 
+  listenForLeaving();
   if (debouncedCol === 'title' || debouncedCol === 'hideTitleRegex') {
     if (titleSaveTimer) clearTimeout(titleSaveTimer);
+    titleSaveState = state;
     titleSaveTimer = setTimeout(() => {
       titleSaveTimer = null;
+      titleSaveState = null;
       putFilterStateToServer(state);
     }, TITLE_SAVE_DEBOUNCE_MS);
     return;
@@ -386,6 +553,7 @@ export function saveState(
   if (titleSaveTimer) {
     clearTimeout(titleSaveTimer);
     titleSaveTimer = null;
+    titleSaveState = null;
   }
   putFilterStateToServer(state);
 }
@@ -753,8 +921,15 @@ export function populateChoices(
     option.textContent = c.label;
     select.appendChild(option);
   }
-  if (choices.some((c) => c.value === previous)) {
-    select.value = previous;
+  // Saved picks are lowercase (the filter compares lowercase) while the page
+  // offers "Ryan" or "Bug" as written, so the pick is found without regard to
+  // case and the option keeps its own text (#1620). An exact match wins.
+  const lower = (previous || '').toLowerCase();
+  const found =
+    choices.find((c) => c.value === previous) ??
+    choices.find((c) => c.value.toLowerCase() === lower);
+  if (found) {
+    select.value = found.value;
     return false;
   }
   select.value = '';

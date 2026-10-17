@@ -1,5 +1,80 @@
 # Changelog
 
+## [0.208.1](https://github.com/alrayyes/forge-dashboard/compare/v0.208.0...v0.208.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **api:** refuse a Forgejo URL that carries credentials ([#1724](https://github.com/alrayyes/forge-dashboard/issues/1724)) ([f6dd988](https://github.com/alrayyes/forge-dashboard/commit/f6dd9889f339cca9c7e51c73b780b35c3b08d258))
+
+## [0.208.0](https://github.com/alrayyes/forge-dashboard/compare/v0.207.0...v0.208.0) (2026-10-17)
+
+
+### Features
+
+* **api:** add a get_version MCP tool for GET /api/version ([#1707](https://github.com/alrayyes/forge-dashboard/issues/1707)) ([956cf72](https://github.com/alrayyes/forge-dashboard/commit/956cf72a25855c28c8b25eb54815a64748606be6)), closes [#1503](https://github.com/alrayyes/forge-dashboard/issues/1503)
+
+## [0.207.0](https://github.com/alrayyes/forge-dashboard/compare/v0.206.1...v0.207.0) (2026-10-17)
+
+
+### Features
+
+* **api:** add a get_settings MCP tool that leaves out the webhook secrets ([#1711](https://github.com/alrayyes/forge-dashboard/issues/1711)) ([d66e927](https://github.com/alrayyes/forge-dashboard/commit/d66e9278e328263e4e8153b769c0b7a22e7ca666))
+* **api:** say on the dashboard snapshot whether the first refresh has finished ([#1683](https://github.com/alrayyes/forge-dashboard/issues/1683)) ([17a5d49](https://github.com/alrayyes/forge-dashboard/commit/17a5d49b8e61c439604e5637c58473bd7ab50d81))
+
+
+### Bug Fixes
+
+* **web:** show Counting… and re-read ignored title counts after a first save ([#1717](https://github.com/alrayyes/forge-dashboard/issues/1717)) ([2b96ca8](https://github.com/alrayyes/forge-dashboard/commit/2b96ca81e86a10c0d5cb28698e100c8d93441c14))
+
+## [0.206.1](https://github.com/alrayyes/forge-dashboard/compare/v0.206.0...v0.206.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** save pending free-text filters when leaving the page ([#1705](https://github.com/alrayyes/forge-dashboard/issues/1705)) ([dc7690f](https://github.com/alrayyes/forge-dashboard/commit/dc7690ffc46f949ce8c1cc26b38bad8f506715a3))
+
+## [0.206.0](https://github.com/alrayyes/forge-dashboard/compare/v0.205.1...v0.206.0) (2026-10-17)
+
+
+### Features
+
+* **api:** count the open issues each ignored title pattern hides ([#1688](https://github.com/alrayyes/forge-dashboard/issues/1688)) ([1e67140](https://github.com/alrayyes/forge-dashboard/commit/1e67140d96055d77aaad0207ab63d5a9ab2997fe))
+
+## [0.205.1](https://github.com/alrayyes/forge-dashboard/compare/v0.205.0...v0.205.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** restore the Issues page's Hide Dependency Dashboard box from the server copy ([#1710](https://github.com/alrayyes/forge-dashboard/issues/1710)) ([0ed055a](https://github.com/alrayyes/forge-dashboard/commit/0ed055acf50c19dbf520a7b8eb6c3d060fee934a))
+
+## [0.205.0](https://github.com/alrayyes/forge-dashboard/compare/v0.204.2...v0.205.0) (2026-10-17)
+
+
+### Features
+
+* **web:** show how many issues each ignored title pattern hides ([#1697](https://github.com/alrayyes/forge-dashboard/issues/1697)) ([2020f24](https://github.com/alrayyes/forge-dashboard/commit/2020f246045591b3326f062c8f2e1ca43fee593a))
+
+
+### Bug Fixes
+
+* **web:** say a saved pick is waiting and let Clear filters end it ([#1678](https://github.com/alrayyes/forge-dashboard/issues/1678)) ([f73ce94](https://github.com/alrayyes/forge-dashboard/commit/f73ce94dda93cde98ee7e23f2433163aeb6582f3))
+
+## [0.204.2](https://github.com/alrayyes/forge-dashboard/compare/v0.204.1...v0.204.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** keep every footer link on every page and mark the current one ([#1687](https://github.com/alrayyes/forge-dashboard/issues/1687)) ([9361ca0](https://github.com/alrayyes/forge-dashboard/commit/9361ca02b791e0beed198c8f9581cce714fbbc03))
+
+## [0.204.1](https://github.com/alrayyes/forge-dashboard/compare/v0.204.0...v0.204.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **api:** show the version in the footer of the 404 and 500 pages ([#1694](https://github.com/alrayyes/forge-dashboard/issues/1694)) ([ed5e5a9](https://github.com/alrayyes/forge-dashboard/commit/ed5e5a9f20a711d7226e2a31b1f9495c83efb84d))
+* **web:** keep an author or label pick whose option has capitals ([#1681](https://github.com/alrayyes/forge-dashboard/issues/1681)) ([04c37e8](https://github.com/alrayyes/forge-dashboard/commit/04c37e85e4610804c9d7a95c49933ff573004cb7))
+
 ## [0.204.0](https://github.com/alrayyes/forge-dashboard/compare/v0.203.0...v0.204.0) (2026-10-17)
 
 

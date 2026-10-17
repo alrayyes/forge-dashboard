@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
+	"html"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -24,11 +27,12 @@ const (
 // app's own page. Only for a path a person would type: a missing script,
 // stylesheet or image stays a plain 404, since HTML in place of a script is
 // worse than nothing. Without a 404.html in the build the plain answer stays.
-func withNotFoundPage(fsys fs.FS, next http.Handler) http.Handler {
+func withNotFoundPage(fsys fs.FS, version string, next http.Handler) http.Handler {
 	page, err := fs.ReadFile(fsys, notFoundPage)
 	if err != nil {
 		return next
 	}
+	page = withFooterVersion(notFoundPage, page, version)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The two files are real pages too, but visiting one by name is a path
@@ -44,6 +48,62 @@ func withNotFoundPage(fsys fs.FS, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(&notFoundWriter{ResponseWriter: w, page: page, head: r.Method == http.MethodHead}, r)
 	})
+}
+
+// footerVersionOpen opens the footer's version slot. The pages are prerendered
+// with scripting off, so the browser can't fetch the version the way it does
+// elsewhere: the server fills the slot in from the version it was built with.
+const (
+	footerVersionOpen  = `<span id="footer-version">`
+	footerVersionClose = `</span>`
+)
+
+var (
+	errNoFooterSlot       = errors.New("no #footer-version placeholder in the page")
+	errUnclosedFooterSlot = errors.New("the #footer-version placeholder is never closed")
+)
+
+// injectFooterVersion fills the footer's version slot in an error page with
+// what the live footer renders for the same build: a link to the changelog
+// for a release, a plain label for a dev build. Only the slot's content
+// changes. The version is escaped, since it comes from a build flag.
+func injectFooterVersion(page []byte, version string) ([]byte, error) {
+	start := bytes.Index(page, []byte(footerVersionOpen))
+	if start < 0 {
+		return nil, errNoFooterSlot
+	}
+	start += len(footerVersionOpen)
+	end := bytes.Index(page[start:], []byte(footerVersionClose))
+	if end < 0 {
+		return nil, errUnclosedFooterSlot
+	}
+	end += start
+
+	markup := "&#183; dev build"
+	if version != "dev" {
+		markup = fmt.Sprintf(`&#183; <a class="mono" href="/changelog.html">v%s</a>`, html.EscapeString(version))
+	}
+
+	out := make([]byte, 0, len(page)+len(markup))
+	out = append(out, page[:start]...)
+	out = append(out, markup...)
+	out = append(out, page[end:]...)
+
+	return out, nil
+}
+
+// withFooterVersion is injectFooterVersion for startup: a page whose slot has
+// gone (a frontend change renamed it) is served as built, with a warning, so
+// the error page itself never breaks over a missing version.
+func withFooterVersion(name string, page []byte, version string) []byte {
+	out, err := injectFooterVersion(page, version)
+	if err != nil {
+		slog.Warn("error page has no footer version slot", "page", name, "error", err)
+
+		return page
+	}
+
+	return out
 }
 
 // asksForAPage reports whether urlPath looks like navigation rather than an
@@ -101,8 +161,11 @@ func (w *notFoundWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter 
 // visitor. A browser navigation gets the app's 500 page, an API call the JSON
 // error its callers expect. http.ErrAbortHandler is the sanctioned way to cut
 // a response short, so it passes through.
-func recoverPanics(fsys fs.FS, next http.Handler) http.Handler {
+func recoverPanics(fsys fs.FS, version string, next http.Handler) http.Handler {
 	page, _ := fs.ReadFile(fsys, serverErrorPage)
+	if page != nil {
+		page = withFooterVersion(serverErrorPage, page, version)
+	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tracked := &startedWriter{ResponseWriter: w}
