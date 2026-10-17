@@ -262,3 +262,81 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
       .toEqual(['', '']);
   });
 });
+
+test.describe('an edit made while the saved copy loads wins on Webhooks', () => {
+  const REPOS = [
+    { forge: 'github', fullName: 'acme/app', hasWebhook: true },
+    { forge: 'forgejo', fullName: 'acme/infra', hasWebhook: false },
+  ].map((r) => ({
+    ...r,
+    ignored: false,
+    ignoredPRs: false,
+    ignoredIssues: false,
+    autoUpdateBranch: false,
+    canManageWebhooks: true,
+  }));
+
+  test('a changed status stays and is saved, the repo search still takes the copy', async ({
+    page,
+    request,
+    baseURL,
+  }) => {
+    await registerViaInvite(
+      page,
+      request,
+      baseURL,
+      `filter-late-copy-webhooks-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+      'Filter Late Copy Webhooks',
+    );
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [],
+          pullRequests: [],
+          issues: [],
+          repos: REPOS,
+        }),
+      }),
+    );
+    // What another browser saved: a repo search and the Confirmed status.
+    const put = await page.request.put(ENDPOINT, {
+      data: {
+        shared: {},
+        pr: {},
+        issue: {},
+        view: {},
+        webhooks: { repo: 'acme', status: 'confirmed' },
+      },
+    });
+    expect(put.ok()).toBe(true);
+    // This browser has no cookie, so the copy is all it has to go on.
+    await page.context().clearCookies({ name: 'forge-board-filters' });
+
+    const copy = await holdCopy(page);
+    await page.goto('/webhooks.html');
+    await expect(page.locator('#webhooks-rows tr')).toHaveCount(2);
+    await copy.requested;
+    await page.locator('#webhooks-status-filter').selectOption('pending');
+    copy.release();
+
+    await expect(page.locator('#webhooks-repo-filter')).toHaveValue('acme');
+    await expect(page.locator('#webhooks-status-filter')).toHaveValue(
+      'pending',
+    );
+    await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+    await expect
+      .poll(async () => {
+        const saved = (await (await page.request.get(ENDPOINT)).json()) as {
+          webhooks?: Record<string, string>;
+        };
+        return [saved.webhooks?.repo, saved.webhooks?.status];
+      })
+      .toEqual(['acme', 'pending']);
+  });
+});

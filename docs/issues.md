@@ -184,11 +184,9 @@ server. A copy with no revision, or the same one, wins as before.
 What is deliberately not remembered: the page you were on and the page size,
 the open Filters sheet on a phone, held updates, open menus and pop-ups, the
 hidden pull requests panel, and the expanded rows on Branches. The Branches
-status, forge and search follow you to another browser the same way.
-
-The Webhooks page filters (the forge buttons, the repo search, and the status
-select), its sort and its page size are not remembered yet: they reset each
-time you open the page.
+status, forge and search follow you to another browser the same way, and so do
+the Webhooks forge buttons, repo search, status select and sort. The Webhooks
+page size is not remembered, as on the other pages.
 
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows is held behind an "N updates available" bar while you're scrolled
