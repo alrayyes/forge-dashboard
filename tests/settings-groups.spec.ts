@@ -370,6 +370,21 @@ test.describe('settings groups', () => {
       );
     });
 
+    test('Enter in a field saves that group: only its own edit gives a plain Saved.', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html#behaviour');
+      await expect(page.locator('#save-connections-button')).toBeEnabled();
+      await page.locator('#renovate-rebase-label').fill('enter-saves');
+      await page.locator('#renovate-rebase-label').press('Enter');
+      await expect(page.locator('#status')).toHaveText('Saved.');
+
+      await groupLink(page, 'Connections').click();
+      await page.locator('#github-username').fill('enter-user');
+      await page.locator('#github-username').press('Enter');
+      await expect(page.locator('#connections-status')).toHaveText('Saved.');
+    });
+
     test('Behaviour Save names Connections edits, and a plain save just says Saved.', async ({
       page,
     }) => {

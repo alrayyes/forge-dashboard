@@ -425,10 +425,9 @@
     // with what is stored, checks it, and names the field it refused
     // (`field`), which gets focus below (#810). This only sends what was
     // typed.
-    // The group whose Save was pressed; edits in the other one ride along.
-    const submitter = (e.submitter as HTMLElement | null)?.id;
-    const own =
-      submitter === "save-connections-button" ? "connections" : "behaviour";
+    // The group on screen is the one being saved. Enter in a field submits
+    // through the form's first button, so the button pressed can't say.
+    const own = group === "connections" ? "connections" : "behaviour";
     const now = groupSnapshots();
     const alsoSaved = Object.keys(GROUP_LABELS)
       .filter(
