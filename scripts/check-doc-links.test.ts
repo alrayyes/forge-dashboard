@@ -248,6 +248,29 @@ test('a byte-order mark does not hide the first heading', () => {
   ).toEqual([]);
 });
 
+test('a heading with a malformed percent escape in the fragment is reported, not a crash', () => {
+  expect(run({ 'README.md': '# T\n\n[x](#%E0%A4%A)\n' })).toEqual([
+    'README.md:3: #%E0%A4%A',
+  ]);
+});
+
+test('CRLF and lone-CR line endings still yield matchable headings', () => {
+  expect(
+    run({
+      'README.md': '[a](b.md#top)\n[c](c.md#top)\n',
+      'b.md': '# Top\r\n\r\ntext\r\n',
+      'c.md': '# Top\r\rtext\r',
+    }),
+  ).toEqual([]);
+});
+
+test('an image in a heading contributes no text to the slug', () => {
+  expect(slug('![img](a.png) alt')).toBe('-alt');
+  expect(slug('[![badge](x.svg)](https://e.com) Title')).toBe('-title');
+  expect(slug('Title ![img](a.png)')).toBe('title-');
+  expect(slug('[link text](u) and ![i](a.png)')).toBe('link-text-and-');
+});
+
 const cli = (root: string) =>
   spawnSync('bun', [path.join(import.meta.dir, 'check-doc-links.ts'), root], {
     encoding: 'utf8',
