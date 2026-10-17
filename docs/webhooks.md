@@ -26,9 +26,10 @@ whole page is otherwise about.
 The page remembers its forge buttons, repo search, status select and sort
 the way the pull request and issue pages remember theirs: they are still set
 when you come back, and on another browser once you sign in. The page you were
-on and the page size are not remembered. A "Clear filters" button appears
-while any of them differs from its default, and puts them all back, including
-after a saved repo search that matches nothing.
+on and the page size are not remembered. A "Clear filters" button is on
+the page as on the other lists. It is enabled while any of them differs from
+its default, and puts them all back, including after a saved repo search that
+matches nothing.
 
 ## The easy way: "Add a webhook"
 

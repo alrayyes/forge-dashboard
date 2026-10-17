@@ -293,13 +293,19 @@
       sortDir === "asc",
   );
 
-  function clearFilters() {
+  // Clearing disables the button, and a browser drops focus from a button that
+  // becomes disabled. A keyboard user is put back on the repo search, the
+  // first control of the bar, and the status line says what happened.
+  function clearFilters(event: MouseEvent) {
+    const byKeyboard = event.detail === 0;
     filterForge = "";
     filterRepo = "";
     filterStatus = "";
     sortKey = "fullName";
     sortDir = "asc";
     onFilterChange(["forge", "repo", "status", "sort", "dir"]);
+    setStatus("Filters cleared.");
+    if (byKeyboard) document.getElementById("webhooks-repo-filter")?.focus();
   }
 
   function onFilterChange(keys: string[], freeText = false) {
@@ -1012,11 +1018,12 @@
             <option value="pending">Not yet</option>
           {/if}
         </select>
-        {#if !filtersAreDefault}
-          <button type="button" class="clear-filters" onclick={clearFilters}>
-            Clear filters
-          </button>
-        {/if}
+        <button
+          type="button"
+          class="clear-filters"
+          disabled={filtersAreDefault}
+          onclick={clearFilters}>Clear filters</button
+        >
       </div>
 
       {#if sortedRepos.length === 0}

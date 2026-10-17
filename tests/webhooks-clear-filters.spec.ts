@@ -9,7 +9,7 @@ import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
 // A "Clear filters" control on the Webhooks page, the one the other list pages
-// have. It shows only while a filter differs from its default, resets forge,
+// have. It is always there, and enabled only while a filter differs from its default, resets forge,
 // repo, status and sort, and the cleared state is saved like any other change.
 // https://github.com/alrayyes/forge-dashboard/issues/1811
 
@@ -83,26 +83,27 @@ const DEFAULTS = {
 };
 
 test.describe('webhooks: Clear filters', () => {
-  test('shows only while a filter differs from its default', async ({
+  test('is always there, and enabled only while a filter differs from its default', async ({
     page,
     request,
     baseURL,
   }) => {
     await signIn(page, request, baseURL);
     await open(page);
-    await expect(clear(page)).toHaveCount(0);
+    await expect(clear(page)).toBeVisible();
+    await expect(clear(page)).toBeDisabled();
 
     await page.locator('#webhooks-status-filter').selectOption('pending');
-    await expect(clear(page)).toBeVisible();
+    await expect(clear(page)).toBeEnabled();
     // A target big enough to hit (WCAG 2.5.8 asks for 24 px).
     const box = await clear(page).boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(24);
     expect(box?.width).toBeGreaterThanOrEqual(24);
     await page.locator('#webhooks-status-filter').selectOption('');
-    await expect(clear(page)).toHaveCount(0);
+    await expect(clear(page)).toBeDisabled();
 
     await page.locator('[data-sort-key="forge"]').click();
-    await expect(clear(page)).toBeVisible();
+    await expect(clear(page)).toBeEnabled();
   });
 
   test('resets forge, repo, status, sort and direction, and the saved copies follow', async ({
@@ -137,7 +138,7 @@ test.describe('webhooks: Clear filters', () => {
     await expect(
       page.locator('th:has([data-sort-key="fullName"])'),
     ).toHaveAttribute('aria-sort', 'ascending');
-    await expect(clear(page)).toHaveCount(0);
+    await expect(clear(page)).toBeDisabled();
     await expect(page.locator('#webhooks-rows tr')).toHaveCount(2);
 
     await expect.poll(() => serverCopy(page)).toMatchObject(DEFAULTS);
@@ -146,11 +147,11 @@ test.describe('webhooks: Clear filters', () => {
     // It survives a reload, and a second browser (no cookie).
     await page.reload();
     await expect(page.locator('#webhooks-rows tr')).toHaveCount(2);
-    await expect(clear(page)).toHaveCount(0);
+    await expect(clear(page)).toBeDisabled();
     await page.context().clearCookies({ name: 'forge-board-filters' });
     await page.reload();
     await expect(page.locator('#webhooks-rows tr')).toHaveCount(2);
-    await expect(clear(page)).toHaveCount(0);
+    await expect(clear(page)).toBeDisabled();
   });
 
   test('in the empty state from an unmatched saved search it is there, reachable by keyboard, and clears it', async ({
@@ -173,16 +174,25 @@ test.describe('webhooks: Clear filters', () => {
     await expect(page.locator('#webhooks-repo-filter')).toHaveValue(
       'no-such-repo',
     );
-    await expect(clear(page)).toBeVisible();
+    await expect(clear(page)).toBeEnabled();
 
     await page.locator('#webhooks-repo-filter').focus();
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     await expect(clear(page)).toBeFocused();
     await page.keyboard.press('Enter');
+    // The button is now disabled and a browser drops focus from it, so focus
+    // goes to the repo search and the status line says what happened.
+    await expect(clear(page)).toBeDisabled();
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe(
+      'webhooks-repo-filter',
+    );
 
     await expect(page.locator('#webhooks-rows tr')).toHaveCount(2);
     await expect(page.locator('#webhooks-repo-filter')).toHaveValue('');
+    await expect(page.locator('#webhooks-status')).toContainText(
+      'Filters cleared.',
+    );
     await expect.poll(() => serverCopy(page)).toMatchObject({ repo: '' });
   });
 
@@ -198,7 +208,7 @@ test.describe('webhooks: Clear filters', () => {
         await signIn(page, request, baseURL);
         await open(page);
         await page.locator('#webhooks-repo-filter').fill('no-such-repo');
-        await expect(clear(page)).toBeVisible();
+        await expect(clear(page)).toBeEnabled();
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
@@ -206,4 +216,29 @@ test.describe('webhooks: Clear filters', () => {
       });
     }
   }
+});
+
+test('on a phone the button is a 44 px target', async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await signIn(page, request, baseURL);
+  await open(page);
+  await page.locator('#webhooks-status-filter').selectOption('pending');
+  const box = await clear(page).boundingBox();
+  expect(box?.height).toBeGreaterThanOrEqual(44);
+  expect(box?.width).toBeGreaterThanOrEqual(44);
+  // Focus lands on the repo search after a keyboard clear, at phone width too,
+  // and the status line announces it.
+  await clear(page).focus();
+  await page.keyboard.press('Enter');
+  await expect(clear(page)).toBeDisabled();
+  expect(await page.evaluate(() => document.activeElement?.id)).toBe(
+    'webhooks-repo-filter',
+  );
+  await expect(page.locator('#webhooks-status')).toContainText(
+    'Filters cleared.',
+  );
 });
