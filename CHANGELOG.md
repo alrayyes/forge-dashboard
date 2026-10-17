@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.211.1](https://github.com/alrayyes/forge-dashboard/compare/v0.211.0...v0.211.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** show the loading state from the first paint ([#1738](https://github.com/alrayyes/forge-dashboard/issues/1738)) ([b00e917](https://github.com/alrayyes/forge-dashboard/commit/b00e917b01875a4618b31af7e9811d9b8f19a76e))
+
 ## [0.211.0](https://github.com/alrayyes/forge-dashboard/compare/v0.210.0...v0.211.0) (2026-10-17)
 
 
