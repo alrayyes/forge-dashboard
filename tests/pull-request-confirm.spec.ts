@@ -9,6 +9,7 @@ import {
 import { test } from './fixtures';
 import { flushRequests } from './flush-requests-helper';
 import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // The two-step confirm on Merge and Close: an explicit way out, dismissal on
 // an outside click, Escape and a timeout, one armed at a time, and a guard
@@ -98,9 +99,14 @@ async function trackRequests(page: Page) {
   return calls;
 }
 
+// Most of the file only reads a mocked dashboard and writes nothing per user,
+// so it starts from the shared session instead of registering a user each
+// (#1379). The state-outside-the-DOM group types a title filter, which the
+// server saves for the user, so it keeps its own.
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
 test.describe('confirm step: leaving it', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server, and
     // a real snapshot can't be pushed over the mock.
@@ -261,8 +267,7 @@ test.describe('confirm step: leaving it', () => {
 });
 
 test.describe('confirm step: timeout', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server, and
     // a real snapshot can't be pushed over the mock.
@@ -368,8 +373,7 @@ test.describe('confirm step: timeout', () => {
 });
 
 test.describe('confirm step: one at a time and the double-click guard', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server, and
     // a real snapshot can't be pushed over the mock.
@@ -468,6 +472,8 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
 });
 
 test.describe('confirm step: state outside the DOM', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
     // The live stream isn't part of these tests. Aborted, so a shared user's
@@ -553,8 +559,7 @@ test.describe('confirm step: state outside the DOM', () => {
 });
 
 test.describe('confirm step: screen readers', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server, and
     // a real snapshot can't be pushed over the mock.
