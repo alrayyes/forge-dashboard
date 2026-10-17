@@ -753,8 +753,15 @@ export function populateChoices(
     option.textContent = c.label;
     select.appendChild(option);
   }
-  if (choices.some((c) => c.value === previous)) {
-    select.value = previous;
+  // Saved picks are lowercase (the filter compares lowercase) while the page
+  // offers "Ryan" or "Bug" as written, so the pick is found without regard to
+  // case and the option keeps its own text (#1620). An exact match wins.
+  const lower = (previous || '').toLowerCase();
+  const found =
+    choices.find((c) => c.value === previous) ??
+    choices.find((c) => c.value.toLowerCase() === lower);
+  if (found) {
+    select.value = found.value;
     return false;
   }
   select.value = '';

@@ -3370,6 +3370,23 @@ components:
             and of every count and total built from them, the same as
             `hideDependencyDashboard`. Always present once the server
             applies it. Empty means none.
+        ignoredTitleCounts:
+          type: array
+          items:
+            type: [integer, "null"]
+            minimum: 0
+          description: |
+            Per pattern in `ignoredTitles`, same order and same length: how
+            many of the viewer's currently open issues that pattern matches
+            on its own. An issue two patterns match counts for both, so the
+            entries can sum to more than `settingsHiddenIssueCount`. Every
+            entry is null while the count is unknown (the viewer's first
+            refresh has not finished, see `firstRefreshDone` on the
+            dashboard snapshot, or there is no snapshot), never a made-up 0.
+            Only this viewer's issues are counted. On GET and on the PUT
+            response alike: a PUT returns the counts for the list it just
+            saved. Optional until the server emits it; the server
+            change makes it required.
 
     SettingsRequest:
       type: object
