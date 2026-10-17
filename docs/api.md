@@ -46,5 +46,5 @@ queue and cancel the actions that wait for a rate limit reset (see
 `GET/POST/DELETE /api/mcp` sits outside this contract — it's the MCP
 Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource
 `redocly`/OpenAPI describes), not a plain request/response endpoint. See
-the **Design** section of the [README](../README.md#design) for what it exposes
-and how it authenticates.
+the **Design** section of [Architecture](../ARCHITECTURE.md#design) for what
+it exposes and how it authenticates.
