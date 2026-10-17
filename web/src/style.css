@@ -1167,6 +1167,11 @@ button.title:focus-visible {
 }
 
 .title-text {
+  /* Above the stretched overlay (.title::after), so the pointer reaches the
+     text and the browser can show its hover text. A click on it still
+     bubbles to the button. */
+  position: relative;
+  z-index: 1;
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;

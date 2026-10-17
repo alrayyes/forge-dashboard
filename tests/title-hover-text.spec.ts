@@ -123,6 +123,67 @@ test.describe('truncated titles show the whole title on hover', () => {
     await expect(medium).toHaveAttribute('title', MEDIUM);
   });
 
+  test('the cut text is what the pointer hits, and a click on it still opens the dialog', async ({
+    page,
+  }) => {
+    await page.route('**/api/pull-requests/details*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          description: null,
+          comments: [],
+          commentCount: 0,
+          commentsTruncated: false,
+          releaseNotes: null,
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    const span = text(page, '#pr-rows', 1);
+    await expect(span).toHaveAttribute('title', LONG);
+    const box = await span.boundingBox();
+    if (!box) throw new Error('no title box');
+    const y = box.y + box.height / 2;
+    // A native tooltip comes from the element under the pointer and its
+    // ancestors, so the stretched-link overlay must not sit on top of it.
+    for (const x of [
+      box.x + 40,
+      box.x + box.width / 2,
+      box.x + box.width - 4,
+    ]) {
+      const hit = await page.evaluate(
+        ([px, py]) => {
+          const el = document.elementFromPoint(px, py);
+          return el?.closest('.title-text') ? 'text' : (el?.tagName ?? 'none');
+        },
+        [x, y],
+      );
+      expect(hit).toBe('text');
+    }
+    await page.mouse.click(box.x + box.width / 2, y);
+    await expect(
+      page.getByRole('dialog', { name: /^Pull request details/ }),
+    ).toBeVisible();
+  });
+
+  test('the hover text is re-checked once the web fonts have loaded', async ({
+    page,
+  }) => {
+    await page.goto('/pull-requests.html');
+    const fits = text(page, '#pr-rows', 4);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(fits).not.toHaveAttribute('title');
+    // Wider glyphs after the first measure, as a font swap would make them.
+    await page.addStyleTag({
+      content: '.title-text { letter-spacing: 6px !important; }',
+    });
+    await page.evaluate(() =>
+      document.fonts.dispatchEvent(new Event('loadingdone')),
+    );
+    await expect(fits).toHaveAttribute('title', MEDIUM);
+  });
+
   test('the row button keeps its name and gets no second description', async ({
     page,
   }) => {

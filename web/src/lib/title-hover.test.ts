@@ -116,3 +116,15 @@ describe('createTitleHover', () => {
     expect(ro.wasDisconnected()).toBe(true);
   });
 });
+
+describe('recheck', () => {
+  test('measures every tracked title again', () => {
+    const ro = fakeObserver();
+    const hover = createTitleHover(ro.ctor);
+    const el = box(100, 100);
+    hover.track(el as unknown as HTMLElement, 'T');
+    el.scrollWidth = 150;
+    hover.recheck();
+    expect(el.attrs.get('title')).toBe('T');
+  });
+});

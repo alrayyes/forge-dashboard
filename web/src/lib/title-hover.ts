@@ -14,6 +14,8 @@ export function isTruncated(el: Measured): boolean {
 export interface TitleHover {
   /** Watch a title span; `title` is its text as written on the forge. */
   track(el: HTMLElement, title: string): void;
+  /** Measure every tracked title again (a web font changes text widths). */
+  recheck(): void;
   /** Stop watching spans that have left the page. */
   prune(): void;
   destroy(): void;
@@ -23,25 +25,31 @@ export function createTitleHover(
   Observer: typeof ResizeObserver = ResizeObserver,
 ): TitleHover {
   const titles = new Map<HTMLElement, string>();
-  const observer = new Observer((entries) => {
-    // Read every width first, then write: no forced layout between rows.
-    const cut = entries.map((entry) => {
-      const el = entry.target as HTMLElement;
-      return [el, isTruncated(el)] as const;
-    });
+  // Read every width first, then write: no forced layout between rows.
+  const apply = (els: Iterable<HTMLElement>) => {
+    const cut = [...els].map((el) => [el, isTruncated(el)] as const);
     for (const [el, truncated] of cut) {
       const title = titles.get(el);
       if (title === undefined) continue;
       if (truncated) el.setAttribute('title', title);
       else el.removeAttribute('title');
     }
-  });
+  };
+  const observer = new Observer((entries) =>
+    apply(entries.map((entry) => entry.target as HTMLElement)),
+  );
+  // Text widths change when a web font arrives, with no box resizing to say so.
+  const fonts = typeof document === 'undefined' ? undefined : document.fonts;
+  const recheck = () => apply(titles.keys());
+  fonts?.addEventListener?.('loadingdone', recheck);
+  void fonts?.ready?.then(recheck);
   return {
     track(el, title) {
       titles.set(el, title);
       // Observing reports the first size too, so this also does the first check.
       observer.observe(el);
     },
+    recheck,
     prune() {
       for (const el of titles.keys()) {
         if (el.isConnected) continue;
@@ -50,6 +58,7 @@ export function createTitleHover(
       }
     },
     destroy() {
+      fonts?.removeEventListener?.('loadingdone', recheck);
       observer.disconnect();
       titles.clear();
     },
