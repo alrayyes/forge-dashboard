@@ -62,9 +62,9 @@ would need the same answer. The reasons, and what it costs, are in
 - **Credentials never reach the browser.** The Go backend holds every
   user's tokens server-side, encrypted at rest, and only ever hands the
   frontend its own already-filtered JSON. Confirm this yourself: open the
-  browser's network tab and watch it call only this app's own `/api/` routes
-  — and that `/api/settings` never echoes a forge token back, only whether
-  one is set.
+  browser's network tab and watch it call only this app's own routes (`/api/...`
+  and the static `/changelog.json`), never a forge — and that
+  `/api/settings` never echoes a forge token back, only whether one is set.
 - **An MCP endpoint for agents, `/api/mcp`, read-only like the rest of
   this app.** Authenticated the same way any other `/api/*` route already
   is — a personal API token (Settings → API tokens),
