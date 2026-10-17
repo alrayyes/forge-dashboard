@@ -1,5 +1,12 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
+  import Disclosure from "#lib/Disclosure.svelte";
+  import SettingsNav from "#lib/SettingsNav.svelte";
+  import {
+    DEFAULT_GROUP,
+    groupFromHash,
+    type SettingsGroupId,
+  } from "#lib/settings-groups.js";
   import {
     addIgnoredTitle,
     ignoredCountLabel,
@@ -462,7 +469,9 @@
       if (ignoredError) {
         status = ignoredError;
         statusKind = "error";
-        document.getElementById("ignored-pattern")?.focus();
+        void revealGroup("behaviour").then(() =>
+          document.getElementById("ignored-pattern")?.focus(),
+        );
         return;
       }
     }
@@ -471,6 +480,18 @@
     // with what is stored, checks it, and names the field it refused
     // (`field`), which gets focus below (#810). This only sends what was
     // typed.
+    // The group on screen is the one being saved. Enter in a field submits
+    // through the form's first button, so the button pressed can't say.
+    const own = group === "connections" ? "connections" : "behaviour";
+    const now = groupSnapshots();
+    const alsoSaved = Object.keys(GROUP_LABELS)
+      .filter(
+        (g) =>
+          g !== own &&
+          now[g as keyof typeof now] !== savedSnapshots[g as keyof typeof now],
+      )
+      .map((g) => GROUP_LABELS[g]);
+
     const trimmedForgejoUrl = forgejoUrl.trim();
     const trimmedForgejoUsername = forgejoUsername.trim();
     const trimmedInstallationId = githubAppInstallationId.trim();
@@ -542,9 +563,12 @@
         ignoredTitles = issueSettings.ignoredTitles;
         ignoredCounts = ignoredCountsFrom(data);
         savedTitles = new Set(issueSettings.ignoredTitles);
+        savedSnapshots = groupSnapshots();
         if (countsArePending(issueSettings.ignoredTitles, ignoredCounts))
           startCounting();
-        status = "Saved.";
+        status = alsoSaved.length
+          ? `Saved, including your changes in ${alsoSaved.join(" and ")}.`
+          : "Saved.";
         statusKind = "ok";
       })
       .catch((err: Error & { field?: string }) => {
@@ -552,11 +576,23 @@
         statusKind = "error";
         // The server names the entry it refused; say so beside the list.
         if (err.field === "ignoredTitles") ignoredError = status;
-        // Its inputs are named for the API's own field names.
-        if (err.field)
-          document
-            .querySelector<HTMLElement>(`[name="${CSS.escape(err.field)}"]`)
-            ?.focus();
+        // Its inputs are named for the API's own field names. The field may
+        // sit in a group that isn't showing: open it first, so the focus
+        // lands and the error is on screen.
+        const refusedField = err.field;
+        if (refusedField) {
+          const refusedGroup = FIELD_GROUPS[refusedField];
+          void (refusedGroup ? revealGroup(refusedGroup) : tick()).then(() => {
+            const el =
+              document.querySelector<HTMLElement>(
+                `[name="${CSS.escape(refusedField)}"]`,
+              ) ??
+              (refusedField === "ignoredTitles"
+                ? document.getElementById("ignored-pattern")
+                : null);
+            el?.focus();
+          });
+        }
       })
       .finally(() => {
         saving = false;
@@ -845,7 +881,73 @@
     });
   }
 
+  // The open group lives in the URL hash. Every group's cards stay in the
+  // page (hidden, so out of the reading order) and unsaved edits survive a
+  // switch.
+  let group = $state<SettingsGroupId>(DEFAULT_GROUP);
+
+  // Which group each saved field lives in, so a refused save can open the
+  // group of the field it names before focusing it.
+  const FIELD_GROUPS: Record<string, SettingsGroupId> = {
+    githubToken: "connections",
+    githubUsername: "connections",
+    githubAppInstallationId: "connections",
+    forgejoUrl: "connections",
+    forgejoToken: "connections",
+    forgejoUsername: "connections",
+    renovateRebaseLabel: "behaviour",
+    hideDependencyDashboard: "behaviour",
+    ignoredTitles: "behaviour",
+  };
+
+  // Opens a group without adding a history entry: the page moved the user,
+  // the user didn't choose to navigate, so Back shouldn't step through it.
+  async function revealGroup(target: SettingsGroupId) {
+    if (group !== target) {
+      group = target;
+      history.replaceState(history.state, "", `#${target}`);
+    }
+    await tick();
+  }
+
+  // One form saves Connections and Behaviour together. Remember what each
+  // group held at the last load or save, so a save can say when it also
+  // carried edits from the group the person wasn't looking at.
+  const GROUP_LABELS: Record<string, string> = {
+    connections: "Connections",
+    behaviour: "Behaviour",
+  };
+  function groupSnapshots() {
+    return {
+      connections: JSON.stringify([
+        githubToken,
+        githubUsername,
+        githubAppInstallationId,
+        forgejoUrl,
+        forgejoToken,
+        forgejoUsername,
+      ]),
+      behaviour: JSON.stringify([
+        renovateRebaseLabel,
+        hideDependencyDashboard,
+        ignoredTitles,
+      ]),
+    };
+  }
+  let savedSnapshots = { connections: "", behaviour: "" };
+
+  async function openFromHash() {
+    const target = groupFromHash(window.location.hash);
+    group = target.group;
+    if (target.anchor) {
+      await tick();
+      document.getElementById(target.anchor)?.scrollIntoView();
+    }
+  }
+
   onMount(() => {
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
     loadTimezone();
     const clock = setInterval(() => {
       previewNow = new Date().toISOString();
@@ -898,6 +1000,7 @@
           ignoredCounts = ignoredCountsFrom(data);
           savedTitles = new Set(issueSettings.ignoredTitles);
         }
+        savedSnapshots = groupSnapshots();
         // Just the control's own displayed value — (app)/+layout.svelte's
         // syncThemeFromServer already applies the theme itself and syncs
         // the cookie on every page, this one included. Skipped while a
@@ -945,7 +1048,10 @@
       passkeyStatusKind = "error";
     });
 
-    return () => clearInterval(clock);
+    return () => {
+      clearInterval(clock);
+      window.removeEventListener("hashchange", openFromHash);
+    };
   });
 </script>
 
@@ -963,6 +1069,21 @@
     }
     .settings-header {
       margin-bottom: 22px;
+    }
+    .settings-layout {
+      display: grid;
+      grid-template-columns: 168px minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+    }
+    .settings-panels {
+      min-width: 0;
+    }
+    @media (max-width: 760px) {
+      .settings-layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+      }
     }
     .settings-header h1 {
       font-size: 19px;
@@ -1396,816 +1517,919 @@
     <h1>Settings</h1>
   </div>
 
-  <div class="card">
-    <h2>Appearance</h2>
-    <fieldset class="theme-segmented">
-      <legend class="sr-only">Theme</legend>
-      <label>
-        <input
-          type="radio"
-          name="theme"
-          value=""
-          checked={theme === ""}
-          onchange={() => selectTheme("")}
-        />
-        <span>System</span>
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="theme"
-          value="light"
-          checked={theme === "light"}
-          onchange={() => selectTheme("light")}
-        />
-        <span>Light</span>
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="theme"
-          value="dark"
-          checked={theme === "dark"}
-          onchange={() => selectTheme("dark")}
-        />
-        <span>Dark</span>
-      </label>
-    </fieldset>
-    <p
-      class={`status${themeStatusKind ? ` ${themeStatusKind}` : ""}`}
-      id="theme-status"
-      role="status"
-      aria-live="polite"
-    >
-      {themeStatus}
-    </p>
-    <div class="timezone-row">
-      <label for="timezone-select">Time zone</label>
-      <select
-        id="timezone-select"
-        value={timezone.setting}
-        onchange={(e) => selectTimezone(e.currentTarget.value)}
-        aria-describedby="timezone-preview timezone-status"
-      >
-        <option value="">Browser default ({detectedZone})</option>
-        {#each zones as zone (zone)}
-          <option value={zone}>{zone}</option>
-        {/each}
-      </select>
-      <span class="timezone-preview" id="timezone-preview">
-        Now:
-        <time datetime={previewNow}
-          >{formatDateTime(previewNow, timezone.setting || detectedZone)}</time
-        >
-      </span>
-    </div>
-    <p
-      class={`status${timezoneStatusKind ? ` ${timezoneStatusKind}` : ""}`}
-      id="timezone-status"
-      role="status"
-      aria-live="polite"
-    >
-      {timezoneStatus}
-    </p>
-  </div>
-
-  <div class="card">
-    <h2>Sharing</h2>
-    <p class="hint">
-      Let another registered user view your dashboard, read-only — they need no
-      tokens of their own configured.
-    </p>
-    <form id="share-form" class="share-form" onsubmit={submitShare}>
-      <label for="share-username" class="sr-only"
-        >Username to share your dashboard with</label
-      >
-      <input
-        id="share-username"
-        type="text"
-        autocomplete="off"
-        placeholder="username"
-        required
-        bind:value={shareUsername}
-      />
-      <button type="submit" class="btn btn-primary">Share</button>
-    </form>
-    <ul class="share-list" id="shared-with-list">
-      {#each sharedWith as u (u.username)}
-        <li>
-          <span>{escapeHTML(u.displayName)} ({escapeHTML(u.username)})</span>
-          <button
-            class="btn-remove"
-            type="button"
-            data-username={u.username}
-            onclick={() => stopSharing(u.username)}>Stop sharing</button
+  <div class="settings-layout">
+    <SettingsNav current={group} />
+    <div class="settings-panels">
+      <div class="group" id="display" hidden={group !== "display"}>
+        <div class="card">
+          <h2>Appearance</h2>
+          <fieldset class="theme-segmented">
+            <legend class="sr-only">Theme</legend>
+            <label>
+              <input
+                type="radio"
+                name="theme"
+                value=""
+                checked={theme === ""}
+                onchange={() => selectTheme("")}
+              />
+              <span>System</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="theme"
+                value="light"
+                checked={theme === "light"}
+                onchange={() => selectTheme("light")}
+              />
+              <span>Light</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="theme"
+                value="dark"
+                checked={theme === "dark"}
+                onchange={() => selectTheme("dark")}
+              />
+              <span>Dark</span>
+            </label>
+          </fieldset>
+          <p
+            class={`status${themeStatusKind ? ` ${themeStatusKind}` : ""}`}
+            id="theme-status"
+            role="status"
+            aria-live="polite"
           >
-        </li>
-      {/each}
-    </ul>
-    <p
-      class="empty-state"
-      id="shared-with-empty"
-      hidden={sharedWith.length > 0}
-    >
-      You haven't shared your dashboard with anyone yet.
-    </p>
-    <p
-      class={`status${shareStatusKind ? ` ${shareStatusKind}` : ""}`}
-      id="share-status"
-      role="status"
-      aria-live="polite"
-    >
-      {shareStatus}
-    </p>
-  </div>
-
-  <div class="card">
-    <h2>Shared with you</h2>
-    <p class="hint">Switch to one of these from the dashboard header.</p>
-    <ul class="share-list" id="shared-with-me-list">
-      {#each sharedWithMe as u (u.username)}
-        <li>
-          <span>{escapeHTML(u.displayName)} ({escapeHTML(u.username)})</span>
-        </li>
-      {/each}
-    </ul>
-    <p
-      class="empty-state"
-      id="shared-with-me-empty"
-      hidden={sharedWithMe.length > 0}
-    >
-      Nobody has shared their dashboard with you yet.
-    </p>
-  </div>
-
-  <form id="settings-form" onsubmit={handleSave}>
-    <div class="card">
-      <h2>GitHub</h2>
-      <p class="hint">
-        A token sees every repo it can push to, private included. Leave the
-        token blank to keep the one already saved.
-      </p>
-      <div class="field">
-        <label for="github-token"
-          >Personal access token <span
-            class="configured"
-            id="github-token-badge"
-            hidden={!githubTokenSet}>Configured</span
-          ></label
-        >
-        <div class="token-input">
-          <input
-            id="github-token"
-            name="githubToken"
-            type={githubTokenShown ? "text" : "password"}
-            autocomplete="off"
-            placeholder="ghp_…"
-            aria-describedby="github-token-hint"
-            bind:value={githubToken}
-          />
-          <button
-            type="button"
-            class="token-toggle"
-            data-target="github-token"
-            aria-pressed={githubTokenShown}
-            aria-label={githubTokenShown
-              ? "Hide personal access token"
-              : "Show personal access token"}
-            onclick={() => (githubTokenShown = !githubTokenShown)}
-            >{githubTokenShown ? "Hide" : "Show"}</button
-          >
-        </div>
-        <div class="field-hint" id="github-token-hint">
-          <p>
-            Needs read-only access to your repos, their issues, pull requests,
-            and commit status, plus read/write access to each repo's webhooks —
-            to show whether one's already pointed at this dashboard, and to
-            create or fix one up when you click "Add a webhook" (see the
-            Webhooks page).
-            <a
-              href="https://github.com/settings/tokens/new?scopes=repo&amp;description=forge-dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              >Create a token with that scope already set &rarr;</a
+            {themeStatus}
+          </p>
+          <div class="timezone-row">
+            <label for="timezone-select">Time zone</label>
+            <select
+              id="timezone-select"
+              value={timezone.setting}
+              onchange={(e) => selectTimezone(e.currentTarget.value)}
+              aria-describedby="timezone-preview timezone-status"
             >
-          </p>
-          <p>
-            Classic token: the <code>repo</code> scope (or just
-            <code>public_repo</code> if every repo you track is public) already covers
-            this.
-          </p>
-          <p>Fine-grained token, grant all of:</p>
-          <ul>
-            <li>
-              Metadata — Read-only (mandatory on every fine-grained token
-              regardless)
-            </li>
-            <li>Issues — Read-only</li>
-            <li>Pull requests — Read-only</li>
-            <li>Commit statuses — Read-only</li>
-            <li>Checks — Read-only</li>
-            <li>Webhooks — Read and write</li>
-          </ul>
-          <p>
-            And make sure the repo is actually in this token's own repository
-            list (or that it's set to "All repositories"), separately from those
-            permissions — a repo left out fails with "Resource not accessible by
-            personal access token" even though every permission above is granted
-            correctly. Easy to hit for a repo created after the token, or a
-            token deliberately scoped to a subset of repos.
-          </p>
-        </div>
-      </div>
-      <div class="field">
-        <label for="github-app-installation-id"
-          >GitHub App installation ID (optional, takes precedence over the token
-          above)</label
-        >
-        <input
-          id="github-app-installation-id"
-          name="githubAppInstallationId"
-          type="text"
-          inputmode="numeric"
-          autocomplete="off"
-          placeholder="e.g. 12345678"
-          aria-describedby="github-app-installation-id-hint"
-          bind:value={githubAppInstallationId}
-          disabled={!githubAppConfigured}
-        />
-        <p class="field-hint" id="github-app-installation-id-hint">
-          {#if githubAppConfigured}
-            Uses the alrayyes-automation GitHub App's own independent rate-limit
-            pool instead of your account's shared budget. Install the App, then
-            paste the installation ID GitHub shows you here. Your token above
-            stays saved as a fallback but is ignored while this is set.
-          {:else}
-            Not available — this server has no GitHub App configured.
-          {/if}
-        </p>
-      </div>
-      <div class="field">
-        <label for="github-username"
-          >Username (used only when no token is set)</label
-        >
-        <input
-          id="github-username"
-          name="githubUsername"
-          type="text"
-          autocomplete="off"
-          placeholder="your-username"
-          aria-describedby="github-username-hint"
-          bind:value={githubUsername}
-        />
-        <p class="field-hint" id="github-username-hint">
-          Shows that account's public repos, unauthenticated — no credential
-          involved.
-        </p>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Forgejo</h2>
-      <p class="hint">
-        Same trade-off as GitHub: a token sees private repos, a username alone
-        sees public ones only.
-      </p>
-      <div class="field">
-        <label for="forgejo-url">Instance URL</label>
-        <input
-          id="forgejo-url"
-          name="forgejoUrl"
-          type="text"
-          autocomplete="off"
-          placeholder="https://git.example.com"
-          aria-describedby="forgejo-url-hint"
-          bind:value={forgejoUrl}
-        />
-        <p class="field-hint" id="forgejo-url-hint">
-          Required if you set a token or username below — otherwise Forgejo is
-          skipped entirely, with nothing to tell it which instance to use.
-        </p>
-      </div>
-      <div class="field">
-        <label for="forgejo-token"
-          >API token <span
-            class="configured"
-            id="forgejo-token-badge"
-            hidden={!forgejoTokenSet}>Configured</span
-          ></label
-        >
-        <div class="token-input">
-          <input
-            id="forgejo-token"
-            name="forgejoToken"
-            type={forgejoTokenShown ? "text" : "password"}
-            autocomplete="off"
-            placeholder="Leave blank to keep the saved token"
-            aria-describedby="forgejo-token-hint"
-            bind:value={forgejoToken}
-          />
-          <button
-            type="button"
-            class="token-toggle"
-            data-target="forgejo-token"
-            aria-pressed={forgejoTokenShown}
-            aria-label={forgejoTokenShown ? "Hide API token" : "Show API token"}
-            onclick={() => (forgejoTokenShown = !forgejoTokenShown)}
-            >{forgejoTokenShown ? "Hide" : "Show"}</button
-          >
-        </div>
-        <div class="field-hint" id="forgejo-token-hint">
-          <p>
-            Needs your repos and their issues/pull requests, plus each repo's
-            webhooks — to show whether one's already pointed at this dashboard,
-            and to create or fix one up when you click "Add a webhook" (see the
-            Webhooks page).
-            {#if forgejoTokenLink}
-              <a
-                id="forgejo-token-link"
-                href={forgejoTokenLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                >Open your instance's token settings &rarr;</a
+              <option value="">Browser default ({detectedZone})</option>
+              {#each zones as zone (zone)}
+                <option value={zone}>{zone}</option>
+              {/each}
+            </select>
+            <span class="timezone-preview" id="timezone-preview">
+              Now:
+              <time datetime={previewNow}
+                >{formatDateTime(
+                  previewNow,
+                  timezone.setting || detectedZone,
+                )}</time
               >
-            {:else}
-              <a
-                id="forgejo-token-link"
-                target="_blank"
-                rel="noopener noreferrer"
-                >Open your instance's token settings &rarr;</a
-              >
-              <span id="forgejo-token-link-disabled-hint"
-                >(fill in the instance URL above first)</span
-              >
-            {/if}
-          </p>
-          <p>Select all of:</p>
-          <ul>
-            <li>
-              <code>write:repository</code> — Forgejo's webhook API has no
-              separate read-only scope, so even just checking coverage needs
-              write, not just <code>read:repository</code>
-            </li>
-            <li><code>read:issue</code></li>
-            <li>
-              <code>read:user</code> — easy to miss since it isn't obviously
-              related to repos, but <code>GET /user/repos</code> (how repository discovery
-              works) refuses a token without it
-            </li>
-          </ul>
-        </div>
-      </div>
-      <div class="field">
-        <label for="forgejo-username"
-          >Username (used only when no token is set)</label
-        >
-        <input
-          id="forgejo-username"
-          name="forgejoUsername"
-          type="text"
-          autocomplete="off"
-          placeholder="your-username"
-          bind:value={forgejoUsername}
-        />
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Pull request behavior</h2>
-      <p class="field-hint">
-        release-please, Dependabot, and Renovate already keep their own pull
-        requests current on their own schedule, so "Update branch" never shows
-        on a PR any of them opened — Dependabot and Renovate get their own
-        dedicated rebase actions instead.
-      </p>
-      <div class="field" id="renovate-rebase-label-field">
-        <label for="renovate-rebase-label">Renovate rebase label</label>
-        <input
-          id="renovate-rebase-label"
-          name="renovateRebaseLabel"
-          type="text"
-          autocomplete="off"
-          placeholder="rebase"
-          aria-describedby="renovate-rebase-label-hint"
-          bind:value={renovateRebaseLabel}
-        />
-        <p class="field-hint" id="renovate-rebase-label-hint">
-          Only used when a Renovate pull request's body has no rebase checkbox,
-          so the button falls back to this label (Renovate's own
-          <code>rebaseLabel</code> config option — genuinely per-repo configurable).
-          Leave blank to use Renovate's own default, "rebase".
-        </p>
-      </div>
-    </div>
-
-    <div class="card" id="issue-settings">
-      <h2>Issues</h2>
-      <p class="field-hint">
-        These apply to every issue list and total: the Issues page, Insights and
-        the count in the navigation. They are saved with the Save button below.
-      </p>
-      <label class="check-row">
-        <input
-          type="checkbox"
-          name="hideDependencyDashboard"
-          bind:checked={hideDependencyDashboard}
-          onchange={() => (issueSettingsTouched = true)}
-        />
-        Hide the Dependency Dashboard issue
-      </label>
-
-      <h3 id="ignored-titles-heading">Ignored issue titles</h3>
-      <p class="field-hint" id="ignored-titles-hint">
-        An issue whose title matches any of these patterns is left out. A
-        pattern matches anywhere in the title and ignores case, so
-        <code>^Weekly report</code> ignores every title that starts with those
-        words. The server checks the patterns with its own syntax (RE2), which
-        has no lookahead and no backreferences. Up to {MAX_IGNORED_TITLES} patterns
-        of {MAX_PATTERN_LENGTH}
-        characters each. The filter box on the Issues page uses a different engine.
-      </p>
-      <ul
-        class="share-list"
-        id="ignored-titles"
-        aria-labelledby="ignored-titles-heading"
-      >
-        {#each ignoredTitles as pattern, i (pattern)}
-          {@const countText =
-            ignoredCounts === null
-              ? ""
-              : ignoredCountLabel(
-                  ignoredCounts.get(pattern),
-                  savedTitles.has(pattern),
-                  countingPending,
-                )}
-          <li>
-            <span class="pattern-text">
-              <code>{pattern}</code>
-              {#if countText}
-                <span class="pattern-count" id={`ignored-count-${i}`}
-                  >{countText}</span
-                >
-              {/if}
             </span>
-            <button
-              class="btn-remove"
-              type="button"
-              aria-label={`Remove ${pattern}`}
-              aria-describedby={countText ? `ignored-count-${i}` : undefined}
-              onclick={() => removeIgnoredPattern(pattern)}>Remove</button
-            >
-          </li>
-        {/each}
-      </ul>
-      <p
-        class="empty-state"
-        id="ignored-titles-empty"
-        hidden={ignoredTitles.length > 0}
-      >
-        No titles are ignored. Add a pattern to leave matching issues out.
-      </p>
-      <div class="field" id="ignored-pattern-field">
-        <label for="ignored-pattern">Pattern</label>
-        <div class="pattern-row">
-          <input
-            id="ignored-pattern"
-            name="ignoredTitles"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="^Weekly report"
-            aria-invalid={ignoredError ? "true" : undefined}
-            aria-describedby={ignoredError
-              ? "ignored-titles-hint ignored-titles-error"
-              : "ignored-titles-hint"}
-            bind:value={ignoredPattern}
-            onkeydown={onIgnoredPatternKeydown}
-          />
-          <button type="button" class="btn" onclick={addIgnoredPattern}
-            >Add</button
+          </div>
+          <p
+            class={`status${timezoneStatusKind ? ` ${timezoneStatusKind}` : ""}`}
+            id="timezone-status"
+            role="status"
+            aria-live="polite"
           >
-        </div>
-        <p
-          class="pattern-error"
-          id="ignored-titles-error"
-          hidden={!ignoredError}
-        >
-          {ignoredError}
-        </p>
-      </div>
-    </div>
-
-    <div class="actions">
-      <button
-        type="submit"
-        class="btn btn-primary"
-        id="save-button"
-        disabled={saving || !settingsLoaded}>Save</button
-      >
-      <p
-        class={`status${statusKind ? ` ${statusKind}` : ""}`}
-        id="status"
-        role="status"
-        aria-live="polite"
-      >
-        {status}
-      </p>
-    </div>
-  </form>
-
-  <div class="card" id="forgejo-auto-merge">
-    <h2>Forgejo auto-merge</h2>
-    <p class="field-hint">
-      Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo itself.
-      Forgejo's own scheduled merge can't be read back, so this app keeps the
-      intent and does the merging.
-    </p>
-    <ul class="field-hint">
-      <li>
-        It's off for every pull request until you choose "Enable auto-merge" in
-        a Forgejo row's More actions. Nothing is merged that you didn't arm.
-      </li>
-      <li>
-        An armed pull request shows "Auto-merge on" and "Managed by Forge
-        Dashboard". It merges after a refresh once its checks have passed and
-        Forgejo says it can merge, with the repo's own merge method.
-      </li>
-      <li>
-        While it waits or stops, the row says why in words: checks still
-        running, a failed check, a conflict, or a merge Forgejo refused.
-      </li>
-      <li>
-        "Cancel auto-merge" on the row removes the intent. Closing or merging
-        the pull request elsewhere removes it too.
-      </li>
-      <li>
-        The merge uses your Forgejo token, so it needs permission to merge.
-      </li>
-    </ul>
-  </div>
-
-  <div class="card" id="webhooks">
-    <h2>Webhooks</h2>
-    <p class="hint">
-      Add these to a repo to update your dashboard the moment something happens
-      there, instead of waiting on the next poll. Optional — polling every 30
-      seconds keeps running either way.
-      <a
-        href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/webhooks.md"
-        target="_blank"
-        rel="noopener noreferrer">Full setup steps &rarr;</a
-      >
-    </p>
-    <div class="field">
-      <label for="webhook-url-github">GitHub webhook URL</label>
-      <div class="token-input">
-        <input
-          id="webhook-url-github"
-          type="text"
-          readonly
-          aria-describedby="webhook-url-github-hint"
-          value={webhookUrlGithub}
-        />
-        <button
-          type="button"
-          class="copy-button"
-          data-copy-target="webhook-url-github"
-          onclick={() => copyWebhookField(webhookUrlGithub)}>Copy</button
-        >
-      </div>
-      <p class="field-hint" id="webhook-url-github-hint">
-        Repo &rarr; Settings &rarr; Webhooks &rarr; Add webhook. Content type
-        <code>application/json</code>, secret below, events: Pull requests,
-        Issues, Statuses, Check runs.
-      </p>
-    </div>
-    <div class="field">
-      <label for="webhook-url-forgejo">Forgejo webhook URL</label>
-      <div class="token-input">
-        <input
-          id="webhook-url-forgejo"
-          type="text"
-          readonly
-          aria-describedby="webhook-url-forgejo-hint"
-          value={webhookUrlForgejo}
-        />
-        <button
-          type="button"
-          class="copy-button"
-          data-copy-target="webhook-url-forgejo"
-          onclick={() => copyWebhookField(webhookUrlForgejo)}>Copy</button
-        >
-      </div>
-      <p class="field-hint" id="webhook-url-forgejo-hint">
-        Repo &rarr; Settings &rarr; Webhooks &rarr; Add Webhook &rarr; Forgejo.
-        Secret below, trigger on: Pull Request, Issue, Push, Status.
-      </p>
-    </div>
-    <div class="field">
-      <label for="webhook-secret">Secret</label>
-      <div class="token-input token-input--dual">
-        <input
-          id="webhook-secret"
-          type={webhookSecretShown ? "text" : "password"}
-          readonly
-          value={webhookSecret}
-        />
-        <div class="token-input-actions">
-          <button
-            type="button"
-            class="copy-button"
-            data-copy-target="webhook-secret"
-            onclick={() => copyWebhookField(webhookSecret)}>Copy</button
-          >
-          <button
-            type="button"
-            class="token-toggle"
-            data-target="webhook-secret"
-            aria-pressed={webhookSecretShown}
-            aria-label={webhookSecretShown
-              ? "Hide webhook secret"
-              : "Show webhook secret"}
-            onclick={() => (webhookSecretShown = !webhookSecretShown)}
-            >{webhookSecretShown ? "Hide" : "Show"}</button
-          >
+            {timezoneStatus}
+          </p>
         </div>
       </div>
-      <p class="field-hint">
-        The same secret goes in both webhooks above — it's what proves a
-        delivery actually came from your forge.
-      </p>
-    </div>
-    <p
-      class={`status${webhookCopyStatusKind ? ` ${webhookCopyStatusKind}` : ""}`}
-      id="webhook-copy-status"
-      role="status"
-      aria-live="polite"
-    >
-      {webhookCopyStatus}
-    </p>
-    <p
-      class="hint"
-      id="webhook-coverage-summary"
-      hidden={!webhookCoverageVisible}
-    >
-      <span id="webhook-coverage-count">{webhookCoverageCount}</span>
-      &middot;
-      <a href="/webhooks.html">See which repos, and add a webhook &rarr;</a>
-    </p>
-  </div>
 
-  <div class="card" id="passkeys">
-    <h2>Passkeys</h2>
-    <p class="hint">
-      Every passkey that can sign in to this account &mdash; add one per device
-      (e.g. a laptop and a security key) so losing access to any single one
-      doesn't lock you out.
-    </p>
-    <form id="passkey-form" class="share-form" onsubmit={submitAddPasskey}>
-      <label for="passkey-label" class="sr-only">Name for the new passkey</label
-      >
-      <input
-        id="passkey-label"
-        type="text"
-        autocomplete="off"
-        placeholder="name, e.g. MacBook"
-        required
-        bind:value={passkeyLabel}
-      />
-      <button type="submit" class="btn btn-primary" disabled={passkeyBusy}
-        >{passkeyBusy ? "Waiting for your passkey…" : "Add passkey"}</button
-      >
-    </form>
-    <ul class="share-list" id="passkey-list">
-      {#each passkeys as key (key.id)}
-        <li>
-          <span>
-            {escapeHTML(key.label)}<br />
-            <span class="api-token-meta"
-              >Created <time datetime={key.createdAt}
-                >{formatDate(key.createdAt)}</time
-              ></span
+      <div class="group" id="sharing" hidden={group !== "sharing"}>
+        <div class="card">
+          <h2>Sharing</h2>
+          <p class="hint">
+            Let another registered user view your dashboard, read-only — they
+            need no tokens of their own configured.
+          </p>
+          <form id="share-form" class="share-form" onsubmit={submitShare}>
+            <label for="share-username" class="sr-only"
+              >Username to share your dashboard with</label
             >
-          </span>
-          <button
-            class="btn-remove"
-            type="button"
-            data-passkey-id={key.id}
-            disabled={passkeys.length <= 1}
-            title={passkeys.length <= 1 ? "Can't remove your only passkey" : ""}
-            onclick={() => removePasskey(key.id)}>Remove</button
+            <input
+              id="share-username"
+              type="text"
+              autocomplete="off"
+              placeholder="username"
+              required
+              bind:value={shareUsername}
+            />
+            <button type="submit" class="btn btn-primary">Share</button>
+          </form>
+          <ul class="share-list" id="shared-with-list">
+            {#each sharedWith as u (u.username)}
+              <li>
+                <span
+                  >{escapeHTML(u.displayName)} ({escapeHTML(u.username)})</span
+                >
+                <button
+                  class="btn-remove"
+                  type="button"
+                  data-username={u.username}
+                  onclick={() => stopSharing(u.username)}>Stop sharing</button
+                >
+              </li>
+            {/each}
+          </ul>
+          <p
+            class="empty-state"
+            id="shared-with-empty"
+            hidden={sharedWith.length > 0}
           >
-        </li>
-      {/each}
-    </ul>
-    <p class="empty-state" id="passkey-empty" hidden={passkeys.length > 0}>
-      No passkeys yet.
-    </p>
-    <p
-      class={`status${passkeyStatusKind ? ` ${passkeyStatusKind}` : ""}`}
-      id="passkey-status"
-      role="status"
-      aria-live="polite"
-    >
-      {passkeyStatus}
-    </p>
-  </div>
+            You haven't shared your dashboard with anyone yet.
+          </p>
+          <p
+            class={`status${shareStatusKind ? ` ${shareStatusKind}` : ""}`}
+            id="share-status"
+            role="status"
+            aria-live="polite"
+          >
+            {shareStatus}
+          </p>
+        </div>
 
-  <div class="card" id="api-tokens">
-    <h2>API tokens</h2>
-    <p class="hint">
-      A Bearer credential a script can use instead of a browser's passkey
-      session &mdash; <code>Authorization: Bearer &lt;token&gt;</code> against any
-      endpoint this dashboard itself calls.
-    </p>
-    <form id="token-form" class="share-form" onsubmit={submitGenerateToken}>
-      <label for="token-label" class="sr-only">Label for the new token</label>
-      <input
-        id="token-label"
-        type="text"
-        autocomplete="off"
-        placeholder="label, e.g. laptop"
-        required
-        bind:value={tokenLabel}
-      />
-      <label for="token-expiry-preset" class="sr-only">Expiration</label>
-      <select id="token-expiry-preset" bind:value={tokenExpiryPreset}>
-        {#each TOKEN_EXPIRY_PRESET_DAYS as days (days)}
-          <option value={days}>{days} days</option>
-        {/each}
-        <option value="custom">Custom date&hellip;</option>
-      </select>
-      {#if tokenExpiryPreset === "custom"}
-        <label for="token-expiry-custom-date" class="sr-only"
-          >Custom expiration date</label
-        >
-        <input
-          id="token-expiry-custom-date"
-          type="date"
-          required
-          min={tokenExpiryMinDate}
-          max={tokenExpiryMaxDate}
-          bind:value={tokenExpiryCustomDate}
-        />
-      {/if}
-      <button type="submit" class="btn btn-primary">Generate</button>
-    </form>
-    <div class="field" id="token-reveal-field" hidden={!tokenRevealVisible}>
-      <label for="token-reveal-value">New token &mdash; copy it now</label>
-      <div class="token-input">
-        <input
-          id="token-reveal-value"
-          type="text"
-          readonly
-          value={tokenRevealValue}
-        />
-        <button
-          type="button"
-          class="token-copy-button"
-          data-copy-target="token-reveal-value"
-          onclick={() => copyTokenReveal(tokenRevealValue)}>Copy</button
-        >
+        <div class="card">
+          <h2>Shared with you</h2>
+          <p class="hint">Switch to one of these from the dashboard header.</p>
+          <ul class="share-list" id="shared-with-me-list">
+            {#each sharedWithMe as u (u.username)}
+              <li>
+                <span
+                  >{escapeHTML(u.displayName)} ({escapeHTML(u.username)})</span
+                >
+              </li>
+            {/each}
+          </ul>
+          <p
+            class="empty-state"
+            id="shared-with-me-empty"
+            hidden={sharedWithMe.length > 0}
+          >
+            Nobody has shared their dashboard with you yet.
+          </p>
+        </div>
       </div>
-      <p class="field-hint">
-        Shown once. It won't be shown again &mdash; losing it means generating a
-        new one.
-      </p>
-    </div>
-    <ul class="share-list" id="api-token-list">
-      {#each apiTokens as tok (tok.id)}
-        <li>
-          <span>
-            {escapeHTML(tok.label)}<br />
-            <span class="api-token-meta"
-              >Created <time datetime={tok.createdAt}
-                >{formatDate(tok.createdAt)}</time
+
+      <form id="settings-form" onsubmit={handleSave}>
+        <div class="group" id="connections" hidden={group !== "connections"}>
+          <div class="card">
+            <h2>GitHub</h2>
+            <p class="hint">
+              A token sees every repo it can push to, private included. Leave
+              the token blank to keep the one already saved.
+            </p>
+            <div class="field">
+              <label for="github-token"
+                >Personal access token <span
+                  class="configured"
+                  id="github-token-badge"
+                  hidden={!githubTokenSet}>Configured</span
+                ></label
               >
-              &middot; Expires
-              <time datetime={tok.expiresAt}>{formatDate(tok.expiresAt)}</time>
-              &middot; Last used {#if tok.lastUsedAt}<time
-                  datetime={tok.lastUsedAt}>{formatDate(tok.lastUsedAt)}</time
-                >{:else}never used{/if}</span
+              <div class="token-input">
+                <input
+                  id="github-token"
+                  name="githubToken"
+                  type={githubTokenShown ? "text" : "password"}
+                  autocomplete="off"
+                  placeholder="ghp_…"
+                  aria-describedby="github-token-hint"
+                  bind:value={githubToken}
+                />
+                <button
+                  type="button"
+                  class="token-toggle"
+                  data-target="github-token"
+                  aria-pressed={githubTokenShown}
+                  aria-label={githubTokenShown
+                    ? "Hide personal access token"
+                    : "Show personal access token"}
+                  onclick={() => (githubTokenShown = !githubTokenShown)}
+                  >{githubTokenShown ? "Hide" : "Show"}</button
+                >
+              </div>
+              <Disclosure
+                id="github-token-hint"
+                label="What does this token need?"
+              >
+                <p>
+                  Needs read-only access to your repos, their issues, pull
+                  requests, and commit status, plus read/write access to each
+                  repo's webhooks — to show whether one's already pointed at
+                  this dashboard, and to create or fix one up when you click
+                  "Add a webhook" (see the Webhooks page).
+                  <a
+                    href="https://github.com/settings/tokens/new?scopes=repo&amp;description=forge-dashboard"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >Create a token with that scope already set &rarr;</a
+                  >
+                </p>
+                <p>
+                  Classic token: the <code>repo</code> scope (or just
+                  <code>public_repo</code> if every repo you track is public) already
+                  covers this.
+                </p>
+                <p>Fine-grained token, grant all of:</p>
+                <ul>
+                  <li>
+                    Metadata — Read-only (mandatory on every fine-grained token
+                    regardless)
+                  </li>
+                  <li>Issues — Read-only</li>
+                  <li>Pull requests — Read-only</li>
+                  <li>Commit statuses — Read-only</li>
+                  <li>Checks — Read-only</li>
+                  <li>Webhooks — Read and write</li>
+                </ul>
+                <p>
+                  And make sure the repo is actually in this token's own
+                  repository list (or that it's set to "All repositories"),
+                  separately from those permissions — a repo left out fails with
+                  "Resource not accessible by personal access token" even though
+                  every permission above is granted correctly. Easy to hit for a
+                  repo created after the token, or a token deliberately scoped
+                  to a subset of repos.
+                </p>
+              </Disclosure>
+            </div>
+            <div class="field">
+              <label for="github-app-installation-id"
+                >GitHub App installation ID (optional, takes precedence over the
+                token above)</label
+              >
+              <input
+                id="github-app-installation-id"
+                name="githubAppInstallationId"
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                placeholder="e.g. 12345678"
+                aria-describedby="github-app-installation-id-hint"
+                bind:value={githubAppInstallationId}
+                disabled={!githubAppConfigured}
+              />
+              <p class="field-hint" id="github-app-installation-id-hint">
+                {#if githubAppConfigured}
+                  Uses the alrayyes-automation GitHub App's own independent
+                  rate-limit pool instead of your account's shared budget.
+                  Install the App, then paste the installation ID GitHub shows
+                  you here. Your token above stays saved as a fallback but is
+                  ignored while this is set.
+                {:else}
+                  Not available — this server has no GitHub App configured.
+                {/if}
+              </p>
+            </div>
+            <div class="field">
+              <label for="github-username"
+                >Username (used only when no token is set)</label
+              >
+              <input
+                id="github-username"
+                name="githubUsername"
+                type="text"
+                autocomplete="off"
+                placeholder="your-username"
+                aria-describedby="github-username-hint"
+                bind:value={githubUsername}
+              />
+              <p class="field-hint" id="github-username-hint">
+                Shows that account's public repos, unauthenticated — no
+                credential involved.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Forgejo</h2>
+            <p class="hint">
+              Same trade-off as GitHub: a token sees private repos, a username
+              alone sees public ones only.
+            </p>
+            <div class="field">
+              <label for="forgejo-url">Instance URL</label>
+              <input
+                id="forgejo-url"
+                name="forgejoUrl"
+                type="text"
+                autocomplete="off"
+                placeholder="https://git.example.com"
+                aria-describedby="forgejo-url-hint"
+                bind:value={forgejoUrl}
+              />
+              <p class="field-hint" id="forgejo-url-hint">
+                Required if you set a token or username below — otherwise
+                Forgejo is skipped entirely, with nothing to tell it which
+                instance to use.
+              </p>
+            </div>
+            <div class="field">
+              <label for="forgejo-token"
+                >API token <span
+                  class="configured"
+                  id="forgejo-token-badge"
+                  hidden={!forgejoTokenSet}>Configured</span
+                ></label
+              >
+              <div class="token-input">
+                <input
+                  id="forgejo-token"
+                  name="forgejoToken"
+                  type={forgejoTokenShown ? "text" : "password"}
+                  autocomplete="off"
+                  placeholder="Leave blank to keep the saved token"
+                  aria-describedby="forgejo-token-hint"
+                  bind:value={forgejoToken}
+                />
+                <button
+                  type="button"
+                  class="token-toggle"
+                  data-target="forgejo-token"
+                  aria-pressed={forgejoTokenShown}
+                  aria-label={forgejoTokenShown
+                    ? "Hide API token"
+                    : "Show API token"}
+                  onclick={() => (forgejoTokenShown = !forgejoTokenShown)}
+                  >{forgejoTokenShown ? "Hide" : "Show"}</button
+                >
+              </div>
+              <Disclosure
+                id="forgejo-token-hint"
+                label="What does this token need?"
+              >
+                <p>
+                  Needs your repos and their issues/pull requests, plus each
+                  repo's webhooks — to show whether one's already pointed at
+                  this dashboard, and to create or fix one up when you click
+                  "Add a webhook" (see the Webhooks page).
+                  {#if forgejoTokenLink}
+                    <a
+                      id="forgejo-token-link"
+                      href={forgejoTokenLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      >Open your instance's token settings &rarr;</a
+                    >
+                  {:else}
+                    <a
+                      id="forgejo-token-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      >Open your instance's token settings &rarr;</a
+                    >
+                    <span id="forgejo-token-link-disabled-hint"
+                      >(fill in the instance URL above first)</span
+                    >
+                  {/if}
+                </p>
+                <p>Select all of:</p>
+                <ul>
+                  <li>
+                    <code>write:repository</code> — Forgejo's webhook API has no
+                    separate read-only scope, so even just checking coverage
+                    needs write, not just <code>read:repository</code>
+                  </li>
+                  <li><code>read:issue</code></li>
+                  <li>
+                    <code>read:user</code> — easy to miss since it isn't
+                    obviously related to repos, but <code>GET /user/repos</code> (how
+                    repository discovery works) refuses a token without it
+                  </li>
+                </ul>
+              </Disclosure>
+            </div>
+            <div class="field">
+              <label for="forgejo-username"
+                >Username (used only when no token is set)</label
+              >
+              <input
+                id="forgejo-username"
+                name="forgejoUsername"
+                type="text"
+                autocomplete="off"
+                placeholder="your-username"
+                bind:value={forgejoUsername}
+              />
+            </div>
+          </div>
+          <div class="actions">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              id="save-connections-button"
+              disabled={saving || !settingsLoaded}>Save</button
             >
-          </span>
-          <button
-            class="btn-remove"
-            type="button"
-            data-token-id={tok.id}
-            onclick={() => revokeToken(tok.id)}>Revoke</button
+            <p
+              class={`status${statusKind ? ` ${statusKind}` : ""}`}
+              id="connections-status"
+              role="status"
+              aria-live="polite"
+            >
+              {status}
+            </p>
+          </div>
+        </div>
+
+        <div class="group" id="behaviour" hidden={group !== "behaviour"}>
+          <div class="card">
+            <h2>Pull request behavior</h2>
+            <p class="field-hint">
+              release-please, Dependabot, and Renovate already keep their own
+              pull requests current on their own schedule, so "Update branch"
+              never shows on a PR any of them opened — Dependabot and Renovate
+              get their own dedicated rebase actions instead.
+            </p>
+            <div class="field" id="renovate-rebase-label-field">
+              <label for="renovate-rebase-label">Renovate rebase label</label>
+              <input
+                id="renovate-rebase-label"
+                name="renovateRebaseLabel"
+                type="text"
+                autocomplete="off"
+                placeholder="rebase"
+                aria-describedby="renovate-rebase-label-hint"
+                bind:value={renovateRebaseLabel}
+              />
+              <p class="field-hint" id="renovate-rebase-label-hint">
+                Only used when a Renovate pull request's body has no rebase
+                checkbox, so the button falls back to this label (Renovate's own
+                <code>rebaseLabel</code> config option — genuinely per-repo configurable).
+                Leave blank to use Renovate's own default, "rebase".
+              </p>
+            </div>
+          </div>
+
+          <div class="card" id="issue-settings">
+            <h2>Issues</h2>
+            <p class="field-hint">
+              These apply to every issue list and total: the Issues page,
+              Insights and the count in the navigation. They are saved with the
+              Save button below, which also saves any unsaved GitHub and Forgejo
+              changes.
+            </p>
+            <label class="check-row">
+              <input
+                type="checkbox"
+                name="hideDependencyDashboard"
+                bind:checked={hideDependencyDashboard}
+                onchange={() => (issueSettingsTouched = true)}
+              />
+              Hide the Dependency Dashboard issue
+            </label>
+
+            <h3 id="ignored-titles-heading">Ignored issue titles</h3>
+            <p class="field-hint" id="ignored-titles-hint">
+              An issue whose title matches any of these patterns is left out. A
+              pattern matches anywhere in the title and ignores case, so
+              <code>^Weekly report</code> ignores every title that starts with
+              those words. The server checks the patterns with its own syntax
+              (RE2), which has no lookahead and no backreferences. Up to {MAX_IGNORED_TITLES}
+              patterns of {MAX_PATTERN_LENGTH}
+              characters each. The filter box on the Issues page uses a different
+              engine.
+            </p>
+            <ul
+              class="share-list"
+              id="ignored-titles"
+              aria-labelledby="ignored-titles-heading"
+            >
+              {#each ignoredTitles as pattern, i (pattern)}
+                {@const countText =
+                  ignoredCounts === null
+                    ? ""
+                    : ignoredCountLabel(
+                        ignoredCounts.get(pattern),
+                        savedTitles.has(pattern),
+                        countingPending,
+                      )}
+                <li>
+                  <span class="pattern-text">
+                    <code>{pattern}</code>
+                    {#if countText}
+                      <span class="pattern-count" id={`ignored-count-${i}`}
+                        >{countText}</span
+                      >
+                    {/if}
+                  </span>
+                  <button
+                    class="btn-remove"
+                    type="button"
+                    aria-label={`Remove ${pattern}`}
+                    aria-describedby={countText
+                      ? `ignored-count-${i}`
+                      : undefined}
+                    onclick={() => removeIgnoredPattern(pattern)}>Remove</button
+                  >
+                </li>
+              {/each}
+            </ul>
+            <p
+              class="empty-state"
+              id="ignored-titles-empty"
+              hidden={ignoredTitles.length > 0}
+            >
+              No titles are ignored. Add a pattern to leave matching issues out.
+            </p>
+            <div class="field" id="ignored-pattern-field">
+              <label for="ignored-pattern">Pattern</label>
+              <div class="pattern-row">
+                <input
+                  id="ignored-pattern"
+                  name="ignoredTitles"
+                  type="text"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="^Weekly report"
+                  aria-invalid={ignoredError ? "true" : undefined}
+                  aria-describedby={ignoredError
+                    ? "ignored-titles-hint ignored-titles-error"
+                    : "ignored-titles-hint"}
+                  bind:value={ignoredPattern}
+                  onkeydown={onIgnoredPatternKeydown}
+                />
+                <button type="button" class="btn" onclick={addIgnoredPattern}
+                  >Add</button
+                >
+              </div>
+              <p
+                class="pattern-error"
+                id="ignored-titles-error"
+                hidden={!ignoredError}
+              >
+                {ignoredError}
+              </p>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              id="save-button"
+              disabled={saving || !settingsLoaded}>Save</button
+            >
+            <p
+              class={`status${statusKind ? ` ${statusKind}` : ""}`}
+              id="status"
+              role="status"
+              aria-live="polite"
+            >
+              {status}
+            </p>
+          </div>
+        </div>
+      </form>
+
+      <div
+        class="group"
+        id="group-behaviour-more"
+        hidden={group !== "behaviour"}
+      >
+        <div class="card" id="forgejo-auto-merge">
+          <h2>Forgejo auto-merge</h2>
+          <p class="field-hint">
+            Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo
+            itself. Forgejo's own scheduled merge can't be read back, so this
+            app keeps the intent and does the merging.
+          </p>
+          <ul class="field-hint">
+            <li>
+              It's off for every pull request until you choose "Enable
+              auto-merge" in a Forgejo row's More actions. Nothing is merged
+              that you didn't arm.
+            </li>
+            <li>
+              An armed pull request shows "Auto-merge on" and "Managed by Forge
+              Dashboard". It merges after a refresh once its checks have passed
+              and Forgejo says it can merge, with the repo's own merge method.
+            </li>
+            <li>
+              While it waits or stops, the row says why in words: checks still
+              running, a failed check, a conflict, or a merge Forgejo refused.
+            </li>
+            <li>
+              "Cancel auto-merge" on the row removes the intent. Closing or
+              merging the pull request elsewhere removes it too.
+            </li>
+            <li>
+              The merge uses your Forgejo token, so it needs permission to
+              merge.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="group" id="integrations" hidden={group !== "integrations"}>
+        <div class="card" id="webhooks">
+          <h2>Webhooks</h2>
+          <p class="hint">
+            Add these to a repo to update your dashboard the moment something
+            happens there, instead of waiting on the next poll. Optional —
+            polling every 30 seconds keeps running either way.
+            <a
+              href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/webhooks.md"
+              target="_blank"
+              rel="noopener noreferrer">Full setup steps &rarr;</a
+            >
+          </p>
+          <div class="field">
+            <label for="webhook-url-github">GitHub webhook URL</label>
+            <div class="token-input">
+              <input
+                id="webhook-url-github"
+                type="text"
+                readonly
+                aria-describedby="webhook-url-github-hint"
+                value={webhookUrlGithub}
+              />
+              <button
+                type="button"
+                class="copy-button"
+                data-copy-target="webhook-url-github"
+                onclick={() => copyWebhookField(webhookUrlGithub)}>Copy</button
+              >
+            </div>
+          </div>
+          <div class="field">
+            <label for="webhook-url-forgejo">Forgejo webhook URL</label>
+            <div class="token-input">
+              <input
+                id="webhook-url-forgejo"
+                type="text"
+                readonly
+                aria-describedby="webhook-url-forgejo-hint"
+                value={webhookUrlForgejo}
+              />
+              <button
+                type="button"
+                class="copy-button"
+                data-copy-target="webhook-url-forgejo"
+                onclick={() => copyWebhookField(webhookUrlForgejo)}>Copy</button
+              >
+            </div>
+          </div>
+          <div class="field">
+            <label for="webhook-secret">Secret</label>
+            <div class="token-input token-input--dual">
+              <input
+                id="webhook-secret"
+                type={webhookSecretShown ? "text" : "password"}
+                readonly
+                value={webhookSecret}
+              />
+              <div class="token-input-actions">
+                <button
+                  type="button"
+                  class="copy-button"
+                  data-copy-target="webhook-secret"
+                  onclick={() => copyWebhookField(webhookSecret)}>Copy</button
+                >
+                <button
+                  type="button"
+                  class="token-toggle"
+                  data-target="webhook-secret"
+                  aria-pressed={webhookSecretShown}
+                  aria-label={webhookSecretShown
+                    ? "Hide webhook secret"
+                    : "Show webhook secret"}
+                  onclick={() => (webhookSecretShown = !webhookSecretShown)}
+                  >{webhookSecretShown ? "Hide" : "Show"}</button
+                >
+              </div>
+            </div>
+            <p class="field-hint">
+              The same secret goes in both webhooks above — it's what proves a
+              delivery actually came from your forge.
+            </p>
+          </div>
+          <div class="field">
+            <Disclosure
+              id="webhook-howto"
+              label="How do I add these to a repo?"
+            >
+              <p id="webhook-url-github-hint">
+                GitHub: repo &rarr; Settings &rarr; Webhooks &rarr; Add webhook.
+                Content type <code>application/json</code>, the secret above,
+                events: Pull requests, Issues, Statuses, Check runs.
+              </p>
+              <p id="webhook-url-forgejo-hint">
+                Forgejo: repo &rarr; Settings &rarr; Webhooks &rarr; Add Webhook
+                &rarr; Forgejo. The secret above, trigger on: Pull Request,
+                Issue, Push, Status.
+              </p>
+            </Disclosure>
+          </div>
+          <p
+            class={`status${webhookCopyStatusKind ? ` ${webhookCopyStatusKind}` : ""}`}
+            id="webhook-copy-status"
+            role="status"
+            aria-live="polite"
           >
-        </li>
-      {/each}
-    </ul>
-    <p class="empty-state" id="api-token-empty" hidden={apiTokens.length > 0}>
-      No API tokens yet.
-    </p>
-    <p
-      class={`status${tokenStatusKind ? ` ${tokenStatusKind}` : ""}`}
-      id="token-status"
-      role="status"
-      aria-live="polite"
-    >
-      {tokenStatus}
-    </p>
+            {webhookCopyStatus}
+          </p>
+          <p
+            class="hint"
+            id="webhook-coverage-summary"
+            hidden={!webhookCoverageVisible}
+          >
+            <span id="webhook-coverage-count">{webhookCoverageCount}</span>
+            &middot;
+            <a href="/webhooks.html"
+              >See which repos, and add a webhook &rarr;</a
+            >
+          </p>
+        </div>
+
+        <div class="card" id="passkeys">
+          <h2>Passkeys</h2>
+          <p class="hint">
+            Every passkey that can sign in to this account &mdash; add one per
+            device (e.g. a laptop and a security key) so losing access to any
+            single one doesn't lock you out.
+          </p>
+          <form
+            id="passkey-form"
+            class="share-form"
+            onsubmit={submitAddPasskey}
+          >
+            <label for="passkey-label" class="sr-only"
+              >Name for the new passkey</label
+            >
+            <input
+              id="passkey-label"
+              type="text"
+              autocomplete="off"
+              placeholder="name, e.g. MacBook"
+              required
+              bind:value={passkeyLabel}
+            />
+            <button type="submit" class="btn btn-primary" disabled={passkeyBusy}
+              >{passkeyBusy
+                ? "Waiting for your passkey…"
+                : "Add passkey"}</button
+            >
+          </form>
+          <ul class="share-list" id="passkey-list">
+            {#each passkeys as key (key.id)}
+              <li>
+                <span>
+                  {escapeHTML(key.label)}<br />
+                  <span class="api-token-meta"
+                    >Created <time datetime={key.createdAt}
+                      >{formatDate(key.createdAt)}</time
+                    ></span
+                  >
+                </span>
+                <button
+                  class="btn-remove"
+                  type="button"
+                  data-passkey-id={key.id}
+                  disabled={passkeys.length <= 1}
+                  title={passkeys.length <= 1
+                    ? "Can't remove your only passkey"
+                    : ""}
+                  onclick={() => removePasskey(key.id)}>Remove</button
+                >
+              </li>
+            {/each}
+          </ul>
+          <p
+            class="empty-state"
+            id="passkey-empty"
+            hidden={passkeys.length > 0}
+          >
+            No passkeys yet.
+          </p>
+          <p
+            class={`status${passkeyStatusKind ? ` ${passkeyStatusKind}` : ""}`}
+            id="passkey-status"
+            role="status"
+            aria-live="polite"
+          >
+            {passkeyStatus}
+          </p>
+        </div>
+
+        <div class="card" id="api-tokens">
+          <h2>API tokens</h2>
+          <p class="hint">
+            A Bearer credential a script can use instead of a browser's passkey
+            session &mdash; <code>Authorization: Bearer &lt;token&gt;</code> against
+            any endpoint this dashboard itself calls.
+          </p>
+          <form
+            id="token-form"
+            class="share-form"
+            onsubmit={submitGenerateToken}
+          >
+            <label for="token-label" class="sr-only"
+              >Label for the new token</label
+            >
+            <input
+              id="token-label"
+              type="text"
+              autocomplete="off"
+              placeholder="label, e.g. laptop"
+              required
+              bind:value={tokenLabel}
+            />
+            <label for="token-expiry-preset" class="sr-only">Expiration</label>
+            <select id="token-expiry-preset" bind:value={tokenExpiryPreset}>
+              {#each TOKEN_EXPIRY_PRESET_DAYS as days (days)}
+                <option value={days}>{days} days</option>
+              {/each}
+              <option value="custom">Custom date&hellip;</option>
+            </select>
+            {#if tokenExpiryPreset === "custom"}
+              <label for="token-expiry-custom-date" class="sr-only"
+                >Custom expiration date</label
+              >
+              <input
+                id="token-expiry-custom-date"
+                type="date"
+                required
+                min={tokenExpiryMinDate}
+                max={tokenExpiryMaxDate}
+                bind:value={tokenExpiryCustomDate}
+              />
+            {/if}
+            <button type="submit" class="btn btn-primary">Generate</button>
+          </form>
+          <div
+            class="field"
+            id="token-reveal-field"
+            hidden={!tokenRevealVisible}
+          >
+            <label for="token-reveal-value">New token &mdash; copy it now</label
+            >
+            <div class="token-input">
+              <input
+                id="token-reveal-value"
+                type="text"
+                readonly
+                value={tokenRevealValue}
+              />
+              <button
+                type="button"
+                class="token-copy-button"
+                data-copy-target="token-reveal-value"
+                onclick={() => copyTokenReveal(tokenRevealValue)}>Copy</button
+              >
+            </div>
+            <p class="field-hint">
+              Shown once. It won't be shown again &mdash; losing it means
+              generating a new one.
+            </p>
+          </div>
+          <ul class="share-list" id="api-token-list">
+            {#each apiTokens as tok (tok.id)}
+              <li>
+                <span>
+                  {escapeHTML(tok.label)}<br />
+                  <span class="api-token-meta"
+                    >Created <time datetime={tok.createdAt}
+                      >{formatDate(tok.createdAt)}</time
+                    >
+                    &middot; Expires
+                    <time datetime={tok.expiresAt}
+                      >{formatDate(tok.expiresAt)}</time
+                    >
+                    &middot; Last used {#if tok.lastUsedAt}<time
+                        datetime={tok.lastUsedAt}
+                        >{formatDate(tok.lastUsedAt)}</time
+                      >{:else}never used{/if}</span
+                  >
+                </span>
+                <button
+                  class="btn-remove"
+                  type="button"
+                  data-token-id={tok.id}
+                  onclick={() => revokeToken(tok.id)}>Revoke</button
+                >
+              </li>
+            {/each}
+          </ul>
+          <p
+            class="empty-state"
+            id="api-token-empty"
+            hidden={apiTokens.length > 0}
+          >
+            No API tokens yet.
+          </p>
+          <p
+            class={`status${tokenStatusKind ? ` ${tokenStatusKind}` : ""}`}
+            id="token-status"
+            role="status"
+            aria-live="polite"
+          >
+            {tokenStatus}
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
