@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.212.0](https://github.com/alrayyes/forge-dashboard/compare/v0.211.2...v0.212.0) (2026-10-17)
+
+
+### Features
+
+* **web:** 44px targets on a phone and a 24px floor everywhere ([#1764](https://github.com/alrayyes/forge-dashboard/issues/1764)) ([e77e1a7](https://github.com/alrayyes/forge-dashboard/commit/e77e1a78f6efafe17e933c0392e6c891e543e42f))
+
 ## [0.211.2](https://github.com/alrayyes/forge-dashboard/compare/v0.211.1...v0.211.2) (2026-10-17)
 
 
