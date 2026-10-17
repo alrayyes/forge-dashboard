@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.214.0](https://github.com/alrayyes/forge-dashboard/compare/v0.213.1...v0.214.0) (2026-10-17)
+
+
+### Features
+
+* **web:** show versions, hashes and numbers in the mono face ([#1776](https://github.com/alrayyes/forge-dashboard/issues/1776)) ([6213840](https://github.com/alrayyes/forge-dashboard/commit/62138407f93a939a1bfb6221d525f21aee47d8a8)), closes [#1754](https://github.com/alrayyes/forge-dashboard/issues/1754)
+
 ## [0.213.1](https://github.com/alrayyes/forge-dashboard/compare/v0.213.0...v0.213.1) (2026-10-17)
 
 
