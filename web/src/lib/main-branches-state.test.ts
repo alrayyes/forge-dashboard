@@ -2,11 +2,13 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
 import {
   applyServerState,
+  hasTouched,
   loadState,
   loadStateFromServer,
   releaseAllHeld,
   type SharedFilterState,
   saveState,
+  touchKey,
 } from './filters';
 import {
   DEFAULT_FILTER,
@@ -117,5 +119,18 @@ describe('saving and restoring it', () => {
     expect(await loadStateFromServer()).toEqual({
       branches: { status: 'failed' },
     });
+  });
+});
+
+describe('a Branches key the user touched', () => {
+  test('keeps its value over a late copy, the other keys take the copy', () => {
+    const state = loadState();
+    state.branches = { status: 'passed' };
+    touchKey('branches', 'status');
+    expect(hasTouched()).toBe(true);
+    applyServerState(state, {
+      branches: { status: 'failed', forge: 'forgejo' },
+    });
+    expect(state.branches).toEqual({ status: 'passed', forge: 'forgejo' });
   });
 });

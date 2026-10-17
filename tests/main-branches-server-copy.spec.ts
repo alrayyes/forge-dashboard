@@ -196,4 +196,52 @@ test.describe('the Branches filter follows the account (#1620)', () => {
       .toContain('failed');
     expect(await serverCopy(page)).toContain('newer');
   });
+
+  test("a pill clicked while the saved copy loads keeps the copy's other filters", async ({
+    page,
+    context,
+  }) => {
+    const put = await page.request.put('/api/settings/filter-state', {
+      data: { shared: {}, pr: { title: 'keepme' }, issue: {}, view: {} },
+    });
+    expect(put.ok()).toBe(true);
+    await context.clearCookies({ name: 'forge-board-filters' });
+
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let asked: () => void = () => {};
+    const requested = new Promise<void>((resolve) => {
+      asked = resolve;
+    });
+    await page.route('**/api/settings/filter-state', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      asked();
+      const response = await route.fetch();
+      await gate;
+      return route.fulfill({ response });
+    });
+    await page.goto('/');
+    await requested;
+    await expect(rows(page)).toHaveCount(4);
+    await status(page, 'Failing').click();
+    release();
+
+    // The click's own save goes out before the copy lands and holds no title;
+    // the merged save after it must bring the title back.
+    await expect
+      .poll(
+        async () => {
+          const copy = await serverCopy(page);
+          return copy.includes('keepme') && copy.includes('failed');
+        },
+        { timeout: 5000 },
+      )
+      .toBe(true);
+    await expect(status(page, 'Failing')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
 });

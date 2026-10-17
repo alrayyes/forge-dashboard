@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { formatTime } from "#lib/time.svelte.js";
@@ -13,7 +13,12 @@
   import ListSkeleton from "#lib/ListSkeleton.svelte";
   import {
     applyServerState,
+    currentPage,
+    hasTouched,
+    leavePage,
     loadState,
+    readCookieState,
+    touchKey,
     loadStateFromServer,
     saveState,
     type SharedFilterState,
@@ -102,6 +107,8 @@
   // The filter is saved with the other pages' (#1620): the cookie at once for
   // the first paint, the server copy for another browser. The search box is
   // free text, so it takes the debounced path the other pages' title boxes use.
+  let page = -1;
+  onDestroy(() => leavePage(page));
   let saved: SharedFilterState = {
     shared: {},
     pr: {},
@@ -109,33 +116,32 @@
     view: {},
     branches: {},
   };
-  // A filter changed before the server copy arrived is newer than it: the
-  // copy is dropped, and what the page holds was saved by the change itself.
-  let touched = false;
-  function save(freeText = false) {
-    touched = true;
+  // The key is touched before the save, so a server copy still loading does
+  // not overwrite it (#1713).
+  function save(keys: string[], freeText = false) {
+    for (const key of keys) touchKey("branches", key);
     // Another tab may have saved its own filters since this page loaded; the
     // cookie is shared, so start from it and change only this page's group.
     if (document.cookie.includes("forge-board-filters="))
-      saved = { ...loadState(), branches: {} };
+      saved = { ...readCookieState(), branches: {} };
     saved.branches = filterToState(filter);
     saveState(saved, freeText ? "title" : undefined);
   }
   function setStatus(status: StatusPill) {
     filter.status = status;
-    save();
+    save(["status"]);
   }
   function setForge(forge: ForgeFilter) {
     filter.forge = forge;
-    save();
+    save(["forge"]);
   }
   function setQuery(event: Event) {
     filter.query = (event.currentTarget as HTMLInputElement).value;
-    save(true);
+    save(["query"], true);
   }
   function reset() {
     filter = { ...DEFAULT_FILTER };
-    save();
+    save(["status", "forge", "query"]);
   }
 
   function listed(b: MainBranch): string {
@@ -174,12 +180,16 @@
   onMount(() => {
     saved = loadState();
     filter = filterFromState(saved.branches);
+    page = currentPage();
     // The cookie painted the page; the server copy is what a second browser
     // sees, and it wins as it does on the other pages (#353).
     loadStateFromServer().then((got) => {
-      if (!got || touched) return;
+      if (page !== currentPage() || !got) return;
       applyServerState(saved, got);
       filter = filterFromState(saved.branches);
+      // An edit made while the copy loaded went out on top of the cookie's
+      // values; save the merged state so the server keeps the rest too.
+      if (hasTouched()) saveState(saved);
     });
     load(true);
     const timer = setInterval(() => load(), REFRESH_MS);

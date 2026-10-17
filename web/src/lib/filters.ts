@@ -216,6 +216,13 @@ export function loadState(): SharedFilterState {
   // page before it is now stale.
   pageGeneration++;
   resetTouched();
+  return readCookieState();
+}
+
+// The state the cookie holds right now, without starting a new page. A page
+// that saves later reads it again so it changes only its own keys, not what
+// another tab saved in between.
+export function readCookieState(): SharedFilterState {
   const raw = getCookie(FILTERS_COOKIE);
   const state = defaultState();
   if (!raw) return state;
@@ -604,9 +611,10 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
 // it is in flight is newer than the copy, so the copy must not overwrite it.
 // Keys are "group.key". Clear filters touches every key of the three filter
 // groups at once, so a late copy cannot bring old values back.
+type TouchGroup = StateGroup | 'branches';
 const touchedKeys = new Set<string>();
 let clearedAll = false;
-const CLEARED_GROUPS: StateGroup[] = ['shared', 'pr', 'issue'];
+const CLEARED_GROUPS: TouchGroup[] = ['shared', 'pr', 'issue'];
 
 // Which page the touched keys belong to. loadState starts a new one and
 // leavePage ends the current one. A saved-copy callback captures it when it
@@ -633,7 +641,7 @@ export function leavePage(page: number): void {
 // the page can't offer being cleared) must not call it, or the copy would no
 // longer be applied to a key the user never touched. A new page that edits
 // the shared state, such as one for branches, has to follow the same rule.
-export function touchKey(group: StateGroup, key: string): void {
+export function touchKey(group: TouchGroup, key: string): void {
   touchedKeys.add(`${group}.${key}`);
 }
 
@@ -650,7 +658,7 @@ export function hasTouched(): boolean {
   return clearedAll || touchedKeys.size > 0;
 }
 
-function isTouched(group: StateGroup, key: string): boolean {
+function isTouched(group: TouchGroup, key: string): boolean {
   return (
     (clearedAll && CLEARED_GROUPS.includes(group)) ||
     touchedKeys.has(`${group}.${key}`)
@@ -684,8 +692,11 @@ export function applyServerState(
     }
   }
   // Branches has no held picks: its pills keep the active one on offer.
-  if (got.branches && typeof got.branches === 'object')
-    state.branches = { ...state.branches, ...got.branches };
+  if (got.branches && typeof got.branches === 'object') {
+    state.branches ??= {};
+    for (const [key, value] of Object.entries(got.branches))
+      if (!isTouched('branches', key)) state.branches[key] = value;
+  }
   dropUnknownAutoMerge(state);
   dropNonStringTitleRule(state);
 }
