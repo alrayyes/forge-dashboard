@@ -438,7 +438,7 @@ for (const board of ALL) {
   });
 }
 
-// Deliberately not remembered (docs/issues.md): the page, the page size, the
+// Deliberately not remembered (docs/live-updates.md): the page, the page size, the
 // phone Filters sheet and the hidden-pull-request panel. Each is set, the page
 // is reloaded, and the control is back at its default and the saved copies
 // hold nothing for it.
