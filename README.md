@@ -74,6 +74,8 @@ stale.
   secret, which are never sent over MCP; it reports `webhookConfigured`
   instead, and unlike the HTTP read it never creates them. It carries
   `ignoredTitleCounts` too, null per entry until the first refresh ends.
+  Over HTTP the same body is `GET /api/settings/summary`, which also
+  creates and returns no webhook credentials.
   Each calls the same function as its handler rather than adding a second,
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the

@@ -198,6 +198,29 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 	}
 }
 
+// handleSettingsSummaryGet answers GET /api/settings/summary: the same body as
+// the get_settings MCP tool. Unlike handleSettingsGet it never provisions
+// webhook credentials and never returns them.
+func handleSettingsSummaryGet(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
+			return
+		}
+
+		summary, err := resolveSettingsSummary(r.Context(), deps, u)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorBody(err.Error()))
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, summary)
+	}
+}
+
 // settingsPutRequest matches components.schemas.SettingsRequest. A blank
 // token field means "leave the saved one alone" — the only way a secret
 // field can behave once the browser can't be shown what's already saved.
@@ -657,10 +680,11 @@ func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 	}
 }
 
-// MCPSettingsResponse is get_settings's output: SettingsResponse without the
-// webhook token and secret, which never leave over MCP, plus whether they
-// exist. Kept in step with SettingsResponse by a test that compares the two.
-type MCPSettingsResponse struct {
+// SettingsSummary matches components.schemas.SettingsSummary, and is the
+// output of the get_settings MCP tool: SettingsResponse without the webhook
+// token and secret, which are never returned, plus whether they exist. Kept in
+// step with SettingsResponse by a test that compares the two.
+type SettingsSummary struct {
 	GitHubUsername          string   `json:"githubUsername"`
 	GitHubTokenSet          bool     `json:"githubTokenSet"`
 	GitHubAppInstallationID int64    `json:"githubAppInstallationId"`
@@ -680,17 +704,18 @@ type MCPSettingsResponse struct {
 
 var errCouldNotLoadSettings = errors.New("could not load settings")
 
-// resolveSettingsForMCP reads u's saved settings without writing anything: no
+// resolveSettingsSummary reads u's saved settings without writing anything: no
 // webhook credentials are created, and the ones that exist are reduced to a
-// flag. A user with no saved row gets the zero settings.
-func resolveSettingsForMCP(ctx context.Context, deps Deps, u *auth.User) (MCPSettingsResponse, error) {
+// flag. A user with no saved row gets the zero settings. It is the one builder
+// behind both GET /api/settings/summary and the get_settings MCP tool.
+func resolveSettingsSummary(ctx context.Context, deps Deps, u *auth.User) (SettingsSummary, error) {
 	creds, err := deps.SettingsStore.Get(ctx, u.ID)
 	if err != nil && !errors.Is(err, settings.ErrNotFound) {
-		return MCPSettingsResponse{}, errCouldNotLoadSettings
+		return SettingsSummary{}, errCouldNotLoadSettings
 	}
 	full := settingsResponseOf(creds, deps.GitHubAppConfigured, ignoredTitleCounts(ctx, deps, u.ID, creds.IgnoredTitles, deps.Manager.Get(u.ID)))
 
-	return MCPSettingsResponse{
+	return SettingsSummary{
 		GitHubUsername:          full.GitHubUsername,
 		GitHubTokenSet:          full.GitHubTokenSet,
 		GitHubAppInstallationID: full.GitHubAppInstallationID,
