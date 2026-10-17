@@ -21,5 +21,6 @@ the whole forge-dashboard site.
 ## Source
 
 - [Repository](https://github.com/alrayyes/forge-dashboard): source, architecture, and the toolchain needed to build and run it.
-- [README](https://github.com/alrayyes/forge-dashboard/blob/main/README.md): what this app is, its design decisions (passkey auth, per-user forge tokens, the read-only MCP endpoint at `/api/mcp` for agents), and how it's configured.
+- [README](https://github.com/alrayyes/forge-dashboard/blob/main/README.md): what this app is, its design decisions (passkey auth, per-user forge tokens, the read-only MCP endpoint at `/api/mcp` for agents).
+- [Configuration](https://github.com/alrayyes/forge-dashboard/blob/main/docs/configuration.md): every environment variable and how it's set.
 - [CONTRIBUTING](https://github.com/alrayyes/forge-dashboard/blob/main/CONTRIBUTING.md): how the pieces fit together and how to get a dev environment running.
