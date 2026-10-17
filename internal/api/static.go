@@ -58,7 +58,7 @@ var compressibleTypes = []string{
 // stays outside it, since a buffering compressor is the wrong thing to put in
 // front of an event stream and JSON that carries account data is the usual
 // target of compression-length attacks.
-func newStaticHandler(fsys fs.FS, private bool) http.Handler {
+func newStaticHandler(fsys fs.FS, private bool, version string) http.Handler {
 	compress, err := httpcompression.Adapter(
 		httpcompression.GzipCompressionLevel(gzipLevel),
 		httpcompression.BrotliCompressionLevel(brotliLevel),
@@ -76,7 +76,7 @@ func newStaticHandler(fsys fs.FS, private bool) http.Handler {
 		revalidate = cacheRevalidatePrivate
 	}
 
-	return compress(withCacheHeaders(fsys, revalidate, withNotFoundPage(fsys, http.FileServerFS(fsys))))
+	return compress(withCacheHeaders(fsys, revalidate, withNotFoundPage(fsys, version, http.FileServerFS(fsys))))
 }
 
 // withCacheHeaders sets Cache-Control and a weak ETag for files that exist.
