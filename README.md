@@ -1255,7 +1255,9 @@ updated and CI status choices each page offers come from its own list. When
 you open a page that doesn't offer a saved choice (an author who wrote no
 pull request, on the pull requests page), that page shows its list without
 it and leaves the saved choice alone, so it is still set when you go back to
-the page that does. Changing that control on the page ends the saved choice.
+the page that does. The page says so under the filter bar (`Saved author
+"x" is not on this page.`) with a Clear button, and Clear filters is on and
+ends the saved choice too. Changing that control on the page ends it as well.
 What is deliberately not remembered: the page you were on and the page size,
 the open Filters sheet on a phone, held updates, open menus and pop-ups, and
 the expanded rows on Branches. Branches keeps its own filter in a cookie
