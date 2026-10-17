@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.212.1](https://github.com/alrayyes/forge-dashboard/compare/v0.212.0...v0.212.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** save the branches filter in the server copy ([#1755](https://github.com/alrayyes/forge-dashboard/issues/1755)) ([ee334e6](https://github.com/alrayyes/forge-dashboard/commit/ee334e6d1511dbd3f75cd2e8e1a3aaebea6c0fa8))
+
 ## [0.212.0](https://github.com/alrayyes/forge-dashboard/compare/v0.211.2...v0.212.0) (2026-10-17)
 
 
