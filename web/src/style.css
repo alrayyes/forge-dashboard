@@ -1161,6 +1161,10 @@ button.title {
   padding: 0;
   cursor: pointer;
 }
+button.title:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 .title-text {
   display: block;
@@ -1186,7 +1190,7 @@ button.title {
   color: var(--ink-3);
   font-family: "IBM Plex Mono", monospace;
   font-size: 12px;
-  margin-right: 6px;
+  margin-right: 2px;
 }
 
 /* The version on the Releases page (#1107): text, so it never relies on

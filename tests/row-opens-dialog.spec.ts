@@ -204,6 +204,33 @@ test.describe('a pull request row opens its dialog', () => {
     await expect(dialog(page)).toBeHidden();
   });
 
+  test('a drag that ends outside the row does not swallow the next Enter', async ({
+    page,
+  }) => {
+    const box = await row(page).boundingBox();
+    if (!box) throw new Error('no row box');
+    await page.mouse.move(box.x + 6, box.y + 6);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 6, box.y + box.height + 120, { steps: 6 });
+    await page.mouse.up();
+    await expect(dialog(page)).toBeHidden();
+    await titleButton(page).focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog(page)).toBeVisible();
+  });
+
+  test('the focused title shows the accent ring', async ({ page }) => {
+    await page.keyboard.press('Tab');
+    await titleButton(page).focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    const outline = await titleButton(page).evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return `${cs.outlineWidth} ${cs.outlineStyle}`;
+    });
+    expect(outline).toBe('2px solid');
+  });
+
   test('has no axe-core violations closed or open', async ({ page }) => {
     const scan = () =>
       new AxeBuilder({ page })

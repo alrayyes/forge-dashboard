@@ -80,7 +80,7 @@ async function openDialog(page: Page, description = DESCRIPTION) {
   await page
     .locator('#pr-rows .row')
     .first()
-    .getByRole('button', { name: /^Details/ })
+    .getByRole('button', { name: /^#\d+ / })
     .click();
   const dialog = page.getByRole('dialog', { name: /^Pull request details/ });
   await expect(dialog).toBeVisible();

@@ -647,7 +647,9 @@
         button.addEventListener("click", (event) => {
           const start = down;
           down = null;
+          // detail 0 is a keyboard click: no pointer path to judge.
           if (
+            event.detail > 0 &&
             start &&
             Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5
           )
@@ -661,7 +663,8 @@
       // cover the whole row (see the comment on .title in style.css).
       const text = el("span", "title-text");
       text.appendChild(el("span", "num", `#${item.number}`));
-      text.appendChild(document.createTextNode(item.title));
+      // A real space, so the visible text reads like the accessible name.
+      text.appendChild(document.createTextNode(` ${item.title}`));
       title.appendChild(text);
       wrap.appendChild(title);
       (item.labels || []).slice(0, 3).forEach((label) => {
