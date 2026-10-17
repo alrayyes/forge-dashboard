@@ -169,6 +169,8 @@ test.describe('Branches refetches when the first refresh finishes (#1729)', () =
     };
     await serve(page, server);
     await page.goto('/');
+    await expect(page.locator('.list-region[aria-busy="true"]')).toBeVisible();
+    await expect.poll(() => server.branchRequests).toBe(1);
     server.branches = ['acme/one'];
     server.done = true;
     await expect(rows(page)).toHaveCount(1);
