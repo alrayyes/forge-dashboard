@@ -424,6 +424,10 @@ test.describe('first refresh loading state (#1672)', () => {
       });
     });
     const mode: Mode = { done: true, withItems: true };
+    let answered = 0;
+    page.on('requestfinished', (req) => {
+      if (new URL(req.url()).pathname === '/api/dashboard') answered++;
+    });
     await holdDashboard(page, mode);
     await page.goto('/issues.html');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
@@ -441,7 +445,10 @@ test.describe('first refresh loading state (#1672)', () => {
     );
     await expect(page.locator('#issue-rows > .row')).toBeHidden();
     // Several polls pass while it loads; none may say it again.
-    await page.waitForTimeout(2500);
+    const whileLoading = answered;
+    await expect
+      .poll(() => answered, { timeout: 10_000 })
+      .toBeGreaterThanOrEqual(whileLoading + 2);
 
     mode.done = true;
     await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
