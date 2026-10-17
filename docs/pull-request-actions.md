@@ -126,6 +126,13 @@ Enable auto-merge can say the repo doesn't allow it or that the pull request is
 already ready to merge, and Renovate `rebase` can say the label is missing on the
 repo.
 
+On Forgejo, Close on a pull request that is already closed is not refused.
+Forgejo treats it as done and answers success, so the dashboard shows no
+"already closed" message: the pull request is closed, which is what was asked.
+Closing one that is already merged is refused, and the row says "Merged". Merge
+is refused on both, and the server classifies it as `already_merged` or
+`already_closed` from the re-read.
+
 A locked action offers Retry only when waiting might fix it, such as a 502. When
 a forge's API budget is spent, the forge goes read-only: the controls that need
 that budget (Merge, Update branch, the Dependabot and Renovate commands, Close
