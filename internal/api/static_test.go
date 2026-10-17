@@ -54,7 +54,7 @@ func get(h http.Handler, path, acceptEncoding string, extra ...string) *httptest
 func TestStatic_HashedAssetsAreImmutable(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(staticFixture(), false)
+	h := api.NewStaticHandler(staticFixture(), false, "dev")
 
 	for _, path := range []string{hashedJS, "/_app/immutable/assets/0.9b2e.css"} {
 		resp := get(h, path, "")
@@ -66,7 +66,7 @@ func TestStatic_HashedAssetsAreImmutable(t *testing.T) {
 func TestStatic_UnhashedFilesRevalidate(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(staticFixture(), false)
+	h := api.NewStaticHandler(staticFixture(), false, "dev")
 
 	for _, path := range []string{"/login.html", "/favicon.svg", "/humans.txt", "/"} {
 		resp := get(h, path, "")
@@ -79,7 +79,7 @@ func TestStatic_UnhashedFilesRevalidate(t *testing.T) {
 func TestStatic_PersonalisedPagesArePrivate(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(staticFixture(), true)
+	h := api.NewStaticHandler(staticFixture(), true, "dev")
 
 	resp := get(h, "/", "")
 	assert.Equal(t, "private, no-cache", resp.Header().Get("Cache-Control"))
@@ -88,7 +88,7 @@ func TestStatic_PersonalisedPagesArePrivate(t *testing.T) {
 func TestStatic_ConditionalRequestGets304(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(staticFixture(), false)
+	h := api.NewStaticHandler(staticFixture(), false, "dev")
 	etag := get(h, "/login.html", "gzip").Header().Get("ETag")
 	require.NotEmpty(t, etag)
 
@@ -99,7 +99,7 @@ func TestStatic_ConditionalRequestGets304(t *testing.T) {
 func TestStatic_MissingFileIsNeverCached(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(staticFixture(), false)
+	h := api.NewStaticHandler(staticFixture(), false, "dev")
 
 	resp := get(h, "/_app/immutable/entry/gone.js", "")
 	assert.Equal(t, http.StatusNotFound, resp.Code)
@@ -109,7 +109,7 @@ func TestStatic_MissingFileIsNeverCached(t *testing.T) {
 func TestStatic_TextIsCompressed(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(staticFixture(), false)
+	h := api.NewStaticHandler(staticFixture(), false, "dev")
 
 	for _, path := range []string{"/login.html", hashedJS, "/_app/immutable/assets/0.9b2e.css", "/data.json", "/favicon.svg", "/humans.txt"} {
 		resp := get(h, path, "br, gzip")
@@ -122,7 +122,7 @@ func TestStatic_GzipFallbackDecodesToTheOriginal(t *testing.T) {
 	t.Parallel()
 
 	fsys := staticFixture()
-	h := api.NewStaticHandler(fsys, false)
+	h := api.NewStaticHandler(fsys, false, "dev")
 
 	resp := get(h, "/login.html", "gzip")
 	require.Equal(t, "gzip", resp.Header().Get("Content-Encoding"))
@@ -137,7 +137,7 @@ func TestStatic_GzipFallbackDecodesToTheOriginal(t *testing.T) {
 func TestStatic_LeavesTheRestAlone(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(staticFixture(), false)
+	h := api.NewStaticHandler(staticFixture(), false, "dev")
 
 	// No Accept-Encoding: sent as is, but a cache still has to key on it.
 	resp := get(h, "/login.html", "")
