@@ -31,7 +31,8 @@ const ROOT_PAGES = [
 // Blanks text out but keeps every newline, so line numbers stay true.
 const blank = (text: string): string => text.replace(/[^\n]/g, ' ');
 
-function stripCode(text: string): string {
+// Fenced blocks and HTML comments blanked; inline code is left alone.
+function stripFences(text: string): string {
   let fence: string | null = null;
   const kept = text.split('\n').map((line) => {
     const open = line.match(/^\s*(`{3,}|~{3,})/);
@@ -47,33 +48,57 @@ function stripCode(text: string): string {
     }
     return line;
   });
-  return kept
-    .join('\n')
-    .replace(/(`+)[\s\S]*?\1/g, blank)
-    .replace(/<!--[\s\S]*?-->/g, blank);
+  return kept.join('\n').replace(/<!--[\s\S]*?-->/g, blank);
+}
+
+// Fences, comments and inline code all blanked: what links are read from.
+function stripCode(text: string): string {
+  return stripFences(text).replace(/(`+)[\s\S]*?\1/g, blank);
 }
 
 // GitHub's heading anchor: strip inline markup, lowercase, drop everything but
 // letters, digits, underscores, hyphens and spaces, then spaces to hyphens.
 export function slug(heading: string): string {
-  return heading
+  // Code keeps its text, underscores included; emphasis is rendered away
+  // first, so _emph_ and *emph* lose their markers but snake_case does not.
+  const keep = '\uE000';
+  const plain = heading
+    .replace(/(`+)([\s\S]*?)\1/g, (_, __, code: string) =>
+      code.trim().replace(/_/g, keep),
+    )
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/<[^>]+>/g, '')
-    .replace(/[`*~]/g, '')
+    .replace(/\*+|~~/g, '')
+    .replace(/(^|[^\p{L}\p{N}_])_+(?=[\p{L}\p{N}])/gu, '$1')
+    .replace(/(?<=[\p{L}\p{N}])_+(?=[^\p{L}\p{N}_]|$)/gu, '');
+  return plain
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\p{M}_\- ]/gu, '')
-    .replace(/ /g, '-');
+    .replace(/[^\p{L}\p{N}\p{M}_\- \uE000]/gu, '')
+    .replace(/ /g, '-')
+    .replaceAll(keep, '_');
 }
 
 function anchorsOf(markdown: string): Set<string> {
   const seen = new Map<string, number>();
   const anchors = new Set<string>();
-  const text = stripCode(markdown);
-  for (const line of text.split('\n')) {
-    const h = line.match(/^ {0,3}#{1,6}[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/);
-    if (!h) continue;
-    const base = slug(h[1]);
+  const text = stripFences(markdown);
+  const lines = text.split('\n');
+  for (const [i, line] of lines.entries()) {
+    const h = line.match(/^ {0,3}#{1,6}(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/);
+    let title = h ? (h[1] ?? '') : null;
+    // Setext: a paragraph line underlined by === or ---.
+    const prev = lines[i - 1] ?? '';
+    if (
+      title === null &&
+      /^ {0,3}(?:=+|-+)[ \t]*$/.test(line) &&
+      /\S/.test(prev) &&
+      !/^ {0,3}(?:#{1,6}(?:\s|$)|>|[-*+]\s|\d+[.)]\s|(?:=+|-+)\s*$)/.test(prev)
+    ) {
+      title = prev.trim();
+    }
+    if (title === null) continue;
+    const base = slug(title);
     const n = seen.get(base) ?? 0;
     seen.set(base, n + 1);
     anchors.add(n === 0 ? base : `${base}-${n}`);
@@ -97,11 +122,11 @@ function linksOf(markdown: string): Link[] {
   // [text](dest "title") and ![alt](dest); matching on `](` finds the inner
   // image of [![alt](img)](url) as well as the outer link.
   for (const m of text.matchAll(
-    /\]\(\s*(<[^>]*>|[^\s)]*)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g,
+    /\]\(\s*(<[^>]*>|(?:[^\s()]|\([^\s()]*\))*)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g,
   )) {
     add(m.index, m[1].replace(/^<|>$/g, ''));
   }
-  for (const m of text.matchAll(/^ {0,3}\[[^\]]+\]:\s*(<[^>]*>|\S+)/gm)) {
+  for (const m of text.matchAll(/^ {0,3}\[(?!\^)[^\]]+\]:\s*(<[^>]*>|\S+)/gm)) {
     add(m.index, m[1].replace(/^<|>$/g, ''));
   }
   for (const m of text.matchAll(/<[a-z][^>]*?\b(?:href|src)="([^"]+)"/gi)) {
@@ -136,6 +161,9 @@ function markdownFiles(root: string): string[] {
   return out;
 }
 
+const read = (root: string, rel: string): string =>
+  readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
+
 const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
 
 export function checkDocLinks(root: string): Finding[] {
@@ -144,14 +172,14 @@ export function checkDocLinks(root: string): Finding[] {
   const anchorsFor = (rel: string, markdown?: string) => {
     let a = anchorCache.get(rel);
     if (!a) {
-      a = anchorsOf(markdown ?? readFileSync(path.join(root, rel), 'utf8'));
+      a = anchorsOf(markdown ?? read(root, rel));
       anchorCache.set(rel, a);
     }
     return a;
   };
 
   for (const file of markdownFiles(root)) {
-    const markdown = readFileSync(path.join(root, file), 'utf8');
+    const markdown = read(root, file);
     for (const { line, dest } of linksOf(markdown)) {
       if (EXTERNAL.test(dest)) continue;
       const [beforeHash, ...frag] = dest.split('#');
@@ -192,7 +220,9 @@ export function checkDocLinks(root: string): Finding[] {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const root =
+    process.argv[2] ??
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
   const findings = checkDocLinks(root);
   for (const f of findings) {
     console.error(`${f.file}:${f.line}: ${f.target} (${f.reason})`);

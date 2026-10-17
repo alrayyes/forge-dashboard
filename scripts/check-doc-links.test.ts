@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,13 +12,18 @@ afterEach(() => {
 
 // Builds a throwaway repo from {path: contents} and returns the problems
 // checkDocLinks reports as "file:line: target" strings.
-function run(files: Record<string, string>): string[] {
+function fixture(files: Record<string, string>): string {
   const root = mkdtempSync(path.join(tmpdir(), 'doc-links-'));
   roots.push(root);
   for (const [rel, body] of Object.entries(files)) {
     mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
     writeFileSync(path.join(root, rel), body);
   }
+  return root;
+}
+
+function run(files: Record<string, string>): string[] {
+  const root = fixture(files);
   return checkDocLinks(root).map((f) => `${f.file}:${f.line}: ${f.target}`);
 }
 
@@ -182,4 +188,79 @@ test('a link that climbs out of the repo is a forge URL, not a file', () => {
   expect(
     run({ 'SECURITY.md': '[r](../../security/advisories/new)\n' }),
   ).toEqual([]);
+});
+
+test('a heading with inline code keeps the code text in its anchor', () => {
+  expect(slug('The `foo` flag')).toBe('the-foo-flag');
+  expect(slug('`CI_POLL_INTERVAL`')).toBe('ci_poll_interval');
+  expect(slug('Set `FOO_BAR` for _real_ runs')).toBe(
+    'set-foo_bar-for-real-runs',
+  );
+  expect(
+    run({
+      'README.md':
+        '## The `foo` flag\n\n## `CI_POLL_INTERVAL`\n\n[a](#the-foo-flag)\n[b](#ci_poll_interval)\n[c](#foo)\n',
+    }),
+  ).toEqual(['README.md:7: #foo']);
+});
+
+test('emphasis markers leave the slug, underscores inside words stay', () => {
+  expect(slug('An _emph_ word')).toBe('an-emph-word');
+  expect(slug('A *star* and **bold** word')).toBe('a-star-and-bold-word');
+  expect(slug('snake_case name')).toBe('snake_case-name');
+  expect(slug('Trailing _under_')).toBe('trailing-under');
+});
+
+test('footnote definitions are not reference definitions', () => {
+  expect(run({ 'README.md': 'Text[^1]\n\n[^1]: a note\n' })).toEqual([]);
+});
+
+test('setext headings are headings', () => {
+  expect(
+    run({
+      'README.md':
+        'Title\n=====\n\nSub section\n-----------\n\n[a](#title)\n[b](#sub-section)\n[c](#nope)\n',
+    }),
+  ).toEqual(['README.md:9: #nope']);
+});
+
+test('a horizontal rule after a blank line is not a heading', () => {
+  expect(
+    run({ 'README.md': '# Para\n\n---\n\n[a](#para)\n[b](#para-1)\n' }),
+  ).toEqual(['README.md:6: #para-1']);
+});
+
+test('parentheses inside a link destination are balanced', () => {
+  expect(
+    run({
+      'README.md': '[a](a(1).md)\n[b](b(2).md)\n',
+      'a(1).md': '# A\n',
+    }),
+  ).toEqual(['README.md:2: b(2).md']);
+});
+
+test('a byte-order mark does not hide the first heading', () => {
+  expect(
+    run({ 'README.md': '\uFEFF# Title\n\n[a](#title)\n', 'b.md': '' }),
+  ).toEqual([]);
+  expect(
+    run({ 'README.md': '[a](b.md#top)\n', 'b.md': '\uFEFF# Top\n' }),
+  ).toEqual([]);
+});
+
+const cli = (root: string) =>
+  spawnSync('bun', [path.join(import.meta.dir, 'check-doc-links.ts'), root], {
+    encoding: 'utf8',
+  });
+
+test('the CLI exits 1 and names the problem when a link is broken', () => {
+  const r = cli(fixture({ 'README.md': '[x](gone.md)\n' }));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain('README.md:1: gone.md');
+});
+
+test('the CLI exits 0 on clean docs', () => {
+  const r = cli(fixture({ 'README.md': '# T\n\n[x](#t)\n' }));
+  expect(r.status).toBe(0);
+  expect(r.stderr).toBe('');
 });
