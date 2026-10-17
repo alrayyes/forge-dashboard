@@ -58,6 +58,11 @@ const (
 	footerVersionClose = `</span>`
 )
 
+var (
+	errNoFooterSlot       = errors.New("no #footer-version placeholder in the page")
+	errUnclosedFooterSlot = errors.New("the #footer-version placeholder is never closed")
+)
+
 // injectFooterVersion fills the footer's version slot in an error page with
 // what the live footer renders for the same build: a link to the changelog
 // for a release, a plain label for a dev build. Only the slot's content
@@ -65,12 +70,12 @@ const (
 func injectFooterVersion(page []byte, version string) ([]byte, error) {
 	start := bytes.Index(page, []byte(footerVersionOpen))
 	if start < 0 {
-		return nil, errors.New("no #footer-version placeholder in the page")
+		return nil, errNoFooterSlot
 	}
 	start += len(footerVersionOpen)
 	end := bytes.Index(page[start:], []byte(footerVersionClose))
 	if end < 0 {
-		return nil, errors.New("the #footer-version placeholder is never closed")
+		return nil, errUnclosedFooterSlot
 	}
 	end += start
 
