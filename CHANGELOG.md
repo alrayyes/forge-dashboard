@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.211.0](https://github.com/alrayyes/forge-dashboard/compare/v0.210.0...v0.211.0) (2026-10-17)
+
+
+### Features
+
+* **web:** show the full title as hover text when a row title is cut ([#1751](https://github.com/alrayyes/forge-dashboard/issues/1751)) ([a640e78](https://github.com/alrayyes/forge-dashboard/commit/a640e780181e3c9e741a77074027b717b8f91c58))
+
 ## [0.210.0](https://github.com/alrayyes/forge-dashboard/compare/v0.209.2...v0.210.0) (2026-10-17)
 
 
