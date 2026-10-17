@@ -11,23 +11,23 @@ every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. It has passwordless login,
 per-user tokens, sharing and an admin role.
 
-| Page                                                                                                 | Light                                                                               | Dark                                                                              |
-| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| **Branches**. The CI status of every default branch, latest commit first.                            | ![Branches, light mode](docs/screenshots/branches-light.png)                        | ![Branches, dark mode](docs/screenshots/branches-dark.png)                        |
-| **Pull requests**. Open pull requests across both forges, with CI status, filters, and sorting.      | ![Pull requests, light mode](docs/screenshots/pull-requests-light.png)              | ![Pull requests, dark mode](docs/screenshots/pull-requests-dark.png)              |
-| **Pull request details**. A pull request's description, comments, and thumbs reactions.              | ![Pull request details, light mode](docs/screenshots/pull-request-dialog-light.png) | ![Pull request details, dark mode](docs/screenshots/pull-request-dialog-dark.png) |
-| **Phone sheet**. The same details on a 360px screen.                                                 | ![Phone sheet, light mode](docs/screenshots/pull-request-sheet-light.png)           | ![Phone sheet, dark mode](docs/screenshots/pull-request-sheet-dark.png)           |
-| **Pipeline checks**. A pull request's checks with state, time and failure excerpt, from its CI pill. | ![Pipeline checks, light mode](docs/screenshots/pipeline-checks-light.png)          | ![Pipeline checks, dark mode](docs/screenshots/pipeline-checks-dark.png)          |
-| **Issues**. Open issues across both forges.                                                          | ![Issues, light mode](docs/screenshots/issues-light.png)                            | ![Issues, dark mode](docs/screenshots/issues-dark.png)                            |
-| **Releases**. Release pull requests waiting to ship.                                                 | ![Releases, light mode](docs/screenshots/releases-light.png)                        | ![Releases, dark mode](docs/screenshots/releases-dark.png)                        |
-| **Release details**. The release notes a release pull request publishes.                             | ![Release details, light mode](docs/screenshots/release-dialog-light.png)           | ![Release details, dark mode](docs/screenshots/release-dialog-dark.png)           |
-| **Bots**. Dependabot and Renovate pull requests.                                                     | ![Bots, light mode](docs/screenshots/bots-light.png)                                | ![Bots, dark mode](docs/screenshots/bots-dark.png)                                |
-| **Bot details**. A bot pull request, its generated text collapsed.                                   | ![Bot details, light mode](docs/screenshots/bot-dialog-light.png)                   | ![Bot details, dark mode](docs/screenshots/bot-dialog-dark.png)                   |
-| **Insights**. Charts of CI state and the busiest repos.                                              | ![Insights, light mode](docs/screenshots/insights-light.png)                        | ![Insights, dark mode](docs/screenshots/insights-dark.png)                        |
-| **Webhooks**. Which tracked repos have a confirmed webhook, and a way to add one.                    | ![Webhooks, light mode](docs/screenshots/webhooks-light.png)                        | ![Webhooks, dark mode](docs/screenshots/webhooks-dark.png)                        |
-| **Settings**. Theme, time zone, and dashboard sharing.                                               | ![Settings, light mode](docs/screenshots/settings-light.png)                        | ![Settings, dark mode](docs/screenshots/settings-dark.png)                        |
-| **Admin**. Users and invites, for the first registered user.                                         | ![Admin, light mode](docs/screenshots/admin-light.png)                              | ![Admin, dark mode](docs/screenshots/admin-dark.png)                              |
-| **Login**. Passkey sign-in.                                                                          | ![Login, light mode](docs/screenshots/login-light.png)                              | ![Login, dark mode](docs/screenshots/login-dark.png)                              |
+| Page                                                                                                           | Light                                                                               | Dark                                                                              |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Branches**. The CI status of every default branch, latest commit first.                                      | ![Branches, light mode](docs/screenshots/branches-light.png)                        | ![Branches, dark mode](docs/screenshots/branches-dark.png)                        |
+| **Pull requests**. Open pull requests across both forges, with CI status, filters, and sorting.                | ![Pull requests, light mode](docs/screenshots/pull-requests-light.png)              | ![Pull requests, dark mode](docs/screenshots/pull-requests-dark.png)              |
+| **Pull request details**. A pull request's description, comments, and thumbs reactions.                        | ![Pull request details, light mode](docs/screenshots/pull-request-dialog-light.png) | ![Pull request details, dark mode](docs/screenshots/pull-request-dialog-dark.png) |
+| **Phone sheet**. The same details on a 360px screen.                                                           | ![Phone sheet, light mode](docs/screenshots/pull-request-sheet-light.png)           | ![Phone sheet, dark mode](docs/screenshots/pull-request-sheet-dark.png)           |
+| **Pipeline checks**. A pull request's checks with state, time and failure excerpt, from its CI pill.           | ![Pipeline checks, light mode](docs/screenshots/pipeline-checks-light.png)          | ![Pipeline checks, dark mode](docs/screenshots/pipeline-checks-dark.png)          |
+| **Issues**. Open issues across both forges.                                                                    | ![Issues, light mode](docs/screenshots/issues-light.png)                            | ![Issues, dark mode](docs/screenshots/issues-dark.png)                            |
+| **Releases**. Release pull requests waiting to ship.                                                           | ![Releases, light mode](docs/screenshots/releases-light.png)                        | ![Releases, dark mode](docs/screenshots/releases-dark.png)                        |
+| **Release details**. The release notes a release pull request publishes.                                       | ![Release details, light mode](docs/screenshots/release-dialog-light.png)           | ![Release details, dark mode](docs/screenshots/release-dialog-dark.png)           |
+| **Bots**. Dependabot and Renovate pull requests.                                                               | ![Bots, light mode](docs/screenshots/bots-light.png)                                | ![Bots, dark mode](docs/screenshots/bots-dark.png)                                |
+| **Bot details**. A bot pull request, its generated text collapsed.                                             | ![Bot details, light mode](docs/screenshots/bot-dialog-light.png)                   | ![Bot details, dark mode](docs/screenshots/bot-dialog-dark.png)                   |
+| **Insights**. Charts of CI state and the busiest repos.                                                        | ![Insights, light mode](docs/screenshots/insights-light.png)                        | ![Insights, dark mode](docs/screenshots/insights-dark.png)                        |
+| **Webhooks**. Which tracked repos have a confirmed webhook, and a way to add one.                              | ![Webhooks, light mode](docs/screenshots/webhooks-light.png)                        | ![Webhooks, dark mode](docs/screenshots/webhooks-dark.png)                        |
+| **Settings**. Five groups, one at a time: display, sharing, connections, behaviour, integrations and security. | ![Settings, light mode](docs/screenshots/settings-light.png)                        | ![Settings, dark mode](docs/screenshots/settings-dark.png)                        |
+| **Admin**. Users and invites, for the first registered user.                                                   | ![Admin, light mode](docs/screenshots/admin-light.png)                              | ![Admin, dark mode](docs/screenshots/admin-dark.png)                              |
+| **Login**. Passkey sign-in.                                                                                    | ![Login, light mode](docs/screenshots/login-light.png)                              | ![Login, dark mode](docs/screenshots/login-dark.png)                              |
 
 Fixture data, not a real account's actual repositories. The release
 workflow regenerates every screenshot on each release (see
@@ -320,7 +320,11 @@ without an active share, not just a hidden frontend control) — see
 
 Set from the Settings page (`/settings.html`, linked from the dashboard
 header) once you're signed in — nothing forge-related is configured by
-the process itself. Each forge takes either a token (sees private repos
+the process itself. The page has five groups (Display, Sharing, Connections,
+Behaviour, Integrations and security), one shown at a time; the group is in
+the URL hash, so `/settings.html#connections` opens Connections.
+
+Each forge takes either a token (sees private repos
 too) or a bare username (public repos only, no credential at all) —
 never both purposes at once. A token always wins over a username if you
 set both, and leaving a token field blank on save keeps whatever was
@@ -337,8 +341,9 @@ and puts focus on that input. The page holds no copy of those rules.
 - **Token**: a personal access token with read access to the
   repositories you want tracked, plus write access to their webhooks if
   you ever plan to use the Webhooks page's "Add a webhook" button. The
-  exact scope, classic and fine-grained, lives in Settings' own field
-  hint next to the token field — one place, kept current with what the
+  exact scope, classic and fine-grained, lives in Settings' own
+  "What does this token need?" help under the token field — one place, kept
+  current with what the
   app actually requests, rather than a second copy here that can drift
   out of sync with it (and did: an earlier version of this section
   named a `Contents` scope Settings' own hint has never actually

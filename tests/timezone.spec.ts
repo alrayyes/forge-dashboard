@@ -193,7 +193,7 @@ test.describe('the time zone control on Settings (#996)', () => {
   test('defaults to the browser zone, named in the option', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#display');
     const select = page.getByLabel('Time zone');
     await expect(select).toHaveValue('');
     await expect(select.locator('option[value=""]')).toHaveText(
@@ -205,7 +205,7 @@ test.describe('the time zone control on Settings (#996)', () => {
   test('saves at once, previews the zone, and the dashboard picks it up', async ({
     page,
   }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#display');
     const preview = page.locator('#timezone-preview');
     await expect(preview).toContainText('CEST');
 
@@ -226,7 +226,7 @@ test.describe('the time zone control on Settings (#996)', () => {
   });
 
   test('choosing the browser default saves an empty name', async ({ page }) => {
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#display');
     await page.getByLabel('Time zone').selectOption('UTC');
     await expect(page.locator('#timezone-preview')).toContainText('UTC');
 
@@ -251,7 +251,7 @@ test.describe('the time zone control on Settings (#996)', () => {
           })
         : route.continue(),
     );
-    await page.goto('/settings.html');
+    await page.goto('/settings.html#display');
     await page.getByLabel('Time zone').selectOption('UTC');
     await expect(page.locator('#timezone-status')).toHaveText(
       'Could not save time zone.',
