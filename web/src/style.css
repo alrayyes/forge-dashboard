@@ -3669,3 +3669,14 @@ footer a.mono:focus-visible {
     background-position: -200% 0;
   }
 }
+
+/* The footer link for the page you're on (#1679): full ink and a 2px
+   underline, so it reads as current without colour alone. No weight change:
+   a bolder face is wider and taller and shifts the neighbouring links
+   between pages. --ink clears AA on the page background in both schemes. */
+footer a[aria-current="page"] {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
