@@ -6,7 +6,7 @@
   import {
     branchesAwaitingFlag,
     firstRefreshJustFinished,
-    firstRefreshPending,
+    firstRefreshLoading,
   } from "#lib/first-refresh.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
@@ -53,7 +53,7 @@
 
   // The server's first refresh after a restart has not finished (#1672): the
   // list is empty because nothing is read yet, not because nothing is tracked.
-  const pending = $derived(firstRefreshPending(firstRefresh.done));
+  const pending = $derived(firstRefreshLoading(firstRefresh));
   const branches = $derived(data?.branches ?? []);
   const visible = $derived(applyFilter(branches, filter));
   const perForge = $derived(forgeCounts(branches));
