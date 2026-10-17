@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.209.2](https://github.com/alrayyes/forge-dashboard/compare/v0.209.1...v0.209.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **api:** advise a short re-read interval until the first refresh ends ([#1733](https://github.com/alrayyes/forge-dashboard/issues/1733)) ([37380af](https://github.com/alrayyes/forge-dashboard/commit/37380aff0912ededee2d52c11905790437b62fbd))
+
 ## [0.209.1](https://github.com/alrayyes/forge-dashboard/compare/v0.209.0...v0.209.1) (2026-10-17)
 
 
