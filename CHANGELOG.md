@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.205.0](https://github.com/alrayyes/forge-dashboard/compare/v0.204.2...v0.205.0) (2026-10-17)
+
+
+### Features
+
+* **web:** show how many issues each ignored title pattern hides ([#1697](https://github.com/alrayyes/forge-dashboard/issues/1697)) ([2020f24](https://github.com/alrayyes/forge-dashboard/commit/2020f246045591b3326f062c8f2e1ca43fee593a))
+
+
+### Bug Fixes
+
+* **web:** say a saved pick is waiting and let Clear filters end it ([#1678](https://github.com/alrayyes/forge-dashboard/issues/1678)) ([f73ce94](https://github.com/alrayyes/forge-dashboard/commit/f73ce94dda93cde98ee7e23f2433163aeb6582f3))
+
 ## [0.204.2](https://github.com/alrayyes/forge-dashboard/compare/v0.204.1...v0.204.2) (2026-10-17)
 
 
