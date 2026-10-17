@@ -87,7 +87,7 @@ tags:
   - name: queued-actions
     description: |
       Safe actions (Update branch, Dependabot and Renovate rebase) queued to
-      run when a rate-limited forge resets (#756). Per user, stored on the
+      run when a rate-limited forge resets. Per user, stored on the
       server, so they survive a reload and a restart.
   - name: tokens
     description: |
@@ -614,7 +614,7 @@ paths:
   /api/settings/filter-state:
     get:
       operationId: getFilterState
-      x-mcp-excluded: "Cookie-session only: the spec refuses a personal API token with 403 (#1000), so an MCP client cannot call it."
+      x-mcp-excluded: "Cookie-session only: the spec refuses a personal API token with 403, so an MCP client cannot call it."
       summary: The signed-in user's own saved dashboard/Insights filter state
       description: |
         A lightweight read of one opaque blob, deliberately not
@@ -623,7 +623,7 @@ paths:
         shouldn't provision webhook credentials as a side effect.
         `{}` for a user who's never saved any filters yet, not a 404.
         These are the web UI's own state: a signed-in browser session only,
-        and a personal API token is refused with 403 (#1000).
+        and a personal API token is refused with 403.
       tags: [settings]
       security: [{ cookieAuth: [] }]
       responses:
@@ -647,7 +647,7 @@ paths:
                 $ref: "#/components/schemas/Error"
     put:
       operationId: setFilterState
-      x-mcp-excluded: "Cookie-session only: the spec refuses a personal API token with 403 (#1000), so an MCP client cannot call it."
+      x-mcp-excluded: "Cookie-session only: the spec refuses a personal API token with 403, so an MCP client cannot call it."
       summary: Save the signed-in user's own dashboard/Insights filter state
       description: |
         A dedicated, lightweight save separate from the main
@@ -661,7 +661,7 @@ paths:
         while the user is still typing in the free-text Title filter.
         A signed-in browser session only: a personal API token is refused
         with 403, so a script or agent can't change the filters the user
-        sees (#1000). Each save is logged with the user agent.
+        sees. Each save is logged with the user agent.
       tags: [settings]
       security: [{ cookieAuth: [] }]
       requestBody:
@@ -1010,7 +1010,7 @@ paths:
         the original forge error is returned with `code: unknown`.
 
         An empty pull request, whose branch is already on the target, has no
-        `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+        `merge` in `allowedActions`. A Merge posted for one anyway
         gets 409 `already_up_to_date` from this server, which never asks the
         forge.
       tags: [pull-requests]
@@ -1801,7 +1801,7 @@ paths:
       operationId: getPullRequestDetails
       summary: Read a pull request's description, comments and reactions, on demand
       description: |
-        What the pull request dialog shows (#1506): the description, the
+        What the pull request dialog shows: the description, the
         conversation in order, the thumbs up and thumbs down reactions on each
         with who gave them, and, for a release pull request, the release
         notes. Fetched live on every call, never as part of GET
@@ -1898,7 +1898,7 @@ paths:
       summary: List the signed-in user's queued actions, waiting and recently finished
       description: |
         Every action the user queued to run when a rate-limited forge
-        resets (#756), oldest first: the ones still `queued`, and the
+        resets, oldest first: the ones still `queued`, and the
         final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
         client can show the outcome in its Activity list. The same list
         rides along on GET /api/dashboard as `queuedActions`.
@@ -2605,13 +2605,12 @@ paths:
       summary: The CI status of every tracked repository's default branch
       description: |
         One row per tracked repository, showing the latest pipeline on its
-        default branch: failed, passed, running or none (#1224). A repository
-        ignored for pull requests is left out, as on the pull requests page
-        (#1337). Every other row is returned, whatever its status, with a
+        default branch: failed, passed, running or none. A repository
+        ignored for pull requests is left out, as on the pull requests page. Every other row is returned, whatever its status, with a
         count per status, so a client
         filters and sorts locally and its pill counts always match what each
         pill lists. Rows come newest commit first (`commit.committedAt`),
-        whatever their status (#1552). A row with no commit time comes after
+        whatever their status. A row with no commit time comes after
         every dated one; ties and undated rows go by `fullName`, then `forge`.
 
         Served from the snapshot the background refresh already holds, so it
@@ -3356,7 +3355,7 @@ components:
             everywhere: the server leaves a `housekeeping` issue out of the
             `issues` of GET /api/dashboard and its stream, and out of every
             count and total built from them (`navCounts`, Insights). Always
-            present once the server applies it (#1630).
+            present once the server applies it.
         ignoredTitles:
           type: array
           maxItems: 20
@@ -3370,7 +3369,7 @@ components:
             ignores case; an issue matching any one is left out of `issues`
             and of every count and total built from them, the same as
             `hideDependencyDashboard`. Always present once the server
-            applies it (#1630). Empty means none.
+            applies it. Empty means none.
 
     SettingsRequest:
       type: object
@@ -3617,13 +3616,12 @@ components:
         Where an armed pull request stands, so the row can say why
         auto-merge is waiting or stopped in words and not by colour. Present
         while auto-merge is armed on it: on Forgejo the signed-in user's
-        intent held by this app, on GitHub the forge's own auto-merge (#1293).
+        intent held by this app, on GitHub the forge's own auto-merge.
         Also present for ten minutes after this app cancelled an armed
         auto-merge because the pull request went empty (its branch landed on
         the base some other way): `stopped`, code `already_up_to_date` and the
         message "Auto-merge was cancelled: there is nothing left to merge."
-        Auto-merge is off by then, so this is the only place the reason lives
-        (#1375).
+        Auto-merge is off by then, so this is the only place the reason lives.
       properties:
         state:
           type: string
@@ -3898,7 +3896,7 @@ components:
       type: object
       required:
         [description, comments, commentCount, commentsTruncated, releaseNotes]
-      description: What the pull request dialog shows (#1506).
+      description: What the pull request dialog shows.
       properties:
         description:
           $ref: "#/components/schemas/DetailsBody"
@@ -4268,7 +4266,7 @@ components:
           type: boolean
           description: |
             True when GitHub is holding a workflow run on the head commit
-            until someone approves it (#1280): its rollup counts a check run
+            until someone approves it: its rollup counts a check run
             as ACTION_REQUIRED. Those runs also keep `ci` at failure when
             nothing else is running, so a client reads this to say "waiting
             for approval" rather than "check failed". It can be true while
@@ -4279,7 +4277,7 @@ components:
           type: integer
           minimum: 0
           description: |
-            How many review comments the pull request has (#1335). Ordinary
+            How many review comments the pull request has. Ordinary
             conversation comments are not counted. Always present, and 0 when
             there are none or the forge can't say (a Forgejo draft or failed
             reviews call, GitHub's unauthenticated fallback). On GitHub it is read from
@@ -4372,7 +4370,7 @@ components:
             - $ref: "#/components/schemas/PullRequestStatus"
           description: |
             The one reason this pull request is waiting on something or can't
-            be merged, for a fixed place on its row (#1375): a check still
+            be merged, for a fixed place on its row: a check still
             running, a conflict, a draft, a parent it is stacked on, or, for
             an empty pull request, that there is nothing to merge. `code`,
             `message` and `next` are the same as on `allowedActions[].blocked`,
@@ -4616,7 +4614,7 @@ components:
             Present when the action is offered but can't be taken yet. Merge
             is blocked rather than hidden while waiting or fixing something can
             unlock it. An empty pull request, which nothing can unlock, has no
-            `merge` entry at all (#1375): see `status`.
+            `merge` entry at all: see `status`.
             `renovate_rebase` is blocked with `already_requested` while
             Renovate's rebase checkbox in the pull request description is
             ticked, whether it was ticked from this app or on the forge: one
@@ -4651,7 +4649,7 @@ components:
       required: [code, message]
       description: |
         Why a pull request is waiting on something or can't be merged, in one
-        place for a client to show (#1375). Same shape as
+        place for a client to show. Same shape as
         `AllowedAction.blocked`.
       properties:
         code:
@@ -4770,7 +4768,7 @@ components:
       type: object
       required: [total, running, failed, passed, none]
       description: |
-        The Branches page's numbers (#1458, #1531): how many default branches
+        The Branches page's numbers: how many default branches
         it lists and how many of those have a pipeline running, failed and
         passed, the same four as `NavPullRequestCount`, plus `none`, the ones
         with no pipeline. Every branch is in exactly one of the four states,
@@ -4802,7 +4800,7 @@ components:
       type: object
       required: [total, running, failed, passed]
       description: |
-        A pull request page's numbers (#1439). `running`, `failed` and
+        A pull request page's numbers. `running`, `failed` and
         `passed` count the pull requests whose CI is pending, failing and
         succeeded. A pull request with no checks counts in `total` only, so
         the four numbers need not add up. All four are always present.
@@ -4839,7 +4837,7 @@ components:
     NavCounts:
       type: object
       description: |
-        The numbers behind the navigation badges (#1315), counted from what the
+        The numbers behind the navigation badges, counted from what the
         board shows by default, so they match each page when it opens. Pull
         requests leave out ignored repos, draft pull requests and hidden pull
         requests whatever `includeDrafts` and `includeHidden` ask for, so the
@@ -4851,7 +4849,7 @@ components:
         under `bots`, the rest under `pullRequests`). Always present, with
         zeros when there is nothing. A client hides a page's whole nav item at
         zero total, and a state's number at zero. Every page except Issues also
-        carries `running` and `passed` (#1439, #1458).
+        carries `running` and `passed`.
       required: [branches, pullRequests, issues, releases, bots]
       properties:
         branches:
@@ -4915,7 +4913,7 @@ components:
             and `ignoredTitles`) left out of `issues`, so a client can say
             "N hidden by your settings" and link to Settings; it cannot work
             that out, the issues are not sent. Always present once the
-            server applies the settings (#1630); 0 when none are hidden.
+            server applies the settings; 0 when none are hidden.
         firstRefreshDone:
           type: boolean
           description: |
@@ -4926,7 +4924,7 @@ components:
             of empty lists while it is false; a failed first refresh is
             reported through forge health, not by keeping this false. The same
             on `GET /api/dashboard`, the stream and the MCP `get_dashboard`
-            output. Optional until the server emits it (#1673); the server
+            output. Optional until the server emits it; the server
             change makes it required, and a client treats a missing flag as
             true (loaded).
         navCounts:
@@ -5074,7 +5072,7 @@ components:
           description: |
             True when this row is the last known one because its forge
             couldn't be read or its rate limit is spent. A client offers no
-            write on a stale row (#1199).
+            write on a stale row.
         staleSince:
           type: [string, "null"]
           format: date-time
