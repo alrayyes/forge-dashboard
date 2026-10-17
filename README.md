@@ -68,6 +68,8 @@ stale.
   `list_queued_actions` mirrors `GET /api/queued-actions` (your actions
   waiting on a rate-limited forge, and the finished ones from the last 24
   hours, under a `queuedActions` key). It costs no forge budget.
+  `get_version` mirrors `GET /api/version` (the running server's release
+  tag, under a `version` key). It costs no forge budget.
   `get_settings` mirrors `GET /api/settings` without the webhook token and
   secret, which are never sent over MCP; it reports `webhookConfigured`
   instead, and unlike the HTTP read it never creates them. It carries
