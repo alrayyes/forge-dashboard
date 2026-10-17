@@ -58,21 +58,22 @@
     >GitHub</a
   >
   <span id="footer-version"
-    >{#if versionState.kind === "dev"}&#183; dev build{:else if versionState.kind === "released"}&#183;
-      <a
+    >{#if versionState.kind === "dev"}&#183;&nbsp;dev build{:else if versionState.kind === "released"}&#183;&nbsp;<a
         class="mono"
         href={hrefs.changelog}
         aria-current={current === "changelog" ? "page" : undefined}
         >v{versionState.version}</a
       >{/if}</span
-  >{" "}&#183;
-  <a
-    href={hrefs.disclaimer}
-    aria-current={current === "disclaimer" ? "page" : undefined}>Disclaimer</a
-  >{" "}&#183;
-  <a
-    href={hrefs.privacy}
-    aria-current={current === "privacy" ? "page" : undefined}>Privacy</a
+  >{" "}<span class="footer-pair"
+    >&#183;&nbsp;<a
+      href={hrefs.disclaimer}
+      aria-current={current === "disclaimer" ? "page" : undefined}>Disclaimer</a
+    ></span
+  >{" "}<span class="footer-pair"
+    >&#183;&nbsp;<a
+      href={hrefs.privacy}
+      aria-current={current === "privacy" ? "page" : undefined}>Privacy</a
+    ></span
   >
 </footer>
 
