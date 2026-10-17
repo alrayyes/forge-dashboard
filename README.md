@@ -70,7 +70,8 @@ stale.
   hours, under a `queuedActions` key). It costs no forge budget.
   `get_settings` mirrors `GET /api/settings` without the webhook token and
   secret, which are never sent over MCP; it reports `webhookConfigured`
-  instead, and unlike the HTTP read it never creates them.
+  instead, and unlike the HTTP read it never creates them. It carries
+  `ignoredTitleCounts` too, null per entry until the first refresh ends.
   Each calls the same function as its handler rather than adding a second,
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the

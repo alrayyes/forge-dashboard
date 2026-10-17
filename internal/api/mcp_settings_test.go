@@ -5,7 +5,10 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -183,4 +186,43 @@ func TestMCP_GetSettings_ValidatesAgainstItsOutputSchema(t *testing.T) {
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_settings"})
 	require.NoError(t, err)
 	require.NoError(t, resolved.Validate(settingsContent(t, result)))
+}
+
+func TestMCP_GetSettings_IgnoredTitleCountsMatchTheHTTPValue(t *testing.T) {
+	t.Parallel()
+
+	issues := []dashboard.Issue{
+		countIssue(1, "a/x", "Weekly report 1"), countIssue(2, "a/x", "Weekly report 2"),
+		countIssue(3, "a/x", "stale branch"), countIssue(4, "a/x", "A real bug"),
+	}
+	srv := countsServer(t, map[string][]dashboard.Issue{countsToken: issues})
+	cookie := signInWithBoard(t, srv, "ryan", countsToken, 4)
+	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["^weekly","STALE","none"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, 2*time.Second, 10*time.Millisecond)
+
+	got := settingsContent(t, callSettingsTool(t, srv.URL, cookie))
+
+	assert.Equal(t, []any{float64(2), float64(1), float64(0)}, got["ignoredTitleCounts"])
+}
+
+func TestMCP_GetSettings_IgnoredTitleCountsAreNullWhileUnknown(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+		if c.GitHubToken == "" {
+			return nil
+		}
+
+		return []dashboard.Source{&gatedSource{release: release, issues: []dashboard.Issue{countIssue(1, "a/x", "Weekly")}}}
+	})
+	t.Cleanup(func() { close(release) })
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	got := settingsContent(t, callSettingsTool(t, srv.URL, cookie))
+
+	assert.Equal(t, []any{nil}, got["ignoredTitleCounts"])
 }

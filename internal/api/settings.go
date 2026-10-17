@@ -626,6 +626,7 @@ type MCPSettingsResponse struct {
 	RenovateAuthors         []string `json:"renovateAuthors"`
 	HideDependencyDashboard bool     `json:"hideDependencyDashboard"`
 	IgnoredTitles           []string `json:"ignoredTitles"`
+	IgnoredTitleCounts      []*int   `json:"ignoredTitleCounts"`
 	Theme                   string   `json:"theme"`
 	Timezone                string   `json:"timezone"`
 }
@@ -640,7 +641,7 @@ func resolveSettingsForMCP(ctx context.Context, deps Deps, u *auth.User) (MCPSet
 	if err != nil && !errors.Is(err, settings.ErrNotFound) {
 		return MCPSettingsResponse{}, errCouldNotLoadSettings
 	}
-	full := settingsResponseOf(creds, deps.GitHubAppConfigured)
+	full := settingsResponseOf(creds, deps.GitHubAppConfigured, ignoredTitleCounts(ctx, deps, u.ID, creds.IgnoredTitles, deps.Manager.Get(u.ID)))
 
 	return MCPSettingsResponse{
 		GitHubUsername:          full.GitHubUsername,
@@ -655,6 +656,7 @@ func resolveSettingsForMCP(ctx context.Context, deps Deps, u *auth.User) (MCPSet
 		RenovateAuthors:         full.RenovateAuthors,
 		HideDependencyDashboard: full.HideDependencyDashboard,
 		IgnoredTitles:           full.IgnoredTitles,
+		IgnoredTitleCounts:      full.IgnoredTitleCounts,
 		Theme:                   full.Theme,
 		Timezone:                full.Timezone,
 	}, nil
