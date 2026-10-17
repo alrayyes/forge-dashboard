@@ -1280,6 +1280,9 @@ it and leaves the saved choice alone, so it is still set when you go back to
 the page that does. The page says so under the filter bar (`Saved author
 "x" is not on this page.`) with a Clear button, and Clear filters is on and
 ends the saved choice too. Changing that control on the page ends it as well.
+Text typed in the title search or the hide-titles pattern is sent to the
+server half a second after the last key, and at once when you leave the page
+or switch tab, so a value typed just before leaving is kept.
 What is deliberately not remembered: the page you were on and the page size,
 the open Filters sheet on a phone, held updates, open menus and pop-ups, and
 the expanded rows on Branches. Branches keeps its own filter in a cookie
