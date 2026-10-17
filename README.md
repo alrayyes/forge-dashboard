@@ -942,8 +942,10 @@ for an error the app can't render itself.
 
 ## Pull request details
 
-Each pull request row has a **Details** button. It opens a read-only pop-up
-with the pull request's description, its comments and the thumbs up and thumbs
+Clicking a pull request row, anywhere on it, opens a read-only pop-up. The
+row's title is the button that does it, stretched over the row; the CI pill,
+the labels and the action buttons stay clickable on top of it. The pop-up has
+the pull request's description, its comments and the thumbs up and thumbs
 down reactions on each, and an **Open on GitHub** (or Forgejo) link. On the
 Releases page the pop-up shows the release notes in place of the description.
 A Dependabot or Renovate pull request opens the same pop-up, with its long
