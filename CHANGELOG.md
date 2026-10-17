@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.214.2](https://github.com/alrayyes/forge-dashboard/compare/v0.214.1...v0.214.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **web:** let the newer saved filter state win on load ([#1789](https://github.com/alrayyes/forge-dashboard/issues/1789)) ([2df15aa](https://github.com/alrayyes/forge-dashboard/commit/2df15aa33fac6c2b8719891b93675b11fb8ec717)), closes [#1760](https://github.com/alrayyes/forge-dashboard/issues/1760) [#1620](https://github.com/alrayyes/forge-dashboard/issues/1620)
+
 ## [0.214.1](https://github.com/alrayyes/forge-dashboard/compare/v0.214.0...v0.214.1) (2026-10-17)
 
 
