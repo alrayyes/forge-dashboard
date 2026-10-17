@@ -116,7 +116,9 @@ test.describe('the footer is the same on every page', () => {
       const slot = (await page.locator('#footer-version').innerText()).trim();
       const text = await page
         .locator('footer')
-        .evaluate((el) => (el as HTMLElement).innerText);
+        .evaluate((el) =>
+          (el as HTMLElement).innerText.replace(/\u00a0/g, ' '),
+        );
       if (/dev build/.test(slot)) {
         await expect(page.locator('footer a')).toHaveText([
           'GitHub',
@@ -160,7 +162,7 @@ test.describe('the footer is the same on every page', () => {
     ]);
     const text = await page
       .locator('footer')
-      .evaluate((el) => (el as HTMLElement).innerText);
+      .evaluate((el) => (el as HTMLElement).innerText.replace(/\u00a0/g, ' '));
     expect(text).toMatch(
       /Read-only mirror.*GitHub\s+· dev build\s+· Disclaimer\s+· Privacy/s,
     );
