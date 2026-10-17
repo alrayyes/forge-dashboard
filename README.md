@@ -49,7 +49,7 @@ stale.
   frontend its own already-filtered JSON. Confirm this yourself: open the
   browser's network tab and watch it call nothing but `/api/dashboard`,
   `/api/settings`, `/api/auth/*` and `/healthz` — and that `/api/settings`
-  never echoes a token back, only whether one is set.
+  never echoes a forge token back, only whether one is set.
 - **An MCP endpoint for agents, `/api/mcp`, read-only like the rest of
   this app.** Authenticated the same way any other `/api/*` route already
   is — a personal API token (Settings → API tokens),
@@ -68,6 +68,10 @@ stale.
   `list_queued_actions` mirrors `GET /api/queued-actions` (your actions
   waiting on a rate-limited forge, and the finished ones from the last 24
   hours, under a `queuedActions` key). It costs no forge budget.
+  `get_settings` mirrors `GET /api/settings` without the webhook token and
+  secret, which are never sent over MCP; it reports `webhookConfigured`
+  instead, and unlike the HTTP read it never creates them. It carries
+  `ignoredTitleCounts` too, null per entry until the first refresh ends.
   Each calls the same function as its handler rather than adding a second,
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
