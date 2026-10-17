@@ -1177,7 +1177,8 @@ how many of your open issues that pattern matches on its own. An issue two
 patterns match counts for both, so the entries can add up to more than
 `settingsHiddenIssueCount`. Issues of a repo whose issues you ignore aren't
 counted, as with that total. Every entry is `null` while the answer isn't known
-yet, because your first refresh hasn't finished, and never a made-up `0`. The
+yet, because your first refresh hasn't finished or no forge answered it, and
+never a made-up `0`. The
 response to a save counts the list just saved, against the issues you had
 before the save.
 

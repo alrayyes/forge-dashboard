@@ -440,26 +440,49 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 // the same issues settingsHiddenIssueCount does (those of repos whose issues
 // aren't ignored) and the same matcher, but per pattern, so an issue two
 // patterns match counts for both. Every entry is nil while the count is
-// unknown: no snapshot yet, which is a zero GeneratedAt, or a pattern that
-// doesn't compile. Never a made-up 0. The slice is never nil.
+// unknown, never a made-up 0: see snapshotKnown. The slice is never nil.
 func ignoredTitleCounts(ctx context.Context, deps Deps, userID []byte, patterns []string, snap dashboard.Snapshot) []*int {
-	counts := make([]*int, len(patterns))
-	if len(patterns) == 0 || snap.GeneratedAt.IsZero() {
-		return counts
+	if len(patterns) == 0 || !snapshotKnown(snap) {
+		return make([]*int, len(patterns))
 	}
 
 	board := loadBoardSettings(ctx, deps.SettingsStore, userID)
+
+	return titleCounts(patterns, snap.Issues, func(issue dashboard.Issue) bool {
+		return board.ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues
+	})
+}
+
+// snapshotKnown reports whether snap says anything about the viewer's issues.
+// A zero GeneratedAt is no snapshot at all. A stamped one can still be empty
+// because every forge failed its first fetch, which tells us nothing: it
+// counts only when some forge answered (Reachable) or has older data on show
+// (StaleSince).
+func snapshotKnown(snap dashboard.Snapshot) bool {
+	if snap.GeneratedAt.IsZero() {
+		return false
+	}
+	for _, f := range snap.Forges {
+		if f.Reachable || f.StaleSince != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+// titleCounts counts, per pattern, the issues it matches that skip doesn't
+// leave out. A pattern that doesn't compile gets nil, not 0.
+func titleCounts(patterns []string, issues []dashboard.Issue, skip func(dashboard.Issue) bool) []*int {
+	counts := make([]*int, len(patterns))
 	for i, p := range patterns {
 		matcher, err := dashboard.CompileTitlePatterns([]string{p})
 		if err != nil {
 			continue
 		}
 		n := 0
-		for _, issue := range snap.Issues {
-			if board.ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
-				continue
-			}
-			if matcher.Matches(issue.Title) {
+		for _, issue := range issues {
+			if !skip(issue) && matcher.Matches(issue.Title) {
 				n++
 			}
 		}

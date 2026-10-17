@@ -215,3 +215,38 @@ func TestSettingsGet_IgnoredTitleCounts_CountOnlyTheViewersOwnIssues(t *testing.
 	assert.Equal(t, []*int{new(1)}, getSettings(t, srv.URL, cookieA).IgnoredTitleCounts)
 	assert.Equal(t, []*int{new(3)}, getSettings(t, srv.URL, cookieB).IgnoredTitleCounts)
 }
+
+// A first refresh that fails leaves a snapshot with a stamp and nothing in it.
+// That is not "no issues match": the answer is still unknown.
+func TestSettingsGet_IgnoredTitleCounts_AreNullWhenTheOnlyForgeIsUnreachable(t *testing.T) {
+	t.Parallel()
+	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+		if c.GitHubToken != countsToken {
+			return nil
+		}
+
+		return []dashboard.Source{&fakeConfiguredSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: "down"}}}
+	})
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+	require.Eventually(t, func() bool {
+		forges, _ := fetchDashboard(t, srv.URL, cookie)["forges"].([]any)
+
+		return len(forges) == 1
+	}, 2*time.Second, 10*time.Millisecond, "the first refresh has finished and failed")
+
+	assert.Equal(t, []*int{nil}, getSettings(t, srv.URL, cookie).IgnoredTitleCounts)
+}
+
+func TestSettingsGet_IgnoredTitleCounts_AReachableForgeWithNoMatchesCountsZero(t *testing.T) {
+	t.Parallel()
+	srv := countsServer(t, map[string][]dashboard.Issue{countsToken: {countIssue(1, "a/x", "A real bug")}})
+	cookie := signInWithBoard(t, srv, "ryan", countsToken, 1)
+	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly"]}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, 2*time.Second, 10*time.Millisecond)
+
+	assert.Equal(t, []*int{new(0)}, getSettings(t, srv.URL, cookie).IgnoredTitleCounts)
+}
