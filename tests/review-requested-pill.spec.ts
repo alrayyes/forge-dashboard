@@ -88,21 +88,15 @@ test.describe('the Review requested from me pill (#695)', () => {
     await open(page);
   });
 
-  test('keeps only the pull requests the server says ask me, on both forges', async ({
+  test('keeps the pull requests the server says ask me, is exclusive, and survives a reload', async ({
     page,
   }) => {
     await pill(page).click();
-
     await expect(pill(page)).toHaveAttribute('aria-pressed', 'true');
     await expect(titles(page)).toHaveCount(2);
     await expect(titles(page).nth(0)).toContainText('Asks me');
     await expect(titles(page).nth(1)).toContainText('Asks me too');
-  });
 
-  test('it is one of the exclusive pills and survives a reload', async ({
-    page,
-  }) => {
-    await pill(page).click();
     await page.reload();
 
     await expect(pill(page)).toHaveAttribute('aria-pressed', 'true');
