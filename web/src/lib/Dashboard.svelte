@@ -5527,11 +5527,6 @@
         Filters.releaseHeld(pick.group, pick.key);
         Filters.saveState(sharedState);
         updateClearFiltersButton();
-        // The button that was pressed is gone; the search box is the
-        // nearest stable place to carry on from.
-        document
-          .querySelector<HTMLInputElement>('.col-filter[data-col="title"]')
-          ?.focus();
       });
     }
 
@@ -7327,7 +7322,7 @@
 
   <!-- Saved picks this page does not offer (#1620). Always in the page, so a
        screen reader hears a line appear in it. -->
-  <div class="held-picks" id="held-picks" role="status"></div>
+  <div class="held-picks" id="held-picks" role="status" tabindex="-1"></div>
 
   <!-- The Filters sheet (#828), phones only: the controls move in here
        while it's open and back when it closes, so every id and handler

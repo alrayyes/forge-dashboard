@@ -84,6 +84,26 @@ const prRows = (page: Page) => page.locator('#pr-rows > .row');
 const nav = (page: Page, name: string) =>
   page.locator(`.app-nav a[href="/${name}.html"]`);
 
+// Seeds the saved copy and waits until the server reports it, so the page
+// opened next reads the seed and not an older write.
+async function seed(
+  page: Page,
+  shared: Record<string, string>,
+  pr: Record<string, string> = {},
+) {
+  await page.request.put('/api/settings/filter-state', {
+    data: { shared, pr, issue: {}, view: {} },
+  });
+  await expect
+    .poll(async () => {
+      const got = await (
+        await page.request.get('/api/settings/filter-state')
+      ).json();
+      return JSON.stringify([got?.shared ?? {}, got?.pr ?? {}]);
+    })
+    .toBe(JSON.stringify([shared, pr]));
+}
+
 test.describe('a saved pick the page does not offer is visible (#1620)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerViaInvite(
@@ -99,15 +119,19 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
     await expect(issueRows(page)).toHaveCount(2);
     await nav(page, 'pull-requests').click();
     await expect(prRows(page)).toHaveCount(2);
+    // The page's own save has to land before a test seeds the server, or the
+    // older write can arrive last and undo the seed.
+    await expect.poll(() => savedAuthor(page)).toBe('ryan');
   });
 
   const note = (page: Page) =>
     page
       .locator('#held-picks')
       .getByText('Saved author "ryan" is not on this page.');
+  // An emptied copy may have no "shared" at all, so a missing one reads as ''.
   const savedAuthor = async (page: Page) =>
-    (await (await page.request.get('/api/settings/filter-state')).json()).shared
-      .author;
+    (await (await page.request.get('/api/settings/filter-state')).json())
+      ?.shared?.author ?? '';
 
   test('says the pick is waiting and offers Clear filters', async ({
     page,
@@ -115,7 +139,7 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
     await expect(note(page)).toBeVisible();
     await expect(page.locator('#shared-author-select')).toHaveValue('');
     await expect(page.locator('#clear-filters-button')).toBeEnabled();
-    expect(await savedAuthor(page)).toBe('ryan');
+    await expect.poll(() => savedAuthor(page)).toBe('ryan');
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -131,7 +155,7 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
 
     await expect(note(page)).toHaveCount(0);
     await expect(page.locator('#clear-filters-button')).toBeDisabled();
-    await expect.poll(() => savedAuthor(page)).toBeFalsy();
+    await expect.poll(() => savedAuthor(page)).toBe('');
 
     await nav(page, 'issues').click();
     await expect(issueRows(page)).toHaveCount(3);
@@ -151,7 +175,7 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
 
     await expect(note(page)).toHaveCount(0);
     await expect(page.locator('#clear-filters-button')).toBeDisabled();
-    await expect.poll(() => savedAuthor(page)).toBeFalsy();
+    await expect.poll(() => savedAuthor(page)).toBe('');
   });
 
   test('fits a 360px phone without sideways scrolling', async ({ page }) => {
@@ -172,5 +196,89 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+});
+
+// These seed the saved copy directly, so they register without holding a pick
+// first: an earlier page's own save could otherwise land after the seed.
+test.describe('seeded saved picks (#1620)', () => {
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerViaInvite(
+      page,
+      request,
+      baseURL,
+      `held-seeded-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+      'Held Seeded',
+    );
+  });
+
+  test('a 300-character value does not push the page sideways', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await seed(page, { author: 'a'.repeat(300) });
+    await open(page, '/pull-requests.html');
+    await expect(prRows(page)).toHaveCount(2);
+
+    const clear = page.locator('#held-picks .held-pick-clear');
+    await expect(clear).toBeVisible();
+    await expect(page.locator('#held-picks')).toContainText('…');
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    const box = await clear.boundingBox();
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(360);
+  });
+
+  test('names a CI pick as a filter', async ({ page }) => {
+    await seed(page, {}, { status: 'failure' });
+    await open(page, '/pull-requests.html');
+    await expect(prRows(page)).toHaveCount(2);
+    await expect(page.locator('#held-picks')).toHaveText(
+      /Saved filter "CI status: Failing" is not on this page\./,
+    );
+  });
+
+  test('after a Clear, focus moves to the next Clear button, then to the note', async ({
+    page,
+  }) => {
+    await seed(page, { author: 'ryan', label: 'bug' });
+    await open(page, '/pull-requests.html');
+    const clears = page.locator('#held-picks .held-pick-clear');
+    await expect(clears).toHaveCount(2);
+
+    await page
+      .getByRole('button', { name: 'Clear saved author "ryan"' })
+      .click();
+    await expect(clears).toHaveCount(1);
+    await expect(
+      page.getByRole('button', { name: 'Clear saved label "bug"' }),
+    ).toBeFocused();
+
+    await page.getByRole('button', { name: 'Clear saved label "bug"' }).click();
+    await expect(clears).toHaveCount(0);
+    await expect(page.locator('#held-picks')).toBeFocused();
+  });
+
+  test('clearing one pick leaves the other line untouched', async ({
+    page,
+  }) => {
+    await seed(page, { author: 'ryan', label: 'bug' });
+    await open(page, '/pull-requests.html');
+    const labelLine = page.locator('#held-picks .held-pick', {
+      hasText: 'label',
+    });
+    await expect(labelLine).toBeVisible();
+    await labelLine.evaluate((n) => {
+      (n as HTMLElement).dataset.kept = 'yes';
+    });
+    await page
+      .getByRole('button', { name: 'Clear saved author "ryan"' })
+      .click();
+    await expect(page.locator('#held-picks .held-pick')).toHaveCount(1);
+    await expect(labelLine).toHaveAttribute('data-kept', 'yes');
   });
 });

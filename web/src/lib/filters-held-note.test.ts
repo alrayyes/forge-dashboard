@@ -1,6 +1,8 @@
 /// <reference types="bun" />
 import { beforeEach, describe, expect, test } from 'bun:test';
 import {
+  heldPickClearLabel,
+  heldPickNote,
   heldPicks,
   holdStale,
   releaseAllHeld,
@@ -54,5 +56,36 @@ describe('heldPicks', () => {
     holdStale(s, 'shared', 'author');
     releaseHeld('shared', 'author');
     expect(heldPicks()).toEqual([]);
+  });
+});
+
+describe('wording', () => {
+  test('names the control for a text kind', () => {
+    const s = state();
+    holdStale(s, 'shared', 'author');
+    const [pick] = heldPicks();
+    expect(heldPickNote(pick)).toBe('Saved author "ryan" is not on this page.');
+    expect(heldPickClearLabel(pick)).toBe('Clear saved author "ryan"');
+  });
+
+  test('says "filter" and names the control for date and CI kinds', () => {
+    const s = state();
+    holdStale(s, 'shared', 'created');
+    holdStale(s, 'pr', 'status');
+    expect(heldPicks().map(heldPickNote)).toEqual([
+      'Saved filter "Created: < 7 days" is not on this page.',
+      'Saved filter "CI status: Failing" is not on this page.',
+    ]);
+  });
+
+  test('cuts a long value short, in the note and the button name', () => {
+    const s = state();
+    s.shared.author = 'x'.repeat(300);
+    holdStale(s, 'shared', 'author');
+    const [pick] = heldPicks();
+    expect(pick.text).toHaveLength(300);
+    expect(heldPickNote(pick).length).toBeLessThan(90);
+    expect(heldPickNote(pick)).toContain('…');
+    expect(heldPickClearLabel(pick).length).toBeLessThan(90);
   });
 });

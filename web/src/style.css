@@ -3611,21 +3611,30 @@ footer a.mono:focus-visible {
 /* A saved pick the page does not offer (#1620): one quiet line under the
    filter bar, with a button that drops it. Empty, it takes no room. */
 .held-picks:not(:empty) {
-  margin: -12px 0 14px;
+  margin: 0 0 14px;
 }
+.held-picks:focus {
+  outline: none;
+}
+/* The text takes the width and wraps (a long value breaks anywhere); the
+   button keeps its own column and one line. */
 .held-pick {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 4px 10px;
+  gap: 0 10px;
   margin: 0;
   font-size: 13px;
   color: var(--ink-2);
+}
+.held-pick span {
+  overflow-wrap: anywhere;
 }
 .held-pick-clear {
   min-width: 44px;
   min-height: 44px;
   padding: 0 14px;
+  white-space: nowrap;
   font-family: inherit;
   font-size: 13px;
   border: 1px solid var(--border-strong);
