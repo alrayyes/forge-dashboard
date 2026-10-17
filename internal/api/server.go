@@ -188,8 +188,8 @@ func NewMux(deps Deps) http.Handler {
 		// guarantee, not a runtime condition to recover from.
 		panic(err)
 	}
-	publicFiles := newStaticHandler(static, false)
-	privateFiles := newStaticHandler(static, true)
+	publicFiles := newStaticHandler(static, false, deps.Version)
+	privateFiles := newStaticHandler(static, true, deps.Version)
 
 	// The dashboard page, the settings page, and the scripts that
 	// populate them all need a session, same as the API they call — an
@@ -231,7 +231,7 @@ func NewMux(deps Deps) http.Handler {
 		writeJSON(w, http.StatusNotFound, errorBody("not found"))
 	})
 
-	return noIndex(accessLogMiddleware(recoverPanics(static, limitRequestBody(mux))))
+	return noIndex(accessLogMiddleware(recoverPanics(static, deps.Version, limitRequestBody(mux))))
 }
 
 // noIndex marks every response, page, script, JSON or error, as not for search
