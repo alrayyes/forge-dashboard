@@ -80,8 +80,9 @@ type dashboardResponse struct {
 	// (#756). Empty on a shared dashboard: it is theirs, not the viewer's.
 	QueuedActions []dashboard.QueuedAction `json:"queuedActions"`
 	// ReadIntervalSeconds is how often a client should re-read the dashboard
-	// (#809). Always the same answer for now; it lives in the response so a
-	// client keeps no interval of its own.
+	// (#809). It lives in the response so a client keeps no interval of its
+	// own. It is short while FirstRefreshDone is false, so the page picks the
+	// data up soon after it is ready, and the normal one from then on.
 	ReadIntervalSeconds int `json:"readIntervalSeconds"`
 }
 
@@ -89,6 +90,22 @@ type dashboardResponse struct {
 // dashboard at. A read serves the cached snapshot and never calls a forge, so
 // this is not the backend's REFRESH_INTERVAL.
 const clientReadInterval = 30 * time.Second
+
+// firstLoadReadInterval is the advice while a viewer's first refresh has not
+// finished: the page is showing a loading state, and a read held for
+// firstLoadWait can come back empty. Waiting the full clientReadInterval then
+// leaves the data unseen for half a minute after it is ready.
+const firstLoadReadInterval = 2 * time.Second
+
+// readInterval is the re-read advice for a response whose flag is done. It
+// takes the flag the builder already computed, so the two cannot disagree.
+func readInterval(done bool) time.Duration {
+	if done {
+		return clientReadInterval
+	}
+
+	return firstLoadReadInterval
+}
 
 // firstLoadWait is how long a read waits for an Aggregator's first refresh
 // before answering with whatever the snapshot holds. A fresh process or a
@@ -270,6 +287,8 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 	filter := loadIssueFilter(ctx, deps.SettingsStore, viewerID)
 	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, filter)
 
+	done := firstRefreshDone(deps.Manager, userID)
+
 	return dashboardResponse{
 		GeneratedAt:    snap.GeneratedAt,
 		Forges:         withRateLimitSeverity(snap.Forges, time.Now()),
@@ -277,7 +296,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 		Issues:         issues,
 		OpenIssueCount: openIssues,
 
-		FirstRefreshDone: firstRefreshDone(deps.Manager, userID),
+		FirstRefreshDone: done,
 
 		SettingsHiddenIssueCount: settingsHidden,
 		HideDependencyDashboard:  filter.hideHousekeeping,
@@ -290,7 +309,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 		AutoMerged:         board.autoMerged(),
 		QueuedActions:      board.queuedActions(),
 
-		ReadIntervalSeconds: int(clientReadInterval / time.Second),
+		ReadIntervalSeconds: int(readInterval(done) / time.Second),
 	}
 }
 
