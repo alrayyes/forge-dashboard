@@ -162,6 +162,21 @@ const cookieCopy = async (page: Page): Promise<Groups> => {
   return c ? JSON.parse(decodeURIComponent(c.value)) : {};
 };
 
+// The cookie alone: the saved copy is refused for the whole check, so a value
+// that shows can only have come from the cookie read at first paint. (Waiting
+// for the copy would let a broken cookie read pass, since expect retries.)
+const COPY_URL = '**/api/settings/filter-state';
+async function withoutServerCopy(page: Page, check: () => Promise<void>) {
+  const refuse = (route: Route) =>
+    route.request().method() === 'GET' ? route.abort() : route.fallback();
+  await page.route(COPY_URL, refuse);
+  try {
+    await check();
+  } finally {
+    await page.unroute(COPY_URL, refuse);
+  }
+}
+
 interface Control {
   name: string;
   boards: Board[];
@@ -400,6 +415,13 @@ for (const board of ALL) {
         await page.reload();
         await loaded(page, board);
         await control.show(page, board);
+
+        // First paint from the cookie alone.
+        await withoutServerCopy(page, async () => {
+          await page.reload();
+          await loaded(page, board);
+          await control.show(page, board);
+        });
 
         // A second browser: no cookie, only the server copy.
         await expect
@@ -666,6 +688,13 @@ test.describe('webhooks: every remembered control', () => {
       await page.reload();
       await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
       await control.show(page);
+
+      // First paint from the cookie alone.
+      await withoutServerCopy(page, async () => {
+        await page.reload();
+        await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+        await control.show(page);
+      });
 
       // A second browser: no cookie, only the server copy.
       await expect
