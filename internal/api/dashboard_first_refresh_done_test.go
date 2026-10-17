@@ -242,3 +242,35 @@ func TestDashboard_FirstRefreshDone_StaysTrueAcrossASettingsSaveRebuild(t *testi
 
 	assert.Equal(t, true, firstRefreshDoneOverHTTP(t, srv.URL, cookie), "the rebuilt Aggregator's pending refresh must not bring the loading state back")
 }
+
+// The case the flag exists for: the process restarted, so a viewer who saved
+// settings long ago has no Aggregator until a read warms one up. Their first
+// read must say false while that refresh runs, and true once it ends.
+func TestDashboard_FirstRefreshDone_AfterARestart_FalseUntilTheWarmedUpRefreshEnds(t *testing.T) {
+	t.Parallel()
+
+	src := &holdSource{release: make(chan struct{}), reachable: true}
+	srv, manager, _ := newTestServerWithFirstLoadWait(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+		if c.GitHubToken != firstRefreshToken {
+			return nil
+		}
+
+		return []dashboard.Source{src}
+	}, false, 50*time.Millisecond)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	apiToken := createAPIToken(t, srv.URL, cookie)
+	put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
+	_ = put.Body.Close()
+	require.Equal(t, http.StatusOK, put.StatusCode)
+
+	// A restart: every Aggregator and mark gone, the saved settings still there.
+	manager.Stop()
+
+	assert.Equal(t, false, firstRefreshDoneOverHTTP(t, srv.URL, cookie), "the warm-up refresh is still running")
+	assert.Equal(t, false, firstRefreshDoneOverMCP(t, srv.URL, apiToken))
+
+	close(src.release)
+
+	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, srv.URL, cookie) == true }, 2*time.Second, 10*time.Millisecond)
+	assert.Equal(t, true, firstRefreshDoneOverMCP(t, srv.URL, apiToken))
+}
