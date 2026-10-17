@@ -35,12 +35,17 @@
   // The notes are commit messages, so a link in them is untrusted: only an
   // http(s) URL becomes an anchor, and anything else (javascript:, data:)
   // stays as the plain text it was written as (#891).
+  //
+  // A link whose label is a pull request number ("#123") or a commit hash is
+  // a reference, not prose: it gets the mono class, so digits line up and a
+  // hash reads as one. Only a link's label is matched, never the prose.
+  const REFERENCE = /^(#\d+|[0-9a-f]{7,40})$/;
   function inline(text: string): string {
     return escapeHTML(text).replace(
       /\[([^\]]+)\]\(([^)]+)\)/g,
       (match, label, url) =>
         /^https?:\/\//.test(url)
-          ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
+          ? `<a href="${url}"${REFERENCE.test(label) ? ' class="mono"' : ""} target="_blank" rel="noopener noreferrer">${label}</a>`
           : match,
     );
   }
@@ -256,9 +261,12 @@
       <li class="release">
         <div class="release-head">
           <h2>
-            {#if r.url}<a href={r.url} target="_blank" rel="noopener noreferrer"
-                >v{r.version}</a
-              >{:else}v{r.version}{/if}
+            {#if r.url}<a
+                class="mono"
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer">v{r.version}</a
+              >{:else}<span class="mono">v{r.version}</span>{/if}
           </h2>
           <time class="release-date" datetime={r.date}
             >{formatDate(r.date)}</time
