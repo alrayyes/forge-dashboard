@@ -189,3 +189,56 @@ func TestDashboardStream_CarriesFirstRefreshDone(t *testing.T) {
 		t.Fatal("no SSE event received")
 	}
 }
+
+// A viewer with no saved settings has no Aggregator and nothing to refresh, so
+// no first refresh will ever end. The flag must not stay false for them.
+func TestDashboard_FirstRefreshDone_TrueForAViewerWithNoSavedSettings(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	apiToken := createAPIToken(t, srv.URL, cookie)
+
+	assert.Equal(t, true, firstRefreshDoneOverHTTP(t, srv.URL, cookie))
+	assert.Equal(t, true, firstRefreshDoneOverMCP(t, srv.URL, apiToken))
+}
+
+// Saving settings rebuilds the Aggregator, and its first refresh is pending
+// again. The viewer has been served already, so the flag must stay true.
+func TestDashboard_FirstRefreshDone_StaysTrueAcrossASettingsSaveRebuild(t *testing.T) {
+	t.Parallel()
+
+	const heldToken = "held-token" // #nosec G101 -- a fake test fixture, not a real credential
+	held := &holdSource{release: make(chan struct{})}
+	t.Cleanup(func() { close(held.release) })
+	srv, _, _ := newTestServerWithFirstLoadWait(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+		switch c.GitHubToken {
+		case firstRefreshToken:
+			return []dashboard.Source{&holdSource{release: closedChan(), reachable: true}}
+		case heldToken:
+			return []dashboard.Source{held}
+		}
+
+		return nil
+	}, false, 50*time.Millisecond)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	save := func(token string) {
+		put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+		_ = put.Body.Close()
+		require.Equal(t, http.StatusOK, put.StatusCode)
+	}
+
+	save(firstRefreshToken)
+	// Let the first refresh end without reading the flag: a read would record
+	// the mark itself, and the rebuild has to carry it on its own. Main branches
+	// waits for the first refresh and never touches the flag.
+	for range 3 {
+		resp := doJSON(t, http.MethodGet, srv.URL+"/api/main-branches", "", cookie)
+		_ = resp.Body.Close()
+		time.Sleep(30 * time.Millisecond)
+	}
+
+	save(heldToken)
+
+	assert.Equal(t, true, firstRefreshDoneOverHTTP(t, srv.URL, cookie), "the rebuilt Aggregator's pending refresh must not bring the loading state back")
+}

@@ -277,7 +277,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 		Issues:         issues,
 		OpenIssueCount: openIssues,
 
-		FirstRefreshDone: deps.Manager.FirstRefreshDone(userID),
+		FirstRefreshDone: firstRefreshDone(deps.Manager, userID),
 
 		SettingsHiddenIssueCount: settingsHidden,
 		HideDependencyDashboard:  filter.hideHousekeeping,
@@ -292,6 +292,16 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 
 		ReadIntervalSeconds: int(clientReadInterval / time.Second),
 	}
+}
+
+// firstRefreshDone is the snapshot's flag for userID. A user with no
+// Aggregator after warmUpAggregator has no saved settings, so nothing will
+// ever refresh for them and nothing is loading: report true, or a page waiting
+// on the flag would show its skeleton forever. Ensuring an empty Aggregator
+// instead would change the stream and refresh endpoints, which answer 404
+// while none runs.
+func firstRefreshDone(m *dashboard.Manager, userID []byte) bool {
+	return m.FirstRefreshDone(userID) || !m.Running(userID)
 }
 
 // boardSettings is what the response is built with besides the snapshot: the
