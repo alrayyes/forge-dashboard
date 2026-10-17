@@ -8,4 +8,7 @@ var (
 
 	NewStaticHandler = newStaticHandler
 	RecoverPanics    = recoverPanics
+
+	InjectFooterVersion = injectFooterVersion
+	StaticFiles         = staticFiles
 )
