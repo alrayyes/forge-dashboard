@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.209.0](https://github.com/alrayyes/forge-dashboard/compare/v0.208.1...v0.209.0) (2026-10-17)
+
+
+### Features
+
+* **settings:** group Settings into five groups with help behind disclosures ([#1718](https://github.com/alrayyes/forge-dashboard/issues/1718)) ([6be0e07](https://github.com/alrayyes/forge-dashboard/commit/6be0e076df473543f4598ffcdee010a1a8a89076))
+
 ## [0.208.1](https://github.com/alrayyes/forge-dashboard/compare/v0.208.0...v0.208.1) (2026-10-17)
 
 
