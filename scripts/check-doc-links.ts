@@ -62,11 +62,16 @@ export function slug(heading: string): string {
   // Code keeps its text, underscores included; emphasis is rendered away
   // first, so _emph_ and *emph* lose their markers but snake_case does not.
   const keep = '\uE000';
+  const img = '\uE001';
   const plain = heading
     .replace(/(`+)([\s\S]*?)\1/g, (_, __, code: string) =>
       code.trim().replace(/_/g, keep),
     )
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // An image renders to an <img> with no text, so its alt text is not in the
+    // slug. A marker keeps the spaces around it from being trimmed, as GitHub
+    // does not trim them either.
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, img)
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/<[^>]+>/g, '')
     .replace(/\*+|~~/g, '')
     .replace(/(^|[^\p{L}\p{N}_])_+(?=[\p{L}\p{N}])/gu, '$1')
@@ -74,7 +79,8 @@ export function slug(heading: string): string {
   return plain
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\p{M}_\- \uE000]/gu, '')
+    .replace(/[^\p{L}\p{N}\p{M}_\- \uE000\uE001]/gu, '')
+    .replaceAll(img, '')
     .replace(/ /g, '-')
     .replaceAll(keep, '_');
 }
@@ -162,7 +168,9 @@ function markdownFiles(root: string): string[] {
 }
 
 const read = (root: string, rel: string): string =>
-  readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
+  readFileSync(path.join(root, rel), 'utf8')
+    .replace(/^\uFEFF/, '')
+    .replace(/\r\n?/g, '\n');
 
 const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
 
@@ -211,7 +219,12 @@ export function checkDocLinks(root: string): Finding[] {
       }
       if (fragment === '' || !rel.endsWith('.md')) continue;
       if (statSync(path.join(root, rel)).isDirectory()) continue;
-      const wanted = decodeURIComponent(fragment).toLowerCase();
+      let wanted: string;
+      try {
+        wanted = decodeURIComponent(fragment).toLowerCase();
+      } catch {
+        wanted = fragment.toLowerCase();
+      }
       const have = anchorsFor(rel, rel === file ? markdown : undefined);
       if (!have.has(wanted)) problem('heading not found');
     }
