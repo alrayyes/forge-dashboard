@@ -428,9 +428,10 @@ paths:
       operationId: getSettings
       summary: The signed-in user's own forge configuration
       description: |
-        Tokens are never returned, before or after being saved — only
-        whether one is currently on file. There is no way to read a saved
-        token back out through this API.
+        Forge tokens are never returned, only whether one is set. The
+        webhook token and secret are returned, since the user pastes them
+        into the forge's webhook setup. The `get_settings` MCP tool omits
+        both and reports `webhookConfigured` instead.
       tags: [settings]
       security: [{ bearerAuth: [] }]
       responses:

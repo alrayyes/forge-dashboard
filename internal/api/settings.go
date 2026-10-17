@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -538,4 +539,54 @@ func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 
 		writeJSON(w, http.StatusOK, TimezoneResponse{Timezone: existing.Timezone})
 	}
+}
+
+// MCPSettingsResponse is get_settings's output: SettingsResponse without the
+// webhook token and secret, which never leave over MCP, plus whether they
+// exist. Kept in step with SettingsResponse by a test that compares the two.
+type MCPSettingsResponse struct {
+	GitHubUsername          string   `json:"githubUsername"`
+	GitHubTokenSet          bool     `json:"githubTokenSet"`
+	GitHubAppInstallationID int64    `json:"githubAppInstallationId"`
+	GitHubAppConfigured     bool     `json:"githubAppConfigured"`
+	ForgejoURL              string   `json:"forgejoUrl"`
+	ForgejoUsername         string   `json:"forgejoUsername"`
+	ForgejoTokenSet         bool     `json:"forgejoTokenSet"`
+	WebhookConfigured       bool     `json:"webhookConfigured"`
+	RenovateRebaseLabel     string   `json:"renovateRebaseLabel"`
+	RenovateAuthors         []string `json:"renovateAuthors"`
+	HideDependencyDashboard bool     `json:"hideDependencyDashboard"`
+	IgnoredTitles           []string `json:"ignoredTitles"`
+	Theme                   string   `json:"theme"`
+	Timezone                string   `json:"timezone"`
+}
+
+var errCouldNotLoadSettings = errors.New("could not load settings")
+
+// resolveSettingsForMCP reads u's saved settings without writing anything: no
+// webhook credentials are created, and the ones that exist are reduced to a
+// flag. A user with no saved row gets the zero settings.
+func resolveSettingsForMCP(ctx context.Context, deps Deps, u *auth.User) (MCPSettingsResponse, error) {
+	creds, err := deps.SettingsStore.Get(ctx, u.ID)
+	if err != nil && !errors.Is(err, settings.ErrNotFound) {
+		return MCPSettingsResponse{}, errCouldNotLoadSettings
+	}
+	full := settingsResponseOf(creds, deps.GitHubAppConfigured)
+
+	return MCPSettingsResponse{
+		GitHubUsername:          full.GitHubUsername,
+		GitHubTokenSet:          full.GitHubTokenSet,
+		GitHubAppInstallationID: full.GitHubAppInstallationID,
+		GitHubAppConfigured:     full.GitHubAppConfigured,
+		ForgejoURL:              full.ForgejoURL,
+		ForgejoUsername:         full.ForgejoUsername,
+		ForgejoTokenSet:         full.ForgejoTokenSet,
+		WebhookConfigured:       creds.WebhookToken != "" && creds.WebhookSecret != "",
+		RenovateRebaseLabel:     full.RenovateRebaseLabel,
+		RenovateAuthors:         full.RenovateAuthors,
+		HideDependencyDashboard: full.HideDependencyDashboard,
+		IgnoredTitles:           full.IgnoredTitles,
+		Theme:                   full.Theme,
+		Timezone:                full.Timezone,
+	}, nil
 }
