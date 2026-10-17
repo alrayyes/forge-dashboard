@@ -4,8 +4,7 @@ Open issues have their own page, `/issues.html`, reached from the **Issues**
 item in the navigation. The item carries a count badge, the number of open
 issues without Renovate's Dependency Dashboard, which the page hides by
 default. The badge is set from each snapshot on the dashboard and issues
-pages, and loaded once on the other signed-in pages. The pull request page no
-longer lists issues.
+pages, and loaded once on the other signed-in pages.
 
 Next to **Hide Dependency Dashboard**, the **Hide titles matching (regex)**
 box hides the issues whose title matches a regular expression. The match is
