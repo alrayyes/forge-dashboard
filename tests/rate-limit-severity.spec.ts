@@ -227,4 +227,57 @@ test.describe('a low rate limit banner stays put while the count moves (#1791)',
     await expect(banner).toContainText('GitHub is rate limited');
     await expect(banner).toHaveAttribute('role', 'alert');
   });
+
+  // #1812: the share left reaches a screen reader as a band in the spoken
+  // label, and the banner is rebuilt only when the band changes.
+  test('the band is in the label, and the node is rebuilt only on a new band', async ({
+    page,
+  }) => {
+    const state: State = { remaining: 200, requests: 0, exhausted: false };
+    await openLow(page, state);
+    const banner = page.locator('#rate-limit-banner');
+    const label = banner.locator('.rate-limit-banner-label');
+    await expect(label).toHaveText(/running low.*under 5% left/);
+    // Not hidden from assistive tech, unlike the ticking count.
+    await expect(label).not.toHaveAttribute('aria-hidden', 'true');
+    await expect(banner.getByText('under 5% left')).toBeVisible();
+
+    // Count only changes to the banner's spoken part: the label.
+    await page.evaluate(() => {
+      const w = window as unknown as { __labelMutations: number };
+      w.__labelMutations = 0;
+      const label = document.querySelector('.rate-limit-banner-label');
+      if (!label) throw new Error('no label');
+      new MutationObserver((l) => {
+        w.__labelMutations += l.length;
+      }).observe(label, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+        attributes: true,
+      });
+    });
+    const labelMutations = () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __labelMutations: number }).__labelMutations,
+      );
+
+    state.remaining = 150;
+    await poll(page, state);
+    state.remaining = 110;
+    await poll(page, state);
+    expect(await labelMutations()).toBe(0);
+
+    // Crossing into a lower band rebuilds the banner once.
+    state.remaining = 60;
+    await poll(page, state);
+    await expect(label).toHaveText(/under 2% left/);
+    const same = await page.evaluate(
+      () =>
+        (window as unknown as { __bannerNode: Element | null }).__bannerNode ===
+        document.getElementById('rate-limit-banner'),
+    );
+    expect(same).toBe(false);
+  });
 });
