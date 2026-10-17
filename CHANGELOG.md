@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.208.0](https://github.com/alrayyes/forge-dashboard/compare/v0.207.0...v0.208.0) (2026-10-17)
+
+
+### Features
+
+* **api:** add a get_version MCP tool for GET /api/version ([#1707](https://github.com/alrayyes/forge-dashboard/issues/1707)) ([956cf72](https://github.com/alrayyes/forge-dashboard/commit/956cf72a25855c28c8b25eb54815a64748606be6)), closes [#1503](https://github.com/alrayyes/forge-dashboard/issues/1503)
+
 ## [0.207.0](https://github.com/alrayyes/forge-dashboard/compare/v0.206.1...v0.207.0) (2026-10-17)
 
 
