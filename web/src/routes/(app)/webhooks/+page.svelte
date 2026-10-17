@@ -296,6 +296,7 @@
   // Clearing disables the button, and a browser drops focus from a button that
   // becomes disabled. A keyboard user is put back on the repo search, the
   // first control of the bar, and the status line says what happened.
+  const FILTERS_CLEARED = "Filters cleared.";
   function clearFilters(event: MouseEvent) {
     const byKeyboard = event.detail === 0;
     filterForge = "";
@@ -304,12 +305,15 @@
     sortKey = "fullName";
     sortDir = "asc";
     onFilterChange(["forge", "repo", "status", "sort", "dir"]);
-    setStatus("Filters cleared.");
+    setStatus(FILTERS_CLEARED);
     if (byKeyboard) document.getElementById("webhooks-repo-filter")?.focus();
   }
 
   function onFilterChange(keys: string[], freeText = false) {
     page = 1;
+    // The notice is about the filters as they were; once one changes it is
+    // stale, and clearing it makes the next clear a real change to announce.
+    if (statusMessage === FILTERS_CLEARED) setStatus("");
     save(keys, freeText);
   }
 

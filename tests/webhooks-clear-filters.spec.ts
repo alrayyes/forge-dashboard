@@ -242,3 +242,58 @@ test('on a phone the button is a 44 px target', async ({
     'Filters cleared.',
   );
 });
+
+test('each clear is announced once, and the notice goes when a filter changes', async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  await signIn(page, request, baseURL);
+  await open(page);
+  // Record every text the polite live region takes on.
+  await page.evaluate(() => {
+    const w = window as unknown as { seen: string[] };
+    w.seen = [];
+    const el = document.getElementById('webhooks-status') as HTMLElement;
+    new MutationObserver(() =>
+      w.seen.push(el.textContent?.trim() ?? ''),
+    ).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+  const announced = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { seen: string[] }).seen.filter(
+          (t) => t === 'Filters cleared.',
+        ).length,
+    );
+  const text = () => page.locator('#webhooks-status').innerText();
+
+  for (const [round, key] of ['Enter', 'Space'].entries()) {
+    await page.locator('#webhooks-status-filter').selectOption('pending');
+    await expect.poll(text).toBe('');
+    await clear(page).focus();
+    await page.keyboard.press(key);
+    await expect(page.locator('#webhooks-status')).toContainText(
+      'Filters cleared.',
+    );
+    expect(await announced()).toBe(round + 1);
+  }
+  // Still there, then gone as soon as a filter changes.
+  await page.locator('#webhooks-repo-filter').fill('a');
+  await expect.poll(text).toBe('');
+});
+
+test('a mouse click clears without moving focus to the repo search', async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  await signIn(page, request, baseURL);
+  await open(page);
+  await page.locator('#webhooks-status-filter').selectOption('pending');
+  await clear(page).click();
+  await expect(clear(page)).toBeDisabled();
+  expect(await page.evaluate(() => document.activeElement?.id)).not.toBe(
+    'webhooks-repo-filter',
+  );
+});
