@@ -110,12 +110,12 @@ test.describe('webhook-triggered live updates', () => {
     // instead means the listener is attached before the fetch can happen.
     await Promise.all([
       page.waitForResponse((res) => res.url().includes('/api/settings')),
-      page.goto('/settings.html'),
+      page.goto('/settings.html#connections'),
     ]);
     await page.fill('#forgejo-url', 'https://forgejo.example.invalid');
     await page.fill('#forgejo-username', 'octocat');
-    await page.click('#save-button');
-    await expect(page.locator('#status')).toHaveText('Saved.');
+    await page.click('#save-connections-button');
+    await expect(page.locator('#connections-status')).toHaveText('Saved.');
 
     const webhookURL = await page.locator('#webhook-url-forgejo').inputValue();
     const secret = await page.locator('#webhook-secret').inputValue();
@@ -194,12 +194,12 @@ test.describe('webhook-triggered live updates', () => {
       // instead means the listener is attached before the fetch can happen.
       await Promise.all([
         page.waitForResponse((res) => res.url().includes('/api/settings')),
-        page.goto('/settings.html'),
+        page.goto('/settings.html#connections'),
       ]);
       await page.fill('#forgejo-url', forgejoURL);
       await page.fill('#forgejo-token', 'fj_test_token');
-      await page.click('#save-button');
-      await expect(page.locator('#status')).toHaveText('Saved.');
+      await page.click('#save-connections-button');
+      await expect(page.locator('#connections-status')).toHaveText('Saved.');
 
       const webhookURL = await page
         .locator('#webhook-url-forgejo')
@@ -292,12 +292,12 @@ test.describe('webhook-triggered live updates', () => {
       // instead means the listener is attached before the fetch can happen.
       await Promise.all([
         page.waitForResponse((res) => res.url().includes('/api/settings')),
-        page.goto('/settings.html'),
+        page.goto('/settings.html#connections'),
       ]);
       await page.fill('#forgejo-url', forgejoURL);
       await page.fill('#forgejo-token', 'fj_test_token');
-      await page.click('#save-button');
-      await expect(page.locator('#status')).toHaveText('Saved.');
+      await page.click('#save-connections-button');
+      await expect(page.locator('#connections-status')).toHaveText('Saved.');
 
       const webhookURL = await page
         .locator('#webhook-url-forgejo')

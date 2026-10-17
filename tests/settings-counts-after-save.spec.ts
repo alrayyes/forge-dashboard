@@ -110,7 +110,7 @@ async function untilGets(page: Page, server: { gets: number }, total: number) {
 
 async function firstSave(page: Page, pattern: string) {
   await page.clock.install();
-  await page.goto('/settings.html');
+  await page.goto('/settings.html#behaviour');
   await expect(
     section(page).getByRole('heading', { name: 'Issues' }),
   ).toBeVisible();
