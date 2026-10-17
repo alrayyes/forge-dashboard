@@ -97,6 +97,16 @@ func newTestServerWithAutoMerge(tb testing.TB, buildSources func([]byte, setting
 // holding a refresh open needs it short, or its read blocks for the default.
 func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
 	tb.Helper()
+	srv, manager, authStore, _ := newTestServerWithSettingsStore(tb, buildSources, autoMerge, firstLoadWait)
+
+	return srv, manager, authStore
+}
+
+// newTestServerWithSettingsStore is newTestServerWithFirstLoadWait plus the
+// *settings.Store, for a test that asserts what the store holds after a call
+// (say, that a read created no webhook credentials).
+func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration) (*httptest.Server, *dashboard.Manager, *authpkg.Store, *settingspkg.Store) {
+	tb.Helper()
 
 	db, err := sql.Open("sqlite", filepath.Join(tb.TempDir(), "app.db"))
 	require.NoError(tb, err)
@@ -146,7 +156,7 @@ func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func([]byte, set
 	srv := httptest.NewServer(mux)
 	tb.Cleanup(srv.Close)
 
-	return srv, manager, authStore
+	return srv, manager, authStore, settingsStore
 }
 
 func testEncryptionKey(tb testing.TB) string {

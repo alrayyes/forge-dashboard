@@ -195,14 +195,14 @@ func addSettingsTool(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 			"Read-only: it writes nothing, and never creates webhook credentials. The " +
 			"webhook token and secret are never returned over MCP; read them in the web " +
 			"UI's Settings page.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, MCPSettingsResponse, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, SettingsSummary, error) {
 		if !ok {
-			return nil, MCPSettingsResponse{}, errNoAuthenticatedUser
+			return nil, SettingsSummary{}, errNoAuthenticatedUser
 		}
 
-		resp, err := resolveSettingsForMCP(ctx, deps, u)
+		resp, err := resolveSettingsSummary(ctx, deps, u)
 		if err != nil {
-			return nil, MCPSettingsResponse{}, err
+			return nil, SettingsSummary{}, err
 		}
 
 		return nil, resp, nil

@@ -130,6 +130,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/mcp", mcpHandler)
 	mux.Handle("DELETE /api/mcp", mcpHandler)
 	mux.Handle("GET /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsGet(deps)))
+	mux.Handle("GET /api/settings/summary", auth.RequireAuth(deps.AuthStore)(handleSettingsSummaryGet(deps)))
 	mux.Handle("PUT /api/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 	mux.Handle("GET /api/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemeGet(deps.SettingsStore)))
 	mux.Handle("PUT /api/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemePut(deps.SettingsStore)))
