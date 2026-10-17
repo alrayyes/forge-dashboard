@@ -219,4 +219,32 @@ test.describe('the forge health live region (WCAG 4.1.3)', () => {
     await expect(page.locator(LIVE)).toContainText(/rate limited/i);
     expect(await mutations(page)).toBeGreaterThan(low);
   });
+
+  // #1812: the share left is spoken in coarse bands, so it reaches a
+  // screen reader without being read out on every poll.
+  test('a low budget speaks its band, and again only when the band changes', async ({
+    page,
+  }) => {
+    const reset = new Date(Date.now() + 40 * 60_000).toISOString();
+    const at = (remaining: number) =>
+      up({ rateLimitREST: rateLimit(5000, remaining, reset) });
+    const state = { forge: at(4000), requests: 0 };
+    await open(page, state);
+
+    state.forge = at(200);
+    await poll(page, state);
+    await expect(page.locator(LIVE)).toContainText(/rate limit low.*under 5%/i);
+    const first = await mutations(page);
+
+    state.forge = at(150);
+    await poll(page, state);
+    state.forge = at(110);
+    await poll(page, state);
+    expect(await mutations(page)).toBe(first);
+
+    state.forge = at(60);
+    await poll(page, state);
+    await expect(page.locator(LIVE)).toContainText(/under 2%/i);
+    expect(await mutations(page)).toBeGreaterThan(first);
+  });
 });
