@@ -377,3 +377,152 @@ func TestForgejoClient_ReviewState_AgainstARealInstance(t *testing.T) {
 	require.Equal(t, dashboard.ReviewApproved, state.Decision)
 	require.Equal(t, 1, state.Approvals)
 }
+
+// rawRequest is request without the "must succeed" check: it returns the
+// status and body as Forgejo sent them, for calls the test expects to be
+// refused.
+func (f *forgejoFixture) rawRequest(t *testing.T, method, path string, body any) (int, string) {
+	t.Helper()
+	var reqBody bytes.Buffer
+	if body != nil {
+		require.NoError(t, json.NewEncoder(&reqBody).Encode(body))
+	}
+	req, err := http.NewRequestWithContext(t.Context(), method, f.baseURL+"/api/v1"+path, &reqBody)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "token "+f.token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	var out bytes.Buffer
+	_, err = out.ReadFrom(resp.Body)
+	require.NoError(t, err)
+
+	return resp.StatusCode, out.String()
+}
+
+// TestForgejoClient_ActionsOnFinishedPullRequests_AgainstARealInstance proves
+// what the stubbed unit tests can only assume: that a pull request already
+// merged or closed on the forge is read back as such, and that the dashboard's
+// merge and close attempts on it classify as already_merged or already_closed.
+func TestForgejoClient_ActionsOnFinishedPullRequests_AgainstARealInstance(t *testing.T) {
+	ctx := t.Context()
+
+	baseURL, container := startForgejo(t)
+	token := createAdminToken(t, container)
+	fixture := &forgejoFixture{baseURL: baseURL, token: token}
+	client := forgejo.NewClient(baseURL, token, "")
+
+	// Two pull requests with their own head branches, so each can finish
+	// differently without the other's merge making it conflict.
+	fixture.createRepo(t, "doodads")
+	for _, branch := range []string{"merged-one", "closed-one"} {
+		fixture.request(t, http.MethodPost, "/repos/testadmin/doodads/branches", map[string]any{
+			"new_branch_name": branch, "old_branch_name": "main",
+		})
+		fixture.request(t, http.MethodPost, "/repos/testadmin/doodads/contents/"+branch+".txt", map[string]any{
+			"branch": branch, "content": base64.StdEncoding.EncodeToString([]byte(branch)), "message": branch,
+		})
+		fixture.request(t, http.MethodPost, "/repos/testadmin/doodads/pulls", map[string]any{
+			"head": branch, "base": "main", "title": branch,
+		})
+	}
+	// The merge answers with an empty body, which request can't decode.
+	status, body := fixture.rawRequest(t, http.MethodPost, "/repos/testadmin/doodads/pulls/1/merge", map[string]any{"Do": "merge"})
+	require.Less(t, status, 300, body)
+	fixture.request(t, http.MethodPatch, "/repos/testadmin/doodads/pulls/2", map[string]any{"state": "closed"})
+
+	merged, err := client.ReadPullRequestState(ctx, "testadmin", "doodads", 1)
+	require.NoError(t, err)
+	require.True(t, merged.Merged)
+
+	closed, err := client.ReadPullRequestState(ctx, "testadmin", "doodads", 2)
+	require.NoError(t, err)
+	require.True(t, closed.Closed)
+	require.False(t, closed.Merged)
+
+	for name, tc := range map[string]struct {
+		number int
+		state  dashboard.PullRequestState
+		want   dashboard.ActionCode
+	}{
+		"merged": {1, merged, dashboard.ActionAlreadyMerged},
+		"closed": {2, closed, dashboard.ActionAlreadyClosed},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mergeErr := client.MergePullRequest(ctx, "testadmin", "doodads", tc.number)
+			require.Error(t, mergeErr)
+			t.Logf("merge %s: %v", name, mergeErr)
+			require.Equal(t, tc.want, dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionMerge, mergeErr, &tc.state).Code)
+
+			// Forgejo refuses to close a merged pull request ("it was already
+			// merged"), but closing an already closed one succeeds: there is
+			// no already_closed refusal to classify on Close.
+			closeErr := client.ClosePullRequest(ctx, "testadmin", "doodads", tc.number)
+			t.Logf("close %s: %v", name, closeErr)
+			if tc.want == dashboard.ActionAlreadyClosed {
+				require.NoError(t, closeErr)
+
+				return
+			}
+			require.Error(t, closeErr)
+			require.Equal(t, tc.want, dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionClose, closeErr, &tc.state).Code)
+		})
+	}
+}
+
+// TestForgejoClient_ScheduledMerge_AgainstARealInstance proves the timeline
+// event names the scheduled-merge reader depends on: a merge scheduled in
+// Forgejo shows as auto-merging, and cancelling it stops showing it.
+func TestForgejoClient_ScheduledMerge_AgainstARealInstance(t *testing.T) {
+	ctx := t.Context()
+
+	baseURL, container := startForgejo(t)
+	token := createAdminToken(t, container)
+	fixture := &forgejoFixture{baseURL: baseURL, token: token}
+	client := forgejo.NewClient(baseURL, token, "")
+
+	fixture.createRepo(t, "sprockets")
+	fixture.createPullRequestWithStatus(t, "testadmin", "sprockets", "Add widget.txt", "pending")
+
+	autoMerging := func() *bool {
+		t.Helper()
+		prs, err := client.ListOpenPullRequests(ctx, "testadmin", "sprockets", "testadmin/sprockets")
+		require.NoError(t, err)
+		require.Len(t, prs, 1)
+
+		return prs[0].AutoMergeEnabled
+	}
+	timelineTypes := func() []string {
+		t.Helper()
+		status, body := fixture.rawRequest(t, http.MethodGet, "/repos/testadmin/sprockets/issues/1/timeline", nil)
+		require.Equal(t, http.StatusOK, status)
+		var events []struct {
+			Type string `json:"type"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &events))
+		types := make([]string, 0, len(events))
+		for _, e := range events {
+			types = append(types, e.Type)
+		}
+
+		return types
+	}
+
+	status, body := fixture.rawRequest(t, http.MethodPost, "/repos/testadmin/sprockets/pulls/1/merge",
+		map[string]any{"Do": "merge", "merge_when_checks_succeed": true})
+	t.Logf("schedule: %d %s", status, body)
+	require.Less(t, status, 300)
+	t.Logf("timeline after schedule: %v", timelineTypes())
+	got := autoMerging()
+	require.NotNil(t, got)
+	require.True(t, *got, "a merge scheduled in the web UI should show as auto-merging")
+
+	status, body = fixture.rawRequest(t, http.MethodDelete, "/repos/testadmin/sprockets/pulls/1/merge", nil)
+	t.Logf("cancel: %d %s", status, body)
+	require.Less(t, status, 300)
+	t.Logf("timeline after cancel: %v", timelineTypes())
+	got = autoMerging()
+	require.NotNil(t, got)
+	require.False(t, *got, "a cancelled schedule should stop showing as auto-merging")
+}
