@@ -63,6 +63,8 @@ jobs:
         run: scripts/test-hadolint-pin.sh
       - name: check the audit gate and scan shape
         run: scripts/test-audit-workflows.sh
+      - name: check the spec has no ticket references
+        run: scripts/test-check-openapi-no-ticket-refs.sh
       - name: changed areas
         id: areas
         env:
