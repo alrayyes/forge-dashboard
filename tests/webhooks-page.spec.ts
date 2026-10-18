@@ -804,7 +804,7 @@ test.describe('webhooks page', () => {
       row.getByRole('button', { name: 'Add a webhook' }),
     ).toHaveCount(0);
     await expect(row).toContainText(/admin access/i);
-    await expect(row).toContainText(/check your token's scope/i);
+    await expect(row).toContainText(/check your token's\s+scope/i);
     await expect(
       row.getByRole('link', { name: 'set it up manually' }),
     ).toHaveAttribute('href', '/settings.html#webhooks');
