@@ -21,9 +21,13 @@ import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 // shows up.
 
 const PHONE = { width: 375, height: 800, target: 44 } as const;
+// Between the old 600px card breakpoint and the 761px phone rule.
+const NARROW = { width: 700, height: 900, target: 44 } as const;
 const TABLET = { width: 768, height: 900, target: 24 } as const;
 const DESKTOP = { width: 1280, height: 900, target: 24 } as const;
 const SIZES = [PHONE, TABLET, DESKTOP];
+// The Webhooks sweeps add 700px; other pages are not swept there yet.
+const WITH_NARROW = [PHONE, NARROW, TABLET, DESKTOP];
 
 type Sweep = { checked: number; offenders: string[] };
 
@@ -198,9 +202,18 @@ async function sweepAll(
   page: Page,
   label: string,
   problems: string[],
-  options: { overlap?: boolean; within?: string } = {},
+  options: {
+    overlap?: boolean;
+    within?: string;
+    sizes?: readonly (
+      | typeof PHONE
+      | typeof NARROW
+      | typeof TABLET
+      | typeof DESKTOP
+    )[];
+  } = {},
 ) {
-  for (const size of SIZES) {
+  for (const size of options.sizes ?? SIZES) {
     await page.setViewportSize({ width: size.width, height: size.height });
     // Let the layout and any container-driven change settle.
     await page.evaluate(
@@ -596,7 +609,9 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
     await expect(
       page.getByRole('button', { name: 'Clear filters' }),
     ).toBeEnabled();
-    await sweepAll(page, '/webhooks.html with repos', problems);
+    await sweepAll(page, '/webhooks.html with repos', problems, {
+      sizes: WITH_NARROW,
+    });
     expectNone(problems);
   });
 
@@ -634,6 +649,7 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
     ).toBeEnabled();
     // Scoped to the filter bar; the whole page is swept in the case above.
     await sweepAll(page, '/webhooks.html (filtered)', problems, {
+      sizes: WITH_NARROW,
       within: '#webhooks-filter-bar',
     });
     expectNone(problems);

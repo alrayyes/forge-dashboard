@@ -31,6 +31,11 @@ the page as on the other lists. It is enabled while any of them differs from
 its default, and puts them all back, including after a saved repo search that
 matches nothing.
 
+On a phone the table turns into cards and its header is hidden. A "Sort by"
+select above the cards takes over, with the same choices as the column
+headers: repo, forge or webhook, in either direction. It is the same saved
+sort, so a choice made on a phone shows in the column headers on a wide screen.
+
 ## The easy way: "Add a webhook"
 
 On the Webhooks page, a repo without a confirmed webhook gets an "Add a
