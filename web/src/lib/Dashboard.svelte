@@ -4011,6 +4011,32 @@
       return group;
     }
 
+    // The one request behind every "Rerun failed checks" button: the pipeline
+    // dialog's and the details dialog's footer. The forge queues the jobs.
+    function postRerunChecks(item: PullRequestItem): Promise<void> {
+      return fetch("/api/pull-requests/rerun-checks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          forge: item.forge,
+          fullName: item.repo,
+          number: item.number,
+        }),
+      }).then((res) => {
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          throw new Error("session expired");
+        }
+        if (res.status === 204) return;
+        return readActionFailure(res).then((err) => {
+          throw err;
+        });
+      });
+    }
+
     // "Rerun failed checks" (#698), shown only where the server lists
     // rerun_checks for this pull request and something actually failed. The
     // forge queues the jobs; the next refresh carries their result.
@@ -4044,28 +4070,7 @@
         button.disabled = true;
         clearFailure();
         status.textContent = "Queuing the rerun…";
-        fetch("/api/pull-requests/rerun-checks", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            forge: item.forge,
-            fullName: item.repo,
-            number: item.number,
-          }),
-        })
-          .then((res) => {
-            if (res.status === 401) {
-              window.location.href = "/login.html";
-              throw new Error("session expired");
-            }
-            if (res.status === 204) return;
-            return readActionFailure(res).then((err) => {
-              throw err;
-            });
-          })
+        postRerunChecks(item)
           .then(() => {
             status.textContent =
               "Rerun queued. The new results show here after the next refresh.";
