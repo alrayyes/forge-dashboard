@@ -1,12 +1,16 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
+import { registerViaInvite } from './register-helper';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // A pull request row opens its dialog from the title button, stretched over
 // the whole row; the Details pill is gone. Mocks /api/dashboard and the
 // details endpoint only and writes no per-user state, so it starts from the
-// shared session.
+// shared session. Two tests are the exception: one re-sorts the list and
+// one clicks a label chip, and the server saves both for the user. On the
+// shared user they changed what every later spec saw, so they have a user of
+// their own.
 test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 const NOW = new Date();
@@ -147,49 +151,6 @@ test.describe('a pull request row opens its dialog', () => {
     await expect(titleButton(page)).toBeFocused();
   });
 
-  test('focus returns to the new title button when the list was rebuilt meanwhile', async ({
-    page,
-  }) => {
-    await page.evaluate(() => {
-      (
-        document.querySelector('#pr-rows .row .title') as HTMLElement & {
-          __old?: boolean;
-        }
-      ).__old = true;
-    });
-    await titleButton(page).click();
-    await expect(dialog(page)).toBeVisible();
-    // Re-sort behind the modal: the rows are rebuilt.
-    await page.evaluate(() => {
-      const select = document.querySelector(
-        '#pr-sort-select',
-      ) as HTMLSelectElement;
-      select.value = select.value === 'repo' ? 'updated' : 'repo';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await page.keyboard.press('Escape');
-    await expect(dialog(page)).toBeHidden();
-    await expect(titleButton(page)).toBeFocused();
-    const rebuilt = await titleButton(page).evaluate(
-      (el) => !(el as HTMLElement & { __old?: boolean }).__old,
-    );
-    expect(rebuilt).toBe(true);
-  });
-
-  test('the CI pill and a label do what they did and do not open the dialog', async ({
-    page,
-  }) => {
-    await row(page).getByRole('button', { name: 'Open pipeline' }).click();
-    await expect(dialog(page)).toBeHidden();
-    await expect(
-      page.getByRole('dialog', { name: 'Pipeline checks' }),
-    ).toBeVisible();
-    await page.keyboard.press('Escape');
-    await row(page).locator('.label-chip').click();
-    await expect(dialog(page)).toBeHidden();
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-  });
-
   test('dragging across the title to select text does not open the dialog', async ({
     page,
   }) => {
@@ -326,4 +287,67 @@ test.describe('on the other pages and on a phone', () => {
       expect(results.violations).toEqual([]);
     });
   }
+});
+
+test.describe('a pull request row opens its dialog: saved choices', () => {
+  // Not the shared session: the server saves a re-sort and a label filter for
+  // the user.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await registerViaInvite(
+      page,
+      request,
+      baseURL,
+      `row-opens-dialog-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+      'Row Opens Dialog',
+    );
+    await mockDashboard(page, [makePR(42), makePR(43)]);
+    await mockDetails(page);
+    await page.goto('/pull-requests.html');
+    await expect(row(page)).toBeVisible();
+  });
+
+  test('focus returns to the new title button when the list was rebuilt meanwhile', async ({
+    page,
+  }) => {
+    await page.evaluate(() => {
+      (
+        document.querySelector('#pr-rows .row .title') as HTMLElement & {
+          __old?: boolean;
+        }
+      ).__old = true;
+    });
+    await titleButton(page).click();
+    await expect(dialog(page)).toBeVisible();
+    // Re-sort behind the modal: the rows are rebuilt.
+    await page.evaluate(() => {
+      const select = document.querySelector(
+        '#pr-sort-select',
+      ) as HTMLSelectElement;
+      select.value = select.value === 'repo' ? 'updated' : 'repo';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    await expect(titleButton(page)).toBeFocused();
+    const rebuilt = await titleButton(page).evaluate(
+      (el) => !(el as HTMLElement & { __old?: boolean }).__old,
+    );
+    expect(rebuilt).toBe(true);
+  });
+
+  test('the CI pill and a label do what they did and do not open the dialog', async ({
+    page,
+  }) => {
+    await row(page).getByRole('button', { name: 'Open pipeline' }).click();
+    await expect(dialog(page)).toBeHidden();
+    await expect(
+      page.getByRole('dialog', { name: 'Pipeline checks' }),
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
+    await row(page).locator('.label-chip').click();
+    await expect(dialog(page)).toBeHidden();
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+  });
 });
