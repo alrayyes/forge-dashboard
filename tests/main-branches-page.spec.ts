@@ -375,6 +375,62 @@ test.describe('Main branches page (#1224, #1279)', () => {
     }
   });
 
+  test('a row with a status but no run URL gets a plain pill, never an empty link', async ({
+    page,
+  }) => {
+    await mock(
+      page,
+      snapshot([
+        row('acme/failed-blank', 'failed', { runUrl: '' }),
+        row('acme/running-blank', 'running', { runUrl: '' }),
+        row('acme/passed-blank', 'passed', { runUrl: '' }),
+      ]),
+    );
+    await page.goto('/');
+    await expect(rows(page)).toHaveCount(3);
+    await expect(page.locator('a[href=""]')).toHaveCount(0);
+    await expect(rows(page).locator('.ci-slot a')).toHaveCount(0);
+    await expect(rows(page).locator('.ci-slot .ci-pill')).toHaveText([
+      'Failed',
+      'Running',
+      'Passed',
+    ]);
+  });
+
+  test('hovering the pill underlines it and leaves the colours alone, so contrast holds', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await page.goto('/');
+    for (const theme of ['light', 'dark']) {
+      await setTheme(page, theme);
+      await page.reload();
+      for (const n of [0, 2, 3]) {
+        const pill = rows(page).nth(n).locator('a.ci-pill');
+        const read = () =>
+          pill.evaluate((el) => {
+            const cs = getComputedStyle(el);
+            return {
+              filter: cs.filter,
+              color: cs.color,
+              background: cs.backgroundColor,
+              underline: cs.textDecorationLine,
+            };
+          });
+        await page.mouse.move(0, 0);
+        const rest = await read();
+        await pill.hover();
+        const hover = await read();
+        expect(hover.filter).toBe('none');
+        expect(hover.color).toBe(rest.color);
+        expect(hover.background).toBe(rest.background);
+        expect(hover.underline).toContain('underline');
+        expect(rest.underline).toBe('none');
+      }
+    }
+    await setTheme(page, 'light');
+  });
+
   test('the pill opens from the keyboard and the Failing jobs toggle still works beside it', async ({
     page,
   }) => {
@@ -385,10 +441,13 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await pill.focus();
     await expect(pill).toBeFocused();
     // Enter on a link opens it in a new tab.
+    // The popup is a new page, so the stand-in goes on the context.
+    await page
+      .context()
+      .route('https://example.com/**', (route) =>
+        route.fulfill({ status: 200, body: 'run' }),
+      );
     const popup = page.waitForEvent('popup');
-    await page.route('https://example.com/**', (route) =>
-      route.fulfill({ status: 200, body: 'run' }),
-    );
     await page.keyboard.press('Enter');
     expect((await popup).url()).toBe(
       'https://example.com/acme/ingress-controller/actions/runs/1',

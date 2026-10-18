@@ -450,21 +450,21 @@
       grid-column: 2;
       grid-row: 2;
     }
-    /* The pill opens the run, and there's room for it now View run is gone:
-       a taller pill with a larger label, 32px on a desktop and 44px on a
+    /* The pill is the row's one way to the run, so it is a real control: a
+       taller pill with a larger label, 32px on a desktop and 44px on a
        phone, in the same colours as the pull request board's. */
     .mb-row .ci-slot {
       width: auto;
       min-width: 120px;
     }
-    .mb-row a.ci-pill {
+    .mb-row .ci-pill {
       box-sizing: border-box;
       justify-content: center;
       min-height: 32px;
       padding: 6px 14px;
       font-size: 13px;
     }
-    .mb-row a.ci-pill .check-glyph {
+    .mb-row .ci-pill .check-glyph {
       width: 14px;
       height: 14px;
     }
@@ -506,7 +506,7 @@
       }
     }
     @media (max-width: 760px) {
-      .mb-row a.ci-pill {
+      .mb-row .ci-pill {
         min-height: 44px;
       }
     }
@@ -625,14 +625,17 @@
               <div class="ci-slot mb-status" data-status={b.status}>
                 {#if CI_SLOT[b.status]}
                   {@const slot = CI_SLOT[b.status]!}
-                  <a
+                  <!-- A run URL makes the pill the link to the run; without
+                       one it is a plain pill, never an empty link. -->
+                  <svelte:element
+                    this={b.runUrl ? "a" : "span"}
                     class="ci-pill {slot.cls}"
-                    href={b.runUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="{STATUS_LABEL[
-                      b.status
-                    ]}. Open run (opens in a new tab)"
+                    href={b.runUrl || undefined}
+                    target={b.runUrl ? "_blank" : undefined}
+                    rel={b.runUrl ? "noopener noreferrer" : undefined}
+                    aria-label={b.runUrl
+                      ? `${STATUS_LABEL[b.status]}. Open run (opens in a new tab)`
+                      : undefined}
                   >
                     {#each CHECK_GLYPHS[slot.glyphs] as g (g.name)}
                       <svg
@@ -647,7 +650,7 @@
                       </svg>
                     {/each}
                     {STATUS_LABEL[b.status]}
-                  </a>
+                  </svelte:element>
                 {:else}
                   <span class="attr-chip mb-nopipe">
                     <svg
