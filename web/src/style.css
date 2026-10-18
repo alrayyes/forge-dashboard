@@ -2680,8 +2680,7 @@ footer a.mono:focus-visible {
     grid-template-areas:
       "repo go"
       "title title"
-      "meta meta"
-      "author created updated";
+      "meta meta";
     row-gap: 6px;
     padding: 13px 16px;
   }
@@ -2690,15 +2689,6 @@ footer a.mono:focus-visible {
   }
   .row .go {
     grid-area: go;
-  }
-  .row .author {
-    grid-area: author;
-  }
-  .row .created {
-    grid-area: created;
-  }
-  .row .updated {
-    grid-area: updated;
   }
   /* Below this width the title wraps instead of truncating with an
      ellipsis — the .title-cell/.title flex-wrap and flex-basis:100% that

@@ -1471,9 +1471,9 @@
       }
 
       const meta = el("div", "row-meta");
-      row.appendChild(el("div", "author", item.author));
-      row.appendChild(timeCell("created", "Created", item.createdAt));
-      row.appendChild(timeCell("updated", "Updated", item.updatedAt));
+      meta.appendChild(el("div", "author", item.author));
+      meta.appendChild(timeCell("created", "Created", item.createdAt));
+      meta.appendChild(timeCell("updated", "Updated", item.updatedAt));
       if (isPR) {
         const pr = item as PullRequestItem;
         // One cell, possibly several pills — keeps .row's fixed
