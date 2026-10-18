@@ -1347,7 +1347,12 @@ button.title:focus-visible {
   min-height: 24px;
 }
 
-button.ci-pill:hover {
+a.ci-pill {
+  text-decoration: none;
+}
+
+button.ci-pill:hover,
+a.ci-pill:hover {
   filter: brightness(0.95);
 }
 

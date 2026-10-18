@@ -302,7 +302,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await mock(page, snapshot(MIXED));
     await page.goto('/');
     const failed = rows(page).first();
-    const link = failed.getByRole('link', { name: /View run/ });
+    const link = failed.getByRole('link', { name: /^Failed\. Open run/ });
     await expect(link).toHaveAttribute(
       'href',
       'https://example.com/acme/ingress-controller/actions/runs/1',
@@ -327,28 +327,92 @@ test.describe('Main branches page (#1224, #1279)', () => {
     ).toHaveCount(0);
   });
 
-  test('the repo and View run links open in a new tab and say so (#1266)', async ({
+  test('the repo link and the status pill open in a new tab and say so', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
     await page.goto('/');
     const failed = rows(page).first();
+    const pill = failed.locator('a.ci-pill');
 
-    for (const link of [
-      failed.locator('a.mb-repo'),
-      failed.getByRole('link', { name: /View run/ }),
-    ]) {
+    for (const link of [failed.locator('a.mb-repo'), pill]) {
       await expect(link).toHaveAttribute('target', '_blank');
       await expect(link).toHaveAttribute('rel', /noopener/);
       await expect(link).toHaveAccessibleName(/opens in a new tab/);
     }
-    // The name still carries the words on screen (WCAG 2.5.3).
+    // The name starts with the words on screen (WCAG 2.5.3).
     await expect(failed.locator('a.mb-repo')).toHaveAccessibleName(
       /acme\/ingress-controller/,
     );
-    await expect(
-      failed.getByRole('link', { name: /View run/ }),
-    ).toHaveAccessibleName(/^View run/);
+    await expect(pill).toHaveText('Failed');
+    await expect(pill).toHaveAccessibleName(
+      'Failed. Open run (opens in a new tab)',
+    );
+    await expect(pill).toHaveAttribute(
+      'href',
+      'https://example.com/acme/ingress-controller/actions/runs/1',
+    );
+  });
+
+  test('every row with a run has a pill link named for its status, and there is no View run', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await page.goto('/');
+    await expect(rows(page)).toHaveCount(6);
+    await expect(page.getByText('View run')).toHaveCount(0);
+    await expect(page.locator('.mb-action, .mb-actions')).toHaveCount(0);
+    for (const [n, word] of [
+      [0, 'Failed'],
+      [2, 'Running'],
+      [3, 'Passed'],
+    ] as const) {
+      const link = rows(page).nth(n).locator('a.ci-pill');
+      await expect(link).toHaveAccessibleName(
+        `${word}. Open run (opens in a new tab)`,
+      );
+      expect(await link.getAttribute('href')).toMatch(/^https?:\/\//);
+    }
+  });
+
+  test('the pill opens from the keyboard and the Failing jobs toggle still works beside it', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await page.goto('/');
+    const failed = rows(page).first();
+    const pill = failed.locator('a.ci-pill');
+    await pill.focus();
+    await expect(pill).toBeFocused();
+    // Enter on a link opens it in a new tab.
+    const popup = page.waitForEvent('popup');
+    await page.route('https://example.com/**', (route) =>
+      route.fulfill({ status: 200, body: 'run' }),
+    );
+    await page.keyboard.press('Enter');
+    expect((await popup).url()).toBe(
+      'https://example.com/acme/ingress-controller/actions/runs/1',
+    );
+    const toggle = failed.getByRole('button', { name: /failing jobs/i });
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('the status pill is larger than the pull request board pill: 32px on desktop, 44px on a phone', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/');
+    const pill = rows(page).first().locator('a.ci-pill');
+    await expect(pill).toBeVisible();
+    expect((await pill.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+    for (const n of [0, 2, 3]) {
+      const box = await rows(page).nth(n).locator('a.ci-pill').boundingBox();
+      expect(box?.width ?? 0).toBeGreaterThanOrEqual(32);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect((await pill.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
   });
 
   test('a repo with no pipeline says no run was found and has no commit to show', async ({
@@ -361,6 +425,8 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await page.goto('/');
     const only = rows(page).first();
     await expect(only.locator('.mb-status')).toContainText('No pipeline');
+    await expect(only.getByRole('link', { name: /open run/i })).toHaveCount(0);
+    await expect(only.locator('.mb-status a')).toHaveCount(0);
     await expect(only).toContainText('No run was found');
   });
 
@@ -495,7 +561,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
     const failed = rows(page).first();
     await expect(failed).toBeVisible();
     for (const control of [
-      failed.getByRole('link', { name: /View run/ }),
+      failed.locator('a.ci-pill'),
       failed.getByRole('button', { name: /failing jobs/i }),
       pill(page, /^Failing \d/),
       pill(page, /^All 6$/),

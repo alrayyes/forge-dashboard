@@ -281,7 +281,6 @@
       color: var(--accent-ink);
     }
     .mb-pill:focus-visible,
-    .mb-action:focus-visible,
     .mb-toggle:focus-visible,
     .mb-search:focus-visible {
       outline: 2px solid var(--accent);
@@ -399,12 +398,6 @@
       align-items: flex-end;
       gap: 6px;
     }
-    .mb-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .mb-action,
     .mb-toggle {
       display: inline-flex;
       align-items: center;
@@ -420,12 +413,6 @@
       border-radius: var(--radius);
       text-decoration: none;
       cursor: pointer;
-    }
-    .mb-action {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: var(--accent-ink);
-      font-weight: 600;
     }
     .mb-jobs {
       grid-column: 1 / -1;
@@ -463,14 +450,29 @@
       grid-column: 2;
       grid-row: 2;
     }
-    .mb-row .ci-pill {
-      cursor: default;
+    /* The pill opens the run, and there's room for it now View run is gone:
+       a taller pill with a larger label, 32px on a desktop and 44px on a
+       phone, in the same colours as the pull request board's. */
+    .mb-row .ci-slot {
+      width: auto;
+      min-width: 120px;
+    }
+    .mb-row a.ci-pill {
+      box-sizing: border-box;
+      justify-content: center;
+      min-height: 32px;
+      padding: 6px 14px;
+      font-size: 13px;
+    }
+    .mb-row a.ci-pill .check-glyph {
+      width: 14px;
+      height: 14px;
     }
     /* Right edge on the slot's right edge, as tall as the pills beside it, so
        no state moves the row. */
     .mb-nopipe {
       margin-left: auto;
-      min-height: 24px;
+      min-height: 32px;
       align-items: center;
     }
     @media (max-width: 420px) {
@@ -479,7 +481,6 @@
       }
       .mb-pill,
       .mb-search,
-      .mb-action,
       .mb-toggle {
         min-height: 44px;
       }
@@ -503,12 +504,10 @@
       .mb-side {
         align-items: stretch;
       }
-      .mb-actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-      }
-      .mb-actions > :only-child {
-        grid-column: 1 / -1;
+    }
+    @media (max-width: 760px) {
+      .mb-row a.ci-pill {
+        min-height: 44px;
       }
     }
   </style>
@@ -626,7 +625,15 @@
               <div class="ci-slot mb-status" data-status={b.status}>
                 {#if CI_SLOT[b.status]}
                   {@const slot = CI_SLOT[b.status]!}
-                  <span class="ci-pill {slot.cls}">
+                  <a
+                    class="ci-pill {slot.cls}"
+                    href={b.runUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="{STATUS_LABEL[
+                      b.status
+                    ]}. Open run (opens in a new tab)"
+                  >
                     {#each CHECK_GLYPHS[slot.glyphs] as g (g.name)}
                       <svg
                         viewBox="0 0 16 16"
@@ -640,7 +647,7 @@
                       </svg>
                     {/each}
                     {STATUS_LABEL[b.status]}
-                  </span>
+                  </a>
                 {:else}
                   <span class="attr-chip mb-nopipe">
                     <svg
@@ -690,26 +697,16 @@
                 {/if}
               </div>
               <div class="mb-side">
-                <div class="mb-actions">
-                  <a
-                    class="mb-action"
-                    href={b.runUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="View run for {b.fullName} (opens in a new tab)"
-                    >View run</a
+                {#if b.status === "failed" && b.failingJobs.length > 0}
+                  <button
+                    type="button"
+                    class="mb-toggle"
+                    aria-expanded={!!expanded[key]}
+                    aria-controls="jobs-{b.forge}-{b.fullName}"
+                    onclick={() => (expanded[key] = !expanded[key])}
+                    >Failing jobs ({b.failingJobs.length})</button
                   >
-                  {#if b.status === "failed" && b.failingJobs.length > 0}
-                    <button
-                      type="button"
-                      class="mb-toggle"
-                      aria-expanded={!!expanded[key]}
-                      aria-controls="jobs-{b.forge}-{b.fullName}"
-                      onclick={() => (expanded[key] = !expanded[key])}
-                      >Failing jobs ({b.failingJobs.length})</button
-                    >
-                  {/if}
-                </div>
+                {/if}
               </div>
               {#if expanded[key]}
                 <ul
