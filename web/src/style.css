@@ -846,7 +846,7 @@ section.board {
   border-bottom: 1px solid var(--border);
   color: inherit;
 }
-@media (max-width: 949px) {
+@media (min-width: 761px) and (max-width: 949px) {
   .row {
     grid-template-columns: 280px 1fr 280px 22px;
   }
