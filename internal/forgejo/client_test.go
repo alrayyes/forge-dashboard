@@ -112,6 +112,44 @@ func TestListRepos_CanManageWebhooksRequiresAdminNotJustPush(t *testing.T) {
 	assert.Equal(t, "https://forge.example/alrayyes/admin", byName["alrayyes/admin"].URL)
 }
 
+func TestListRepos_MissingPermissionsObjectIsNotANonAdminRole(t *testing.T) {
+	t.Parallel()
+
+	// Forgejo always sends a permissions object on current servers (its
+	// conversion code sets it for every caller, anonymous ones included, with
+	// every flag false). A server that leaves it out has said nothing about
+	// the role, so the repo is locked as the connection's limit, not as a
+	// real non-admin.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/no-object", "name": "no-object", "owner": map[string]string{"login": "alrayyes"}},
+			{"full_name": "alrayyes/not-admin", "name": "not-admin", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"pull": true}},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "", "alrayyes")
+	repos, err := client.ListRepos(t.Context())
+
+	require.NoError(t, err)
+	require.Len(t, repos, 2)
+	byName := make(map[string]dashboard.RepoRef, len(repos))
+	for _, r := range repos {
+		byName[r.FullName] = r
+	}
+	assert.False(t, byName["alrayyes/no-object"].CanManageWebhooks)
+	assert.True(t, byName["alrayyes/no-object"].WebhookLockedByConnection)
+	assert.False(t, byName["alrayyes/not-admin"].CanManageWebhooks)
+	assert.False(t, byName["alrayyes/not-admin"].WebhookLockedByConnection, "a reported non-admin role is the user's, not the connection's")
+}
+
 func TestListRepos_ExcludesMirroredRepos(t *testing.T) {
 	t.Parallel()
 
