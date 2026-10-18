@@ -2,7 +2,8 @@
 
 The frontend, migrated incrementally to SvelteKit off the handwritten
 vanilla-JS pages still living in `../internal/api/static`. See the root
-`README.md` for how the whole app runs, and `../CONTRIBUTING.md` for the
+`README.md` and [`../docs/running.md`](../docs/running.md) for how the whole app
+runs, and `../CONTRIBUTING.md` for the
 full toolchain and hooks. The decision to adopt SvelteKit this way is
 recorded in
 [issue #326](https://github.com/alrayyes/forge-dashboard/issues/326).

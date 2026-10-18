@@ -46,8 +46,8 @@ stale.
 - **Somewhere writable for the database** (`DB_PATH`, default
   `/data/forge-dashboard.db`) that survives a restart — registered
   passkeys, sessions, and every user's encrypted forge credentials live
-  there. In Docker that means a mounted volume at `/data`; see **Docker**
-  below.
+  there. In Docker that means a mounted volume at `/data`; see
+  [Docker](docs/running.md#docker).
 - **`ENCRYPTION_KEY`**, a base64-encoded 32-byte key the process refuses
   to start without — see [Configuration](docs/configuration.md) for how to
   generate one.

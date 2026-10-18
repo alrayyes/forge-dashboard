@@ -174,5 +174,6 @@ read-only access to your own dashboard, from Settings).
 - A change in flight: `openspec/changes/`. A shipped capability:
   `openspec/specs/`.
 - A design for a screen: `docs/design/`.
-- How to run and deploy it: the [README](README.md). How to configure it:
+- How to run it: [docs/running.md](docs/running.md). How to deploy it:
+  [docs/deployment.md](docs/deployment.md). How to configure it:
   [docs/configuration.md](docs/configuration.md).
