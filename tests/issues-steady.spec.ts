@@ -417,6 +417,37 @@ test.describe('steady issues refresh', () => {
     await expect(page.locator('#issue-rows')).toContainText('Brand new');
   });
 
+  // The page holds a scrolled reader's list (and corrects the scroll when it
+  // does apply a render), so a row arriving above the viewport never moves
+  // what is on screen.
+  test('a new issue above the viewport does not move the rows on screen', async ({
+    page,
+  }) => {
+    const many = Array.from({ length: 24 }, (_, i) => makeIssue(i + 1));
+    await open(page, many);
+    await scrollDown(page);
+    const firstOnScreen = () =>
+      page.evaluate(() => {
+        for (const row of document.querySelectorAll<HTMLElement>(
+          '#issue-rows > .row',
+        )) {
+          const rect = row.getBoundingClientRect();
+          if (rect.bottom > 0)
+            return { key: row.dataset.issueKey ?? '', top: rect.top };
+        }
+        return null;
+      });
+    const before = await firstOnScreen();
+    await push(page, [makeIssue(99, { title: 'Brand new' }), ...many]);
+    await settle(page);
+    const after = await firstOnScreen();
+    expect(after?.key).toBe(before?.key);
+    expect(
+      Math.abs((after?.top ?? 0) - (before?.top ?? 0)),
+    ).toBeLessThanOrEqual(1);
+    await expect(page.locator('#issue-rows')).not.toContainText('Brand new');
+  });
+
   test('the sort control orders issues, and a snapshot never re-sorts them', async ({
     page,
   }) => {

@@ -1406,6 +1406,22 @@
       }
       dialogKey = null;
       if (confirmArm.disarm("dropped")) renderPRBoard();
+      // The dialog hands focus back to its row. When that row left the board
+      // while it was open, focus would fall to the page: put it on the first
+      // row, or the list itself, instead.
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (active && active !== document.body) return;
+        const first = document.querySelector<HTMLElement>(
+          "#pr-rows button.title",
+        );
+        const list = document.getElementById("pr-rows");
+        if (first) first.focus();
+        else if (list) {
+          list.tabIndex = -1;
+          list.focus();
+        }
+      }, 0);
     };
 
     function buildRow(
@@ -3336,24 +3352,69 @@
     }
 
     // The mouse or pen rests on a list: rows must not move under it, or the
-    // click lands on a different row. Touch has no resting pointer. A
-    // modal being open means the pointer is on its backdrop, not the list.
+    // click lands on a different row. A modal being open means the pointer
+    // is on its backdrop, not the list.
     let pointerInList = false;
+    // A finger has no resting position, but a tap right after the list
+    // shifted lands on another row, and a list under a scrolling finger
+    // must not change. So rows wait for a moment after the last touch or
+    // touch-driven scroll.
+    const TOUCH_SETTLE_MS = 1000;
+    let touchMode = false;
+    let lastTouchAt = 0;
+    let ownScrollY = -1;
+    let touchTimer: ReturnType<typeof setTimeout> | undefined;
+    function touchSettling(): boolean {
+      return touchMode && Date.now() - lastTouchAt < TOUCH_SETTLE_MS;
+    }
+    function touched() {
+      touchMode = true;
+      lastTouchAt = Date.now();
+      clearTimeout(touchTimer);
+      touchTimer = setTimeout(reconcileCurrentView, TOUCH_SETTLE_MS + 20);
+    }
     function pointerRestsOnList(): boolean {
-      return pointerInList && !modalDialogOpen();
+      return (pointerInList && !modalDialogOpen()) || touchSettling();
+    }
+    // The pointer's claim ends when the page loses the user: an alt-tab
+    // with the mouse still over the list must not hold the board for good.
+    function releasePointer() {
+      pointerInList = false;
+      reconcileCurrentView();
     }
     for (const id of ["pr-rows", "issue-rows"]) {
       const list = document.getElementById(id);
       const mark = (e: PointerEvent) => {
-        if (e.pointerType !== "touch") pointerInList = true;
+        if (e.pointerType !== "touch") {
+          pointerInList = true;
+          touchMode = false;
+        }
       };
       list?.addEventListener("pointerenter", mark);
       list?.addEventListener("pointermove", mark);
-      list?.addEventListener("pointerleave", () => {
-        pointerInList = false;
-        reconcileCurrentView();
-      });
+      list?.addEventListener("pointerleave", releasePointer);
     }
+    for (const type of ["pointerdown", "pointerup", "pointercancel"]) {
+      document.addEventListener(
+        type,
+        (e) => {
+          if ((e as PointerEvent).pointerType === "touch") touched();
+        },
+        { passive: true, capture: true },
+      );
+    }
+    window.addEventListener(
+      "scroll",
+      () => {
+        // The page's own scroll correction is not the user's finger.
+        if (touchMode && window.scrollY !== ownScrollY) touched();
+      },
+      { passive: true },
+    );
+    window.addEventListener("blur", releasePointer);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") releasePointer();
+    });
     // A modal closing ends the pointer's claim on the list until it moves
     // again, and lifts the hold the modal put on the board. "close" doesn't
     // bubble, hence the capture.
@@ -3495,7 +3556,7 @@
     }
 
     // The board asks the server again, so the row leaves or returns at once
-    // instead of waiting behind the updates bar.
+    // instead of waiting for the pointer to leave the list.
     function refreshBoard(): Promise<void> {
       return fetch(withDrafts("/api/dashboard/refresh"), {
         method: "POST",
@@ -3740,7 +3801,7 @@
         latestIssues = null;
         latestIssuesAsked = false;
         issuesDrawn = true;
-        issueBoard.setItems(shownIssues, true);
+        keepFocusAcross(() => issueBoard.setItems(shownIssues, true));
 
         return true;
       }
@@ -3775,6 +3836,7 @@
     // record arriving changes the row's data (#982) but not what the
     // focused button says, so a keyboard user keeps their place.
     function keepFocusAcross(draw: () => void) {
+      const anchor = captureScrollAnchor();
       const active = document.activeElement;
       // A row's open button has a stable id, so focus on it survives a row
       // being rebuilt, even when its title (and so its text) changed.
@@ -3789,10 +3851,11 @@
       const label = active?.textContent;
       const className = active?.className;
       draw();
+      restoreScrollAnchor(anchor);
       if (activeId) {
         const same = document.getElementById(activeId);
         if (same) {
-          same.focus();
+          same.focus({ preventScroll: true });
           return;
         }
       }
@@ -3802,7 +3865,43 @@
       ).find((r) => r.dataset.prKey === key);
       Array.from(row?.querySelectorAll("button") ?? [])
         .find((b) => b.className === className && b.textContent === label)
-        ?.focus();
+        ?.focus({ preventScroll: true });
+    }
+
+    // Every row is rebuilt on a render, so the browser's own scroll
+    // anchoring has no node to hold on to and a row inserted above the
+    // viewport would push the reader's place down. Remember the first row
+    // on screen and where it was, and scroll by however far it moved. Keeping
+    // each unchanged row's node instead would mean every row builder stays
+    // free of hidden state, which this board does not promise.
+    type ScrollAnchor = { key: string; top: number } | null;
+    function rowKeyOf(row: HTMLElement): string | undefined {
+      return row.dataset.prKey ?? row.dataset.issueKey;
+    }
+    function captureScrollAnchor(): ScrollAnchor {
+      if (window.scrollY <= 0) return null;
+      const rows = document.querySelectorAll<HTMLElement>(
+        "#pr-rows .row, #issue-rows .row",
+      );
+      for (const row of rows) {
+        const rect = row.getBoundingClientRect();
+        const key = rowKeyOf(row);
+        if (rect.bottom > 0 && key) return { key, top: rect.top };
+      }
+      return null;
+    }
+    function restoreScrollAnchor(anchor: ScrollAnchor) {
+      if (!anchor) return;
+      const row = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          "#pr-rows .row, #issue-rows .row",
+        ),
+      ).find((r) => rowKeyOf(r) === anchor.key);
+      if (!row) return;
+      const delta = row.getBoundingClientRect().top - anchor.top;
+      if (Math.abs(delta) < 0.5) return;
+      window.scrollBy(0, delta);
+      ownScrollY = window.scrollY;
     }
 
     // Returns true when it rendered the board.
@@ -3816,6 +3915,10 @@
         const key = dialogKey;
         dialogGone = !latestPRs.some((p) => prKey(p) === key);
       }
+      // A refresh the user asked for (Refresh now, or the one after their own
+      // merge) lands in full even with the pointer on the list: they just
+      // clicked a row, and what they are waiting to see is that row's outcome
+      // (gone, merged). Holding it would leave a merged pull request on screen.
       const userAsked = latestIsUserAsked || shownPRs.length === 0;
       const diff = Filters.diffItems(shownPRs, latestPRs);
       const structural = diff.added + diff.removed + diff.moved;
@@ -3859,13 +3962,27 @@
       }
       if (structural > 0 && !pointerRestsOnList()) {
         // Rows came, went or moved and nothing would be disturbed: the whole
-        // snapshot lands in one render, a changed row marked as usual.
+        // snapshot lands in one render, a changed row marked as usual. Only
+        // what the filters show is announced.
+        const onList = (items: PullRequestItem[]) =>
+          items.filter((item) =>
+            Filters.matchesFilters(
+              item,
+              true,
+              sharedState.shared,
+              sharedState.pr,
+            ),
+          );
+        const shownDiff = Filters.diffItems(
+          onList(shownPRs),
+          onList(latestPRs),
+        );
         retireFailuresOfRemoved(latestPRs);
         shownPRs = latestPRs;
         latestPRs = null;
         markUpdated(diff.changed);
         keepFocusAcross(() => prBoard.setItems(shownPRs, true));
-        if (view !== "issues") announceListUpdate(diff);
+        if (view !== "issues") announceListUpdate(shownDiff);
 
         return true;
       }
@@ -7311,9 +7428,9 @@
         sharedControlsRestored = true;
         syncSharedControlsToState();
       }
-      // #212, #710: ingestPRs compares this against what the board shows
-      // and either updates rows in place or holds the change behind the
-      // updates bar — see reconcilePRs.
+      // ingestPRs compares this against what the board shows and either
+      // applies it, updates rows in place, or holds a structural change
+      // until nothing is disturbed — see reconcilePRs.
       ingestPRs(prs, userAsked, botChanged);
       if (reachabilityChanged) renderPRBoard();
       // A bot request changing state (picked up, finished, expired) changes

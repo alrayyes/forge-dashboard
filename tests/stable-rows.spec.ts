@@ -356,16 +356,198 @@ test.describe('stable rows', () => {
     );
   });
 
-  test('has no axe violations after live rows arrive, with the pause control showing', async ({
+  // The first row with any part on screen: its key and where its top sits.
+  const anchorRow = (page: Page) =>
+    page.evaluate(() => {
+      for (const row of document.querySelectorAll<HTMLElement>(
+        '#pr-rows .row',
+      )) {
+        const rect = row.getBoundingClientRect();
+        if (rect.bottom > 0)
+          return { key: row.dataset.prKey ?? '', top: rect.top };
+      }
+      return null;
+    });
+
+  async function openMany(page: Page, count = 24) {
+    const many = Array.from({ length: count }, (_, i) => makePR(i + 1));
+    await page.route('**/api/dashboard', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snapshot(many)),
+      }),
+    );
+    await page.reload();
+    await expect(page.locator('#pr-rows .row')).toHaveCount(count);
+    return many;
+  }
+
+  test('a row inserted above the viewport does not move the rows on screen or a focused button', async ({
     page,
   }) => {
+    const many = await openMany(page);
+    await page.evaluate(() => window.scrollTo(0, 600));
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+    const button = page
+      .locator('#pr-rows .row', { hasText: 'Pull request 12' })
+      .locator('button.title');
+    await button.focus();
+    const before = await anchorRow(page);
+    const buttonTop = (await button.boundingBox())?.y ?? 0;
+
+    await push(page, [
+      makePR(99, { updatedAt: new Date().toISOString() }),
+      ...many,
+    ]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(25);
+
+    const after = await anchorRow(page);
+    expect(after?.key).toBe(before?.key);
+    expect(
+      Math.abs((after?.top ?? 0) - (before?.top ?? 0)),
+    ).toBeLessThanOrEqual(1);
+    await expect(button).toBeFocused();
+    expect(
+      Math.abs(((await button.boundingBox())?.y ?? 0) - buttonTop),
+    ).toBeLessThanOrEqual(1);
+  });
+
+  // Only the id can find the button again: its text changed with the title.
+  test('focus on a row follows its open button by id when its title changes in the same snapshot as an insert above', async ({
+    page,
+  }) => {
+    const many = await openMany(page);
+    await page.evaluate(() => window.scrollTo(0, 600));
+    const button = page
+      .locator('#pr-rows .row', { hasText: 'Pull request 12' })
+      .locator('button.title');
+    await button.focus();
+
+    await push(page, [
+      makePR(99, { updatedAt: new Date().toISOString() }),
+      ...many.map((pr) =>
+        pr.number === 12 ? { ...pr, title: 'A different title' } : pr,
+      ),
+    ]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(25);
+    await expect(page.locator('#pr-rows button.title:focus')).toContainText(
+      'A different title',
+    );
+  });
+
+  test('a touch holds added rows for a moment, then they land', async ({
+    page,
+  }) => {
+    await page.evaluate(() =>
+      document.body.dispatchEvent(
+        new PointerEvent('pointerup', { pointerType: 'touch', bubbles: true }),
+      ),
+    );
+    await push(page, [makePR(3), ...initial]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+  });
+
+  test('a touch scroll holds added rows until the scroll settles', async ({
+    page,
+  }) => {
+    const many = await openMany(page);
+    const t0 = Date.now();
+    await page.evaluate(async () => {
+      document.body.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          pointerType: 'touch',
+          bubbles: true,
+        }),
+      );
+      for (let y = 100; y <= 400; y += 100) {
+        window.scrollTo(0, y);
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    });
+    await push(page, [makePR(99), ...many]);
+    expect(await page.locator('#pr-rows .row').count()).toBe(24);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(25);
+    expect(Date.now() - t0).toBeGreaterThan(1000);
+  });
+
+  test('a row added that the filters hide is not announced', async ({
+    page,
+  }) => {
+    await page
+      .locator('.filter-bar .col-filter[data-col="title"]')
+      .fill('Pull request 1');
+    await push(page, [makePR(3, { title: 'Something else' }), ...initial]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await page.waitForTimeout(300);
+    await expect(page.locator('#list-updates-status')).toHaveText('');
+  });
+
+  test('the announcement clears itself after ten seconds', async ({ page }) => {
+    await page.clock.install();
+    await push(page, [makePR(3), ...initial]);
+    await expect(page.locator('#list-updates-status')).toHaveText(
+      'List updated: 1 added',
+    );
+    await page.clock.fastForward(10_500);
+    await expect(page.locator('#list-updates-status')).toHaveText('');
+  });
+
+  test('when the pull request in the open dialog left the board, closing it puts focus on the first row, not the page', async ({
+    page,
+  }) => {
+    await page.locator('#pr-rows .row').first().locator('button.title').click();
+    const dialog = page.getByRole('dialog', { name: /Pull request details/ });
+    await expect(dialog).toBeVisible();
+    await push(page, [initial[1]]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('#pr-rows button.title').first()).toBeFocused();
+  });
+
+  test('losing the window clears the pointer hold, so rows land after an alt-tab', async ({
+    page,
+  }) => {
+    await page.locator('#pr-rows .row').first().hover();
+    await push(page, [makePR(3), ...initial]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+  });
+
+  test('closing a dialog ends the pointer hold until the mouse moves again', async ({
+    page,
+  }) => {
+    const row = page.locator('#pr-rows .row').first();
+    await row.hover();
+    await row.locator('button.title').click();
+    const dialog = page.getByRole('dialog', { name: /Pull request details/ });
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    // The mouse hasn't moved: it no longer claims the list.
     await push(page, [makePR(3), ...initial]);
     await expect(page.locator('#pr-rows .row')).toHaveCount(3);
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
+  });
+
+  test('a refresh the user asked for lands at once, even with the pointer on the list', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snapshot([makePR(3), ...initial])),
+      }),
+    );
+    await page.locator('#pr-rows .row').first().hover();
+    await page.evaluate(() =>
+      document.getElementById('force-refresh-button')?.click(),
+    );
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
   });
 });
 
@@ -430,5 +612,19 @@ test.describe('stable rows: choices the server saves', () => {
 
     await page.reload();
     await expect(page.getByLabel('Sort pull requests by')).toHaveValue('repo');
+  });
+
+  // Pausing saves a choice for the user, so this sits with the other
+  // spec that does.
+  test('has no axe violations after live rows arrive, with the pause control showing', async ({
+    page,
+  }) => {
+    await push(page, [makePR(3), ...initial]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 });

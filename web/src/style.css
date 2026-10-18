@@ -3952,3 +3952,10 @@ footer a[aria-current="page"] {
     align-items: center;
   }
 }
+
+/* A render rebuilds every row, so the page corrects the scroll position
+   itself; the browser's own anchoring would add a second correction. */
+#pr-rows,
+#issue-rows {
+  overflow-anchor: none;
+}
