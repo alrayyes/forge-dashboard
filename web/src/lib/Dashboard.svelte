@@ -3274,19 +3274,20 @@
       ].some((stateMap) => Object.values(stateMap).some(inFlight));
     }
 
-    // #710: rows stay where they are until the user asks. shownPRs is what
-    // the board is showing; latestPRs is the newest snapshot's list that
-    // hasn't been applied yet. Each incoming snapshot is compared with
-    // what's shown:
+    // Live updates land by themselves. shownPRs is what the board is
+    // showing; latestPRs is the newest snapshot's list that hasn't been
+    // applied yet. Each incoming snapshot is compared with what's shown:
     //   - a row whose own content changed (CI, merge status, behind,
     //     labels, title) is updated where it stands and marked briefly;
-    //   - rows added, removed or reordered wait behind the "N updates
-    //     available" bar until Show updates, or a filter, sort or page
-    //     change, applies the whole snapshot in one render.
-    // Nothing is applied at all while the guard below holds or updates
-    // are paused, and a refresh the user asked for (Refresh now, or the
-    // one after their own merge/close/rebase) applies in full unless that
-    // guard holds, in which case it lands the moment the guard lifts.
+    //     it never reorders or jumps the list;
+    //   - rows added, removed or reordered apply in one render, unless
+    //     the pointer rests on the list, in which case they wait and land
+    //     the moment it leaves;
+    //   - nothing is applied while an action is in flight, a menu or
+    //     another modal is open, or updates are paused. A refresh the user
+    //     asked for applies in full unless one of those holds.
+    // The open details dialog is not a hold: the board behind it keeps
+    // updating, and the dialog follows its own pull request.
     let shownPRs: PullRequestItem[] = [];
     let latestPRs: PullRequestItem[] | null = null;
     // The newest snapshot in the server's own order, so a sort change can
@@ -3298,10 +3299,11 @@
     // sheet's "Show N results" button (#828).
     let visibleResultCount = 0;
 
-    // The issues page's counterpart (#827, #718). Same idea, a simpler rule:
-    // a change that would add, remove or move rows is held only while
-    // you're scrolled below the top, a control in the list has focus, or
-    // updates are paused. Otherwise it applies at once. A row whose own
+    // The issues page's counterpart. A change that would add, remove or
+    // move rows waits only while you're scrolled below the top, a control
+    // in the list has focus, the pointer rests on the list, another modal
+    // is open or updates are paused, then lands by itself. Otherwise it
+    // applies at once. A row whose own
     // content changed is replaced where it stands, and a snapshot that
     // changes nothing renders nothing.
     let shownIssues: IssueItem[] = [];
@@ -3313,29 +3315,88 @@
     const UPDATED_MARKER_MS = 2500;
     const updatedMarkers = new Set<string>();
 
-    // Extends #212's anyRowActionInFlight: also while focus is inside a
-    // row, a More actions menu is open or a dialog is open. A re-render
-    // under any of those would drop focus or close the menu.
-    //
-    // A refresh the user asked for from inside a row (Retry, an action's
-    // own follow-up refresh) is the one case focus-in-row doesn't hold:
-    // the click that triggered it is what's focused there.
-    function interactionHoldsBoard(userAsked: boolean): boolean {
-      const focusInRow =
-        !userAsked && Boolean(document.activeElement?.closest("#pr-rows"));
-
+    // Whether a re-render now would be felt: a row action is in flight (or
+    // an armed confirm waits for its second click), a More actions menu is
+    // open, or a modal other than the details dialog is open. The details
+    // dialog is deliberately not here: it follows its own pull request,
+    // and nothing behind it can be clicked, so the board behind it may
+    // move.
+    function interactionFreezesBoard(): boolean {
       return (
         anyRowActionInFlight() ||
         Object.keys(openActionMenus).length > 0 ||
-        modalDialogOpen() ||
-        focusInRow
+        otherModalOpen()
       );
     }
 
-    const updatesCount = document.getElementById("updates-count");
-    const showUpdatesButton = document.getElementById(
-      "show-updates-button",
-    ) as HTMLButtonElement | null;
+    // A modal that isn't the details dialog.
+    function otherModalOpen(): boolean {
+      const open = document.querySelectorAll("dialog[open]").length;
+      return open > (detailsDialog?.isOpen() ? 1 : 0);
+    }
+
+    // The mouse or pen rests on a list: rows must not move under it, or the
+    // click lands on a different row. Touch has no resting pointer. A
+    // modal being open means the pointer is on its backdrop, not the list.
+    let pointerInList = false;
+    function pointerRestsOnList(): boolean {
+      return pointerInList && !modalDialogOpen();
+    }
+    for (const id of ["pr-rows", "issue-rows"]) {
+      const list = document.getElementById(id);
+      const mark = (e: PointerEvent) => {
+        if (e.pointerType !== "touch") pointerInList = true;
+      };
+      list?.addEventListener("pointerenter", mark);
+      list?.addEventListener("pointermove", mark);
+      list?.addEventListener("pointerleave", () => {
+        pointerInList = false;
+        reconcileCurrentView();
+      });
+    }
+    // A modal closing ends the pointer's claim on the list until it moves
+    // again, and lifts the hold the modal put on the board. "close" doesn't
+    // bubble, hence the capture.
+    document.addEventListener(
+      "close",
+      (e) => {
+        if (!(e.target instanceof HTMLDialogElement)) return;
+        pointerInList = false;
+        setTimeout(reconcileCurrentView, 0);
+      },
+      true,
+    );
+    function reconcileCurrentView() {
+      if (view === "issues") reconcileIssues();
+      else reconcilePRs();
+    }
+
+    // A polite status for sighted-less readers: rows were added, removed or
+    // moved. One line per applied change, never per poll and never for a
+    // row changed in place.
+    const listUpdates = document.getElementById("list-updates-status");
+    let listUpdatesTimer: ReturnType<typeof setTimeout> | undefined;
+    function announceListUpdate(diff: {
+      added: number;
+      removed: number;
+      moved: number;
+    }) {
+      if (!listUpdates) return;
+      const parts: string[] = [];
+      if (diff.added > 0) parts.push(`${diff.added} added`);
+      if (diff.removed > 0) parts.push(`${diff.removed} removed`);
+      if (parts.length === 0 && diff.moved > 0) parts.push("reordered");
+      if (parts.length === 0) return;
+      listUpdates.replaceChildren(
+        document.createTextNode(`List updated: ${parts.join(", ")}`),
+      );
+      clearTimeout(listUpdatesTimer);
+      listUpdatesTimer = setTimeout(
+        () => listUpdates.replaceChildren(),
+        10_000,
+      );
+    }
+
     const pauseUpdatesButton = document.getElementById(
       "pause-updates-button",
     ) as HTMLButtonElement | null;
@@ -3550,18 +3611,6 @@
       );
     }
 
-    // The live region's text only changes when the count does, so a poll
-    // that finds the same pending changes announces nothing.
-    function showUpdatesBar(count: number) {
-      const text =
-        count === 0
-          ? ""
-          : `${count} ${count === 1 ? "update" : "updates"} available`;
-      if (updatesCount && updatesCount.textContent !== text)
-        updatesCount.textContent = text;
-      if (showUpdatesButton) showUpdatesButton.hidden = count === 0;
-    }
-
     function syncPauseControl() {
       pauseUpdatesButton?.setAttribute("aria-pressed", String(updatesPaused()));
       if (pausedHint) pausedHint.hidden = !updatesPaused();
@@ -3601,7 +3650,6 @@
       prBoard.replaceItems(shownPRs);
       latestPRs = null;
       latestIsUserAsked = false;
-      showUpdatesBar(0);
     }
 
     function applyPendingIssuesNow() {
@@ -3609,7 +3657,6 @@
       issueBoard.replaceItems(shownIssues);
       latestIssues = null;
       latestIssuesAsked = false;
-      showUpdatesBar(0);
     }
 
     // Below the top (a little slack for a resting scroll position) or a
@@ -3620,7 +3667,13 @@
       const focusInList = Boolean(
         document.activeElement?.closest("#issue-rows"),
       );
-      return scrolled || focusInList || updatesPaused();
+      return (
+        scrolled ||
+        focusInList ||
+        pointerRestsOnList() ||
+        otherModalOpen() ||
+        updatesPaused()
+      );
     }
 
     // Replaces just these rows, keeping every other row's DOM node.
@@ -3647,14 +3700,12 @@
     // Returns true when it rendered the board.
     function reconcileIssues(): boolean {
       if (!latestIssues) {
-        showUpdatesBar(0);
-
         return false;
       }
       const userAsked = latestIssuesAsked || shownIssues.length === 0;
-      // The bar counts what the list would show: a change to an issue the
+      // Only what the list would show counts: a change to an issue the
       // filters or the hidden-by-default housekeeping flag keep off screen
-      // moves nothing, so it asks for nothing (#1198).
+      // moves nothing, so it waits for nothing (#1198).
       const onList = (items: IssueItem[]) =>
         items.filter((item) =>
           Filters.matchesFilters(
@@ -3672,7 +3723,6 @@
         // current so a filter change later shows fresh data, without drawing.
         shownIssues = latestIssues;
         latestIssues = null;
-        showUpdatesBar(0);
         if (!issuesDrawn) {
           issuesDrawn = true;
           issueBoard.setItems(shownIssues, true);
@@ -3685,17 +3735,17 @@
       }
       const held = issuesHoldBoard(userAsked);
       if (!held && (structural > 0 || userAsked)) {
+        if (!userAsked) announceListUpdate(diff);
         shownIssues = latestIssues;
         latestIssues = null;
         latestIssuesAsked = false;
-        showUpdatesBar(0);
         issuesDrawn = true;
         issueBoard.setItems(shownIssues, true);
 
         return true;
       }
       // Anything else lands only as content changes, each row where it
-      // stands; structural changes (held here) wait behind the bar.
+      // stands; structural changes (held here) land when the hold lifts.
       if (diff.changed.length > 0) {
         const fresh = new Map(latestIssues.map((i) => [prKey(i), i]));
         const changed = shownIssues
@@ -3705,7 +3755,6 @@
         replaceIssueRows(changed);
       }
       if (structural === 0) latestIssues = null;
-      showUpdatesBar(structural);
 
       return diff.changed.length > 0;
     }
@@ -3727,6 +3776,12 @@
     // focused button says, so a keyboard user keeps their place.
     function keepFocusAcross(draw: () => void) {
       const active = document.activeElement;
+      // A row's open button has a stable id, so focus on it survives a row
+      // being rebuilt, even when its title (and so its text) changed.
+      const activeId =
+        active instanceof HTMLElement && active.closest("#pr-rows, #issue-rows")
+          ? active.id
+          : "";
       const key =
         active instanceof HTMLButtonElement
           ? active.closest<HTMLElement>("#pr-rows .row")?.dataset.prKey
@@ -3734,6 +3789,13 @@
       const label = active?.textContent;
       const className = active?.className;
       draw();
+      if (activeId) {
+        const same = document.getElementById(activeId);
+        if (same) {
+          same.focus();
+          return;
+        }
+      }
       if (!key) return;
       const row = Array.from(
         document.querySelectorAll<HTMLElement>("#pr-rows .row"),
@@ -3746,8 +3808,6 @@
     // Returns true when it rendered the board.
     function reconcilePRs(): boolean {
       if (!latestPRs) {
-        showUpdatesBar(0);
-
         return false;
       }
       // Whether the newest snapshot still has the open dialog's pull request,
@@ -3759,8 +3819,7 @@
       const userAsked = latestIsUserAsked || shownPRs.length === 0;
       const diff = Filters.diffItems(shownPRs, latestPRs);
       const structural = diff.added + diff.removed + diff.moved;
-      const held =
-        interactionHoldsBoard(userAsked) || (updatesPaused() && !userAsked);
+      const held = interactionFreezesBoard() || (updatesPaused() && !userAsked);
 
       if (held) {
         // Rows stay where they are, but a row a bot just acted on takes
@@ -3768,8 +3827,7 @@
         // a stale "Out of date" until the other row's action ends (#787).
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
         // The open dialog shows its own pull request as it is now; only the
-        // list behind it waits (#943).
-
+        // list behind it waits.
         const settled = shownPRs.filter(
           (p) =>
             (botResolvedKeys.has(prKey(p)) ||
@@ -3784,13 +3842,6 @@
           );
           keepFocusAcross(() => prBoard.setItems(shownPRs, true));
         }
-        const heldDiff = Filters.diffItems(shownPRs, latestPRs);
-        showUpdatesBar(
-          heldDiff.added +
-            heldDiff.removed +
-            heldDiff.moved +
-            heldDiff.changed.length,
-        );
 
         refreshDialogChrome();
 
@@ -3802,19 +3853,31 @@
         shownPRs = latestPRs;
         latestPRs = null;
         latestIsUserAsked = false;
-        showUpdatesBar(0);
         prBoard.setItems(shownPRs);
 
         return true;
       }
+      if (structural > 0 && !pointerRestsOnList()) {
+        // Rows came, went or moved and nothing would be disturbed: the whole
+        // snapshot lands in one render, a changed row marked as usual.
+        retireFailuresOfRemoved(latestPRs);
+        shownPRs = latestPRs;
+        latestPRs = null;
+        markUpdated(diff.changed);
+        keepFocusAcross(() => prBoard.setItems(shownPRs, true));
+        if (view !== "issues") announceListUpdate(diff);
+
+        return true;
+      }
+      // Otherwise only content changes land, each row where it stands;
+      // rows added, removed or moved wait for the pointer to leave.
       if (diff.changed.length > 0) {
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
         shownPRs = shownPRs.map((p) => fresh.get(prKey(p)) ?? p);
         markUpdated(diff.changed);
-        prBoard.setItems(shownPRs, true);
+        keepFocusAcross(() => prBoard.setItems(shownPRs, true));
       }
       if (structural === 0) latestPRs = null;
-      showUpdatesBar(structural);
 
       return diff.changed.length > 0;
     }
@@ -5586,19 +5649,6 @@
       applyPendingIssuesNow,
     );
 
-    showUpdatesButton?.addEventListener("click", () => {
-      if (view === "issues") {
-        applyPendingIssuesNow();
-        issueBoard.render();
-        pauseUpdatesButton?.focus();
-        return;
-      }
-      applyPendingNow();
-      prBoard.render();
-      // The button hides itself once nothing's pending; keep focus on the
-      // bar instead of dropping it to the page.
-      pauseUpdatesButton?.focus();
-    });
     pauseUpdatesButton?.addEventListener("click", () => {
       sharedState.view.paused = updatesPaused() ? "" : "1";
       Filters.touchKey("view", "paused");
@@ -7907,14 +7957,11 @@
 
   <div class="updates-bar" id="updates-bar">
     <span
-      class="updates-count"
-      id="updates-count"
+      class="sr-only"
+      id="list-updates-status"
       role="status"
       aria-live="polite"
     ></span>
-    <button type="button" class="updates-show" id="show-updates-button" hidden
-      >Show updates</button
-    >
     <span class="updates-paused" id="updates-paused-hint" hidden
       >Live updates paused</span
     >

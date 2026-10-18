@@ -119,12 +119,14 @@ are not on the issues page. Which choices a page offers, and how filters are
 remembered, is in [Live updates and filters](live-updates.md#remembered-filters).
 
 The issue list holds still while you read it. A refresh that would add, remove
-or move rows is held behind an "N updates available" bar while you're scrolled
-below the top, a control in the list has focus, or live updates are paused;
-**Show updates**, or a change to a filter or the sort, applies it. The bar
-counts only issues the list would show: a change to one the filters or the
-hidden Dependency Dashboard keep out of sight asks for nothing, and neither does
-a change to pull requests. At the top with nothing focused, changes just appear.
+or move rows waits while you're scrolled below the top, a control in the list
+has focus, the pointer rests on the list, another pop-up is open, or live
+updates are paused, and then lands by itself: scroll back to the top, move the
+pointer off the list, close the pop-up or resume. Nothing needs pressing, and a
+change to a filter or the sort applies it too. Only issues the list would show
+count: a change to one the filters or the hidden Dependency Dashboard keep out
+of sight waits for nothing, and neither does a change to pull requests. When
+rows do land, one polite line tells a screen reader ("List updated: 1 added").
 A row whose own content changed updates where it stands, and a refresh with no
 change leaves every row alone. Sort works as it does for pull requests. The
 pause setting is shared with the pull request page.

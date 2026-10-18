@@ -3,15 +3,21 @@
 The board polls on the schedule in `readIntervalSeconds` (30 seconds today, set
 by the server, or 2 until your first refresh has finished) and takes pushes
 over a live stream, but
-rows don't move while you're reading. A change to a row's own content (CI,
+rows don't move under you. A change to a row's own content (CI,
 merge status, behind, labels, title) updates that row where it stands and
-marks it "Updated just now" for a couple of seconds. Anything that would
-add, remove or reorder rows waits behind an "N updates available" bar
-under the filter bar; **Show updates** applies it all in one render, and so
-does changing a filter, the sort or the page. Nothing re-renders while
-focus is inside a row, a More actions menu is open, a modal window is open, or a
-row action is in flight. **Pause live updates** stops every automatic
-update until you turn it back on (Refresh now still works). The **Sort**
+marks it "Updated just now" for a couple of seconds; it never reorders the
+list. Rows that are added, removed or reordered land by themselves in one
+render, with nothing to press. They wait only while something would be
+disturbed, and land the moment it ends: a row action is in flight (or a
+Merge is waiting for its second click), a More actions menu or a pop-up other
+than the pull request pop-up is open, or the mouse rests on the list. The
+pull request pop-up itself doesn't hold the board: the list behind it keeps
+updating, and the pop-up follows its own pull request, including a merge
+result or a failure line. Keyboard focus on a row doesn't hold either, and
+stays on the row when the list redraws. When rows land, one polite line tells
+a screen reader what changed ("List updated: 1 added, 2 removed"). **Pause
+live updates** is your own control: it stops every automatic update until you
+turn it back on, which applies what waited (Refresh now still works). The **Sort**
 control offers Last activity (the default, the server's order: most recently
 updated first, whether or not a pull request is ready to merge), Created and
 Repository. Pause and sort are saved with your other filters.

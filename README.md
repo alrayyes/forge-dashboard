@@ -91,8 +91,8 @@ stale.
 - [Issues](docs/issues.md): the issues page and the settings that hide issues.
 - [Main branches](docs/main-branches.md): the default-branch CI page and
   `GET /api/main-branches`.
-- [Live updates and filters](docs/live-updates.md): how the board refreshes, what
-  waits behind "N updates available", the first load after a restart, the
+- [Live updates and filters](docs/live-updates.md): how the board refreshes, when
+  rows wait before they land, the first load after a restart, the
   navigation counts, and how filters are offered, remembered and folded on a
   phone.
 - [API](docs/api.md): the HTTP endpoints, the OpenAPI contract and the MCP
