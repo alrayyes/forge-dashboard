@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.219.4](https://github.com/alrayyes/forge-dashboard/compare/v0.219.3...v0.219.4) (2026-10-18)
+
+
+### Bug Fixes
+
+* give the pop-up's reaction pills and collapsed summary the 44 px target up to 760 px ([#1878](https://github.com/alrayyes/forge-dashboard/issues/1878)) ([b6afa14](https://github.com/alrayyes/forge-dashboard/commit/b6afa141b5d25436e4e856a253c2e684b5899c8e)), closes [#1867](https://github.com/alrayyes/forge-dashboard/issues/1867)
+
 ## [0.219.3](https://github.com/alrayyes/forge-dashboard/compare/v0.219.2...v0.219.3) (2026-10-18)
 
 
