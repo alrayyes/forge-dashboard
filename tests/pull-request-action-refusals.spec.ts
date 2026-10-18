@@ -1,5 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import {
+  actionsFooter,
+  openActionsDialog,
+  viaActionsDialog,
+} from './actions-dialog-helper';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
@@ -81,11 +86,15 @@ async function mockBoard(page: Page, prs: MockPR[]) {
   );
 }
 
-async function openMoreActions(row: Locator) {
-  const trigger = row.getByRole('button', { name: 'More actions' });
-  if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
-    await trigger.click();
-  }
+// The row's dialog footer, opened unless it already is. A spec that looks at
+// an action after a refusal reaches it here; the dialog stays open for the
+// assertions that follow.
+async function footerOf(row: Locator): Promise<Locator> {
+  const open = row
+    .page()
+    .getByRole('dialog', { name: /^Pull request details/ });
+  if (await open.isVisible()) return actionsFooter(open);
+  return actionsFooter(await openActionsDialog(row));
 }
 
 type Driver = {
@@ -111,22 +120,20 @@ const drivers: Driver[] = [
     endpoint: '**/api/pull-requests/close',
     pr: {},
     button: 'Close pull request',
-    act: async (row) => {
-      await openMoreActions(row);
-      await row
-        .getByRole('button', { name: 'Close pull request', exact: true })
-        .click();
-      await row
-        .getByRole('button', { name: 'Confirm close pull request?' })
-        .click();
-    },
-    find: async (row) => {
-      await openMoreActions(row);
-      return row.getByRole('button', {
+    act: (row) =>
+      viaActionsDialog(row, async (footer) => {
+        await footer
+          .getByRole('button', { name: 'Close pull request', exact: true })
+          .click();
+        await footer
+          .getByRole('button', { name: 'Confirm close pull request?' })
+          .click();
+      }),
+    find: async (row) =>
+      (await footerOf(row)).getByRole('button', {
         name: 'Close pull request',
         exact: true,
-      });
-    },
+      }),
   },
   {
     name: 'Update branch',
@@ -149,14 +156,12 @@ const drivers: Driver[] = [
     endpoint: '**/api/pull-requests/auto-merge',
     pr: {},
     button: 'Enable auto-merge',
-    act: async (row) => {
-      await openMoreActions(row);
-      await row.getByRole('button', { name: 'Enable auto-merge' }).click();
-    },
-    find: async (row) => {
-      await openMoreActions(row);
-      return row.getByRole('button', { name: 'Enable auto-merge' });
-    },
+    act: (row) =>
+      viaActionsDialog(row, (footer) =>
+        footer.getByRole('button', { name: 'Enable auto-merge' }).click(),
+      ),
+    find: async (row) =>
+      (await footerOf(row)).getByRole('button', { name: 'Enable auto-merge' }),
     specific: {
       code: 'auto_merge_not_allowed',
       message:
@@ -169,28 +174,24 @@ const drivers: Driver[] = [
     endpoint: '**/api/pull-requests/dependabot-action',
     pr: { author: 'dependabot' },
     button: 'Dependabot: Rebase',
-    act: async (row) => {
-      await openMoreActions(row);
-      await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
-    },
-    find: async (row) => {
-      await openMoreActions(row);
-      return row.getByRole('button', { name: 'Dependabot: Rebase' });
-    },
+    act: (row) =>
+      viaActionsDialog(row, (footer) =>
+        footer.getByRole('button', { name: 'Dependabot: Rebase' }).click(),
+      ),
+    find: async (row) =>
+      (await footerOf(row)).getByRole('button', { name: 'Dependabot: Rebase' }),
   },
   {
     name: 'Renovate: Rebase',
     endpoint: '**/api/pull-requests/renovate-rebase',
     pr: { author: 'renovate[bot]' },
     button: 'Renovate: Rebase',
-    act: async (row) => {
-      await openMoreActions(row);
-      await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
-    },
-    find: async (row) => {
-      await openMoreActions(row);
-      return row.getByRole('button', { name: 'Renovate: Rebase' });
-    },
+    act: (row) =>
+      viaActionsDialog(row, (footer) =>
+        footer.getByRole('button', { name: 'Renovate: Rebase' }).click(),
+      ),
+    find: async (row) =>
+      (await footerOf(row)).getByRole('button', { name: 'Renovate: Rebase' }),
     specific: {
       code: 'label_missing',
       message:
@@ -330,7 +331,7 @@ for (const d of drivers) {
         });
         await (await d.find(row)).click();
         // Close asks again; the others act straight away.
-        const confirm = row.getByRole('button', {
+        const confirm = (await footerOf(row)).getByRole('button', {
           name: 'Confirm close pull request?',
         });
         if (await confirm.isVisible()) await confirm.click();
@@ -507,8 +508,9 @@ test.describe('Enable auto-merge with a transient refusal', () => {
     );
     await page.reload();
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Enable auto-merge' }).click();
+    await viaActionsDialog(row, (footer) =>
+      footer.getByRole('button', { name: 'Enable auto-merge' }).click(),
+    );
 
     await expect(row.locator('.row-feedback')).toContainText(
       'Try again once it settles',
@@ -521,9 +523,8 @@ test.describe('Enable auto-merge with a transient refusal', () => {
       'a non-required check is still running or has failed',
     );
     await expect(toast).not.toContainText('graphql');
-    await openMoreActions(row);
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      (await footerOf(row)).getByRole('button', { name: 'Enable auto-merge' }),
     ).toBeEnabled();
   });
 
@@ -543,8 +544,9 @@ test.describe('Enable auto-merge with a transient refusal', () => {
     );
     await page.reload();
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Enable auto-merge' }).click();
+    await viaActionsDialog(row, (footer) =>
+      footer.getByRole('button', { name: 'Enable auto-merge' }).click(),
+    );
 
     await expect(row.locator('.row-feedback')).toContainText(
       'Use Merge instead',
@@ -555,9 +557,8 @@ test.describe('Enable auto-merge with a transient refusal', () => {
     );
     await expect(toast).toContainText('already ready to merge');
     await expect(toast).not.toContainText('graphql');
-    await openMoreActions(row);
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      (await footerOf(row)).getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveAttribute('aria-disabled', 'true');
   });
 });

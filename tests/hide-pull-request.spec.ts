@@ -5,6 +5,7 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
@@ -133,10 +134,10 @@ async function open(
   return server;
 }
 
-async function menuOf(page: Page, title: string) {
-  const row = rowOf(page, title);
-  await row.getByRole('button', { name: 'More actions' }).click();
-  return row;
+// Opens the dialog of the row with this title and returns its footer, where
+// the Hide items are.
+async function footerOf(page: Page, title: string) {
+  return actionsFooter(await openActionsDialog(rowOf(page, title)));
 }
 
 test.describe('hiding one pull request (#841)', () => {
@@ -144,17 +145,17 @@ test.describe('hiding one pull request (#841)', () => {
     await registerAndSignIn(page, request, baseURL);
   });
 
-  test('More actions offers Hide this pull request and Hide for 7 days', async ({
+  test('the dialog footer offers Hide this pull request and Hide for 7 days', async ({
     page,
   }) => {
     await open(page);
-    const row = await menuOf(page, 'Pull request 2');
+    const footer = await footerOf(page, 'Pull request 2');
 
     await expect(
-      row.getByRole('button', { name: 'Hide this pull request' }),
+      footer.getByRole('button', { name: 'Hide this pull request' }),
     ).toBeVisible();
     await expect(
-      row.getByRole('button', { name: 'Hide for 7 days' }),
+      footer.getByRole('button', { name: 'Hide for 7 days' }),
     ).toBeVisible();
   });
 
@@ -162,8 +163,10 @@ test.describe('hiding one pull request (#841)', () => {
     page,
   }) => {
     const server = await open(page);
-    const row = await menuOf(page, 'Pull request 2');
-    await row.getByRole('button', { name: 'Hide this pull request' }).click();
+    const footer = await footerOf(page, 'Pull request 2');
+    await footer
+      .getByRole('button', { name: 'Hide this pull request' })
+      .click();
 
     await expect(rowOf(page, 'Pull request 2')).toHaveCount(0);
     expect(server.posts).toEqual([
@@ -180,8 +183,8 @@ test.describe('hiding one pull request (#841)', () => {
 
   test('Hide for 7 days posts days: 7', async ({ page }) => {
     const server = await open(page);
-    const row = await menuOf(page, 'Pull request 2');
-    await row.getByRole('button', { name: 'Hide for 7 days' }).click();
+    const footer = await footerOf(page, 'Pull request 2');
+    await footer.getByRole('button', { name: 'Hide for 7 days' }).click();
 
     await expect(rowOf(page, 'Pull request 2')).toHaveCount(0);
     expect(server.posts[0].body.days).toBe(7);
@@ -191,8 +194,10 @@ test.describe('hiding one pull request (#841)', () => {
     page,
   }) => {
     await open(page, {}, { fakeClock: true });
-    const row = await menuOf(page, 'Pull request 2');
-    await row.getByRole('button', { name: 'Hide this pull request' }).click();
+    const footer = await footerOf(page, 'Pull request 2');
+    await footer
+      .getByRole('button', { name: 'Hide this pull request' })
+      .click();
 
     const status = page.locator('#hide-status');
     await expect(status).toHaveAttribute('role', 'status');
@@ -210,8 +215,10 @@ test.describe('hiding one pull request (#841)', () => {
 
   test('Undo brings the row back', async ({ page }) => {
     const server = await open(page);
-    const row = await menuOf(page, 'Pull request 2');
-    await row.getByRole('button', { name: 'Hide this pull request' }).click();
+    const footer = await footerOf(page, 'Pull request 2');
+    await footer
+      .getByRole('button', { name: 'Hide this pull request' })
+      .click();
     await expect(rowOf(page, 'Pull request 2')).toHaveCount(0);
 
     await page
@@ -234,8 +241,10 @@ test.describe('hiding one pull request (#841)', () => {
     page,
   }) => {
     await open(page);
-    const row = await menuOf(page, 'Pull request 2');
-    await row.getByRole('button', { name: 'Hide this pull request' }).click();
+    const footer = await footerOf(page, 'Pull request 2');
+    await footer
+      .getByRole('button', { name: 'Hide this pull request' })
+      .click();
 
     await expect(page.locator('#hidden-prs-toggle')).toHaveText('Hidden (1)');
   });
@@ -337,12 +346,14 @@ test.describe('hiding is accessible (#841)', () => {
     }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await open(page, { 1: { until: null } });
-      const row = await menuOf(page, 'Pull request 2');
+      const footer = await footerOf(page, 'Pull request 2');
       expect(
         (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
       ).toEqual([]);
 
-      await row.getByRole('button', { name: 'Hide this pull request' }).click();
+      await footer
+        .getByRole('button', { name: 'Hide this pull request' })
+        .click();
       await page.locator('#hidden-prs-toggle').click();
       await expect(page.locator('#hidden-prs-list li')).toHaveCount(2);
       expect(
@@ -355,8 +366,10 @@ test.describe('hiding is accessible (#841)', () => {
     page,
   }) => {
     await open(page, { 1: { until: null } });
-    const row = await menuOf(page, 'Pull request 2');
-    await row.getByRole('button', { name: 'Hide this pull request' }).click();
+    const footer = await footerOf(page, 'Pull request 2');
+    await footer
+      .getByRole('button', { name: 'Hide this pull request' })
+      .click();
     await page.locator('#hidden-prs-toggle').click();
 
     const targets = [

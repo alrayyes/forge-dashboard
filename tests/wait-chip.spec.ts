@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -474,11 +475,13 @@ test.describe('the waiting chip on a merge and a close', () => {
       await page.goto('/pull-requests.html');
 
       const row = firstRow(page);
-      // Close sits in More actions, with the Hide items (#841).
-      if (s.endpoint === 'close')
-        await row.getByRole('button', { name: 'More actions' }).click();
-      await row.getByRole('button', { name: s.button, exact: true }).click();
-      const confirm = row.getByRole('button', { name: s.confirm });
+      // Close is in the row's dialog, with the Hide items (#841).
+      const scope =
+        s.endpoint === 'close'
+          ? actionsFooter(await openActionsDialog(row))
+          : row;
+      await scope.getByRole('button', { name: s.button, exact: true }).click();
+      const confirm = scope.getByRole('button', { name: s.confirm });
       await expect(confirm).toBeVisible();
       const before = await layout(page);
       await confirm.click();

@@ -1,5 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
+import {
+  closeActionsDialog,
+  openActionsDialog,
+  viaActionsDialog,
+} from './actions-dialog-helper';
 import { test } from './fixtures';
 import { settle } from './settle-helper';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
@@ -116,10 +121,6 @@ function mockDashboard(page: Page, pr: MockPR) {
   );
 }
 
-async function openMoreActions(row: Locator) {
-  await row.getByRole('button', { name: 'More actions' }).click();
-}
-
 const COUNTDOWN = /next refresh in (\d+)s/i;
 
 // A failure still reads as a line under the row; a wait is the chip.
@@ -140,7 +141,7 @@ interface Scenario {
   name: string;
   pr: MockPR;
   endpoint: string;
-  openMenu: boolean;
+  inDialog: boolean;
   button: string;
   // What the disabled button reads once clicked: a bot rebase says what
   // was requested (#707), Update branch is a plain queue.
@@ -166,7 +167,7 @@ const scenarios: Scenario[] = [
     name: 'Update branch',
     pr: makePR({ behind: true }),
     endpoint: '**/api/pull-requests/update-branch',
-    openMenu: false,
+    inDialog: false,
     button: 'Update branch',
     queuedLabel: 'Queued…',
     awaitsRefresh: true,
@@ -180,7 +181,7 @@ const scenarios: Scenario[] = [
     name: 'Dependabot rebase',
     pr: makePR({ author: 'dependabot' }),
     endpoint: '**/api/pull-requests/dependabot-action',
-    openMenu: true,
+    inDialog: true,
     button: 'Dependabot: Rebase',
     queuedLabel: 'Rebase requested',
     awaitsRefresh: false,
@@ -194,7 +195,7 @@ const scenarios: Scenario[] = [
     name: 'Renovate rebase',
     pr: makePR({ author: 'renovate[bot]' }),
     endpoint: '**/api/pull-requests/renovate-rebase',
-    openMenu: true,
+    inDialog: true,
     button: 'Renovate: Rebase',
     queuedLabel: 'Rebase requested',
     awaitsRefresh: false,
@@ -280,8 +281,10 @@ for (const s of scenarios) {
           ? '/bots.html'
           : '/pull-requests.html',
       );
-      const row = page.locator('#pr-rows .row').first();
-      if (s.openMenu) await openMoreActions(row);
+      const rowEl = page.locator('#pr-rows .row').first();
+      // A bot action is in the row's dialog: `row` is where to look for the
+      // action's button, the dialog for those scenarios.
+      const row = s.inDialog ? await openActionsDialog(rowEl) : rowEl;
       return {
         row,
         hits: () => hits,
@@ -304,7 +307,7 @@ for (const s of scenarios) {
       await settle(page);
     }
 
-    test('the button reads Queued… and is disabled right after the click, only one request is sent, and a menu closes with focus on its trigger', async ({
+    test('the button reads Queued… and is disabled right after the click, only one request is sent, and a dialog keeps focus inside it', async ({
       page,
     }) => {
       const mocks = await prepare(page);
@@ -320,18 +323,14 @@ for (const s of scenarios) {
       await afterResponseLands(page, mocks);
       expect(hits()).toBe(1);
 
-      // #690: a bot action sits in the More actions menu. Once the request
-      // is answered the board re-renders, the menu closes and focus lands on
-      // its trigger in the same row. Only the bot scenarios have a menu, and
-      // the full-only test below can't prove it for them.
-      if (s.openMenu) {
+      // #690: a bot action sits in the row's dialog. Once the request is
+      // answered the board re-renders and the dialog stays open with focus
+      // still inside it, not lost to the page. Only the bot scenarios have a
+      // dialog here, and the full-only test below can't prove it for them.
+      if (s.inDialog) {
         await afterResponseLands(page, mocks);
-        await expect(
-          page
-            .locator('#pr-rows .row')
-            .first()
-            .getByRole('button', { name: 'More actions' }),
-        ).toBeFocused();
+        await expect(row).toBeVisible();
+        await expect(row.locator(':focus')).toHaveCount(1);
       }
     });
 
@@ -638,8 +637,9 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    await viaActionsDialog(row, (footer) =>
+      footer.getByRole('button', { name: 'Renovate: Rebase' }).click(),
+    );
 
     // The request is done, but nothing has refreshed yet. A negative check:
     // wait for the answer, for any stray refresh to reach the mock, and for
@@ -651,10 +651,11 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     await expect(row.locator('.wait-chip-label')).toHaveText(
       'Rebase requested',
     );
-    await openMoreActions(row).catch(() => undefined);
+    const queued = await openActionsDialog(row);
     await expect(
-      row.getByRole('button', { name: 'Rebase requested' }),
+      queued.getByRole('button', { name: 'Rebase requested' }),
     ).toBeDisabled();
+    await closeActionsDialog(queued);
 
     await page.click('#force-refresh-button');
 
@@ -689,8 +690,9 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    await viaActionsDialog(row, (footer) =>
+      footer.getByRole('button', { name: 'Renovate: Rebase' }).click(),
+    );
     await expect(row.locator('.wait-chip-label')).toHaveText(
       'Rebase requested',
     );
@@ -703,10 +705,11 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     await expect(
       page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
     ).toContainText("Renovate hasn't acted");
-    const fresh = page.locator('#pr-rows .row').first();
-    await openMoreActions(fresh);
+    const freed = await openActionsDialog(
+      page.locator('#pr-rows .row').first(),
+    );
     await expect(
-      fresh.getByRole('button', { name: 'Renovate: Rebase' }),
+      freed.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toBeEnabled();
   });
 });
