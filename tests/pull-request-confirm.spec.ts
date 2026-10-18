@@ -646,11 +646,8 @@ test.describe('confirm step: screen readers', () => {
     await expect(hint(rowOf(page, 0))).toHaveText(
       'Esc or click away to cancel',
     );
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
+    // No axe scan here: this is the armed-Close-in-the-open-menu state that
+    // the last test in this file scans, hint included (#1381).
   });
 
   test('the hint fits a 390px phone without a horizontal scroll (#767)', async ({
