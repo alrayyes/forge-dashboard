@@ -15,8 +15,13 @@ glyphs and colours, so a run turns into its result without the row moving. A
 branch with no pipeline is neither, so it gets a quiet outlined "No pipeline"
 note instead. The row also shows the repo, the branch, the short SHA, subject
 and author of the newest commit, how long ago the run finished and how long it
-ran. A failed row names its failing jobs and expands to list them. **View run**
-opens the run on the forge. Rows come latest commit first, in the order the
+ran. A failed row names its failing jobs and expands to list them. The status
+pill is the link to the run: it opens the run on the forge in a new tab, and a
+screen reader hears it as, for example, "Failed. Open run (opens in a new
+tab)". It has the pull request board's colours but is taller and larger, 32
+pixels high on a desktop and 44 on a phone, because this page has room and the
+pill is the main control on the row. The "No pipeline" note is plain, not a link,
+since there is no run to open. Rows come latest commit first, in the order the
 server sends them.
 
 The pills (All, Failing, Passing, Running, No pipeline) keep their filter names,
