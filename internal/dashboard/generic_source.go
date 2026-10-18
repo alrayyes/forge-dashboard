@@ -34,6 +34,8 @@ type RepoRef struct {
 	CanManageWebhooks bool
 	// WebhookLockedByConnection — see Repo.WebhookLockedByConnection.
 	WebhookLockedByConnection bool
+	// WebhookNeedsToken — see Repo.WebhookNeedsToken.
+	WebhookNeedsToken bool
 	// DefaultBranch is the repo's default branch, "" when the forge says none.
 	DefaultBranch string
 }
@@ -103,6 +105,7 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 			CanManageWebhooks: repo.CanManageWebhooks,
 
 			WebhookLockedByConnection: repo.WebhookLockedByConnection,
+			WebhookNeedsToken:         repo.WebhookNeedsToken,
 		})
 	}
 	if rl, ok := s.client.(RateLimiter); ok {

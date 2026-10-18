@@ -77,6 +77,13 @@ it on every repo, so a missing one is rare; when it happens the row says
 Forgejo didn't report your access, instead of telling you to ask an owner,
 because nothing says you aren't an admin.
 
+With no Forgejo token saved, the dashboard lists your public repos by
+username and Forgejo answers as an anonymous caller, so it reports no admin
+rights on any of them. Those rows say a saved token is needed and link to
+Settings, instead of telling you to ask an owner. Once a token is saved, a
+row that still says "ask an owner" means the account itself isn't an admin
+on that repo.
+
 A GitHub fine-grained token also gates _which_ repos it can see at all,
 separately from the preceding permissions — set at token creation, either
 "All repositories" or an explicit list. A repo left out of that list fails

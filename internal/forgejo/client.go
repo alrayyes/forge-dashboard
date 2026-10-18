@@ -659,7 +659,11 @@ func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, erro
 			if r.Archived || r.Fork || r.Mirror {
 				continue
 			}
-			repos = append(repos, repoRef(r))
+			ref := repoRef(r)
+			// No credential was sent, so the permissions Forgejo reports are
+			// the anonymous caller's (every flag false), not the user's role.
+			ref.WebhookNeedsToken = true
+			repos = append(repos, ref)
 		}
 		if resp.NextPage == 0 {
 			break
