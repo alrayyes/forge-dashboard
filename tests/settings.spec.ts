@@ -549,11 +549,6 @@ test.describe('settings page', () => {
       'href',
       '/webhooks.html',
     );
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 
   test.describe('Passkeys (#355)', () => {
@@ -615,24 +610,6 @@ test.describe('settings page', () => {
       await expect(
         items.first().getByRole('button', { name: 'Remove' }),
       ).toBeDisabled();
-    });
-
-    // The button being disabled is a client-side convenience — this
-    // proves the real guard lives server-side too, not just in the UI,
-    // by calling the endpoint directly, bypassing the disabled button
-    // entirely.
-    test('has no axe-core violations with two passkeys listed', async ({
-      page,
-    }) => {
-      await page.goto('/settings.html#integrations');
-      await page.fill('#passkey-label', 'YubiKey');
-      await page.click('#passkey-form button[type="submit"]');
-      await expect(page.locator('#passkey-list li')).toHaveCount(2);
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
     });
   });
 
@@ -753,19 +730,6 @@ test.describe('settings page', () => {
         const item = page.locator('#api-token-list li').first();
         await expect(item).toContainText('Expires');
       });
-
-      test('has no axe-core violations with the custom date field revealed', async ({
-        page,
-      }) => {
-        await page.goto('/settings.html#integrations');
-        await page.selectOption('#token-expiry-preset', 'custom');
-        await expect(page.locator('#token-expiry-custom-date')).toBeVisible();
-
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
     });
 
     test('reloading no longer shows the raw token, only its metadata', async ({
@@ -836,20 +800,6 @@ test.describe('settings page', () => {
       const expected = await page.locator('#token-reveal-value').inputValue();
       expect(clipboardText).toBe(expected);
     });
-
-    test('has no axe-core violations with a token generated and listed', async ({
-      page,
-    }) => {
-      await page.goto('/settings.html#integrations');
-      await page.fill('#token-label', 'ci script');
-      await page.click('#token-form button[type="submit"]');
-      await expect(page.locator('#token-reveal-field')).toBeVisible();
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
   });
 
   test('has no axe-core violations at desktop width', async ({ page }) => {
@@ -859,6 +809,51 @@ test.describe('settings page', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
 
+    expect(results.violations).toEqual([]);
+  });
+
+  // One scan for the whole Integrations group (#1381): the fixture shows
+  // everything its former one-off scans covered at once. That is the webhook
+  // coverage summary, a second passkey, a freshly revealed token that is also
+  // listed, and the custom expiry date field.
+  test('has no axe-core violations on Integrations with every section populated', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [],
+          pullRequests: [],
+          issues: [],
+          repos: [
+            { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+            { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
+            { forge: 'forgejo', fullName: 'alrayyes/c', hasWebhook: false },
+          ],
+        }),
+      }),
+    );
+    await page.goto('/settings.html#integrations');
+    await expect(page.locator('#webhook-coverage-summary')).toBeVisible();
+
+    await page.fill('#passkey-label', 'YubiKey');
+    await page.click('#passkey-form button[type="submit"]');
+    await expect(page.locator('#passkey-list li')).toHaveCount(2);
+
+    await page.fill('#token-label', 'ci script');
+    await page.click('#token-form button[type="submit"]');
+    await expect(page.locator('#token-reveal-field')).toBeVisible();
+    await expect(page.locator('#api-token-list li')).toHaveCount(1);
+
+    await page.selectOption('#token-expiry-preset', 'custom');
+    await expect(page.locator('#token-expiry-custom-date')).toBeVisible();
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
     expect(results.violations).toEqual([]);
   });
 
