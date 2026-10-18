@@ -1,25 +1,11 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #805: a row renders the actions the server lists, and holds no copy of the
 // rules. Each case below states `allowedActions` itself, in a way that
 // disagrees with what the page used to work out from the raw fields, so
 // passing proves the row follows the server's answer.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `allowed-actions-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Allowed Actions');
-}
 
 type Allowed = {
   action: string;
@@ -86,11 +72,11 @@ const names = async (row: ReturnType<Page['locator']>) => {
   return (await row.getByRole('button').allInnerTexts()).map((t) => t.trim());
 };
 
-test.describe('the row follows allowedActions (#805)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
+// It mocks the dashboard and writes nothing per user, so it starts from the
+// shared session instead of registering a user per test (#1379).
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
+test.describe('the row follows allowedActions (#805)', () => {
   test("a blocked Merge shows the server's own reason and what unlocks it", async ({
     page,
   }) => {

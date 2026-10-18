@@ -12,6 +12,7 @@ import {
 } from './allowed-actions-stand-in';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #710: rows stay where they are while the user reads and clicks. A live
 // snapshot (poll or SSE push) that would move, add or remove rows is held
@@ -104,37 +105,50 @@ async function titles(page: Page): Promise<string[]> {
   return page.locator('#pr-rows .row .title-text').allTextContents();
 }
 
+async function stubStream(page: Page) {
+  // The stub has to be in place before the dashboard opens its stream.
+  await page.addInitScript(() => {
+    class StubEventSource {
+      onmessage: ((e: { data: string }) => void) | null = null;
+      constructor() {
+        (window as unknown as { __es: StubEventSource }).__es = this;
+      }
+      close() {}
+      addEventListener() {}
+    }
+    (window as unknown as { EventSource: unknown }).EventSource =
+      StubEventSource;
+    window.__push = (data) =>
+      (window as unknown as { __es: StubEventSource }).__es.onmessage?.({
+        data: JSON.stringify(data),
+      });
+  });
+}
+
+async function openInitial(page: Page, initial: MockPR[]) {
+  await page.route('**/api/dashboard', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(snapshot(initial)),
+    }),
+  );
+  await page.goto('/pull-requests.html');
+  await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+}
+
+// Most of the file mocks the dashboard, stubs the stream and writes nothing per
+// user, so it starts from the shared session instead of registering a user per
+// test (#1379). The last group saves a choice (pause, a filter, the sort), which
+// the server keeps for the user, so it keeps its own.
 test.describe('stable rows (#710)', () => {
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
   const initial = [makePR(1), makePR(2)];
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    // The stub has to be in place before the dashboard opens its stream.
-    await page.addInitScript(() => {
-      class StubEventSource {
-        onmessage: ((e: { data: string }) => void) | null = null;
-        constructor() {
-          (window as unknown as { __es: StubEventSource }).__es = this;
-        }
-        close() {}
-        addEventListener() {}
-      }
-      (window as unknown as { EventSource: unknown }).EventSource =
-        StubEventSource;
-      window.__push = (data) =>
-        (window as unknown as { __es: StubEventSource }).__es.onmessage?.({
-          data: JSON.stringify(data),
-        });
-    });
-    await registerAndSignIn(page, request, baseURL);
-    await page.route('**/api/dashboard', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(snapshot(initial)),
-      }),
-    );
-    await page.reload();
-    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+  test.beforeEach(async ({ page }) => {
+    await stubStream(page);
+    await openInitial(page, initial);
   });
 
   test('a snapshot that adds a row is held behind an updates bar until asked for', async ({
@@ -212,32 +226,6 @@ test.describe('stable rows (#710)', () => {
     expect(animation).toBe('none');
   });
 
-  test('Pause live updates stops everything from applying, and the choice persists', async ({
-    page,
-  }) => {
-    const pause = page.getByRole('button', { name: 'Pause live updates' });
-    await expect(pause).toHaveAttribute('aria-pressed', 'false');
-    await pause.click();
-    await expect(pause).toHaveAttribute('aria-pressed', 'true');
-
-    await push(page, [makePR(1, { ci: 'failure' }), initial[1]]);
-    await expect(page.locator('#updates-count')).toHaveText(
-      '1 update available',
-    );
-    await expect(page.locator('#pr-rows .row').first()).not.toContainText(
-      'Failed',
-    );
-
-    await page.reload();
-    await expect(
-      page.getByRole('button', { name: 'Pause live updates' }),
-    ).toHaveAttribute('aria-pressed', 'true');
-
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
-    await push(page, [makePR(1, { ci: 'failure' }), initial[1]]);
-    await expect(page.locator('#pr-rows .row').first()).toContainText('Failed');
-  });
-
   // #1109: with nothing held the bar was a grey strip holding only the
   // Pause button. It draws its box when it has something to say.
   test('the updates bar draws no box while nothing is held, and does once something is', async ({
@@ -265,46 +253,6 @@ test.describe('stable rows (#710)', () => {
     const held = await box();
     expect(held.background).not.toBe('rgba(0, 0, 0, 0)');
     expect(held.border).not.toBe('rgba(0, 0, 0, 0)');
-  });
-
-  test('changing a filter applies the pending snapshot', async ({ page }) => {
-    await push(page, [
-      makePR(3, { updatedAt: new Date().toISOString() }),
-      ...initial,
-    ]);
-    await expect(page.locator('#updates-count')).toHaveText(
-      '1 update available',
-    );
-    await page
-      .locator('.quick-pills')
-      .getByRole('button', { name: 'GitHub', exact: true })
-      .click();
-    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
-    await expect(page.locator('#updates-count')).toHaveText('');
-  });
-
-  test('the sort control orders rows and a snapshot never re-sorts them', async ({
-    page,
-  }) => {
-    await page.getByLabel('Sort pull requests by').selectOption('created');
-    expect((await titles(page))[0]).toContain('Pull request 1');
-
-    // Pull request 2 becomes the most recently active: Last activity would
-    // move it first, Created keeps it where it was.
-    await push(page, [
-      initial[0],
-      makePR(2, { updatedAt: new Date().toISOString(), title: 'Renamed 2' }),
-    ]);
-    await expect(page.locator('#pr-rows .row').nth(1)).toContainText(
-      'Renamed 2',
-    );
-    expect((await titles(page))[0]).toContain('Pull request 1');
-
-    await page.getByLabel('Sort pull requests by').selectOption('repo');
-    await expect(page.getByLabel('Sort pull requests by')).toHaveValue('repo');
-
-    await page.reload();
-    await expect(page.getByLabel('Sort pull requests by')).toHaveValue('repo');
   });
 
   test('nothing re-renders under focus in a row, and the change lands once focus leaves', async ({
@@ -388,5 +336,81 @@ test.describe('stable rows (#710)', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+});
+
+test.describe('stable rows (#710): choices the server saves', () => {
+  const initial = [makePR(1), makePR(2)];
+
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await stubStream(page);
+    await registerAndSignIn(page, request, baseURL);
+    await openInitial(page, initial);
+  });
+
+  test('Pause live updates stops everything from applying, and the choice persists', async ({
+    page,
+  }) => {
+    const pause = page.getByRole('button', { name: 'Pause live updates' });
+    await expect(pause).toHaveAttribute('aria-pressed', 'false');
+    await pause.click();
+    await expect(pause).toHaveAttribute('aria-pressed', 'true');
+
+    await push(page, [makePR(1, { ci: 'failure' }), initial[1]]);
+    await expect(page.locator('#updates-count')).toHaveText(
+      '1 update available',
+    );
+    await expect(page.locator('#pr-rows .row').first()).not.toContainText(
+      'Failed',
+    );
+
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Pause live updates' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+
+    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await push(page, [makePR(1, { ci: 'failure' }), initial[1]]);
+    await expect(page.locator('#pr-rows .row').first()).toContainText('Failed');
+  });
+
+  test('changing a filter applies the pending snapshot', async ({ page }) => {
+    await push(page, [
+      makePR(3, { updatedAt: new Date().toISOString() }),
+      ...initial,
+    ]);
+    await expect(page.locator('#updates-count')).toHaveText(
+      '1 update available',
+    );
+    await page
+      .locator('.quick-pills')
+      .getByRole('button', { name: 'GitHub', exact: true })
+      .click();
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+    await expect(page.locator('#updates-count')).toHaveText('');
+  });
+
+  test('the sort control orders rows and a snapshot never re-sorts them', async ({
+    page,
+  }) => {
+    await page.getByLabel('Sort pull requests by').selectOption('created');
+    expect((await titles(page))[0]).toContain('Pull request 1');
+
+    // Pull request 2 becomes the most recently active: Last activity would
+    // move it first, Created keeps it where it was.
+    await push(page, [
+      initial[0],
+      makePR(2, { updatedAt: new Date().toISOString(), title: 'Renamed 2' }),
+    ]);
+    await expect(page.locator('#pr-rows .row').nth(1)).toContainText(
+      'Renamed 2',
+    );
+    expect((await titles(page))[0]).toContain('Pull request 1');
+
+    await page.getByLabel('Sort pull requests by').selectOption('repo');
+    await expect(page.getByLabel('Sort pull requests by')).toHaveValue('repo');
+
+    await page.reload();
+    await expect(page.getByLabel('Sort pull requests by')).toHaveValue('repo');
   });
 });
