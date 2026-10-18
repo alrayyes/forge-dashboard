@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.217.0](https://github.com/alrayyes/forge-dashboard/compare/v0.216.0...v0.217.0) (2026-10-18)
+
+
+### Features
+
+* **web:** plumb the server's primary action through the page and specs ([#1832](https://github.com/alrayyes/forge-dashboard/issues/1832)) ([8237dee](https://github.com/alrayyes/forge-dashboard/commit/8237dee89d41ddd62fc3411204a8b73c53b81534))
+
 ## [0.216.0](https://github.com/alrayyes/forge-dashboard/compare/v0.215.1...v0.216.0) (2026-10-18)
 
 
