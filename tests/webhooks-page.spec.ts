@@ -614,6 +614,13 @@ test.describe('webhooks page', () => {
         canManageWebhooks: false,
         webhookLockedByConnection: true,
       },
+      {
+        forge: 'forgejo',
+        fullName: 'alrayyes/no-object',
+        hasWebhook: false,
+        canManageWebhooks: false,
+        webhookLockedByConnection: true,
+      },
     ]);
     await page.goto('/webhooks.html');
     await expect(page.locator('#webhooks-table')).toBeVisible();
@@ -693,6 +700,30 @@ test.describe('webhooks page', () => {
     await expect(row).toContainText(/admin access/i);
     await expect(
       row.getByRole('link', { name: 'set it up manually' }),
+    ).toHaveAttribute('href', '/settings.html#webhooks');
+  });
+
+  test('a Forgejo repo with no permissions object does not blame the role', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'forgejo',
+        fullName: 'alrayyes/no-object',
+        hasWebhook: false,
+        canManageWebhooks: false,
+        webhookLockedByConnection: true,
+      },
+    ]);
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    await expect(row).toContainText(
+      "Forgejo didn't report your access on this repo",
+    );
+    await expect(row).not.toContainText(/ask an owner|GitHub App/i);
+    await expect(
+      row.getByRole('link', { name: 'Set it up manually' }),
     ).toHaveAttribute('href', '/settings.html#webhooks');
   });
 

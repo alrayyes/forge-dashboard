@@ -599,7 +599,11 @@ func repoRef(r *gitea.Repository) dashboard.RepoRef {
 		Name:              r.Name,
 		URL:               r.HTMLURL,
 		CanManageWebhooks: r.Permissions != nil && r.Permissions.Admin,
-		DefaultBranch:     r.DefaultBranch,
+		// Forgejo and Gitea set the permissions object on every repo they
+		// convert, anonymous callers included (all flags false), so a missing
+		// one says nothing about the user's role: don't blame it.
+		WebhookLockedByConnection: r.Permissions == nil,
+		DefaultBranch:             r.DefaultBranch,
 	}
 }
 

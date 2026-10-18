@@ -71,6 +71,12 @@ the listing outright ("Resource not accessible by integration", or the repo
 isn't in the installation). A server error, a rate limit or a bad credential
 says nothing about the permission, so it leaves the row as it was.
 
+On Forgejo the button needs admin on the repo. The dashboard reads that from
+the `permissions` object Forgejo sends with each repo. Forgejo and Gitea set
+it on every repo, so a missing one is rare; when it happens the row says
+Forgejo didn't report your access, instead of telling you to ask an owner,
+because nothing says you aren't an admin.
+
 A GitHub fine-grained token also gates _which_ repos it can see at all,
 separately from the preceding permissions — set at token creation, either
 "All repositories" or an explicit list. A repo left out of that list fails

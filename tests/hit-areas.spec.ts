@@ -25,9 +25,7 @@ const PHONE = { width: 375, height: 800, target: 44 } as const;
 const NARROW = { width: 700, height: 900, target: 44 } as const;
 const TABLET = { width: 768, height: 900, target: 24 } as const;
 const DESKTOP = { width: 1280, height: 900, target: 24 } as const;
-const SIZES = [PHONE, TABLET, DESKTOP];
-// The Webhooks sweeps add 700px; other pages are not swept there yet.
-const WITH_NARROW = [PHONE, NARROW, TABLET, DESKTOP];
+const SIZES = [PHONE, NARROW, TABLET, DESKTOP];
 
 type Sweep = { checked: number; offenders: string[] };
 
@@ -458,9 +456,27 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     expectNone(problems);
   });
 
+  // https://github.com/alrayyes/forge-dashboard/issues/1857
+  // The pop-up is a full-height sheet up to 480px and a centred dialog above
+  // it, so 700px (under the 761px phone rule) is where the header Close and
+  // the forge link used to fall short. The first row offers actions, so the
+  // footer buttons are swept too.
   test('pull requests: the details dialog open', async ({ page }) => {
     const problems: string[] = [];
-    await mockDashboard(page);
+    await mockDashboard(
+      page,
+      PULL_REQUESTS.map((pr, i) =>
+        i === 0
+          ? {
+              ...pr,
+              allowedActions: [
+                { action: 'merge', primary: true },
+                { action: 'close' },
+              ],
+            }
+          : pr,
+      ),
+    );
     await mockDetails(page);
     await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
     await page.goto('/pull-requests.html');
@@ -609,9 +625,7 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
     await expect(
       page.getByRole('button', { name: 'Clear filters' }),
     ).toBeEnabled();
-    await sweepAll(page, '/webhooks.html with repos', problems, {
-      sizes: WITH_NARROW,
-    });
+    await sweepAll(page, '/webhooks.html with repos', problems);
     expectNone(problems);
   });
 
@@ -649,7 +663,6 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
     ).toBeEnabled();
     // Scoped to the filter bar; the whole page is swept in the case above.
     await sweepAll(page, '/webhooks.html (filtered)', problems, {
-      sizes: WITH_NARROW,
       within: '#webhooks-filter-bar',
     });
     expectNone(problems);
