@@ -473,7 +473,9 @@ type Repo struct {
 	// role: a GitHub App installation has no role of its own, so a repo it
 	// can't list hooks on is missing the App's Webhooks permission (or the
 	// repo isn't in the installation). The page uses it to say what to
-	// grant instead of telling the user to ask an owner.
+	// grant instead of telling the user to ask an owner. On Forgejo it means
+	// the server sent no permissions object for the repo, so the role is
+	// unknown rather than non-admin.
 	WebhookLockedByConnection bool `json:"webhookLockedByConnection,omitempty"`
 	// StaleSince is set when this refresh could not fetch some of the repo's
 	// pull requests or issues, and the ones shown are the last good ones,
