@@ -114,7 +114,6 @@ test.describe('update branch request from the server', () => {
       current = { ...current, updateRequest: updateRequest('queued') };
       return route.fulfill({ status: 202 });
     });
-    await page.goto('/pull-requests.html');
   });
 
   async function click(page: Page) {
@@ -153,6 +152,7 @@ test.describe('update branch request from the server', () => {
   test('a reload mid-wait still shows the Updating branch chip', async ({
     page,
   }) => {
+    await page.goto('/pull-requests.html');
     await click(page);
     await page.reload();
 
@@ -169,7 +169,7 @@ test.describe('update branch request from the server', () => {
     page,
   }) => {
     current = { ...current, updateRequest: updateRequest('queued', 30_000) };
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
@@ -180,6 +180,7 @@ test.describe('update branch request from the server', () => {
   test('a queued record on the next snapshot keeps the row Queued', async ({
     page,
   }) => {
+    await page.goto('/pull-requests.html');
     await click(page);
     await push(page, current);
     await settle(page);
@@ -194,6 +195,7 @@ test.describe('update branch request from the server', () => {
   test('the row finishes once the record is gone and the pull request is no longer behind', async ({
     page,
   }) => {
+    await page.goto('/pull-requests.html');
     await click(page);
     current = { ...current, behind: false, updateRequest: undefined };
     await push(page, current);
@@ -212,6 +214,7 @@ test.describe('update branch request from the server', () => {
   test('expired in the snapshot shows the timed-out line and a toast, once', async ({
     page,
   }) => {
+    await page.goto('/pull-requests.html');
     await click(page);
     current = {
       ...current,
@@ -242,6 +245,7 @@ test.describe('update branch request from the server', () => {
   });
 
   test('Retry on an expired request asks again', async ({ page }) => {
+    await page.goto('/pull-requests.html');
     await click(page);
     current = {
       ...current,
@@ -266,6 +270,7 @@ test.describe('update branch request from the server', () => {
   test('a refresh answer older than a pushed snapshot cannot undo it', async ({
     page,
   }) => {
+    await page.goto('/pull-requests.html');
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -314,7 +319,7 @@ test.describe('update branch request from the server', () => {
       ...current,
       updateRequest: updateRequest('expired', 6 * 60_000),
     };
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await expect(
       row(page).getByRole('button', { name: 'Update branch' }),
@@ -330,6 +335,7 @@ test.describe('update branch request from the server', () => {
   test('a refresh already in flight at the click does not clear Queued, the next one does', async ({
     page,
   }) => {
+    await page.goto('/pull-requests.html');
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       release = resolve;
