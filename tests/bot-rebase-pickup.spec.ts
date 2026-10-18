@@ -164,7 +164,7 @@ for (const b of bots) {
         return route.fulfill({ status: 204 });
       });
       // Bot pull requests are on the Bots page, not the main list (#1192).
-      await page.goto('/bots.html');
+      // Each test loads it itself, once the routes above are installed.
     });
 
     async function request(page: Page) {
@@ -210,6 +210,7 @@ for (const b of bots) {
     test('a requested rebase shows a disabled button, what happens next and how long ago', async ({
       page,
     }) => {
+      await page.goto('/bots.html');
       await expect(row(page).getByText('Out of date')).toBeVisible();
       await request(page);
 
@@ -227,6 +228,7 @@ for (const b of bots) {
 
     if (shared) {
       test('the age keeps ticking and is not read out', async ({ page }) => {
+        await page.goto('/bots.html');
         await request(page);
         const ago = chip(page).locator('.feedback-requested');
         await expect(ago).toHaveAttribute('aria-hidden', 'true');
@@ -244,6 +246,7 @@ for (const b of bots) {
     // shows it, and the age on the chip counts from when it was
     // asked, not from when the page loaded.
     test('a reload mid-wait still shows the request', async ({ page }) => {
+      await page.goto('/bots.html');
       await request(page);
       await page.reload();
 
@@ -262,7 +265,7 @@ for (const b of bots) {
           ...current,
           botRequest: botRequest(b.id, 'queued', 90_000),
         };
-        await page.reload();
+        await page.goto('/bots.html');
         await expect(chip(page).locator('.feedback-requested')).toHaveText(
           '1m ago',
         );
@@ -277,7 +280,7 @@ for (const b of bots) {
         behind: false,
         botRequest: botRequest(b.id, 'rebasing'),
       };
-      await page.reload();
+      await page.goto('/bots.html');
       await expect(label(page)).toHaveText('Rebasing');
       await expect(chip(page).locator('.wait-chip-tip')).toContainText(
         `${b.bot} picked this up`,
@@ -287,6 +290,7 @@ for (const b of bots) {
     test('expired in the snapshot shows the timed-out line and a toast, once', async ({
       page,
     }) => {
+      await page.goto('/bots.html');
       await request(page);
       current = {
         ...current,
@@ -318,6 +322,7 @@ for (const b of bots) {
       test('the chip survives a stream push that still shows it queued', async ({
         page,
       }) => {
+        await page.goto('/bots.html');
         await request(page);
         await push(page, current);
         await expect(label(page)).toHaveText('Rebase requested');
@@ -343,6 +348,7 @@ for (const b of bots) {
     test('a refresh already in flight at the click does not clear the queued state, the next one does', async ({
       page,
     }) => {
+      await page.goto('/bots.html');
       let release: () => void = () => {};
       const gate = new Promise<void>((resolve) => {
         release = resolve;
@@ -405,6 +411,7 @@ for (const b of bots) {
       test('once the bot has rebased it the chip says Rebasing until CI restarts', async ({
         page,
       }) => {
+        await page.goto('/bots.html');
         await request(page);
         // The bot force-pushed: no longer behind, CI not restarted yet.
         current = {
@@ -443,6 +450,7 @@ for (const b of bots) {
       test('a CI run already under way at pickup needs no Rebasing step', async ({
         page,
       }) => {
+        await page.goto('/bots.html');
         await request(page);
         current = {
           ...current,
@@ -464,6 +472,7 @@ for (const b of bots) {
       test('has no axe violations when requested or rebasing, and none relies on colour alone', async ({
         page,
       }) => {
+        await page.goto('/bots.html');
         const scan = async () => {
           const results = await new AxeBuilder({ page })
             .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

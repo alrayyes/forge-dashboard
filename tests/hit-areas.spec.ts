@@ -21,9 +21,13 @@ import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 // shows up.
 
 const PHONE = { width: 375, height: 800, target: 44 } as const;
+// Between the old 600px card breakpoint and the 761px phone rule.
+const NARROW = { width: 700, height: 900, target: 44 } as const;
 const TABLET = { width: 768, height: 900, target: 24 } as const;
 const DESKTOP = { width: 1280, height: 900, target: 24 } as const;
 const SIZES = [PHONE, TABLET, DESKTOP];
+// The Webhooks sweeps add 700px; other pages are not swept there yet.
+const WITH_NARROW = [PHONE, NARROW, TABLET, DESKTOP];
 
 type Sweep = { checked: number; offenders: string[] };
 
@@ -101,6 +105,22 @@ function sweepInPage([target, overlap, within]: readonly [
     let rect = el.getBoundingClientRect();
     // Visually hidden (a skip link, a native input behind a custom one).
     if (rect.width <= 1 || rect.height <= 1) continue;
+    // Clipped away by an ancestor that is itself a pixel (a table header the
+    // phone layout hides while keeping it for screen readers): nothing there
+    // to touch.
+    let clipped = false;
+    for (let a = el.parentElement; a && a !== document.body; ) {
+      const r = a.getBoundingClientRect();
+      if (
+        (r.width <= 1 || r.height <= 1) &&
+        getComputedStyle(a).overflow !== 'visible'
+      ) {
+        clipped = true;
+        break;
+      }
+      a = a.parentElement;
+    }
+    if (clipped) continue;
     el.scrollIntoView({ block: 'center', inline: 'center' });
     rect = el.getBoundingClientRect();
     checked++;
@@ -182,9 +202,18 @@ async function sweepAll(
   page: Page,
   label: string,
   problems: string[],
-  options: { overlap?: boolean; within?: string } = {},
+  options: {
+    overlap?: boolean;
+    within?: string;
+    sizes?: readonly (
+      | typeof PHONE
+      | typeof NARROW
+      | typeof TABLET
+      | typeof DESKTOP
+    )[];
+  } = {},
 ) {
-  for (const size of SIZES) {
+  for (const size of options.sizes ?? SIZES) {
     await page.setViewportSize({ width: size.width, height: size.height });
     // Let the layout and any container-driven change settle.
     await page.evaluate(
@@ -277,7 +306,11 @@ const ISSUES = [1, 2, 3].map((number) => ({
   updatedAt: ago(number),
 }));
 
-async function mockDashboard(page: Page, pullRequests = PULL_REQUESTS) {
+async function mockDashboard(
+  page: Page,
+  pullRequests = PULL_REQUESTS,
+  repos: Record<string, unknown>[] = [],
+) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
@@ -291,7 +324,7 @@ async function mockDashboard(page: Page, pullRequests = PULL_REQUESTS) {
         ],
         pullRequests,
         issues: ISSUES,
-        repos: [],
+        repos,
         hiddenDrafts: 0,
       }),
     }),
@@ -537,6 +570,51 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
     expectNone(problems);
   });
 
+  // https://github.com/alrayyes/forge-dashboard/issues/1825
+  // The sweep above loads Webhooks with no repos, so it never saw the table.
+  test('webhooks with repos loaded, the whole page', async ({ page }) => {
+    const problems: string[] = [];
+    const repo = (name: string, extra: Record<string, unknown> = {}) => ({
+      forge: 'github',
+      fullName: `alrayyes/${name}`,
+      url: `https://github.com/alrayyes/${name}`,
+      hasWebhook: true,
+      canManageWebhooks: true,
+      ignored: false,
+      ignoredPRs: false,
+      ignoredIssues: false,
+      autoUpdateBranch: false,
+      ...extra,
+    });
+    // A filter that keeps every repo, so Clear filters is enabled and swept.
+    await page.route('**/api/settings/filter-state', (route) =>
+      route.request().method() === 'GET'
+        ? route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ webhooks: { repo: 'alrayyes' } }),
+          })
+        : route.fulfill({ status: 204 }),
+    );
+    await mockDashboard(page, PULL_REQUESTS, [
+      repo('one'),
+      repo('two', { autoUpdateBranch: true }),
+      repo('three', { hasWebhook: false }),
+      repo('four', { hasWebhook: false, canManageWebhooks: false }),
+      repo('five', { ignored: true, ignoredPRs: true }),
+    ]);
+    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
+    await page.goto('/webhooks.html');
+    await ready(page, '#webhooks-table tbody tr');
+    await expect(
+      page.getByRole('button', { name: 'Clear filters' }),
+    ).toBeEnabled();
+    await sweepAll(page, '/webhooks.html with repos', problems, {
+      sizes: WITH_NARROW,
+    });
+    expectNone(problems);
+  });
+
   test('webhooks with repos and a filter set, so Clear filters is enabled', async ({
     page,
   }) => {
@@ -569,9 +647,9 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
     await expect(
       page.getByRole('button', { name: 'Clear filters' }),
     ).toBeEnabled();
-    // Scoped to the filter bar: the table's own sort and row buttons are
-    // swept (and short of the target) separately from this control.
+    // Scoped to the filter bar; the whole page is swept in the case above.
     await sweepAll(page, '/webhooks.html (filtered)', problems, {
+      sizes: WITH_NARROW,
       within: '#webhooks-filter-bar',
     });
     expectNone(problems);

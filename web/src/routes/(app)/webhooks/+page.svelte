@@ -42,6 +42,7 @@
     url?: string;
     hasWebhook: boolean;
     canManageWebhooks?: boolean;
+    webhookLockedByConnection?: boolean;
     ignored: boolean;
     ignoredPRs: boolean;
     ignoredIssues: boolean;
@@ -231,6 +232,30 @@
     Array.from({ length: totalPages }, (_, i) => i + 1),
   );
 
+  // The phone "Sort by" select and the wide table's header buttons share
+  // sortKey and sortDir. One value carries both, "fullName:desc".
+  const sortChoice = $derived(`${sortKey}:${sortDir}`);
+  function chooseSort(value: string) {
+    const [key, dir] = value.split(":");
+    if (key !== "forge" && key !== "fullName" && key !== "hasWebhook") return;
+    sortKey = key;
+    sortDir = dir === "desc" ? "desc" : "asc";
+    onFilterChange(["sort", "dir"]);
+  }
+
+  // True while the table is drawn as cards and its header is clipped to 1px.
+  // The header buttons are then invisible, so they leave the tab order
+  // (tabindex -1, not inert: the header text stays in the accessibility tree
+  // as the cells' column names, WCAG 1.3.1). The width is the card rule's.
+  let cardLayout = $state(false);
+  onMount(() => {
+    const query = window.matchMedia("(max-width: 760px)");
+    const sync = () => (cardLayout = query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  });
+
   function setSort(key: "forge" | "fullName" | "hasWebhook") {
     if (sortKey === key) {
       sortDir = sortDir === "desc" ? "asc" : "desc";
@@ -312,9 +337,9 @@
 
   function onFilterChange(keys: string[], freeText = false) {
     page = 1;
-    // The notice is about the filters as they were; once one changes it is
-    // stale, and clearing it makes the next clear a real change to announce.
-    if (statusMessage === FILTERS_CLEARED) setStatus("");
+    // A result is about the list as it was; once a filter changes it is
+    // stale.
+    setStatus("");
     save(keys, freeText);
   }
 
@@ -356,7 +381,14 @@
           rateLimitReasonText(FORGE_LABELS[repo.forge] ?? repo.forge, resetsAt),
       );
       if (outcome.kind === "locked") {
-        rowState[key] = { lockReason: outcome.reason };
+        // A permission refusal carries the server's own sentence, which
+        // names what a GitHub App is missing; the shared text says "token".
+        rowState[key] = {
+          lockReason:
+            outcome.code === "permission" && (err as Error).message
+              ? (err as Error).message
+              : outcome.reason,
+        };
         setStatus(`Couldn't add a webhook for ${repo.fullName}.`, "error");
         return;
       }
@@ -750,6 +782,13 @@
       gap: 10px;
       margin-bottom: 14px;
     }
+    /* Shown with the cards, where the header's sort buttons are clipped. */
+    .webhooks-sort {
+      display: none;
+      width: auto;
+      flex: 1 1 130px;
+      min-width: 120px;
+    }
     .webhooks-filter-bar .col-filter {
       width: auto;
       flex: 1 1 130px;
@@ -798,7 +837,9 @@
       text-decoration: none;
     }
 
-    /* Below ~600px, .data-table's 5 columns don't fit — an owner/repo
+    /* Up to 760px (the width style.css's 44px phone rule also stops at, so a
+       control is never both a card and under 44px), .data-table's 5 columns
+       don't fit — an owner/repo
        full name has no natural wrap point, and the "Needs admin
        access…" sentence adds real width on top of it, together
        forcing the table wider than the viewport. Collapsed into a
@@ -811,7 +852,10 @@
        semantics browsers drop once display moves off table/table-row/
        table-cell, since an explicit role (unlike the implicit one)
        isn't tied to computed display. */
-    @media (max-width: 600px) {
+    @media (max-width: 760px) {
+      .webhooks-sort {
+        display: block;
+      }
       .data-table,
       .data-table thead,
       .data-table tbody,
@@ -1021,6 +1065,21 @@
             <option value="pending">Not yet</option>
           {/if}
         </select>
+        <select
+          class="group-select webhooks-sort"
+          id="webhooks-sort-select"
+          aria-label="Sort by"
+          value={sortChoice}
+          onchange={(e) => chooseSort(e.currentTarget.value)}
+        >
+          <option value="fullName:asc">Sort: Repo, A to Z</option>
+          <option value="fullName:desc">Sort: Repo, Z to A</option>
+          <option value="forge:asc">Sort: Forge, A to Z</option>
+          <option value="forge:desc">Sort: Forge, Z to A</option>
+          <option value="hasWebhook:asc">Sort: Webhook, not yet first</option>
+          <option value="hasWebhook:desc">Sort: Webhook, confirmed first</option
+          >
+        </select>
         <button
           type="button"
           class="clear-filters"
@@ -1058,6 +1117,7 @@
                 <button
                   type="button"
                   class="sort-button"
+                  tabindex={cardLayout ? -1 : undefined}
                   data-sort-key="forge"
                   onclick={() => setSort("forge")}
                   >Forge<span class="sort-arrow"
@@ -1081,6 +1141,7 @@
                 <button
                   type="button"
                   class="sort-button"
+                  tabindex={cardLayout ? -1 : undefined}
                   data-sort-key="fullName"
                   onclick={() => setSort("fullName")}
                   >Repo<span class="sort-arrow"
@@ -1104,6 +1165,7 @@
                 <button
                   type="button"
                   class="sort-button"
+                  tabindex={cardLayout ? -1 : undefined}
                   data-sort-key="hasWebhook"
                   onclick={() => setSort("hasWebhook")}
                   >Webhook<span class="sort-arrow"
@@ -1161,9 +1223,19 @@
                     {#if !repo.canManageWebhooks}
                       <span class="webhook-locked">
                         <span class="webhook-locked-reason">
-                          Needs admin access on this repo — ask an owner, or <a
-                            href="/settings.html#webhooks">set it up manually</a
-                          >.
+                          {#if repo.webhookLockedByConnection}
+                            This connection can't manage webhooks on this repo.
+                            Give your GitHub App the Webhooks (read and write)
+                            permission, then accept it on the installation, or <a
+                              href="/settings.html#webhooks"
+                              >set it up manually</a
+                            >.
+                          {:else}
+                            Needs admin access on this repo — ask an owner, or <a
+                              href="/settings.html#webhooks"
+                              >set it up manually</a
+                            >.
+                          {/if}
                         </span>
                       </span>
                     {:else if lockReasonFor(repo)}
