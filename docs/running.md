@@ -3,9 +3,8 @@
 ```sh
 go build -o forge-dashboard ./cmd/forge-dashboard
 mkdir -p data
-DB_PATH=./data/forge-dashboard.db \
-  ENCRYPTION_KEY="$(openssl rand -base64 32)" \
-  ./forge-dashboard
+export ENCRYPTION_KEY="$(openssl rand -base64 32)"   # once; keep it for later runs
+DB_PATH=./data/forge-dashboard.db ./forge-dashboard
 ```
 
 Then open `http://localhost:8080`, register a passkey — `RP_ID`/
@@ -21,12 +20,13 @@ moment the container is recreated:
 
 ```sh
 docker build -t forge-dashboard .
+export ENCRYPTION_KEY="$(openssl rand -base64 32)"   # once; keep it for later runs
 docker run --rm -p 8080:8080 \
   --cap-drop=ALL --security-opt=no-new-privileges --read-only \
   --memory=64m --cpus=0.5 --pids-limit=64 \
   -v forge-dashboard-data:/data \
   -e RP_ID=localhost -e RP_ORIGIN=http://localhost:8080 \
-  -e ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+  -e ENCRYPTION_KEY \
   forge-dashboard
 ```
 
