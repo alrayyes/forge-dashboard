@@ -53,6 +53,8 @@ export type FeedbackUIOptions = {
   // Check again on a chip that has waited too long: read the row from the
   // server now (#1229).
   onCheckAgain?: () => void;
+  // Where to speak while a modal dialog holds the page: its own live region.
+  liveTarget?: () => HTMLElement | null;
 };
 
 function node(tag: string, className = '', text = ''): HTMLElement {
@@ -142,14 +144,22 @@ export function mountFeedbackUI(
 
   // ---- the one live region ----
   let announceHandle: number | null = null;
+  // While a modal dialog is open the page's own region is ignored by
+  // assistive tech, so the dialog can offer its own to speak through.
+  function liveRegion(): HTMLElement | null {
+    return options.liveTarget?.() ?? live;
+  }
   function announce(message: string) {
-    if (!live) return;
+    const first = liveRegion();
+    if (!first) return;
     // Cleared first so the same sentence twice in a row is still two
     // events to a screen reader.
-    live.textContent = '';
+    first.textContent = '';
     if (announceHandle !== null) window.clearTimeout(announceHandle);
     announceHandle = window.setTimeout(() => {
-      live.textContent = message;
+      // Chosen when it is spoken: the dialog may have closed meanwhile.
+      const target = liveRegion();
+      if (target) target.textContent = message;
       announceHandle = null;
     }, 30);
   }
@@ -712,5 +722,5 @@ export function mountFeedbackUI(
   store.subscribe(render);
   render();
 
-  return { decorateRow, syncRows, tick };
+  return { decorateRow, syncRows, tick, inlineLines: buildInline };
 }

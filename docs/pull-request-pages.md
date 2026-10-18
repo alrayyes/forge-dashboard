@@ -2,15 +2,33 @@
 
 ## Pull request details
 
-Clicking a pull request row, anywhere on it, opens a read-only pop-up. The
+Clicking a pull request row, anywhere on it, opens a pop-up. The
 row's title is the button that does it, stretched over the row; the CI pill,
-the labels and the action buttons stay clickable on top of it. The pop-up has
+the labels and the row's own buttons stay clickable on top of it. The pop-up has
 the pull request's description, its comments and the thumbs up and thumbs
 down reactions on each, and an **Open on GitHub** (or Forgejo) link. On the
 Releases page the pop-up shows the release notes in place of the description.
 A Dependabot or Renovate pull request opens the same pop-up, with its long
-generated description folded away until you open it. There are no actions in
-it yet: Merge, Update branch and the rest stay on the row.
+generated description folded away until you open it.
+
+The footer of the pop-up has every action the row offers, so a pull request can
+be acted on from it: the main action first (the one the server marks primary),
+then the others, with **Close pull request** last, on the right. They are the row's
+own buttons with the same states: locked with the reason, queued, in flight and
+the two-step confirm for Merge and Close. A locked button stays on screen,
+greyed, with the reason printed as text beside it or in the status block under
+the header, and described to screen readers. A failure shows as a line above
+the footer, with room for several, and leaves the buttons usable. The footer
+also holds Hide this pull request and Hide for 7 days, and **Rerun failed
+checks** when CI is failing and the server offers it. Results are spoken
+through a status region inside the pop-up, since the page's own is out of reach
+while a modal is open. Escape first ends an armed confirm and a second press
+closes the pop-up. The row keeps its own buttons too. The footer follows its
+pull request while the pop-up is open: when a refresh changes what it offers,
+the footer changes with it, and when the pull request has left the board
+(merged, closed or hidden) the footer says so and keeps only the link to the
+forge. On a phone the pop-up is a full-height sheet
+whose footer stays at the bottom, with 44 pixel buttons that wrap.
 
 The pop-up loads when it opens, from `GET /api/pull-requests/details`, and
 never as part of the dashboard snapshot, so a forge's budget isn't spent on
@@ -68,9 +86,12 @@ open the page says there is nothing to review.
 ## Hiding one pull request
 
 A pull request you can't or won't act on yet can be hidden. **More actions** on
-its row has **Hide this pull request**, and **Hide for 7 days** under it. It
-leaves the list, the quick-filter counts and Insights at once,
-with no confirm step, since it is reversible. Nothing is sent to the forge.
+its row has **Hide this pull request**, and **Hide for 7 days** under it; the
+footer of the pop-up has both too. Hiding from the pop-up closes it, so the
+status message and its **Undo** below are within reach. A failed hide shows as a
+line in the pop-up instead. It leaves the list, the quick-filter counts and
+Insights at once, with no confirm step, since it is reversible. Nothing is sent
+to the forge.
 
 A status message says `Hid PR #123 ‘title’.` with an **Undo** button. It stays
 until the next message, and the same restore is in the list below, so it isn't

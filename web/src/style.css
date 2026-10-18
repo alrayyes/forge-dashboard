@@ -2335,6 +2335,106 @@ a.ci-pill:hover {
   color: var(--ink-3);
 }
 
+/* The details dialog's footer (#943): the row's own buttons, the primary one
+   first and Close last, on the right. They wrap on a narrow screen rather
+   than shrink. */
+.details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.details-actions:empty {
+  display: none;
+}
+.details-actions .row-action {
+  min-height: 36px;
+  font-size: 13px;
+  padding: 4px 14px;
+  background: var(--neutral-bg);
+  color: var(--ink-2);
+}
+/* Only the primary action is filled; the rest are neutral outlines. */
+.details-actions .details-action-primary .row-action:not(.cancel),
+.details-actions .row-action.details-action-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+/* A locked action keeps its own look: dashed and flat, unlike a live neutral
+   button beside it. A locked Retry is live and keeps the accent. */
+.details-actions .row-action-locked .row-action {
+  background: transparent;
+  color: var(--ink-3);
+  border-style: dashed;
+  cursor: default;
+}
+.details-actions .row-action-locked .row-action:not([aria-disabled]) {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-style: solid;
+  cursor: pointer;
+}
+.details-actions .row-action.confirm {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.details-actions .row-action-group {
+  flex-wrap: wrap;
+}
+.details-actions .details-action-close {
+  margin-inline-start: auto;
+}
+/* The reason beside a locked button reads left to right here, whole. */
+.details-actions .row-action-locked-visible {
+  align-items: flex-start;
+}
+.details-actions .row-action-note {
+  align-items: flex-start;
+  max-width: 28ch;
+  text-align: left;
+  font-size: 12px;
+}
+/* The status block and failure lines in the dialog are full width. */
+.details-status-block .status-area {
+  font-size: 13px;
+}
+.details-feedback .row-feedback {
+  padding-bottom: 8px;
+}
+@media (max-width: 480px) {
+  /* 44px targets, the primary action on a line of its own, the rest
+     sharing the lines below it. */
+  .details-actions {
+    justify-content: stretch;
+  }
+  .details-actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .details-actions .row-action {
+    min-height: 44px;
+    justify-content: center;
+  }
+  .details-actions > .details-action-primary {
+    flex-basis: 100%;
+  }
+  .details-actions .row-action-group > .row-action {
+    flex: 1 1 auto;
+  }
+  .details-actions .row-action-locked {
+    flex-wrap: wrap;
+  }
+  .details-actions .row-action-locked > .row-action {
+    flex: 1 1 auto;
+  }
+  .details-actions .row-action-note {
+    max-width: none;
+  }
+}
+
 .row-feedback-line[data-phase="failed"],
 .row-feedback-line[data-phase="expired"] {
   border-left-color: var(--critical);

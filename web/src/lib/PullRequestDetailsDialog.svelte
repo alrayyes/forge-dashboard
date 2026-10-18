@@ -19,6 +19,16 @@
     // here is fetched.
     status?: DetailsStatus;
   };
+
+  // What the footer area shows, built by the row's own builders in
+  // Dashboard.svelte (the same buttons, the same state) and handed over whole:
+  // the status block under the header, the failure lines above the footer,
+  // and the actions in order, the primary one first and Close last.
+  export type DetailsChrome = {
+    status: HTMLElement | null;
+    feedback: HTMLElement | null;
+    actions: HTMLElement[];
+  };
 </script>
 
 <script lang="ts">
@@ -62,7 +72,19 @@
     releaseNotes: Body | null;
   };
 
+  // Dashboard.svelte's hooks: Escape first backs out of an armed confirm, and
+  // it hears when the dialog has closed.
+  let {
+    onEscape,
+    onClosed,
+  }: { onEscape?: () => boolean; onClosed?: () => void } = $props();
+
   let dialogEl = $state<HTMLDialogElement>();
+  // These three hosts exist from the start so the page can fill them in the
+  // same tick it opens the dialog, and move focus into them at once.
+  let statusHost = $state<HTMLElement>();
+  let feedbackHost = $state<HTMLElement>();
+  let actionsHost = $state<HTMLElement>();
   let target = $state<DetailsTarget | null>(null);
   let returnFocusId = "";
   let phase = $state<"loading" | "error" | "ready">("loading");
@@ -82,6 +104,46 @@
   );
   const releaseNotes = $derived(details?.releaseNotes ?? null);
   const isBot = $derived(target?.kind === "dependency");
+
+  // The dialog's own polite live region. The page's one (outside the
+  // <dialog>) is ignored by assistive tech while a modal is open, so the
+  // dialog speaks through this one.
+  let liveHost = $state<HTMLElement>();
+  export function liveElement(): HTMLElement | undefined {
+    return liveHost;
+  }
+
+  export function close() {
+    dialogEl?.close();
+  }
+
+  export function isOpen(): boolean {
+    return dialogEl?.open === true;
+  }
+
+  // The footer area's host, so the page can tell where focus is before it
+  // redraws.
+  export function actionsElement(): HTMLElement | undefined {
+    return actionsHost;
+  }
+
+  // The close button in the header: where focus goes when the control it was
+  // on has gone and nothing else in the footer is left.
+  export function focusClose() {
+    dialogEl?.querySelector<HTMLElement>(".details-close")?.focus();
+  }
+
+  // Replaces what the page built for the footer area. Synchronous: the page
+  // finds its new buttons by id straight after.
+  export function setChrome(chrome: DetailsChrome) {
+    statusHost?.replaceChildren(...(chrome.status ? [chrome.status] : []));
+    if (statusHost) statusHost.hidden = chrome.status === null;
+    feedbackHost?.replaceChildren(
+      ...(chrome.feedback ? [chrome.feedback] : []),
+    );
+    if (feedbackHost) feedbackHost.hidden = chrome.feedback === null;
+    actionsHost?.replaceChildren(...chrome.actions);
+  }
 
   export function open(item: DetailsTarget, triggerId: string) {
     target = item;
@@ -160,6 +222,11 @@
   let shownReaction = $state<string | null>(null);
 
   function onCancel(event: Event) {
+    // An armed confirm in the footer ends first, keeping the dialog open.
+    if (onEscape?.()) {
+      event.preventDefault();
+      return;
+    }
     if (shownReaction === null) return;
     // The first Escape only dismisses the list; the next one closes the dialog.
     event.preventDefault();
@@ -168,9 +235,12 @@
 
   function onClose() {
     shownReaction = null;
+    // Nothing said inside the dialog is still true once it is gone.
+    if (liveHost) liveHost.textContent = "";
     token++;
     const id = returnFocusId;
     returnFocusId = "";
+    onClosed?.();
     if (id) document.getElementById(id)?.focus();
   }
 
@@ -303,7 +373,21 @@
         >
       </button>
     </div>
+  {/if}
 
+  <!-- Present from the first paint and written only when something is said. -->
+  <div
+    class="visually-hidden"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+    bind:this={liveHost}
+  ></div>
+
+  <!-- What the pull request is waiting on or blocked by, in words. -->
+  <div class="details-status-block" bind:this={statusHost} hidden></div>
+
+  {#if target}
     <div class="details-body">
       {#if phase === "loading"}
         <div class="details-skeleton" role="status">
@@ -415,8 +499,13 @@
         </section>
       {/if}
     </div>
+  {/if}
 
-    <div class="details-footer">
+  <!-- Failure lines, above the footer so there is always room for them. -->
+  <div class="details-feedback" bind:this={feedbackHost} hidden></div>
+
+  <div class="details-footer">
+    {#if target}
       <a
         class="details-open-link"
         href={target.url}
@@ -426,8 +515,9 @@
           (opens in a new tab)</span
         ></a
       >
-    </div>
-  {/if}
+    {/if}
+    <div class="details-actions" bind:this={actionsHost}></div>
+  </div>
 </dialog>
 
 <style>
@@ -571,8 +661,30 @@
   .details-footer {
     flex: none;
     display: flex;
-    justify-content: flex-end;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
     padding: 12px 18px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  /* The status block sits under the header, outside the scrolling body. */
+  .details-status-block {
+    flex: none;
+    padding: 10px 18px 0;
+  }
+  .details-status-block[hidden],
+  .details-feedback[hidden] {
+    display: none;
+  }
+  /* Failure lines: room for several, scrolling past a few rather than
+     pushing the footer off a short screen. */
+  .details-feedback {
+    flex: none;
+    max-height: 30vh;
+    overflow-y: auto;
+    padding: 8px 18px 0;
     border-top: 1px solid var(--border);
   }
   .markdown {
@@ -816,6 +928,13 @@
     .details-open-link {
       min-height: 44px;
       min-width: 44px;
+    }
+    /* A sticky footer: the link to the forge, then the actions at the bottom
+       where a thumb reaches. */
+    .details-footer {
+      flex-direction: column;
+      align-items: stretch;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
     }
     .reaction {
       display: inline-flex;

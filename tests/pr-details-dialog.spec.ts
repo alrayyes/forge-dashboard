@@ -582,7 +582,7 @@ test.describe('pull request details dialog', () => {
     });
     expect(overflow).toEqual([0, 0]);
     for (const control of [
-      d.getByRole('button', { name: /^Close/ }),
+      d.getByRole('button', { name: 'Close details' }),
       d.getByRole('link', { name: /Open on GitHub/ }),
     ]) {
       const b = await control.boundingBox();
@@ -897,7 +897,9 @@ test.describe('pull request details dialog', () => {
     });
     expect(overflow).toEqual([0, 0]);
     const slot = await d.locator('.details-status .ci-slot').boundingBox();
-    const close = await d.getByRole('button', { name: /^Close/ }).boundingBox();
+    const close = await d
+      .getByRole('button', { name: 'Close details' })
+      .boundingBox();
     const attrs = await d.locator('.attr-cluster').boundingBox();
     const title = await d.locator('.details-title').boundingBox();
     expect(slot?.y).toBeLessThan(title?.y ?? 0);
