@@ -1,6 +1,6 @@
 // Command forge-dashboard is the composition root: it wires the SQLite
 // database, the passkey auth service, and the per-user dashboard.Manager,
-// then serves the API and static frontend. See CLAUDE.md and the README
+// then serves the API and static frontend. See docs/configuration.md
 // for the environment variables that configure it.
 package main
 
