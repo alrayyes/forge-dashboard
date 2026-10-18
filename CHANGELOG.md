@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.219.2](https://github.com/alrayyes/forge-dashboard/compare/v0.219.1...v0.219.2) (2026-10-18)
+
+
+### Bug Fixes
+
+* **forgejo:** tell a missing permissions object from a non-admin role ([#1865](https://github.com/alrayyes/forge-dashboard/issues/1865)) ([e5195f1](https://github.com/alrayyes/forge-dashboard/commit/e5195f14e8e8b95bf0b77fa9c6c6b6147a1ab3ea))
+
 ## [0.219.1](https://github.com/alrayyes/forge-dashboard/compare/v0.219.0...v0.219.1) (2026-10-18)
 
 
