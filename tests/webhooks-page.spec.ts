@@ -759,7 +759,7 @@ test.describe('webhooks page', () => {
     ).toHaveAttribute('href', '/settings.html#webhooks');
   });
 
-  test('a repo the connection cannot manage names the missing App permission, not an owner', async ({
+  test('a repo the connection cannot manage names the credential limit, not an owner', async ({
     page,
   }) => {
     await mockDashboard(page, [
@@ -778,7 +778,7 @@ test.describe('webhooks page', () => {
       row.getByRole('button', { name: 'Add a webhook' }),
     ).toHaveCount(0);
     await expect(row).toContainText(
-      'Give your GitHub App the Webhooks (read and write) permission, then accept it on the installation',
+      "This connection can't manage webhooks on this repo",
     );
     await expect(row).not.toContainText(/ask an owner/i);
     await expect(
