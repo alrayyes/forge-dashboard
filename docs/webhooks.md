@@ -16,13 +16,13 @@ the main dashboard next to the pull request/issue boards it has
 nothing to do with. It checks the forge's own webhook list directly, so a
 repo with one already pointed at this dashboard shows as confirmed
 immediately, not once something happens to trigger it — no waiting on
-a real event to arrive. That live check can fail (rate limiting, see
-[Rate limits](rate-limits.md), an
+a real event to arrive. That live check can fail (rate limiting, an
 unreachable forge, a token missing the webhook-list scope — see
 Settings' own field hints for what that is per forge), in which case it
 falls back to whether this app has ever actually received a
 signature-verified delivery for that repo, the same passive signal this
-whole page is otherwise about.
+whole page is otherwise about. For why a forge refuses requests,
+see [Rate limits](rate-limits.md).
 
 The page remembers its forge buttons, repo search, status select and sort
 the way the pull request and issue pages remember theirs: they are still set
