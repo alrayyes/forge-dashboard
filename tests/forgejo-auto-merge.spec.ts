@@ -8,6 +8,7 @@ import {
 } from '@playwright/test';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 async function registerAndSignIn(
   page: Page,
@@ -92,9 +93,17 @@ async function openMoreActions(row: Locator) {
   await row.getByRole('button', { name: 'More actions' }).click();
 }
 
+// The pull request row tests mock the dashboard and write nothing per user, so
+// they start from the shared session instead of registering a user per test
+// (#1379).
 test.describe('Forgejo auto-merge on a pull request row', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  test.beforeEach(async ({ page }) => {
+    // Aborted, so a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
+      route.abort(),
+    );
   });
 
   test('a Forgejo pull request offers Enable auto-merge, which posts for that pull request', async ({
@@ -120,7 +129,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
         ),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await openMoreActions(row);
@@ -147,7 +156,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
         }),
       ),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     const pill = row.locator('.attr-chip.auto-merge');
@@ -178,7 +187,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
         }),
       ),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await expect(
@@ -215,7 +224,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
         body: JSON.stringify(snapshot(makePR())),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Disarm auto-merge' }).click();
@@ -250,7 +259,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
         body: JSON.stringify(snapshot(makePR(), done)),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const toasts = page.locator('#feedback-toasts .feedback-toast');
     await expect(toasts).toHaveCount(1);
@@ -280,7 +289,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
           armed({ state: 'waiting', code: '', message: 'Ready.' }, holder),
         ),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       const row = page.locator('#pr-rows .row').first();
       const pill = row.locator('.attr-chip.auto-merge');
       await expect(pill).toContainText('Auto-merge on');
@@ -306,7 +315,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
       page,
       snapshot(armed({ state: 'waiting', code: '', message: 'Ready.' }, null)),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
     const pill = row.locator('.attr-chip.auto-merge');
     await expect(pill).toContainText('Auto-merge on');
@@ -333,7 +342,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
         body: JSON.stringify(snapshot(makePR())),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
     await row
       .getByRole('button', {
@@ -362,7 +371,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
             armed({ state: 'waiting', code: '', message: 'Ready.' }, 'forge'),
           ),
         );
-        await page.reload();
+        await page.goto('/pull-requests.html');
         const chip = page
           .locator('#pr-rows .row')
           .first()
@@ -405,7 +414,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
         }),
       ),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await expect(
       page.locator('#pr-rows .row').first().locator('.attr-chip.auto-merge'),
     ).toBeVisible();
