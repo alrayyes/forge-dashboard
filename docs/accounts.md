@@ -181,7 +181,7 @@ and puts focus on that input. The page holds no copy of those rules.
 - **GitHub App installation** (operator opt-in): if this deployment has
   a GitHub App configured, a field next to the token lets you connect
   an installation instead — its own independent rate-limit budget
-  rather than your account's shared one. See
+  rather than your account's shared one (see [Rate limits](rate-limits.md)). See
   [GitHub App support](configuration.md#github-app-support).
 
 ### Forgejo

@@ -16,7 +16,8 @@ the main dashboard next to the pull request/issue boards it has
 nothing to do with. It checks the forge's own webhook list directly, so a
 repo with one already pointed at this dashboard shows as confirmed
 immediately, not once something happens to trigger it — no waiting on
-a real event to arrive. That live check can fail (rate limiting, an
+a real event to arrive. That live check can fail (rate limiting, see
+[Rate limits](rate-limits.md), an
 unreachable forge, a token missing the webhook-list scope — see
 Settings' own field hints for what that is per forge), in which case it
 falls back to whether this app has ever actually received a

@@ -68,7 +68,8 @@ cheaply:
 
 A forge that can't be reached keeps its last known rows, each marked `stale`
 with the time it was last fetched, and so does a forge whose rate-limit budget
-is spent (the refresh skips it until the reset). A repo whose read failed while
+is spent (the refresh skips it until the reset; see
+[Rate limits](rate-limits.md)). A repo whose read failed while
 its forge answered keeps its own earlier row the same way. A repo with no
 pipeline on its newest commit, an empty repo, or a Forgejo instance without
 Actions shows `none`. The snapshot updates on each full refresh, and a webhook
