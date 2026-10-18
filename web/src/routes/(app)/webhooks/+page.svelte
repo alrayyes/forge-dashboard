@@ -1223,7 +1223,13 @@
                     {#if !repo.canManageWebhooks}
                       <span class="webhook-locked">
                         <span class="webhook-locked-reason">
-                          {#if repo.webhookLockedByConnection}
+                          {#if repo.webhookLockedByConnection && repo.forge === "forgejo"}
+                            Forgejo didn't report your access on this repo, so
+                            the dashboard can't tell if you can manage its
+                            webhooks. <a href="/settings.html#webhooks"
+                              >Set it up manually</a
+                            >.
+                          {:else if repo.webhookLockedByConnection}
                             This connection can't manage webhooks on this repo.
                             Give your GitHub App the Webhooks (read and write)
                             permission, then accept it on the installation, or <a
