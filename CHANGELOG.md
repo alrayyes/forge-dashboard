@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.219.1](https://github.com/alrayyes/forge-dashboard/compare/v0.219.0...v0.219.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* give the pull request details pop-up 44px targets under 761px ([#1866](https://github.com/alrayyes/forge-dashboard/issues/1866)) ([56ad64c](https://github.com/alrayyes/forge-dashboard/commit/56ad64c72bca9cafa6dd72af919b56ae1309a898)), closes [#1857](https://github.com/alrayyes/forge-dashboard/issues/1857)
+
 ## [0.219.0](https://github.com/alrayyes/forge-dashboard/compare/v0.218.4...v0.219.0) (2026-10-18)
 
 

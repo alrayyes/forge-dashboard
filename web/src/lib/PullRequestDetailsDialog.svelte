@@ -907,6 +907,20 @@
     white-space: nowrap;
   }
 
+  /* The 44px target applies under 761px, the same cut as style.css, so the
+     centred dialog at 700px gets it too, not just the full-height sheet. */
+  @media (max-width: 760px) {
+    .details-close {
+      width: 44px;
+      height: 44px;
+    }
+    .details-retry,
+    .details-open-link {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+
   @media (max-width: 480px) {
     .details-dialog {
       width: 100vw;
@@ -915,19 +929,10 @@
       border-radius: 0;
       border: none;
     }
-    .details-close {
-      width: 44px;
-      height: 44px;
-    }
     /* The CI slot at the top right of the header, the attributes wrapping
        on their own line below the title. */
     .details-status :global(.details-state) {
       justify-content: flex-end;
-    }
-    .details-retry,
-    .details-open-link {
-      min-height: 44px;
-      min-width: 44px;
     }
     /* A sticky footer: the link to the forge, then the actions at the bottom
        where a thumb reaches. */
