@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.219.3](https://github.com/alrayyes/forge-dashboard/compare/v0.219.2...v0.219.3) (2026-10-18)
+
+
+### Bug Fixes
+
+* **github:** lock repos checked after an app-wide webhooks denial ([#1874](https://github.com/alrayyes/forge-dashboard/issues/1874)) ([c053a17](https://github.com/alrayyes/forge-dashboard/commit/c053a17c7b459ef7bbea792c56db704b1d47c818)), closes [#1871](https://github.com/alrayyes/forge-dashboard/issues/1871)
+
 ## [0.219.2](https://github.com/alrayyes/forge-dashboard/compare/v0.219.1...v0.219.2) (2026-10-18)
 
 
