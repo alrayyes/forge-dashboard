@@ -832,13 +832,29 @@ section.board {
      for this account's own repo names ("alrayyes/backup-git-repos",
      "alrayyes/forge-dashboard") without one. Every .row shares this
      exact list, which is what keeps columns aligned down the board
-     with no shared grid/subgrid — widen it here only, never per-row. */
+     with no shared grid/subgrid — widen it here only, never per-row.
+     #1899: the fixed columns alone sum to 842px; with gaps (6 x 12px)
+     and padding (2 x 18px) the grid needs ~950px before the 1fr title
+     column gets any space at all. The phone layout triggers at
+     max-width: 760px, so 761-949 px overflow. Drop the author, created
+     and updated columns starting at 950px so the 1fr title and the
+     status cell stay on screen. */
   grid-template-columns: 280px 1fr 96px 82px 82px 280px 22px;
   gap: 12px;
   align-items: center;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
   color: inherit;
+}
+@media (max-width: 949px) {
+  .row {
+    grid-template-columns: 280px 1fr 280px 22px;
+  }
+  .row .author,
+  .row .created,
+  .row .updated {
+    display: none;
+  }
 }
 
 .row:last-child {

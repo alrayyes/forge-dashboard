@@ -161,4 +161,58 @@ test.describe('Bots page (#1192)', () => {
       );
     expect(tabs.every(Boolean)).toBe(true);
   });
+
+  test('has no horizontal overflow at 761 px (#1899)', async ({ page }) => {
+    await mockDashboard(page, SNAPSHOT);
+    await page.goto('/bots.html');
+    await page.setViewportSize({ width: 761, height: 844 });
+
+    await expect(page.locator('#pr-rows .row')).toHaveCount(4);
+
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+
+    const rows = page.locator('#pr-rows .row');
+    const fits = await rows.evaluateAll((els) =>
+      els.map((el) => el.getBoundingClientRect().right <= innerWidth + 1),
+    );
+    expect(fits.every(Boolean)).toBe(true);
+
+    // Every title text and status chip must be fully visible.
+    const chips = page.locator('#pr-rows .row .status-cell');
+    const chipFits = await chips.evaluateAll((els) =>
+      els.map((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.right <= innerWidth + 1 && rect.width > 0;
+      }),
+    );
+    expect(chipFits.every(Boolean)).toBe(true);
+
+    expect(
+      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
+    ).toEqual([]);
+  });
+
+  test('has no horizontal overflow at 768 px and 800 px too (#1899)', async ({
+    page,
+  }) => {
+    for (const width of [768, 800]) {
+      await mockDashboard(page, SNAPSHOT);
+      await page.goto('/bots.html');
+      await page.setViewportSize({ width, height: 844 });
+
+      const overflow = await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      );
+      expect(overflow, `horizontal scroll at ${width}px`).toBeLessThanOrEqual(
+        0,
+      );
+    }
+  });
 });
