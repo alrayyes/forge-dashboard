@@ -759,7 +759,7 @@ test.describe('webhooks page', () => {
     ).toHaveAttribute('href', '/settings.html#webhooks');
   });
 
-  test('a repo the connection cannot manage names the credential limit, not an owner', async ({
+  test('a GitHub App connection that lacks Webhooks permission points to the App config, not the role', async ({
     page,
   }) => {
     await mockDashboard(page, [
@@ -778,9 +778,33 @@ test.describe('webhooks page', () => {
       row.getByRole('button', { name: 'Add a webhook' }),
     ).toHaveCount(0);
     await expect(row).toContainText(
-      "This connection can't manage webhooks on this repo",
+      'Give your GitHub App the Webhooks (read and write)',
     );
     await expect(row).not.toContainText(/ask an owner/i);
+    await expect(
+      row.getByRole('link', { name: 'set it up manually' }),
+    ).toHaveAttribute('href', '/settings.html#webhooks');
+  });
+
+  test('a token client that cant manage webhooks suggests token scope alongside the owner', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'github',
+        fullName: 'alrayyes/advisory-scan',
+        hasWebhook: false,
+        canManageWebhooks: false,
+      },
+    ]);
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    await expect(
+      row.getByRole('button', { name: 'Add a webhook' }),
+    ).toHaveCount(0);
+    await expect(row).toContainText(/admin access/i);
+    await expect(row).toContainText(/check your token's scope/i);
     await expect(
       row.getByRole('link', { name: 'set it up manually' }),
     ).toHaveAttribute('href', '/settings.html#webhooks');

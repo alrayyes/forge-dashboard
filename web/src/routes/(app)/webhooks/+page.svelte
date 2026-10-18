@@ -1239,13 +1239,15 @@
                               >Set it up manually</a
                             >.
                           {:else if repo.webhookLockedByConnection}
-                            This connection can't manage webhooks on this repo —
-                            your credential doesn't have admin access here, or <a
+                            This connection can't manage webhooks on this repo.
+                            Give your GitHub App the Webhooks (read and write)
+                            permission, then accept it on the installation, or <a
                               href="/settings.html#webhooks"
                               >set it up manually</a
                             >.
                           {:else}
-                            Needs admin access on this repo — ask an owner, or <a
+                            Needs admin access on this repo. Check your token's
+                            scope, ask an owner, or <a
                               href="/settings.html#webhooks"
                               >set it up manually</a
                             >.
