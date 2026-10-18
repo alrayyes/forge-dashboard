@@ -919,6 +919,19 @@
       min-height: 44px;
       min-width: 44px;
     }
+    .reaction {
+      display: inline-flex;
+    }
+    .reaction-pill {
+      min-height: 44px;
+      min-width: 44px;
+      justify-content: center;
+    }
+    .details-collapsed summary {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+    }
   }
 
   @media (max-width: 480px) {
@@ -940,19 +953,6 @@
       flex-direction: column;
       align-items: stretch;
       padding-bottom: max(12px, env(safe-area-inset-bottom));
-    }
-    .reaction {
-      display: inline-flex;
-    }
-    .reaction-pill {
-      min-height: 44px;
-      min-width: 44px;
-      justify-content: center;
-    }
-    .details-collapsed summary {
-      min-height: 44px;
-      display: flex;
-      align-items: center;
     }
   }
 </style>
