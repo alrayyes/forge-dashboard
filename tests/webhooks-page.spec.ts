@@ -461,7 +461,10 @@ test.describe('webhooks page', () => {
       route.fulfill({
         status: 502,
         contentType: 'application/json',
-        body: JSON.stringify({ code: 'permission', message: 'No.' }),
+        body: JSON.stringify({
+          code: 'permission',
+          message: 'Missing permission.',
+        }),
       }),
     );
     await page.goto('/webhooks.html');
