@@ -70,12 +70,14 @@ a token suits any account with more than a few repositories.
 
 For GitHub, the server grades each budget and the page follows the grade:
 
-| Severity   | Meaning                    | What you see                                                 |
-| ---------- | -------------------------- | ------------------------------------------------------------ |
-| `ok`       | At least 20% left.         | The remaining count and reset in the header.                 |
-| `warning`  | Under 20% left.            | The same. No banner yet.                                     |
-| `low`      | Under 5% left.             | The banner "Rate limit running low", with the count left.    |
-| `exceeded` | Nothing left, reset ahead. | A banner with a countdown. What stops depends on the budget. |
+| Severity   | Meaning                    | What you see                                                                |
+| ---------- | -------------------------- | --------------------------------------------------------------------------- |
+| `ok`       | At least 20% left.         | The count and reset in the header, and a green gauge on the Insights page.  |
+| `warning`  | Under 20% left.            | The same, with an amber gauge. No banner.                                   |
+| `low`      | Under 5% left.             | A red gauge, and the banner "Rate limit running low" with the count left.   |
+| `exceeded` | Nothing left, reset ahead. | A red gauge that says "Rate limit exceeded", and a banner with a countdown. |
+
+What stops at `exceeded` depends on the budget, as the next paragraph says.
 
 Once the reset time has passed a spent budget stops counting as exceeded, even
 before the next refresh confirms it.
@@ -98,7 +100,8 @@ they are. On GitHub, it also asks less:
 - With the budget spent, it skips that forge's refresh and its CI check polling
   until the reset, because the request would fail and still count against the
   forge.
-- "Refresh now" runs at most once every five seconds.
+
+On every forge, "Refresh now" runs at most once every five seconds.
 
 You can queue Update branch, `Dependabot: Rebase` and `Renovate: Rebase`
 while a forge is limited. They run after the reset, when the pull request still
