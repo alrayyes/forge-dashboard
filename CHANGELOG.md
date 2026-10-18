@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.218.0](https://github.com/alrayyes/forge-dashboard/compare/v0.217.0...v0.218.0) (2026-10-18)
+
+
+### Features
+
+* open the run from the Main branches status pill ([#1839](https://github.com/alrayyes/forge-dashboard/issues/1839)) ([7185586](https://github.com/alrayyes/forge-dashboard/commit/718558677268390b25e776d70d9d6e83061100cd))
+
 ## [0.217.0](https://github.com/alrayyes/forge-dashboard/compare/v0.216.0...v0.217.0) (2026-10-18)
 
 
