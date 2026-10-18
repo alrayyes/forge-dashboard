@@ -215,7 +215,7 @@ func TestFetch_ExcludesArchivedForkedAndReadOnlyRepos(t *testing.T) {
 	require.True(t, result.Health.Reachable)
 	assert.Equal(t, 2, result.Health.RepoCount, "only \"active\" (WRITE) and \"admin\" (ADMIN) should count")
 	assert.ElementsMatch(t, []dashboard.Repo{
-		{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/active", CanManageWebhooks: false},
+		{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/active", CanManageWebhooks: false, WebhookLockedByConnection: true},
 		{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/admin", CanManageWebhooks: true},
 	}, result.Repos, "WRITE tracks the repo but can't manage its webhooks; only ADMIN can")
 }

@@ -2110,6 +2110,9 @@ func repoFrom(fullName string, r graphqlRepo, probe hookProbe, appAuthenticated 
 		repo.WebhookLockedByConnection = probe.refused
 	} else {
 		repo.CanManageWebhooks = canManageWebhooks(r.ViewerPermission)
+		if !repo.CanManageWebhooks {
+			repo.WebhookLockedByConnection = true
+		}
 	}
 
 	return repo

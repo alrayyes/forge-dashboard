@@ -1239,9 +1239,8 @@
                               >Set it up manually</a
                             >.
                           {:else if repo.webhookLockedByConnection}
-                            This connection can't manage webhooks on this repo.
-                            Give your GitHub App the Webhooks (read and write)
-                            permission, then accept it on the installation, or <a
+                            This connection can't manage webhooks on this repo —
+                            your credential doesn't have admin access here, or <a
                               href="/settings.html#webhooks"
                               >set it up manually</a
                             >.
