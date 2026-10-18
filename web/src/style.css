@@ -1347,8 +1347,19 @@ button.title:focus-visible {
   min-height: 24px;
 }
 
+a.ci-pill {
+  text-decoration: none;
+}
+
 button.ci-pill:hover {
   filter: brightness(0.95);
+}
+
+/* A link pill underlines on hover rather than dimming: a filter would take
+   the failed pill's text from 4.68:1 to about 4.53:1, and the underline
+   leaves the colours, and so the contrast, as they are. */
+a.ci-pill:hover {
+  text-decoration: underline;
 }
 
 .ci-pill:focus-visible {
