@@ -581,6 +581,6 @@ test.describe('bot rebase pickup with another row still queued', () => {
     await expect(rowFor(43).getByText('Out of date')).toBeVisible();
     await expect(rows.nth(0)).toContainText('#42');
     await expect(rows.nth(1)).toContainText('#43');
-    await expect(page.locator('#updates-count')).toHaveText('');
+    await expect(page.locator('#list-updates-status')).toHaveText('');
   });
 });

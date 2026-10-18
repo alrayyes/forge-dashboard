@@ -334,9 +334,10 @@ test.describe('pull request merge button', () => {
     ).toBeVisible();
 
     // Cancelling clears the in-flight state, so the update that was held
-    // behind the armed row is now one Show updates click away (#710).
+    // behind the armed row lands by itself once the pointer, which just
+    // clicked Cancel on the list, moves off it.
     await row.getByRole('button', { name: 'Cancel' }).click();
-    await page.locator('#show-updates-button').click();
+    await page.mouse.move(2, 2);
     await expect(page.locator('#pr-rows .row')).toHaveCount(2);
   });
 
