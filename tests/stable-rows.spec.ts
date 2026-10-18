@@ -12,6 +12,7 @@ import {
 } from './allowed-actions-stand-in';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // Live updates land by themselves. A snapshot (poll or SSE push) that adds,
 // removes or moves rows waits only while something would be disturbed (an
@@ -105,37 +106,50 @@ async function titles(page: Page): Promise<string[]> {
   return page.locator('#pr-rows .row .title-text').allTextContents();
 }
 
+async function stubStream(page: Page) {
+  // The stub has to be in place before the dashboard opens its stream.
+  await page.addInitScript(() => {
+    class StubEventSource {
+      onmessage: ((e: { data: string }) => void) | null = null;
+      constructor() {
+        (window as unknown as { __es: StubEventSource }).__es = this;
+      }
+      close() {}
+      addEventListener() {}
+    }
+    (window as unknown as { EventSource: unknown }).EventSource =
+      StubEventSource;
+    window.__push = (data) =>
+      (window as unknown as { __es: StubEventSource }).__es.onmessage?.({
+        data: JSON.stringify(data),
+      });
+  });
+}
+
+async function openInitial(page: Page, initial: MockPR[]) {
+  await page.route('**/api/dashboard', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(snapshot(initial)),
+    }),
+  );
+  await page.goto('/pull-requests.html');
+  await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+}
+
+// Most of the file mocks the dashboard, stubs the stream and writes nothing per
+// user, so it starts from the shared session instead of registering a user per
+// test (#1379). The last group saves a choice (pause, a filter, the sort), which
+// the server keeps for the user, so it keeps its own.
 test.describe('stable rows', () => {
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
   const initial = [makePR(1), makePR(2)];
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    // The stub has to be in place before the dashboard opens its stream.
-    await page.addInitScript(() => {
-      class StubEventSource {
-        onmessage: ((e: { data: string }) => void) | null = null;
-        constructor() {
-          (window as unknown as { __es: StubEventSource }).__es = this;
-        }
-        close() {}
-        addEventListener() {}
-      }
-      (window as unknown as { EventSource: unknown }).EventSource =
-        StubEventSource;
-      window.__push = (data) =>
-        (window as unknown as { __es: StubEventSource }).__es.onmessage?.({
-          data: JSON.stringify(data),
-        });
-    });
-    await registerAndSignIn(page, request, baseURL);
-    await page.route('**/api/dashboard', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(snapshot(initial)),
-      }),
-    );
-    await page.reload();
-    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+  test.beforeEach(async ({ page }) => {
+    await stubStream(page);
+    await openInitial(page, initial);
   });
 
   test('a snapshot that adds a row lands by itself, with no button to press', async ({
@@ -316,6 +330,54 @@ test.describe('stable rows', () => {
     expect(animation).toBe('none');
   });
 
+  test('nothing re-renders while a More actions menu is open', async ({
+    page,
+  }) => {
+    // Waiting on CI, so the row offers auto-merge and Close, and Close sits in
+    // More actions next to it (a lone action is drawn directly, #1139).
+    const waiting = { ci: 'pending', mergeStatus: 'blocked' };
+    const bot = makePR(1, waiting);
+    await page.route('**/api/dashboard', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snapshot([bot, initial[1]])),
+      }),
+    );
+    await page.reload();
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'More actions' }).click();
+
+    await push(page, [makePR(1, { ...waiting, title: 'Changed' }), initial[1]]);
+    await expect(row).not.toContainText('Changed');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#pr-rows .row').first()).toContainText(
+      'Changed',
+    );
+  });
+
+  test('has no axe violations after live rows arrive, with the pause control showing', async ({
+    page,
+  }) => {
+    await push(page, [makePR(3), ...initial]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+});
+
+test.describe('stable rows: choices the server saves', () => {
+  const initial = [makePR(1), makePR(2)];
+
+  test.beforeEach(async ({ page, request, baseURL }) => {
+    await stubStream(page);
+    await registerAndSignIn(page, request, baseURL);
+    await openInitial(page, initial);
+  });
+
   test('Pause live updates stops everything from applying, and the choice persists', async ({
     page,
   }) => {
@@ -368,43 +430,5 @@ test.describe('stable rows', () => {
 
     await page.reload();
     await expect(page.getByLabel('Sort pull requests by')).toHaveValue('repo');
-  });
-
-  test('nothing re-renders while a More actions menu is open', async ({
-    page,
-  }) => {
-    // Waiting on CI, so the row offers auto-merge and Close, and Close sits in
-    // More actions next to it (a lone action is drawn directly, #1139).
-    const waiting = { ci: 'pending', mergeStatus: 'blocked' };
-    const bot = makePR(1, waiting);
-    await page.route('**/api/dashboard', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(snapshot([bot, initial[1]])),
-      }),
-    );
-    await page.reload();
-    const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'More actions' }).click();
-
-    await push(page, [makePR(1, { ...waiting, title: 'Changed' }), initial[1]]);
-    await expect(row).not.toContainText('Changed');
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#pr-rows .row').first()).toContainText(
-      'Changed',
-    );
-  });
-
-  test('has no axe violations after live rows arrive, with the pause control showing', async ({
-    page,
-  }) => {
-    await push(page, [makePR(3), ...initial]);
-    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 });
