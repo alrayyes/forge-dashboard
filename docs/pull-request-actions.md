@@ -29,6 +29,13 @@ The row shows `status` in one place, a block with an icon and words above its
 actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.
 
+The details pop-up (see Pull request pages) draws the same actions in its
+footer, built by the same code as the row's buttons so the two cannot disagree.
+The order in the footer is the primary action first, then the others, then Close
+pull request last. The status block under the pop-up's header is the same
+`status` message the row shows, and a locked Merge in the footer is described by
+it. Their ids carry a `dlg-` prefix, so the row and the pop-up never repeat one.
+
 A pull request stacked on another open one shows a chip with its place and what
 it waits for: `Stack 2 of 3 · waits for #840` (the number is the pull
 request it is stacked on), or `Stack 1 of 3 · merges first` for the bottom.
