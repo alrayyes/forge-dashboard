@@ -1246,7 +1246,8 @@
                               >set it up manually</a
                             >.
                           {:else}
-                            Needs admin access on this repo — ask an owner, or <a
+                            Needs admin access on this repo. Check your token's
+                            scope, ask an owner, or <a
                               href="/settings.html#webhooks"
                               >set it up manually</a
                             >.
