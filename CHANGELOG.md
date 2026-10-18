@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.220.1](https://github.com/alrayyes/forge-dashboard/compare/v0.220.0...v0.220.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **github:** signal token permission is the webhook limit, not the owner ([#1914](https://github.com/alrayyes/forge-dashboard/issues/1914)) ([9463ba4](https://github.com/alrayyes/forge-dashboard/commit/9463ba44f21db37d2ea92defa1c60aada0b22db6))
+
 ## [0.220.0](https://github.com/alrayyes/forge-dashboard/compare/v0.219.5...v0.220.0) (2026-10-18)
 
 
