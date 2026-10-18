@@ -11,6 +11,20 @@ every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. It has passwordless login,
 per-user tokens, sharing and an admin role.
 
+## Quick start
+
+```sh
+docker run --rm -p 8080:8080 -v forge-dashboard-data:/data \
+  -e RP_ID=localhost -e RP_ORIGIN=http://localhost:8080 \
+  -e ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+  ghcr.io/alrayyes/forge-dashboard:latest
+```
+
+Open <http://localhost:8080>, register a passkey, then add your GitHub and
+Forgejo credentials from Settings. Keep the same `ENCRYPTION_KEY` between
+runs. The full command with hardening flags, building from source and the
+health check are in [Running it](docs/running.md).
+
 | Page                                                                                                           | Light                                                                               | Dark                                                                              |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | **Branches**. The CI status of every default branch, latest commit first.                                      | ![Branches, light mode](docs/screenshots/branches-light.png)                        | ![Branches, dark mode](docs/screenshots/branches-dark.png)                        |
