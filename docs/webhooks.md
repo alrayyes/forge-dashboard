@@ -21,7 +21,8 @@ unreachable forge, a token missing the webhook-list scope — see
 Settings' own field hints for what that is per forge), in which case it
 falls back to whether this app has ever actually received a
 signature-verified delivery for that repo, the same passive signal this
-whole page is otherwise about.
+whole page is otherwise about. For why a forge refuses requests,
+see [Rate limits](rate-limits.md).
 
 The page remembers its forge buttons, repo search, status select and sort
 the way the pull request and issue pages remember theirs: they are still set
@@ -76,6 +77,13 @@ the `permissions` object Forgejo sends with each repo. Forgejo and Gitea set
 it on every repo, so a missing one is rare; when it happens the row says
 Forgejo didn't report your access, instead of telling you to ask an owner,
 because nothing says you aren't an admin.
+
+With no Forgejo token saved, the dashboard lists your public repos by
+username and Forgejo answers as an anonymous caller, so it reports no admin
+rights on any of them. Those rows say a saved token is needed and link to
+Settings, instead of telling you to ask an owner. Once a token is saved, a
+row that still says "ask an owner" means the account itself isn't an admin
+on that repo.
 
 A GitHub fine-grained token also gates _which_ repos it can see at all,
 separately from the preceding permissions — set at token creation, either
