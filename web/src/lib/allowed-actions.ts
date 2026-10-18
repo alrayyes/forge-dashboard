@@ -27,6 +27,9 @@ export type Blocked = {
 export type AllowedAction = {
   action: ActionName;
   blocked?: Blocked;
+  // True on the one action the server wants drawn as the main button. Absent
+  // on every other entry, and from a server that predates the field.
+  primary?: boolean;
 };
 
 // The entry for one action, or undefined when the server doesn't offer it.
@@ -36,4 +39,14 @@ export function findAction(
   action: ActionName,
 ): AllowedAction | undefined {
   return item.allowedActions?.find((a) => a.action === action);
+}
+
+// The one entry the server marked primary, or undefined when none is. The
+// server guarantees at most one, never a blocked one, so this only reads it
+// and holds no rule of its own. Should two ever arrive, the first wins; the
+// page doesn't pick between them.
+export function primaryAction(item: {
+  allowedActions?: AllowedAction[];
+}): AllowedAction | undefined {
+  return item.allowedActions?.find((a) => a.primary === true);
 }
