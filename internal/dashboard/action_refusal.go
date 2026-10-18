@@ -268,6 +268,10 @@ func refusalFromKind(actionErr error) (ActionRefusal, bool) {
 
 		return r, true
 	case ForgeErrorUnauthorized:
+		if clientErr.PermissionMessage != "" {
+			return ActionRefusal{Code: ActionPermission, Message: clientErr.PermissionMessage}, true
+		}
+
 		return ActionRefusal{Code: ActionPermission, Message: "Missing permission — check your token in Settings."}, true
 	}
 

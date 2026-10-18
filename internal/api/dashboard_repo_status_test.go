@@ -25,13 +25,39 @@ import (
 func TestDashboard_RepoStatus_SerializesURLAndCanManageWebhooks(t *testing.T) {
 	t.Parallel()
 
-	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
-	repo := dashboard.Repo{
+	repoJSON := repoStatusJSON(t, dashboard.Repo{
 		Forge:             dashboard.ForgeGitHub,
 		FullName:          "alrayyes/forge-dashboard",
 		URL:               "https://github.com/alrayyes/forge-dashboard",
 		CanManageWebhooks: true,
-	}
+	})
+
+	assert.Equal(t, "https://github.com/alrayyes/forge-dashboard", repoJSON["url"])
+	assert.Equal(t, true, repoJSON["canManageWebhooks"])
+	assert.NotContains(t, repoJSON, "webhookLockedByConnection", "absent unless the connection is the limit")
+}
+
+// The flag that tells the page the connection, not the user's role, is the
+// limit has to survive dashboard.Repo -> repoStatus -> JSON.
+func TestDashboard_RepoStatus_SerializesWebhookLockedByConnection(t *testing.T) {
+	t.Parallel()
+
+	repoJSON := repoStatusJSON(t, dashboard.Repo{
+		Forge:                     dashboard.ForgeGitHub,
+		FullName:                  "alrayyes/advisory-scan",
+		WebhookLockedByConnection: true,
+	})
+
+	assert.Equal(t, false, repoJSON["canManageWebhooks"])
+	assert.Equal(t, true, repoJSON["webhookLockedByConnection"])
+}
+
+// repoStatusJSON serves repo through the real handler and returns the JSON
+// object /api/dashboard wrote for it.
+func repoStatusJSON(t *testing.T, repo dashboard.Repo) map[string]any {
+	t.Helper()
+
+	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
 	source := &fakeConfiguredSource{
 		health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1},
 		repos:  []dashboard.Repo{repo},
@@ -68,6 +94,5 @@ func TestDashboard_RepoStatus_SerializesURLAndCanManageWebhooks(t *testing.T) {
 		return true
 	}, time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture repo")
 
-	assert.Equal(t, "https://github.com/alrayyes/forge-dashboard", repoJSON["url"])
-	assert.Equal(t, true, repoJSON["canManageWebhooks"])
+	return repoJSON
 }

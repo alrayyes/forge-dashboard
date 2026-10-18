@@ -34,6 +34,10 @@ type repoStatus struct {
 	IgnoredPRs        bool            `json:"ignoredPRs"`
 	IgnoredIssues     bool            `json:"ignoredIssues"`
 	AutoUpdateBranch  bool            `json:"autoUpdateBranch"`
+
+	// WebhookLockedByConnection: the credential, not the user's role, is
+	// why CanManageWebhooks is false (see dashboard.Repo).
+	WebhookLockedByConnection bool `json:"webhookLockedByConnection,omitempty"`
 }
 
 // dashboardResponse is the wire shape for /api/dashboard and its SSE
@@ -412,6 +416,8 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 			IgnoredPRs:        scope.PRs,
 			IgnoredIssues:     scope.Issues,
 			AutoUpdateBranch:  autoUpdate,
+
+			WebhookLockedByConnection: r.WebhookLockedByConnection,
 		})
 	}
 
