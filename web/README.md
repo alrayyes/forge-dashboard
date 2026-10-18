@@ -33,7 +33,7 @@ bun run --filter web build   # or: bun run build:web, from the repo root
 which the build minifies to `/style.css`; `favicon.svg` lives in
 `internal/api/static`, not in this workspace. Iterate against a real
 build instead: `bun run build:web` from the repo root, then
-`go build && ./forge-dashboard` as the root README's "Running it" section
+`go build && ./forge-dashboard` as [Running it](../docs/running.md)
 describes.
 
 ## Checking
