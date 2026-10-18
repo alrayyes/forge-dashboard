@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.219.5](https://github.com/alrayyes/forge-dashboard/compare/v0.219.4...v0.219.5) (2026-10-18)
+
+
+### Bug Fixes
+
+* **forgejo:** ask for a saved token, not an owner, when no token is saved ([#1877](https://github.com/alrayyes/forge-dashboard/issues/1877)) ([a521f21](https://github.com/alrayyes/forge-dashboard/commit/a521f21a7529b6b28ed07f735d9ae1a760102bdc))
+
 ## [0.219.4](https://github.com/alrayyes/forge-dashboard/compare/v0.219.3...v0.219.4) (2026-10-18)
 
 
