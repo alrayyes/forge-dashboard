@@ -421,6 +421,10 @@ type ClientError struct {
 	// RateLimit is the budget the failing response reported, when it
 	// reported one. Lets a write's caller say when a rate limit clears.
 	RateLimit *RateLimit
+	// PermissionMessage, when set on an Unauthorized error, replaces the
+	// generic "check your token" refusal text with one that names what the
+	// connection is missing (a GitHub App has no token to check).
+	PermissionMessage string
 }
 
 func (e *ClientError) Error() string {
@@ -464,6 +468,13 @@ type Repo struct {
 	// permission change since the last refresh can still make a
 	// following EnsureWebhook call fail despite this having said true.
 	CanManageWebhooks bool `json:"canManageWebhooks"`
+	// WebhookLockedByConnection is set alongside a false CanManageWebhooks
+	// when the credential itself is the limit, not the signed-in user's
+	// role: a GitHub App installation has no role of its own, so a repo it
+	// can't list hooks on is missing the App's Webhooks permission (or the
+	// repo isn't in the installation). The page uses it to say what to
+	// grant instead of telling the user to ask an owner.
+	WebhookLockedByConnection bool `json:"webhookLockedByConnection,omitempty"`
 	// StaleSince is set when this refresh could not fetch some of the repo's
 	// pull requests or issues, and the ones shown are the last good ones,
 	// fetched at this time (#1194). Absent when the repo's data is current.

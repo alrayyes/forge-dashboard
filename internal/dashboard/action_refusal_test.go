@@ -223,3 +223,14 @@ func TestClassifyActionRefusalFor_UpdateBranchWithoutWorkflowChange_KeepsGeneric
 
 	assert.Equal(t, "Missing permission — check your token in Settings.", got.Message)
 }
+
+func TestClassifyForgeRefusal_PermissionMessageReplacesTheTokenHint(t *testing.T) {
+	t.Parallel()
+
+	generic := dashboard.ClassifyForgeRefusal(&dashboard.ClientError{Kind: dashboard.ForgeErrorUnauthorized, Err: errors.New("denied")})
+	custom := dashboard.ClassifyForgeRefusal(&dashboard.ClientError{Kind: dashboard.ForgeErrorUnauthorized, Err: errors.New("denied"), PermissionMessage: "Grant the App Webhooks."})
+
+	assert.Contains(t, generic.Message, "token")
+	assert.Equal(t, dashboard.ActionPermission, custom.Code)
+	assert.Equal(t, "Grant the App Webhooks.", custom.Message)
+}
