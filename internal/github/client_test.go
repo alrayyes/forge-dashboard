@@ -577,10 +577,10 @@ func TestFetch_GraphQL_ClassifiesErrorKindFromExtensionsType(t *testing.T) {
 func TestFetch_GraphQL_TransportFailure_ClassifiesAsUnreachable(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.NewServeMux())
-	srv.Close() // nothing is listening on this URL anymore
-
-	client := github.NewClient("test-token", "", srv.URL)
+	// Port 1 requires root to bind on Linux — reliably unreachable,
+	// unlike a closed httptest server whose port another parallel test
+	// can reuse (#1897).
+	client := github.NewClient("test-token", "", "http://127.0.0.1:1")
 	result := client.Fetch(t.Context())
 
 	require.False(t, result.Health.Reachable)
@@ -626,10 +626,10 @@ func TestFetch_NoToken_ClassifiesErrorKindFromStatus(t *testing.T) {
 func TestFetch_NoToken_TransportFailure_ClassifiesAsUnreachable(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.NewServeMux())
-	srv.Close() // nothing is listening on this URL anymore
-
-	client := github.NewClient("", "alrayyes", srv.URL)
+	// Port 1 requires root to bind on Linux — reliably unreachable,
+	// unlike a closed httptest server whose port another parallel test
+	// can reuse (#1897).
+	client := github.NewClient("", "alrayyes", "http://127.0.0.1:1")
 	result := client.Fetch(t.Context())
 
 	require.False(t, result.Health.Reachable)
