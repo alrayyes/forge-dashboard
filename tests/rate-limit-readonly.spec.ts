@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { rateLimit } from './severity-stand-in';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
@@ -98,9 +99,6 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
         0,
       );
     }
-    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-      0,
-    );
     await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: /Open pipeline/ }),
@@ -239,11 +237,11 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'More actions' }).click();
+    const footer = actionsFooter(await openActionsDialog(row));
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge', exact: true }),
+      footer.getByRole('button', { name: 'Enable auto-merge', exact: true }),
     ).toHaveCount(0);
-    const close = row.getByRole('button', {
+    const close = footer.getByRole('button', {
       name: 'Close pull request',
       exact: true,
     });

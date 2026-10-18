@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -84,10 +85,10 @@ test.describe('the status area on a pull request row (#1375)', () => {
     await expect(
       empty.getByRole('button', { name: /Enable auto-merge/ }),
     ).toHaveCount(0);
-    // Close is the way out, and is still offered (in More actions, with Hide).
-    await empty.getByRole('button', { name: 'More actions' }).click();
+    // Close is the way out, and is still offered (in the dialog, with Hide).
+    const footer = actionsFooter(await openActionsDialog(empty));
     await expect(
-      empty.getByRole('button', { name: /^Close/ }).first(),
+      footer.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeVisible();
   });
 

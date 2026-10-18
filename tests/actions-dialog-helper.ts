@@ -57,10 +57,3 @@ export async function viaActionsDialog(
   await act(actionsFooter(dialog), dialog);
   await closeActionsDialog(dialog);
 }
-
-// Waits for the dialog's description request to answer, for a spec that
-// asserts on what the body shows rather than on the footer, which is drawn
-// from the row and does not wait for it.
-export async function waitForDetails(dialog: Locator): Promise<void> {
-  await expect(dialog.locator('.details-skeleton')).toHaveCount(0);
-}

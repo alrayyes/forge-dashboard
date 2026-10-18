@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -46,17 +47,13 @@ function mockDashboard(page: Page, pr: Record<string, unknown>) {
 const row = (page: Page) => page.locator('#pr-rows .row').first();
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
-// The Close button wherever it sits: direct on a lone-action row, or inside
-// More actions.
+const details = (page: Page) =>
+  page.getByRole('dialog', { name: /^Pull request details/ });
+
+// The Close button in the row's dialog footer, which is opened.
 async function closeButton(page: Page): Promise<Locator> {
-  // Wait for the row to have rendered one or the other before looking.
-  await row(page)
-    .getByRole('button', { name: /^(More actions|Close pull request)$/ })
-    .first()
-    .waitFor();
-  const more = row(page).getByRole('button', { name: 'More actions' });
-  if ((await more.count()) > 0) await more.click();
-  return row(page).getByRole('button', {
+  const dialog = await openActionsDialog(row(page));
+  return actionsFooter(dialog).getByRole('button', {
     name: 'Close pull request',
     exact: true,
   });
@@ -88,7 +85,7 @@ test.describe('Close is neutral, and says what it closes (#1223)', () => {
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
-  test('on a pull request with nothing to merge it is not green, and looks like Close elsewhere', async ({
+  test('on a pull request with nothing to merge it is not green, and looks like any primary action', async ({
     page,
   }) => {
     await mockDashboard(
@@ -102,13 +99,25 @@ test.describe('Close is neutral, and says what it closes (#1223)', () => {
     expect(emptyBg).not.toBe(await token(page, '--good-bg'));
     expect(emptyBg).not.toBe(await token(page, '--critical-bg'));
 
+    // With nothing to merge, Close is the dialog's primary action and takes
+    // the look every primary action has (Merge, here), not a colour of its
+    // own. Where Close is not primary it is the neutral button below.
     await mockDashboard(
       page,
-      makePR({ mergeStatus: 'blocked', ci: 'failure' }),
+      makePR({
+        mergeStatus: 'mergeable',
+        allowedActions: [
+          { action: 'merge', primary: true },
+          { action: 'close' },
+        ],
+      }),
     );
     await page.goto('/pull-requests.html');
-    const other = await closeButton(page);
-    expect(await background(other)).toBe(emptyBg);
+    const primary = actionsFooter(await openActionsDialog(row(page))).getByRole(
+      'button',
+      { name: 'Merge', exact: true },
+    );
+    expect(await background(primary)).toBe(emptyBg);
   });
 
   test('it is not red until the confirm step', async ({ page }) => {
@@ -136,13 +145,13 @@ test.describe('Close is neutral, and says what it closes (#1223)', () => {
     await expect(close).toHaveAccessibleName('Close pull request');
 
     await close.click();
-    const confirm = row(page).getByRole('button', {
+    const confirm = details(page).getByRole('button', {
       name: 'Confirm close pull request?',
     });
     await expect(confirm).toBeVisible();
     expect(await background(confirm)).toBe(await token(page, '--warning-bg'));
     await expect(
-      row(page).getByRole('button', { name: 'Cancel' }),
+      details(page).getByRole('button', { name: 'Cancel' }),
     ).toBeVisible();
   });
 
@@ -168,7 +177,9 @@ test.describe('Close is neutral, and says what it closes (#1223)', () => {
 
       await close.click();
       await expect(
-        row(page).getByRole('button', { name: 'Confirm close pull request?' }),
+        details(page).getByRole('button', {
+          name: 'Confirm close pull request?',
+        }),
       ).toBeVisible();
       expect(
         (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
