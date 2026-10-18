@@ -192,6 +192,23 @@ func TestGenericSource_Fetch_ClientWithNoWebhookChecker_LeavesHasWebhookFalse(t 
 	assert.False(t, result.Repos[0].HasWebhook)
 }
 
+func TestGenericSource_Fetch_CarriesWebhookLockedByConnectionToTheRepo(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeForgeClient{
+		repos: []dashboard.RepoRef{
+			{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a", WebhookLockedByConnection: true},
+			{FullName: "alrayyes/b", Owner: "alrayyes", Name: "b"},
+		},
+	}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+	result := source.Fetch(t.Context())
+
+	require.Len(t, result.Repos, 2)
+	assert.True(t, result.Repos[0].WebhookLockedByConnection)
+	assert.False(t, result.Repos[1].WebhookLockedByConnection)
+}
+
 func TestGenericSource_Fetch_ClientWithWebhookChecker_ReportsPerRepo(t *testing.T) {
 	t.Parallel()
 
