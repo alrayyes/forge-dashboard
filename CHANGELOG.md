@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.219.0](https://github.com/alrayyes/forge-dashboard/compare/v0.218.4...v0.219.0) (2026-10-18)
+
+
+### Features
+
+* **web:** offer every row action in the pull request pop-up's footer ([#1848](https://github.com/alrayyes/forge-dashboard/issues/1848)) ([a1e1000](https://github.com/alrayyes/forge-dashboard/commit/a1e1000fcb43236eae059339d864d9bf53586eee))
+
 ## [0.218.4](https://github.com/alrayyes/forge-dashboard/compare/v0.218.3...v0.218.4) (2026-10-18)
 
 
