@@ -413,6 +413,82 @@ test.describe('stable rows', () => {
     ).toBeLessThanOrEqual(1);
   });
 
+  test("a refresh the user asked for keeps the reader's place and focus when a row lands above", async ({
+    page,
+  }) => {
+    const many = await openMany(page);
+    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          snapshot([
+            makePR(99, { updatedAt: new Date().toISOString() }),
+            ...many,
+          ]),
+        ),
+      }),
+    );
+    await page.evaluate(() => window.scrollTo(0, 600));
+    const button = page
+      .locator('#pr-rows .row', { hasText: 'Pull request 12' })
+      .locator('button.title');
+    await button.focus();
+    const before = await anchorRow(page);
+    await page.evaluate(() =>
+      document.getElementById('force-refresh-button')?.click(),
+    );
+    await expect(page.locator('#pr-rows .row')).toHaveCount(25);
+    const after = await anchorRow(page);
+    expect(after?.key).toBe(before?.key);
+    expect(
+      Math.abs((after?.top ?? 0) - (before?.top ?? 0)),
+    ).toBeLessThanOrEqual(1);
+    await expect(button).toBeFocused();
+  });
+
+  test('when the row the page holds on to is removed with rows above it, the next row below keeps its place', async ({
+    page,
+  }) => {
+    const many = await openMany(page);
+    await page.evaluate(() => window.scrollTo(0, 1000));
+    const anchor = await page.evaluate(() => {
+      for (const row of document.querySelectorAll<HTMLElement>(
+        '#pr-rows .row',
+      )) {
+        const rect = row.getBoundingClientRect();
+        if (rect.bottom > 0)
+          return {
+            number: Number(
+              row.querySelector('.title-text .num')?.textContent?.slice(1),
+            ),
+            top: rect.top,
+          };
+      }
+      return null;
+    });
+    expect(anchor?.number).toBeGreaterThan(2);
+    const gone = [
+      anchor?.number,
+      (anchor?.number ?? 0) - 1,
+      (anchor?.number ?? 0) - 2,
+    ];
+    const next = (anchor?.number ?? 0) + 1;
+    const nextRow = page.locator('#pr-rows .row', {
+      hasText: `Pull request ${next}`,
+    });
+    const nextTop = (await nextRow.boundingBox())?.y ?? 0;
+
+    await push(
+      page,
+      many.filter((pr) => !gone.includes(pr.number)),
+    );
+    await expect(page.locator('#pr-rows .row')).toHaveCount(21);
+    expect(
+      Math.abs(((await nextRow.boundingBox())?.y ?? 0) - nextTop),
+    ).toBeLessThanOrEqual(1);
+  });
+
   // Only the id can find the button again: its text changed with the title.
   test('focus on a row follows its open button by id when its title changes in the same snapshot as an insert above', async ({
     page,
@@ -626,5 +702,18 @@ test.describe('stable rows: choices the server saves', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  test('the live-update bar draws no box until updates are paused', async ({
+    page,
+  }) => {
+    const box = () =>
+      page
+        .locator('#updates-bar')
+        .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await box()).toBe('rgba(0, 0, 0, 0)');
+    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    expect(await box()).not.toBe('rgba(0, 0, 0, 0)');
+    await page.getByRole('button', { name: 'Pause live updates' }).click();
   });
 });

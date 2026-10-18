@@ -3382,20 +3382,34 @@
       pointerInList = false;
       reconcileCurrentView();
     }
+    // Everything added here is taken off again when the page goes.
+    const stopListening: (() => void)[] = [];
+    function listen(
+      target: EventTarget | null,
+      type: string,
+      handler: (e: Event) => void,
+      options?: AddEventListenerOptions,
+    ) {
+      target?.addEventListener(type, handler, options);
+      stopListening.push(() =>
+        target?.removeEventListener(type, handler, options),
+      );
+    }
     for (const id of ["pr-rows", "issue-rows"]) {
       const list = document.getElementById(id);
-      const mark = (e: PointerEvent) => {
-        if (e.pointerType !== "touch") {
+      const mark = (e: Event) => {
+        if ((e as PointerEvent).pointerType !== "touch") {
           pointerInList = true;
           touchMode = false;
         }
       };
-      list?.addEventListener("pointerenter", mark);
-      list?.addEventListener("pointermove", mark);
-      list?.addEventListener("pointerleave", releasePointer);
+      listen(list, "pointerenter", mark);
+      listen(list, "pointermove", mark);
+      listen(list, "pointerleave", releasePointer);
     }
     for (const type of ["pointerdown", "pointerup", "pointercancel"]) {
-      document.addEventListener(
+      listen(
+        document,
         type,
         (e) => {
           if ((e as PointerEvent).pointerType === "touch") touched();
@@ -3403,7 +3417,8 @@
         { passive: true, capture: true },
       );
     }
-    window.addEventListener(
+    listen(
+      window,
       "scroll",
       () => {
         // The page's own scroll correction is not the user's finger.
@@ -3411,21 +3426,22 @@
       },
       { passive: true },
     );
-    window.addEventListener("blur", releasePointer);
-    document.addEventListener("visibilitychange", () => {
+    listen(window, "blur", releasePointer);
+    listen(document, "visibilitychange", () => {
       if (document.visibilityState === "hidden") releasePointer();
     });
     // A modal closing ends the pointer's claim on the list until it moves
     // again, and lifts the hold the modal put on the board. "close" doesn't
     // bubble, hence the capture.
-    document.addEventListener(
+    listen(
+      document,
       "close",
       (e) => {
         if (!(e.target instanceof HTMLDialogElement)) return;
         pointerInList = false;
         setTimeout(reconcileCurrentView, 0);
       },
-      true,
+      { capture: true },
     );
     function reconcileCurrentView() {
       if (view === "issues") reconcileIssues();
@@ -3874,34 +3890,50 @@
     // on screen and where it was, and scroll by however far it moved. Keeping
     // each unchanged row's node instead would mean every row builder stays
     // free of hidden state, which this board does not promise.
-    type ScrollAnchor = { key: string; top: number } | null;
+    // Candidates in order of preference: the first row on screen, the rows
+    // below it, then the rows above, so a snapshot that removes the anchor
+    // itself still has a surviving row to hold on to.
+    type ScrollAnchor = { key: string; top: number }[] | null;
     function rowKeyOf(row: HTMLElement): string | undefined {
       return row.dataset.prKey ?? row.dataset.issueKey;
     }
     function captureScrollAnchor(): ScrollAnchor {
       if (window.scrollY <= 0) return null;
-      const rows = document.querySelectorAll<HTMLElement>(
-        "#pr-rows .row, #issue-rows .row",
-      );
-      for (const row of rows) {
-        const rect = row.getBoundingClientRect();
-        const key = rowKeyOf(row);
-        if (rect.bottom > 0 && key) return { key, top: rect.top };
-      }
-      return null;
-    }
-    function restoreScrollAnchor(anchor: ScrollAnchor) {
-      if (!anchor) return;
-      const row = Array.from(
+      const rows = Array.from(
         document.querySelectorAll<HTMLElement>(
           "#pr-rows .row, #issue-rows .row",
         ),
-      ).find((r) => rowKeyOf(r) === anchor.key);
-      if (!row) return;
-      const delta = row.getBoundingClientRect().top - anchor.top;
-      if (Math.abs(delta) < 0.5) return;
-      window.scrollBy(0, delta);
-      ownScrollY = window.scrollY;
+      ).flatMap((row) => {
+        const key = rowKeyOf(row);
+        const rect = row.getBoundingClientRect();
+        return key ? [{ key, top: rect.top, bottom: rect.bottom }] : [];
+      });
+      const first = rows.findIndex((r) => r.bottom > 0);
+      if (first < 0) return null;
+      return [...rows.slice(first), ...rows.slice(0, first).reverse()].slice(
+        0,
+        60,
+      );
+    }
+    function restoreScrollAnchor(anchor: ScrollAnchor) {
+      if (!anchor) return;
+      const now = new Map<string, HTMLElement>();
+      for (const row of document.querySelectorAll<HTMLElement>(
+        "#pr-rows .row, #issue-rows .row",
+      )) {
+        const key = rowKeyOf(row);
+        if (key && !now.has(key)) now.set(key, row);
+      }
+      for (const candidate of anchor) {
+        const row = now.get(candidate.key);
+        if (!row) continue;
+        const delta = row.getBoundingClientRect().top - candidate.top;
+        if (Math.abs(delta) >= 0.5) {
+          window.scrollBy(0, delta);
+          ownScrollY = window.scrollY;
+        }
+        return;
+      }
     }
 
     // Returns true when it rendered the board.
@@ -3956,7 +3988,7 @@
         shownPRs = latestPRs;
         latestPRs = null;
         latestIsUserAsked = false;
-        prBoard.setItems(shownPRs);
+        keepFocusAcross(() => prBoard.setItems(shownPRs));
 
         return true;
       }
@@ -7664,6 +7696,8 @@
       titleHover.destroy();
       stopTimezone();
       document.removeEventListener("keydown", onSlashShortcut);
+      for (const stop of stopListening) stop();
+      clearTimeout(touchTimer);
       clearTimeout(pollTimer);
       clearTimeout(streamTimer);
       clearInterval(tickTimer);
