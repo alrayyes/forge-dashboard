@@ -38,6 +38,9 @@ type repoStatus struct {
 	// WebhookLockedByConnection: the credential, not the user's role, is
 	// why CanManageWebhooks is false (see dashboard.Repo).
 	WebhookLockedByConnection bool `json:"webhookLockedByConnection,omitempty"`
+	// WebhookNeedsToken: no credential is saved, so CanManageWebhooks is
+	// false for lack of a token, not of a role (see dashboard.Repo).
+	WebhookNeedsToken bool `json:"webhookNeedsToken,omitempty"`
 }
 
 // dashboardResponse is the wire shape for /api/dashboard and its SSE
@@ -418,6 +421,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 			AutoUpdateBranch:  autoUpdate,
 
 			WebhookLockedByConnection: r.WebhookLockedByConnection,
+			WebhookNeedsToken:         r.WebhookNeedsToken,
 		})
 	}
 

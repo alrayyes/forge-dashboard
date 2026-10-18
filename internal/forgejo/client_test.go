@@ -150,6 +150,53 @@ func TestListRepos_MissingPermissionsObjectIsNotANonAdminRole(t *testing.T) {
 	assert.False(t, byName["alrayyes/not-admin"].WebhookLockedByConnection, "a reported non-admin role is the user's, not the connection's")
 }
 
+func TestListRepos_NoSavedToken_NeedsAToken_TokenWithoutAdminDoesNot(t *testing.T) {
+	t.Parallel()
+
+	// A real Forgejo answers an anonymous caller with a permissions object
+	// whose flags are all false, so the role it reports is the credential's.
+	// With no token that's why a row can't be managed; with a token saved the
+	// same all-false object is a genuine non-admin role.
+	perms := map[string]bool{"admin": false, "push": false, "pull": true}
+	mux := http.NewServeMux()
+	listing := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/a", "name": "a", "owner": map[string]string{"login": "alrayyes"}, "permissions": perms},
+		})
+	}
+	mux.HandleFunc("/api/v1/users/alrayyes/repos", listing)
+	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/a", "name": "a", "owner": map[string]string{"login": "alrayyes"}, "permissions": map[string]bool{"push": true, "pull": true}},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	anonymous, err := forgejo.NewClient(srv.URL, "", "alrayyes").ListRepos(t.Context())
+	require.NoError(t, err)
+	require.Len(t, anonymous, 1)
+	assert.False(t, anonymous[0].CanManageWebhooks)
+	assert.True(t, anonymous[0].WebhookNeedsToken, "no saved token: the credential is the limit")
+	assert.False(t, anonymous[0].WebhookLockedByConnection)
+
+	withToken, err := forgejo.NewClient(srv.URL, "test-token", "alrayyes").ListRepos(t.Context())
+	require.NoError(t, err)
+	require.Len(t, withToken, 1)
+	assert.False(t, withToken[0].CanManageWebhooks)
+	assert.False(t, withToken[0].WebhookNeedsToken, "a saved token that isn't admin is the user's role")
+}
+
 func TestListRepos_ExcludesMirroredRepos(t *testing.T) {
 	t.Parallel()
 

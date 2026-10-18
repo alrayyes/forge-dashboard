@@ -43,6 +43,7 @@
     hasWebhook: boolean;
     canManageWebhooks?: boolean;
     webhookLockedByConnection?: boolean;
+    webhookNeedsToken?: boolean;
     ignored: boolean;
     ignoredPRs: boolean;
     ignoredIssues: boolean;
@@ -1223,7 +1224,15 @@
                     {#if !repo.canManageWebhooks}
                       <span class="webhook-locked">
                         <span class="webhook-locked-reason">
-                          {#if repo.webhookLockedByConnection && repo.forge === "forgejo"}
+                          {#if repo.webhookNeedsToken}
+                            Managing webhooks needs a saved token. <a
+                              href="/settings.html"
+                              >Save a token with webhook scope in Settings</a
+                            >, or
+                            <a href="/settings.html#webhooks"
+                              >set it up manually</a
+                            >.
+                          {:else if repo.webhookLockedByConnection && repo.forge === "forgejo"}
                             Forgejo didn't report your access on this repo, so
                             the dashboard can't tell if you can manage its
                             webhooks. <a href="/settings.html#webhooks"

@@ -52,6 +52,25 @@ func TestDashboard_RepoStatus_SerializesWebhookLockedByConnection(t *testing.T) 
 	assert.Equal(t, true, repoJSON["webhookLockedByConnection"])
 }
 
+// The flag that tells the page a saved token is what's missing has to
+// survive dashboard.Repo -> repoStatus -> JSON, and stay off the wire when
+// unset.
+func TestDashboard_RepoStatus_SerializesWebhookNeedsToken(t *testing.T) {
+	t.Parallel()
+
+	repoJSON := repoStatusJSON(t, dashboard.Repo{
+		Forge:             dashboard.ForgeForgejo,
+		FullName:          "alrayyes/a",
+		WebhookNeedsToken: true,
+	})
+
+	assert.Equal(t, false, repoJSON["canManageWebhooks"])
+	assert.Equal(t, true, repoJSON["webhookNeedsToken"])
+
+	plain := repoStatusJSON(t, dashboard.Repo{Forge: dashboard.ForgeForgejo, FullName: "alrayyes/b"})
+	assert.NotContains(t, plain, "webhookNeedsToken")
+}
+
 // repoStatusJSON serves repo through the real handler and returns the JSON
 // object /api/dashboard wrote for it.
 func repoStatusJSON(t *testing.T, repo dashboard.Repo) map[string]any {
