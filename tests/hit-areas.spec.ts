@@ -36,7 +36,7 @@ function sweepInPage([target, overlap, within]: readonly [
   string,
 ]): Sweep {
   const CONTROLS =
-    'button, a[href], select, textarea, summary, input:not([type="hidden"]), [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="switch"]';
+    'button, a[href], select, textarea, summary, input:not([type="hidden"]), [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="switch"], [role="group"][tabindex="0"]';
   // Quarter pixels, and no slack beyond rounding: a hit area half a pixel
   // short of the target is short of it.
   const STEP = 0.25;
@@ -375,14 +375,16 @@ const noReactions = {
   thumbsDown: { count: 0, logins: [] },
 };
 
-async function mockDetails(page: Page) {
+async function mockDetails(page: Page, descriptionText?: string) {
   await page.route('**/api/pull-requests/details*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         description: {
-          text: 'This adds **structured** logging.\n\n- [ ] one\n- [x] two',
+          text:
+            descriptionText ??
+            'This adds **structured** logging.\n\n- [ ] one\n- [x] two',
           format: 'markdown',
           truncated: false,
           edited: false,
@@ -491,6 +493,60 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     ).toBeVisible();
     await expect(page.getByText('Looks good')).toBeVisible();
     await sweepAll(page, 'details dialog', problems);
+    expectNone(problems);
+  });
+
+  // https://github.com/alrayyes/forge-dashboard/issues/1867
+  // Reaction pills are focusable (they name who reacted on focus), and the
+  // generated text of a dependency pull request sits behind a summary. Both
+  // fell short between 481 and 760px, as did Retry, which nothing opened.
+  test('pull requests: the details dialog of a dependency update', async ({
+    page,
+  }) => {
+    const problems: string[] = [];
+    await mockDashboard(page);
+    await mockDetails(page, `Bumps x from 1 to 2.\n\n${'notes\n\n'.repeat(5)}`);
+    await page.setViewportSize({ width: NARROW.width, height: NARROW.height });
+    await page.goto('/bots.html');
+    await ready(page, '#pr-rows .row');
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: /^#\d+ / })
+      .click();
+    const dialog = page.getByRole('dialog', { name: /^Pull request details/ });
+    await expect(dialog.locator('.details-collapsed summary')).toBeVisible();
+    await expect(dialog.locator('.reaction-pill').first()).toBeVisible();
+    await sweepAll(page, 'details dialog, collapsed text', problems, {
+      sizes: [NARROW],
+    });
+    expectNone(problems);
+  });
+
+  test('pull requests: the details dialog when loading fails', async ({
+    page,
+  }) => {
+    const problems: string[] = [];
+    await mockDashboard(page);
+    await page.route('**/api/pull-requests/details*', (route: Route) =>
+      route.fulfill({ status: 500, body: 'boom' }),
+    );
+    await page.setViewportSize({ width: NARROW.width, height: NARROW.height });
+    await page.goto('/pull-requests.html');
+    await ready(page, '#pr-rows .row');
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: /^#\d+ / })
+      .click();
+    const retry = page.locator('.details-retry');
+    await expect(retry).toBeVisible();
+    const box = await retry.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+    await sweepAll(page, 'details dialog, error', problems, {
+      sizes: [NARROW],
+    });
     expectNone(problems);
   });
 
