@@ -9,11 +9,12 @@ import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 import { settle } from './settle-helper';
 
-// #827, #718: the issues page holds its list steady during a refresh. A
-// snapshot that would add, remove or move rows is held behind an "N updates
-// available" bar while you're scrolled below the top or a control in the
-// list has focus; a row whose own content changed updates in place; a
-// snapshot with no change renders nothing.
+// The issues page holds its list steady during a refresh. A snapshot that
+// would add, remove or move rows waits while you're scrolled below the top,
+// a control in the list has focus, the pointer rests on the list, another
+// modal is open or updates are paused, then lands by itself; a row whose own
+// content changed updates in place; a snapshot with no change renders
+// nothing.
 
 async function registerAndSignIn(
   page: Page,
@@ -155,7 +156,11 @@ const tags = (page: Page) =>
     ),
   );
 
-const bar = (page: Page) => page.locator('#updates-count');
+// The polite line that says rows were added, removed or moved.
+const bar = (page: Page) => page.locator('#list-updates-status');
+const noShowUpdates = (page: Page) =>
+  expect(page.getByRole('button', { name: 'Show updates' })).toHaveCount(0);
+const toTop = (page: Page) => page.evaluate(() => window.scrollTo(0, 0));
 const scrollY = (page: Page) => page.evaluate(() => window.scrollY);
 
 async function scrollDown(page: Page) {
@@ -163,7 +168,7 @@ async function scrollDown(page: Page) {
   await expect.poll(() => scrollY(page)).toBeGreaterThan(300);
 }
 
-test.describe('steady issues refresh (#827, #718)', () => {
+test.describe('steady issues refresh', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
   });
@@ -171,7 +176,7 @@ test.describe('steady issues refresh (#827, #718)', () => {
   // #1198: the bar on the issues page counts issue rows only. Pull request
   // changes in the same snapshot don't move anything in the issues list, so
   // they must not raise it, however the list is being held.
-  test('a snapshot that changes only pull requests raises no bar on the issues page', async ({
+  test('a snapshot that changes only pull requests announces nothing on the issues page', async ({
     page,
   }) => {
     await open(page, BASE, [makePR(1), makePR(2)]);
@@ -183,7 +188,7 @@ test.describe('steady issues refresh (#827, #718)', () => {
       makePR(3, { updatedAt: '2026-10-03T10:00:00Z' }),
     ]);
     await expect(bar(page)).toHaveText('');
-    await expect(page.locator('#show-updates-button')).toBeHidden();
+    await noShowUpdates(page);
   });
 
   test('the same holds while updates are paused', async ({ page }) => {
@@ -192,13 +197,15 @@ test.describe('steady issues refresh (#827, #718)', () => {
 
     await push(page, BASE, [makePR(1), makePR(2)]);
     await expect(bar(page)).toHaveText('');
-    await expect(page.locator('#show-updates-button')).toBeHidden();
+    await noShowUpdates(page);
   });
 
   // #1198: neither does a change to an issue the list isn't showing, such as
   // Renovate's Dependency Dashboard (hidden by default), which Renovate
   // rewrites on every run and so keeps moving to the top of the list.
-  test('a hidden housekeeping issue moving raises no bar', async ({ page }) => {
+  test('a hidden housekeeping issue moving announces nothing', async ({
+    page,
+  }) => {
     const dashboard = (updatedAt: string) =>
       makeIssue(999, {
         title: 'Dependency Dashboard',
@@ -213,10 +220,10 @@ test.describe('steady issues refresh (#827, #718)', () => {
 
     await push(page, [dashboard('2026-10-09T10:00:00Z'), ...BASE]);
     await expect(bar(page)).toHaveText('');
-    await expect(page.locator('#show-updates-button')).toBeHidden();
+    await noShowUpdates(page);
   });
 
-  test('an issue the filters hide being added raises no bar', async ({
+  test('an issue the filters hide being added announces nothing', async ({
     page,
   }) => {
     await open(page);
@@ -227,10 +234,10 @@ test.describe('steady issues refresh (#827, #718)', () => {
 
     await push(page, [makeIssue(100, { title: 'Something else' }), ...BASE]);
     await expect(bar(page)).toHaveText('');
-    await expect(page.locator('#show-updates-button')).toBeHidden();
+    await noShowUpdates(page);
   });
 
-  test('an issue the filters show being added still raises the bar', async ({
+  test('an issue the filters show being added is held while scrolled, then announced when it lands', async ({
     page,
   }) => {
     await open(page);
@@ -240,7 +247,12 @@ test.describe('steady issues refresh (#827, #718)', () => {
     await scrollDown(page);
 
     await push(page, [makeIssue(101, { title: 'Issue 1 again' }), ...BASE]);
-    await expect(bar(page)).toHaveText('1 update available');
+    await expect(page.locator('#issue-rows')).not.toContainText(
+      'Issue 1 again',
+    );
+    await toTop(page);
+    await expect(page.locator('#issue-rows')).toContainText('Issue 1 again');
+    await expect(bar(page)).toHaveText('List updated: 1 added');
     await expect(bar(page)).toHaveAttribute('role', 'status');
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -248,14 +260,15 @@ test.describe('steady issues refresh (#827, #718)', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('an issue added alongside a pull request change is counted as the one issue', async ({
+  test('an issue added alongside a pull request change is announced as the one issue', async ({
     page,
   }) => {
     await open(page, BASE, [makePR(1)]);
     await scrollDown(page);
 
     await push(page, [makeIssue(100), ...BASE], [makePR(1), makePR(2)]);
-    await expect(bar(page)).toHaveText('1 update available');
+    await toTop(page);
+    await expect(bar(page)).toHaveText('List updated: 1 added');
   });
 
   test('a snapshot with no change renders no issue row again', async ({
@@ -280,10 +293,10 @@ test.describe('steady issues refresh (#827, #718)', () => {
     await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
 
     await expect(page.locator('#issue-rows')).toContainText('Brand new');
-    await expect(bar(page)).toHaveText('');
+    await expect(bar(page)).toHaveText('List updated: 1 added');
   });
 
-  test('scrolled below the top, a new issue is held behind the bar and the scroll position stays', async ({
+  test('scrolled below the top, a new issue waits and the scroll position stays, then it lands at the top', async ({
     page,
   }) => {
     await open(page);
@@ -293,15 +306,13 @@ test.describe('steady issues refresh (#827, #718)', () => {
 
     await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
 
-    await expect(bar(page)).toHaveText('1 update available');
-    await expect(bar(page)).toHaveAttribute('role', 'status');
     await expect(page.locator('#issue-rows')).not.toContainText('Brand new');
     expect(await tags(page)).toEqual(BASE.map((_, i) => i));
     expect(Math.abs((await scrollY(page)) - before)).toBeLessThanOrEqual(1);
 
-    await page.getByRole('button', { name: 'Show updates' }).click();
+    await toTop(page);
     await expect(page.locator('#issue-rows')).toContainText('Brand new');
-    await expect(bar(page)).toHaveText('');
+    await expect(bar(page)).toHaveText('List updated: 1 added');
   });
 
   test('scrolled below the top, a removed issue and a reordering are held too', async ({
@@ -313,25 +324,26 @@ test.describe('steady issues refresh (#827, #718)', () => {
     const [first, second, ...rest] = BASE;
     await push(page, [second, first, ...rest.slice(0, -1)]);
 
-    await expect(bar(page)).not.toHaveText('');
     await expect(page.locator('#issue-rows > .row').first()).toContainText(
       'Issue 1',
     );
+    await toTop(page);
+    await expect(page.locator('#issue-rows > .row').first()).toContainText(
+      'Issue 2',
+    );
   });
 
-  test('with focus inside the list, changes are held until focus leaves', async ({
+  test('with focus inside the list, changes wait until focus leaves', async ({
     page,
   }) => {
     await open(page);
     await page.locator('#issue-rows > .row a').first().focus();
 
     await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
-    await expect(bar(page)).toHaveText('1 update available');
     await expect(page.locator('#issue-rows')).not.toContainText('Brand new');
 
     await page.evaluate(() => (document.activeElement as HTMLElement).blur());
     await expect(page.locator('#issue-rows')).toContainText('Brand new');
-    await expect(bar(page)).toHaveText('');
   });
 
   test('a row whose own content changed updates in place, even while scrolled', async ({
@@ -364,11 +376,79 @@ test.describe('steady issues refresh (#827, #718)', () => {
 
     await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
 
-    await expect(bar(page)).toHaveText('1 update available');
+    await expect(page.locator('#updates-paused-hint')).toBeVisible();
+    await expect(page.locator('#issue-rows')).not.toContainText('Brand new');
+
+    // Resuming applies what waited.
+    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await expect(page.locator('#issue-rows')).toContainText('Brand new');
+  });
+
+  test('the pointer resting on the list holds new issues until it leaves', async ({
+    page,
+  }) => {
+    await open(page);
+    await page.locator('#issue-rows > .row').first().hover();
+
+    await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
+    await expect(page.locator('#issue-rows')).not.toContainText('Brand new');
+
+    await page.mouse.move(2, 2);
+    await expect(page.locator('#issue-rows')).toContainText('Brand new');
+  });
+
+  test('another modal being open holds new issues until it closes', async ({
+    page,
+  }) => {
+    await open(page);
+    await page.evaluate(() => {
+      const d = document.createElement('dialog');
+      d.id = 'test-modal';
+      d.textContent = 'Another modal';
+      document.body.appendChild(d);
+      d.showModal();
+    });
+    await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
+    await expect(page.locator('#issue-rows')).not.toContainText('Brand new');
+
+    await page.evaluate(() =>
+      (document.getElementById('test-modal') as HTMLDialogElement).close(),
+    );
+    await expect(page.locator('#issue-rows')).toContainText('Brand new');
+  });
+
+  // The page holds a scrolled reader's list (and corrects the scroll when it
+  // does apply a render), so a row arriving above the viewport never moves
+  // what is on screen.
+  test('a new issue above the viewport does not move the rows on screen', async ({
+    page,
+  }) => {
+    const many = Array.from({ length: 24 }, (_, i) => makeIssue(i + 1));
+    await open(page, many);
+    await scrollDown(page);
+    const firstOnScreen = () =>
+      page.evaluate(() => {
+        for (const row of document.querySelectorAll<HTMLElement>(
+          '#issue-rows > .row',
+        )) {
+          const rect = row.getBoundingClientRect();
+          if (rect.bottom > 0)
+            return { key: row.dataset.issueKey ?? '', top: rect.top };
+        }
+        return null;
+      });
+    const before = await firstOnScreen();
+    await push(page, [makeIssue(99, { title: 'Brand new' }), ...many]);
+    await settle(page);
+    const after = await firstOnScreen();
+    expect(after?.key).toBe(before?.key);
+    expect(
+      Math.abs((after?.top ?? 0) - (before?.top ?? 0)),
+    ).toBeLessThanOrEqual(1);
     await expect(page.locator('#issue-rows')).not.toContainText('Brand new');
   });
 
-  test('the sort control orders issues, and only a change to it or Show updates moves rows', async ({
+  test('the sort control orders issues, and a snapshot never re-sorts them', async ({
     page,
   }) => {
     await open(page, [
@@ -386,14 +466,15 @@ test.describe('steady issues refresh (#827, #718)', () => {
     ['desktop', { width: 1280, height: 800 }],
     ['phone', { width: 390, height: 844 }],
   ] as const) {
-    test(`the updates bar has no axe violations while showing, at ${name} width`, async ({
+    test(`the live-update controls have no axe violations, paused, at ${name} width`, async ({
       page,
     }) => {
       await page.setViewportSize(size);
       await open(page);
       await scrollDown(page);
+      await page.getByRole('button', { name: 'Pause live updates' }).click();
       await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
-      await expect(bar(page)).toHaveText('1 update available');
+      await expect(page.locator('#updates-paused-hint')).toBeVisible();
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

@@ -928,9 +928,8 @@ select.col-filter {
   outline-offset: 1px;
 }
 
-/* #710: the slim bar under the filter bar. The count is a polite live
-   region and stays empty (zero height of text) until updates are held, so
-   it announces when the count changes and not on every poll. */
+/* The bar holds the one Pause control for the page's live updates. It
+   draws its box only while paused, so it is not an empty grey strip. */
 .updates-bar {
   display: flex;
   align-items: center;
@@ -943,21 +942,9 @@ select.col-filter {
   font-size: 12px;
   color: var(--ink-2);
 }
-/* The box is only drawn when the bar has something to say: updates held, or
-   paused. Otherwise it is just the Pause button, not an empty grey strip
-   (#1109). The border stays as a transparent one so the bar keeps its
-   height when it appears. */
-.updates-bar:has(
-  .updates-count:not(:empty),
-  .updates-show:not([hidden]),
-  .updates-paused:not([hidden])
-) {
+.updates-bar:has(.updates-paused:not([hidden])) {
   background: var(--surface-sunken);
   border-color: var(--border);
-}
-.updates-count {
-  font-weight: 600;
-  color: var(--ink);
 }
 .updates-paused {
   color: var(--ink-2);
@@ -971,11 +958,6 @@ select.col-filter {
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
-}
-.updates-bar .updates-show {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: var(--accent);
 }
 .updates-bar .updates-pause {
   margin-left: auto;
@@ -3969,4 +3951,11 @@ footer a[aria-current="page"] {
     display: inline-flex;
     align-items: center;
   }
+}
+
+/* A render rebuilds every row, so the page corrects the scroll position
+   itself; the browser's own anchoring would add a second correction. */
+#pr-rows,
+#issue-rows {
+  overflow-anchor: none;
 }
