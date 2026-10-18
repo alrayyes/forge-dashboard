@@ -46,6 +46,9 @@ export type StandInStatus = { code: string; message: string; next?: string };
 
 export type StandInEntry = {
   action: string;
+  // Set by the server's rule table on the one main action (#1756). It comes
+  // straight from the generated fixture; nothing here decides it.
+  primary?: boolean;
   blocked?: { code: string; message: string; next?: string };
 };
 
