@@ -530,9 +530,12 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 }
 
 // appAware gives a permission refusal under an App the text that names the
-// App's Webhooks permission instead of the generic "check your token".
+// App's Webhooks permission instead of the generic "check your token". Only
+// GitHub's integration refusal counts, as in the hooks listing: a 401 (bad or
+// expired credentials) says nothing about the permission.
 func (c *Client) appAware(err error) error {
-	if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && c.appAuthenticated && clientErr.Kind == dashboard.ForgeErrorUnauthorized {
+	if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && c.appAuthenticated &&
+		clientErr.Kind == dashboard.ForgeErrorUnauthorized && strings.Contains(err.Error(), integrationRefusal) {
 		clientErr.PermissionMessage = appPermissionMessage
 	}
 

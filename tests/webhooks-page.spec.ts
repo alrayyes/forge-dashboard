@@ -413,6 +413,38 @@ test.describe('webhooks page', () => {
     await expect(row).not.toContainText(/token/i);
   });
 
+  test('a permission refusal with no server sentence falls back to the generic permission text', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
+    ]);
+    await page.route('**/api/webhooks/ensure', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 'permission',
+          message: '',
+          error: 'github: POST hooks: Must have admin rights to Repository.',
+        }),
+      }),
+    );
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    await row.getByRole('button', { name: 'Add a webhook' }).click();
+
+    await expect(row).toContainText(
+      'Missing permission — check your token in Settings.',
+    );
+  });
+
   test('a rate-limited failure disables the button for good, same as a known-exhausted budget', async ({
     page,
   }) => {

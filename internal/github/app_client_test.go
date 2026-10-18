@@ -579,6 +579,133 @@ func TestAppClient_EnsureWebhook_ReadOnlyApp_NamesTheAppPermission(t *testing.T)
 	assert.NotContains(t, clientErr.PermissionMessage, "token")
 }
 
+// TestAppClient_EnsureWebhook_BadCredentials_DoesNotBlameThePermission pins
+// that a 401 on Add (bad or expired credentials) isn't read as a missing
+// Webhooks permission, the same way the hooks listing doesn't lock on it.
+func TestAppClient_EnsureWebhook_BadCredentials_DoesNotBlameThePermission(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(fmt.Sprintf("/app/installations/%d/access_tokens", testInstallationID), func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"token": "installation-token-value", "expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)})
+	})
+	mux.HandleFunc("/repos/alrayyes/repo-one/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusUnauthorized)
+			writeJSON(t, w, map[string]any{"message": "Bad credentials"})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+
+	err = client.EnsureWebhook(t.Context(), "alrayyes", "repo-one", "https://dash.example/api/webhooks/github/t", "s")
+
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	require.True(t, ok, "%v", err)
+	assert.Equal(t, dashboard.ForgeErrorUnauthorized, clientErr.Kind)
+	assert.Empty(t, clientErr.PermissionMessage)
+}
+
+// TestClient_EnsureWebhook_TokenRefused_HasNoAppPermissionMessage pins that
+// the App's permission text is only for an App: a token client refused on
+// Add keeps the generic "check your token" refusal.
+func TestClient_EnsureWebhook_TokenRefused_HasNoAppPermissionMessage(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/repo-one/hooks", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusForbidden)
+			writeJSON(t, w, map[string]any{"message": "Resource not accessible by integration"})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnsureWebhook(t.Context(), "alrayyes", "repo-one", "https://dash.example/api/webhooks/github/t", "s")
+
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	require.True(t, ok, "%v", err)
+	assert.Equal(t, dashboard.ForgeErrorUnauthorized, clientErr.Kind)
+	assert.Empty(t, clientErr.PermissionMessage)
+}
+
+// TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedUntilItExpires pins
+// that the poll after an app-wide hooks refusal rebuilds every row as refused
+// without asking GitHub again, even though GitHub would now answer 200, and
+// only asks again once the denial has expired.
+func TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedUntilItExpires(t *testing.T) {
+	t.Parallel()
+
+	var status atomic.Int32
+	status.Store(http.StatusForbidden)
+	var hookCalls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc(fmt.Sprintf("/app/installations/%d/access_tokens", testInstallationID), func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"token": "installation-token-value", "expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)})
+	})
+	mux.HandleFunc("/installation/repositories", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "repositories": []map[string]any{
+			{"name": "repo-one", "full_name": "alrayyes/repo-one", "html_url": "https://github.com/alrayyes/repo-one", "owner": map[string]any{"login": "alrayyes"}},
+		}})
+	})
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"data": map[string]any{
+			"rateLimit": map[string]any{"limit": 5000, "cost": 1, "remaining": 4999, "resetAt": "2026-09-14T16:00:00Z"},
+			"r0": map[string]any{
+				"pullRequests": map[string]any{"nodes": []map[string]any{}},
+				"issuesTotal":  map[string]any{"totalCount": 0},
+				"issues":       map[string]any{"nodes": []map[string]any{}},
+			},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/repo-one/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		hookCalls.Add(1)
+		if status.Load() == http.StatusOK {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		w.WriteHeader(int(status.Load()))
+		writeJSON(t, w, map[string]any{"message": "Resource not accessible by integration"})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+	const ttl = 200 * time.Millisecond
+	client.SetWebhookDenialTTL(ttl)
+
+	first := client.Fetch(t.Context())
+	status.Store(http.StatusOK)
+	second := client.Fetch(t.Context())
+
+	require.Len(t, first.Repos, 1)
+	require.Len(t, second.Repos, 1)
+	assert.True(t, first.Repos[0].WebhookLockedByConnection)
+	assert.True(t, second.Repos[0].WebhookLockedByConnection, "the cached denial stands for the next poll")
+	assert.False(t, second.Repos[0].CanManageWebhooks)
+	assert.Equal(t, int32(1), hookCalls.Load(), "the cached denial skips the hooks call")
+
+	time.Sleep(ttl + 50*time.Millisecond)
+	third := client.Fetch(t.Context())
+
+	require.Len(t, third.Repos, 1)
+	assert.False(t, third.Repos[0].WebhookLockedByConnection, "an expired denial asks GitHub again")
+	assert.True(t, third.Repos[0].CanManageWebhooks)
+	assert.Equal(t, int32(2), hookCalls.Load())
+}
+
 func TestAppClient_Fetch_FailedHooksCallKeepsThePreviousRefusal(t *testing.T) {
 	t.Parallel()
 
