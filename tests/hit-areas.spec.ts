@@ -101,6 +101,22 @@ function sweepInPage([target, overlap, within]: readonly [
     let rect = el.getBoundingClientRect();
     // Visually hidden (a skip link, a native input behind a custom one).
     if (rect.width <= 1 || rect.height <= 1) continue;
+    // Clipped away by an ancestor that is itself a pixel (a table header the
+    // phone layout hides while keeping it for screen readers): nothing there
+    // to touch.
+    let clipped = false;
+    for (let a = el.parentElement; a && a !== document.body; ) {
+      const r = a.getBoundingClientRect();
+      if (
+        (r.width <= 1 || r.height <= 1) &&
+        getComputedStyle(a).overflow !== 'visible'
+      ) {
+        clipped = true;
+        break;
+      }
+      a = a.parentElement;
+    }
+    if (clipped) continue;
     el.scrollIntoView({ block: 'center', inline: 'center' });
     rect = el.getBoundingClientRect();
     checked++;
@@ -277,7 +293,11 @@ const ISSUES = [1, 2, 3].map((number) => ({
   updatedAt: ago(number),
 }));
 
-async function mockDashboard(page: Page, pullRequests = PULL_REQUESTS) {
+async function mockDashboard(
+  page: Page,
+  pullRequests = PULL_REQUESTS,
+  repos: Record<string, unknown>[] = [],
+) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
@@ -291,7 +311,7 @@ async function mockDashboard(page: Page, pullRequests = PULL_REQUESTS) {
         ],
         pullRequests,
         issues: ISSUES,
-        repos: [],
+        repos,
         hiddenDrafts: 0,
       }),
     }),
@@ -534,6 +554,36 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
       await page.waitForLoadState('networkidle');
       await sweepAll(page, path, problems);
     }
+    expectNone(problems);
+  });
+
+  // https://github.com/alrayyes/forge-dashboard/issues/1825
+  // The sweep above loads Webhooks with no repos, so it never saw the table.
+  test('webhooks with repos loaded, the whole page', async ({ page }) => {
+    const problems: string[] = [];
+    const repo = (name: string, extra: Record<string, unknown> = {}) => ({
+      forge: 'github',
+      fullName: `alrayyes/${name}`,
+      url: `https://github.com/alrayyes/${name}`,
+      hasWebhook: true,
+      canManageWebhooks: true,
+      ignored: false,
+      ignoredPRs: false,
+      ignoredIssues: false,
+      autoUpdateBranch: false,
+      ...extra,
+    });
+    await mockDashboard(page, PULL_REQUESTS, [
+      repo('one'),
+      repo('two', { autoUpdateBranch: true }),
+      repo('three', { hasWebhook: false }),
+      repo('four', { hasWebhook: false, canManageWebhooks: false }),
+      repo('five', { ignored: true, ignoredPRs: true }),
+    ]);
+    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
+    await page.goto('/webhooks.html');
+    await ready(page, '#webhooks-table tbody tr');
+    await sweepAll(page, '/webhooks.html with repos', problems);
     expectNone(problems);
   });
 
