@@ -313,6 +313,9 @@
 
   // The read-only details dialog (#943); a pull request's title button opens it.
   let detailsDialog = $state<PullRequestDetailsDialog>();
+  // The pull request the open dialog shows, by key (#943). Null while it is
+  // closed; the footer follows this pull request's row.
+  let dialogKey: string | null = null;
 
   // The Issues settings (#1630). The server applies them to what it sends, so
   // this page only stops drawing the two fields they replace and says how many
@@ -1304,6 +1307,21 @@
       return key.replace(/[^a-zA-Z0-9_-]/g, "-");
     }
 
+    // The details dialog's footer is built by the row's own builders, so the
+    // same ids would be on the page twice. While the footer is being built
+    // idScope is the dialog's prefix, and every id a builder makes or looks
+    // up starts with it; the builders keep the value they were built with,
+    // so a click finds the right one later (#943).
+    const DIALOG_ID_SCOPE = "dlg-";
+    let idScope = "";
+
+    // The prefix to look a button up by when nothing is being built: the
+    // dialog's while it is open (it is modal, so it is where the user is),
+    // the row's otherwise.
+    function activeScope(): string {
+      return dialogKey !== null ? DIALOG_ID_SCOPE : "";
+    }
+
     // Forgejo has no auto-merge this app can read, so Forge Dashboard does
     // the merging itself. Said once under each Forgejo group heading, with a
     // way to the full explanation.
@@ -1352,6 +1370,10 @@
     ): HTMLElement {
       const reasonText = typeof lock === "string" ? lock : lock.reason;
       const code = typeof lock === "string" ? undefined : lock.code;
+      // In the dialog's footer the reason is printed, not left to a hover
+      // bubble the footer's edge would clip.
+      if (idScope !== "" && visibleNote === undefined && !describedBy)
+        visibleNote = "";
       // Retry only for a reason waiting can fix (a 502, an unreachable
       // forge). A rate limit or a missing permission can't clear by
       // clicking, so it stays a greyed-out action with its own label
@@ -1666,7 +1688,9 @@
           feedback.drop(fkey);
           armConfirm("merge", item);
           renderPRBoard();
-          document.getElementById(`merge-confirm-${domSafeId(key)}`)?.focus();
+          document
+            .getElementById(`${activeScope()}merge-confirm-${domSafeId(key)}`)
+            ?.focus();
         },
       });
 
@@ -1791,7 +1815,7 @@
     // blocked by (#1375). Text and an icon, never colour alone. A locked Merge
     // is described by it, so it is read without hovering.
     function statusAreaId(item: PullRequestItem): string {
-      return `status-area-${domSafeId(prKey(item))}`;
+      return `${idScope}status-area-${domSafeId(prKey(item))}`;
     }
 
     function statusArea(item: PullRequestItem): HTMLElement | null {
@@ -1873,6 +1897,7 @@
       }
 
       const key = prKey(item);
+      const scope = idScope;
       const entry = mergeState[key] || { phase: "idle" };
 
       if (entry.phase === "locked")
@@ -1901,7 +1926,7 @@
           "row-action confirm",
           confirming ? "Confirm merge?" : "Merging…",
         );
-        confirmButton.id = `merge-confirm-${domSafeId(key)}`;
+        confirmButton.id = `${scope}merge-confirm-${domSafeId(key)}`;
         confirmButton.disabled = !confirming;
         if (confirming) {
           confirmGroup("merge", item, wrap, confirmButton, () =>
@@ -1915,7 +1940,7 @@
 
       const mergeButton = buttonEl("row-action", "Merge");
       mergeButton.type = "button";
-      mergeButton.id = `merge-arm-${domSafeId(key)}`;
+      mergeButton.id = `${scope}merge-arm-${domSafeId(key)}`;
       mergeButton.addEventListener("click", () => {
         armConfirm("merge", item);
         renderPRBoard();
@@ -1925,7 +1950,7 @@
         // relying on someone watching the exact pixels the button
         // occupies.
         const justConfirmed = document.getElementById(
-          `merge-confirm-${domSafeId(key)}`,
+          `${scope}merge-confirm-${domSafeId(key)}`,
         );
         justConfirmed?.focus();
       });
@@ -2235,7 +2260,9 @@
       // Rendering also lets a snapshot the armed row was holding back land.
       renderPRBoard();
       if (reason === "cancel" || reason === "escape")
-        document.getElementById(`${kind}-arm-${domSafeId(key)}`)?.focus();
+        document
+          .getElementById(`${activeScope()}${kind}-arm-${domSafeId(key)}`)
+          ?.focus();
     }
 
     const confirmArm = createConfirmArm({ onDisarm: onConfirmDisarmed });
@@ -2303,21 +2330,23 @@
       wrap.appendChild(line);
     }
 
-    function armedGroup(): Element | null {
+    // The armed step can be on the page twice, on the row and in the open
+    // dialog's footer. The countdown follows the one the user can reach.
+    function armedGroups(): Element[] {
       const armKey = confirmArm.armedKey();
-      if (!armKey) return null;
-      for (const group of Array.from(
-        document.querySelectorAll(".confirm-group"),
-      ))
-        if ((group as HTMLElement).dataset.armKey === armKey) return group;
+      if (!armKey) return [];
 
-      return null;
+      return Array.from(document.querySelectorAll(".confirm-group")).filter(
+        (group) => (group as HTMLElement).dataset.armKey === armKey,
+      );
     }
-    const inArmedGroup = (target: EventTarget | null) => {
-      const group = armedGroup();
+    function armedGroup(): Element | null {
+      const groups = armedGroups();
 
-      return Boolean(group && target instanceof Node && group.contains(target));
-    };
+      return groups.find((g) => g.closest("dialog[open]")) ?? groups[0] ?? null;
+    }
+    const inArmedGroup = (target: EventTarget | null) =>
+      target instanceof Node && armedGroups().some((g) => g.contains(target));
 
     // The countdown waits while the pointer is over the group or keyboard
     // focus is in it. Focus from the arming mouse click doesn't count
@@ -2426,11 +2455,14 @@
         // Like merge, a close is never re-sent without its confirm step.
         retry: () => {
           feedback.drop(fkey);
-          // The confirm lives in the menu, so the menu has to be open.
-          openActionMenus[key] = true;
+          // On the row the confirm lives in the menu, so the menu has to be
+          // open; in the dialog it is in the footer.
+          if (!activeScope()) openActionMenus[key] = true;
           armConfirm("close", item);
           renderPRBoard();
-          document.getElementById(`close-confirm-${domSafeId(key)}`)?.focus();
+          document
+            .getElementById(`${activeScope()}close-confirm-${domSafeId(key)}`)
+            ?.focus();
         },
       });
 
@@ -2508,6 +2540,7 @@
     function closeActionCell(item: PullRequestItem): HTMLElement | null {
       if (!findAction(item, "close")) return null;
       const key = prKey(item);
+      const scope = idScope;
       const entry = closeState[key] || { phase: "idle" };
 
       if (entry.phase === "locked") {
@@ -2542,7 +2575,7 @@
           "row-action confirm",
           confirming ? "Confirm close pull request?" : "Closing…",
         );
-        confirmButton.id = `close-confirm-${domSafeId(key)}`;
+        confirmButton.id = `${scope}close-confirm-${domSafeId(key)}`;
         confirmButton.disabled = !confirming;
         if (confirming) {
           confirmGroup("close", item, wrap, confirmButton, () =>
@@ -2563,12 +2596,12 @@
       // confirm step carries the warning tone.
       const closeButton = buttonEl("row-action close", "Close pull request");
       closeButton.type = "button";
-      closeButton.id = `close-arm-${domSafeId(key)}`;
+      closeButton.id = `${scope}close-arm-${domSafeId(key)}`;
       closeButton.addEventListener("click", () => {
         armConfirm("close", item);
         renderPRBoard();
         const justConfirmed = document.getElementById(
-          `close-confirm-${domSafeId(key)}`,
+          `${scope}close-confirm-${domSafeId(key)}`,
         );
         justConfirmed?.focus();
       });
