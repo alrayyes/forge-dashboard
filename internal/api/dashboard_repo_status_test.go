@@ -70,4 +70,5 @@ func TestDashboard_RepoStatus_SerializesURLAndCanManageWebhooks(t *testing.T) {
 
 	assert.Equal(t, "https://github.com/alrayyes/forge-dashboard", repoJSON["url"])
 	assert.Equal(t, true, repoJSON["canManageWebhooks"])
+	assert.NotContains(t, repoJSON, "webhookLockedByConnection", "absent unless the connection is the limit")
 }

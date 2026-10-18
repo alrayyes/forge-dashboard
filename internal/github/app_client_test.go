@@ -356,3 +356,91 @@ func TestAppClient_Fetch_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
 	assert.True(t, result.PullRequests[0].RenovateRebaseRequested)
 	assert.Regexp(t, `(?m)^\s+body\s*$`, query, "the App query has to ask for the description")
 }
+
+// appWebhookTestServer is appInstallationTestServer's two repos with a hooks
+// endpoint per repo, answering with the status given (200 means an empty
+// list). An installation token has no viewer, so the hooks call is the only
+// honest answer to "can this connection manage webhooks here".
+func appWebhookTestServer(t *testing.T, hookStatus map[string]int) *httptest.Server {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(fmt.Sprintf("/app/installations/%d/access_tokens", testInstallationID), func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"token": "installation-token-value", "expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)})
+	})
+	mux.HandleFunc("/installation/repositories", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{
+			"total_count": 2,
+			"repositories": []map[string]any{
+				{"name": "repo-one", "full_name": "alrayyes/repo-one", "html_url": "https://github.com/alrayyes/repo-one", "owner": map[string]any{"login": "alrayyes"}},
+				{"name": "repo-two", "full_name": "alrayyes/repo-two", "html_url": "https://github.com/alrayyes/repo-two", "owner": map[string]any{"login": "alrayyes"}},
+			},
+		})
+	})
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		empty := map[string]any{
+			"pullRequests": map[string]any{"nodes": []map[string]any{}},
+			"issuesTotal":  map[string]any{"totalCount": 0},
+			"issues":       map[string]any{"nodes": []map[string]any{}},
+		}
+		writeJSON(t, w, map[string]any{"data": map[string]any{
+			"rateLimit": map[string]any{"limit": 5000, "cost": 2, "remaining": 4998, "resetAt": "2026-09-14T16:00:00Z"},
+			"r0":        empty,
+			"r1":        empty,
+		}})
+	})
+	for name, status := range hookStatus {
+		mux.HandleFunc("/repos/alrayyes/"+name+"/hooks", func(w http.ResponseWriter, _ *http.Request) {
+			if status == http.StatusOK {
+				writeJSON(t, w, []map[string]any{})
+
+				return
+			}
+			w.WriteHeader(status)
+			writeJSON(t, w, map[string]any{"message": "Resource not accessible by integration"})
+		})
+	}
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func TestAppClient_Fetch_CanManageWebhooksFollowsTheHooksCall(t *testing.T) {
+	t.Parallel()
+
+	srv := appWebhookTestServer(t, map[string]int{"repo-one": http.StatusOK, "repo-two": http.StatusNotFound})
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+
+	result := client.Fetch(t.Context())
+
+	byName := map[string]bool{}
+	limited := map[string]bool{}
+	for _, r := range result.Repos {
+		byName[r.FullName] = r.CanManageWebhooks
+		limited[r.FullName] = r.WebhookLockedByConnection
+	}
+	assert.Equal(t, map[string]bool{"alrayyes/repo-one": true, "alrayyes/repo-two": false}, byName,
+		"an installation has no viewer role; a hooks listing that works means the Add button can too")
+	assert.Equal(t, map[string]bool{"alrayyes/repo-one": false, "alrayyes/repo-two": true}, limited,
+		"a repo the App can't reach hooks on is the connection's limit, not the user's role")
+}
+
+func TestAppClient_Fetch_AppWithoutWebhooksPermission_LocksEveryRepoAsConnectionLimit(t *testing.T) {
+	t.Parallel()
+
+	srv := appWebhookTestServer(t, map[string]int{"repo-one": http.StatusForbidden, "repo-two": http.StatusForbidden})
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.Repos, 2)
+	for _, r := range result.Repos {
+		assert.False(t, r.CanManageWebhooks, r.FullName)
+		assert.True(t, r.WebhookLockedByConnection, r.FullName)
+	}
+}

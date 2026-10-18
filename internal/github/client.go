@@ -1804,13 +1804,13 @@ func decodeAppRepoBatch(data json.RawMessage, repos []*ghsdk.Repository) ([]grap
 		repo.Name = r.GetName()
 		repo.URL = r.GetHTMLURL()
 		repo.Owner.Login = r.GetOwner().GetLogin()
-		// An App installation's own declared permissions (docs/configuration.md's
-		// "Contents, Issues, and Pull requests (read and write)") apply
-		// uniformly to every repo the installation was granted — never
-		// Administration — so every repo fetchAppRepos returns is WRITE
-		// and never ADMIN. isFork/isArchived are already filtered out
-		// before a repo reaches this batch (fetchAppRepos), so both stay
-		// false here rather than being asked of GraphQL a second time.
+		// An installation token has no viewer, so there's no role to read:
+		// every repo in the listing is tracked at WRITE. Whether the Add
+		// button works comes from the hooks call instead (fetchViaGraphQL),
+		// since that's what the App's Webhooks permission actually gates.
+		// isFork/isArchived are already filtered out before a repo reaches
+		// this batch (fetchAppRepos), so both stay false here rather than
+		// being asked of GraphQL a second time.
 		repo.ViewerPermission = "WRITE"
 		result = append(result, repo)
 	}
@@ -2071,14 +2071,28 @@ func (c *Client) fetchTokenRepos(ctx context.Context, since *time.Time) ([]graph
 }
 
 // repoFrom maps a GraphQL repository onto the dashboard's repo row.
-func repoFrom(fullName string, r graphqlRepo, hasWebhook bool) dashboard.Repo {
-	return dashboard.Repo{
-		Forge:             dashboard.ForgeGitHub,
-		FullName:          fullName,
-		URL:               r.URL,
-		HasWebhook:        hasWebhook,
-		CanManageWebhooks: canManageWebhooks(r.ViewerPermission),
+//
+// hooksListed is whether this poll's hooks listing for the repo succeeded.
+// A GitHub App installation has no viewer role (its ViewerPermission is a
+// placeholder), so for one a successful listing is what "can manage" means:
+// GitHub answers 403 "Resource not accessible by integration" when the App
+// lacks the Webhooks permission, and 404 when the repo isn't in the
+// installation. A failure there is the connection's limit, not the user's.
+func repoFrom(fullName string, r graphqlRepo, hasWebhook, hooksListed, appAuthenticated bool) dashboard.Repo {
+	repo := dashboard.Repo{
+		Forge:      dashboard.ForgeGitHub,
+		FullName:   fullName,
+		URL:        r.URL,
+		HasWebhook: hasWebhook,
 	}
+	if appAuthenticated {
+		repo.CanManageWebhooks = hooksListed
+		repo.WebhookLockedByConnection = !hooksListed
+	} else {
+		repo.CanManageWebhooks = canManageWebhooks(r.ViewerPermission)
+	}
+
+	return repo
 }
 
 // trackedRepos keeps the repos the dashboard follows: not archived, not a
@@ -2141,7 +2155,8 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	var unreported []missingRequiredCheck
 	for _, r := range tracked {
 		fullName := r.Owner.Login + "/" + r.Name
-		result.Repos = append(result.Repos, repoFrom(fullName, r, hasWebhook[fullName]))
+		listed, ok := hasWebhook[fullName]
+		result.Repos = append(result.Repos, repoFrom(fullName, r, listed, ok, c.appAuthenticated))
 
 		for _, p := range r.PullRequests.Nodes {
 			result.PullRequests = append(result.PullRequests, mapPullRequest(fullName, p))

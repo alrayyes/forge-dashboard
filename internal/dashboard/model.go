@@ -464,6 +464,13 @@ type Repo struct {
 	// permission change since the last refresh can still make a
 	// following EnsureWebhook call fail despite this having said true.
 	CanManageWebhooks bool `json:"canManageWebhooks"`
+	// WebhookLockedByConnection is set alongside a false CanManageWebhooks
+	// when the credential itself is the limit, not the signed-in user's
+	// role: a GitHub App installation has no role of its own, so a repo it
+	// can't list hooks on is missing the App's Webhooks permission (or the
+	// repo isn't in the installation). The page uses it to say what to
+	// grant instead of telling the user to ask an owner.
+	WebhookLockedByConnection bool `json:"webhookLockedByConnection,omitempty"`
 	// StaleSince is set when this refresh could not fetch some of the repo's
 	// pull requests or issues, and the ones shown are the last good ones,
 	// fetched at this time (#1194). Absent when the repo's data is current.
