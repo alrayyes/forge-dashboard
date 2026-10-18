@@ -97,6 +97,8 @@ stale.
   phone.
 - [API](docs/api.md): the HTTP endpoints, the OpenAPI contract and the MCP
   endpoint.
+- [Rate limits](docs/rate-limits.md): why a forge is rate limited, what the
+  dashboard does meanwhile, and what to change.
 - [Accounts](docs/accounts.md): passkey login, API tokens, the admin area,
   sharing a dashboard and the GitHub and Forgejo credentials.
 - [Configuration](docs/configuration.md): every environment variable, how repositories

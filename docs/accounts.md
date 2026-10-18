@@ -174,15 +174,16 @@ and puts focus on that input. The page holds no copy of those rules.
 - **Username only** (token left blank): shows that account's public
   repositories, fully unauthenticated — the same data anyone gets
   landing on `github.com/<username>?tab=repositories`. Verified live
-  against a real 105-public-repo account. Unauthenticated GitHub API
-  calls are capped at **60 requests/hour**, so this mode only sees
-  everything on an account small enough to fit that budget — a token
-  (5,000/hour) is what an account this size actually needs.
+  against a real 105-public-repo account. GitHub caps unauthenticated API
+  calls far lower than token calls (see [Rate limits](rate-limits.md)), so this
+  mode only sees everything on an account small enough to fit that budget. A
+  token is what a bigger account needs.
 - **GitHub App installation** (operator opt-in): if this deployment has
   a GitHub App configured, a field next to the token lets you connect
   an installation instead — its own independent rate-limit budget
-  rather than your account's shared one. See
-  [GitHub App support](configuration.md#github-app-support).
+  rather than your account's shared one. Setup is in
+  [GitHub App support](configuration.md#github-app-support), and
+  [Rate limits](rate-limits.md) explains the budgets.
 
 ### Forgejo
 
