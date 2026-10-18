@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.218.3](https://github.com/alrayyes/forge-dashboard/compare/v0.218.2...v0.218.3) (2026-10-18)
+
+
+### Bug Fixes
+
+* sort the webhooks cards with a visible select and align the breakpoints ([#1856](https://github.com/alrayyes/forge-dashboard/issues/1856)) ([1393fcc](https://github.com/alrayyes/forge-dashboard/commit/1393fcc3f18139190ec5576b844ba59eaa38863b))
+
 ## [0.218.2](https://github.com/alrayyes/forge-dashboard/compare/v0.218.1...v0.218.2) (2026-10-18)
 
 
