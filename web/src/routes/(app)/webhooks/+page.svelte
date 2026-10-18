@@ -312,9 +312,9 @@
 
   function onFilterChange(keys: string[], freeText = false) {
     page = 1;
-    // The notice is about the filters as they were; once one changes it is
-    // stale, and clearing it makes the next clear a real change to announce.
-    if (statusMessage === FILTERS_CLEARED) setStatus("");
+    // A result is about the list as it was; once a filter changes it is
+    // stale.
+    setStatus("");
     save(keys, freeText);
   }
 
