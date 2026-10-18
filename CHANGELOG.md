@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.218.4](https://github.com/alrayyes/forge-dashboard/compare/v0.218.3...v0.218.4) (2026-10-18)
+
+
+### Bug Fixes
+
+* **github:** let a GitHub App add webhooks and say what it lacks ([#1847](https://github.com/alrayyes/forge-dashboard/issues/1847)) ([a573ba8](https://github.com/alrayyes/forge-dashboard/commit/a573ba803969d16d4856ae6457d1eef7c1e26ca5))
+
 ## [0.218.3](https://github.com/alrayyes/forge-dashboard/compare/v0.218.2...v0.218.3) (2026-10-18)
 
 
