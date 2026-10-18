@@ -712,5 +712,5 @@ export function mountFeedbackUI(
   store.subscribe(render);
   render();
 
-  return { decorateRow, syncRows, tick };
+  return { decorateRow, syncRows, tick, inlineLines: buildInline };
 }

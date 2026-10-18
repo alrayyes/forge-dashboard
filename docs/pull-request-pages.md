@@ -9,8 +9,23 @@ the pull request's description, its comments and the thumbs up and thumbs
 down reactions on each, and an **Open on GitHub** (or Forgejo) link. On the
 Releases page the pop-up shows the release notes in place of the description.
 A Dependabot or Renovate pull request opens the same pop-up, with its long
-generated description folded away until you open it. There are no actions in
-it yet: Merge, Update branch and the rest stay on the row.
+generated description folded away until you open it.
+
+The footer of the pop-up has every action the row offers, so a pull request can
+be acted on from it: the main action first (the one the server marks primary),
+then the others, with **Close pull request** last, on the right. They are the row's
+own buttons with the same states: locked with the reason, queued, in flight and
+the two-step confirm for Merge and Close. A locked button stays on screen,
+greyed, with the reason printed as text beside it or in the status block under
+the header, and described to screen readers. A failure shows as a line above
+the footer, with room for several, and leaves the buttons usable. The footer
+also holds Hide this pull request and Hide for 7 days, and **Rerun failed
+checks** when CI is failing and the server offers it. The row keeps its own
+buttons too. The footer follows its pull request while the pop-up is open: when
+a refresh changes what it offers, the footer changes with it, and when the pull
+request has left the board (merged, closed or hidden) the footer says so and
+keeps only the link to the forge. On a phone the pop-up is a full-height sheet
+whose footer stays at the bottom, with 44 pixel buttons that wrap.
 
 The pop-up loads when it opens, from `GET /api/pull-requests/details`, and
 never as part of the dashboard snapshot, so a forge's budget isn't spent on

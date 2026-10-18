@@ -15,6 +15,7 @@
 
   import { onMount } from "svelte";
   import PullRequestDetailsDialog, {
+    type DetailsChrome,
     type DetailsStatus,
   } from "#lib/PullRequestDetailsDialog.svelte";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
@@ -35,7 +36,12 @@
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
-  import { findAction, type AllowedAction } from "#lib/allowed-actions.js";
+  import {
+    type ActionName,
+    type AllowedAction,
+    findAction,
+    primaryAction,
+  } from "#lib/allowed-actions.js";
   import * as Stacks from "#lib/stacks.js";
   import { createTitleHover } from "#lib/title-hover.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
@@ -316,6 +322,12 @@
   // The pull request the open dialog shows, by key (#943). Null while it is
   // closed; the footer follows this pull request's row.
   let dialogKey: string | null = null;
+  // The newest snapshot no longer has that pull request (merged, closed,
+  // hidden). The list behind the dialog holds still; the dialog says so.
+  let dialogGone = false;
+  // The dialog's hooks into the board, set once the board exists below.
+  let escapeDetails: () => boolean = () => false;
+  let detailsClosed: () => void = () => {};
 
   // The Issues settings (#1630). The server applies them to what it sends, so
   // this page only stops drawing the two fields they replace and says how many
@@ -1113,6 +1125,262 @@
       return { state, attributes };
     }
 
+    // ---- the details dialog's footer (#943) ----
+    // Every action the row offers, drawn by the row's own builders so there
+    // is one implementation of each: the primary one first, the others, then
+    // Close last. The status block under the header, the failure lines above
+    // the footer and the buttons are rebuilt whenever the board renders or an
+    // action's feedback changes, so the open dialog shows its own pull
+    // request as it is now.
+
+    // "Rerun failed checks" has no button on the row (it lives in the
+    // pipeline dialog, next to the checks), so its in-flight state is kept
+    // here, outside the footer's DOM like every other action's.
+    type RerunState = {
+      phase: "requesting" | "queued" | "failed";
+      message?: string;
+      details?: FailureDetails;
+    };
+    const rerunState: Record<string, RerunState> = {};
+
+    function doRerunChecks(item: PullRequestItem) {
+      const key = prKey(item);
+      rerunState[key] = { phase: "requesting" };
+      renderPRBoard();
+      postRerunChecks(item)
+        .then(() => {
+          rerunState[key] = { phase: "queued" };
+          feedback.announce(
+            "Rerun queued. The new results show after the next refresh.",
+          );
+        })
+        .catch((err: ActionRequestError) => {
+          rerunState[key] = {
+            phase: "failed",
+            message: err.message,
+            details: failureDetails(err, {
+              action: "rerun-checks",
+              forge: item.forge,
+              repo: item.repo,
+              number: item.number,
+            }),
+          };
+        })
+        .finally(() => renderPRBoard());
+    }
+
+    // Offered where the server lists rerun_checks and something failed.
+    function rerunChecksActionCell(item: PullRequestItem): HTMLElement | null {
+      if (!findAction(item, "rerun_checks") || item.ci !== "failure")
+        return null;
+      const proactiveReason = proactiveActionLockReason(item.forge);
+      if (readOnlyBecauseRateLimited(proactiveReason)) return null;
+      if (proactiveReason)
+        return lockedActionButton("Rerun failed checks", proactiveReason);
+      const phase = rerunState[prKey(item)]?.phase;
+      const button = buttonEl(
+        "row-action",
+        phase === "requesting"
+          ? "Queuing the rerun…"
+          : phase === "queued"
+            ? "Rerun queued"
+            : "Rerun failed checks",
+      );
+      button.type = "button";
+      markPending(button, phase === "requesting" || phase === "queued");
+      button.addEventListener("click", () => {
+        if (isPending(button)) return;
+        doRerunChecks(item);
+      });
+      return button;
+    }
+
+    // A failed rerun, in the same line as any other action's failure.
+    function rerunFailureLine(item: PullRequestItem): HTMLElement | null {
+      const key = prKey(item);
+      const state = rerunState[key];
+      if (state?.phase !== "failed") return null;
+      const line = el("div", "row-feedback-line");
+      line.dataset.phase = "failed";
+      line.appendChild(
+        el(
+          "span",
+          "row-feedback-text",
+          `Failed: couldn't rerun the checks: ${state.message ?? "the forge refused it"}`,
+        ),
+      );
+      if (state.details)
+        line.appendChild(
+          copyButton(state.details, "row-action row-feedback-copy"),
+        );
+      const dismiss = buttonEl("row-action row-feedback-dismiss", "Dismiss");
+      dismiss.type = "button";
+      dismiss.setAttribute(
+        "aria-label",
+        `Dismiss failure for ${item.repo}#${item.number}`,
+      );
+      dismiss.addEventListener("click", () => {
+        delete rerunState[key];
+        renderPRBoard();
+      });
+      line.appendChild(dismiss);
+      return line;
+    }
+
+    // The footer's buttons in order. A pull request found merged or closed
+    // has nothing left to do, as on the row.
+    function footerActionCells(item: PullRequestItem): HTMLElement[] {
+      if (isSettled(item)) {
+        const badge = mergeActionCell(item);
+        return badge ? [badge] : [];
+      }
+      const named: [ActionName, () => HTMLElement | null][] = [
+        ["merge", () => mergeActionCell(item)],
+        ["update_branch", () => updateBranchActionCell(item)],
+        [
+          "dependabot_rebase",
+          () =>
+            findAction(item, "dependabot_rebase") &&
+            !dependabotRebaseHidden(item)
+              ? dependabotActionButton(item, "rebase")
+              : null,
+        ],
+        [
+          "dependabot_recreate",
+          () =>
+            findAction(item, "dependabot_recreate")
+              ? dependabotActionButton(item, "recreate")
+              : null,
+        ],
+        ["renovate_rebase", () => renovateRebaseActionCell(item)],
+        ["auto_merge", () => autoMergeActionCell(item)],
+        ["cancel_auto_merge", () => cancelAutoMergeCell(item)],
+        ["rerun_checks", () => rerunChecksActionCell(item)],
+      ];
+      const primary = primaryAction(item)?.action;
+      const first: HTMLElement[] = [];
+      const rest: HTMLElement[] = [];
+      for (const [action, build] of named) {
+        const cell = build();
+        if (!cell) continue;
+        if (action === primary) {
+          cell.classList.add("details-action-primary");
+          first.push(cell);
+        } else rest.push(cell);
+      }
+      const queueCell = queueActionCell(item);
+      if (queueCell) rest.push(queueCell);
+      rest.push(...hideActionCells(item));
+      const close = closeActionCell(item);
+      if (close) {
+        close.classList.add("details-action-close");
+        if (primary === "close") close.classList.add("details-action-primary");
+      }
+      const cells = [...first, ...rest, ...(close ? [close] : [])];
+      const holder = el("div");
+      for (const cell of cells) holder.appendChild(cell);
+      dedupeRetryButtons(holder);
+      return Array.from(holder.children) as HTMLElement[];
+    }
+
+    function dialogChrome(item: PullRequestItem | undefined): DetailsChrome {
+      if (!item) {
+        const gone = el(
+          "p",
+          "status-area details-gone",
+          "This pull request is no longer on the board. It may have been merged, closed or hidden.",
+        );
+        return { status: gone, feedback: null, actions: [] };
+      }
+      const key = prKey(item);
+      const lines = feedbackUI.inlineLines(key);
+      const rerun = rerunFailureLine(item);
+      let feedbackNode = lines;
+      if (rerun) {
+        feedbackNode = lines ?? el("div", "row-feedback");
+        feedbackNode.appendChild(rerun);
+      }
+      return {
+        status: isSettled(item) ? null : statusArea(item),
+        feedback: feedbackNode,
+        actions: footerActionCells(item),
+      };
+    }
+
+    let lastChromeSig = "";
+    let lastChromeItem: PullRequestItem | undefined;
+
+    // Draws the open dialog's footer area from the board's current copy of
+    // its pull request. Skipped when nothing in it changed, so a poll that
+    // changes another row neither redraws nor moves focus.
+    function refreshDialogChrome() {
+      if (dialogKey === null || !detailsDialog) return;
+      const item = dialogGone
+        ? undefined
+        : (prBoard.find(dialogKey) as PullRequestItem | undefined);
+      idScope = DIALOG_ID_SCOPE;
+      let chrome: DetailsChrome;
+      try {
+        chrome = dialogChrome(item);
+      } finally {
+        idScope = "";
+      }
+      const sig = [
+        chrome.status?.outerHTML,
+        chrome.feedback?.outerHTML,
+        ...chrome.actions.map((a) => a.outerHTML),
+      ].join("\n");
+      if (sig === lastChromeSig && item === lastChromeItem) return;
+      lastChromeSig = sig;
+      lastChromeItem = item;
+
+      // Where focus is in the footer, to put it back on the same control
+      // once the buttons are new nodes (a click that changes a button's own
+      // label, a refused action, the confirm step arriving or leaving).
+      const host = detailsDialog.actionsElement();
+      const active = document.activeElement;
+      const here =
+        host && active instanceof HTMLElement && host.contains(active)
+          ? {
+              id: active.id,
+              className: active.className,
+              text: active.textContent,
+              index: Array.from(host.querySelectorAll("button")).indexOf(
+                active as HTMLButtonElement,
+              ),
+            }
+          : null;
+      detailsDialog.setChrome(chrome);
+      if (!here || !host) return;
+      const buttons = Array.from(host.querySelectorAll("button"));
+      const back =
+        (here.id ? buttons.find((b) => b.id === here.id) : undefined) ??
+        buttons.find(
+          (b) => b.className === here.className && b.textContent === here.text,
+        ) ??
+        buttons[Math.min(Math.max(here.index, 0), buttons.length - 1)];
+      if (back) back.focus();
+      else detailsDialog.focusClose();
+    }
+
+    function openDetailsDialog(item: PullRequestItem, triggerId: string) {
+      dialogKey = prKey(item);
+      dialogGone = false;
+      lastChromeSig = "";
+      lastChromeItem = undefined;
+      detailsDialog?.open({ ...item, status: detailsStatus(item) }, triggerId);
+      refreshDialogChrome();
+    }
+
+    // An armed confirm in the footer ends on the first Escape, and goes
+    // with the dialog when it closes.
+    escapeDetails = () => confirmArm.disarm("escape");
+    detailsClosed = () => {
+      if (dialogKey !== null) delete rerunState[dialogKey];
+      dialogKey = null;
+      if (confirmArm.disarm("dropped")) renderPRBoard();
+    };
+
     function buildRow(
       item: PullRequestItem | IssueItem,
       isPR: boolean,
@@ -1127,14 +1395,7 @@
         onLabelClick,
         activeLabel,
         isPR
-          ? (triggerId) =>
-              detailsDialog?.open(
-                {
-                  ...(item as PullRequestItem),
-                  status: detailsStatus(item as PullRequestItem),
-                },
-                triggerId,
-              )
+          ? (triggerId) => openDetailsDialog(item as PullRequestItem, triggerId)
           : undefined,
       );
       row.appendChild(titleCellEl);
@@ -1518,6 +1779,7 @@
 
     feedback.subscribe(() => {
       if (releaseDismissedPermissionLocks()) renderPRBoard();
+      else refreshDialogChrome();
     });
 
     // The "Retry" click every locked merge/update-branch button now has
@@ -3462,8 +3724,14 @@
         // its fresh data in place: otherwise it reads "Rebasing…" next to
         // a stale "Out of date" until the other row's action ends (#787).
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
+        // The open dialog shows its own pull request as it is now; only the
+        // list behind it waits (#943).
+        dialogGone = dialogKey !== null && !fresh.has(dialogKey);
         const settled = shownPRs.filter(
-          (p) => botResolvedKeys.has(prKey(p)) && fresh.has(prKey(p)),
+          (p) =>
+            (botResolvedKeys.has(prKey(p)) ||
+              (prKey(p) === dialogKey && diff.changed.includes(prKey(p)))) &&
+            fresh.has(prKey(p)),
         );
         botResolvedKeys.clear();
         if (settled.length > 0) {
@@ -3480,6 +3748,8 @@
             heldDiff.moved +
             heldDiff.changed.length,
         );
+
+        refreshDialogChrome();
 
         return settled.length > 0;
       }
@@ -5094,6 +5364,8 @@
         // disabled state can go stale.
         renderTitleRuleNotes();
         updateClearFiltersButton();
+        // The open details dialog follows its pull request's row.
+        if (isPR) refreshDialogChrome();
       }
 
       const pageSizeSelect = document.getElementById(
@@ -7761,7 +8033,11 @@
 </div>
 
 {#if pullsView}
-  <PullRequestDetailsDialog bind:this={detailsDialog} />
+  <PullRequestDetailsDialog
+    bind:this={detailsDialog}
+    onEscape={() => escapeDetails()}
+    onClosed={() => detailsClosed()}
+  />
   <dialog
     id="pipeline-dialog"
     class="pipeline-dialog"
