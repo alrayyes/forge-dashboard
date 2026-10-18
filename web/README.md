@@ -2,7 +2,8 @@
 
 The frontend, migrated incrementally to SvelteKit off the handwritten
 vanilla-JS pages still living in `../internal/api/static`. See the root
-`README.md` for how the whole app runs, and `../CONTRIBUTING.md` for the
+`README.md` and [`../docs/running.md`](../docs/running.md) for how the whole app
+runs, and `../CONTRIBUTING.md` for the
 full toolchain and hooks. The decision to adopt SvelteKit this way is
 recorded in
 [issue #326](https://github.com/alrayyes/forge-dashboard/issues/326).
@@ -33,7 +34,7 @@ bun run --filter web build   # or: bun run build:web, from the repo root
 which the build minifies to `/style.css`; `favicon.svg` lives in
 `internal/api/static`, not in this workspace. Iterate against a real
 build instead: `bun run build:web` from the repo root, then
-`go build && ./forge-dashboard` as the root README's "Running it" section
+`go build && ./forge-dashboard` as [Running it](../docs/running.md)
 describes.
 
 ## Checking
