@@ -11,6 +11,29 @@ every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. It has passwordless login,
 per-user tokens, sharing and an admin role.
 
+## Quick start
+
+Generate the encryption key once and keep it somewhere safe, such as a password
+manager. It needs `openssl`; any base64-encoded 32 random bytes work too.
+
+```sh
+export ENCRYPTION_KEY="$(openssl rand -base64 32)"
+docker run --rm -p 8080:8080 -v forge-dashboard-data:/data \
+  -e RP_ID=localhost -e RP_ORIGIN=http://localhost:8080 \
+  -e ENCRYPTION_KEY \
+  ghcr.io/alrayyes/forge-dashboard:latest
+```
+
+Open <http://localhost:8080>, register a passkey, then add your GitHub and
+Forgejo credentials from Settings. On the next run, export the same key again:
+a new one can't decrypt the credentials saved in the volume. The full command
+with hardening flags, building from source and the health check are in
+[Running it](docs/running.md).
+
+`RP_ID` and `RP_ORIGIN` default to `localhost` and `http://localhost:8080`. For
+any other deployment, set them to your real domain and its `https://` origin;
+see [Configuration](docs/configuration.md).
+
 | Page                                                                                                           | Light                                                                               | Dark                                                                              |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | **Branches**. The CI status of every default branch, latest commit first.                                      | ![Branches, light mode](docs/screenshots/branches-light.png)                        | ![Branches, dark mode](docs/screenshots/branches-dark.png)                        |
@@ -46,8 +69,8 @@ stale.
 - **Somewhere writable for the database** (`DB_PATH`, default
   `/data/forge-dashboard.db`) that survives a restart — registered
   passkeys, sessions, and every user's encrypted forge credentials live
-  there. In Docker that means a mounted volume at `/data`; see **Docker**
-  below.
+  there. In Docker that means a mounted volume at `/data`; see
+  [Docker](docs/running.md#docker).
 - **`ENCRYPTION_KEY`**, a base64-encoded 32-byte key the process refuses
   to start without — see [Configuration](docs/configuration.md) for how to
   generate one.
@@ -78,138 +101,19 @@ stale.
   sharing a dashboard and the GitHub and Forgejo credentials.
 - [Configuration](docs/configuration.md): every environment variable, how repositories
   are discovered and the GitHub App option.
+- [Running it](docs/running.md): building and starting the app, and running the
+  Docker image with its health check.
+- [Deployment](docs/deployment.md): where the project's own instance runs.
+- [The changelog page](docs/changelog-page.md): the page the footer version
+  links to.
 - [Webhooks](docs/webhooks.md): registering the forge webhook and the checks the
   dashboard runs on its own.
+- [Error pages](docs/error-pages.md): the app's own 404 and 500 pages and what they
+  show.
+- [Reports](docs/reports.md): the test, coverage and Lighthouse reports published
+  after every green push to `main`.
 - [Architecture](ARCHITECTURE.md#design): the design choices behind the app, from
   passkey login to the MCP endpoint and the single binary.
-
-## Error pages
-
-The dashboard has its own error pages, built with the rest of the web app as
-`404.html` ("Page not found") and `500.html` ("Something went wrong on our
-side"). The Go server sends the first for an address nothing matches and the
-second for a crash, each with its real status code. Asking for either file by
-name gets the 404, never a 200. Each page says what happened in plain words and
-gives a way back: a primary link to the pull requests and a short list of the
-other pages. The 500 page also has a `Try again` link to the same address. They
-show nothing about the server beyond the release version the footer shows
-everywhere (no stack trace, path or host), and follow the light or dark theme.
-They run no script, so the app can't fetch that version: the Go server fills it
-into the `#footer-version` slot of the footer when it starts, and a test fails
-if the web build drops the slot. The same no-script rule means the app's router
-can't swap one for the page whose address it was sent at. Inside the app,
-`+error.svelte` renders the same page for an error the router meets, and
-`handleError` keeps the message generic. `src/error.html` is the static fallback
-for an error the app can't render itself.
-
-## Running it
-
-```sh
-go build -o forge-dashboard ./cmd/forge-dashboard
-mkdir -p data
-DB_PATH=./data/forge-dashboard.db \
-  ENCRYPTION_KEY="$(openssl rand -base64 32)" \
-  ./forge-dashboard
-```
-
-Then open `http://localhost:8080`, register a passkey — `RP_ID`/
-`RP_ORIGIN` default to `localhost`/`http://localhost:8080`, which matches
-this local run with nothing extra to set — and add your GitHub/Forgejo
-credentials from the Settings page.
-
-### Docker
-
-The `/data` directory the image ships is where the database goes — mount
-a volume there, or every passkey and every saved credential is gone the
-moment the container is recreated:
-
-```sh
-docker build -t forge-dashboard .
-docker run --rm -p 8080:8080 \
-  --cap-drop=ALL --security-opt=no-new-privileges --read-only \
-  --memory=64m --cpus=0.5 --pids-limit=64 \
-  -v forge-dashboard-data:/data \
-  -e RP_ID=localhost -e RP_ORIGIN=http://localhost:8080 \
-  -e ENCRYPTION_KEY="$(openssl rand -base64 32)" \
-  forge-dashboard
-```
-
-The image carries a `HEALTHCHECK` that runs `/forge-dashboard healthcheck`,
-which asks `GET /readyz`. It means "can serve": the database answers and its
-tables exist. Once someone has signed in and a first dashboard refresh has
-finished, it also waits on that, and a forge that failed the refresh still
-counts. A freshly started container has no refresh to wait for, since the
-app only fetches from the forges after a sign-in. The database ping gets 2
-seconds and its result is reused for about 3, so a stuck database answers
-503 instead of hanging the probe. On SIGTERM it answers 503 at once, then
-the server waits `SHUTDOWN_DRAIN` before it stops. A 200 also reports the
-`goroutines` and OS `threads` the process holds. The container's process limit
-counts threads, so watch `threads` to see growth before the healthcheck can no
-longer start. A 50-repo refresh from six tabs peaks at about 20 threads, so
-`--pids-limit=64` leaves room. Read it with:
-
-```sh
-docker inspect --format '{{.State.Health.Status}}' <container>
-```
-
-`starting` is normal for up to 30 seconds after boot, then `healthy`. A
-healthy container stays healthy when a forge goes unreachable. That shows
-on the dashboard, not here. `GET /healthz` stays the cheap liveness answer
-(the process is up). In Compose, `depends_on` with
-`condition: service_healthy` waits on the same state.
-
-Generate `ENCRYPTION_KEY` once and keep it — losing it makes every saved
-credential unrecoverable, and every user has to re-enter theirs from the
-Settings page.
-
-The published image is `ghcr.io/alrayyes/forge-dashboard`, built and
-pushed on every release by `.goreleaser.yml`'s `dockers:` block — tagged
-by version and `:latest`, `linux/amd64` and `linux/arm64`.
-
-## Deployment
-
-Deployed on a homelab, reachable only over Tailscale. Passkey login is
-now the actual access control — the tailnet is defence in depth on top
-of it, not the only thing standing between a visitor and the dashboard
-the way v1 originally had it. The image is pulled into that homelab's
-existing compose setup as its own service directory, routed through the
-Traefik instance already running there; there's no per-service Tailscale
-sidecar, since every service on that host reaches the tailnet the same
-way. That deployment config — including the `/data` volume this now
-needs, and `RP_ID`/`RP_ORIGIN` set to the real deployed domain rather
-than the `localhost` defaults — lives in that private deployment repo,
-not here.
-
-### The changelog page
-
-The version in the footer links to `/changelog.html`, which works without
-signing in. It lists the releases in `CHANGELOG.md`, newest first, 20 at a time
-with a button for the older ones, and makes no request to GitHub. The web build
-turns `CHANGELOG.md` into `/changelog.json` (`scripts/changelog-json.ts`, a
-build output that isn't committed) and the page reads that one same-origin file.
-It therefore lists exactly the releases the running version was built from, so
-the footer version and the newest entry agree. The footer reads the running
-binary, so it lags the published release until the deployment updates. The page
-used to live at `/releases.html`. That address now serves the
-[Releases page](docs/pull-request-pages.md#releases), with no redirect, so an
-old bookmark or a browser that cached the earlier 301 needs `/changelog.html`
-typed once.
-
-## Reports
-
-Every push to `main` that passes CI publishes the generated reports at
-<https://apis.ryankes.eu/forge-dashboard/reports/>:
-
-- [Test results](https://apis.ryankes.eu/forge-dashboard/reports/tests/), the
-  JUnit XML of the Go tests (`unit.xml`) and the Playwright journeys
-  (`e2e.xml`).
-- [Coverage](https://apis.ryankes.eu/forge-dashboard/reports/coverage/), an
-  HTML view plus `coverage.xml` (Cobertura) and the native Go `coverage.out`.
-- [Lighthouse](https://apis.ryankes.eu/forge-dashboard/reports/lighthouse/),
-  one report (and its JSON) for the login page and for each signed-in page,
-  under fixed names such as `login.report.html` and `home.report.json` that
-  don't change between deploys. Only each page's representative run is kept.
-  `lighthouse/report.html` and `report.json` stay as the first page's run.
 
 ## Contributing
 

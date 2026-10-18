@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.216.0](https://github.com/alrayyes/forge-dashboard/compare/v0.215.1...v0.216.0) (2026-10-18)
+
+
+### Features
+
+* **webhooks:** add a Clear filters button to the webhooks page ([#1823](https://github.com/alrayyes/forge-dashboard/issues/1823)) ([96d1dc1](https://github.com/alrayyes/forge-dashboard/commit/96d1dc18d86f61aa600f538a001c9668463c7c42))
+
 ## [0.215.1](https://github.com/alrayyes/forge-dashboard/compare/v0.215.0...v0.215.1) (2026-10-17)
 
 
