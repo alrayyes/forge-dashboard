@@ -5343,10 +5343,11 @@ components:
           type: boolean
           description: |
             Present and true when canManageWebhooks is false because the
-            connection itself can't manage webhooks on this repo (a GitHub
-            App without the Webhooks read and write permission, or a repo
-            outside its installation), rather than the signed-in user's
-            role. Absent otherwise.
+            connection itself can't manage webhooks on this repo (GitHub
+            refused the hooks listing: a GitHub App without the Webhooks
+            permission, or a repo outside its installation), rather than the
+            signed-in user's role. A failed or rate-limited listing doesn't
+            set it. Absent otherwise.
         autoUpdateBranch:
           type: boolean
           description: |

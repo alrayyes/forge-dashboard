@@ -129,13 +129,17 @@ usage is bumping into the shared limit.
 To offer this to your users:
 
 1. [Register a GitHub App](https://github.com/settings/apps/new) —
-   any name, no webhook of its own needed. Grant it Contents, Issues, and
-   Pull requests (read and write) for repo discovery, plus Webhooks (read
-   and write) for "Add a webhook"; Metadata (read) comes along
-   automatically. An installation has no role on a repo, so the Webhooks
-   page offers the Add button wherever listing that repo's webhooks works.
-   Without the permission, or for a repo outside the installation, the row
-   says the connection can't manage webhooks and what to grant.
+   any name, no webhook of its own needed. Under **Repository
+   permissions**, grant Contents, Issues, and Pull requests (read and
+   write) for repo discovery, plus **Webhooks (Read and write)** for
+   "Add a webhook"; Metadata (read) comes along automatically. (GitHub also
+   has an _organization_ Webhooks permission; that is not the one.) An
+   installation has no role on a repo, so the Webhooks page offers the Add
+   button wherever listing that repo's webhooks works. That proves read
+   access only; write is confirmed when Add is used. If you add or change
+   a permission on an App that is already installed, GitHub holds the change
+   until the owner accepts it on the installation's page, and the App has
+   the old permissions until then.
 2. Generate a private key on the App's own settings page, then
    base64-encode the downloaded `.pem`: `base64 -w0 your-key.pem`.
 3. Set `GITHUB_APP_ID` (the numeric ID the App's settings page shows)

@@ -357,7 +357,14 @@
           rateLimitReasonText(FORGE_LABELS[repo.forge] ?? repo.forge, resetsAt),
       );
       if (outcome.kind === "locked") {
-        rowState[key] = { lockReason: outcome.reason };
+        // A permission refusal carries the server's own sentence, which
+        // names what a GitHub App is missing; the shared text says "token".
+        rowState[key] = {
+          lockReason:
+            outcome.code === "permission" && (err as Error).message
+              ? (err as Error).message
+              : outcome.reason,
+        };
         setStatus(`Couldn't add a webhook for ${repo.fullName}.`, "error");
         return;
       }
@@ -1165,7 +1172,8 @@
                           {#if repo.webhookLockedByConnection}
                             This connection can't manage webhooks on this repo.
                             Give your GitHub App the Webhooks (read and write)
-                            permission, or <a href="/settings.html#webhooks"
+                            permission, then accept it on the installation, or <a
+                              href="/settings.html#webhooks"
                               >set it up manually</a
                             >.
                           {:else}

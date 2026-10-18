@@ -381,6 +381,38 @@ test.describe('webhooks page', () => {
     await expect(row).toContainText(/token|permission/i);
   });
 
+  test('a read-only App refused on Add is told which permission to grant, not to check a token', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        hasWebhook: false,
+        canManageWebhooks: true,
+      },
+    ]);
+    await page.route('**/api/webhooks/ensure', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 'permission',
+          message:
+            "This GitHub App can't write webhooks on this repo. Under its Repository permissions, set Webhooks (Read and write), then accept the change on the installation.",
+          error: 'github: POST hooks: Resource not accessible by integration',
+        }),
+      }),
+    );
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    await row.getByRole('button', { name: 'Add a webhook' }).click();
+
+    await expect(row).toContainText('Webhooks (Read and write)');
+    await expect(row).not.toContainText(/token/i);
+  });
+
   test('a rate-limited failure disables the button for good, same as a known-exhausted budget', async ({
     page,
   }) => {
@@ -572,6 +604,13 @@ test.describe('webhooks page', () => {
         hasWebhook: false,
         canManageWebhooks: false,
       },
+      {
+        forge: 'github',
+        fullName: 'alrayyes/advisory-scan',
+        hasWebhook: false,
+        canManageWebhooks: false,
+        webhookLockedByConnection: true,
+      },
     ]);
     await page.goto('/webhooks.html');
     await expect(page.locator('#webhooks-table')).toBeVisible();
@@ -673,7 +712,7 @@ test.describe('webhooks page', () => {
       row.getByRole('button', { name: 'Add a webhook' }),
     ).toHaveCount(0);
     await expect(row).toContainText(
-      'Give your GitHub App the Webhooks (read and write) permission',
+      'Give your GitHub App the Webhooks (read and write) permission, then accept it on the installation',
     );
     await expect(row).not.toContainText(/ask an owner/i);
     await expect(

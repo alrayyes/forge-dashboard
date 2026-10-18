@@ -54,10 +54,17 @@ your token can't or won't take that scope, the manual steps below are
 still the fallback — nothing here requires the button.
 
 A GitHub App connection has no role on a repo, so the button shows wherever
-listing that repo's webhooks works. That needs the App's Webhooks permission set
-to **Read and write**. Where it doesn't (the permission is missing, or the repo
-isn't in the installation), the row says the connection can't manage webhooks
-and names the permission to grant, instead of telling you to ask an owner.
+listing that repo's webhooks works. That needs the App's **Repository
+permissions → Webhooks** set to **Read and write** (not the organization-level
+Webhooks permission). Listing only proves read access: an App with read-only
+Webhooks shows the button, and the click is refused with a message naming the
+permission. After you change an installed App's permissions, accept the change
+on the installation's page, or GitHub keeps the old ones.
+
+A row is locked, with the missing permission named, only when GitHub refuses
+the listing outright ("Resource not accessible by integration", or the repo
+isn't in the installation). A server error, a rate limit or a bad credential
+says nothing about the permission, so it leaves the row as it was.
 
 A GitHub fine-grained token also gates _which_ repos it can see at all,
 separately from the preceding permissions — set at token creation, either
@@ -171,7 +178,9 @@ dashboard. A GitHub App without the repository webhooks permission gets
 "Resource not accessible by integration" for all of them, so that answer is
 remembered for an hour and the checks are skipped, with one warning in the log.
 A token that can't administer one repo is skipped for that repo alone. Grant
-the permission and the next check after the hour sees it.
+the permission, accept it on the installation, and the next check after the
+hour sees it. Rows stay locked until then, up to an hour; restarting the
+dashboard clears it at once.
 
 A webhook the dashboard created earlier is brought up to date without a click.
 After the first refresh that finds a repo's webhook, the dashboard lists that
