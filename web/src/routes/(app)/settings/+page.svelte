@@ -1777,7 +1777,8 @@
                   rate-limit pool instead of your account's shared budget.
                   Install the App, then paste the installation ID GitHub shows
                   you here. Your token above stays saved as a fallback but is
-                  ignored while this is set.
+                  ignored while this is set. The App also needs the Webhooks
+                  (read and write) permission for "Add a webhook" to work.
                 {:else}
                   Not available — this server has no GitHub App configured.
                 {/if}

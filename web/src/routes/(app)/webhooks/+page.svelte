@@ -42,6 +42,7 @@
     url?: string;
     hasWebhook: boolean;
     canManageWebhooks?: boolean;
+    webhookLockedByConnection?: boolean;
     ignored: boolean;
     ignoredPRs: boolean;
     ignoredIssues: boolean;
@@ -1161,9 +1162,18 @@
                     {#if !repo.canManageWebhooks}
                       <span class="webhook-locked">
                         <span class="webhook-locked-reason">
-                          Needs admin access on this repo — ask an owner, or <a
-                            href="/settings.html#webhooks">set it up manually</a
-                          >.
+                          {#if repo.webhookLockedByConnection}
+                            This connection can't manage webhooks on this repo.
+                            Give your GitHub App the Webhooks (read and write)
+                            permission, or <a href="/settings.html#webhooks"
+                              >set it up manually</a
+                            >.
+                          {:else}
+                            Needs admin access on this repo — ask an owner, or <a
+                              href="/settings.html#webhooks"
+                              >set it up manually</a
+                            >.
+                          {/if}
                         </span>
                       </span>
                     {:else if lockReasonFor(repo)}

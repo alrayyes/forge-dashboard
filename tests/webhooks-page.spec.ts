@@ -654,6 +654,33 @@ test.describe('webhooks page', () => {
     ).toHaveAttribute('href', '/settings.html#webhooks');
   });
 
+  test('a repo the connection cannot manage names the missing App permission, not an owner', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'github',
+        fullName: 'alrayyes/advisory-scan',
+        hasWebhook: false,
+        canManageWebhooks: false,
+        webhookLockedByConnection: true,
+      },
+    ]);
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    await expect(
+      row.getByRole('button', { name: 'Add a webhook' }),
+    ).toHaveCount(0);
+    await expect(row).toContainText(
+      'Give your GitHub App the Webhooks (read and write) permission',
+    );
+    await expect(row).not.toContainText(/ask an owner/i);
+    await expect(
+      row.getByRole('link', { name: 'set it up manually' }),
+    ).toHaveAttribute('href', '/settings.html#webhooks');
+  });
+
   test('the repo name links out to the repo on its forge', async ({ page }) => {
     await mockDashboard(page, [
       {

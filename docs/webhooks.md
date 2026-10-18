@@ -53,6 +53,12 @@ scope). See Settings' own field hints for the exact scope per forge. If
 your token can't or won't take that scope, the manual steps below are
 still the fallback — nothing here requires the button.
 
+A GitHub App connection has no role on a repo, so the button shows wherever
+listing that repo's webhooks works. That needs the App's Webhooks permission set
+to **Read and write**. Where it doesn't (the permission is missing, or the repo
+isn't in the installation), the row says the connection can't manage webhooks
+and names the permission to grant, instead of telling you to ask an owner.
+
 A GitHub fine-grained token also gates _which_ repos it can see at all,
 separately from the preceding permissions — set at token creation, either
 "All repositories" or an explicit list. A repo left out of that list fails
