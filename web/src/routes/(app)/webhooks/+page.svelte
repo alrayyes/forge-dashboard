@@ -312,13 +312,30 @@
 
   function onFilterChange(keys: string[], freeText = false) {
     page = 1;
-    // The notice is about the filters as they were; once one changes it is
-    // stale, and clearing it makes the next clear a real change to announce.
-    if (statusMessage === FILTERS_CLEARED) setStatus("");
+    // A result is about the list as it was; once a filter changes it is
+    // stale. Clearing it also makes the next identical result a real change.
+    setStatus("");
     save(keys, freeText);
   }
 
+  // A live region only announces a change, so the same text twice in a row
+  // would say nothing the second time. An identical message is cleared first
+  // and set again after a short pause (the "clear, then set" pattern).
+  let statusToken = 0;
   function setStatus(message: string, kind: "" | "error" = "", detail = "") {
+    const token = ++statusToken;
+    if (message !== "" && message === statusMessage) {
+      statusMessage = "";
+      statusDetail = "";
+      setTimeout(() => {
+        if (token === statusToken) applyStatus(message, kind, detail);
+      }, 100);
+      return;
+    }
+    applyStatus(message, kind, detail);
+  }
+
+  function applyStatus(message: string, kind: "" | "error", detail: string) {
     statusMessage = message;
     statusKind = kind;
     statusDetail = detail;
