@@ -241,7 +241,9 @@ func TestPullRequestHide_ForDaysSaysWhenItEnds(t *testing.T) {
 		}
 	}
 
-	assert.WithinDuration(t, time.Now().Add(7*24*time.Hour), until, time.Minute)
+	// Seven calendar days in the server's local time, as the handler counts them: across a
+	// daylight saving change that is not 168 hours.
+	assert.WithinDuration(t, time.Now().AddDate(0, 0, 7), until, time.Minute)
 }
 
 func TestPullRequestUnhide_BringsItBack(t *testing.T) {
