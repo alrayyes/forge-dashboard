@@ -105,6 +105,18 @@
   const releaseNotes = $derived(details?.releaseNotes ?? null);
   const isBot = $derived(target?.kind === "dependency");
 
+  // The dialog's own polite live region. The page's one (outside the
+  // <dialog>) is ignored by assistive tech while a modal is open, so the
+  // dialog speaks through this one.
+  let liveHost = $state<HTMLElement>();
+  export function liveElement(): HTMLElement | undefined {
+    return liveHost;
+  }
+
+  export function close() {
+    dialogEl?.close();
+  }
+
   export function isOpen(): boolean {
     return dialogEl?.open === true;
   }
@@ -223,6 +235,8 @@
 
   function onClose() {
     shownReaction = null;
+    // Nothing said inside the dialog is still true once it is gone.
+    if (liveHost) liveHost.textContent = "";
     token++;
     const id = returnFocusId;
     returnFocusId = "";
@@ -360,6 +374,15 @@
       </button>
     </div>
   {/if}
+
+  <!-- Present from the first paint and written only when something is said. -->
+  <div
+    class="visually-hidden"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+    bind:this={liveHost}
+  ></div>
 
   <!-- What the pull request is waiting on or blocked by, in words. -->
   <div class="details-status-block" bind:this={statusHost} hidden></div>

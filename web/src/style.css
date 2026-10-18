@@ -2363,6 +2363,20 @@ a.ci-pill:hover {
   background: var(--accent);
   color: var(--accent-ink);
 }
+/* A locked action keeps its own look: dashed and flat, unlike a live neutral
+   button beside it. A locked Retry is live and keeps the accent. */
+.details-actions .row-action-locked .row-action {
+  background: transparent;
+  color: var(--ink-3);
+  border-style: dashed;
+  cursor: default;
+}
+.details-actions .row-action-locked .row-action:not([aria-disabled]) {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-style: solid;
+  cursor: pointer;
+}
 .details-actions .row-action.confirm {
   background: var(--warning-bg);
   color: var(--warning);

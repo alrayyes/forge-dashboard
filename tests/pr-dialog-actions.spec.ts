@@ -676,6 +676,287 @@ test.describe('the footer follows its pull request', () => {
   });
 });
 
+// Contrast of two rgb() strings, from the page's own computed values.
+const contrast = (page: Page, fg: string, bg: string) =>
+  page.evaluate(
+    ([a, b]) => {
+      const parse = (c: string) =>
+        (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+      const lum = (c: string) => {
+        const [r, g, bl] = parse(c).map((v) => {
+          const x = v / 255;
+          return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+      };
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    },
+    [fg, bg],
+  );
+
+for (const scheme of ['light', 'dark'] as const) {
+  test(`a locked action looks locked next to a live one (${scheme})`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    const next = 'Merge unlocks automatically';
+    await start(page, [
+      makePR({
+        ci: 'pending',
+        behind: true,
+        status: {
+          code: 'checks_pending',
+          message: 'Waiting for CI to finish',
+          next,
+        },
+        allowedActions: [
+          {
+            action: 'merge',
+            blocked: {
+              code: 'checks_pending',
+              message: 'Waiting for CI to finish',
+              next,
+            },
+          },
+          { action: 'update_branch' },
+          { action: 'close' },
+        ],
+      }),
+    ]);
+    const dialog = await openActionsDialog(row(page));
+    const style = (b: Locator) =>
+      b.evaluate((e) => {
+        const c = getComputedStyle(e);
+        return {
+          color: c.color,
+          background: c.backgroundColor,
+          border: c.borderTopStyle,
+        };
+      });
+    const locked = await style(
+      footer(dialog).getByRole('button', { name: 'Merge', exact: true }),
+    );
+    const live = await style(
+      footer(dialog).getByRole('button', {
+        name: 'Update branch',
+        exact: true,
+      }),
+    );
+    expect(locked).not.toEqual(live);
+    expect(locked.border).not.toBe(live.border);
+    expect(locked.background).not.toBe(live.color);
+
+    // The reason is readable text: 4.5:1 or better against what is behind it.
+    for (const sel of ['.status-area-message', '.status-area-next']) {
+      const colours = await dialog.locator(sel).evaluate((e) => {
+        let bg: HTMLElement | null = e as HTMLElement;
+        while (
+          bg &&
+          getComputedStyle(bg).backgroundColor === 'rgba(0, 0, 0, 0)'
+        )
+          bg = bg.parentElement;
+        return {
+          fg: getComputedStyle(e).color,
+          bg: bg ? getComputedStyle(bg).backgroundColor : 'rgb(255, 255, 255)',
+        };
+      });
+      expect(
+        await contrast(page, colours.fg, colours.bg),
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+}
+
+test.describe('what is said to a screen reader inside the dialog', () => {
+  // Counts every non-empty text the dialog's own live region, or the page's
+  // hide status, is given.
+  async function listen(page: Page) {
+    await page.evaluate(() => {
+      const w = window as unknown as { __said: string[] };
+      w.__said = [];
+      const watch = (el: Element | null) => {
+        if (!el) return;
+        new MutationObserver(() => {
+          const t = (el.textContent ?? '').trim();
+          if (t) w.__said.push(t);
+        }).observe(el, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      };
+      watch(document.querySelector('dialog.details-dialog > [role="status"]'));
+      watch(document.getElementById('hide-status'));
+    });
+  }
+  const said = (page: Page) =>
+    page.evaluate(() => (window as unknown as { __said: string[] }).__said);
+
+  test('the dialog has its own live region from the first paint', async ({
+    page,
+  }) => {
+    await start(page, [makePR()]);
+    await expect(
+      page.locator(
+        'dialog.details-dialog > [role="status"][aria-live="polite"]',
+      ),
+    ).toHaveCount(1);
+  });
+
+  test('a successful action is said once', async ({ page }) => {
+    await start(page, [
+      makePR({
+        behind: true,
+        allowedActions: [{ action: 'update_branch', primary: true }],
+      }),
+    ]);
+    const dialog = await openActionsDialog(row(page));
+    await listen(page);
+    await footer(dialog)
+      .getByRole('button', { name: 'Update branch', exact: true })
+      .click();
+    await expect.poll(() => said(page)).toHaveLength(1);
+    await page.waitForTimeout(500);
+    expect(await said(page)).toHaveLength(1);
+  });
+
+  test('a failed action is said once, and shown as a line', async ({
+    page,
+  }) => {
+    await start(
+      page,
+      [
+        makePR({
+          behind: true,
+          allowedActions: [{ action: 'update_branch', primary: true }],
+        }),
+      ],
+      {
+        '/api/pull-requests/update-branch': {
+          status: 500,
+          body: { error: 'raw' },
+        },
+      },
+    );
+    const dialog = await openActionsDialog(row(page));
+    await listen(page);
+    await footer(dialog)
+      .getByRole('button', { name: 'Update branch', exact: true })
+      .click();
+    await expect(dialog.locator('.row-feedback-line')).toContainText('Failed');
+    await expect.poll(() => said(page)).toHaveLength(1);
+    await page.waitForTimeout(500);
+    expect(await said(page)).toHaveLength(1);
+  });
+
+  test('Hide closes the dialog, says so once and puts focus on Undo', async ({
+    page,
+  }) => {
+    const state = await start(page, [makePR()]);
+    const dialog = await openActionsDialog(row(page));
+    await listen(page);
+    state.current = [];
+    await footer(dialog)
+      .getByRole('button', { name: 'Hide this pull request' })
+      .click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Undo' })).toBeFocused();
+    await page.waitForTimeout(500);
+    expect(await said(page)).toHaveLength(1);
+    expect((await said(page))[0]).toMatch(/Hid /);
+  });
+
+  test('a Hide that fails stays in the dialog as a line, said once', async ({
+    page,
+  }) => {
+    await start(page, [makePR()], {
+      '/api/pull-requests/hide': { status: 500, body: { error: 'raw' } },
+    });
+    const dialog = await openActionsDialog(row(page));
+    await listen(page);
+    await footer(dialog)
+      .getByRole('button', { name: 'Hide this pull request' })
+      .click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('.row-feedback-line')).toContainText(/hide/i);
+    await expect.poll(() => said(page)).toHaveLength(1);
+  });
+});
+
+test.describe('the footer across rebuilds', () => {
+  test('focus stays on the same button when a poll changes the footer', async ({
+    page,
+  }) => {
+    await start(page, [
+      makePR({
+        allowedActions: [
+          { action: 'merge', primary: true },
+          { action: 'auto_merge' },
+          { action: 'close' },
+        ],
+      }),
+    ]);
+    const dialog = await openActionsDialog(row(page));
+    const auto = footer(dialog).getByRole('button', {
+      name: 'Enable auto-merge',
+    });
+    await auto.focus();
+    await push(page, [
+      makePR({
+        behind: true,
+        allowedActions: [
+          { action: 'merge', primary: true },
+          { action: 'update_branch' },
+          { action: 'auto_merge' },
+          { action: 'close' },
+        ],
+      }),
+    ]);
+    await expect(
+      footer(dialog).getByRole('button', { name: 'Update branch' }),
+    ).toBeVisible();
+    await expect(auto).toBeFocused();
+  });
+
+  test('a poll during an armed confirm neither disarms nor double-submits', async ({
+    page,
+  }) => {
+    const state = await start(page, [makePR()]);
+    const dialog = await openActionsDialog(row(page));
+    await footer(dialog)
+      .getByRole('button', { name: 'Close pull request' })
+      .click();
+    const confirm = footer(dialog).getByRole('button', {
+      name: 'Confirm close pull request?',
+    });
+    await expect(confirm).toBeFocused();
+    await push(page, [makePR({ ci: 'pending' })]);
+    await push(page, [makePR({ ci: 'failure' })]);
+    await expect(confirm).toBeVisible();
+    await expect(confirm).toBeFocused();
+    expect(state.posted).toEqual([]);
+    await confirm.click();
+    await expect.poll(() => state.posted.length).toBe(1);
+    await page.waitForTimeout(300);
+    expect(state.posted.length).toBe(1);
+  });
+
+  test('the footer comes back when a later snapshot has the pull request again', async ({
+    page,
+  }) => {
+    await start(page, [makePR()]);
+    const dialog = await openActionsDialog(row(page));
+    await push(page, []);
+    await expect(dialog.locator('.details-gone')).toBeVisible();
+    await push(page, [makePR()]);
+    await expect(dialog.locator('.details-gone')).toHaveCount(0);
+    await expect(
+      footer(dialog).getByRole('button', { name: 'Close pull request' }),
+    ).toBeVisible();
+  });
+});
+
 for (const scheme of ['light', 'dark'] as const) {
   for (const width of [1280, 390]) {
     test(`has no axe-core violations in the open dialog (${scheme}, ${width}px)`, async ({

@@ -405,6 +405,8 @@
       })(),
     );
     const feedbackUI = mountFeedbackUI(feedback, {
+      liveTarget: () =>
+        dialogKey !== null ? (detailsDialog?.liveElement() ?? null) : null,
       countdownText: () => queuedCountdownText(),
       revealRow: (key) => revealRow(key),
       // The write may have landed before the connection dropped, so the row
@@ -1142,6 +1144,9 @@
       details?: FailureDetails;
     };
     const rerunState: Record<string, RerunState> = {};
+    // A Hide that failed while the dialog was open: the page's own status
+    // line is behind the modal, so the dialog shows and speaks it itself.
+    const hideFailure: Record<string, string> = {};
 
     function doRerunChecks(item: PullRequestItem) {
       const key = prKey(item);
@@ -1155,6 +1160,7 @@
           );
         })
         .catch((err: ActionRequestError) => {
+          feedback.announce(`Couldn't rerun the checks: ${err.message}`);
           rerunState[key] = {
             phase: "failed",
             message: err.message,
@@ -1195,24 +1201,20 @@
       return button;
     }
 
-    // A failed rerun, in the same line as any other action's failure.
-    function rerunFailureLine(item: PullRequestItem): HTMLElement | null {
-      const key = prKey(item);
-      const state = rerunState[key];
-      if (state?.phase !== "failed") return null;
+    // A failure the feedback store doesn't hold (a rerun, a Hide), in the
+    // same line as any other action's failure. Visible text only: it was
+    // announced once when it happened.
+    function plainFailureLine(
+      item: PullRequestItem,
+      text: string,
+      details: FailureDetails | undefined,
+      onDismiss: () => void,
+    ): HTMLElement {
       const line = el("div", "row-feedback-line");
       line.dataset.phase = "failed";
-      line.appendChild(
-        el(
-          "span",
-          "row-feedback-text",
-          `Failed: couldn't rerun the checks: ${state.message ?? "the forge refused it"}`,
-        ),
-      );
-      if (state.details)
-        line.appendChild(
-          copyButton(state.details, "row-action row-feedback-copy"),
-        );
+      line.appendChild(el("span", "row-feedback-text", text));
+      if (details)
+        line.appendChild(copyButton(details, "row-action row-feedback-copy"));
       const dismiss = buttonEl("row-action row-feedback-dismiss", "Dismiss");
       dismiss.type = "button";
       dismiss.setAttribute(
@@ -1220,11 +1222,33 @@
         `Dismiss failure for ${item.repo}#${item.number}`,
       );
       dismiss.addEventListener("click", () => {
-        delete rerunState[key];
+        onDismiss();
         renderPRBoard();
       });
       line.appendChild(dismiss);
       return line;
+    }
+
+    function ownFailureLines(item: PullRequestItem): HTMLElement[] {
+      const key = prKey(item);
+      const lines: HTMLElement[] = [];
+      const rerun = rerunState[key];
+      if (rerun?.phase === "failed")
+        lines.push(
+          plainFailureLine(
+            item,
+            `Failed: couldn't rerun the checks: ${rerun.message ?? "the forge refused it"}`,
+            rerun.details,
+            () => delete rerunState[key],
+          ),
+        );
+      if (hideFailure[key])
+        lines.push(
+          plainFailureLine(item, hideFailure[key], undefined, () => {
+            delete hideFailure[key];
+          }),
+        );
+      return lines;
     }
 
     // The footer's buttons in order. A pull request found merged or closed
@@ -1294,11 +1318,11 @@
       }
       const key = prKey(item);
       const lines = feedbackUI.inlineLines(key);
-      const rerun = rerunFailureLine(item);
+      const own = ownFailureLines(item);
       let feedbackNode = lines;
-      if (rerun) {
+      if (own.length > 0) {
         feedbackNode = lines ?? el("div", "row-feedback");
-        feedbackNode.appendChild(rerun);
+        for (const line of own) feedbackNode.appendChild(line);
       }
       return {
         status: isSettled(item) ? null : statusArea(item),
@@ -1376,7 +1400,10 @@
     // with the dialog when it closes.
     escapeDetails = () => confirmArm.disarm("escape");
     detailsClosed = () => {
-      if (dialogKey !== null) delete rerunState[dialogKey];
+      if (dialogKey !== null) {
+        delete rerunState[dialogKey];
+        delete hideFailure[dialogKey];
+      }
       dialogKey = null;
       if (confirmArm.disarm("dropped")) renderPRBoard();
     };
@@ -3438,11 +3465,21 @@
     async function doHidePullRequest(item: PullRequestItem, days?: number) {
       const ref = hideRefOf(item);
       closeAllActionMenus();
+      const key = prKey(item);
       if (!(await postHide("hide", days ? { ...ref, days } : ref))) {
-        setHideStatus(hideFailedMessage(item));
+        if (dialogKey === key) {
+          // Said inside the dialog, where it can be reached and heard.
+          hideFailure[key] = hideFailedMessage(item);
+          feedback.announce(hideFailure[key]);
+        } else setHideStatus(hideFailedMessage(item));
         renderPRBoard();
         return;
       }
+      // The Undo is on the page behind the modal, out of reach. So a
+      // successful Hide closes the dialog first (the pull request is leaving
+      // the board anyway), and the page's status line and its Undo are
+      // spoken and focused where the user can reach them.
+      if (dialogKey === key) detailsDialog?.close();
       setHideStatus(hidMessage(item), () => void doRestore(item));
       await refreshBoard();
       // The row this was reached from is gone, so focus moves to the one
@@ -3713,6 +3750,12 @@
 
         return false;
       }
+      // Whether the newest snapshot still has the open dialog's pull request,
+      // held or not, so it is never left saying "gone" once it is back.
+      if (dialogKey !== null) {
+        const key = dialogKey;
+        dialogGone = !latestPRs.some((p) => prKey(p) === key);
+      }
       const userAsked = latestIsUserAsked || shownPRs.length === 0;
       const diff = Filters.diffItems(shownPRs, latestPRs);
       const structural = diff.added + diff.removed + diff.moved;
@@ -3726,7 +3769,7 @@
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
         // The open dialog shows its own pull request as it is now; only the
         // list behind it waits (#943).
-        dialogGone = dialogKey !== null && !fresh.has(dialogKey);
+
         const settled = shownPRs.filter(
           (p) =>
             (botResolvedKeys.has(prKey(p)) ||
