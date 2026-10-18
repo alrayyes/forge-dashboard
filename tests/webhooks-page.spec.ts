@@ -228,18 +228,6 @@ test.describe('webhooks page', () => {
       await expect(page.locator('#webhooks-rows tr')).toHaveCount(4);
       await expect(page.locator('#webhooks-pagination')).toBeHidden();
     });
-
-    test('has no axe-core violations with the filter bar and a sorted table rendered', async ({
-      page,
-    }) => {
-      await seedRepos(page);
-      await page.click('[data-sort-key="hasWebhook"]');
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
   });
 
   test('clicking "Add a webhook" calls the API and flips the row to confirmed on success', async ({
@@ -555,18 +543,48 @@ test.describe('webhooks page', () => {
     await expect(page.locator('#webhooks-pagination')).toBeHidden();
   });
 
+  // One desktop scan for every control the page can render at once: filter
+  // bar, a sorted table, a row with a webhook and auto-update on and off, a
+  // row with the Add button, a permission-denied row and both bulk buttons.
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await mockDashboard(page, [
-      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+      {
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        hasWebhook: true,
+        autoUpdateBranch: false,
+      },
       {
         forge: 'github',
         fullName: 'alrayyes/b',
         hasWebhook: false,
         canManageWebhooks: true,
       },
+      {
+        forge: 'forgejo',
+        fullName: 'alrayyes/c',
+        hasWebhook: true,
+        autoUpdateBranch: true,
+      },
+      {
+        forge: 'github',
+        fullName: 'SSVAPEX/apex-website',
+        hasWebhook: false,
+        canManageWebhooks: false,
+      },
     ]);
     await page.goto('/webhooks.html');
     await expect(page.locator('#webhooks-table')).toBeVisible();
+    await page.click('[data-sort-key="hasWebhook"]');
+    await expect(
+      page.getByRole('button', { name: /Set up webhooks for/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /Enable auto-update for/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /Disable auto-update for/ }),
+    ).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -634,25 +652,6 @@ test.describe('webhooks page', () => {
     await expect(
       row.getByRole('link', { name: 'set it up manually' }),
     ).toHaveAttribute('href', '/settings.html#webhooks');
-  });
-
-  test('a permission-denied repo has no axe-core violations', async ({
-    page,
-  }) => {
-    await mockDashboard(page, [
-      {
-        forge: 'github',
-        fullName: 'SSVAPEX/apex-website',
-        hasWebhook: false,
-        canManageWebhooks: false,
-      },
-    ]);
-    await page.goto('/webhooks.html');
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 
   test('the repo name links out to the repo on its forge', async ({ page }) => {
@@ -850,26 +849,6 @@ test.describe('webhooks page', () => {
       await expect(rowB).toContainText('Confirmed');
       await expect(rowA).not.toContainText('Confirmed');
       await expect(rowA).toContainText(/permission/i);
-    });
-
-    test('has no axe-core violations with the bulk button visible', async ({
-      page,
-    }) => {
-      await mockDashboard(page, [
-        {
-          forge: 'github',
-          fullName: 'alrayyes/a',
-          hasWebhook: false,
-          canManageWebhooks: true,
-        },
-      ]);
-      await page.goto('/webhooks.html');
-      await expect(bulkButton(page)).toBeVisible();
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
     });
   });
 
@@ -1342,34 +1321,6 @@ test.describe('webhooks page', () => {
       );
       expect(requested).toEqual([{ forge: 'github', fullName: 'alrayyes/a' }]);
     });
-
-    test('has no axe-core violations with both bulk buttons visible', async ({
-      page,
-    }) => {
-      await mockDashboard(page, [
-        {
-          forge: 'github',
-          fullName: 'alrayyes/a',
-          hasWebhook: true,
-          autoUpdateBranch: false,
-        },
-        {
-          forge: 'github',
-          fullName: 'alrayyes/b',
-          hasWebhook: true,
-          autoUpdateBranch: true,
-        },
-      ]);
-      await page.goto('/webhooks.html');
-      await expect(
-        page.getByRole('button', { name: /Enable auto-update for/ }),
-      ).toBeVisible();
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
   });
 
   test.describe('controls look consistent (#1109)', () => {
@@ -1444,17 +1395,6 @@ test.describe('webhooks page', () => {
       expect(search).not.toBeNull();
       expect(status).not.toBeNull();
       expect(Math.abs((search?.y ?? 0) - (status?.y ?? 99))).toBeLessThan(4);
-    });
-
-    test('has no axe-core violations', async ({ page }) => {
-      await mockDashboard(page, repos);
-      await page.goto('/webhooks.html');
-      await expect(page.locator('#webhooks-table')).toBeVisible();
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
     });
   });
 
