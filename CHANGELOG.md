@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.218.2](https://github.com/alrayyes/forge-dashboard/compare/v0.218.1...v0.218.2) (2026-10-18)
+
+
+### Bug Fixes
+
+* bring the webhooks table controls up to the tap-target rule ([#1831](https://github.com/alrayyes/forge-dashboard/issues/1831)) ([e4a1fb1](https://github.com/alrayyes/forge-dashboard/commit/e4a1fb1cba4e365bda00eeb039ae7065e14a5f1a)), closes [#1825](https://github.com/alrayyes/forge-dashboard/issues/1825)
+
 ## [0.218.1](https://github.com/alrayyes/forge-dashboard/compare/v0.218.0...v0.218.1) (2026-10-18)
 
 
