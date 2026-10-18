@@ -3856,11 +3856,24 @@ footer a[aria-current="page"] {
   inset: -4px -2px -5px;
 }
 
-:root body :is(footer a, .group-select, .am-group button, .release-head h2 a) {
+:root
+  body
+  :is(
+    footer a,
+    .group-select,
+    .am-group button,
+    .release-head h2 a,
+    .sort-button,
+    .repo-link,
+    .ignore-scope-select,
+    .data-table td.action button,
+    .ignored-disclosure summary,
+    .ignored-disclosure button
+  ) {
   box-sizing: border-box;
   min-height: var(--tap-floor);
 }
-:root body :is(footer a, .release-head h2 a) {
+:root body :is(footer a, .release-head h2 a, .repo-link) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3914,6 +3927,10 @@ footer a[aria-current="page"] {
       .more-releases,
       footer a,
       .release-head h2 a,
+      .repo-link,
+      .data-table td.action button,
+      .ignored-disclosure summary,
+      .ignored-disclosure button,
       select,
       input:not([type="checkbox"], [type="radio"]),
       label:not(.task):has(> input[type="checkbox"]),
