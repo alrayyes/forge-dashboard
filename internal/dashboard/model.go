@@ -421,6 +421,10 @@ type ClientError struct {
 	// RateLimit is the budget the failing response reported, when it
 	// reported one. Lets a write's caller say when a rate limit clears.
 	RateLimit *RateLimit
+	// PermissionMessage, when set on an Unauthorized error, replaces the
+	// generic "check your token" refusal text with one that names what the
+	// connection is missing (a GitHub App has no token to check).
+	PermissionMessage string
 }
 
 func (e *ClientError) Error() string {

@@ -82,7 +82,10 @@ type Client struct {
 	hooksMu         sync.Mutex
 	hooksDeniedAll  time.Time
 	hooksDeniedRepo map[string]time.Time
-	hooksDenialTTL  time.Duration
+	// refusedRepo is the last real refusal verdict per repo, so a poll
+	// whose hooks call failed for an unrelated reason doesn't flip it.
+	refusedRepo    map[string]bool
+	hooksDenialTTL time.Duration
 
 	// requiredChecks backs the "required check hasn't reported yet" rule
 	// (#1311).
@@ -498,7 +501,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 
 	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
 	if err != nil {
-		return asClientError(err)
+		return c.appAware(asClientError(err))
 	}
 
 	hook := ownHook(targetURL, secret)
@@ -510,11 +513,21 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 	slog.Debug("github request", "method", http.MethodPost, "url", path)
 	_, resp, err := c.restClient.Repositories.CreateHook(ctx, owner, name, hook)
 	if err != nil {
-		return asClientError(c.restError(ctx, http.MethodPost, path, err))
+		return c.appAware(asClientError(c.restError(ctx, http.MethodPost, path, err)))
 	}
 	c.recordRESTSuccess(ctx, http.MethodPost, path, resp)
 
 	return nil
+}
+
+// appAware gives a permission refusal under an App the text that names the
+// App's Webhooks permission instead of the generic "check your token".
+func (c *Client) appAware(err error) error {
+	if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && c.appAuthenticated && clientErr.Kind == dashboard.ForgeErrorUnauthorized {
+		clientErr.PermissionMessage = appPermissionMessage
+	}
+
+	return err
 }
 
 // ownHook is the hook body this app writes: json, active, current events.
@@ -2072,27 +2085,55 @@ func (c *Client) fetchTokenRepos(ctx context.Context, since *time.Time) ([]graph
 
 // repoFrom maps a GraphQL repository onto the dashboard's repo row.
 //
-// hooksListed is whether this poll's hooks listing for the repo succeeded.
-// A GitHub App installation has no viewer role (its ViewerPermission is a
-// placeholder), so for one a successful listing is what "can manage" means:
-// GitHub answers 403 "Resource not accessible by integration" when the App
-// lacks the Webhooks permission, and 404 when the repo isn't in the
-// installation. A failure there is the connection's limit, not the user's.
-func repoFrom(fullName string, r graphqlRepo, hasWebhook, hooksListed, appAuthenticated bool) dashboard.Repo {
+// probe is this poll's answer from the hooks listing for the repo. A GitHub
+// App installation has no viewer role (its ViewerPermission is a placeholder),
+// so for one the listing is what "can manage" means. It only proves Webhooks:
+// read; write is confirmed when Add is used (see appPermissionMessage).
+func repoFrom(fullName string, r graphqlRepo, probe hookProbe, appAuthenticated bool) dashboard.Repo {
 	repo := dashboard.Repo{
 		Forge:      dashboard.ForgeGitHub,
 		FullName:   fullName,
 		URL:        r.URL,
-		HasWebhook: hasWebhook,
+		HasWebhook: probe.has,
 	}
 	if appAuthenticated {
-		repo.CanManageWebhooks = hooksListed
-		repo.WebhookLockedByConnection = !hooksListed
+		repo.CanManageWebhooks = !probe.refused
+		repo.WebhookLockedByConnection = probe.refused
 	} else {
 		repo.CanManageWebhooks = canManageWebhooks(r.ViewerPermission)
 	}
 
 	return repo
+}
+
+// hookProbe is what one poll learned from a repo's hooks listing. refused is
+// set only by a real refusal: 403 "Resource not accessible by integration"
+// (the App lacks Webhooks) or 404 (the repo isn't in the installation). A
+// server error, a rate limit, bad credentials or no listing at all say
+// nothing about the permission, so they leave refused as it last was.
+type hookProbe struct {
+	has     bool
+	refused bool
+}
+
+const integrationRefusal = "Resource not accessible by integration"
+
+// appPermissionMessage is the refusal text for a webhook write an App's
+// installation was refused: it names the permission, not a token.
+const appPermissionMessage = "This GitHub App can't write webhooks on this repo. " +
+	"Under its Repository permissions, set Webhooks (Read and write), " +
+	"then accept the change on the installation."
+
+// refusesHooks reports whether err from a hooks call is the connection's own
+// refusal rather than an unrelated failure.
+func refusesHooks(err error) bool {
+	clientErr, ok := errors.AsType[*dashboard.ClientError](asClientError(err))
+	if !ok {
+		return false
+	}
+
+	return clientErr.Kind == dashboard.ForgeErrorNotFound ||
+		(clientErr.Kind == dashboard.ForgeErrorUnauthorized && strings.Contains(err.Error(), integrationRefusal))
 }
 
 // trackedRepos keeps the repos the dashboard follows: not archived, not a
@@ -2139,7 +2180,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	}
 
 	tracked := trackedRepos(repos)
-	hasWebhook := c.checkWebhooks(ctx, tracked)
+	probes := c.checkWebhooks(ctx, tracked)
 	issuesByRepo := c.reconcileIssues(ctx, tracked, since != nil)
 	c.issueState.commit(pollStartedAt, issuesByRepo)
 
@@ -2155,8 +2196,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	var unreported []missingRequiredCheck
 	for _, r := range tracked {
 		fullName := r.Owner.Login + "/" + r.Name
-		listed, ok := hasWebhook[fullName]
-		result.Repos = append(result.Repos, repoFrom(fullName, r, listed, ok, c.appAuthenticated))
+		result.Repos = append(result.Repos, repoFrom(fullName, r, probes[fullName], c.appAuthenticated))
 
 		for _, p := range r.PullRequests.Nodes {
 			result.PullRequests = append(result.PullRequests, mapPullRequest(fullName, p))
@@ -2186,13 +2226,19 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 // above, so this is the one place fetchViaGraphQL still makes a REST
 // call per repo. Returns an empty map without calling GitHub at all
 // when no webhook path is configured.
-func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[string]bool {
-	result := make(map[string]bool, len(repos))
+func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[string]hookProbe {
+	result := make(map[string]hookProbe, len(repos))
 	if c.webhookPath == "" {
 		return result
 	}
 
 	if c.hooksDenied("") {
+		// An app-wide refusal remembered from an earlier poll stands for
+		// every repo until it expires.
+		for _, r := range repos {
+			result[r.Owner.Login+"/"+r.Name] = hookProbe{refused: c.appAuthenticated}
+		}
+
 		return result
 	}
 
@@ -2209,6 +2255,10 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 
 			fullName := r.Owner.Login + "/" + r.Name
 			if c.hooksDenied(fullName) {
+				mu.Lock()
+				result[fullName] = hookProbe{refused: c.lastRefused(fullName)}
+				mu.Unlock()
+
 				return
 			}
 			has, err := c.HasWebhook(ctx, r.Owner.Login, r.Name)
@@ -2222,17 +2272,46 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 				default:
 					slog.Warn("webhook check failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
 				}
+				mu.Lock()
+				result[fullName] = hookProbe{refused: c.noteRefused(fullName, refusesHooks(err), true)}
+				mu.Unlock()
 
 				return
 			}
 			mu.Lock()
-			result[fullName] = has
+			result[fullName] = hookProbe{has: has, refused: c.noteRefused(fullName, false, false)}
 			mu.Unlock()
 		}(r)
 	}
 	wg.Wait()
 
 	return result
+}
+
+// noteRefused records whether repo's hooks listing was refused by the
+// connection, and returns the verdict to show. A failed call that wasn't a
+// refusal (failed && !refused) keeps the previous verdict: it says nothing
+// about the permission.
+func (c *Client) noteRefused(repo string, refused, failed bool) bool {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+
+	if failed && !refused {
+		return c.refusedRepo[repo]
+	}
+	if c.refusedRepo == nil {
+		c.refusedRepo = map[string]bool{}
+	}
+	c.refusedRepo[repo] = refused
+
+	return refused
+}
+
+func (c *Client) lastRefused(repo string) bool {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+
+	return c.refusedRepo[repo]
 }
 
 // reviewFromGraphQL maps the three review fields onto a ReviewState, or
