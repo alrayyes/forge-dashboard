@@ -377,6 +377,15 @@ func (c *Client) hooksTTL() time.Duration {
 	return defaultHooksDenialTTL
 }
 
+// hooksDeniedEverywhere reports whether an app-wide refusal is still
+// remembered, the one that stands for every repo.
+func (c *Client) hooksDeniedEverywhere() bool {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+
+	return !c.hooksDeniedAll.IsZero() && time.Since(c.hooksDeniedAll) < c.hooksTTL()
+}
+
 // hooksDenied reports whether the check for repo (or every repo) was refused
 // recently enough to skip.
 func (c *Client) hooksDenied(repo string) bool {
@@ -2255,8 +2264,12 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 
 			fullName := r.Owner.Login + "/" + r.Name
 			if c.hooksDenied(fullName) {
+				// Another repo's refusal may have landed after this one
+				// was queued: an app-wide denial locks it too, so the
+				// verdict doesn't depend on which call ran first.
+				refused := c.lastRefused(fullName) || (c.appAuthenticated && c.hooksDeniedEverywhere())
 				mu.Lock()
-				result[fullName] = hookProbe{refused: c.lastRefused(fullName)}
+				result[fullName] = hookProbe{refused: refused}
 				mu.Unlock()
 
 				return

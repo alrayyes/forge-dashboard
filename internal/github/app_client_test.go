@@ -458,6 +458,55 @@ func TestAppClient_Fetch_AppWithoutWebhooksPermission_LocksEveryRepoAsConnection
 	}
 }
 
+// TestAppClient_Fetch_AppWithoutWebhooksPermission_LocksReposProbedAfterTheDenial
+// pins that the verdict doesn't depend on which repo's hooks call lands first.
+// Only DefaultMaxConcurrency hooks calls run at once, so with more repos than
+// that, some are always checked after the first refusal has been recorded. The
+// denial is app-wide, so those repos have to read as locked too (#1871).
+func TestAppClient_Fetch_AppWithoutWebhooksPermission_LocksReposProbedAfterTheDenial(t *testing.T) {
+	t.Parallel()
+
+	const repoCount = dashboard.DefaultMaxConcurrency + 2
+	mux := http.NewServeMux()
+	mux.HandleFunc(fmt.Sprintf("/app/installations/%d/access_tokens", testInstallationID), func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"token": "installation-token-value", "expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)})
+	})
+	repos := make([]map[string]any, 0, repoCount)
+	data := map[string]any{"rateLimit": map[string]any{"limit": 5000, "cost": 2, "remaining": 4998, "resetAt": "2026-09-14T16:00:00Z"}}
+	for i := range repoCount {
+		name := fmt.Sprintf("repo-%02d", i)
+		repos = append(repos, map[string]any{"name": name, "full_name": "alrayyes/" + name, "html_url": "https://github.com/alrayyes/" + name, "owner": map[string]any{"login": "alrayyes"}})
+		data[fmt.Sprintf("r%d", i)] = map[string]any{
+			"pullRequests": map[string]any{"nodes": []map[string]any{}},
+			"issuesTotal":  map[string]any{"totalCount": 0},
+			"issues":       map[string]any{"nodes": []map[string]any{}},
+		}
+		mux.HandleFunc("/repos/alrayyes/"+name+"/hooks", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			writeJSON(t, w, map[string]any{"message": "Resource not accessible by integration"})
+		})
+	}
+	mux.HandleFunc("/installation/repositories", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": repoCount, "repositories": repos})
+	})
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"data": data})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.Repos, repoCount)
+	for _, r := range result.Repos {
+		assert.False(t, r.CanManageWebhooks, r.FullName)
+		assert.True(t, r.WebhookLockedByConnection, r.FullName)
+	}
+}
+
 // TestAppClient_Fetch_UnknownHooksAnswer_DoesNotLockOrBlameTheConnection pins
 // that only a real refusal (403 "not accessible by integration", or 404)
 // reads as the connection's limit. Anything else says nothing about the App's
