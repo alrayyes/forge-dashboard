@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.220.0](https://github.com/alrayyes/forge-dashboard/compare/v0.219.5...v0.220.0) (2026-10-18)
+
+
+### Features
+
+* **web:** apply live updates by themselves and drop the Show updates bar ([#1870](https://github.com/alrayyes/forge-dashboard/issues/1870)) ([d1ec8dd](https://github.com/alrayyes/forge-dashboard/commit/d1ec8dd413c27611ca23ac274bb3b0cc20da38d0))
+
 ## [0.219.5](https://github.com/alrayyes/forge-dashboard/compare/v0.219.4...v0.219.5) (2026-10-18)
 
 
