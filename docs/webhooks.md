@@ -21,7 +21,8 @@ unreachable forge, a token missing the webhook-list scope — see
 Settings' own field hints for what that is per forge), in which case it
 falls back to whether this app has ever actually received a
 signature-verified delivery for that repo, the same passive signal this
-whole page is otherwise about.
+whole page is otherwise about. For why a forge refuses requests,
+see [Rate limits](rate-limits.md).
 
 The page remembers its forge buttons, repo search, status select and sort
 the way the pull request and issue pages remember theirs: they are still set

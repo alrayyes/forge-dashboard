@@ -152,11 +152,11 @@ works" disclosure under the banner lists the read-only actions: the pipeline
 panel, the link to the pull request on the forge, and browsing and filtering the
 last data. A "Why?" under the banner explains the limit in a few sentences, so
 it isn't taken for a fault in the dashboard, and for GitHub links to its own
-rate limit rules. Other forges are unaffected. The controls come back by
-themselves at the reset time, with a polite "Rate limit reset, actions available
-again" toast. While the forge is read-only the server stops refreshing it until
-the reset, so the rows are the last ones it saw. The header's Refreshed time
-shows how old they are.
+rate limit rules. For the full explanation, see [Rate limits](rate-limits.md).
+Other forges are unaffected. The controls come back by themselves at the reset
+time, with a polite "Rate limit reset, actions available again" toast. While the
+forge is read-only the server stops refreshing it until the reset, so the rows
+are the last ones it saw. The header's Refreshed time shows how old they are.
 
 A forge that can't be reached gets the same treatment. Its controls are not
 drawn either, and no row carries a Retry or a pointer to a status line. One

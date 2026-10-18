@@ -114,17 +114,16 @@ its API), the dashboard keeps showing that forge's last good pull requests,
 issues and repos instead of none, and the forge's health carries `staleSince`,
 the time that data was fetched, next to `reachable: false`. The next good
 refresh replaces it. A forge that has never fetched successfully has nothing
-to show.
+to show. For what the dashboard does while a forge is limited, see
+[Rate limits](rate-limits.md).
 
 ## GitHub App support
 
-GitHub's primary rate limit (5,000 requests/hour, both REST and GraphQL)
-is scoped to the _account_, not the token — a personal access token's
-polling shares that exact budget with anything else acting as that same
-account: your own use of `gh`, other tools, CI. A GitHub App
-installation token draws from that installation's own independent
-budget instead, so this is worth setting up once your account's own
-usage is bumping into the shared limit.
+A personal access token's polling shares the account's rate-limit budget with
+anything else acting as that account. A GitHub App installation token draws from
+that installation's own independent budget instead, so this is worth setting up
+once your account's own usage is bumping into the shared limit. See
+[Rate limits](rate-limits.md) for how the budgets work.
 
 To offer this to your users:
 
