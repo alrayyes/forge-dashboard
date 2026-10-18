@@ -2263,15 +2263,7 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 			}
 			has, err := c.HasWebhook(ctx, r.Owner.Login, r.Name)
 			if err != nil {
-				denied, first := c.noteHooksDenial(fullName, err)
-				switch {
-				case first:
-					slog.Warn("webhook checks paused: this credential can't read repo hooks, asking again in an hour", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
-				case denied:
-					slog.Debug("webhook check refused", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
-				default:
-					slog.Warn("webhook check failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
-				}
+				c.logHooksFailure(fullName, err)
 				mu.Lock()
 				result[fullName] = hookProbe{refused: c.noteRefused(fullName, refusesHooks(err), true)}
 				mu.Unlock()
@@ -2286,6 +2278,20 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 	wg.Wait()
 
 	return result
+}
+
+// logHooksFailure logs a failed hooks listing at the level its cause calls for
+// and remembers a denial.
+func (c *Client) logHooksFailure(fullName string, err error) {
+	denied, first := c.noteHooksDenial(fullName, err)
+	switch {
+	case first:
+		slog.Warn("webhook checks paused: this credential can't read repo hooks, asking again in an hour", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
+	case denied:
+		slog.Debug("webhook check refused", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
+	default:
+		slog.Warn("webhook check failed", "forge", dashboard.ForgeGitHub, "repo", fullName, "error", err)
+	}
 }
 
 // noteRefused records whether repo's hooks listing was refused by the

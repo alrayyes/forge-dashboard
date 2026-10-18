@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -406,7 +407,7 @@ func appWebhookTestServer(t *testing.T, hookStatus map[string]int, messages ...s
 			if strings.Contains(message, "rate limit") {
 				w.Header().Set("X-RateLimit-Limit", "5000")
 				w.Header().Set("X-RateLimit-Remaining", "0")
-				w.Header().Set("X-RateLimit-Reset", fmt.Sprint(time.Now().Add(time.Hour).Unix()))
+				w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
 			}
 			w.WriteHeader(status)
 			writeJSON(t, w, map[string]any{"message": message})
