@@ -847,13 +847,17 @@ section.board {
   color: inherit;
 }
 @media (min-width: 761px) and (max-width: 949px) {
-  .row {
-    grid-template-columns: 280px 1fr 280px 22px;
-  }
   .row .author,
   .row .created,
   .row .updated {
     display: none;
+  }
+  .row .status-cell,
+  .row .empty-cell {
+    grid-column: 6;
+  }
+  .row .go {
+    grid-column: 7;
   }
 }
 
