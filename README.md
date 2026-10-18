@@ -13,17 +13,26 @@ per-user tokens, sharing and an admin role.
 
 ## Quick start
 
+Generate the encryption key once and keep it somewhere safe, such as a password
+manager. It needs `openssl`; any base64-encoded 32 random bytes work too.
+
 ```sh
+export ENCRYPTION_KEY="$(openssl rand -base64 32)"
 docker run --rm -p 8080:8080 -v forge-dashboard-data:/data \
   -e RP_ID=localhost -e RP_ORIGIN=http://localhost:8080 \
-  -e ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+  -e ENCRYPTION_KEY \
   ghcr.io/alrayyes/forge-dashboard:latest
 ```
 
 Open <http://localhost:8080>, register a passkey, then add your GitHub and
-Forgejo credentials from Settings. Keep the same `ENCRYPTION_KEY` between
-runs. The full command with hardening flags, building from source and the
-health check are in [Running it](docs/running.md).
+Forgejo credentials from Settings. On the next run, export the same key again:
+a new one can't decrypt the credentials saved in the volume. The full command
+with hardening flags, building from source and the health check are in
+[Running it](docs/running.md).
+
+`RP_ID` and `RP_ORIGIN` default to `localhost` and `http://localhost:8080`. For
+any other deployment, set them to your real domain and its `https://` origin;
+see [Configuration](docs/configuration.md).
 
 | Page                                                                                                           | Light                                                                               | Dark                                                                              |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
