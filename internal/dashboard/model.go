@@ -477,6 +477,12 @@ type Repo struct {
 	// the server sent no permissions object for the repo, so the role is
 	// unknown rather than non-admin.
 	WebhookLockedByConnection bool `json:"webhookLockedByConnection,omitempty"`
+	// WebhookNeedsToken is set alongside a false CanManageWebhooks when no
+	// credential is saved for the forge: the repos came from a username-only
+	// listing, so the forge answered as an anonymous caller and the role it
+	// reports isn't the user's. The fix is saving a token, not asking an
+	// owner. Unset when a token is saved, whatever role it holds.
+	WebhookNeedsToken bool `json:"webhookNeedsToken,omitempty"`
 	// StaleSince is set when this refresh could not fetch some of the repo's
 	// pull requests or issues, and the ones shown are the last good ones,
 	// fetched at this time (#1194). Absent when the repo's data is current.
