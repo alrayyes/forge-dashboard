@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.221.2](https://github.com/alrayyes/forge-dashboard/compare/v0.221.1...v0.221.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **deps:** bump the web-shipped group with a refreshed bun.lock ([#1942](https://github.com/alrayyes/forge-dashboard/issues/1942)) ([742bb35](https://github.com/alrayyes/forge-dashboard/commit/742bb35caeeed857757c731daafed8b0cd58bc86))
+
 ## [0.221.1](https://github.com/alrayyes/forge-dashboard/compare/v0.221.0...v0.221.1) (2026-10-19)
 
 
