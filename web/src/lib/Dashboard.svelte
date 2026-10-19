@@ -4480,12 +4480,15 @@
       );
     }
 
-    // A required check that failed (or timed out) is what actually blocks
-    // the merge — flagged in text, not colour alone.
+    // A required check that failed (or timed out), or a required workflow
+    // held for approval, is what actually blocks the merge — flagged in text,
+    // not colour alone (#1946).
     function isBlocking(check: Check): boolean {
       return (
         check.required === true &&
-        (check.state === "failure" || check.state === "timed_out")
+        (check.state === "failure" ||
+          check.state === "timed_out" ||
+          check.state === "awaiting_approval")
       );
     }
 

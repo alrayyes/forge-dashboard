@@ -171,9 +171,11 @@ test.describe('pipeline check states (#1473)', () => {
     await expect(row).not.toContainText('Running');
   });
 
-  test('a failed required check keeps its Blocking badge', async ({ page }) => {
+  test('a failed, timed-out or held required check carries its Blocking badge', async ({
+    page,
+  }) => {
     const dialog = await open(page);
-    await expect(dialog.getByText('Blocking')).toHaveCount(2);
+    await expect(dialog.getByText('Blocking')).toHaveCount(3);
   });
 
   for (const theme of ['light', 'dark']) {

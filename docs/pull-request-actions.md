@@ -55,11 +55,15 @@ them (`awaitingWorkflowApproval`) doesn't read "Failed". The CI pill says
 tab, where GitHub's own button approves the runs. The dashboard doesn't approve
 anything itself. The locked Merge button says the runs are waiting for approval.
 The pipeline panel lists each held workflow as "Waiting for approval", with an
-"Approve on GitHub" link to that run's page. These runs still count as failing
-CI, so the Failing CI quick filter keeps matching them. The Failed number in
-the menu pill leaves them out when held runs are the only failure: nothing
-failed, someone has to approve. A job that really failed beside a held run
-still counts as failed.
+"Approve on GitHub" link to that run's page, once per workflow even when a
+rerun left several held runs. Where a required check never reported, the held
+workflow is what holds the merge back, so it sits with the required checks and
+says "Blocking". The Failing CI quick filter, the status filter's Failing
+choice and the Failed number in the menu pill follow one answer from the
+server, `failingCi`, which leaves these pull requests out when held runs are
+the only failure: nothing failed, someone has to approve. A job that really
+failed beside a held run still counts as failed. With auto-merge armed, the
+status line says it is waiting for workflow approval, not that a check failed.
 
 A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
