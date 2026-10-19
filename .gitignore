@@ -67,3 +67,4 @@ CHANGELOG.md
 /internal/api/static/changelog.json
 /web/static/changelog.json
 /blob-report/
+/forge-dashboard-e2e

@@ -27,7 +27,11 @@ cleanup() {
 trap cleanup EXIT
 
 bun run build:web >/dev/null
-go build -o "$work/forge-dashboard" ./cmd/forge-dashboard
+# -tags e2e adds POST /__e2e/reset, which the single-user specs call between
+# tests. E2E_BINARY is the same binary: each of their workers starts its own
+# server from it, besides the one shared server the legacy specs use.
+go build -tags e2e -o "$work/forge-dashboard" ./cmd/forge-dashboard
+export E2E_BINARY="$work/forge-dashboard"
 
 rm -f tests/.auth/admin.json
 DB_PATH="$work/test.db" ENCRYPTION_KEY="$(openssl rand -base64 32)" \
