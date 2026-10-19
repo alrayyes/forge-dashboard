@@ -111,9 +111,11 @@ async function mockDashboard(
 }
 
 const issuesLink = (page: Page) =>
-  page.getByRole('navigation', { name: 'Main' }).getByRole('link', {
-    name: /^Issues/,
-  });
+  // By where it goes: its name opens with the numbers drawn on it (#1944), and
+  // the header and tab forms word it differently.
+  page
+    .getByRole('navigation', { name: 'Main' })
+    .locator('a[href="/issues.html"]');
 
 test.describe('issues page (#827)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
@@ -129,7 +131,7 @@ test.describe('issues page (#827)', () => {
     await expect(issuesLink(page).locator('.nav-total')).toHaveText('12');
     await expect(issuesLink(page)).toHaveAttribute(
       'aria-label',
-      'Issues, 12 total',
+      '12, Issues, 12 total',
     );
 
     await issuesLink(page).click();

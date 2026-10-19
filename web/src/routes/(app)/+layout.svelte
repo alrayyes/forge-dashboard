@@ -74,8 +74,9 @@
   }
 
   // The numbers each item shows (#1315). The pills are aria-hidden, so each
-  // link's own name carries them: "Branches, 12 total, 3 failing" on the
-  // header icon, "12 Branches, 3 failing" on the tab, which shows its numbers
+  // link's own name carries them, opening with the numbers as drawn
+  // (WCAG 2.5.3, #1944): "12 3, Branches, 12 total, 3 failing" on the header
+  // icon, "12 3 Branches, 3 failing" on the tab, which shows its numbers
   // before its word.
   // Until the first refresh has finished the numbers are not real, so each
   // item shows a placeholder and not a 0 (#1672).

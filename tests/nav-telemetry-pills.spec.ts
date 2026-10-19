@@ -128,11 +128,11 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
 
     await expect(header(page, PRS)).toHaveAttribute(
       'aria-label',
-      'Pull requests, 15 total, 2 failing, 10 passing, 3 running',
+      '15 2 10 3, Pull requests, 15 total, 2 failing, 10 passing, 3 running',
     );
     await expect(tab(page, PRS)).toHaveAttribute(
       'aria-label',
-      '15 PRs, 2 failing, 10 passing, 3 running',
+      '15 2 10 3 PRs, 2 failing, 10 passing, 3 running',
     );
     await expect(header(page, PRS).locator('.nav-pills')).toHaveAttribute(
       'aria-hidden',
