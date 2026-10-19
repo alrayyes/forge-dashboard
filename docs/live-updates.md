@@ -80,8 +80,9 @@ outcome, and not on a phone. A pull request with no checks is in the total
 only, so its numbers needn't add up. Branches adds a fifth, neutral count with
 a dashed circle for the branches with no pipeline, last, so its numbers do add
 up. A zero is never drawn, and the link's name says the same in words, in the
-same order: "Pull requests, 15 total, 2 failing, 10 passing, 3 running", and
-"Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline". On
+same order, after the numbers as drawn: "15 2 10 3, Pull requests, 15 total,
+2 failing, 10 passing, 3 running", and "7 2 3 1 1, Branches, 7 total, 2 failing,
+3 passing, 1 running, 1 without a pipeline". On
 a phone the total sits on its own line above the counts, and with three-digit
 numbers each count takes a line, so the busy tabs grow to about 110px. Issues
 counts open issues, without Renovate's Dependency Dashboard or what your
@@ -109,9 +110,10 @@ is a quiet line under the Insights heading. A page with nothing open says so,
 even when its nav item is hidden.
 
 On a phone the numbers sit above each tab's icon. An item's accessible name says
-both in words: "Branches, 12 total, 3 failing, 8 passing, 1 running" on the
-header icon, "12 Branches, 3 failing, 8 passing, 1 running" on the tab, which
-shows its numbers before its word.
+both in words, and opens with the numbers as drawn so the name contains the text
+on screen: "12 3 8 1, Branches, 12 total, 3 failing, 8 passing, 1 running" on
+the header icon, "12 3 8 1 Branches, 3 failing, 8 passing, 1 running" on the
+tab, which shows its numbers before its word.
 
 The menu runs Branches, Pull requests, Releases, Bots, Issues, then the rest.
 
