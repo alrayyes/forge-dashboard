@@ -836,8 +836,9 @@ section.board {
      #1899: the fixed columns alone sum to 842px; with gaps (6 x 12px)
      and padding (2 x 18px) the grid needs ~950px before the 1fr title
      column gets any space at all, and ~1100px before it gets as much as
-     the narrow layout's ~110px. The phone layout triggers at max-width: 760px, so everything
-     from 761px up to 1103px overflows or squeezes the title. Drop the
+     the narrow layout's ~150px. The phone layout triggers at
+     max-width: 760px, so everything from 761px up to 1103px overflows or
+     squeezes the title. Drop the
      author, created and updated columns across that range so the 1fr
      title and the status cell stay on screen. */
   grid-template-columns: 280px 1fr 96px 82px 82px 280px 22px;

@@ -197,9 +197,21 @@ test.describe('Bots page (#1192)', () => {
     ).toEqual([]);
   });
 
-  // 1103 px is the last width the narrow-desktop rule covers, 1104 px the first
-  // the full grid gives the title as much room as the narrow layout does; 949 and 950 are where
-  // the fixed columns alone stop fitting; the others sit inside the range.
+  test('the narrow layout drops the author, created and updated columns up to 1103 px, not past it (#1899)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, SNAPSHOT);
+    await page.goto('/bots.html');
+    const author = page.locator('#pr-rows .row .author').first();
+    await page.setViewportSize({ width: 1103, height: 844 });
+    await expect(author).toBeHidden();
+    await page.setViewportSize({ width: 1104, height: 844 });
+    await expect(author).toBeVisible();
+  });
+
+  // 1103 px is the last width the narrow layout covers and 1104 px the first
+  // the full grid covers. 949 and 950 px are where the full grid's fixed
+  // columns alone stop fitting. The other widths sit inside the range.
   for (const width of [768, 800, 949, 950, 1103, 1104]) {
     test(`has no horizontal overflow at ${width} px (#1899)`, async ({
       page,
