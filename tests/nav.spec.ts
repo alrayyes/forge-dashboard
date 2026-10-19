@@ -35,6 +35,16 @@ const ALWAYS_THERE = ['Branches', 'Insights', 'Webhooks', 'Settings'];
 const linksOn = (label: string) =>
   NAV_PAGES.filter((p) => ALWAYS_THERE.includes(p.label) || p.label === label);
 
+// A nav link's name opens with the numbers drawn on it when it has counts
+// (#1944), so links are found by where they go, never by how the name starts.
+const navLink = (page: Page, path: string) =>
+  page.locator(`.app-nav a[href="${path}"]`);
+const pathOf = (label: string) => {
+  const found = NAV_PAGES.find((p) => p.label === label);
+  if (!found) throw new Error(`no nav page called ${label}`);
+  return found.path;
+};
+
 const NO_SESSION_PAGES = [
   '/changelog.html',
   '/disclaimer.html',
@@ -53,19 +63,16 @@ test.describe('persistent top nav', () => {
       await page.goto(path);
 
       for (const other of linksOn(label)) {
-        await expect(
-          page.locator(`.app-nav a[aria-label^="${other.label}"]`),
-        ).toBeVisible();
+        await expect(navLink(page, other.path)).toBeVisible();
       }
 
-      await expect(
-        page.locator(`.app-nav a[aria-label^="${label}"]`),
-      ).toHaveAttribute('aria-current', 'page');
+      await expect(navLink(page, path)).toHaveAttribute('aria-current', 'page');
       for (const other of linksOn(label)) {
         if (other.label === label) continue;
-        await expect(
-          page.locator(`.app-nav a[aria-label^="${other.label}"]`),
-        ).not.toHaveAttribute('aria-current', /.*/);
+        await expect(navLink(page, other.path)).not.toHaveAttribute(
+          'aria-current',
+          /.*/,
+        );
       }
     });
   }
@@ -103,6 +110,15 @@ test.describe('persistent top nav', () => {
           ],
           issues: [],
           openIssueCount: 1,
+          // With counts, every name opens with its numbers (#1944), so the
+          // checks below must not lean on the name starting with the page.
+          navCounts: {
+            branches: { total: 12, failed: 3 },
+            pullRequests: { total: 15, failed: 2, passed: 10, running: 3 },
+            issues: { total: 1 },
+            releases: { total: 1, failed: 0, passed: 1 },
+            bots: { total: 1, failed: 0, passed: 1 },
+          },
         }),
       }),
     );
@@ -128,11 +144,11 @@ test.describe('persistent top nav', () => {
     await page.goto('/settings.html');
     await expect(page.locator('.app-nav a[href="/issues.html"]')).toBeVisible();
 
-    const names = await page
+    const hrefs = await page
       .locator('.app-nav a[aria-label]')
-      .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
+      .evaluateAll((els) => els.map((e) => e.getAttribute('href')));
 
-    expect(names.map((n) => n.split(',')[0])).toEqual(MENU_ORDER);
+    expect(hrefs).toEqual(MENU_ORDER.map(pathOf));
   });
 
   test('the phone tab bar runs in the same order (#1321)', async ({ page }) => {
@@ -164,9 +180,7 @@ test.describe('persistent top nav', () => {
   }) => {
     await page.goto('/main-branches.html');
     await expect(page).toHaveURL(/\/$/);
-    await expect(
-      page.locator('.app-nav a[aria-label^="Branches"]'),
-    ).toHaveAttribute('aria-current', 'page');
+    await expect(navLink(page, '/')).toHaveAttribute('aria-current', 'page');
   });
 
   test('the Admin icon stays hidden for a non-admin session, on every page with the nav', async ({
@@ -188,12 +202,11 @@ test.describe('persistent top nav', () => {
       await page.goto(path);
 
       for (const label of ALWAYS_THERE) {
-        await expect(
-          page.locator(`.app-nav a[aria-label^="${label}"]`),
-        ).toBeVisible();
-        await expect(
-          page.locator(`.app-nav a[aria-label^="${label}"]`),
-        ).not.toHaveAttribute('aria-current', /.*/);
+        await expect(navLink(page, pathOf(label))).toBeVisible();
+        await expect(navLink(page, pathOf(label))).not.toHaveAttribute(
+          'aria-current',
+          /.*/,
+        );
       }
       await expect(page.locator('#admin-link')).toBeHidden();
     });
