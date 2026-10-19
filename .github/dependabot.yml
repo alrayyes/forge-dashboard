@@ -140,8 +140,3 @@ updates:
       # the dual-install is set up on purpose.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
-      # axe-core 4.14 flags every nav pill link with counts for
-      # label-content-name-mismatch (#1944). Drop this once that is decided
-      # and fixed; the e2e axe scans fail on 4.14 until then.
-      - dependency-name: "@axe-core/playwright"
-        versions: [">=4.14.0"]
