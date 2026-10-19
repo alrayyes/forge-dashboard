@@ -1,5 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import {
+  actionsFooter,
+  openActionsDialog,
+  viaActionsDialog,
+} from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -59,30 +64,35 @@ function mockDashboard(page: Page, pr?: MockPR) {
   );
 }
 
-// Enable auto-merge lives behind the row's "More actions" overflow
-// trigger (#527), same as Dependabot/Renovate's own rarer actions — View
-// pipeline moved out of this menu entirely in #636, so it no longer
-// keeps a row's "More actions" trigger around on its own.
-async function openMoreActions(row: Locator) {
-  await row.getByRole('button', { name: 'More actions' }).click();
+// Enable auto-merge is in the row's details dialog (#527), same as
+// Dependabot/Renovate's own rarer actions; View pipeline is inline on the
+// row (#636). Opens the dialog and returns its footer.
+async function openFooter(row: Locator) {
+  return actionsFooter(await openActionsDialog(row));
 }
 
-// #705: Close is always in "More actions", so the menu no longer vanishes
-// for a row with nothing else to offer. What these tests pin is that the
-// menu holds Close and nothing more.
-async function expectMenuHoldsOnlyClose(row: Locator) {
-  // Close is not alone any more: every row also offers Hide (#841), so it
-  // sits in a menu with the two Hide items and nothing else.
-  await row.getByRole('button', { name: 'More actions' }).click();
-  const names = await row
-    .locator('.row-actions-popover')
+// #705: Close is always offered, so the footer never goes empty for a row
+// with nothing else to offer. What these tests pin is that the footer holds
+// Close and nothing more.
+async function expectFooterHoldsOnlyClose(row: Locator) {
+  // Close is not alone: every row also offers Hide (#841), so the footer has
+  // the two Hide items and nothing else.
+  const footer = await openFooter(row);
+  const names = await footer
+    .locator('.details-actions')
     .getByRole('button')
     .allTextContents();
-  expect(names.map((n) => n.trim())).toEqual([
+  // Merge and Cancel auto-merge are on the row itself (the button, and the
+  // chip's Disarm), and the footer repeats them; the menu never held them, so
+  // they are not extra actions here.
+  const onTheRow = new Set(['Merge', 'Cancel auto-merge']);
+  const extras = names.map((n) => n.trim()).filter((n) => !onTheRow.has(n));
+  expect(extras.sort()).toEqual([
     'Close pull request',
-    'Hide this pull request',
     'Hide for 7 days',
+    'Hide this pull request',
   ]);
+  return footer;
 }
 
 test.describe('pull request Enable auto-merge action', () => {
@@ -104,9 +114,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
+    const footer = await openFooter(row);
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      footer.getByRole('button', { name: 'Enable auto-merge' }),
     ).toBeVisible();
   });
 
@@ -120,9 +130,9 @@ test.describe('pull request Enable auto-merge action', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row.getByText('A pull request')).toBeVisible();
-    await expectMenuHoldsOnlyClose(row);
+    const footer = await expectFooterHoldsOnlyClose(row);
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      footer.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
 
     const results = await new AxeBuilder({ page })
@@ -138,9 +148,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
+    const footer = await openFooter(row);
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      footer.getByRole('button', { name: 'Enable auto-merge' }),
     ).toBeVisible();
   });
 
@@ -151,9 +161,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
+    const footer = await openFooter(row);
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      footer.getByRole('button', { name: 'Enable auto-merge' }),
     ).toBeVisible();
   });
 
@@ -166,11 +176,11 @@ test.describe('pull request Enable auto-merge action', () => {
     const row = page.locator('#pr-rows .row').first();
     await expect(row.locator('.attr-chip.auto-merge')).toBeVisible();
     // No other overflow-eligible action applies (not Dependabot/Renovate,
-    // View pipeline is inline — #636), so there's nothing left for "More
-    // actions" to hold but Close.
-    await expectMenuHoldsOnlyClose(row);
+    // View pipeline is inline — #636), so there's nothing left for the
+    // dialog to hold but Close.
+    const footer = await expectFooterHoldsOnlyClose(row);
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      footer.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
   });
 
@@ -181,9 +191,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expectMenuHoldsOnlyClose(row);
+    const footer = await expectFooterHoldsOnlyClose(row);
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      footer.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
   });
 
@@ -197,11 +207,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
+    const footer = await openFooter(row);
     await expect(
-      row.getByRole('button', { name: 'More actions' }),
-    ).toBeVisible();
-    await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      footer.getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
   });
 
@@ -229,8 +237,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Enable auto-merge' }).click();
+    await viaActionsDialog(row, (footer) =>
+      footer.getByRole('button', { name: 'Enable auto-merge' }).click(),
+    );
 
     await expect
       .poll(() => requestBody)
@@ -263,12 +272,11 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(
-      row.getByRole('button', { name: 'More actions' }),
-    ).toBeVisible();
+    await expect(row.getByRole('button', { name: /^#\d+ / })).toBeVisible();
     await expect(row.locator('.attr-chip.auto-merge')).toHaveCount(0);
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Enable auto-merge' }).click();
+    await viaActionsDialog(row, (footer) =>
+      footer.getByRole('button', { name: 'Enable auto-merge' }).click(),
+    );
 
     await expect(row.locator('.attr-chip.auto-merge')).toBeVisible();
   });
@@ -299,8 +307,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Enable auto-merge' }).click();
+    await viaActionsDialog(row, (footer) =>
+      footer.getByRole('button', { name: 'Enable auto-merge' }).click(),
+    );
 
     await expect(row.locator('.wait-chip-label')).toHaveText('Arming');
     await expect(page.locator('#feedback-live')).toHaveAttribute(

@@ -6,6 +6,11 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
+import {
+  actionsFooter,
+  closeActionsDialog,
+  openActionsDialog,
+} from './actions-dialog-helper';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
@@ -90,10 +95,19 @@ function mockSettings(page: Page, allowBotPrUpdates?: boolean) {
   );
 }
 
-// Dependabot Rebase/Recreate live behind the row's "More actions" overflow
-// trigger (#527) — this opens it, same as a person clicking through.
-async function openMoreActions(row: Locator) {
-  await row.getByRole('button', { name: 'More actions' }).click();
+// Dependabot Rebase/Recreate are in the row's details dialog (#527) — this
+// opens it and returns the footer, same as a person clicking through.
+async function openFooter(row: Locator) {
+  return actionsFooter(await openActionsDialog(row));
+}
+
+// Closes the open dialog and opens it again, for the state a reopened dialog
+// shows once a held request has resolved (#834).
+async function reopenFooter(row: Locator) {
+  await closeActionsDialog(
+    row.page().getByRole('dialog', { name: /^Pull request details/ }),
+  );
+  return openFooter(row);
 }
 
 test.describe('pull request Dependabot rebase/recreate buttons', () => {
@@ -115,12 +129,12 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
+    const footer = await openFooter(row);
     await expect(
-      row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      footer.getByRole('button', { name: 'Dependabot: Rebase' }),
     ).toBeVisible();
     await expect(
-      row.getByRole('button', { name: 'Dependabot: Recreate' }),
+      footer.getByRole('button', { name: 'Dependabot: Recreate' }),
     ).toBeVisible();
   });
 
@@ -131,12 +145,12 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
+    const footer = await openFooter(row);
     await expect(
-      row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      footer.getByRole('button', { name: 'Dependabot: Rebase' }),
     ).toBeVisible();
     await expect(
-      row.getByRole('button', { name: 'Dependabot: Recreate' }),
+      footer.getByRole('button', { name: 'Dependabot: Recreate' }),
     ).toBeVisible();
   });
 
@@ -150,10 +164,10 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await expect(row).toBeVisible();
-    await openMoreActions(row);
-    await expect(row.getByRole('button', { name: /Dependabot:/ })).toHaveCount(
-      0,
-    );
+    const footer = await openFooter(row);
+    await expect(
+      footer.getByRole('button', { name: /Dependabot:/ }),
+    ).toHaveCount(0);
   });
 
   test('a Dependabot-authored pull request on Forgejo shows no button — Dependabot only runs on GitHub', async ({
@@ -170,10 +184,10 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     // buttons would be in before counting them.
     const row = page.locator('#pr-rows .row').first();
     await expect(row).toBeVisible();
-    await openMoreActions(row);
-    await expect(row.getByRole('button', { name: /Dependabot:/ })).toHaveCount(
-      0,
-    );
+    const footer = await openFooter(row);
+    await expect(
+      footer.getByRole('button', { name: /Dependabot:/ }),
+    ).toHaveCount(0);
   });
 
   test('clicking Rebase posts the exact rebase action, with no confirm step', async ({
@@ -191,8 +205,8 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
     await expect
       .poll(() => requestBody)
@@ -219,8 +233,8 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Dependabot: Recreate' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Dependabot: Recreate' }).click();
 
     await expect.poll(() => requestBody).toMatchObject({ action: 'recreate' });
   });
@@ -239,8 +253,8 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
     await expect(page.locator('#feedback-toasts')).toContainText(
       'alrayyes/forge-dashboard#42',
@@ -261,9 +275,9 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
   // #792: a queued action names itself, and Recreate (which rebuilds the
   // whole pull request) makes a Rebase on top of it pointless.
   test.describe('a queued action names itself and hides what it makes pointless', () => {
-    // A successful request closes the More actions menu once it resolves, so
-    // the request is held while the open-menu assertions run, then released;
-    // the menu is reopened only after it has closed (#834).
+    // The request is held while the open-dialog assertions run, then
+    // released; the dialog is closed and reopened to show the queued state
+    // survives the request resolving (#834).
     async function holdRequest(page: Page) {
       let release: () => void = () => {};
       const held = new Promise<void>((resolve) => {
@@ -279,14 +293,8 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       return release;
     }
 
-    async function reopenMenu(row: Locator) {
-      const trigger = row.getByRole('button', { name: 'More actions' });
-      await expect(trigger).toHaveAttribute('aria-expanded', 'false');
-      await trigger.click();
-    }
-
     for (const behind of [false, true]) {
-      test(`Recreate queued hides Rebase (${behind ? 'promoted inline' : 'in More actions'}) and reads Recreate requested`, async ({
+      test(`Recreate queued hides Rebase (${behind ? 'promoted inline' : 'in the dialog'}) and reads Recreate requested`, async ({
         page,
       }) => {
         await mockDashboard(page, 'github', makePR({ behind }));
@@ -294,29 +302,37 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         await page.goto('/bots.html');
 
         const row = page.locator('#pr-rows .row').first();
-        await openMoreActions(row);
-        await row.getByRole('button', { name: 'Dependabot: Recreate' }).click();
+        const footer = await openFooter(row);
+        await footer
+          .getByRole('button', { name: 'Dependabot: Recreate' })
+          .click();
 
-        const queued = row.getByRole('button', { name: 'Recreate requested' });
+        const queued = footer.getByRole('button', {
+          name: 'Recreate requested',
+        });
         await expect(queued).toHaveAttribute('aria-disabled', 'true');
         await expect(row.getByText('Queued…')).toHaveCount(0);
+        // Rebase is hidden in the dialog.
         await expect(
-          row.getByRole('button', { name: 'Dependabot: Rebase' }),
+          footer.getByRole('button', { name: 'Dependabot: Rebase' }),
         ).toHaveCount(0);
         await expect(
-          row.getByRole('button', { name: 'Rebase requested' }),
+          footer.getByRole('button', { name: 'Rebase requested' }),
         ).toHaveCount(0);
 
-        // Once the request resolves the menu closes. Reopened, the pending
-        // button is still there and Rebase is still hidden.
+        // Once the request resolves and the dialog is reopened, the pending
+        // button is still there and Rebase is hidden there and, promoted
+        // inline, on the row too.
         release();
-        await reopenMenu(row);
+        const reopened = await reopenFooter(row);
         await expect(
-          row.getByRole('button', { name: 'Recreate requested' }),
+          reopened.getByRole('button', { name: 'Recreate requested' }),
         ).toHaveAttribute('aria-disabled', 'true');
-        await expect(
-          row.getByRole('button', { name: 'Dependabot: Rebase' }),
-        ).toHaveCount(0);
+        for (const scope of [reopened, row]) {
+          await expect(
+            scope.getByRole('button', { name: 'Dependabot: Rebase' }),
+          ).toHaveCount(0);
+        }
       });
     }
 
@@ -326,22 +342,22 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
-      await openMoreActions(row);
-      await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
+      const footer = await openFooter(row);
+      await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
       await expect(
-        row.getByRole('button', { name: 'Rebase requested' }),
+        footer.getByRole('button', { name: 'Rebase requested' }),
       ).toHaveAttribute('aria-disabled', 'true');
       await expect(
-        row.getByRole('button', { name: 'Dependabot: Recreate' }),
+        footer.getByRole('button', { name: 'Dependabot: Recreate' }),
       ).not.toHaveAttribute('aria-disabled', 'true');
 
       release();
-      await reopenMenu(row);
+      const reopened = await reopenFooter(row);
       await expect(
-        row.getByRole('button', { name: 'Rebase requested' }),
+        reopened.getByRole('button', { name: 'Rebase requested' }),
       ).toHaveAttribute('aria-disabled', 'true');
-      const recreate = row.getByRole('button', {
+      const recreate = reopened.getByRole('button', {
         name: 'Dependabot: Recreate',
       });
       await expect(recreate).toBeVisible();
@@ -383,11 +399,15 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
-      await openMoreActions(row);
-      await row.getByRole('button', { name: 'Dependabot: Recreate' }).click();
-      await expect(
-        row.getByRole('button', { name: 'Dependabot: Rebase' }),
-      ).toHaveCount(0);
+      const footer = await openFooter(row);
+      await footer
+        .getByRole('button', { name: 'Dependabot: Recreate' })
+        .click();
+      for (const scope of [footer, row]) {
+        await expect(
+          scope.getByRole('button', { name: 'Dependabot: Rebase' }),
+        ).toHaveCount(0);
+      }
       // The server has the request once it answers (the toast says so). A
       // snapshot without a botRequest then means the bot is done with it.
       await expect(page.locator('#feedback-toasts')).toContainText(
@@ -411,12 +431,12 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         }),
       );
 
-      await openMoreActions(row);
+      // The open dialog follows its pull request: the footer redraws.
       await expect(
-        row.getByRole('button', { name: 'Dependabot: Rebase' }),
+        footer.getByRole('button', { name: 'Dependabot: Rebase' }),
       ).toBeVisible();
       await expect(
-        row.getByRole('button', { name: 'Dependabot: Recreate' }),
+        footer.getByRole('button', { name: 'Dependabot: Recreate' }),
       ).toBeVisible();
     });
   });
@@ -438,8 +458,8 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    const button = row.getByRole('button', { name: 'Dependabot: Rebase' });
+    const footer = await openFooter(row);
+    const button = footer.getByRole('button', { name: 'Dependabot: Rebase' });
     await button.click();
 
     await expect(page.locator('#feedback-toasts')).toContainText('EOF');
@@ -468,10 +488,10 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
-    const button = row.getByRole('button', { name: 'Dependabot: Rebase' });
+    const button = footer.getByRole('button', { name: 'Dependabot: Rebase' });
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/permission/i);
   });
@@ -506,15 +526,15 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
     await expect(
-      row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      footer.getByRole('button', { name: 'Dependabot: Rebase' }),
     ).toHaveAttribute('aria-disabled', 'true');
     // A refusal is about that action on that pull request, not every action
     // on the forge: the token may lack one permission and have the rest.
-    const recreateButton = row.getByRole('button', {
+    const recreateButton = footer.getByRole('button', {
       name: 'Dependabot: Recreate',
     });
     await expect(recreateButton).not.toHaveAttribute('aria-disabled', 'true');
@@ -540,10 +560,10 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
-    const button = row.getByRole('button', { name: 'Dependabot: Rebase' });
+    const button = footer.getByRole('button', { name: 'Dependabot: Rebase' });
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/rate limit/i);
   });
@@ -552,10 +572,10 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
   // "reached rarely enough to collapse" reasoning didn't cover: the
   // person who needs Rebase right then had no visible way to find it.
   // Promoted inline the same way updateBranchActionCell already is for
-  // every non-bot pull request — Recreate stays behind "More actions"
+  // every non-bot pull request — Recreate stays in the dialog
   // regardless, since being behind doesn't call for it.
   test.describe('promoted onto the row when out of date', () => {
-    test('a behind Dependabot pull request shows Rebase inline, with Recreate still behind More actions', async ({
+    test('a behind Dependabot pull request shows Rebase inline, with Recreate only in the dialog', async ({
       page,
     }) => {
       await mockDashboard(page, 'github', makePR({ behind: true }));
@@ -569,9 +589,9 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         row.getByRole('button', { name: 'Dependabot: Recreate' }),
       ).toHaveCount(0);
 
-      await openMoreActions(row);
+      const footer = await openFooter(row);
       await expect(
-        row.getByRole('button', { name: 'Dependabot: Recreate' }),
+        footer.getByRole('button', { name: 'Dependabot: Recreate' }),
       ).toBeVisible();
     });
 
@@ -606,7 +626,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     // (#543) — nothing left to merge means asking the bot to rebase
     // wouldn't change anything, so Rebase stays exactly where it was
     // rather than being promoted onto a row with nothing to gain from it.
-    test('an empty, behind Dependabot pull request keeps both buttons behind More actions', async ({
+    test('an empty, behind Dependabot pull request keeps both buttons in the dialog, off the row', async ({
       page,
     }) => {
       await mockDashboard(
@@ -622,9 +642,9 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         row.getByRole('button', { name: 'Dependabot: Rebase' }),
       ).toHaveCount(0);
 
-      await openMoreActions(row);
+      const footer = await openFooter(row);
       await expect(
-        row.getByRole('button', { name: 'Dependabot: Rebase' }),
+        footer.getByRole('button', { name: 'Dependabot: Rebase' }),
       ).toBeVisible();
     });
   });
@@ -648,10 +668,10 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
     await expect(
-      row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      footer.getByRole('button', { name: 'Dependabot: Rebase' }),
     ).toHaveAttribute('aria-disabled', 'true');
 
     await page.keyboard.press('Tab');
@@ -701,8 +721,8 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await expect(rebase).toHaveAccessibleDescription(reason);
     await rebase.click({ force: true });
 
-    await openMoreActions(row);
-    const recreate = row.getByRole('button', {
+    const footer = await openFooter(row);
+    const recreate = footer.getByRole('button', {
       name: 'Dependabot: Recreate',
     });
     await expect(recreate).toHaveAttribute('aria-disabled', 'true');

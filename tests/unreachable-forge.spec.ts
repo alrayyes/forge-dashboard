@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { closeActionsDialog, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -93,9 +94,13 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
       await expect(row.getByRole('button', { name, exact: true })).toHaveCount(
         0,
       );
-    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-      0,
-    );
+    // The row's dialog is read-only too: no mutating control in it.
+    const dialog = await openActionsDialog(row);
+    for (const name of MUTATING)
+      await expect(
+        dialog.getByRole('button', { name, exact: true }),
+      ).toHaveCount(0);
+    await closeActionsDialog(dialog);
     await expect(page.locator('#pr-rows')).not.toContainText(
       'See the forge status above',
     );
