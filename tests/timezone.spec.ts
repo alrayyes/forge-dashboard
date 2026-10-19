@@ -1,11 +1,5 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
 
 // Times show in one zone, with its name, everywhere (#996). The zone is the
@@ -21,15 +15,6 @@ import { rateLimit } from './severity-stand-in';
 const NOW = new Date('2026-10-05T10:00:00Z');
 const TODAY_RESET = '2026-10-05T12:00:00Z';
 const TOMORROW_RESET = '2026-10-06T12:00:00Z';
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `timezone-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Timezone User');
-}
 
 // The server's saved zone, stood in for so a test can say what it was.
 function mockSavedZone(page: Page, timezone: string) {
@@ -77,8 +62,8 @@ const header = (page: Page) => page.locator('#forge-health');
 test.describe('times in the viewer zone (#996)', () => {
   test.use({ locale: 'en-GB', timezoneId: 'Europe/Amsterdam' });
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('with no saved zone, the browser zone is used and named', async ({
@@ -172,8 +157,8 @@ test.describe('times in the viewer zone (#996)', () => {
 test.describe('a browser that reports UTC (#996)', () => {
   test.use({ locale: 'en-GB', timezoneId: 'UTC' });
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('a saved zone overrides it', async ({ page }) => {
@@ -186,8 +171,8 @@ test.describe('a browser that reports UTC (#996)', () => {
 test.describe('the time zone control on Settings (#996)', () => {
   test.use({ locale: 'en-GB', timezoneId: 'Europe/Amsterdam' });
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('defaults to the browser zone, named in the option', async ({

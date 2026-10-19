@@ -131,6 +131,12 @@ jobs:
         run: |
           go run gotest.tools/gotestsum@v1.13.0 --junitfile junit.xml -- \
             -race -covermode=atomic -coverprofile=coverage.out -coverpkg=./... ./...
+      # The e2e-only reset route is compiled out of the run above, so its own
+      # test would never run: vet and test the tagged package here (#1880).
+      - name: go vet and test the e2e build
+        run: |
+          go vet -tags e2e ./cmd/...
+          go test -tags e2e ./cmd/forge-dashboard
       - name: Report coverage
         if: ${{ !cancelled() }}
         run: |
@@ -338,10 +344,15 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
       - run: bun run build:web
-      - run: go build -o forge-dashboard ./cmd/forge-dashboard
+      # -tags e2e adds POST /__e2e/reset, which the single-user specs call
+      # between tests; each of their workers starts its own server from this
+      # binary (E2E_BINARY below), besides the one shared server the legacy
+      # specs use (#1880).
+      - run: go build -tags e2e -o forge-dashboard ./cmd/forge-dashboard
       - name: run this shard's journey tests against a real binary
         env:
           ADDR: ":8080"
+          E2E_BINARY: "${{ github.workspace }}/forge-dashboard"
           GITHUB_TOKEN: ""
           FORGEJO_URL: ""
           FORGEJO_TOKEN: ""

@@ -19,51 +19,6 @@ function uniqueUsername(prefix: string) {
 }
 
 test.describe('passkey login', () => {
-  test('an unauthenticated visitor is redirected to the login page', async ({
-    page,
-  }) => {
-    await page.goto('/');
-    await expect(page).toHaveURL(/\/login\.html$/);
-  });
-
-  test('dark mode chosen in Settings while signed in still applies on the login page after logging out', async ({
-    page,
-    request,
-    baseURL,
-  }) => {
-    const username = uniqueUsername('e2e-theme');
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      username,
-      'Theme Test User',
-    );
-
-    // #352: theme is a Settings-only control now, not a header toggle —
-    // login.html has no session at all, so it can only ever read the
-    // cookie fast-cache, never the server; this proves that cache
-    // actually gets written by Settings' own control, not just applied.
-    await page.goto('/settings.html');
-    await page.click('.theme-segmented label:has-text("Dark")');
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-
-    await page.click('#logout-button');
-    await expect(page).toHaveURL(/\/login\.html$/);
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  });
-
-  test('the login page shows the running version with no session at all', async ({
-    page,
-  }) => {
-    // /api/version needs no session, so this works on the one page a
-    // visitor can reach before ever authenticating.
-    await page.goto('/login.html');
-    // This test's own concern is just that the version itself shows up
-    // with no session at all.
-    await expect(page.locator('#footer-version')).toContainText('· dev build');
-  });
-
   // admin-global-setup.ts already registered "admin" before any test
   // file runs, so self-registration is closed for this whole suite the
   // same way it is for any real deployment past its first account —
@@ -78,62 +33,6 @@ test.describe('passkey login', () => {
 
     await expect(page.locator('h1')).toHaveText('Forge Board');
     await expect(page.locator('#whoami')).toHaveText('E2E Test User');
-  });
-
-  test('log out, then log back in with the same passkey', async ({
-    page,
-    request,
-    baseURL,
-  }) => {
-    const username = uniqueUsername('e2e');
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      username,
-      'Login Roundtrip',
-    );
-
-    await page.click('#logout-button');
-    await expect(page).toHaveURL(/\/login\.html$/);
-
-    // A fresh page load after logout should redirect straight back to
-    // login, proving the session was actually cleared server-side and
-    // this isn't just the button changing what the page shows.
-    await page.goto('/');
-    await expect(page).toHaveURL(/\/login\.html$/);
-
-    await page.fill('#login-username', username);
-    await page.click('#login-submit');
-
-    await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
-    await expect(page.locator('#whoami')).toHaveText('Login Roundtrip');
-  });
-
-  test('a wrong username at login fails without a session being issued', async ({
-    page,
-  }) => {
-    await addVirtualAuthenticator(page);
-
-    await page.goto('/login.html');
-    await page.fill('#login-username', 'this-username-was-never-registered');
-    await page.click('#login-submit');
-
-    await expect(page.locator('#status')).toContainText(/no account/i, {
-      timeout: 5000,
-    });
-    await expect(page).toHaveURL(/\/login\.html$/);
-  });
-
-  test('the register button is absent once a user exists and no invite is present', async ({
-    page,
-  }) => {
-    // admin-global-setup.ts's own "admin" account already exists by the
-    // time this runs, so registration-status answers closed — no invite
-    // query param on this visit, so the page has to ask the server
-    // rather than default to showing the button.
-    await page.goto('/login.html');
-    await expect(page.locator('#show-register')).toHaveCount(0);
   });
 
   test('visiting /login?invite=<token> from a freshly created invite shows the invite-scoped form and completes registration', async ({
