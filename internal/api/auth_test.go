@@ -17,7 +17,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
-	requestlogpkg "github.com/alrayyes/forge-dashboard/internal/requestlog"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
 	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/descope/virtualwebauthn"
@@ -50,16 +49,6 @@ func newTestServer(tb testing.TB) *httptest.Server {
 	tb.Helper()
 
 	return newTestServerWithSources(tb, noSources)
-}
-
-// newTestServerWithStore is newTestServer plus the *auth.Store — for a
-// test that needs to seed state (like a request-log row) with no HTTP
-// endpoint of its own to create one through.
-func newTestServerWithStore(tb testing.TB) (*httptest.Server, *authpkg.Store) {
-	tb.Helper()
-	srv, _, store := newTestServerWithSourcesAndManager(tb, noSources)
-
-	return srv, store
 }
 
 func newTestServerWithSources(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) *httptest.Server {
@@ -148,7 +137,6 @@ func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, set
 		SharingStore:  sharingStore,
 		Manager:       manager,
 		BuildSources:  buildSources,
-		RequestLog:    requestlogpkg.NewSQLiteRecorder(authStore, ""),
 		AppContext:    appCtx,
 
 		FirstLoadWait: firstLoadWait,
