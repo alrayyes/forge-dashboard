@@ -22,18 +22,27 @@ function states(count: NonNullable<Count>): string {
   return parts.length ? `, ${parts.join(', ')}` : '';
 }
 
-// The header icon has only the pills on screen, so the name leads with the
-// page: "Pull requests, 15 total, 2 failing, 10 passing, 3 running". With no
-// count, or none listed, just the page.
+// The text the pill draws, in the order it draws it: the total, then the
+// outcomes, then the running state, then the branches without a pipeline.
+function drawn(count: NonNullable<Count>): string {
+  return [count.total, count.failed, count.passed, count.running, count.none]
+    .filter((n) => (n ?? 0) > 0)
+    .join(' ');
+}
+
+// The header icon has only the pills on screen. WCAG 2.5.3 wants the name to
+// contain the visible text, so it opens with the numbers as drawn, then says
+// them in words: "15 2 10 3, Pull requests, 15 total, 2 failing, 10 passing,
+// 3 running". With no count, or none listed, just the page (#1944).
 export function headerLabel(name: string, count: Count): string {
   if (!count || count.total === 0) return name;
-  return `${name}, ${count.total} total${states(count)}`;
+  return `${drawn(count)}, ${name}, ${count.total} total${states(count)}`;
 }
 
 // The tab shows the numbers above its word, so the name reads the same way
-// round: "15 PRs, 2 failing, 10 passing, 3 running". `short` is the word on
-// the tab ("PRs").
+// round: "15 2 10 3 PRs, 2 failing, 10 passing, 3 running". `short` is the word
+// on the tab ("PRs").
 export function tabLabel(short: string, count: Count): string {
   if (!count || count.total === 0) return short;
-  return `${count.total} ${short}${states(count)}`;
+  return `${drawn(count)} ${short}${states(count)}`;
 }

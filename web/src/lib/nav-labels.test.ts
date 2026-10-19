@@ -10,9 +10,9 @@ import { headerLabel, tabLabel } from './nav-labels';
 const MIXED = { total: 15, failed: 2, running: 3, passed: 10 };
 
 describe('headerLabel', () => {
-  test('leads with the page, then the total, then failing, passing, running', () => {
+  test('leads with the numbers as drawn (WCAG 2.5.3), then the page, the total, then failing, passing, running', () => {
     expect(headerLabel('Pull requests', MIXED)).toBe(
-      'Pull requests, 15 total, 2 failing, 10 passing, 3 running',
+      '15 2 10 3, Pull requests, 15 total, 2 failing, 10 passing, 3 running',
     );
   });
 
@@ -24,21 +24,21 @@ describe('headerLabel', () => {
         running: 0,
         passed: 8,
       }),
-    ).toBe('Pull requests, 8 total, 8 passing');
+    ).toBe('8 8, Pull requests, 8 total, 8 passing');
     expect(
       headerLabel('Releases', { total: 6, failed: 0, running: 6, passed: 0 }),
-    ).toBe('Releases, 6 total, 6 running');
+    ).toBe('6 6, Releases, 6 total, 6 running');
     expect(
       headerLabel('Bots', { total: 4, failed: 1, running: 0, passed: 0 }),
-    ).toBe('Bots, 4 total, 1 failing');
+    ).toBe('4 1, Bots, 4 total, 1 failing');
   });
 
   test('a count with only failed and total (Branches, Issues) omits the rest', () => {
     expect(headerLabel('Branches', { total: 12, failed: 3 })).toBe(
-      'Branches, 12 total, 3 failing',
+      '12 3, Branches, 12 total, 3 failing',
     );
     expect(headerLabel('Issues', { total: 9, failed: 0 })).toBe(
-      'Issues, 9 total',
+      '9, Issues, 9 total',
     );
   });
 
@@ -52,7 +52,7 @@ describe('headerLabel', () => {
         none: 1,
       }),
     ).toBe(
-      'Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline',
+      '7 2 3 1 1, Branches, 7 total, 2 failing, 3 passing, 1 running, 1 without a pipeline',
     );
     expect(
       headerLabel('Branches', {
@@ -62,7 +62,7 @@ describe('headerLabel', () => {
         passed: 3,
         none: 0,
       }),
-    ).toBe('Branches, 3 total, 3 passing');
+    ).toBe('3 3, Branches, 3 total, 3 passing');
   });
 
   test('large numbers are named whole', () => {
@@ -73,7 +73,9 @@ describe('headerLabel', () => {
         running: 85,
         passed: 1100,
       }),
-    ).toBe('Pull requests, 1204 total, 18 failing, 1100 passing, 85 running');
+    ).toBe(
+      '1204 18 1100 85, Pull requests, 1204 total, 18 failing, 1100 passing, 85 running',
+    );
   });
 
   test('is just the page with no count or an empty one', () => {
@@ -87,11 +89,11 @@ describe('headerLabel', () => {
 describe('tabLabel', () => {
   test('puts the total before the tab word, then the states in the same order', () => {
     expect(tabLabel('PRs', MIXED)).toBe(
-      '15 PRs, 2 failing, 10 passing, 3 running',
+      '15 2 10 3 PRs, 2 failing, 10 passing, 3 running',
     );
     expect(
       tabLabel('Branches', { total: 7, failed: 2, running: 1, passed: 4 }),
-    ).toBe('7 Branches, 2 failing, 4 passing, 1 running');
+    ).toBe('7 2 4 1 Branches, 2 failing, 4 passing, 1 running');
   });
 
   test('the tab says the branches without a pipeline in the same words (#1531)', () => {
@@ -103,12 +105,16 @@ describe('tabLabel', () => {
         passed: 3,
         none: 1,
       }),
-    ).toBe('7 Branches, 2 failing, 3 passing, 1 running, 1 without a pipeline');
+    ).toBe(
+      '7 2 3 1 1 Branches, 2 failing, 3 passing, 1 running, 1 without a pipeline',
+    );
   });
 
   test('never speaks a zero', () => {
     expect(tabLabel('Issues', { total: 9, failed: 0 })).toBe('9 Issues');
-    expect(tabLabel('PRs', { total: 27, failed: 5 })).toBe('27 PRs, 5 failing');
+    expect(tabLabel('PRs', { total: 27, failed: 5 })).toBe(
+      '27 5 PRs, 5 failing',
+    );
   });
 
   test('is just the word with no count or an empty one', () => {

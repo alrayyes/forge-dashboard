@@ -77,7 +77,9 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     const link = header(page, '/');
     await expect(link.locator('.nav-total')).toHaveText('12');
     await expect(link.locator('.nav-failed')).toHaveText('3');
-    await expect(link).toHaveAccessibleName('Branches, 12 total, 3 failing');
+    await expect(link).toHaveAccessibleName(
+      '12 3, Branches, 12 total, 3 failing',
+    );
   });
 
   test('Pull requests, Releases and Bots each show a total and, when some fail, a failed count', async ({
@@ -112,7 +114,7 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     const link = header(page, '/issues.html');
     await expect(link.locator('.nav-total')).toHaveText('9');
     await expect(link.locator('.nav-failed')).toHaveCount(0);
-    await expect(link).toHaveAccessibleName('Issues, 9 total');
+    await expect(link).toHaveAccessibleName('9, Issues, 9 total');
   });
 
   test('nothing failing shows no red number, and no empty pill', async ({
@@ -122,7 +124,9 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     await page.goto('/settings.html');
 
     await expect(page.locator('.app-nav .nav-failed')).toHaveCount(0);
-    await expect(header(page, '/')).toHaveAccessibleName('Branches, 12 total');
+    await expect(header(page, '/')).toHaveAccessibleName(
+      '12, Branches, 12 total',
+    );
   });
 
   test('a zero is never drawn: Branches with no rows has no pill at all', async ({
@@ -199,7 +203,7 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
 
       await expect(header(page, '/').locator('.nav-failed')).toHaveCount(0);
       await expect(header(page, '/')).toHaveAccessibleName(
-        'Branches, 12 total',
+        '12, Branches, 12 total',
       );
     });
   }
@@ -408,13 +412,13 @@ test.describe('nav counts on a phone (#1315)', () => {
 
     // The wording for each combination of counts is proved in
     // web/src/lib/nav-labels.test.ts; this only checks each tab is wired to it.
-    await expect(branches).toHaveAccessibleName('12 Branches, 3 failing');
+    await expect(branches).toHaveAccessibleName('12 3 Branches, 3 failing');
     await expect(tab(page, '/pull-requests.html')).toHaveAccessibleName(
-      '27 PRs, 5 failing',
+      '27 5 PRs, 5 failing',
     );
     await expect(tab(page, '/issues.html')).toHaveAccessibleName('9 Issues');
     await expect(tab(page, '/bots.html')).toHaveAccessibleName(
-      '14 Bots, 1 failing',
+      '14 1 Bots, 1 failing',
     );
   });
 

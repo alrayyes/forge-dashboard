@@ -112,7 +112,7 @@ async function mockDashboard(
 
 const issuesLink = (page: Page) =>
   page.getByRole('navigation', { name: 'Main' }).getByRole('link', {
-    name: /^Issues/,
+    name: /(^|, )Issues(,|$)/,
   });
 
 test.describe('issues page (#827)', () => {
@@ -129,7 +129,7 @@ test.describe('issues page (#827)', () => {
     await expect(issuesLink(page).locator('.nav-total')).toHaveText('12');
     await expect(issuesLink(page)).toHaveAttribute(
       'aria-label',
-      'Issues, 12 total',
+      '12, Issues, 12 total',
     );
 
     await issuesLink(page).click();

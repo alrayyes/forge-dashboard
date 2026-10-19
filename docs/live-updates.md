@@ -109,9 +109,10 @@ is a quiet line under the Insights heading. A page with nothing open says so,
 even when its nav item is hidden.
 
 On a phone the numbers sit above each tab's icon. An item's accessible name says
-both in words: "Branches, 12 total, 3 failing, 8 passing, 1 running" on the
-header icon, "12 Branches, 3 failing, 8 passing, 1 running" on the tab, which
-shows its numbers before its word.
+both in words, and opens with the numbers as drawn so the name contains the text
+on screen: "12 3 8 1, Branches, 12 total, 3 failing, 8 passing, 1 running" on
+the header icon, "12 3 8 1 Branches, 3 failing, 8 passing, 1 running" on the
+tab, which shows its numbers before its word.
 
 The menu runs Branches, Pull requests, Releases, Bots, Issues, then the rest.
 
