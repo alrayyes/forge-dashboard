@@ -60,6 +60,19 @@ async function mismatches(page: Page): Promise<string[]> {
         if (!new RegExp(`(^|, )${n} ${word}`).test(name))
           found.push(`${word} "${n}" is not in "${name}"`);
       }
+      // And the name opens with the numbers as the pills draw them, the way
+      // the header and the tab word it (#1944): "15 2 10 3, Pull requests, ..."
+      // and "15 2 10 3 PRs, ...". Every number sitting next to its word is not
+      // enough, as a voice user says the run they see. A pending dash is no
+      // number and is left out.
+      const shown = el.querySelector('.nav-pills:not(.nav-pending)');
+      if (shown) {
+        const run = [...shown.querySelectorAll('.nav-total, .nav-count')]
+          .map((part) => squash(part.textContent ?? ''))
+          .join(' ');
+        if (run && !new RegExp(`^${run}(,| |$)`).test(name))
+          found.push(`drawn "${run}" is not at the start of "${name}"`);
+      }
       if (!visible) continue;
       if (!name.includes(visible))
         found.push(`"${visible}" is not in "${name}"`);
@@ -94,6 +107,7 @@ test.describe('the check itself (#1315)', () => {
     expect(await mismatches(page)).toEqual([
       'total "12" is not in "branches"',
       'failed "3" is not in "branches"',
+      'drawn "12" is not at the start of "branches"',
     ]);
   });
 
@@ -108,16 +122,34 @@ test.describe('the check itself (#1315)', () => {
     expect(await mismatches(page)).toEqual([]);
   });
 
-  test('a longer number is not taken for a shorter one', async ({ page }) => {
+  // The shape before #1944: the words first, the numbers after. Every number
+  // is in it, each next to its word, yet it does not open with the run the
+  // pills draw, so a voice user saying "12 3" is not understood.
+  test('the name has to open with the numbers as drawn (#1944)', async ({
+    page,
+  }) => {
     await page.evaluate(() => {
       document.body.insertAdjacentHTML(
         'beforeend',
-        '<a href="#" aria-label="Pull requests, 128 total"><span class="nav-pills"><span class="nav-total">12</span></span></a>',
+        '<a href="#" aria-label="Branches, 12 total, 3 failing"><svg width="10" height="10"></svg><span class="nav-pills"><span class="nav-total">12</span><span class="nav-count nav-failed">3</span></span></a>',
       );
     });
 
     expect(await mismatches(page)).toEqual([
-      'total "12" is not in "pull requests, 128 total"',
+      'drawn "12 3" is not at the start of "branches, 12 total, 3 failing"',
+    ]);
+  });
+
+  test('a longer number is not taken for a shorter one', async ({ page }) => {
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a href="#" aria-label="12, Pull requests, 128 total"><span class="nav-pills"><span class="nav-total">12</span></span></a>',
+      );
+    });
+
+    expect(await mismatches(page)).toEqual([
+      'total "12" is not in "12, pull requests, 128 total"',
     ]);
   });
 
@@ -127,13 +159,13 @@ test.describe('the check itself (#1315)', () => {
     await page.evaluate(() => {
       document.body.insertAdjacentHTML(
         'beforeend',
-        '<a href="#" aria-label="Pull requests, 15 total, 2 failing"><span class="nav-pills"><span class="nav-total">15</span><span class="nav-count nav-failed">2</span><span class="nav-count nav-passed">10</span><span class="nav-count nav-running">3</span></span></a>',
+        '<a href="#" aria-label="15 2 10 3, Pull requests, 15 total, 2 failing"><span class="nav-pills"><span class="nav-total">15</span><span class="nav-count nav-failed">2</span><span class="nav-count nav-passed">10</span><span class="nav-count nav-running">3</span></span></a>',
       );
     });
 
     expect(await mismatches(page)).toEqual([
-      'running "3" is not in "pull requests, 15 total, 2 failing"',
-      'passing "10" is not in "pull requests, 15 total, 2 failing"',
+      'running "3" is not in "15 2 10 3, pull requests, 15 total, 2 failing"',
+      'passing "10" is not in "15 2 10 3, pull requests, 15 total, 2 failing"',
     ]);
   });
 
@@ -148,6 +180,7 @@ test.describe('the check itself (#1315)', () => {
     expect(await mismatches(page)).toEqual([
       'total "12" is not in "branches, 3 total, 12 failing"',
       'failed "3" is not in "branches, 3 total, 12 failing"',
+      'drawn "12" is not at the start of "branches, 3 total, 12 failing"',
     ]);
   });
 });
