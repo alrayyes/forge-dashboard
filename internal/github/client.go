@@ -3126,13 +3126,18 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	if err != nil {
 		return nil, err
 	}
-	unreported := c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
-	// Added after markRequired on purpose: a held run is named after its
+	// Held runs are read first so that a pull request with nothing but held
+	// workflows (no check run reported) still asks which checks are required.
+	held := c.heldWorkflowChecks(ctx, owner, name, sha)
+	unreported := false
+	if len(checks)+len(held) > 0 {
+		unreported = c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
+	}
+	// Appended after markRequired on purpose: a held run is named after its
 	// workflow, which protection never lists (it lists job names), so marking
 	// it would file it under Advisory when it is what blocks the merge. It is
 	// required when a required check never reported, since the held run is why
 	// (#1946), and unknown otherwise.
-	held := c.heldWorkflowChecks(ctx, owner, name, sha)
 	if unreported {
 		for i := range held {
 			held[i].Required = new(true)
@@ -3256,7 +3261,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 // a required check never reported. Failures here never fail the checks list
 // itself.
 func (c *Client) markRequired(ctx context.Context, owner, name, base string, checks []dashboard.Check) (unreported bool) {
-	if base == "" || len(checks) == 0 {
+	if base == "" {
 		return false
 	}
 	required := map[string]bool{}

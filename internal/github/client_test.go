@@ -4286,6 +4286,45 @@ func TestListChecks_HeldWorkflowIsRequiredWhenARequiredCheckNeverReported(t *tes
 	assert.True(t, *checks[1].Required)
 }
 
+// A first-time contributor's pull request has nothing but held workflows: no
+// check run reported at all. A required check that never reported is still why
+// the held row blocks the merge (#1946).
+func TestListChecks_HeldWorkflowIsRequiredWhenNothingElseReported(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"ref": "main"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"contexts": []string{"test"}, "checks": []map[string]any{{"context": "test"}}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, dashboard.CheckAwaitingApproval, checks[0].State)
+	require.NotNil(t, checks[0].Required)
+	assert.True(t, *checks[0].Required)
+}
+
 // Several held runs of one workflow on a head commit (after a rerun, or the
 // pull_request and pull_request_target triggers) are shown once: the newest
 // (#1946).
