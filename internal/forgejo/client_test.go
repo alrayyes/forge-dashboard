@@ -483,10 +483,10 @@ func TestListRepos_ClassifiesErrorKind(t *testing.T) {
 func TestListRepos_ClassifiesConnectionFailureAsUnreachable(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.NewServeMux())
-	srv.Close() // nothing is listening on this URL anymore
-
-	client := forgejo.NewClient(srv.URL, "test-token", "")
+	// Port 1 requires root to bind on Linux — reliably unreachable,
+	// unlike a closed httptest server whose port another parallel test
+	// can reuse (#1897).
+	client := forgejo.NewClient("http://127.0.0.1:1", "test-token", "")
 	_, err := client.ListRepos(t.Context())
 
 	require.Error(t, err)
