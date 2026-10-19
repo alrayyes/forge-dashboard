@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.221.1](https://github.com/alrayyes/forge-dashboard/compare/v0.221.0...v0.221.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **web:** prevent row overflow on bots page between 761-949 px ([#1899](https://github.com/alrayyes/forge-dashboard/issues/1899)) ([#1911](https://github.com/alrayyes/forge-dashboard/issues/1911)) ([86ffcd7](https://github.com/alrayyes/forge-dashboard/commit/86ffcd7045bbdab8c4cd73a2df8920ffb8053565))
+
 ## [0.221.0](https://github.com/alrayyes/forge-dashboard/compare/v0.220.2...v0.221.0) (2026-10-19)
 
 
