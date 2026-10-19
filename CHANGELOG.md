@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.222.0](https://github.com/alrayyes/forge-dashboard/compare/v0.221.3...v0.222.0) (2026-10-19)
+
+
+### Features
+
+* count conversation comments in a pull request's comment count ([#1954](https://github.com/alrayyes/forge-dashboard/issues/1954)) ([7798ce2](https://github.com/alrayyes/forge-dashboard/commit/7798ce2449d3a29ebde1b43c50caae2f24018230))
+
 ## [0.221.3](https://github.com/alrayyes/forge-dashboard/compare/v0.221.2...v0.221.3) (2026-10-19)
 
 
