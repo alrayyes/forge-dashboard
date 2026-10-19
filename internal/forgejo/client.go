@@ -904,6 +904,8 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		// Forgejo reports no resolved state on a review comment without a call
 		// per review, so unresolvedThreads stays nil (#1335).
 		ReviewComments: reviewComments,
+		// The pull request JSON already carries the conversation count (#1953).
+		ConversationComments: p.Comments,
 	}
 }
 
