@@ -63,23 +63,25 @@ reviewers' names come with the data already fetched.
 
 Each pull request also counts its review comments, `reviewComments` in
 `/api/dashboard`, and the review threads still open, `unresolvedThreads`.
-Ordinary conversation comments aren't counted. GitHub reads both from the
-review threads in the pull request query, so it costs no request. It reads the
-first 30 threads, so a pull request with more reports fewer than it has. The
-unauthenticated fallback has no thread data and reports 0 comments and a `null`
-`unresolvedThreads`.
-Forgejo's count is the sum of each review's comments from the reviews call that
-already feeds `review`, so a draft reports 0. Forgejo gives no resolved state
-without a request per review, so its `unresolvedThreads` is `null`: unknown, not
-zero.
+Ordinary conversation comments are counted apart, as `conversationComments`, and
+the row's comment pill shows the sum of the two. GitHub reads the review numbers
+from the review threads in the pull request query, so it costs no request. It
+reads the first 30 threads, so a pull request with more reports fewer than it
+has. The unauthenticated fallback has no thread data and reports 0 comments and
+a `null` `unresolvedThreads`. Forgejo's count is the sum of each review's
+comments from the reviews call that already feeds `review`, so a draft
+reports 0. Forgejo gives no resolved state without a request per review, so its
+`unresolvedThreads` is `null`: unknown, not zero.
 
-Each row shows that as a pill beside the other status pills: the number
-of review comments, and `7 · 2 open` in amber, with a dot, when threads are
-still unresolved. A pull request with no review comments shows nothing, and on
-Forgejo, where `unresolvedThreads` is `null`, the pill shows the count with no
-open state. The pill is a link to the pull request's files-and-review view on
-the forge, opened in a new tab. Its accessible name is the full sentence, such
-as "7 review comments, 2 unresolved threads".
+Each row shows that as a pill beside the other status pills: the number of
+comments, review and conversation together, and `7 · 2 open` in amber, with a
+dot, when threads are still unresolved. A pull request with no comments shows
+nothing, and on Forgejo, where `unresolvedThreads` is `null`, the pill shows the
+count with no open state. The pill is a link to the pull request's
+files-and-review view on the forge, or to the pull request itself when it has
+only conversation comments, opened in a new tab. Its accessible name is the full
+sentence, such as "7 review comments, 2 unresolved threads", or "3 comments"
+once a conversation comment is in the count.
 
 `awaitingWorkflowApproval` is true when GitHub is holding a workflow run on the
 head commit until someone approves it (a check run counted as `ACTION_REQUIRED`

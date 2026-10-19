@@ -157,6 +157,7 @@
     // still open, or null where the forge can't say (#1335). Optional so a
     // server that predates them draws nothing.
     reviewComments?: number;
+    conversationComments?: number;
     unresolvedThreads?: number | null;
     // What the server offers on this pull request (#805).
     allowedActions?: AllowedAction[];
@@ -846,8 +847,13 @@
     // and the open state is a dot and "open" as well as amber. It links to
     // the files-and-review view on the forge.
     function reviewPill(item: PullRequestItem): HTMLElement | null {
-      const comments = item.reviewComments ?? 0;
+      const review = item.reviewComments ?? 0;
+      const conversation = item.conversationComments ?? 0;
+      const comments = review + conversation;
       if (comments <= 0) return null;
+      // Conversation comments join the count (#1953); the word is "review
+      // comment" only while every one of them is.
+      const word = conversation > 0 ? "comment" : "review comment";
       const open = item.unresolvedThreads ?? 0;
       const plural = (n: number, word: string) =>
         `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -855,7 +861,7 @@
         "a",
         open > 0 ? "review-pill open" : "review-pill",
       ) as HTMLAnchorElement;
-      pill.href = `${item.url}/files`;
+      pill.href = review > 0 ? `${item.url}/files` : item.url;
       pill.target = "_blank";
       pill.rel = "noopener noreferrer";
       pill.appendChild(reviewIcon());
@@ -872,8 +878,8 @@
           "span",
           "sr-only",
           open > 0
-            ? `${plural(comments, "review comment")}, ${plural(open, "unresolved thread")}`
-            : plural(comments, "review comment"),
+            ? `${plural(comments, word)}, ${plural(open, "unresolved thread")}`
+            : plural(comments, word),
         ),
       );
       return pill;
