@@ -36,12 +36,16 @@ export function actionsFeedback(dialog: Locator): Locator {
 // merge can close it between the visibility check and the click (#1927), so the
 // click ignores a button that vanished: a closed dialog is the goal either way.
 export async function closeActionsDialog(dialog: Locator): Promise<void> {
-  if (!(await dialog.isVisible())) return;
-  await dialog
-    .getByRole('button', { name: 'Close details' })
-    .click({ force: true })
-    .catch(() => {});
-  await expect(dialog).toBeHidden();
+  // The dialog can rebuild under the click (a held refresh, a refetch), which
+  // drops that click, so ask again until it is gone.
+  await expect(async () => {
+    if (!(await dialog.isVisible())) return;
+    await dialog
+      .getByRole('button', { name: 'Close details' })
+      .click({ force: true, timeout: 1_000 })
+      .catch(() => {});
+    await expect(dialog).toBeHidden({ timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
 }
 
 // Opens the row's dialog, runs `act` against its footer (the actions) and the
