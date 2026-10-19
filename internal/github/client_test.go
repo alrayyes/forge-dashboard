@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -4173,6 +4174,38 @@ func TestListChecks_ListsWorkflowRunsHeldForApprovalNextToTheCheckRuns(t *testin
 	require.Len(t, checks, 2)
 	assert.Equal(t, dashboard.CheckSuccess, checks[0].State)
 	assert.Equal(t, dashboard.Check{Name: "ci", State: dashboard.CheckAwaitingApproval, URL: "https://github.com/alrayyes/a/actions/runs/9"}, checks[1])
+}
+
+// Most commits hold nothing, so asking Actions on every panel open would be one
+// wasted request each. The answer is remembered per head commit, as the pill's is.
+func TestListChecks_RemembersThatNothingIsHeldForTheHeadCommit(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "check", "status": "completed", "conclusion": "success"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		lookups.Add(1)
+		writeJSON(t, w, map[string]any{"total_count": 0, "workflow_runs": []map[string]any{}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	for range 3 {
+		_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, int32(1), lookups.Load(), "one Actions request for three panel opens")
 }
 
 // A held workflow is named after the workflow, which branch protection never

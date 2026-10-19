@@ -3140,8 +3140,16 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 // finished as action_required and created no check runs, so the check-runs list
 // never shows them (#1933). The run's own page carries GitHub's approve button.
 // A failed lookup lists none, as a token that can't read Actions is expected;
-// the rest of the list still stands.
+// the rest of the list still stands. Whether anything is held is remembered per
+// head commit, shared with the pill's lookup, so a commit with nothing held costs
+// one Actions request a minute rather than one per panel open.
+//
+// One page is read, not paged through: a commit with more than a page of held
+// workflows is not a case worth another request per open.
 func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string) []dashboard.Check {
+	if held, ok := c.requiredChecks.cachedHeld(sha); ok && !held {
+		return nil
+	}
 	path := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
 	slog.Debug("github request", "method", http.MethodGet, "url", path)
 	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: sha, Status: "action_required"}
@@ -3151,10 +3159,12 @@ func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string
 		// Through restError so a rate limit is recorded as for any other call.
 		clientErr := c.restError(ctx, http.MethodGet, path, err)
 		slog.Debug("github held workflow runs unreadable", "forge", dashboard.ForgeGitHub, "repo", owner+"/"+name, "error", clientErr)
+		c.requiredChecks.storeHeld(sha, false)
 
 		return nil
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+	c.requiredChecks.storeHeld(sha, len(runs.WorkflowRuns) > 0)
 	checks := make([]dashboard.Check, 0, len(runs.WorkflowRuns))
 	for _, r := range runs.WorkflowRuns {
 		checks = append(checks, dashboard.Check{
