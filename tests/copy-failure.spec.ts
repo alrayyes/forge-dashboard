@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { viaActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -90,15 +91,15 @@ const ACTIONS: {
     name: 'Close',
     endpoint: 'close',
     action: 'close',
-    start: async (row) => {
-      await row.getByRole('button', { name: 'More actions' }).click();
-      await row
-        .getByRole('button', { name: 'Close pull request', exact: true })
-        .click();
-      await row
-        .getByRole('button', { name: 'Confirm close pull request?' })
-        .click();
-    },
+    start: (row) =>
+      viaActionsDialog(row, async (footer) => {
+        await footer
+          .getByRole('button', { name: 'Close pull request', exact: true })
+          .click();
+        await footer
+          .getByRole('button', { name: 'Confirm close pull request?' })
+          .click();
+      }),
   },
   {
     name: 'Update branch',
@@ -112,19 +113,19 @@ const ACTIONS: {
     name: 'Enable auto-merge',
     endpoint: 'auto-merge',
     action: 'auto-merge',
-    start: async (row) => {
-      await row.getByRole('button', { name: 'More actions' }).click();
-      await row.getByRole('button', { name: 'Enable auto-merge' }).click();
-    },
+    start: (row) =>
+      viaActionsDialog(row, async (footer) => {
+        await footer.getByRole('button', { name: 'Enable auto-merge' }).click();
+      }),
   },
   {
     name: 'Renovate: Rebase',
     endpoint: 'renovate-rebase',
     action: 'renovate',
-    start: async (row) => {
-      await row.getByRole('button', { name: 'More actions' }).click();
-      await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
-    },
+    start: (row) =>
+      viaActionsDialog(row, async (footer) => {
+        await footer.getByRole('button', { name: 'Renovate: Rebase' }).click();
+      }),
   },
 ];
 
@@ -182,10 +183,11 @@ test.describe('Copy error details on a failed action (#1323)', () => {
           ],
         }),
       );
-      await row.getByRole('button', { name: 'More actions' }).click();
-      await row
-        .getByRole('button', { name: `Dependabot: ${verb}`, exact: true })
-        .click();
+      await viaActionsDialog(row, async (footer) => {
+        await footer
+          .getByRole('button', { name: `Dependabot: ${verb}`, exact: true })
+          .click();
+      });
       // The error toast covers the row at this size; its Copy is the same.
       await copyIn(page.locator('#feedback-toasts .feedback-toast')).click();
 

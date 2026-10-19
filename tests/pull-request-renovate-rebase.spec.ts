@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -69,10 +70,10 @@ function mockSettings(page: Page, allowBotPrUpdates?: boolean) {
   );
 }
 
-// Renovate: Rebase lives behind the row's "More actions" overflow trigger
-// (#527) — this opens it, same as a person clicking through.
-async function openMoreActions(row: Locator) {
-  await row.getByRole('button', { name: 'More actions' }).click();
+// Renovate: Rebase is in the row's details dialog (#527) — this opens it
+// and returns the footer, same as a person clicking through.
+async function openFooter(row: Locator) {
+  return actionsFooter(await openActionsDialog(row));
 }
 
 // Every endpoint is mocked and nothing is saved per user, so the whole file
@@ -97,9 +98,9 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
+    const footer = await openFooter(row);
     await expect(
-      row.getByRole('button', { name: 'Renovate: Rebase' }),
+      footer.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toBeVisible();
   });
 
@@ -114,9 +115,9 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
+    const footer = await openFooter(row);
     await expect(
-      row.getByRole('button', { name: 'Renovate: Rebase' }),
+      footer.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toBeVisible();
   });
 
@@ -127,9 +128,9 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
+    const footer = await openFooter(row);
     await expect(
-      row.getByRole('button', { name: 'Renovate: Rebase' }),
+      footer.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toBeVisible();
   });
 
@@ -145,11 +146,10 @@ test.describe('pull request Renovate rebase button', () => {
     await expect(row).toBeVisible();
     const rebase = row.getByRole('button', { name: 'Renovate: Rebase' });
     await expect(rebase).toHaveCount(0);
-    const more = row.getByRole('button', { name: 'More actions' });
-    if ((await more.count()) > 0) {
-      await more.click();
-      await expect(rebase).toHaveCount(0);
-    }
+    const footer = await openFooter(row);
+    await expect(
+      footer.getByRole('button', { name: 'Renovate: Rebase' }),
+    ).toHaveCount(0);
   });
 
   test('clicking calls the API immediately, with no confirm step', async ({
@@ -164,8 +164,8 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
     await expect
       .poll(() => requestBody)
@@ -190,8 +190,8 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
     await expect(page.locator('#feedback-toasts')).toContainText(
       'alrayyes/forge-dashboard#42',
@@ -231,8 +231,8 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
     await expect(page.locator('#feedback-toasts')).toContainText(
       'Rebase requested',
@@ -261,8 +261,8 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    const button = row.getByRole('button', { name: 'Renovate: Rebase' });
+    const footer = await openFooter(row);
+    const button = footer.getByRole('button', { name: 'Renovate: Rebase' });
     await button.click();
 
     await expect(page.locator('#feedback-toasts')).toContainText('EOF');
@@ -292,10 +292,10 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
-    const button = row.getByRole('button', { name: 'Renovate: Rebase' });
+    const button = footer.getByRole('button', { name: 'Renovate: Rebase' });
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/rebase label doesn't exist/i);
   });
@@ -318,10 +318,10 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
-    const button = row.getByRole('button', { name: 'Renovate: Rebase' });
+    const button = footer.getByRole('button', { name: 'Renovate: Rebase' });
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/permission/i);
   });
@@ -345,27 +345,27 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
-    const button = row.getByRole('button', { name: 'Renovate: Rebase' });
+    const button = footer.getByRole('button', { name: 'Renovate: Rebase' });
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/rate limit/i);
   });
 
   // Same promotion as the Dependabot rebase action's own out-of-date
   // case — Renovate has no separate Recreate, so promoting Rebase
-  // inline leaves nothing behind "More actions" for this row at all.
+  // inline leaves nothing but the dialog's own copy for this row.
   test.describe('promoted onto the row when out of date', () => {
-    test('a behind Renovate pull request shows Rebase inline, not behind More actions', async ({
+    test('a behind Renovate pull request shows Rebase inline on the row', async ({
       page,
     }) => {
       await mockDashboard(page, 'github', makePR({ behind: true }));
       await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
-      // Visible without opening "More actions" at all — that's the
-      // whole point, not just that it's reachable somewhere on the row.
+      // Visible without opening the dialog at all — that's the whole point,
+      // not just that it's reachable somewhere.
       await expect(
         row.getByRole('button', { name: 'Renovate: Rebase' }),
       ).toBeVisible();
@@ -397,7 +397,7 @@ test.describe('pull request Renovate rebase button', () => {
         });
     });
 
-    test('an empty, behind Renovate pull request keeps the button behind More actions', async ({
+    test('an empty, behind Renovate pull request keeps the button in the dialog, off the row', async ({
       page,
     }) => {
       await mockDashboard(
@@ -408,16 +408,14 @@ test.describe('pull request Renovate rebase button', () => {
       await page.goto('/bots.html');
 
       const row = page.locator('#pr-rows .row').first();
-      await expect(
-        row.getByRole('button', { name: 'More actions' }),
-      ).toBeVisible();
+      await expect(row.getByRole('button', { name: /^#\d+ / })).toBeVisible();
       await expect(
         row.getByRole('button', { name: 'Renovate: Rebase' }),
       ).toHaveCount(0);
 
-      await openMoreActions(row);
+      const footer = await openFooter(row);
       await expect(
-        row.getByRole('button', { name: 'Renovate: Rebase' }),
+        footer.getByRole('button', { name: 'Renovate: Rebase' }),
       ).toBeVisible();
     });
   });
@@ -441,10 +439,10 @@ test.describe('pull request Renovate rebase button', () => {
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    const footer = await openFooter(row);
+    await footer.getByRole('button', { name: 'Renovate: Rebase' }).click();
     await expect(
-      row.getByRole('button', { name: 'Renovate: Rebase' }),
+      footer.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toHaveAttribute('aria-disabled', 'true');
 
     await page.keyboard.press('Tab');
