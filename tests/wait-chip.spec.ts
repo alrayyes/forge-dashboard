@@ -492,8 +492,10 @@ test.describe('the waiting chip on a merge and a close', () => {
       await expect(chipOf(page).getByRole('button')).toHaveCount(0);
       const after = await layout(page);
       // The chip's own slot is fixed, and the row is as wide as before and
-      // no taller: it may be shorter, since the confirm group (a longer
-      // "Confirm close pull request?" wraps) goes away in the same moment.
+      // no taller. The row may be shorter for Merge, whose confirm group
+      // (a longer "Confirm close pull request?" wraps) leaves the row. For
+      // Close the confirm group sits in the dialog footer, so only the slot
+      // and width checks can bite there.
       expect(after.slot).toEqual(before.slot);
       expect(after.row.width).toBe(before.row.width);
       expect(after.row.height).toBeLessThanOrEqual(before.row.height);

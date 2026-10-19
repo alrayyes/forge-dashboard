@@ -373,7 +373,7 @@ test.describe('pull request close button', () => {
     await footer
       .getByRole('button', { name: 'Confirm close pull request?' })
       .click();
-    // An open dialog holds the board still, so the row leaves once it closes.
+    // The modal covers the row, so close it before asserting the row left.
     await closeActionsDialog(dialog);
 
     await expect(page.locator('#pr-rows .row')).toHaveCount(0);
