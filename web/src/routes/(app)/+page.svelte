@@ -673,6 +673,7 @@
                   <a
                     class="mb-repo"
                     href={b.url}
+                    title={b.fullName}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="{b.fullName} (opens in a new tab)"
