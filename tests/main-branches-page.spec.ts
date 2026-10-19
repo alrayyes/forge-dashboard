@@ -675,9 +675,10 @@ test.describe('Main branches page (#1224, #1279)', () => {
   }) => {
     await mock(page, snapshot([row('alrayyes/forge-dashboard', 'passed')]));
     await page.goto('/');
-    await expect(
-      rows(page).getByRole('link', { name: /alrayyes\/forge-dashboard/ }),
-    ).toHaveAttribute('title', 'alrayyes/forge-dashboard');
+    await expect(rows(page).locator('.mb-repo')).toHaveAttribute(
+      'title',
+      'alrayyes/forge-dashboard',
+    );
   });
 
   test('No pipeline is a quiet outlined note, neither a state nor an outcome', async ({

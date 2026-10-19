@@ -99,10 +99,10 @@ test.describe('webhooks page', () => {
     await page.goto('/webhooks.html');
 
     await expect(
-      page.locator('#webhooks-rows').getByRole('link', {
-        name: 'alrayyes/forge-dashboard',
-      }),
-    ).toHaveAttribute('title', 'alrayyes/forge-dashboard');
+      page.locator('a.repo-link[title="alrayyes/forge-dashboard"]'),
+    ).not.toHaveCount(0);
+    // Every repo link has it, in the table and in the phone cards.
+    await expect(page.locator('a.repo-link:not([title])')).toHaveCount(0);
   });
 
   test.describe('filters and sorting', () => {
