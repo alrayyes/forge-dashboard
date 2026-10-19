@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.223.0](https://github.com/alrayyes/forge-dashboard/compare/v0.222.1...v0.223.0) (2026-10-19)
+
+
+### Features
+
+* **web:** show a repo's full owner/name on hover on Main branches and Webhooks ([#1962](https://github.com/alrayyes/forge-dashboard/issues/1962)) ([569e62d](https://github.com/alrayyes/forge-dashboard/commit/569e62d7f4562b7cc7b064728ce84e3af53e599f))
+
 ## [0.222.1](https://github.com/alrayyes/forge-dashboard/compare/v0.222.0...v0.222.1) (2026-10-19)
 
 
