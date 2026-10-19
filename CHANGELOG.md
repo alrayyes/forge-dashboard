@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.224.0](https://github.com/alrayyes/forge-dashboard/compare/v0.223.0...v0.224.0) (2026-10-19)
+
+
+### Features
+
+* remove the outbound request log page section and its API ([#1968](https://github.com/alrayyes/forge-dashboard/issues/1968)) ([550e1b2](https://github.com/alrayyes/forge-dashboard/commit/550e1b274f74cfab3571cc2a4522a2ce0766508e))
+
 ## [0.223.0](https://github.com/alrayyes/forge-dashboard/compare/v0.222.1...v0.223.0) (2026-10-19)
 
 
