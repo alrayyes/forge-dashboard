@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.221.3](https://github.com/alrayyes/forge-dashboard/compare/v0.221.2...v0.221.3) (2026-10-19)
+
+
+### Bug Fixes
+
+* **web:** hold a queued rerun as "Rerun queued" in the pipeline panel too ([#1951](https://github.com/alrayyes/forge-dashboard/issues/1951)) ([aa23a2a](https://github.com/alrayyes/forge-dashboard/commit/aa23a2a9255cb6eb4f72d5cfd026dd3117c870d4))
+
 ## [0.221.2](https://github.com/alrayyes/forge-dashboard/compare/v0.221.1...v0.221.2) (2026-10-19)
 
 
