@@ -1895,6 +1895,28 @@ func TestListOpenPullRequests_CountsReviewCommentsAndLeavesThreadsUnknown(t *tes
 	assert.Nil(t, prs[1].UnresolvedThreads)
 }
 
+// The pull request JSON carries its conversation comment count, so it costs no
+// call; it is kept apart from the review comments (#1953).
+func TestListOpenPullRequests_CountsConversationComments(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	withComments := reviewPR(1, false, "2026-09-02T00:00:00Z")
+	withComments["comments"] = 3
+	srv := reviewPRServer(t,
+		[]map[string]any{withComments, reviewPR(2, false, "2026-09-02T00:00:00Z")},
+		map[int][]map[string]any{1: {}, 2: {}},
+		&calls)
+	defer srv.Close()
+
+	prs, err := forgejo.NewClient(srv.URL, "test-token", "").ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 2)
+	assert.Equal(t, 3, prs[0].ConversationComments)
+	assert.Equal(t, 0, prs[1].ConversationComments)
+}
+
 // A cached review state still answers the count: a steady-state refresh makes no
 // extra call and doesn't lose the comments.
 func TestListOpenPullRequests_ReviewCommentsSurviveTheReviewCache(t *testing.T) {

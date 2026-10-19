@@ -3496,6 +3496,29 @@ func TestFetch_MapsReviewCommentsAndUnresolvedThreads(t *testing.T) {
 	assert.Contains(t, seenQuery, "reviewThreads")
 }
 
+// The conversation comments are counted apart from the review comments, from
+// the same query, so a client can show their sum (#1953).
+func TestFetch_MapsConversationComments(t *testing.T) {
+	t.Parallel()
+
+	node := pullRequestNode("CLEAN")
+	pr := node["pullRequests"].(map[string]any)["nodes"].([]map[string]any)[0]
+	pr["comments"] = map[string]any{"totalCount": 2}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, reposQueryFixture(node))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, 2, result.PullRequests[0].ConversationComments)
+	assert.Equal(t, 0, result.PullRequests[0].ReviewComments)
+}
+
 // No review threads is zero comments and zero open threads, never null: GitHub
 // does report resolved state, so "none" is an answer.
 func TestFetch_NoReviewThreadsIsZeroNotUnknown(t *testing.T) {

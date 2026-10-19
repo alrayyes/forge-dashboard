@@ -46,6 +46,18 @@ const PRS = [
   }),
   makePR(2, { title: 'Old server', reviewComments: undefined }),
   makePR(1, { title: 'Single', reviewComments: 1, unresolvedThreads: 1 }),
+  makePR(10, {
+    title: 'Mixed',
+    reviewComments: 1,
+    conversationComments: 2,
+    unresolvedThreads: 0,
+  }),
+  makePR(11, {
+    title: 'Talk only',
+    reviewComments: 0,
+    conversationComments: 2,
+    unresolvedThreads: 0,
+  }),
 ];
 
 async function open(page: Page, scheme: 'light' | 'dark' = 'light') {
@@ -130,6 +142,32 @@ test.describe('the review comments pill (#1335)', () => {
 
     await expect(pill(page, 'Single')).toHaveAccessibleName(
       '1 review comment, 1 unresolved thread',
+    );
+  });
+
+  test('conversation comments count with the review comments, under the plain word (#1953)', async ({
+    page,
+  }) => {
+    await open(page);
+
+    await expect(shown(page, 'Mixed')).toHaveText('3');
+    await expect(pill(page, 'Mixed')).toHaveAccessibleName('3 comments');
+    await expect(pill(page, 'Mixed')).toHaveAttribute(
+      'href',
+      'https://example.com/pull/10/files',
+    );
+  });
+
+  test('a pull request with only conversation comments shows them and opens the conversation (#1953)', async ({
+    page,
+  }) => {
+    await open(page);
+
+    await expect(shown(page, 'Talk only')).toHaveText('2');
+    await expect(pill(page, 'Talk only')).toHaveAccessibleName('2 comments');
+    await expect(pill(page, 'Talk only')).toHaveAttribute(
+      'href',
+      'https://example.com/pull/11',
     );
   });
 
