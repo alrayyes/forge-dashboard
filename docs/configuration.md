@@ -71,6 +71,7 @@ has. The unauthenticated fallback has no thread data and reports 0 comments and
 a `null` `unresolvedThreads`. Forgejo's count is the sum of each review's
 comments from the reviews call that already feeds `review`, so a draft
 reports 0. Forgejo gives no resolved state without a request per review, so its
+`unresolvedThreads` is `null`: unknown, not zero.
 
 Each row shows that as a pill beside the other status pills: the number of
 comments, review and conversation together, and `7 · 2 open` in amber, with a
