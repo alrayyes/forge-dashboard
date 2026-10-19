@@ -52,11 +52,20 @@ function freePort(): Promise<number> {
   });
 }
 
-async function waitForHealth(baseURL: string, child: ChildProcess) {
+async function waitForHealth(
+  baseURL: string,
+  child: ChildProcess,
+  spawnError: () => Error | undefined,
+) {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null)
-      throw new Error(`the server exited with code ${child.exitCode}`);
+    const failed = spawnError();
+    if (failed)
+      throw new Error(`could not start the server: ${failed.message}`);
+    if (child.exitCode !== null || child.signalCode !== null)
+      throw new Error(
+        `the server exited (code ${child.exitCode}, signal ${child.signalCode})`,
+      );
     try {
       if ((await fetch(`${baseURL}/healthz`)).ok) return;
     } catch {
@@ -116,6 +125,11 @@ async function startOnce(): Promise<Started> {
   const keep = (d: Buffer) => {
     log = (log + d).slice(-LOG_LIMIT);
   };
+  // A wrong E2E_BINARY path is reported by this event, not thrown.
+  let spawnFailure: Error | undefined;
+  child.once('error', (err) => {
+    spawnFailure = err;
+  });
   child.stdout?.on('data', keep);
   child.stderr?.on('data', keep);
 
@@ -125,7 +139,7 @@ async function startOnce(): Promise<Started> {
   process.once('exit', killOnExit);
   const stop = async () => {
     process.off('exit', killOnExit);
-    if (child.exitCode === null) {
+    if (child.exitCode === null && child.signalCode === null) {
       const exited = new Promise<void>((resolve) =>
         child.once('exit', () => resolve()),
       );
@@ -137,7 +151,7 @@ async function startOnce(): Promise<Started> {
     rmSync(dir, { recursive: true, force: true });
   };
   try {
-    await waitForHealth(baseURL, child);
+    await waitForHealth(baseURL, child, () => spawnFailure);
   } catch (err) {
     await stop();
     throw Object.assign(err as Error, { serverLog: log });
