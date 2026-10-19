@@ -154,6 +154,8 @@ func TestFetch_RequiredCheckMissingBecauseRunsAwaitApproval_IsAwaitingApproval(t
 	require.Len(t, result.PullRequests, 1)
 	assert.True(t, result.PullRequests[0].AwaitingWorkflowApproval,
 		"four held runs are why the required checks never reported")
+	assert.True(t, result.PullRequests[0].FailingOnlyForApproval,
+		"held runs are the only failure, which the menu's Failed count relies on")
 }
 
 func TestFetch_RequiredCheckMissingBecauseRunsAwaitApproval_IsNotPending(t *testing.T) {
