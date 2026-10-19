@@ -4440,6 +4440,7 @@
       cancelled: "Cancelled",
       skipped: "Skipped",
       timed_out: "Timed out",
+      awaiting_approval: "Waiting for approval",
     };
 
     const pipelineDialog = document.getElementById(
@@ -4554,8 +4555,13 @@
         link.href = check.url;
         link.target = "_blank";
         link.rel = "noopener";
-        link.textContent = "View run";
-        link.setAttribute("aria-label", `View run: ${check.name}`);
+        // A held workflow's own page is where GitHub's approve button is.
+        const linkText =
+          check.state === "awaiting_approval"
+            ? "Approve on GitHub"
+            : "View run";
+        link.textContent = linkText;
+        link.setAttribute("aria-label", `${linkText}: ${check.name}`);
         row.appendChild(link);
       }
       if (check.failedStep) {

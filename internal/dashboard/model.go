@@ -68,6 +68,9 @@ const (
 	CheckCancelled CheckState = "cancelled"
 	CheckSkipped   CheckState = "skipped"
 	CheckTimedOut  CheckState = "timed_out"
+	// CheckAwaitingApproval is a GitHub workflow run held until a maintainer
+	// approves it: it has no jobs yet, so it is neither queued nor failed.
+	CheckAwaitingApproval CheckState = "awaiting_approval"
 )
 
 // Check is one job/check run against a pull request's head commit — the

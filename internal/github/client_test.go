@@ -4140,3 +4140,37 @@ func TestUpgradeWebhook_RateLimited_ClassifiesAsDashboardClientError(t *testing.
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorRateLimited, clientErr.Kind)
 }
+
+// Workflow runs held for approval finished as action_required and created no
+// check runs, so the check-runs list alone leaves them out (#1933).
+func TestListChecks_ListsWorkflowRunsHeldForApprovalNextToTheCheckRuns(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "check", "status": "completed", "conclusion": "success", "html_url": "https://github.com/alrayyes/a/runs/1"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
+		assert.Equal(t, "action_required", r.URL.Query().Get("status"))
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"name": "ci", "status": "completed", "conclusion": "action_required", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	assert.Equal(t, dashboard.CheckSuccess, checks[0].State)
+	assert.Equal(t, dashboard.Check{Name: "ci", State: dashboard.CheckAwaitingApproval, URL: "https://github.com/alrayyes/a/actions/runs/9"}, checks[1])
+}

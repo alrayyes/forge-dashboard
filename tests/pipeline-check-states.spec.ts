@@ -17,6 +17,7 @@ const STATES = [
   { state: 'queued', label: 'Queued' },
   { state: 'skipped', label: 'Skipped' },
   { state: 'cancelled', label: 'Cancelled' },
+  { state: 'awaiting_approval', label: 'Waiting for approval' },
 ];
 
 async function open(page: Page) {
@@ -58,7 +59,10 @@ async function open(page: Page) {
         checks: STATES.map((s) => ({
           name: `check-${s.state}`,
           state: s.state,
-          url: '',
+          url:
+            s.state === 'awaiting_approval'
+              ? 'https://github.com/alrayyes/forge-dashboard/actions/runs/9'
+              : '',
           required: true,
         })),
       }),
@@ -153,6 +157,18 @@ test.describe('pipeline check states (#1473)', () => {
       (el) => getComputedStyle(el).animationName,
     );
     expect(anim).not.toBe('none');
+  });
+
+  test('a held workflow links to its page to approve it (#1933)', async ({
+    page,
+  }) => {
+    const dialog = await open(page);
+    const row = dialog.locator('.pipeline-check', {
+      hasText: 'check-awaiting_approval',
+    });
+    await expect(row.getByRole('link')).toHaveText('Approve on GitHub');
+    await expect(row).not.toContainText('Passed');
+    await expect(row).not.toContainText('Running');
   });
 
   test('a failed required check keeps its Blocking badge', async ({ page }) => {

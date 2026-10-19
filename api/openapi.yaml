@@ -3869,11 +3869,25 @@ components:
 
     CheckState:
       type: string
-      enum: [queued, running, success, failure, cancelled, skipped, timed_out]
+      enum:
+        [
+          queued,
+          running,
+          success,
+          failure,
+          cancelled,
+          skipped,
+          timed_out,
+          awaiting_approval,
+        ]
       description: |
         One job/check's own status — the per-job detail CIStatus
         deliberately doesn't carry, since CIStatus is the combined result
         across every one of them.
+
+        "awaiting_approval" is a GitHub workflow run held until a
+        maintainer approves it. It has no jobs yet, so it is not queued and
+        not failed; its `url` is the run's page, where the approve button is.
 
     Check:
       type: object

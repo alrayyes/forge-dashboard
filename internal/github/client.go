@@ -3094,9 +3094,39 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	if err != nil {
 		return nil, err
 	}
+	checks = append(checks, c.heldWorkflowChecks(ctx, owner, name, sha)...)
 	c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
 
 	return checks, nil
+}
+
+// heldWorkflowChecks lists the workflow runs held for approval as checks. They
+// finished as action_required and created no check runs, so the check-runs list
+// never shows them (#1933). The run's own page carries GitHub's approve button.
+// A failed lookup lists none, as a token that can't read Actions is expected;
+// the rest of the list still stands.
+func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string) []dashboard.Check {
+	path := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: sha, Status: "action_required"}
+	opts.PerPage = perPage
+	runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, owner, name, opts)
+	if err != nil {
+		slog.Debug("github held workflow runs unreadable", "forge", dashboard.ForgeGitHub, "repo", owner+"/"+name, "error", err)
+
+		return nil
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+	checks := make([]dashboard.Check, 0, len(runs.WorkflowRuns))
+	for _, r := range runs.WorkflowRuns {
+		checks = append(checks, dashboard.Check{
+			Name:  r.GetName(),
+			State: dashboard.CheckAwaitingApproval,
+			URL:   r.GetHTMLURL(),
+		})
+	}
+
+	return checks
 }
 
 // listChecksForSHA is ListChecks' per-commit half: the check runs, or the
