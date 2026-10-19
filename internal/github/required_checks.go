@@ -44,23 +44,37 @@ type requiredChecks struct {
 // because approving the runs changes it.
 const heldRunsTTL = time.Minute
 
+// heldAnswer is one lookup's result. unknown marks a lookup that failed: the
+// pill reads it as "not held" so a token that can't read Actions isn't asked
+// again for every pull request, but the panel doesn't trust it and asks again,
+// so a transient error never hides a held run (#1966).
 type heldAnswer struct {
 	held    bool
+	unknown bool
 	fetched time.Time
 }
 
-func (r *requiredChecks) cachedHeld(sha string) (held, ok bool) {
+func (r *requiredChecks) cachedHeld(sha string) (heldAnswer, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	a, found := r.held[sha]
 	if !found || time.Since(a.fetched) > heldRunsTTL {
-		return false, false
+		return heldAnswer{}, false
 	}
 
-	return a.held, true
+	return a, true
 }
 
 func (r *requiredChecks) storeHeld(sha string, held bool) {
+	r.storeAnswer(sha, heldAnswer{held: held, fetched: time.Now()})
+}
+
+// storeUnknownHeld remembers that the lookup failed.
+func (r *requiredChecks) storeUnknownHeld(sha string) {
+	r.storeAnswer(sha, heldAnswer{unknown: true, fetched: time.Now()})
+}
+
+func (r *requiredChecks) storeAnswer(sha string, answer heldAnswer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.held == nil {
@@ -71,7 +85,7 @@ func (r *requiredChecks) storeHeld(sha string, held bool) {
 			delete(r.held, k)
 		}
 	}
-	r.held[sha] = heldAnswer{held: held, fetched: time.Now()}
+	r.held[sha] = answer
 }
 
 type requiredContexts struct {
@@ -204,8 +218,8 @@ func (c *Client) settleUnreported(ctx context.Context, prs []dashboard.PullReque
 // pending as before; a token that can't read Actions is expected and only
 // logged at debug level, since it would repeat on every poll.
 func (c *Client) hasRunsAwaitingApproval(ctx context.Context, cand missingRequiredCheck) bool {
-	if held, ok := c.requiredChecks.cachedHeld(cand.headOid); ok {
-		return held
+	if answer, ok := c.requiredChecks.cachedHeld(cand.headOid); ok {
+		return answer.held
 	}
 	path := fmt.Sprintf("/repos/%s/%s/actions/runs", cand.owner, cand.name)
 	slog.Debug("github request", "method", http.MethodGet, "url", path)
@@ -218,9 +232,10 @@ func (c *Client) hasRunsAwaitingApproval(ctx context.Context, cand missingRequir
 			level = slog.LevelDebug
 		}
 		slog.Log(ctx, level, "github awaiting-approval lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
-		// Remembered as no for the TTL too, so a token that can't read Actions
-		// or a rate-limited poll isn't asked again for every pull request.
-		c.requiredChecks.storeHeld(cand.headOid, false)
+		// Remembered as unknown for the TTL, which reads as no here, so a token
+		// that can't read Actions or a rate-limited poll isn't asked again for
+		// every pull request.
+		c.requiredChecks.storeUnknownHeld(cand.headOid)
 
 		return false
 	}
