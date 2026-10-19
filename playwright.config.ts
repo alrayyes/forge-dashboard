@@ -4,7 +4,13 @@ import { defineConfig } from '@playwright/test';
 // between tests (tests/server-fixture.ts, #1880). A spec lives in exactly one
 // project: the rest are `legacy`, which share one server and register users
 // through admin invites, until the invites go and every spec has moved.
-const singleUserSpecs: string[] = [];
+const singleUserSpecs = [
+  '**/page-tops.spec.ts',
+  '**/filter-persistence.spec.ts',
+  '**/timezone.spec.ts',
+  '**/webhooks.spec.ts',
+  '**/auth-single-user.spec.ts',
+];
 
 export default defineConfig({
   testDir: 'tests',

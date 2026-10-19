@@ -1,12 +1,11 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // #1620: a filter set on one page is still set when you come back to it. The
 // shared bar's repo, author and label choices are built from the page's own
 // items (#1071), so a pick that the page you pass through does not offer used
-// to be cleared there and saved as cleared. The saved state is per user, so
-// this spec registers its own.
+// to be cleared there and saved as cleared. The saved state is per user; the
+// server fixture resets it between tests.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 
 function pr(number: number, overrides: Record<string, unknown> = {}) {
@@ -86,14 +85,7 @@ const nav = (page: Page, name: string) =>
   page.locator(`.app-nav a[href="/${name}.html"]`);
 
 test.describe('picks survive a visit to a page that does not offer them (#1620)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `filter-persistence-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Filter Persistence',
-    );
+  test.beforeEach(async ({ page }) => {
     await open(page, '/issues.html');
     await expect(issueRows(page)).toHaveCount(3);
   });
