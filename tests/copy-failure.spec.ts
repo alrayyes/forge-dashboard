@@ -393,7 +393,7 @@ test.describe('Copy error details on a failed Rerun failed checks (#1323)', () =
     const dialog = await openPanel(page);
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
 
-    await expect(dialog.getByText('Rerun queued')).toBeVisible();
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
     await expect(copyIn(dialog)).toHaveCount(0);
   });
 
@@ -416,7 +416,7 @@ test.describe('Copy error details on a failed Rerun failed checks (#1323)', () =
     answer.fail = false;
     await rerun.click();
 
-    await expect(dialog.getByText('Rerun queued')).toBeVisible();
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
     await expect(copyIn(dialog)).toHaveCount(0);
   });
 
