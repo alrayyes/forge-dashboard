@@ -14,7 +14,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
-	requestlogpkg "github.com/alrayyes/forge-dashboard/internal/requestlog"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
 	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -398,7 +397,6 @@ func newTestServerWithGitHubAppConfigured(t *testing.T) *httptest.Server {
 		SharingStore:        sharingStore,
 		Manager:             manager,
 		BuildSources:        noSources,
-		RequestLog:          requestlogpkg.NewSQLiteRecorder(authStore, ""),
 		AppContext:          appCtx,
 		GitHubAppConfigured: true,
 	})
