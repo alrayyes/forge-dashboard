@@ -54,8 +54,6 @@ var mcpPending = []string{
 	"createInvite",
 	"listInvites",
 	"revokeInvite",
-	"listRequests",
-	"exportRequests",
 	"refreshDashboard",
 	"getSharing",
 	"shareWith",
