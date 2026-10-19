@@ -1418,6 +1418,12 @@ a.ci-pill:hover {
   background: var(--warning-bg);
   color: var(--warning);
 }
+/* Cancelled (#1950): nothing broke, so the neutral pair, never critical. The
+   word and the stop glyph carry it, not the colour. */
+.ci-pill.cancelled {
+  background: var(--neutral-bg);
+  color: var(--ink-2);
+}
 .ci-pill.none {
   background: var(--neutral-bg);
   color: var(--ink-3);

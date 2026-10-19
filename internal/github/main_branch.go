@@ -139,6 +139,10 @@ func mainBranchFrom(fullName, repoURL string, ref *graphqlBranchRef) dashboard.M
 	checks := rollup.Contexts.Nodes
 	if row.Status == dashboard.MainBranchFailed {
 		row.FailingJobs = failingBranchChecks(checks)
+		if len(row.FailingJobs) == 0 && hasCancelledCheck(checks) {
+			// GitHub rolls a cancelled run up as FAILURE; nothing broke (#1950).
+			row.Status = dashboard.MainBranchCancelled
+		}
 	}
 	if url := branchRunURL(checks, row.Status); url != "" {
 		row.RunURL = url
@@ -161,9 +165,8 @@ func failedConclusion(conclusion string) bool {
 	}
 }
 
-// failingBranchChecks names the checks that broke the branch. A rollup that
-// failed only because runs were cancelled has none that failed, so it names the
-// cancelled ones rather than nothing.
+// failingBranchChecks names the checks that broke the branch. Cancelled runs
+// aren't among them: nothing broke (#1950).
 func failingBranchChecks(checks []branchContext) []string {
 	names := []string{}
 	for _, c := range checks {
@@ -174,38 +177,51 @@ func failingBranchChecks(checks []branchContext) []string {
 			names = append(names, c.Context)
 		}
 	}
-	if len(names) > 0 {
-		return names
-	}
-	for _, c := range checks {
-		if c.Typename == "CheckRun" && c.Conclusion == "CANCELLED" {
-			names = append(names, c.Name)
-		}
-	}
 
 	return names
 }
 
-// branchRunURL is where to look at the run: the first failed check for a failed
-// branch, else the first check that has a page. Empty when no check does.
-func branchRunURL(checks []branchContext, status dashboard.MainBranchStatus) string {
-	page := func(c branchContext) string {
-		if c.Typename == "StatusContext" {
-			return c.TargetURL
-		}
+// hasCancelledCheck reports a check run that was cancelled.
+func hasCancelledCheck(checks []branchContext) bool {
+	return slices.ContainsFunc(checks, isCancelledCheck)
+}
 
-		return c.DetailsURL
+// isCancelledCheck reports a check run that was cancelled.
+func isCancelledCheck(c branchContext) bool {
+	return c.Typename == "CheckRun" && c.Conclusion == "CANCELLED"
+}
+
+// branchRunURL is where to look at the run: the first failed check for a failed
+// branch, the first cancelled one for a cancelled branch, else the first check
+// that has a page. Empty when no check does.
+func branchRunURL(checks []branchContext, status dashboard.MainBranchStatus) string {
+	var wanted func(branchContext) bool
+	switch status {
+	case dashboard.MainBranchFailed:
+		wanted = func(c branchContext) bool {
+			return slices.Contains(failingBranchChecks([]branchContext{c}), c.label())
+		}
+	case dashboard.MainBranchCancelled:
+		wanted = isCancelledCheck
 	}
-	if status == dashboard.MainBranchFailed {
-		for _, c := range checks {
-			if slices.Contains(failingBranchChecks([]branchContext{c}), c.label()) && page(c) != "" {
-				return page(c)
-			}
+	if wanted != nil {
+		if url := firstPage(checks, wanted); url != "" {
+			return url
 		}
 	}
+
+	return firstPage(checks, func(branchContext) bool { return true })
+}
+
+// firstPage is the page of the first check that passes keep and has one.
+func firstPage(checks []branchContext, keep func(branchContext) bool) string {
 	for _, c := range checks {
-		if page(c) != "" {
-			return page(c)
+		page := c.DetailsURL
+		if c.Typename == "StatusContext" {
+			page = c.TargetURL
+		}
+		if keep(c) && page != "" {
+			return page
 		}
 	}
 

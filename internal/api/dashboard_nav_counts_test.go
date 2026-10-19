@@ -63,6 +63,7 @@ func TestDashboard_NavCountsTotalAndFailedPerPage(t *testing.T) {
 			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/b", Status: dashboard.MainBranchPassed},
 			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/c", Status: dashboard.MainBranchNone},
 			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/d", Status: dashboard.MainBranchRunning},
+			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/e", Status: dashboard.MainBranchCancelled},
 		},
 	}
 	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
@@ -90,8 +91,8 @@ func TestDashboard_NavCountsTotalAndFailedPerPage(t *testing.T) {
 	assert.Equal(t, map[string]any{"total": 2.0, "running": 0.0, "failed": 1.0, "passed": 1.0}, navCount(t, got, "releases"))
 	assert.Equal(t, map[string]any{"total": 3.0, "running": 0.0, "failed": 2.0, "passed": 0.0}, navCount(t, got, "bots"),
 		"a pull request with no checks counts in the total only, so the four need not add up")
-	assert.Equal(t, map[string]any{"total": 4.0, "running": 1.0, "failed": 1.0, "passed": 1.0, "none": 1.0}, navCount(t, got, "branches"),
-		"a branch with no pipeline is counted as none, so the five numbers add up (#1531)")
+	assert.Equal(t, map[string]any{"total": 5.0, "running": 1.0, "failed": 1.0, "passed": 1.0, "none": 1.0}, navCount(t, got, "branches"),
+		"a branch with no pipeline is counted as none (#1531); a cancelled one counts in the total only, and not as failed (#1950)")
 	assert.Equal(t, got["navCounts"], fetchDashboard(t, srv.URL, cookie)["navCounts"],
 		"showing drafts changes the list, not the badge")
 	assert.Equal(t, map[string]any{"total": 1.0}, navCount(t, got, "issues"),
