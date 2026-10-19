@@ -101,7 +101,7 @@ test.describe('the check itself (#1315)', () => {
     await page.evaluate(() => {
       document.body.insertAdjacentHTML(
         'beforeend',
-        '<a href="#" aria-label="Branches, 12 total, 3 failing"><svg width="10" height="10"></svg><span class="nav-pills"><span class="nav-total">12</span><span class="nav-failed">3</span></span></a>',
+        '<a href="#" aria-label="12 3, Branches, 12 total, 3 failing"><svg width="10" height="10"></svg><span class="nav-pills"><span class="nav-total">12</span><span class="nav-failed">3</span></span></a>',
       );
     });
 
