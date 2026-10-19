@@ -84,9 +84,13 @@ as "7 review comments, 2 unresolved threads".
 `awaitingWorkflowApproval` is true when GitHub is holding a workflow run on the
 head commit until someone approves it (a check run counted as `ACTION_REQUIRED`
 in the checks summary). It adds no request, and it is false when that summary
-belongs to an earlier commit. It can be true while `ci` is pending or failing
-for another reason. A third-party check that concludes `action_required` counts
-too. Forgejo and the unauthenticated fallback always report false.
+belongs to an earlier commit. Runs a first-time contributor's pull request
+holds create no check runs, so when a required check hasn't reported the
+dashboard asks the repository's Actions runs for the head commit once, and a
+held run sets it too, with `ci` failing instead of pending. It can be true
+while `ci` is pending or failing for another reason. A third-party check that
+concludes `action_required` counts too. Forgejo and the unauthenticated fallback
+always report false.
 
 The **Conflicts** quick filter keeps the pull requests with a merge conflict, so
 they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
