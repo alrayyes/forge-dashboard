@@ -197,13 +197,17 @@ test.describe('Bots page (#1192)', () => {
     ).toEqual([]);
   });
 
-  test('has no horizontal overflow at 768 px and 800 px too (#1899)', async ({
-    page,
-  }) => {
-    for (const width of [768, 800]) {
+  // 1103 px is the last width the narrow-desktop rule covers, 1104 px the first
+  // the full grid gives the title as much room as the narrow layout does; 949 and 950 are where
+  // the fixed columns alone stop fitting; the others sit inside the range.
+  for (const width of [768, 800, 949, 950, 1103, 1104]) {
+    test(`has no horizontal overflow at ${width} px (#1899)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
       await mockDashboard(page, SNAPSHOT);
       await page.goto('/bots.html');
-      await page.setViewportSize({ width, height: 844 });
+      await expect(page.locator('#pr-rows .row')).toHaveCount(4);
 
       const overflow = await page.evaluate(
         () =>
@@ -213,6 +217,25 @@ test.describe('Bots page (#1192)', () => {
       expect(overflow, `horizontal scroll at ${width}px`).toBeLessThanOrEqual(
         0,
       );
-    }
-  });
+
+      // The page itself may not scroll while a row still spills out of it.
+      const spill = await page
+        .locator('#pr-rows .row')
+        .evaluateAll((els) => els.map((el) => el.scrollWidth - el.clientWidth));
+      expect(
+        spill.every((px) => px <= 0),
+        `a row overflows its own box at ${width}px`,
+      ).toBe(true);
+
+      // A title column squeezed to nothing fits the page and is no use.
+      const title = await page
+        .locator('#pr-rows .row .title')
+        .first()
+        .boundingBox();
+      expect(
+        title?.width,
+        `the title is too narrow at ${width}px`,
+      ).toBeGreaterThanOrEqual(100);
+    });
+  }
 });

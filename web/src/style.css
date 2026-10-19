@@ -835,10 +835,11 @@ section.board {
      with no shared grid/subgrid — widen it here only, never per-row.
      #1899: the fixed columns alone sum to 842px; with gaps (6 x 12px)
      and padding (2 x 18px) the grid needs ~950px before the 1fr title
-     column gets any space at all. The phone layout triggers at
-     max-width: 760px, so 761-949 px overflow. Drop the author, created
-     and updated columns starting at 950px so the 1fr title and the
-     status cell stay on screen. */
+     column gets any space at all, and ~1100px before it gets as much as
+     the narrow layout's ~110px. The phone layout triggers at max-width: 760px, so everything
+     from 761px up to 1103px overflows or squeezes the title. Drop the
+     author, created and updated columns across that range so the 1fr
+     title and the status cell stay on screen. */
   grid-template-columns: 280px 1fr 96px 82px 82px 280px 22px;
   gap: 12px;
   align-items: center;
@@ -846,7 +847,7 @@ section.board {
   border-bottom: 1px solid var(--border);
   color: inherit;
 }
-@media (min-width: 761px) and (max-width: 949px) {
+@media (min-width: 761px) and (max-width: 1103px) {
   /* Hiding the three cells is not enough: their 96 + 82 + 82 px tracks stay in
      the template and keep taking space, so the row still overflowed. The grid
      has to drop them too, and the status and go cells move up to match. The
