@@ -13,8 +13,9 @@ import (
 func TestBuildNavCounts_HeldForApprovalIsNotFailed(t *testing.T) {
 	t.Parallel()
 
-	held := pullRequestView{PullRequest: dashboard.PullRequest{CI: dashboard.CIFailure, AwaitingWorkflowApproval: true}}
-	failed := pullRequestView{PullRequest: dashboard.PullRequest{CI: dashboard.CIFailure}}
+	var held, failed pullRequestView
+	held.CI, held.AwaitingWorkflowApproval = dashboard.CIFailure, true
+	failed.CI = dashboard.CIFailure
 
 	counts := buildNavCounts([]pullRequestView{held, failed}, 0, nil)
 
