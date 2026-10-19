@@ -4231,6 +4231,46 @@ func TestListChecks_RemembersThatNothingIsHeldForTheHeadCommit(t *testing.T) {
 	assert.Equal(t, int32(1), lookups.Load(), "one Actions request for three panel opens")
 }
 
+// A transient error on the Actions lookup must not be remembered as "nothing is
+// held": the next panel open asks again and lists the held run (#1966).
+func TestListChecks_ATransientHeldLookupErrorIsNotRememberedAsNothingHeld(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "check", "status": "completed", "conclusion": "success"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		if lookups.Add(1) == 1 {
+			http.Error(w, `{"message":"Server Error"}`, http.StatusInternalServerError)
+
+			return
+		}
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"name": "ci", "workflow_id": 7, "html_url": "https://github.com/alrayyes/a/actions/runs/1"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	first, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	require.Len(t, first, 1, "the failed lookup lists no held run")
+
+	second, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	require.Len(t, second, 2, "the next open asks again, and the held run is listed")
+	assert.Equal(t, dashboard.CheckAwaitingApproval, second[1].State)
+}
+
 // A held workflow is named after the workflow, which branch protection never
 // lists, so it must not be filed as advisory when it is what blocks the merge.
 func TestListChecks_HeldWorkflowIsNotMarkedAdvisory(t *testing.T) {

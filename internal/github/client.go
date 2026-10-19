@@ -3203,7 +3203,8 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 // One page is read, not paged through: a commit with more than a page of held
 // workflows is not a case worth another request per open.
 func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string) []dashboard.Check {
-	if held, ok := c.requiredChecks.cachedHeld(sha); ok && !held {
+	previous, cached := c.requiredChecks.cachedHeld(sha)
+	if cached && !previous.held && !previous.unknown {
 		return nil
 	}
 	path := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
@@ -3214,8 +3215,12 @@ func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string
 	if err != nil {
 		// Through restError so a rate limit is recorded as for any other call.
 		clientErr := c.restError(ctx, http.MethodGet, path, err)
-		slog.Debug("github held workflow runs unreadable", "forge", dashboard.ForgeGitHub, "repo", owner+"/"+name, "error", clientErr)
-		c.requiredChecks.storeHeld(sha, false)
+		// Logged once per head commit while the failure is remembered, not on
+		// every panel open.
+		if !cached || !previous.unknown {
+			slog.Debug("github held workflow runs unreadable", "forge", dashboard.ForgeGitHub, "repo", owner+"/"+name, "error", clientErr)
+		}
+		c.requiredChecks.storeUnknownHeld(sha)
 
 		return nil
 	}
