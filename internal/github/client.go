@@ -3303,8 +3303,10 @@ func (c *Client) rulesetContexts(ctx context.Context, owner, name, base string, 
 // CheckState. GitHub's own conclusion values: success, failure, neutral,
 // cancelled, skipped, timed_out, action_required, stale — neutral counts
 // as passing the same way statusFromCheckRuns already treats it;
-// action_required and stale count as failing, since either blocks the
-// pull request the same way a real failure does.
+// stale counts as failing, since it blocks the
+// pull request the same way a real failure does. The exception is
+// action_required, which reads as awaiting approval: the rollup counts it as held
+// (awaitingApproval), so the panel and the pill tell one story (#1933).
 func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
 	if r.GetStatus() != "completed" {
 		if r.GetStatus() == "queued" {
@@ -3322,7 +3324,9 @@ func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
 		return dashboard.CheckCancelled
 	case "timed_out":
 		return dashboard.CheckTimedOut
-	default: // "failure", "action_required", "stale"
+	case "action_required":
+		return dashboard.CheckAwaitingApproval
+	default: // "failure", "stale"
 		return dashboard.CheckFailure
 	}
 }

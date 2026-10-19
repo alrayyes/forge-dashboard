@@ -2706,7 +2706,7 @@ func TestListChecks_MapsEveryStatusAndConclusionToACheckState(t *testing.T) {
 		{status: "completed", conclusion: "success", want: dashboard.CheckSuccess},
 		{status: "completed", conclusion: "neutral", want: dashboard.CheckSuccess},
 		{status: "completed", conclusion: "failure", want: dashboard.CheckFailure},
-		{status: "completed", conclusion: "action_required", want: dashboard.CheckFailure},
+		{status: "completed", conclusion: "action_required", want: dashboard.CheckAwaitingApproval},
 		{status: "completed", conclusion: "cancelled", want: dashboard.CheckCancelled},
 		{status: "completed", conclusion: "skipped", want: dashboard.CheckSkipped},
 		{status: "completed", conclusion: "timed_out", want: dashboard.CheckTimedOut},
