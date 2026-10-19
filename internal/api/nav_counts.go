@@ -50,8 +50,9 @@ type navCounts struct {
 // hidden change the list a request gets, not the badge, so it doesn't jump
 // when a toggle flips. A pull
 // request is running when its CI is pending, failed when it is failing and
-// passed when it succeeded; a branch is running, failed or passed with its
-// default-branch pipeline. One with no pipeline is counted in None, so a
+// passed when it succeeded; one whose only failure is workflow runs held for
+// approval is in none of the three. A branch is running, failed or passed with
+// its default-branch pipeline. One with no pipeline is counted in None, so a
 // branch is always in exactly one of the four (#1531). A pull request with no
 // checks counts in the total only.
 func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []dashboard.MainBranch) navCounts {
@@ -72,7 +73,12 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []d
 		case dashboard.CIPending:
 			page.Running++
 		case dashboard.CIFailure:
-			page.Failed++
+			// Held runs read as failing but nothing failed: someone has to
+			// approve them, so they count in the total only (#1933). A job
+			// that really failed beside a held run still counts as failed.
+			if dashboard.IsFailingCI(pr.PullRequest) {
+				page.Failed++
+			}
 		case dashboard.CISuccess:
 			page.Passed++
 		}

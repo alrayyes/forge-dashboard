@@ -322,6 +322,35 @@ test.describe('pull request pipeline checks panel', () => {
     ).toHaveCount(0);
   });
 
+  test('a required workflow held for approval sits with the required checks and says it blocks (#1946)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR());
+    await mockChecks(page, {
+      checks: [
+        { name: 'docs', state: 'success', url: '', required: false },
+        { name: 'ci', state: 'awaiting_approval', url: '', required: true },
+      ],
+    });
+    await page.goto('/pull-requests.html');
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const items = dialog.locator('.pipeline-check');
+    await expect(
+      items.filter({ hasText: 'ci' }).getByText('Blocking'),
+    ).toBeVisible();
+    await expect(
+      items.filter({ hasText: 'docs' }).getByText('Blocking'),
+    ).toHaveCount(0);
+    await expect(items.first()).toContainText('ci');
+  });
+
   test('with no known required flag on any check the flat list shows unchanged', async ({
     page,
   }) => {

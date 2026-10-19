@@ -710,6 +710,17 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await setTheme(page, 'light');
   });
 
+  test('the repo link carries the full owner/name as hover text (#1961)', async ({
+    page,
+  }) => {
+    await mock(page, snapshot([row('alrayyes/forge-dashboard', 'passed')]));
+    await page.goto('/');
+    await expect(rows(page).locator('.mb-repo')).toHaveAttribute(
+      'title',
+      'alrayyes/forge-dashboard',
+    );
+  });
+
   test('No pipeline is a quiet outlined note, neither a state nor an outcome', async ({
     page,
   }) => {

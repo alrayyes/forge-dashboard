@@ -44,3 +44,19 @@ func TestReadyAndNeedsReview(t *testing.T) {
 		})
 	}
 }
+
+// The Failing CI filter and the menu pill's Failed number are one rule (#1946):
+// CI reads failing, and the cause isn't only a workflow held for approval.
+func TestIsFailingCI(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, dashboard.IsFailingCI(dashboard.PullRequest{CI: dashboard.CIFailure}))
+	assert.False(t, dashboard.IsFailingCI(dashboard.PullRequest{CI: dashboard.CIPending}))
+	assert.False(t, dashboard.IsFailingCI(dashboard.PullRequest{CI: dashboard.CISuccess}))
+	assert.False(t, dashboard.IsFailingCI(dashboard.PullRequest{
+		CI: dashboard.CIFailure, AwaitingWorkflowApproval: true, FailingOnlyForApproval: true,
+	}), "held runs are not a failure")
+	assert.True(t, dashboard.IsFailingCI(dashboard.PullRequest{
+		CI: dashboard.CIFailure, AwaitingWorkflowApproval: true,
+	}), "a job that really failed beside a held run still counts")
+}

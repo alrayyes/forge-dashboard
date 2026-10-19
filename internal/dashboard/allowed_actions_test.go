@@ -67,6 +67,7 @@ func TestAllowedActions(t *testing.T) {
 		{"behind but mergeable keeps merge (Forgejo)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.Behind = true }), []string{"auto_merge", "close", "merge", "update_branch"}},
 		{"blocked with CI failing", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge:checks_failing", "rerun_checks"}},
 		{"failing CI on GitHub offers rerunning the failed checks (#698)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},
+		{"CI failing only because a workflow is held for approval offers no rerun (#1946)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.FailingOnlyForApproval = true }), []string{"auto_merge", "close", "merge"}},
 		{"failing CI on Forgejo offers rerunning the failed checks (#1032)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},
 		{"passing CI on Forgejo has nothing to rerun", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CISuccess }), []string{"close", "merge"}},
 		{"blocked otherwise", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:blocked_by_protection"}},

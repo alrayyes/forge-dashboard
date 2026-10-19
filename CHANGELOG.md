@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.224.1](https://github.com/alrayyes/forge-dashboard/compare/v0.224.0...v0.224.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* one rule for failing CI across the filters, the auto-merge line and the checks panel ([#1955](https://github.com/alrayyes/forge-dashboard/issues/1955)) ([e0c7f3b](https://github.com/alrayyes/forge-dashboard/commit/e0c7f3b6472e0c696af6f73161ab7cd3dfd628d4))
+
+## [0.224.0](https://github.com/alrayyes/forge-dashboard/compare/v0.223.0...v0.224.0) (2026-10-19)
+
+
+### Features
+
+* remove the outbound request log page section and its API ([#1968](https://github.com/alrayyes/forge-dashboard/issues/1968)) ([550e1b2](https://github.com/alrayyes/forge-dashboard/commit/550e1b274f74cfab3571cc2a4522a2ce0766508e))
+
+## [0.223.0](https://github.com/alrayyes/forge-dashboard/compare/v0.222.1...v0.223.0) (2026-10-19)
+
+
+### Features
+
+* **web:** show a repo's full owner/name on hover on Main branches and Webhooks ([#1962](https://github.com/alrayyes/forge-dashboard/issues/1962)) ([569e62d](https://github.com/alrayyes/forge-dashboard/commit/569e62d7f4562b7cc7b064728ce84e3af53e599f))
+
 ## [0.222.1](https://github.com/alrayyes/forge-dashboard/compare/v0.222.0...v0.222.1) (2026-10-19)
 
 

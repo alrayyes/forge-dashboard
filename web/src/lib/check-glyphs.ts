@@ -27,6 +27,9 @@ export const CHECK_GLYPHS: Record<string, CheckGlyph[]> = {
     { name: 'clock', body: `${RING}<path d="M8 4.6V8l2.3 1.4"/>` },
   ],
   queued: [{ name: 'hourglass', body: HOURGLASS }],
+  awaiting_approval: [
+    { name: 'pause', body: `${RING}<path d="M6.4 5.6v4.8M9.6 5.6v4.8"/>` },
+  ],
   skipped: [{ name: 'slash', body: `${RING}<path d="m3.6 3.6 8.8 8.8"/>` }],
   cancelled: [
     {
