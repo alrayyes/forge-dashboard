@@ -196,6 +196,10 @@ type PullRequest struct {
 	// ordinary conversation comments (#1335). 0 when there are none or the
 	// forge didn't say.
 	ReviewComments int `json:"reviewComments"`
+	// ConversationComments counts the ordinary comments in the pull request's
+	// conversation, kept apart from ReviewComments so a client that reads only
+	// that one doesn't change (#1953). 0 when there are none.
+	ConversationComments int `json:"conversationComments"`
 	// UnresolvedThreads is how many review threads are still open, or nil when
 	// the forge reports no resolved state (Forgejo), so a client shows the
 	// count without an "open" state rather than a false zero.
