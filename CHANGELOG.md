@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.222.1](https://github.com/alrayyes/forge-dashboard/compare/v0.222.0...v0.222.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **web:** open a nav link's name with the numbers drawn on it ([#1952](https://github.com/alrayyes/forge-dashboard/issues/1952)) ([2a00275](https://github.com/alrayyes/forge-dashboard/commit/2a0027549ca706df7094a454e8d28d895b564180))
+
 ## [0.222.0](https://github.com/alrayyes/forge-dashboard/compare/v0.221.3...v0.222.0) (2026-10-19)
 
 
