@@ -4261,6 +4261,7 @@ components:
           allowedActions,
           status,
           readyToMerge,
+          failingCi,
           needsReview,
         ]
       properties:
@@ -4545,6 +4546,13 @@ components:
             True when the pull request is mergeable, its CI is green and it
             isn't a draft: what the Ready quick filter lists. Always
             present. A pull request with no checks isn't ready.
+        failingCi:
+          type: boolean
+          description: |
+            True when CI is failing and not only because a workflow run is
+            held for approval: what the Failing CI quick filter and the status
+            filter's Failing choice list, and what the menu pill's Failed
+            number counts. Always present.
         needsReview:
           type: boolean
           description: |

@@ -3126,12 +3126,19 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	if err != nil {
 		return nil, err
 	}
-	c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
+	unreported := c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
 	// Added after markRequired on purpose: a held run is named after its
 	// workflow, which protection never lists (it lists job names), so marking
-	// it would file it under Advisory when it is what blocks the merge. It
-	// stays unknown.
-	checks = append(checks, c.heldWorkflowChecks(ctx, owner, name, sha)...)
+	// it would file it under Advisory when it is what blocks the merge. It is
+	// required when a required check never reported, since the held run is why
+	// (#1946), and unknown otherwise.
+	held := c.heldWorkflowChecks(ctx, owner, name, sha)
+	if unreported {
+		for i := range held {
+			held[i].Required = new(true)
+		}
+	}
+	checks = append(checks, held...)
 
 	return checks, nil
 }
@@ -3166,7 +3173,17 @@ func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string
 	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
 	c.requiredChecks.storeHeld(sha, len(runs.WorkflowRuns) > 0)
 	checks := make([]dashboard.Check, 0, len(runs.WorkflowRuns))
+	// Newest first, so the first run of a workflow is the one to show: a rerun,
+	// or the pull_request and pull_request_target triggers, leave several held
+	// runs of one workflow (#1946).
+	seen := map[int64]bool{}
 	for _, r := range runs.WorkflowRuns {
+		if id := r.GetWorkflowID(); id != 0 {
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+		}
 		checks = append(checks, dashboard.Check{
 			Name:  r.GetName(),
 			State: dashboard.CheckAwaitingApproval,
@@ -3235,11 +3252,12 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 // active rulesets' required_status_checks rule (readable with read
 // access). A listed check is required. An unlisted one is advisory only
 // when both lookups answered; otherwise it stays unknown (nil), because
-// the unreadable source might be the one that requires it. Failures here
-// never fail the checks list itself.
-func (c *Client) markRequired(ctx context.Context, owner, name, base string, checks []dashboard.Check) {
+// the unreadable source might be the one that requires it. It reports whether
+// a required check never reported. Failures here never fail the checks list
+// itself.
+func (c *Client) markRequired(ctx context.Context, owner, name, base string, checks []dashboard.Check) (unreported bool) {
 	if base == "" || len(checks) == 0 {
-		return
+		return false
 	}
 	required := map[string]bool{}
 	protKnown := c.protectionContexts(ctx, owner, name, base, required)
@@ -3253,6 +3271,19 @@ func (c *Client) markRequired(ctx context.Context, owner, name, base string, che
 			checks[i].Required = new(false)
 		}
 	}
+
+	// A required context no check carries the name of never reported.
+	reported := make(map[string]bool, len(checks))
+	for _, ch := range checks {
+		reported[ch.Name] = true
+	}
+	for context := range required {
+		if !reported[context] {
+			return true
+		}
+	}
+
+	return false
 }
 
 // protectionContexts adds the classic branch protection rule's required

@@ -4248,6 +4248,79 @@ func TestListChecks_HeldWorkflowIsNotMarkedAdvisory(t *testing.T) {
 	assert.Nil(t, checks[1].Required, "a held workflow is not advisory; whether it is required stays unknown")
 }
 
+// A required check that never reported is what a held workflow is holding
+// back, so the held row says it blocks the merge (#1946). When every required
+// check reported, nothing is waiting on the held run and it stays unknown.
+func TestListChecks_HeldWorkflowIsRequiredWhenARequiredCheckNeverReported(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"ref": "main"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "lint", "status": "completed", "conclusion": "success"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"contexts": []string{"lint", "test"}, "checks": []map[string]any{{"context": "lint"}, {"context": "test"}}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	assert.Equal(t, dashboard.CheckAwaitingApproval, checks[1].State)
+	require.NotNil(t, checks[1].Required)
+	assert.True(t, *checks[1].Required)
+}
+
+// Several held runs of one workflow on a head commit (after a rerun, or the
+// pull_request and pull_request_target triggers) are shown once: the newest
+// (#1946).
+func TestListChecks_HeldRunsOfOneWorkflowAreListedOnce(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 3, "workflow_runs": []map[string]any{
+			{"id": 12, "workflow_id": 7, "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/12"},
+			{"id": 11, "workflow_id": 7, "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/11"},
+			{"id": 10, "workflow_id": 8, "name": "docs", "html_url": "https://github.com/alrayyes/a/actions/runs/10"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	assert.Equal(t, "ci", checks[0].Name)
+	assert.Equal(t, "https://github.com/alrayyes/a/actions/runs/12", checks[0].URL)
+	assert.Equal(t, "docs", checks[1].Name)
+}
+
 // A token that can't read Actions must not hide the check runs.
 func TestListChecks_HeldRunLookupFailureKeepsTheCheckRuns(t *testing.T) {
 	t.Parallel()

@@ -22,6 +22,9 @@ func TestAutoMergeStatusOf(t *testing.T) {
 		{"checks pending", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }, dashboard.AutoMergeWaiting, dashboard.ActionChecksPending},
 		{"no checks reported yet", func(p *dashboard.PullRequest) { p.CI = dashboard.CINone }, dashboard.AutoMergeWaiting, dashboard.ActionChecksPending},
 		{"checks failing", func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }, dashboard.AutoMergeStopped, dashboard.ActionChecksFailing},
+		{"checks failing only because workflow runs are held for approval", func(p *dashboard.PullRequest) {
+			p.CI, p.AwaitingWorkflowApproval, p.FailingOnlyForApproval = dashboard.CIFailure, true, true
+		}, dashboard.AutoMergeWaiting, dashboard.ActionBlockedByProtection},
 		{"conflicts", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }, dashboard.AutoMergeStopped, dashboard.ActionConflict},
 		{"nothing to merge", func(p *dashboard.PullRequest) { p.Empty = true }, dashboard.AutoMergeStopped, dashboard.ActionAlreadyUpToDate},
 		{"draft", func(p *dashboard.PullRequest) { p.Draft = true }, dashboard.AutoMergeWaiting, dashboard.ActionNotMergeable},
@@ -149,4 +152,17 @@ func TestAutoMergeStatusOf_GitHub_NamesGitHubNotForgejo(t *testing.T) {
 			assert.NotContains(t, got.Message, "next refresh")
 		})
 	}
+}
+
+// A held workflow run is waiting on a person, not failing, so the line says so
+// instead of "a check failed" (#1946).
+func TestAutoMergeStatusOf_HeldWorkflowRuns_AskForApproval(t *testing.T) {
+	t.Parallel()
+
+	got := dashboard.AutoMergeStatusOf(amPR(func(p *dashboard.PullRequest) {
+		p.CI, p.AwaitingWorkflowApproval, p.FailingOnlyForApproval = dashboard.CIFailure, true, true
+	}), nil)
+
+	assert.Contains(t, got.Message, "waiting for workflow approval")
+	assert.NotContains(t, got.Message, "a check failed")
 }

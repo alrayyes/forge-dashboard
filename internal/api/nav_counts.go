@@ -74,7 +74,7 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []d
 			// Held runs read as failing but nothing failed: someone has to
 			// approve them, so they count in the total only (#1933). A job
 			// that really failed beside a held run still counts as failed.
-			if !pr.FailingOnlyForApproval {
+			if dashboard.IsFailingCI(pr.PullRequest) {
 				page.Failed++
 			}
 		case dashboard.CISuccess:
