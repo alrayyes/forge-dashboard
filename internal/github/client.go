@@ -1281,6 +1281,14 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 	return commits[0].Commit.StatusCheckRollup.ci()
 }
 
+func failingOnlyForApprovalOf(commits []prCommitNode) bool {
+	if len(commits) == 0 {
+		return false
+	}
+
+	return commits[0].Commit.StatusCheckRollup.failsOnlyForApproval()
+}
+
 func awaitingApprovalOf(commits []prCommitNode) bool {
 	if len(commits) == 0 {
 		return false
@@ -1324,6 +1332,27 @@ func (r *statusCheckRollup) awaitingApproval() bool {
 	}
 
 	return false
+}
+
+// failsOnlyForApproval reports whether held runs are the only reason the
+// rollup reads as failing: at least one run is held, and no job or status really
+// failed (#1933). A held run beside a failed job is still a failure.
+func (r *statusCheckRollup) failsOnlyForApproval() bool {
+	if !r.awaitingApproval() {
+		return false
+	}
+	for _, c := range r.Contexts.CheckRunCountsByState {
+		if c.Count > 0 && (c.State == "FAILURE" || c.State == "TIMED_OUT" || c.State == "STARTUP_FAILURE" || c.State == "STALE") {
+			return false
+		}
+	}
+	for _, c := range r.Contexts.StatusContextCountsByState {
+		if c.Count > 0 && (c.State == "FAILURE" || c.State == "ERROR") {
+			return false
+		}
+	}
+
+	return true
 }
 
 // ci is the rollup's combined result. A commit with no rollup (nil) has no
@@ -2391,11 +2420,13 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 	comments, unresolved := reviewThreadCounts(p)
 	ci := ciFromRollup(p.Commits.Nodes)
 	awaitingApproval := awaitingApprovalOf(p.Commits.Nodes)
+	failingOnlyForApproval := failingOnlyForApprovalOf(p.Commits.Nodes)
 	if rollupIsOfAnotherCommit(p.Commits.Nodes, p.HeadRefOid) {
 		slog.Debug("github rollup is of an earlier commit, reading pending", "forge", dashboard.ForgeGitHub, "repo", fullName,
 			"number", p.Number, "head", p.HeadRefOid, "rollup_commit", p.Commits.Nodes[0].Commit.Oid)
 		ci = dashboard.CIPending
 		awaitingApproval = false
+		failingOnlyForApproval = false
 	}
 
 	return dashboard.PullRequest{
@@ -2412,6 +2443,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		CI:                       ci,
 		MergeStatus:              mergeStatusFromGraphQL(p.MergeStateStatus),
 		AwaitingWorkflowApproval: awaitingApproval,
+		FailingOnlyForApproval:   failingOnlyForApproval,
 		Behind:                   p.MergeStateStatus == "BEHIND",
 		HeadSHA:                  p.HeadRefOid,
 		BaseBranch:               p.BaseRefName,
@@ -3094,8 +3126,12 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	if err != nil {
 		return nil, err
 	}
-	checks = append(checks, c.heldWorkflowChecks(ctx, owner, name, sha)...)
 	c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
+	// Added after markRequired on purpose: a held run is named after its
+	// workflow, which protection never lists (it lists job names), so marking
+	// it would file it under Advisory when it is what blocks the merge. It
+	// stays unknown.
+	checks = append(checks, c.heldWorkflowChecks(ctx, owner, name, sha)...)
 
 	return checks, nil
 }
@@ -3112,7 +3148,9 @@ func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string
 	opts.PerPage = perPage
 	runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, owner, name, opts)
 	if err != nil {
-		slog.Debug("github held workflow runs unreadable", "forge", dashboard.ForgeGitHub, "repo", owner+"/"+name, "error", err)
+		// Through restError so a rate limit is recorded as for any other call.
+		clientErr := c.restError(ctx, http.MethodGet, path, err)
+		slog.Debug("github held workflow runs unreadable", "forge", dashboard.ForgeGitHub, "repo", owner+"/"+name, "error", clientErr)
 
 		return nil
 	}

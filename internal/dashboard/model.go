@@ -208,6 +208,11 @@ type PullRequest struct {
 	// failing in CI, so a client uses this to say "waiting for approval"
 	// instead of "check failed". Always present; false on Forgejo.
 	AwaitingWorkflowApproval bool `json:"awaitingWorkflowApproval"`
+	// FailingOnlyForApproval is true when held runs are the only reason CI reads
+	// as failing: no job really failed. The menu pill counts such a pull
+	// request in the total but not as failed. Server-side only, so the API shape
+	// is unchanged.
+	FailingOnlyForApproval bool `json:"-"`
 	// HeadSHA is the commit the pull request's head branch points at (#759).
 	// A bot's rebase moves it, which shows the bot acted even when the pull
 	// request is still reported behind, or wasn't behind to begin with.

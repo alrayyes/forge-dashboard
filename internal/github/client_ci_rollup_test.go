@@ -313,3 +313,30 @@ func TestFetch_RollupAwaitingWorkflowApproval(t *testing.T) {
 		})
 	}
 }
+
+// The menu pill counts a pull request as failed unless held runs are the only
+// reason CI reads as failing (#1933): a really failed job beside a held run
+// still counts as failed.
+func TestFetch_RollupFailingOnlyForApproval(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		rollup map[string]any
+		want   bool
+	}{
+		{"held runs only", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 3, "SUCCESS": 1}, nil), true},
+		{"held beside a failed job", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 1, "FAILURE": 1}, nil), false},
+		{"held beside a timed out job", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 1, "TIMED_OUT": 1}, nil), false},
+		{"held beside a failed status", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 1}, map[string]int{"ERROR": 1}), false},
+		{"a failed job only", rollupFixture("FAILURE", map[string]int{"FAILURE": 1}, nil), false},
+		{"no rollup", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, pullRequestFromGraphQLRollup(t, tt.rollup).FailingOnlyForApproval)
+		})
+	}
+}
