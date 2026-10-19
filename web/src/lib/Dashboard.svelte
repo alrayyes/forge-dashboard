@@ -717,7 +717,7 @@
     // (failed, passed): one pill in one fixed-size slot, a glyph and a word,
     // so a run turns into its result without the row moving. The glyphs are
     // the pipeline panel's own (#1473). A run held for approval is not
-    // running, so it gets the queued hourglass.
+    // running, so it gets the pause glyph the pipeline panel uses for it.
     const CI_SLOT_GLYPHS: Record<string, string> = {
       pending: "running",
       failure: "failure",
@@ -732,7 +732,7 @@
         ? "Waiting for workflow approval"
         : CI_LABELS[status] || status;
       const glyphs = pipelineCheckGlyphs(
-        awaiting ? "queued" : (CI_SLOT_GLYPHS[status] ?? ""),
+        awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
       );
       const addMark = (pill: HTMLElement) => {
         if (glyphs.length > 0) glyphs.forEach((g) => pill.appendChild(g));

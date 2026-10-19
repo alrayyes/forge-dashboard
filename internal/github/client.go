@@ -1342,7 +1342,7 @@ func (r *statusCheckRollup) failsOnlyForApproval() bool {
 		return false
 	}
 	for _, c := range r.Contexts.CheckRunCountsByState {
-		if c.Count > 0 && (c.State == "FAILURE" || c.State == "TIMED_OUT" || c.State == "STARTUP_FAILURE" || c.State == "STALE") {
+		if c.Count > 0 && (c.State == "FAILURE" || c.State == "TIMED_OUT" || c.State == "STARTUP_FAILURE" || c.State == "STALE" || c.State == "CANCELLED") {
 			return false
 		}
 	}

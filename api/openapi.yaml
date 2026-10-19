@@ -4979,7 +4979,12 @@ components:
         failed:
           type: integer
           minimum: 0
-          description: How many of them have failing CI.
+          description: |
+            How many of them have failing CI. A pull request whose only
+            failure is workflow runs held until someone approves them
+            (`awaitingWorkflowApproval`) is counted in `total` and not here,
+            as nothing failed; one with a job that really failed beside a
+            held run still counts.
         passed:
           type: integer
           minimum: 0

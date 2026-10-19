@@ -329,6 +329,7 @@ func TestFetch_RollupFailingOnlyForApproval(t *testing.T) {
 		{"held beside a failed job", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 1, "FAILURE": 1}, nil), false},
 		{"held beside a timed out job", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 1, "TIMED_OUT": 1}, nil), false},
 		{"held beside a failed status", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 1}, map[string]int{"ERROR": 1}), false},
+		{"held beside a cancelled run", rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 1, "CANCELLED": 1}, nil), false},
 		{"a failed job only", rollupFixture("FAILURE", map[string]int{"FAILURE": 1}, nil), false},
 		{"no rollup", nil, false},
 	}
