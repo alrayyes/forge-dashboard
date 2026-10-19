@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1230,26 +1231,15 @@ func (r *statusCheckRollup) settleFailedRollup() dashboard.CIStatus {
 	if r.Contexts == nil {
 		return dashboard.CIFailure
 	}
-	var failed, running bool
+	failed := r.hasFailedContext(failureKinds{heldRun: true})
+	var running bool
 	for _, c := range r.Contexts.CheckRunCountsByState {
-		if c.Count == 0 {
-			continue
-		}
-		switch c.State {
-		case "FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE", "STALE":
-			failed = true
-		case "QUEUED", "IN_PROGRESS", "PENDING", "WAITING", "REQUESTED":
+		if c.Count > 0 && slices.Contains(runningCheckRunStates, c.State) {
 			running = true
 		}
 	}
 	for _, c := range r.Contexts.StatusContextCountsByState {
-		if c.Count == 0 {
-			continue
-		}
-		switch c.State {
-		case "FAILURE", "ERROR":
-			failed = true
-		case "PENDING", "EXPECTED":
+		if c.Count > 0 && (c.State == "PENDING" || c.State == "EXPECTED") {
 			running = true
 		}
 	}
@@ -1258,6 +1248,53 @@ func (r *statusCheckRollup) settleFailedRollup() dashboard.CIStatus {
 	}
 
 	return dashboard.CIFailure
+}
+
+var runningCheckRunStates = []string{"QUEUED", "IN_PROGRESS", "PENDING", "WAITING", "REQUESTED"}
+
+// failureKinds picks which of the less clear-cut check run states hasFailedContext
+// counts as a failure. A job that failed, timed out, failed to start or went
+// stale, and a failed or errored status, always count.
+type failureKinds struct {
+	// heldRun counts a run held as action_required: the rollup rule (#722)
+	// reads it as a failure, while the held-for-approval rule does not (#1933).
+	heldRun bool
+	// cancelled counts a cancelled run: the held-for-approval rule keeps a
+	// cancelled run beside a held one a failure, the rollup rule has its own
+	// handling for it (#1950).
+	cancelled bool
+}
+
+// hasFailedContext reports a check run or status context that really failed.
+// The one list both settleFailedRollup and failsOnlyForApproval read, so the
+// two can't drift; kinds names the one place they differ on purpose.
+func (r *statusCheckRollup) hasFailedContext(kinds failureKinds) bool {
+	for _, c := range r.Contexts.CheckRunCountsByState {
+		if c.Count > 0 && kinds.failedRun(c.State) {
+			return true
+		}
+	}
+	for _, c := range r.Contexts.StatusContextCountsByState {
+		if c.Count > 0 && (c.State == "FAILURE" || c.State == "ERROR") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// failedRun reports a check run state that counts as a failed job.
+func (k failureKinds) failedRun(state string) bool {
+	switch state {
+	case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "STALE":
+		return true
+	case "ACTION_REQUIRED":
+		return k.heldRun
+	case "CANCELLED":
+		return k.cancelled
+	default:
+		return false
+	}
 }
 
 type prCommitNode struct {
@@ -1341,18 +1378,8 @@ func (r *statusCheckRollup) failsOnlyForApproval() bool {
 	if !r.awaitingApproval() {
 		return false
 	}
-	for _, c := range r.Contexts.CheckRunCountsByState {
-		if c.Count > 0 && (c.State == "FAILURE" || c.State == "TIMED_OUT" || c.State == "STARTUP_FAILURE" || c.State == "STALE" || c.State == "CANCELLED") {
-			return false
-		}
-	}
-	for _, c := range r.Contexts.StatusContextCountsByState {
-		if c.Count > 0 && (c.State == "FAILURE" || c.State == "ERROR") {
-			return false
-		}
-	}
 
-	return true
+	return !r.hasFailedContext(failureKinds{cancelled: true})
 }
 
 // ci is the rollup's combined result. A commit with no rollup (nil) has no
