@@ -1,5 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import {
+  actionsFeedback,
+  actionsFooter,
+  closeActionsDialog,
+  openActionsDialog,
+} from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -433,20 +439,140 @@ test.describe('pull request pipeline checks panel', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
 
-    await expect(dialog.getByText('Rerun queued')).toBeVisible();
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
     expect(posted).toEqual({
       forge: 'github',
       fullName: 'alrayyes/forge-dashboard',
       number: 42,
     });
     await expect(
-      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+      dialog.getByRole('button', { name: 'Rerun queued' }),
     ).toBeDisabled();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  test('a queued rerun stays held as "Rerun queued" when the panel is closed and reopened (#1941)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    let posts = 0;
+    await page.route('**/api/pull-requests/rerun-checks', async (route) => {
+      posts += 1;
+      await route.fulfill({ status: 204 });
+    });
+    await page.goto('/pull-requests.html');
+
+    const open = () =>
+      page
+        .locator('#pr-rows .row')
+        .first()
+        .getByRole('button', { name: 'Open pipeline' })
+        .click();
+    await open();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await open();
+
+    const held = dialog.getByRole('button', { name: 'Rerun queued' });
+    await expect(held).toBeVisible();
+    await expect(held).toBeDisabled();
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toHaveCount(0);
+    expect(posts).toBe(1);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a rerun still in flight stays held when the panel is reopened, so it is sent once (#1941)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    let posts = 0;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/pull-requests/rerun-checks', async (route) => {
+      posts += 1;
+      await gate;
+      await route.fulfill({ status: 204 });
+    });
+    await page.goto('/pull-requests.html');
+
+    const open = () =>
+      page
+        .locator('#pr-rows .row')
+        .first()
+        .getByRole('button', { name: 'Open pipeline' })
+        .click();
+    await open();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('status')).toContainText('Queuing');
+
+    await page.keyboard.press('Escape');
+    await open();
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeDisabled();
+    expect(posts).toBe(1);
+    release();
+  });
+
+  test('a refused rerun is not held: reopening the panel offers the button again (#1941)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    await page.route('**/api/pull-requests/rerun-checks', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 'permission',
+          message: 'Missing permission',
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+
+    const open = () =>
+      page
+        .locator('#pr-rows .row')
+        .first()
+        .getByRole('button', { name: 'Open pipeline' })
+        .click();
+    await open();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('alert')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await open();
+
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeEnabled();
   });
 
   test('a failing Forgejo pull request offers "Rerun failed checks" too, and a pull request with nothing to rerun shows the forge reason', async ({
@@ -497,7 +623,7 @@ test.describe('pull request pipeline checks panel', () => {
 
     answer = 204;
     await rerun.click();
-    await expect(dialog.getByText('Rerun queued')).toBeVisible();
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
     expect(posted).toEqual({
       forge: 'forgejo',
       fullName: 'alrayyes/dotfiles',
@@ -773,5 +899,202 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(firstLink).toBeVisible();
     await page.keyboard.press('Tab');
     await expect(firstLink).toBeFocused();
+  });
+});
+
+// A queued rerun is held until the pull request moves on or ten minutes pass,
+// and the row, the details dialog and the panel all read the one state (#1941).
+test.describe('the held rerun: release, expiry and shared state (#1941)', () => {
+  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+  const withRerun = (overrides: Partial<MockPR> = {}) =>
+    makePR({
+      ci: 'failure',
+      allowedActions: [{ action: 'rerun_checks' }],
+      ...overrides,
+    });
+
+  async function setup(
+    page: Page,
+    opts: { fakeClock?: boolean; refuse?: boolean } = {},
+  ) {
+    const served = { pr: withRerun() };
+    const posts = { count: 0 };
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    const snapshot = () =>
+      JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [served.pr],
+        issues: [],
+      });
+    for (const glob of ['**/api/dashboard*', '**/api/dashboard/refresh*'])
+      await page.route(glob, (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: snapshot(),
+        }),
+      );
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    await page.route('**/api/pull-requests/details*', (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: '{}',
+      }),
+    );
+    await page.route('**/api/pull-requests/rerun-checks', (route) => {
+      posts.count += 1;
+      return opts.refuse
+        ? route.fulfill({
+            status: 403,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              code: 'permission',
+              message: 'Missing permission',
+            }),
+          })
+        : route.fulfill({ status: 204 });
+    });
+    if (opts.fakeClock) await page.clock.install();
+    await page.goto('/pull-requests.html');
+    return { served, posts };
+  }
+
+  const row = (page: Page) => page.locator('#pr-rows .row').first();
+  const panel = (page: Page) =>
+    page.getByRole('dialog', { name: 'Pipeline checks' });
+  const openPanel = async (page: Page) => {
+    await row(page).getByRole('button', { name: 'Open pipeline' }).click();
+    return panel(page);
+  };
+  const queueFromPanel = async (page: Page) => {
+    const dialog = await openPanel(page);
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+  };
+  const refresh = async (page: Page) => {
+    await page.click('#force-refresh-button');
+    await expect(page.locator('#force-refresh-button')).toBeEnabled();
+  };
+
+  test('the hold is released once the pull request stops reading failed', async ({
+    page,
+  }) => {
+    const { served } = await setup(page);
+    await queueFromPanel(page);
+
+    served.pr = withRerun({ ci: 'pending' });
+    await refresh(page);
+    served.pr = withRerun({ ci: 'failure' });
+    await refresh(page);
+
+    const dialog = await openPanel(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeEnabled();
+  });
+
+  test('the hold is released when the pull request is updated by a new commit', async ({
+    page,
+  }) => {
+    const { served } = await setup(page);
+    await queueFromPanel(page);
+
+    served.pr = withRerun({
+      updatedAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await refresh(page);
+
+    const dialog = await openPanel(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeEnabled();
+  });
+
+  test('a snapshot that still reads failed keeps the hold', async ({
+    page,
+  }) => {
+    const { posts } = await setup(page);
+    await queueFromPanel(page);
+    await refresh(page);
+
+    const dialog = await openPanel(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun queued' }),
+    ).toBeDisabled();
+    expect(posts.count).toBe(1);
+  });
+
+  test('the hold expires after ten minutes', async ({ page }) => {
+    await setup(page, { fakeClock: true });
+    await queueFromPanel(page);
+
+    let dialog = await openPanel(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun queued' }),
+    ).toBeDisabled();
+    await page.keyboard.press('Escape');
+
+    await page.clock.fastForward(10 * 60 * 1000 + 1000);
+
+    dialog = await openPanel(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeEnabled();
+  });
+
+  test('a rerun queued from the panel reads as queued on the row and in the details dialog', async ({
+    page,
+  }) => {
+    await setup(page);
+    await queueFromPanel(page);
+
+    const details = await openActionsDialog(row(page));
+    const held = actionsFooter(details).getByRole('button', {
+      name: 'Rerun queued',
+    });
+    await expect(held).toBeVisible();
+    await expect(held).toHaveAttribute('aria-disabled', 'true');
+    await closeActionsDialog(details);
+  });
+
+  test('a rerun the forge refused from the panel leaves the failure line in the details dialog', async ({
+    page,
+  }) => {
+    await setup(page, { refuse: true });
+    const dialog = await openPanel(page);
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('Missing permission');
+    await page.keyboard.press('Escape');
+
+    const details = await openActionsDialog(row(page));
+    await expect(actionsFeedback(details)).toContainText(
+      "couldn't rerun the checks",
+    );
+  });
+
+  test('the pending panel button keeps focus and stays reachable by Tab', async ({
+    page,
+  }) => {
+    await setup(page);
+    const dialog = await openPanel(page);
+    const button = dialog.getByRole('button', { name: 'Rerun failed checks' });
+    await button.focus();
+    await page.keyboard.press('Enter');
+    const held = dialog.getByRole('button', { name: 'Rerun queued' });
+    await expect(held).toHaveAttribute('aria-disabled', 'true');
+    await expect(held).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    const again = await openPanel(page);
+    const reopened = again.getByRole('button', { name: 'Rerun queued' });
+    await reopened.focus();
+    await expect(reopened).toBeFocused();
   });
 });
