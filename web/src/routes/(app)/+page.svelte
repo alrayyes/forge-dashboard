@@ -77,6 +77,7 @@
     { key: "failed", label: "Failing" },
     { key: "passed", label: "Passing" },
     { key: "running", label: "Running" },
+    { key: "cancelled", label: "Cancelled" },
     { key: "none", label: "No pipeline" },
   ];
 

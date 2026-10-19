@@ -327,7 +327,10 @@ func TestReadMainBranch_EachStatus(t *testing.T) {
 	}{
 		{"success", []string{"success"}, dashboard.MainBranchPassed},
 		{"failure", []string{"failure"}, dashboard.MainBranchFailed},
-		{"cancelled alone", []string{"cancelled"}, dashboard.MainBranchFailed},
+		{"cancelled alone", []string{"cancelled"}, dashboard.MainBranchCancelled},
+		{"cancelled beside a success", []string{"cancelled", "success"}, dashboard.MainBranchCancelled},
+		{"cancelled beside a failure", []string{"cancelled", "failure"}, dashboard.MainBranchFailed},
+		{"cancelled beside a run still going", []string{"cancelled", "running"}, dashboard.MainBranchRunning},
 		{"skipped alone", []string{"skipped"}, dashboard.MainBranchPassed},
 		{"running", []string{"running"}, dashboard.MainBranchRunning},
 		{"waiting", []string{"waiting"}, dashboard.MainBranchRunning},

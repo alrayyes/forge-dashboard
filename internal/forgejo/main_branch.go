@@ -44,11 +44,15 @@ func (c *Client) ReadMainBranch(ctx context.Context, repo dashboard.RepoRef) (da
 
 	row.Status = mainBranchStatus(runs)
 	row.Commit = c.branchCommit(ctx, repo, runs[0])
-	if row.Status == dashboard.MainBranchFailed {
+	switch {
+	case row.Status == dashboard.MainBranchFailed:
 		failed := failedRuns(runs)
 		row.FailingJobs = c.failingJobNames(ctx, repo, failed)
 		row.RunURL = failed[0].HTMLURL
-	} else if runs[0].HTMLURL != "" {
+	case row.Status == dashboard.MainBranchCancelled:
+		// Nothing failed, so no job is named; the link is the cancelled run.
+		row.RunURL = failedRuns(runs)[0].HTMLURL
+	case runs[0].HTMLURL != "":
 		row.RunURL = runs[0].HTMLURL
 	}
 	if row.Status != dashboard.MainBranchRunning {
@@ -121,9 +125,9 @@ func (c *Client) branchRuns(ctx context.Context, repo dashboard.RepoRef) ([]*bra
 }
 
 // mainBranchStatus folds the runs of one commit into one status. A real failure
-// wins over a run still going; runs that were only cancelled count as failed
-// when nothing is left running to replace them, the rule a pull request's
-// rollup follows (#722).
+// wins over a run still going; runs that were only cancelled, with nothing left
+// running to replace them, are Cancelled: nothing broke (#1950). This differs on
+// purpose from a pull request's rollup (#722), which still reads them as failed.
 func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 	var failed, cancelled, running bool
 	for _, r := range runs {
@@ -142,7 +146,7 @@ func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 	case running:
 		return dashboard.MainBranchRunning
 	case cancelled:
-		return dashboard.MainBranchFailed
+		return dashboard.MainBranchCancelled
 	default:
 		return dashboard.MainBranchPassed
 	}

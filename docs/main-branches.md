@@ -10,22 +10,26 @@ The pull request list is at `/pull-requests.html`. The page used to live at
 
 Each row shows the status top right, in the same slot the pull request rows use:
 a running branch is a state (Running, an amber spinner, a still clock under
-reduced motion) and a finished one an outcome (Failed or Passed), with the same
-glyphs and colours, so a run turns into its result without the row moving. A
-branch with no pipeline is neither, so it gets a quiet outlined "No pipeline"
-note instead. The row also shows the repo, the branch, the short SHA, subject
-and author of the newest commit, how long ago the run finished and how long it
-ran. A failed row names its failing jobs and expands to list them. The status
-pill is the link to the run: it opens the run on the forge in a new tab, and a
-screen reader hears it as, for example, "Failed. Open run (opens in a new
-tab)". It has the pull request board's colours but is taller and larger, 32
-pixels high on a desktop and 44 on a phone, because this page has room and the
-pill is the main control on the row. The "No pipeline" note is plain, not a link,
-since there is no run to open. Rows come latest commit first, in the order the
-server sends them.
+reduced motion) and a finished one an outcome (Failed, Passed or Cancelled),
+with the same glyphs and colours, so a run turns into its result without the row
+moving. A branch with no pipeline is neither, so it gets a quiet outlined "No
+pipeline" note instead. The row also shows the repo, the branch, the short SHA,
+subject and author of the newest commit, how long ago the run finished and how
+long it ran. A branch whose only trouble is a cancelled run (a newer push or a
+person stopped it) reads Cancelled, not Failed, with a stop glyph and a link to
+that run; a real failure beside a cancelled run is Failed and names only the
+failed job, and a cancelled run beside one still going is Running. A failed row
+names its failing jobs and expands to list them. The status pill is the link to
+the run: it opens the run on the forge in a new tab, and a screen reader hears
+it as, for example, "Failed. Open run (opens in a new tab)". It has the pull
+request board's colours but is taller and larger, 32 pixels high on a desktop
+and 44 on a phone, because this page has room and the pill is the main control
+on the row. The "No pipeline" note is plain, not a link, since there is no run
+to open. Rows come latest commit first, in the order the server sends them.
 
-The pills (All, Failing, Passing, Running, No pipeline) keep their filter names,
-like the quick pills on the pull request board, and carry the server's counts. A
+The pills (All, Failing, Passing, Running, Cancelled, No pipeline) keep their
+filter names, like the quick pills on the pull request board, and carry the
+server's counts. A
 pill, and each forge in the toggle, is offered only when a row would show under
 it, given the search and the other pill, so none leads to an empty list; the one
 that is active always stays, so it can be cleared. A forge toggle and a search
@@ -46,12 +50,12 @@ offers **Reset filters**. A repo with no pipeline says no run was found.
 `GET /api/main-branches` answers the CI status of every tracked repo's default
 branch, so a broken main shows up without opening each repo. One row per repo:
 its default branch, the status of the pipeline on the newest commit (`failed`,
-`passed`, `running` or `none`), the commit (short SHA, subject, author), the
-names of the failed jobs, when the pipeline finished and how long it ran, and a
-link to the run. The response also counts the rows per status. Every row is
-returned whatever its status, ordered by commit time, latest first (rows with
-no commit time last, then by repo name), so a client filters it and its counts
-always match what it lists. Status is a filter, not the order.
+`passed`, `running`, `cancelled` or `none`), the commit (short SHA, subject,
+author), the names of the failed jobs, when the pipeline finished and how long
+it ran, and a link to the run. The response also counts the rows per status.
+Every row is returned whatever its status, ordered by commit time, latest first
+(rows with no commit time last, then by repo name), so a client filters it and
+its counts always match what it lists. Status is a filter, not the order.
 
 It reads the snapshot the background refresh already holds and never calls a
 forge, so reading it costs no rate-limit budget. The refresh gets the data

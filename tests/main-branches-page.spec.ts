@@ -26,7 +26,7 @@ const minutesAgo = (n: number) =>
 
 function row(
   fullName: string,
-  status: 'failed' | 'running' | 'passed' | 'none',
+  status: 'failed' | 'running' | 'passed' | 'cancelled' | 'none',
   overrides: Record<string, unknown> = {},
 ) {
   const forge = (overrides.forge as string | undefined) ?? 'github';
@@ -63,6 +63,7 @@ function snapshot(branches: ReturnType<typeof row>[]) {
       failed: count('failed'),
       passed: count('passed'),
       running: count('running'),
+      cancelled: count('cancelled'),
       none: count('none'),
       total: branches.length,
     },
@@ -668,6 +669,45 @@ test.describe('Main branches page (#1224, #1279)', () => {
       (card?.x ?? 0) + (card?.width ?? 0) - 24,
     );
     expect(slots[0]?.y ?? 0).toBeLessThan((card?.y ?? 0) + 24);
+  });
+
+  test('a cancelled branch says Cancelled in words, links its run, and is not counted as failing (#1950)', async ({
+    page,
+  }) => {
+    await mock(
+      page,
+      snapshot([
+        row('acme/superseded', 'cancelled'),
+        row('acme/broken', 'failed'),
+      ]),
+    );
+    await page.goto('/');
+    await expect(rows(page)).toHaveCount(2);
+
+    const cancelled = rows(page).filter({ hasText: 'acme/superseded' });
+    const link = cancelled.getByRole('link', { name: /Cancelled\. Open run/ });
+    await expect(link).toHaveText('Cancelled');
+    await expect(link).toHaveAttribute('href', /actions\/runs\/1$/);
+    await expect(link.locator('svg[data-glyph="stop"]')).toBeAttached();
+    await expect(
+      cancelled.getByRole('button', { name: /failing jobs/i }),
+    ).toHaveCount(0);
+
+    await expect(pill(page, /^Failing \d/)).toContainText('1');
+    await expect(pill(page, /^Cancelled \d/)).toContainText('1');
+    await pill(page, /^Cancelled \d/).click();
+    await expect(rows(page)).toHaveCount(1);
+
+    for (const theme of ['light', 'dark']) {
+      await setTheme(page, theme);
+      await page.reload();
+      await expect(rows(page)).toHaveCount(1);
+      expect(
+        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+          .violations,
+      ).toEqual([]);
+    }
+    await setTheme(page, 'light');
   });
 
   test('No pipeline is a quiet outlined note, neither a state nor an outcome', async ({
