@@ -169,10 +169,6 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 		// require are failing or running (#955, #956). Required ones would
 		// make it BLOCKED. Skips the CI rules below.
 		return ActionAvailability{Action: ActionMerge}
-	case pr.AwaitingWorkflowApproval:
-		// Held runs report nothing until a maintainer approves them (#1929),
-		// so "waiting for CI" or "CI is failing" would send the user the wrong way.
-		return blocked(ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge")
 	case pr.CI == CIPending:
 		// Overrides a forge that says mergeable while checks still run (#385).
 		// With auto-merge armed the wait chip already says what happens next,
@@ -186,6 +182,12 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 	case pr.Behind && pr.MergeStatus != MergeMergeable:
 		return blocked(ActionBehind, "Behind the base branch", "Bring it up to date to unlock Merge")
 	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
+		if pr.AwaitingWorkflowApproval {
+			// Held runs report nothing until a maintainer approves them
+			// (#1929), so "CI is failing" would send the user the wrong way.
+			return blocked(ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge")
+		}
+
 		return blocked(ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge")
 	case pr.MergeStatus == MergeBlocked:
 		return blocked(ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing")

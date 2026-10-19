@@ -166,6 +166,45 @@ func TestFetch_RequiredCheckMissingBecauseRunsAwaitApproval_IsNotPending(t *test
 		"nothing is running, so it counts as failing like any other held run")
 }
 
+func TestFetch_HeldRunLookupFails_StaysPending(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	mux := checksMux(t, "BLOCKED", []string{"check", "ci"},
+		[]map[string]any{completedRun("check")}, &lookups)
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CIPending, result.PullRequests[0].CI)
+}
+
+func TestFetch_HeldRunAnswer_IsNotAskedAgainOnTheNextPoll(t *testing.T) {
+	t.Parallel()
+
+	var asked atomic.Int32
+	var lookups atomic.Int32
+	mux := checksMux(t, "BLOCKED", []string{"check", "ci"},
+		[]map[string]any{completedRun("check")}, &lookups)
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		asked.Add(1)
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"name": "ci"}}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := github.NewClient("test-token", "", srv.URL)
+
+	client.Fetch(t.Context())
+	client.Fetch(t.Context())
+
+	assert.Equal(t, int32(1), asked.Load())
+}
+
 func TestFetch_RequiredCheckMissingWithNoHeldRuns_StaysPendingAndNotAwaiting(t *testing.T) {
 	t.Parallel()
 

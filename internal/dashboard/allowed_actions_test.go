@@ -192,6 +192,16 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 	}
 }
 
+func TestAllowedActions_HeldRunsOnAMergeablePullRequest_DoNotLockMerge(t *testing.T) {
+	t.Parallel()
+
+	for _, a := range dashboard.AllowedActions(ghPR(func(p *dashboard.PullRequest) { p.AwaitingWorkflowApproval = true }), nil) {
+		if a.Action == dashboard.ActionMerge {
+			assert.Nil(t, a.Blocked, "GitHub says it can merge, so a held non-required run is no reason to lock it")
+		}
+	}
+}
+
 // With auto-merge armed the wait chip already says what happens next, so the
 // status area drops its second line (#1638).
 func TestAllowedActions_ChecksPendingNextDependsOnAutoMerge(t *testing.T) {

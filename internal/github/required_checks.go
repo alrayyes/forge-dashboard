@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -34,6 +35,38 @@ type requiredChecks struct {
 	complete map[string]struct{}
 	// contexts is each "owner/name@base" branch's required contexts.
 	contexts map[string]requiredContexts
+	// held is each head commit's answer to "has a run awaiting approval", kept
+	// for heldRunsTTL so a pull request that stays blocked isn't asked every poll.
+	held map[string]heldAnswer
+}
+
+// heldRunsTTL is how long a head commit's held-run answer is reused. Short,
+// because approving the runs changes it.
+const heldRunsTTL = time.Minute
+
+type heldAnswer struct {
+	held    bool
+	fetched time.Time
+}
+
+func (r *requiredChecks) cachedHeld(sha string) (held, ok bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	a, found := r.held[sha]
+	if !found || time.Since(a.fetched) > heldRunsTTL {
+		return false, false
+	}
+
+	return a.held, true
+}
+
+func (r *requiredChecks) storeHeld(sha string, held bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.held == nil {
+		r.held = map[string]heldAnswer{}
+	}
+	r.held[sha] = heldAnswer{held: held, fetched: time.Now()}
 }
 
 type requiredContexts struct {
@@ -162,21 +195,31 @@ func (c *Client) settleUnreported(ctx context.Context, prs []dashboard.PullReque
 
 // hasRunsAwaitingApproval reports whether the head commit has a workflow run
 // held as action_required. A failed lookup says no, so the pull request stays
-// pending as before.
+// pending as before; a token that can't read Actions is expected and only
+// logged at debug level, since it would repeat on every poll.
 func (c *Client) hasRunsAwaitingApproval(ctx context.Context, cand missingRequiredCheck) bool {
+	if held, ok := c.requiredChecks.cachedHeld(cand.headOid); ok {
+		return held
+	}
 	path := fmt.Sprintf("/repos/%s/%s/actions/runs", cand.owner, cand.name)
 	slog.Debug("github request", "method", http.MethodGet, "url", path)
 	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: cand.headOid, Status: "action_required"}
 	opts.PerPage = 1
 	runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, cand.owner, cand.name, opts)
 	if err != nil {
-		slog.Warn("github awaiting-approval lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
+		level := slog.LevelWarn
+		if clientErr, ok := errors.AsType[*dashboard.ClientError](asClientError(c.restError(ctx, http.MethodGet, path, err))); ok && clientErr.Kind == dashboard.ForgeErrorUnauthorized {
+			level = slog.LevelDebug
+		}
+		slog.Log(ctx, level, "github awaiting-approval lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
 
 		return false
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+	held := runs.GetTotalCount() > 0
+	c.requiredChecks.storeHeld(cand.headOid, held)
 
-	return runs.GetTotalCount() > 0
+	return held
 }
 
 // hasUnreportedRequired judges the head commit's required contexts. A missing
