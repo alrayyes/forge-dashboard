@@ -53,7 +53,8 @@ them (`awaitingWorkflowApproval`) doesn't read "Failed". The CI pill says
 "Waiting for workflow approval" and still opens the pipeline panel. An
 "Approve on GitHub" link beside it opens the pull request's checks page in a new
 tab, where GitHub's own button approves the runs. The dashboard doesn't approve
-anything itself. These runs still count as failing CI, so the Failing CI quick
+anything itself. The locked Merge button says the runs are waiting for approval.
+These runs still count as failing CI, so the Failing CI quick
 filter keeps matching them.
 
 A pull request row draws what it shows as three tiers. A **state**
