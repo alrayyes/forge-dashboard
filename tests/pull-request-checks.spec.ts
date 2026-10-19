@@ -492,6 +492,45 @@ test.describe('pull request pipeline checks panel', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('a rerun still in flight stays held when the panel is reopened, so it is sent once (#1941)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    let posts = 0;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/pull-requests/rerun-checks', async (route) => {
+      posts += 1;
+      await gate;
+      await route.fulfill({ status: 204 });
+    });
+    await page.goto('/pull-requests.html');
+
+    const open = () =>
+      page
+        .locator('#pr-rows .row')
+        .first()
+        .getByRole('button', { name: 'Open pipeline' })
+        .click();
+    await open();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('status')).toContainText('Queuing');
+
+    await page.keyboard.press('Escape');
+    await open();
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeDisabled();
+    expect(posts).toBe(1);
+    release();
+  });
+
   test('a refused rerun is not held: reopening the panel offers the button again (#1941)', async ({
     page,
   }) => {

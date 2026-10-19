@@ -1432,8 +1432,8 @@
     escapeDetails = () => confirmArm.disarm("escape");
     detailsClosed = () => {
       if (dialogKey !== null) {
-        // A queued rerun outlives the dialog; only a failure line is dropped.
-        if (rerunState[dialogKey]?.phase !== "queued")
+        // A queued or in-flight rerun outlives the dialog; only a failure line goes.
+        if (!["queued", "requesting"].includes(rerunState[dialogKey]?.phase))
           delete rerunState[dialogKey];
         delete hideFailure[dialogKey];
       }
@@ -4654,17 +4654,21 @@
         return null;
       const wrap = el("div", "pipeline-rerun");
       const held = rerunQueued(item);
+      // A request still in flight holds the button too, so closing and
+      // reopening the panel mid-request can't send a second one (#1941).
+      const sending = rerunState[prKey(item)]?.phase === "requesting";
       const button = buttonEl(
         "row-action",
         held ? "Rerun queued" : "Rerun failed checks",
       );
       button.type = "button";
-      button.disabled = held;
+      button.disabled = held || sending;
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
       if (held)
         status.textContent =
           "Rerun queued. The new results show here after the next refresh.";
+      else if (sending) status.textContent = "Queuing the rerun…";
       // The failure sentence is the alert; Copy sits beside it, outside, so
       // it is not announced again (#1323).
       const failureBox = el("div", "pipeline-rerun-failure");
@@ -4681,9 +4685,11 @@
           extra.remove();
       };
       button.addEventListener("click", () => {
+        if (rerunState[prKey(item)]?.phase === "requesting") return;
         button.disabled = true;
         clearFailure();
         status.textContent = "Queuing the rerun…";
+        rerunState[prKey(item)] = { phase: "requesting" };
         postRerunChecks(item)
           .then(() => {
             rerunState[prKey(item)] = {
@@ -4710,6 +4716,7 @@
                 "row-action pipeline-rerun-copy",
               ),
             );
+            delete rerunState[prKey(item)];
             button.disabled = false;
           });
       });
