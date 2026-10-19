@@ -52,16 +52,6 @@ func newTestServer(tb testing.TB) *httptest.Server {
 	return newTestServerWithSources(tb, noSources)
 }
 
-// newTestServerWithStore is newTestServer plus the *auth.Store — for a
-// test that needs to seed state (like a request-log row) with no HTTP
-// endpoint of its own to create one through.
-func newTestServerWithStore(tb testing.TB) (*httptest.Server, *authpkg.Store) {
-	tb.Helper()
-	srv, _, store := newTestServerWithSourcesAndManager(tb, noSources)
-
-	return srv, store
-}
-
 func newTestServerWithSources(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) *httptest.Server {
 	tb.Helper()
 	srv, _, _ := newTestServerWithSourcesAndManager(tb, buildSources)
