@@ -184,6 +184,27 @@ func TestFetch_HeldRunLookupFails_StaysPending(t *testing.T) {
 	assert.Equal(t, dashboard.CIPending, result.PullRequests[0].CI)
 }
 
+func TestFetch_FailedHeldRunLookup_IsNotAskedAgainOnTheNextPoll(t *testing.T) {
+	t.Parallel()
+
+	var asked atomic.Int32
+	var lookups atomic.Int32
+	mux := checksMux(t, "BLOCKED", []string{"check", "ci"},
+		[]map[string]any{completedRun("check")}, &lookups)
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		asked.Add(1)
+		http.Error(w, `{"message":"Resource not accessible"}`, http.StatusForbidden)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := github.NewClient("test-token", "", srv.URL)
+
+	client.Fetch(t.Context())
+	client.Fetch(t.Context())
+
+	assert.Equal(t, int32(1), asked.Load())
+}
+
 func TestFetch_HeldRunAnswer_IsNotAskedAgainOnTheNextPoll(t *testing.T) {
 	t.Parallel()
 

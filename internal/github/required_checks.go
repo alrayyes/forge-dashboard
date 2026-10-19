@@ -66,6 +66,11 @@ func (r *requiredChecks) storeHeld(sha string, held bool) {
 	if r.held == nil {
 		r.held = map[string]heldAnswer{}
 	}
+	for k, a := range r.held {
+		if time.Since(a.fetched) > heldRunsTTL {
+			delete(r.held, k)
+		}
+	}
 	r.held[sha] = heldAnswer{held: held, fetched: time.Now()}
 }
 
@@ -212,6 +217,9 @@ func (c *Client) hasRunsAwaitingApproval(ctx context.Context, cand missingRequir
 			level = slog.LevelDebug
 		}
 		slog.Log(ctx, level, "github awaiting-approval lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
+		// Remembered as no for the TTL too, so a token that can't read Actions
+		// or a rate-limited poll isn't asked again for every pull request.
+		c.requiredChecks.storeHeld(cand.headOid, false)
 
 		return false
 	}
