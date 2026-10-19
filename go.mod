@@ -7,7 +7,7 @@ require (
 	github.com/CAFxX/httpcompression v0.0.9
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
 	github.com/descope/virtualwebauthn v1.0.5
-	github.com/getkin/kin-openapi v0.149.0
+	github.com/getkin/kin-openapi v0.151.0
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/google/go-github/v75 v75.0.0
 	github.com/google/jsonschema-go v0.4.3
