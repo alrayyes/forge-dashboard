@@ -1420,6 +1420,10 @@ type graphqlPullRequest struct {
 			State string `json:"state"`
 		} `json:"nodes"`
 	} `json:"latestReviews"`
+	// Comments feeds the conversation comment count (#1953).
+	Comments *struct {
+		TotalCount int `json:"totalCount"`
+	} `json:"comments"`
 	// ReviewThreads feeds the review comment and open thread counts (#1335).
 	// Only the first 30 threads are read, so a pull request with more
 	// undercounts. Fewer than that keeps the query well under GitHub's 500,000
@@ -1594,6 +1598,9 @@ query($cursor: String, $since: DateTime) {
               nodes {
                 state
               }
+            }
+            comments {
+              totalCount
             }
             reviewThreads(first: 30) {
               nodes {
@@ -2387,6 +2394,15 @@ func reviewThreadCounts(p graphqlPullRequest) (comments, unresolved int) {
 	return comments, unresolved
 }
 
+// conversationCount is how many ordinary comments the pull request has (#1953).
+func conversationCount(p graphqlPullRequest) int {
+	if p.Comments == nil {
+		return 0
+	}
+
+	return p.Comments.TotalCount
+}
+
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	comments, unresolved := reviewThreadCounts(p)
 	ci := ciFromRollup(p.Commits.Nodes)
@@ -2427,6 +2443,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 
 		RequestedReviewerLogins: requestedReviewerLoginsFromGraphQL(p),
 		ReviewComments:          comments,
+		ConversationComments:    conversationCount(p),
 		UnresolvedThreads:       &unresolved,
 	}
 }
