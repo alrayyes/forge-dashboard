@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.220.2](https://github.com/alrayyes/forge-dashboard/compare/v0.220.1...v0.220.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **deps:** bump github.com/getkin/kin-openapi ([#1921](https://github.com/alrayyes/forge-dashboard/issues/1921)) ([bfb149e](https://github.com/alrayyes/forge-dashboard/commit/bfb149e49b51f6b23355a364e4cc631f8166fafa))
+* **deps:** bump oven/bun ([#1923](https://github.com/alrayyes/forge-dashboard/issues/1923)) ([4a4b9dc](https://github.com/alrayyes/forge-dashboard/commit/4a4b9dc0713625730d455084dbf574f99f3ba4a9))
+
 ## [0.220.1](https://github.com/alrayyes/forge-dashboard/compare/v0.220.0...v0.220.1) (2026-10-18)
 
 
