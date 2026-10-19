@@ -153,13 +153,21 @@
     dialogEl?.showModal();
   }
 
-  async function load() {
+  // Fetches the details again for the pull request on show, keeping what is
+  // on screen until the answer lands. A failed refresh leaves it as it was.
+  export function reload() {
+    if (target && phase !== "error") void load(true);
+  }
+
+  async function load(quiet = false) {
     const current = target;
     if (!current) return;
     const mine = ++token;
-    phase = "loading";
-    details = null;
-    html = {};
+    if (!quiet) {
+      phase = "loading";
+      details = null;
+      html = {};
+    }
     try {
       const res = await fetch(
         `/api/pull-requests/details?forge=${encodeURIComponent(current.forge)}&fullName=${encodeURIComponent(current.repo)}&number=${current.number}`,
@@ -193,7 +201,7 @@
       details = loaded;
       phase = "ready";
     } catch (err) {
-      if (mine !== token) return;
+      if (mine !== token || quiet) return;
       // The server's own reason is plain words. A network or chunk failure
       // carries a URL and a browser message, which stay out of the UI.
       errorMessage =
@@ -399,7 +407,7 @@
       {:else if phase === "error"}
         <div class="details-error" role="alert">
           <p>{errorMessage}</p>
-          <button type="button" class="details-retry" onclick={load}
+          <button type="button" class="details-retry" onclick={() => load()}
             >Try again</button
           >
         </div>

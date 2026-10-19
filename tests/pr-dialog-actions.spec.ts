@@ -64,7 +64,12 @@ async function start(
   prs: Record<string, unknown>[],
   answers: Record<string, { status: number; body?: unknown }> = {},
 ) {
-  const state = { current: prs, posted: [] as Posted[] };
+  const state = {
+    current: prs,
+    posted: [] as Posted[],
+    description: 'The description.',
+    detailsCalls: 0,
+  };
   await page.addInitScript(() => {
     const w = window as unknown as {
       __streams: EventSource[];
@@ -88,13 +93,14 @@ async function start(
         body: JSON.stringify(snapshot(state.current)),
       }),
     );
-  await page.route('**/api/pull-requests/details*', (route: Route) =>
-    route.fulfill({
+  await page.route('**/api/pull-requests/details*', (route: Route) => {
+    state.detailsCalls++;
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         description: {
-          text: 'The description.',
+          text: state.description,
           format: 'markdown',
           truncated: false,
           edited: false,
@@ -105,8 +111,8 @@ async function start(
         commentsTruncated: false,
         releaseNotes: null,
       }),
-    }),
-  );
+    });
+  });
   await page.route(/\/api\/pull-requests\/[a-z-]+(\/cancel)?$/, (route) => {
     const url = new URL(route.request().url());
     if (route.request().method() !== 'POST') return route.fallback();
@@ -654,9 +660,7 @@ test.describe('the footer follows its pull request', () => {
     await expect(dialog).toBeVisible();
   });
 
-  test('a merged pull request leaves the board and the footer says so', async ({
-    page,
-  }) => {
+  test('a merged pull request closes the dialog', async ({ page }) => {
     const state = await start(page, [makePR()]);
     const dialog = await openActionsDialog(row(page));
     await footer(dialog)
@@ -666,13 +670,40 @@ test.describe('the footer follows its pull request', () => {
     await footer(dialog)
       .getByRole('button', { name: 'Confirm merge?' })
       .click();
-    await expect(dialog.locator('.details-gone')).toContainText(
-      /no longer on the board/i,
-    );
-    await expect(footerButtons(dialog)).toHaveCount(0);
-    await expect(
-      footer(dialog).getByRole('link', { name: /Open on GitHub/ }),
-    ).toBeVisible();
+    await expect(dialog).toBeHidden();
+  });
+
+  test('a new snapshot of the open pull request fetches its details again', async ({
+    page,
+  }) => {
+    const state = await start(page, [makePR()]);
+    const dialog = await openActionsDialog(row(page));
+    await expect(dialog).toContainText('The description.');
+    expect(state.detailsCalls).toBe(1);
+    state.description = 'The new description.';
+    await push(page, [
+      makePR({ updatedAt: new Date(Date.now() + 60_000).toISOString() }),
+    ]);
+    await expect(dialog).toContainText('The new description.');
+    await expect(dialog.getByText('Loading details')).toHaveCount(0);
+    expect(state.detailsCalls).toBe(2);
+  });
+
+  test('a snapshot that changes another pull request leaves the details alone', async ({
+    page,
+  }) => {
+    const state = await start(page, [
+      makePR(),
+      makePR({ number: 43, title: 'Other' }),
+    ]);
+    const dialog = await openActionsDialog(row(page));
+    await expect(dialog).toContainText('The description.');
+    await push(page, [
+      makePR(),
+      makePR({ number: 43, title: 'Other', ci: 'failure' }),
+    ]);
+    await page.waitForTimeout(500);
+    expect(state.detailsCalls).toBe(1);
   });
 });
 

@@ -26,13 +26,15 @@ while a modal is open. Escape first ends an armed confirm and a second press
 closes the pop-up. The row keeps its own buttons too. The footer follows its
 pull request while the pop-up is open: when a refresh changes what it offers,
 the footer changes with it, and when the pull request has left the board
-(merged, closed or hidden) the footer says so and keeps only the link to the
-forge. On a phone the pop-up is a full-height sheet
-whose footer stays at the bottom, with 44 pixel buttons that wrap.
+(closed or hidden) the footer says so and keeps only the link to the
+forge. Merging from the pop-up closes it. On a phone the pop-up is a
+full-height sheet whose footer stays at the bottom, with 44 pixel buttons that wrap.
 
 The pop-up loads when it opens, from `GET /api/pull-requests/details`, and
 never as part of the dashboard snapshot, so a forge's budget isn't spent on
-rows nobody opens. It shows the first 50 comments and says so when there are
+rows nobody opens. While the pop-up is open, a refresh that shows the pull
+request was updated fetches the details again and swaps them in place, without
+the loading skeleton. It shows the first 50 comments and says so when there are
 more. The header draws the row's three tiers as they were when it opened: the CI
 slot first (Running, Failed or Passed, the row's glyphs and words) with a
 Conflicting or Blocked pill beside it when the row has one, then the title,
