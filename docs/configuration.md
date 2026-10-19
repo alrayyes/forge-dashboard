@@ -135,14 +135,17 @@ To offer this to your users:
    any name, no webhook of its own needed. Under **Repository
    permissions**, grant Contents, Issues, and Pull requests (read and
    write) for repo discovery, plus **Webhooks (Read and write)** for
-   "Add a webhook"; Metadata (read) comes along automatically. (GitHub also
+   "Add a webhook", plus **Actions (Read and write)** for "Rerun failed
+   checks" and for listing workflow runs held for approval; Metadata (read)
+   comes along automatically. (GitHub also
    has an _organization_ Webhooks permission; that is not the one.) An
    installation has no role on a repo, so the Webhooks page offers the Add
    button wherever listing that repo's webhooks works. That proves read
    access only; write is confirmed when Add is used. If you add or change
    a permission on an App that is already installed, GitHub holds the change
    until the owner accepts it on the installation's page, and the App has
-   the old permissions until then.
+   the old permissions until then. A refused action reads "Resource not
+   accessible by integration" until you accept it.
 2. Generate a private key on the App's own settings page, then
    base64-encode the downloaded `.pem`: `base64 -w0 your-key.pem`.
 3. Set `GITHUB_APP_ID` (the numeric ID the App's settings page shows)
