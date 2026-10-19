@@ -2972,7 +2972,8 @@ footer a.mono:focus-visible {
 .ci-pill .check-glyph-arc {
   animation: check-spin 1.2s linear infinite;
 }
-.pipeline-check-status.queued {
+.pipeline-check-status.queued,
+.pipeline-check-status.awaiting_approval {
   background: var(--queued-bg);
   color: var(--queued);
 }

@@ -3740,11 +3740,25 @@ components:
 
     CheckState:
       type: string
-      enum: [queued, running, success, failure, cancelled, skipped, timed_out]
+      enum:
+        [
+          queued,
+          running,
+          success,
+          failure,
+          cancelled,
+          skipped,
+          timed_out,
+          awaiting_approval,
+        ]
       description: |
         One job/check's own status — the per-job detail CIStatus
         deliberately doesn't carry, since CIStatus is the combined result
         across every one of them.
+
+        "awaiting_approval" is a GitHub workflow run held until a
+        maintainer approves it. It has no jobs yet, so it is not queued and
+        not failed; its `url` is the run's page, where the approve button is.
 
     Check:
       type: object
@@ -4119,6 +4133,7 @@ components:
           allowedActions,
           status,
           readyToMerge,
+          failingCi,
           needsReview,
         ]
       properties:
@@ -4413,6 +4428,13 @@ components:
             True when the pull request is mergeable, its CI is green and it
             isn't a draft: what the Ready quick filter lists. Always
             present. A pull request with no checks isn't ready.
+        failingCi:
+          type: boolean
+          description: |
+            True when CI is failing and not only because a workflow run is
+            held for approval: what the Failing CI quick filter and the status
+            filter's Failing choice list, and what the menu pill's Failed
+            number counts. Always present.
         needsReview:
           type: boolean
           description: |
@@ -4847,7 +4869,12 @@ components:
         failed:
           type: integer
           minimum: 0
-          description: How many of them have failing CI.
+          description: |
+            How many of them have failing CI. A pull request whose only
+            failure is workflow runs held until someone approves them
+            (`awaitingWorkflowApproval`) is counted in `total` and not here,
+            as nothing failed; one with a job that really failed beside a
+            held run still counts.
         passed:
           type: integer
           minimum: 0

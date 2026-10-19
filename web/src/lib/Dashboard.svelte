@@ -719,7 +719,7 @@
     // (failed, passed): one pill in one fixed-size slot, a glyph and a word,
     // so a run turns into its result without the row moving. The glyphs are
     // the pipeline panel's own (#1473). A run held for approval is not
-    // running, so it gets the queued hourglass.
+    // running, so it gets the pause glyph the pipeline panel uses for it.
     const CI_SLOT_GLYPHS: Record<string, string> = {
       pending: "running",
       failure: "failure",
@@ -734,7 +734,7 @@
         ? "Waiting for workflow approval"
         : CI_LABELS[status] || status;
       const glyphs = pipelineCheckGlyphs(
-        awaiting ? "queued" : (CI_SLOT_GLYPHS[status] ?? ""),
+        awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
       );
       const addMark = (pill: HTMLElement) => {
         if (glyphs.length > 0) glyphs.forEach((g) => pill.appendChild(g));
@@ -4512,6 +4512,7 @@
       cancelled: "Cancelled",
       skipped: "Skipped",
       timed_out: "Timed out",
+      awaiting_approval: "Waiting for approval",
     };
 
     const pipelineDialog = document.getElementById(
@@ -4551,12 +4552,15 @@
       );
     }
 
-    // A required check that failed (or timed out) is what actually blocks
-    // the merge — flagged in text, not colour alone.
+    // A required check that failed (or timed out), or a required workflow
+    // held for approval, is what actually blocks the merge — flagged in text,
+    // not colour alone (#1946).
     function isBlocking(check: Check): boolean {
       return (
         check.required === true &&
-        (check.state === "failure" || check.state === "timed_out")
+        (check.state === "failure" ||
+          check.state === "timed_out" ||
+          check.state === "awaiting_approval")
       );
     }
 
@@ -4626,8 +4630,13 @@
         link.href = check.url;
         link.target = "_blank";
         link.rel = "noopener";
-        link.textContent = "View run";
-        link.setAttribute("aria-label", `View run: ${check.name}`);
+        // A held workflow's own page is where GitHub's approve button is.
+        const linkText =
+          check.state === "awaiting_approval"
+            ? "Approve on GitHub"
+            : "View run";
+        link.textContent = linkText;
+        link.setAttribute("aria-label", `${linkText}: ${check.name}`);
         row.appendChild(link);
       }
       if (check.failedStep) {

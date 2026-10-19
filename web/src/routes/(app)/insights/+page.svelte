@@ -126,7 +126,8 @@
     const counts: Record<string, number> = {};
     for (const s of CI_STATES) counts[s.key] = 0;
     for (const p of prItems) {
-      if (p.ci && Object.hasOwn(counts, p.ci)) counts[p.ci]++;
+      const bucket = Filters.ciBucket(p);
+      if (bucket && Object.hasOwn(counts, bucket)) counts[bucket]++;
     }
     return counts;
   });

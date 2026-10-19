@@ -192,6 +192,7 @@ func (c *Client) settleUnreported(ctx context.Context, prs []dashboard.PullReque
 	if c.hasRunsAwaitingApproval(ctx, cand) {
 		prs[cand.prIndex].CI = dashboard.CIFailure
 		prs[cand.prIndex].AwaitingWorkflowApproval = true
+		prs[cand.prIndex].FailingOnlyForApproval = true
 
 		return
 	}

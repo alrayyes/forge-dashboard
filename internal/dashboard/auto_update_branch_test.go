@@ -350,6 +350,43 @@ func TestAggregator_Refresh_DependabotRebaseThenCIFails_PostsRecreateOnce(t *tes
 	}, src.comments())
 }
 
+func TestAggregator_Refresh_DependabotRebaseThenHeldForApproval_WaitsThenRecreatesOnRealFailure(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeCommenterAndUpdaterSource also carries commentMu/commented; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", CI: dashboard.CIPending},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	// The rebase's CI shows failure only because a workflow waits for a person
+	// to approve it. That is not a failure to recreate over (#1946).
+	src.result.PullRequests = []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Author: "dependabot", CI: dashboard.CIFailure, FailingOnlyForApproval: true},
+	}
+	agg.Refresh(t.Context())
+	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments(),
+		"a held workflow is waited on, not recreated")
+
+	// Still watched: a real failure after the approval does get its recreate.
+	src.result.PullRequests = []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Author: "dependabot", CI: dashboard.CIFailure},
+	}
+	agg.Refresh(t.Context())
+	assert.Equal(t, []string{
+		"alrayyes/a#1: " + dashboard.DependabotRebaseComment,
+		"alrayyes/a#1: " + dashboard.DependabotRecreateComment,
+	}, src.comments())
+}
+
 func TestAggregator_Refresh_DependabotRebaseThenCISucceeds_NeverRecreates(t *testing.T) {
 	t.Parallel()
 

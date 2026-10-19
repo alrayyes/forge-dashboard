@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2706,7 +2707,7 @@ func TestListChecks_MapsEveryStatusAndConclusionToACheckState(t *testing.T) {
 		{status: "completed", conclusion: "success", want: dashboard.CheckSuccess},
 		{status: "completed", conclusion: "neutral", want: dashboard.CheckSuccess},
 		{status: "completed", conclusion: "failure", want: dashboard.CheckFailure},
-		{status: "completed", conclusion: "action_required", want: dashboard.CheckFailure},
+		{status: "completed", conclusion: "action_required", want: dashboard.CheckAwaitingApproval},
 		{status: "completed", conclusion: "cancelled", want: dashboard.CheckCancelled},
 		{status: "completed", conclusion: "skipped", want: dashboard.CheckSkipped},
 		{status: "completed", conclusion: "timed_out", want: dashboard.CheckTimedOut},
@@ -4162,4 +4163,251 @@ func TestUpgradeWebhook_RateLimited_ClassifiesAsDashboardClientError(t *testing.
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorRateLimited, clientErr.Kind)
+}
+
+// Workflow runs held for approval finished as action_required and created no
+// check runs, so the check-runs list alone leaves them out (#1933).
+func TestListChecks_ListsWorkflowRunsHeldForApprovalNextToTheCheckRuns(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "check", "status": "completed", "conclusion": "success", "html_url": "https://github.com/alrayyes/a/runs/1"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
+		assert.Equal(t, "action_required", r.URL.Query().Get("status"))
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"name": "ci", "status": "completed", "conclusion": "action_required", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	assert.Equal(t, dashboard.CheckSuccess, checks[0].State)
+	assert.Equal(t, dashboard.Check{Name: "ci", State: dashboard.CheckAwaitingApproval, URL: "https://github.com/alrayyes/a/actions/runs/9"}, checks[1])
+}
+
+// Most commits hold nothing, so asking Actions on every panel open would be one
+// wasted request each. The answer is remembered per head commit, as the pill's is.
+func TestListChecks_RemembersThatNothingIsHeldForTheHeadCommit(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "check", "status": "completed", "conclusion": "success"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		lookups.Add(1)
+		writeJSON(t, w, map[string]any{"total_count": 0, "workflow_runs": []map[string]any{}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	for range 3 {
+		_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, int32(1), lookups.Load(), "one Actions request for three panel opens")
+}
+
+// A held workflow is named after the workflow, which branch protection never
+// lists, so it must not be filed as advisory when it is what blocks the merge.
+func TestListChecks_HeldWorkflowIsNotMarkedAdvisory(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"ref": "main"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "test", "status": "completed", "conclusion": "success"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"contexts": []string{"test"}, "checks": []map[string]any{{"context": "test"}}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	require.NotNil(t, checks[0].Required)
+	assert.True(t, *checks[0].Required)
+	assert.Equal(t, dashboard.CheckAwaitingApproval, checks[1].State)
+	assert.Nil(t, checks[1].Required, "a held workflow is not advisory; whether it is required stays unknown")
+}
+
+// A required check that never reported is what a held workflow is holding
+// back, so the held row says it blocks the merge (#1946). When every required
+// check reported, nothing is waiting on the held run and it stays unknown.
+func TestListChecks_HeldWorkflowIsRequiredWhenARequiredCheckNeverReported(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"ref": "main"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "lint", "status": "completed", "conclusion": "success"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"contexts": []string{"lint", "test"}, "checks": []map[string]any{{"context": "lint"}, {"context": "test"}}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	assert.Equal(t, dashboard.CheckAwaitingApproval, checks[1].State)
+	require.NotNil(t, checks[1].Required)
+	assert.True(t, *checks[1].Required)
+}
+
+// A first-time contributor's pull request has nothing but held workflows: no
+// check run reported at all. A required check that never reported is still why
+// the held row blocks the merge (#1946).
+func TestListChecks_HeldWorkflowIsRequiredWhenNothingElseReported(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"ref": "main"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"contexts": []string{"test"}, "checks": []map[string]any{{"context": "test"}}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, dashboard.CheckAwaitingApproval, checks[0].State)
+	require.NotNil(t, checks[0].Required)
+	assert.True(t, *checks[0].Required)
+}
+
+// Several held runs of one workflow on a head commit (after a rerun, or the
+// pull_request and pull_request_target triggers) are shown once: the newest
+// (#1946).
+func TestListChecks_HeldRunsOfOneWorkflowAreListedOnce(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 3, "workflow_runs": []map[string]any{
+			{"id": 12, "workflow_id": 7, "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/12"},
+			{"id": 11, "workflow_id": 7, "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/11"},
+			{"id": 10, "workflow_id": 8, "name": "docs", "html_url": "https://github.com/alrayyes/a/actions/runs/10"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	assert.Equal(t, "ci", checks[0].Name)
+	assert.Equal(t, "https://github.com/alrayyes/a/actions/runs/12", checks[0].URL)
+	assert.Equal(t, "docs", checks[1].Name)
+}
+
+// A token that can't read Actions must not hide the check runs.
+func TestListChecks_HeldRunLookupFailureKeepsTheCheckRuns(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "check", "status": "completed", "conclusion": "success"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]any{"message": "Resource not accessible by integration"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, dashboard.CheckSuccess, checks[0].State)
 }
