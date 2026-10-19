@@ -17,7 +17,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
-	requestlogpkg "github.com/alrayyes/forge-dashboard/internal/requestlog"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
 	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/descope/virtualwebauthn"
@@ -138,7 +137,6 @@ func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, set
 		SharingStore:  sharingStore,
 		Manager:       manager,
 		BuildSources:  buildSources,
-		RequestLog:    requestlogpkg.NewSQLiteRecorder(authStore, ""),
 		AppContext:    appCtx,
 
 		FirstLoadWait: firstLoadWait,

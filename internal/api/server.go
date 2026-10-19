@@ -11,7 +11,6 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
-	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/alrayyes/forge-dashboard/internal/sharing"
 )
@@ -58,13 +57,6 @@ type Deps struct {
 	// requests under the right account) alongside their saved
 	// Credentials.
 	BuildSources func(userID []byte, c settings.Credentials) []dashboard.Source
-
-	// RequestLog is the admin-only outbound-request log's own read path
-	// — every account's forge clients record into the same underlying
-	// store (see cmd/forge-dashboard's buildSourcesForUser), so this one
-	// instance, with no account bound to it, is enough to list or export
-	// across all of them.
-	RequestLog *requestlog.SQLiteRecorder
 
 	// PublicOrigin is this instance's own externally-reachable origin
 	// (RP_ORIGIN — the same value WebAuthn's relying-party config
