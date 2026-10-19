@@ -563,9 +563,10 @@ of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each
 workflow run on the head commit, once per run, and answers when the forge has
 queued them: the panel says "Rerun queued" and the new results show after the
 next refresh. The button stays pending and reads "Rerun queued", in the panel
-and in the details dialog, until the pull request stops reading failed, is
-updated, or ten minutes pass, so the same rerun can't be queued twice. A
-refused rerun isn't held and leaves its failure line in the details dialog. It needs
+and in the pull request's detail view, until the pull request stops reading
+failed, is updated, or ten minutes pass, so the same rerun can't be queued
+twice. A refused rerun isn't held and leaves its failure line in the detail
+view. It needs
 write access to Actions: the `repo` scope on a classic token, Actions (read
 and write) on a fine-grained token, or Actions (Read and write) on a GitHub
 App. A permission added to an App that is already installed
