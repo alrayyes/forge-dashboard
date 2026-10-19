@@ -702,7 +702,7 @@ test.describe('the footer follows its pull request', () => {
       makePR(),
       makePR({ number: 43, title: 'Other', ci: 'failure' }),
     ]);
-    await page.waitForTimeout(500);
+    await expect(page.locator('#pr-rows .row').nth(1)).toContainText('Failed');
     expect(state.detailsCalls).toBe(1);
   });
 });

@@ -153,15 +153,20 @@
     dialogEl?.showModal();
   }
 
-  // Fetches the details again for the pull request on show, keeping what is
-  // on screen until the answer lands. A failed refresh leaves it as it was.
-  export function reload() {
-    if (target && phase !== "error") void load(true);
+  // Fetches the details again for the pull request on show. Once they are on
+  // screen the swap is quiet and a failure leaves them as they were; while the
+  // first load is still going, or after it failed, it is that load again, so
+  // the skeleton or the error never outlives the answer. Resolves to whether
+  // the details are now current.
+  export function reload(): Promise<boolean> {
+    if (!target) return Promise.resolve(true);
+
+    return load(phase === "ready");
   }
 
-  async function load(quiet = false) {
+  async function load(quiet = false): Promise<boolean> {
     const current = target;
-    if (!current) return;
+    if (!current) return true;
     const mine = ++token;
     if (!quiet) {
       phase = "loading";
@@ -175,7 +180,7 @@
       );
       if (res.status === 401) {
         window.location.href = "/login.html";
-        return;
+        return true;
       }
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -196,12 +201,18 @@
       if (loaded.releaseNotes) add("notes", loaded.releaseNotes.text);
       for (const c of loaded.comments) add(c.id, c.text);
       await Promise.all(jobs);
-      if (mine !== token) return;
+      if (mine !== token) return true;
       html = rendered;
       details = loaded;
       phase = "ready";
+      // The old content's open list and failed avatars belong to it.
+      shownReaction = null;
+      brokenAvatars = {};
+
+      return true;
     } catch (err) {
-      if (mine !== token || quiet) return;
+      if (mine !== token) return true;
+      if (quiet) return false;
       // The server's own reason is plain words. A network or chunk failure
       // carries a URL and a browser message, which stay out of the UI.
       errorMessage =
@@ -209,6 +220,8 @@
           ? `Could not load the details: ${err.message}`
           : "Could not load the details. Check your connection and try again.";
       phase = "error";
+
+      return false;
     }
   }
 

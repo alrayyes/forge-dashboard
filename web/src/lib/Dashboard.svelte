@@ -3964,8 +3964,12 @@
         // The board behind the dialog may be held, so this reads the newest
         // snapshot: a later updatedAt means the details on show are stale.
         if (fresh && fresh.updatedAt !== dialogUpdatedAt) {
-          dialogUpdatedAt = fresh.updatedAt;
-          detailsDialog?.reload();
+          const seen = fresh.updatedAt;
+          dialogUpdatedAt = seen;
+          // A refresh that failed is tried again on the next snapshot.
+          void detailsDialog?.reload().then((ok) => {
+            if (!ok && dialogUpdatedAt === seen) dialogUpdatedAt = "";
+          });
         }
       }
       // A refresh the user asked for (Refresh now, or the one after their own
