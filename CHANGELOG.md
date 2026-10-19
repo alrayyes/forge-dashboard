@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.221.0](https://github.com/alrayyes/forge-dashboard/compare/v0.220.2...v0.221.0) (2026-10-19)
+
+
+### Features
+
+* **web:** keep the details dialog current and close it on merge ([#1928](https://github.com/alrayyes/forge-dashboard/issues/1928)) ([ff5ca64](https://github.com/alrayyes/forge-dashboard/commit/ff5ca6458fc6bbcbb7561364391be879ede71b16)), closes [#1927](https://github.com/alrayyes/forge-dashboard/issues/1927)
+
+
+### Bug Fixes
+
+* **github:** read runs held for approval as awaiting approval, not running ([#1930](https://github.com/alrayyes/forge-dashboard/issues/1930)) ([ba1dd6a](https://github.com/alrayyes/forge-dashboard/commit/ba1dd6acae391daaf4911e95464ae7b523a00149)), closes [#1929](https://github.com/alrayyes/forge-dashboard/issues/1929)
+
 ## [0.220.2](https://github.com/alrayyes/forge-dashboard/compare/v0.220.1...v0.220.2) (2026-10-19)
 
 
