@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.224.3](https://github.com/alrayyes/forge-dashboard/compare/v0.224.2...v0.224.3) (2026-10-19)
+
+
+### Bug Fixes
+
+* **github:** keep a failed held-run lookup from hiding held workflows ([#1975](https://github.com/alrayyes/forge-dashboard/issues/1975)) ([5e93e12](https://github.com/alrayyes/forge-dashboard/commit/5e93e12f793c8f5f5ab998035784733f660c803a))
+
 ## [0.224.2](https://github.com/alrayyes/forge-dashboard/compare/v0.224.1...v0.224.2) (2026-10-19)
 
 
