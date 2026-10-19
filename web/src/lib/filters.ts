@@ -82,6 +82,13 @@ function isFailing(item: FilterableItem): boolean {
   return item.failingCi ?? item.ci === 'failure';
 }
 
+// The CI state a count should file a pull request under: the raw state, except
+// that one failing only for a workflow held for approval waits on a person and
+// counts as running, not failing (#1946).
+export function ciBucket(item: FilterableItem): string | undefined {
+  return item.ci === 'failure' && !isFailing(item) ? 'pending' : item.ci;
+}
+
 export function matchesQuickFilter(
   item: FilterableItem,
   quick: string | undefined,

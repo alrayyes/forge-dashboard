@@ -9,6 +9,7 @@ import {
 } from 'bun:test';
 import {
   ageChoices,
+  ciBucket,
   ciChoices,
   type FilterableItem,
   matchesFilters,
@@ -277,6 +278,13 @@ describe('the failing filters follow failingCi', () => {
     expect(matchesFilters(held, true, {}, status)).toBe(false);
     expect(matchesFilters(broken, true, {}, status)).toBe(true);
     expect(matchesFilters(oldServer, true, {}, status)).toBe(true);
+  });
+
+  test('counts file a held pull request under running, not failing', () => {
+    expect(ciBucket(held)).toBe('pending');
+    expect(ciBucket(broken)).toBe('failure');
+    expect(ciBucket(oldServer)).toBe('failure');
+    expect(ciBucket(choiceItem({ ci: 'success' }))).toBe('success');
   });
 
   test('the other statuses still read ci', () => {
