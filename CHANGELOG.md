@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.224.2](https://github.com/alrayyes/forge-dashboard/compare/v0.224.1...v0.224.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* show a branch whose only trouble is a cancelled run as cancelled, not failed ([#1960](https://github.com/alrayyes/forge-dashboard/issues/1960)) ([7086624](https://github.com/alrayyes/forge-dashboard/commit/7086624dd21880bdd00be27333e96b17ce00e1a9))
+
 ## [0.224.1](https://github.com/alrayyes/forge-dashboard/compare/v0.224.0...v0.224.1) (2026-10-19)
 
 
