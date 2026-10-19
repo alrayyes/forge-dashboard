@@ -433,20 +433,101 @@ test.describe('pull request pipeline checks panel', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
 
-    await expect(dialog.getByText('Rerun queued')).toBeVisible();
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
     expect(posted).toEqual({
       forge: 'github',
       fullName: 'alrayyes/forge-dashboard',
       number: 42,
     });
     await expect(
-      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+      dialog.getByRole('button', { name: 'Rerun queued' }),
     ).toBeDisabled();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  test('a queued rerun stays held as "Rerun queued" when the panel is closed and reopened (#1941)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    let posts = 0;
+    await page.route('**/api/pull-requests/rerun-checks', async (route) => {
+      posts += 1;
+      await route.fulfill({ status: 204 });
+    });
+    await page.goto('/pull-requests.html');
+
+    const open = () =>
+      page
+        .locator('#pr-rows .row')
+        .first()
+        .getByRole('button', { name: 'Open pipeline' })
+        .click();
+    await open();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await open();
+
+    const held = dialog.getByRole('button', { name: 'Rerun queued' });
+    await expect(held).toBeVisible();
+    await expect(held).toBeDisabled();
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toHaveCount(0);
+    expect(posts).toBe(1);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a refused rerun is not held: reopening the panel offers the button again (#1941)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    await page.route('**/api/pull-requests/rerun-checks', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 'permission',
+          message: 'Missing permission',
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+
+    const open = () =>
+      page
+        .locator('#pr-rows .row')
+        .first()
+        .getByRole('button', { name: 'Open pipeline' })
+        .click();
+    await open();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('alert')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await open();
+
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeEnabled();
   });
 
   test('a failing Forgejo pull request offers "Rerun failed checks" too, and a pull request with nothing to rerun shows the forge reason', async ({
@@ -497,7 +578,7 @@ test.describe('pull request pipeline checks panel', () => {
 
     answer = 204;
     await rerun.click();
-    await expect(dialog.getByText('Rerun queued')).toBeVisible();
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
     expect(posted).toEqual({
       forge: 'forgejo',
       fullName: 'alrayyes/dotfiles',
