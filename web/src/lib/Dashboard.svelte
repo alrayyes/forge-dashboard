@@ -1331,6 +1331,16 @@
       };
     }
 
+    // A merged pull request has nothing left to act on or read about, so a
+    // dialog open on it closes (#1927).
+    function closeDialogOf(key: string) {
+      if (dialogKey === key) detailsDialog?.close();
+    }
+
+    // The pull request's updatedAt when the dialog last fetched its details:
+    // a later one means a comment, an edit or a reaction landed.
+    let dialogUpdatedAt = "";
+
     let lastChromeSig = "";
     let lastChromeItem: PullRequestItem | undefined;
 
@@ -1392,6 +1402,7 @@
       dialogGone = false;
       lastChromeSig = "";
       lastChromeItem = undefined;
+      dialogUpdatedAt = item.updatedAt;
       detailsDialog?.open({ ...item, status: detailsStatus(item) }, triggerId);
       refreshDialogChrome();
     }
@@ -1935,6 +1946,7 @@
       if (outcome.kind === "settled") {
         setState({ phase: "idle" });
         mergeState[prKey(item)] = { phase: outcome.state };
+        if (outcome.state === "merged") closeDialogOf(prKey(item));
         showSettled(feedback, fkey, actionRef(item), outcome);
         // Same immediate refresh the success path makes, so the row
         // drops off the open list as soon as the forge shows it.
@@ -2023,6 +2035,7 @@
         })
         .then(() => {
           delete mergeState[key];
+          closeDialogOf(key);
           feedback.update(fkey, {
             phase: "done",
             message: "Merged.",
@@ -2071,6 +2084,7 @@
                   // reports as the same success the happy path does
                   // rather than a false failure.
                   delete mergeState[key];
+                  closeDialogOf(key);
                   applySnapshot(data, true);
                   feedback.update(fkey, {
                     phase: "done",
@@ -3945,7 +3959,18 @@
       // held or not, so it is never left saying "gone" once it is back.
       if (dialogKey !== null) {
         const key = dialogKey;
-        dialogGone = !latestPRs.some((p) => prKey(p) === key);
+        const fresh = latestPRs.find((p) => prKey(p) === key);
+        dialogGone = !fresh;
+        // The board behind the dialog may be held, so this reads the newest
+        // snapshot: a later updatedAt means the details on show are stale.
+        if (fresh && fresh.updatedAt > dialogUpdatedAt) {
+          const seen = fresh.updatedAt;
+          dialogUpdatedAt = seen;
+          // A refresh that failed is tried again on the next snapshot.
+          void detailsDialog?.reload().then((ok) => {
+            if (!ok && dialogUpdatedAt === seen) dialogUpdatedAt = "";
+          });
+        }
       }
       // A refresh the user asked for (Refresh now, or the one after their own
       // merge) lands in full even with the pointer on the list: they just
