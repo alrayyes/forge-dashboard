@@ -161,6 +161,11 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 		next     string
 	}{
 		{"CI pending", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }, dashboard.ActionChecksPending, "Waiting for CI to finish", "Merge unlocks automatically"},
+		{"workflow runs awaiting approval", func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeBlocked
+			p.CI = dashboard.CIFailure
+			p.AwaitingWorkflowApproval = true
+		}, dashboard.ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge"},
 		{"blocked with a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }, dashboard.ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge"},
 		{"blocked with passing CI does not invent a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CISuccess }, dashboard.ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing"},
 		{"conflicting", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }, dashboard.ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge"},

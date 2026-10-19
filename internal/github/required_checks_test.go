@@ -46,6 +46,16 @@ func completedRun(name string) map[string]any {
 // GitHub's rollup is SUCCESS: it can lag the runs right after a push.
 func checksServerWithRuns(t *testing.T, mergeState string, required []string, runs []map[string]any, lookups *atomic.Int32, statuses ...string) *httptest.Server {
 	t.Helper()
+
+	srv := httptest.NewServer(checksMux(t, mergeState, required, runs, lookups, statuses...))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+// checksMux is checksServerWithRuns' handler, for a test that adds a route.
+func checksMux(t *testing.T, mergeState string, required []string, runs []map[string]any, lookups *atomic.Int32, statuses ...string) *http.ServeMux {
+	t.Helper()
 	reported := make([]string, 0, len(runs))
 	for _, r := range runs {
 		reported = append(reported, r["name"].(string))
@@ -108,10 +118,62 @@ func checksServerWithRuns(t *testing.T, mergeState string, required []string, ru
 		writeJSON(t, w, map[string]any{"state": "success", "statuses": list})
 	})
 
+	return mux
+}
+
+// heldRunsServer is a blocked pull request whose required checks never
+// reported because its workflow runs finished as action_required, held for a
+// maintainer to approve. They create no check runs, so GitHub's rollup holds
+// only what did run (alrayyes/forge-dashboard#1908).
+func heldRunsServer(t *testing.T, held int) *httptest.Server {
+	t.Helper()
+
+	var lookups atomic.Int32
+	mux := checksMux(t, "BLOCKED", []string{"check", "ci"},
+		[]map[string]any{completedRun("check")}, &lookups)
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
+		runs := []map[string]any{}
+		if r.URL.Query().Get("status") == "action_required" && r.URL.Query().Get("head_sha") == "cafef00d" {
+			for range held {
+				runs = append(runs, map[string]any{"name": "ci", "status": "completed", "conclusion": "action_required"})
+			}
+		}
+		writeJSON(t, w, map[string]any{"total_count": len(runs), "workflow_runs": runs})
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
 	return srv
+}
+
+func TestFetch_RequiredCheckMissingBecauseRunsAwaitApproval_IsAwaitingApproval(t *testing.T) {
+	t.Parallel()
+
+	result := github.NewClient("test-token", "", heldRunsServer(t, 4).URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.True(t, result.PullRequests[0].AwaitingWorkflowApproval,
+		"four held runs are why the required checks never reported")
+}
+
+func TestFetch_RequiredCheckMissingBecauseRunsAwaitApproval_IsNotPending(t *testing.T) {
+	t.Parallel()
+
+	result := github.NewClient("test-token", "", heldRunsServer(t, 4).URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CIFailure, result.PullRequests[0].CI,
+		"nothing is running, so it counts as failing like any other held run")
+}
+
+func TestFetch_RequiredCheckMissingWithNoHeldRuns_StaysPendingAndNotAwaiting(t *testing.T) {
+	t.Parallel()
+
+	result := github.NewClient("test-token", "", heldRunsServer(t, 0).URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, dashboard.CIPending, result.PullRequests[0].CI)
+	assert.False(t, result.PullRequests[0].AwaitingWorkflowApproval)
 }
 
 func TestFetch_RequiredCheckNotYetReported_IsPending(t *testing.T) {

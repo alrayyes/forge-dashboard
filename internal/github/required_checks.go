@@ -133,16 +133,50 @@ func (c *Client) settleUnreportedRequiredChecks(ctx context.Context, prs []dashb
 		}
 		switch c.hasUnreportedRequired(ctx, cand) {
 		case verdictMissing:
-			prs[cand.prIndex].CI = dashboard.CIPending
+			c.settleUnreported(ctx, prs, cand)
 		case verdictUnreadable:
 			if cand.onlyChecksCanBlock {
-				prs[cand.prIndex].CI = dashboard.CIPending
+				c.settleUnreported(ctx, prs, cand)
 			}
 		case verdictComplete:
 			c.requiredChecks.markComplete(cand.headOid)
 		case verdictKeepRollup:
 		}
 	}
+}
+
+// settleUnreported reads a required check that hasn't reported as pending,
+// unless workflow runs held for approval are why: those finished as
+// action_required and create no check runs, so nothing is coming until a
+// maintainer approves them (#1929). It then reads like any other held run
+// (#1280): failing, and awaiting approval.
+func (c *Client) settleUnreported(ctx context.Context, prs []dashboard.PullRequest, cand missingRequiredCheck) {
+	if c.hasRunsAwaitingApproval(ctx, cand) {
+		prs[cand.prIndex].CI = dashboard.CIFailure
+		prs[cand.prIndex].AwaitingWorkflowApproval = true
+
+		return
+	}
+	prs[cand.prIndex].CI = dashboard.CIPending
+}
+
+// hasRunsAwaitingApproval reports whether the head commit has a workflow run
+// held as action_required. A failed lookup says no, so the pull request stays
+// pending as before.
+func (c *Client) hasRunsAwaitingApproval(ctx context.Context, cand missingRequiredCheck) bool {
+	path := fmt.Sprintf("/repos/%s/%s/actions/runs", cand.owner, cand.name)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: cand.headOid, Status: "action_required"}
+	opts.PerPage = 1
+	runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, cand.owner, cand.name, opts)
+	if err != nil {
+		slog.Warn("github awaiting-approval lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
+
+		return false
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+
+	return runs.GetTotalCount() > 0
 }
 
 // hasUnreportedRequired judges the head commit's required contexts. A missing
