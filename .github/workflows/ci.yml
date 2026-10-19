@@ -131,6 +131,12 @@ jobs:
         run: |
           go run gotest.tools/gotestsum@v1.13.0 --junitfile junit.xml -- \
             -race -covermode=atomic -coverprofile=coverage.out -coverpkg=./... ./...
+      # The e2e-only reset route is compiled out of the run above, so its own
+      # test would never run: vet and test the tagged package here (#1880).
+      - name: go vet and test the e2e build
+        run: |
+          go vet -tags e2e ./cmd/...
+          go test -tags e2e ./cmd/forge-dashboard
       - name: Report coverage
         if: ${{ !cancelled() }}
         run: |

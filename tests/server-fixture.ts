@@ -84,11 +84,18 @@ export async function addOwnerPasskey(
   return added;
 }
 
-type Started = { baseURL: string; stop: () => void; log: () => string };
+type Started = {
+  baseURL: string;
+  stop: () => Promise<void>;
+  log: () => string;
+};
 
-// Starts a server on a free port with its own temp database and key. It has no
-// users yet: the first visit registers the owner.
-async function startServer(): Promise<Started> {
+const LOG_LIMIT = 20_000;
+
+// One attempt: a free port, a temp database, a random key. The port is closed
+// before the server binds it, so another process can take it in between; the
+// caller retries when the server exits before it is healthy.
+async function startOnce(): Promise<Started> {
   const binary =
     process.env.E2E_BINARY ?? path.join(__dirname, '..', 'forge-dashboard-e2e');
   const dir = mkdtempSync(path.join(tmpdir(), 'forge-dashboard-e2e-'));
@@ -106,24 +113,52 @@ async function startServer(): Promise<Started> {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';
-  child.stdout?.on('data', (d) => {
-    log += d;
-  });
-  child.stderr?.on('data', (d) => {
-    log += d;
-  });
-  const stop = () => {
-    child.kill('SIGTERM');
+  const keep = (d: Buffer) => {
+    log = (log + d).slice(-LOG_LIMIT);
+  };
+  child.stdout?.on('data', keep);
+  child.stderr?.on('data', keep);
+
+  // A worker that is killed outright never runs its fixture teardown, so the
+  // server dies with the process that owns it.
+  const killOnExit = () => child.kill('SIGKILL');
+  process.once('exit', killOnExit);
+  const stop = async () => {
+    process.off('exit', killOnExit);
+    if (child.exitCode === null) {
+      const exited = new Promise<void>((resolve) =>
+        child.once('exit', () => resolve()),
+      );
+      child.kill('SIGTERM');
+      const hardKill = setTimeout(() => child.kill('SIGKILL'), 5_000);
+      await exited;
+      clearTimeout(hardKill);
+    }
     rmSync(dir, { recursive: true, force: true });
   };
   try {
     await waitForHealth(baseURL, child);
   } catch (err) {
-    console.error(`server log\n${log}`);
-    stop();
-    throw err;
+    await stop();
+    throw Object.assign(err as Error, { serverLog: log });
   }
   return { baseURL, stop, log: () => log };
+}
+
+// Starts a server with no users yet: the first visit registers the owner.
+async function startServer(): Promise<Started> {
+  let last: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await startOnce();
+    } catch (err) {
+      last = err;
+    }
+  }
+  console.error(
+    `server log\n${(last as { serverLog?: string }).serverLog ?? ''}`,
+  );
+  throw last;
 }
 
 export const test = base.extend<
@@ -136,27 +171,32 @@ export const test = base.extend<
       try {
         // The first visit registers the owner, as a person's first visit does.
         const context = await browser.newContext();
-        const page = await context.newPage();
-        const { client, authenticatorId } = await addVirtualAuthenticator(page);
-        await page.goto(`${started.baseURL}/login.html`);
-        await page.click('#show-register');
-        await page.fill('#register-username', OWNER_USERNAME);
-        await page.fill('#register-display-name', 'Owner');
-        await page.click('#register-submit');
-        await page.waitForURL(`${started.baseURL}/`, { timeout: 15_000 });
-        // Saved so a spec that logs in with the passkey again can re-add it
-        // to its own authenticator (addOwnerPasskey).
-        const { credentials } = await client.send('WebAuthn.getCredentials', {
-          authenticatorId,
-        });
-        await context.close();
+        let credentials: Credential[];
+        try {
+          const page = await context.newPage();
+          const { client, authenticatorId } =
+            await addVirtualAuthenticator(page);
+          await page.goto(`${started.baseURL}/login.html`);
+          await page.click('#show-register');
+          await page.fill('#register-username', OWNER_USERNAME);
+          await page.fill('#register-display-name', 'Owner');
+          await page.click('#register-submit');
+          await page.waitForURL(`${started.baseURL}/`, { timeout: 15_000 });
+          // Saved so a spec that logs in with the passkey again can re-add it
+          // to its own authenticator (addOwnerPasskey).
+          ({ credentials } = await client.send('WebAuthn.getCredentials', {
+            authenticatorId,
+          }));
+        } finally {
+          await context.close();
+        }
 
         await use({ baseURL: started.baseURL, credentials });
       } catch (err) {
         console.error(`server log\n${started.log()}`);
         throw err;
       } finally {
-        started.stop();
+        await started.stop();
       }
     },
     { scope: 'worker' },
@@ -185,7 +225,7 @@ export const test = base.extend<
     try {
       await use({ baseURL: started.baseURL });
     } finally {
-      started.stop();
+      await started.stop();
     }
   },
 });

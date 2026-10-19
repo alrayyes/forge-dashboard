@@ -48,6 +48,19 @@ func withE2EHooks(next http.Handler, deps api.Deps) http.Handler {
 
 var errNoOwner = errors.New("no user is registered yet")
 
+// oldestUser is the owner: the first account registered. ListUsers orders by
+// username, so the creation time decides.
+func oldestUser(users []*auth.User) *auth.User {
+	var owner *auth.User
+	for _, u := range users {
+		if owner == nil || u.CreatedAt.Before(owner.CreatedAt) {
+			owner = u
+		}
+	}
+
+	return owner
+}
+
 // resetForE2E empties per-user state, keeps the owner and their first passkey,
 // drops the in-memory aggregators, and answers 204 with a fresh session cookie.
 func resetForE2E(ctx context.Context, db *sql.DB, deps api.Deps, w http.ResponseWriter) error {
@@ -55,11 +68,15 @@ func resetForE2E(ctx context.Context, db *sql.DB, deps api.Deps, w http.Response
 	if err != nil {
 		return fmt.Errorf("list users: %w", err)
 	}
-	if len(users) == 0 || len(users[0].Credentials) == 0 {
+	owner := oldestUser(users)
+	if owner == nil || len(owner.Credentials) == 0 {
 		return errNoOwner
 	}
-	owner := users[0]
+	// The passkey as it was when registered: a login since then bumped its
+	// sign counter, which a test that re-adds the registered credential
+	// (addOwnerPasskey) would then replay out of date.
 	firstPasskey := owner.Credentials[:1]
+	firstPasskey[0].Authenticator.SignCount = 0
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {

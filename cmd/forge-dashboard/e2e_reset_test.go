@@ -42,7 +42,7 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 
 	user, err := authStore.CreateUser(ctx, "owner", "Owner", true)
 	require.NoError(t, err)
-	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{1}}))
+	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{1}, Authenticator: webauthn.Authenticator{SignCount: 5}}))
 	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{2}}))
 	require.NoError(t, authStore.SetCredentialLabel(ctx, user.ID, []byte{1}, "first"))
 	require.NoError(t, authStore.SetCredentialLabel(ctx, user.ID, []byte{2}, "second"))
@@ -64,11 +64,33 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 	for _, table := range []string{"api_tokens", "hidden_pull_requests", "ceremonies", "invites"} {
 		assert.Zero(t, rowCount(t, db, table), table)
 	}
+	tables, err := db.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
+	require.NoError(t, err)
+	var names []string
+	for tables.Next() {
+		var name string
+		require.NoError(t, tables.Scan(&name))
+		names = append(names, name)
+	}
+	require.NoError(t, tables.Err())
+	require.NoError(t, tables.Close())
+	for _, name := range names {
+		if keptTables[name] {
+			continue
+		}
+		if name == "sessions" {
+			assert.Equal(t, 1, rowCount(t, db, name), "only the fresh session")
+
+			continue
+		}
+		assert.Zero(t, rowCount(t, db, name), "every other table is empty: "+name)
+	}
 	assert.Equal(t, 1, rowCount(t, db, "users"), "the first user stays")
 	assert.Equal(t, 1, rowCount(t, db, "credential_metadata"), "only the first passkey's label stays")
 	kept, err := authStore.GetUserByID(ctx, user.ID)
 	require.NoError(t, err)
-	assert.Len(t, kept.Credentials, 1, "only the first passkey stays")
+	require.Len(t, kept.Credentials, 1, "only the first passkey stays")
+	assert.Zero(t, kept.Credentials[0].Authenticator.SignCount, "its sign counter is back to registration")
 	_, err = authStore.UserForSession(ctx, oldSession)
 	require.Error(t, err, "the old session is gone")
 
