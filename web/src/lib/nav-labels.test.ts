@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { headerLabel, tabLabel } from './nav-labels';
+import { headerLabel, pillParts, tabLabel } from './nav-labels';
 
 // What assistive tech hears for a nav item with counts, with no browser. The
 // layout feeds every nav item through these two functions, so the wording for
@@ -120,5 +120,44 @@ describe('tabLabel', () => {
   test('is just the word with no count or an empty one', () => {
     expect(tabLabel('PRs', null)).toBe('PRs');
     expect(tabLabel('PRs', { total: 0, failed: 0 })).toBe('PRs');
+  });
+});
+
+// The pill, the header name and the tab name all take their counts from
+// pillParts, so the order and the zero rule cannot drift between them (#1944).
+describe('pillParts', () => {
+  test('lists the counts in the order the pill draws them, without the total', () => {
+    expect(
+      pillParts({ total: 20, failed: 2, passed: 10, running: 3, none: 5 }),
+    ).toEqual([
+      { kind: 'failed', n: 2, words: 'failing' },
+      { kind: 'passed', n: 10, words: 'passing' },
+      { kind: 'running', n: 3, words: 'running' },
+      { kind: 'none', n: 5, words: 'without a pipeline' },
+    ]);
+  });
+
+  test('leaves out a zero or a missing count', () => {
+    expect(pillParts({ total: 4, failed: 0, running: 1 })).toEqual([
+      { kind: 'running', n: 1, words: 'running' },
+    ]);
+    expect(pillParts({ total: 9, failed: 0 })).toEqual([]);
+  });
+
+  test('the names list the numbers in the same order, for every mix of counts', () => {
+    for (let mask = 0; mask < 16; mask++) {
+      const count = {
+        total: 100,
+        failed: mask & 1 ? 1 : 0,
+        passed: mask & 2 ? 2 : 0,
+        running: mask & 4 ? 3 : 0,
+        none: mask & 8 ? 4 : 0,
+      };
+      const expected = ['100', ...pillParts(count).map((p) => String(p.n))];
+      expect(headerLabel('X', count).split(',')[0]).toBe(expected.join(' '));
+      expect(tabLabel('X', count).split(',')[0]).toBe(
+        `${expected.join(' ')} X`,
+      );
+    }
   });
 });

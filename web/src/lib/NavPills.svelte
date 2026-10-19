@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { NavCount } from "#lib/nav-counts.svelte.js";
+  import { pillParts } from "#lib/nav-labels.js";
 
   // One pill (#1439, #1563): a neutral total, then the outcomes, failed and
   // passed, then a thin divider and the state, running, and for Branches the
@@ -16,6 +17,10 @@
     stacked?: boolean;
     pending?: boolean;
   } = $props();
+
+  // The counts after the total, in the order and with the zero rule the link's
+  // name uses too (#1944): both come from pillParts.
+  const parts = $derived(count ? pillParts(count) : []);
 </script>
 
 {#if pending}
@@ -27,97 +32,100 @@
 {:else if count && count.total > 0}
   <span class="nav-pills" class:stacked aria-hidden="true">
     <span class="nav-total">{count.total}</span>
-    {#if count.failed > 0}
-      <span class="nav-count nav-failed"
-        ><svg
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-          ><circle cx="12" cy="12" r="10" /><line
-            x1="12"
-            x2="12"
-            y1="8"
-            y2="12"
-          /><line x1="12" x2="12.01" y1="16" y2="16" /></svg
-        >{count.failed}</span
-      >
-    {/if}
-    {#if (count.passed ?? 0) > 0}
-      <span class="nav-count nav-passed"
-        ><svg
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-          ><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg
-        >{count.passed}</span
-      >
-    {/if}
-    {#if (count.running ?? 0) > 0}
-      <!-- The hairline between the outcomes and the state. Decoration only,
+    {#each parts as part, i (part.kind)}
+      <!-- A space before each count: Svelte trims the whitespace at the start of
+           a block, and the pills read "15 2 10 3", not "152103", to a screen
+           reader and to the label-in-name check. -->
+      {" "}
+      {#if part.kind === "failed"}
+        <span class="nav-count nav-failed"
+          ><svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            ><circle cx="12" cy="12" r="10" /><line
+              x1="12"
+              x2="12"
+              y1="8"
+              y2="12"
+            /><line x1="12" x2="12.01" y1="16" y2="16" /></svg
+          >{part.n}</span
+        >
+      {:else if part.kind === "passed"}
+        <span class="nav-count nav-passed"
+          ><svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            ><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg
+          >{part.n}</span
+        >
+      {:else if part.kind === "running"}
+        <!-- The hairline between the outcomes and the state. Decoration only,
            and only when an outcome sits before the running count: with the
            total alone before it, the total's own hairline does the job. -->
-      {#if count.failed > 0 || (count.passed ?? 0) > 0}
-        <span class="nav-divider" aria-hidden="true"></span>
-      {/if}
-      <!-- A spinner, and a still clock for prefers-reduced-motion: the
+        {#if i > 0}
+          <span class="nav-divider" aria-hidden="true"></span>
+        {/if}
+        <!-- A spinner, and a still clock for prefers-reduced-motion: the
            stylesheet shows the one that fits. -->
-      <span class="nav-count nav-running"
-        ><svg
-          class="glyph-spin"
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.22-8.56" /></svg
-        ><svg
-          class="glyph-clock"
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-          ><circle cx="12" cy="12" r="10" /><polyline
-            points="12 6 12 12 16 14"
-          /></svg
-        >{count.running}</span
-      >
-    {/if}
-    {#if (count.none ?? 0) > 0}
-      <!-- A dashed circle: no run to be good or bad. Neutral ink. -->
-      <span class="nav-count nav-none"
-        ><svg
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-          ><circle cx="12" cy="12" r="10" stroke-dasharray="4 4" /></svg
-        >{count.none}</span
-      >
-    {/if}
+        <span class="nav-count nav-running"
+          ><svg
+            class="glyph-spin"
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.22-8.56" /></svg
+          ><svg
+            class="glyph-clock"
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            ><circle cx="12" cy="12" r="10" /><polyline
+              points="12 6 12 12 16 14"
+            /></svg
+          >{part.n}</span
+        >
+      {:else if part.kind === "none"}
+        <!-- A dashed circle: no run to be good or bad. Neutral ink. -->
+        <span class="nav-count nav-none"
+          ><svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            ><circle cx="12" cy="12" r="10" stroke-dasharray="4 4" /></svg
+          >{part.n}</span
+        >
+      {/if}
+    {/each}
   </span>
 {/if}
