@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.224.1](https://github.com/alrayyes/forge-dashboard/compare/v0.224.0...v0.224.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* one rule for failing CI across the filters, the auto-merge line and the checks panel ([#1955](https://github.com/alrayyes/forge-dashboard/issues/1955)) ([e0c7f3b](https://github.com/alrayyes/forge-dashboard/commit/e0c7f3b6472e0c696af6f73161ab7cd3dfd628d4))
+
 ## [0.224.0](https://github.com/alrayyes/forge-dashboard/compare/v0.223.0...v0.224.0) (2026-10-19)
 
 
