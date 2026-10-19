@@ -161,6 +161,30 @@ func TestFetch_MainBranch(t *testing.T) {
 		assert.Equal(t, dashboard.MainBranchRunning, row.Status, "the same rule a pull request's rollup follows (#722)")
 	})
 
+	t.Run("a rollup that failed only because runs were cancelled is cancelled, not failed (#1950)", func(t *testing.T) {
+		t.Parallel()
+		row, _ := tokenFetchWith(t, branchRef(rollupOf("FAILURE", map[string]int{"CANCELLED": 1, "SUCCESS": 1},
+			checkRun("lint", "SUCCESS", "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z"),
+			checkRun("secrets", "CANCELLED", "2026-10-10T09:01:00Z", "2026-10-10T09:01:05Z"),
+		)))
+
+		assert.Equal(t, dashboard.MainBranchCancelled, row.Status)
+		assert.Empty(t, row.FailingJobs, "nothing failed, so nothing is named as failing")
+		assert.NotNil(t, row.FailingJobs, "an array, never null")
+		assert.Equal(t, "https://github.com/alrayyes/a/actions/runs/1/job/secrets", row.RunURL, "links the cancelled run")
+	})
+
+	t.Run("a real failure beside a cancelled run is failed and names only the failed job (#1950)", func(t *testing.T) {
+		t.Parallel()
+		row, _ := tokenFetchWith(t, branchRef(rollupOf("FAILURE", map[string]int{"CANCELLED": 1, "FAILURE": 1},
+			checkRun("test", "FAILURE", "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z"),
+			checkRun("secrets", "CANCELLED", "2026-10-10T09:01:00Z", "2026-10-10T09:01:05Z"),
+		)))
+
+		assert.Equal(t, dashboard.MainBranchFailed, row.Status)
+		assert.Equal(t, []string{"test"}, row.FailingJobs)
+	})
+
 	t.Run("a legacy commit status that failed names its context", func(t *testing.T) {
 		t.Parallel()
 		rollup := rollupOf("FAILURE", nil, map[string]any{

@@ -56,6 +56,10 @@ describe('the Branches filter as saved state', () => {
     expect(filterFromState({})).toEqual(DEFAULT_FILTER);
   });
 
+  test('the cancelled status is kept, not reset to its default (#1950)', () => {
+    expect(filterFromState({ status: 'cancelled' }).status).toBe('cancelled');
+  });
+
   test('a stale or hand-edited value reads as its default', () => {
     expect(
       filterFromState({ status: 'bogus', forge: 'svn', query: 'x' }),

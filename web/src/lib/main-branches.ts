@@ -2,7 +2,12 @@
 // the row shape, the local filter, and the small formatters. No DOM here, so
 // the page component stays the one place that touches elements.
 
-export type MainBranchStatus = 'failed' | 'running' | 'passed' | 'none';
+export type MainBranchStatus =
+  | 'failed'
+  | 'running'
+  | 'passed'
+  | 'cancelled'
+  | 'none';
 
 export type MainBranchCommit = {
   sha: string;
@@ -54,6 +59,7 @@ export const STATUS_LABEL: Record<MainBranchStatus, string> = {
   failed: 'Failed',
   running: 'Running',
   passed: 'Passed',
+  cancelled: 'Cancelled',
   none: 'No pipeline',
 };
 
@@ -66,6 +72,7 @@ export const CI_SLOT: Partial<
   failed: { cls: 'failure', glyphs: 'failure' },
   running: { cls: 'pending', glyphs: 'running' },
   passed: { cls: 'success', glyphs: 'success' },
+  cancelled: { cls: 'cancelled', glyphs: 'cancelled' },
 };
 
 export function isFiltered(filter: MainBranchFilter): boolean {
@@ -162,7 +169,7 @@ export function duration(seconds: number | null): string {
 // `branches` group of plain strings in the shared cookie for the first paint
 // and in the server copy for a second browser. These two convert between that
 // group and the filter, and a stale or hand-edited value reads as its default.
-const STATUSES = ['all', 'failed', 'running', 'passed', 'none'];
+const STATUSES = ['all', 'failed', 'running', 'passed', 'cancelled', 'none'];
 const FORGES = ['all', 'github', 'forgejo'];
 
 export function filterFromState(
