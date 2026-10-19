@@ -15,8 +15,10 @@ type pageCount struct {
 }
 
 // branchCount is the Branches item's numbers: pageCount's four, plus None, how
-// many default branches have no pipeline, so the five add up to Total (#1531).
-// Matches components.schemas.NavCount.
+// many default branches have no pipeline (#1531). A branch whose only trouble
+// is a cancelled run counts in Total alone, like a pull request with no
+// checks, so the parts need not add up (#1950). Matches
+// components.schemas.NavCount.
 type branchCount struct {
 	pageCount
 	None int `json:"none"`
