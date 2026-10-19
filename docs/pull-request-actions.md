@@ -594,5 +594,6 @@ known for any check, the panel stays the flat list.
 Each check's state has its own glyph inside a tinted pill, so states differ
 by shape and word, not colour alone. Passed is a check in a circle, Failed and
 Timed out a cross, Running an amber spinning arc (a still clock under reduced
-motion), Queued an hourglass in a dashed blue ring, Skipped a slashed circle in
+motion), Queued an hourglass in a dashed blue ring, Waiting for approval a pause
+sign in a ring (the row's pill draws the same one), Skipped a slashed circle in
 the quietest weight, and Cancelled a stop square in a circle.
