@@ -287,7 +287,7 @@ func resolveIntervals() (refreshInterval, ciPollInterval time.Duration) {
 func newServer(addr string, deps api.Deps) *http.Server {
 	return &http.Server{
 		Addr:              addr,
-		Handler:           api.NewMux(deps),
+		Handler:           withE2EHooks(api.NewMux(deps), deps),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 }
