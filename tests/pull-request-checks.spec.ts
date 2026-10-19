@@ -76,10 +76,10 @@ test.describe('pull request pipeline checks panel', () => {
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
-  // #636: inline on the row itself, not behind "More actions" — a
-  // read-only drill-down reached on nearly every row with CI configured,
-  // not the rare, mutating kind of action that menu exists for.
-  test('a pull request with CI reported shows the View pipeline button inline, not behind More actions', async ({
+  // #636: inline on the row itself, not tucked away — a read-only
+  // drill-down reached on nearly every row with CI configured, not the rare,
+  // mutating kind of action.
+  test('a pull request with CI reported shows the View pipeline button inline on the row', async ({
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
@@ -721,10 +721,9 @@ test.describe('pull request pipeline checks panel', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    // #636: View pipeline is a plain inline row button now, not a
-    // "More actions" entry — closing the dialog rebuilds the row (same
-    // as every other row action already does) and refocuses this same
-    // button by its stable id, not a menu trigger.
+    // #636: View pipeline is a plain inline row button — closing the dialog
+    // rebuilds the row (same as every other row action already does) and
+    // refocuses this same button by its stable id.
     const viewPipeline = row.getByRole('button', { name: 'Open pipeline' });
     await viewPipeline.click();
 

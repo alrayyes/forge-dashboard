@@ -1,5 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
+import {
+  actionsFooter,
+  closeActionsDialog,
+  openActionsDialog,
+} from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -9,7 +14,7 @@ test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #705: Merge is always on an open pull request's row. Clickable when the
 // forge says it can go, locked with a visible reason when it can't, and
-// Close sits in "More actions" in every one of these states.
+// Close sits in the row's dialog in every one of these states.
 
 interface MockPR {
   forge: string;
@@ -120,19 +125,20 @@ test.describe('Merge states on a pull request row', () => {
     ).toHaveCount(0);
     expect(mergeCalled).toBe(false);
 
-    // Close stays off the row while Merge is locked; it is in More actions.
+    // Close stays off the row while Merge is locked; it is in the dialog.
     await expect(
       row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toHaveCount(0);
-    await row.getByRole('button', { name: 'More actions' }).click();
+    const dialog = await openActionsDialog(row);
     await expect(
-      row
-        .locator('.row-actions-popover')
-        .getByRole('button', { name: 'Close pull request', exact: true }),
+      actionsFooter(dialog).getByRole('button', {
+        name: 'Close pull request',
+        exact: true,
+      }),
     ).toBeVisible();
   });
 
-  test('ready: Merge is clickable with no reason shown, and Close is in More actions beside the Hide items', async ({
+  test('ready: Merge is clickable with no reason shown, and Close is in the dialog beside the Hide items', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -144,13 +150,15 @@ test.describe('Merge states on a pull request row', () => {
     await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
     await expect(row.locator('.row-action-note')).toHaveCount(0);
 
-    // Close shares More actions with the Hide items now (#841); a lone extra
-    // action is still drawn directly (#1139), but every live row has Hide.
-    await row.getByRole('button', { name: 'More actions' }).click();
+    // Close shares the dialog footer with the Hide items (#841).
+    const dialog = await openActionsDialog(row);
     await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
+      actionsFooter(dialog).getByRole('button', {
+        name: 'Close pull request',
+        exact: true,
+      }),
     ).toBeVisible();
-    await row.getByRole('button', { name: 'More actions' }).click();
+    await closeActionsDialog(dialog);
 
     await merge.click();
     await expect(
@@ -158,7 +166,7 @@ test.describe('Merge states on a pull request row', () => {
     ).toBeVisible();
   });
 
-  test('a Renovate pull request waiting on CI keeps its bot layout, with Merge locked and Close in More actions', async ({
+  test('a Renovate pull request waiting on CI keeps its bot layout, with Merge locked and Close in the dialog', async ({
     page,
   }) => {
     await mockDashboard(
@@ -176,9 +184,12 @@ test.describe('Merge states on a pull request row', () => {
     await expect(
       row.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveAttribute('aria-disabled', 'true');
-    await row.getByRole('button', { name: 'More actions' }).click();
+    const dialog = await openActionsDialog(row);
     await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
+      actionsFooter(dialog).getByRole('button', {
+        name: 'Close pull request',
+        exact: true,
+      }),
     ).toBeVisible();
   });
 
@@ -200,12 +211,12 @@ test.describe('Merge states on a pull request row', () => {
     });
   }
 
-  test('axe-core finds nothing with the overflow menu open on a waiting row', async ({
+  test('axe-core finds nothing with the dialog open on a waiting row', async ({
     page,
   }) => {
     await mockDashboard(page, makePR({ ci: 'pending' }));
     await page.goto('/pull-requests.html');
-    await rowOf(page).getByRole('button', { name: 'More actions' }).click();
+    await openActionsDialog(rowOf(page));
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

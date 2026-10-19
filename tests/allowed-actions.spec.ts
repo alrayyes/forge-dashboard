@@ -1,4 +1,5 @@
-import { expect, type Page, type Route } from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -65,11 +66,18 @@ async function open(page: Page, pr: Record<string, unknown>) {
 }
 
 const withActions = (actions: Allowed[]) => makePR({ allowedActions: actions });
-const names = async (row: ReturnType<Page['locator']>) => {
-  // Open the More actions menu if there is one, then list every button.
-  const trigger = row.getByRole('button', { name: 'More actions' });
-  if (await trigger.count()) await trigger.click();
-  return (await row.getByRole('button').allInnerTexts()).map((t) => t.trim());
+// The row's dialog footer, opened.
+const footerOf = async (row: Locator) =>
+  actionsFooter(await openActionsDialog(row));
+const names = async (row: Locator) => {
+  // Every button on the row, then every action in its dialog.
+  const onRow = await row.getByRole('button').allInnerTexts();
+  const dialog = await footerOf(row);
+  const inDialog = await dialog
+    .locator('.details-actions')
+    .getByRole('button')
+    .allInnerTexts();
+  return [...onRow, ...inDialog].map((t) => t.trim());
 };
 
 // It mocks the dashboard and writes nothing per user, so it starts from the
@@ -190,9 +198,8 @@ test.describe('the row follows allowedActions (#805)', () => {
         ],
       }),
     );
-    await row.getByRole('button', { name: 'More actions' }).click();
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      (await footerOf(row)).getByRole('button', { name: 'Enable auto-merge' }),
     ).toBeVisible();
   });
 
@@ -215,7 +222,7 @@ test.describe('the row follows allowedActions (#805)', () => {
       }),
     );
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge' }),
+      (await footerOf(row)).getByRole('button', { name: 'Enable auto-merge' }),
     ).toHaveCount(0);
   });
 
@@ -235,12 +242,12 @@ test.describe('the row follows allowedActions (#805)', () => {
         ],
       }),
     );
-    await row.getByRole('button', { name: 'More actions' }).click();
+    const footer = await footerOf(row);
     await expect(
-      row.getByRole('button', { name: 'Dependabot: Rebase' }),
+      footer.getByRole('button', { name: 'Dependabot: Rebase' }),
     ).toBeVisible();
     await expect(
-      row.getByRole('button', { name: 'Dependabot: Recreate' }),
+      footer.getByRole('button', { name: 'Dependabot: Recreate' }),
     ).toBeVisible();
   });
 
@@ -257,6 +264,9 @@ test.describe('the row follows allowedActions (#805)', () => {
     await expect(row.getByRole('button', { name: /^Dependabot:/ })).toHaveCount(
       0,
     );
+    await expect(
+      (await footerOf(row)).getByRole('button', { name: /^Dependabot:/ }),
+    ).toHaveCount(0);
   });
 
   test('Renovate rebase shows only when listed', async ({ page }) => {
@@ -271,9 +281,10 @@ test.describe('the row follows allowedActions (#805)', () => {
         ],
       }),
     );
-    await listed.getByRole('button', { name: 'More actions' }).click();
     await expect(
-      listed.getByRole('button', { name: 'Renovate: Rebase' }),
+      (await footerOf(listed)).getByRole('button', {
+        name: 'Renovate: Rebase',
+      }),
     ).toBeVisible();
   });
 
