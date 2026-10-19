@@ -3963,7 +3963,7 @@
         dialogGone = !fresh;
         // The board behind the dialog may be held, so this reads the newest
         // snapshot: a later updatedAt means the details on show are stale.
-        if (fresh && fresh.updatedAt !== dialogUpdatedAt) {
+        if (fresh && fresh.updatedAt > dialogUpdatedAt) {
           const seen = fresh.updatedAt;
           dialogUpdatedAt = seen;
           // A refresh that failed is tried again on the next snapshot.

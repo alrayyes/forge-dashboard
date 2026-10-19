@@ -205,9 +205,12 @@
       html = rendered;
       details = loaded;
       phase = "ready";
-      // The old content's open list and failed avatars belong to it.
-      shownReaction = null;
-      brokenAvatars = {};
+      // A quiet swap leaves a list the reader has open alone; a full load
+      // replaces everything, so the old content's state goes with it.
+      if (!quiet) {
+        shownReaction = null;
+        brokenAvatars = {};
+      }
 
       return true;
     } catch (err) {
