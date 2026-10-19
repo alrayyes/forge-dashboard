@@ -735,6 +735,8 @@ test.describe('dashboard page', () => {
       (el) => el.scrollWidth - el.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(0);
+    // Not cut, so no hover text repeating what is on screen (#1961).
+    await expect(repoName).not.toHaveAttribute('title');
   });
 
   test('the forge filter narrows the list to one forge', async ({ page }) => {
