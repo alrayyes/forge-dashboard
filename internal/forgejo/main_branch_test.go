@@ -201,6 +201,23 @@ func TestReadMainBranch(t *testing.T) {
 		assert.Equal(t, 270, *row.DurationSeconds)
 	})
 
+	t.Run("cancelled runs alone are cancelled, name no job and link the cancelled run (#1950)", func(t *testing.T) {
+		t.Parallel()
+		s := &mainBranchServer{runs: []map[string]any{
+			actionRun(1, "main", "cafef00d", "cancelled", "2026-10-10T09:01:00Z", "2026-10-10T09:01:05Z"),
+			actionRun(2, "main", "cafef00d", "success", "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z"),
+		}}
+		client := s.start(t)
+
+		row, err := client.ReadMainBranch(t.Context(), repoA)
+
+		require.NoError(t, err)
+		assert.Equal(t, dashboard.MainBranchCancelled, row.Status)
+		assert.NotNil(t, row.FailingJobs, "an array, never null")
+		assert.Empty(t, row.FailingJobs)
+		assert.Contains(t, row.RunURL, "/actions/runs/1")
+	})
+
 	t.Run("a run still going is running, with no finish time", func(t *testing.T) {
 		t.Parallel()
 		s := &mainBranchServer{runs: []map[string]any{
@@ -327,7 +344,10 @@ func TestReadMainBranch_EachStatus(t *testing.T) {
 	}{
 		{"success", []string{"success"}, dashboard.MainBranchPassed},
 		{"failure", []string{"failure"}, dashboard.MainBranchFailed},
-		{"cancelled alone", []string{"cancelled"}, dashboard.MainBranchFailed},
+		{"cancelled alone", []string{"cancelled"}, dashboard.MainBranchCancelled},
+		{"cancelled beside a success", []string{"cancelled", "success"}, dashboard.MainBranchCancelled},
+		{"cancelled beside a failure", []string{"cancelled", "failure"}, dashboard.MainBranchFailed},
+		{"cancelled beside a run still going", []string{"cancelled", "running"}, dashboard.MainBranchRunning},
 		{"skipped alone", []string{"skipped"}, dashboard.MainBranchPassed},
 		{"running", []string{"running"}, dashboard.MainBranchRunning},
 		{"waiting", []string{"waiting"}, dashboard.MainBranchRunning},

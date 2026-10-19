@@ -43,6 +43,9 @@ export interface FilterableItem {
   // (#807): the page holds no copy of what they mean.
   readyToMerge?: boolean;
   needsReview?: boolean;
+  // The server's answer for Failing CI (#1946): not failing when the only
+  // trouble is a workflow held for approval. Absent from an older server.
+  failingCi?: boolean;
   // Whether this open, non-draft pull request asks the signed-in user to
   // review it (#695), worked out by the server against the username saved
   // in Settings for its forge.
@@ -73,13 +76,26 @@ export function showBlockedChip(
   return mergeStatus === 'blocked' && ci !== 'pending' && ci !== 'failure';
 }
 
+// What Failing means to the filters: the server's own answer where it gives
+// one, else the raw CI state of a server that predates it (#1946).
+function isFailing(item: FilterableItem): boolean {
+  return item.failingCi ?? item.ci === 'failure';
+}
+
+// The CI state a count should file a pull request under: the raw state, except
+// that one failing only for a workflow held for approval waits on a person and
+// counts as running, not failing (#1946).
+export function ciBucket(item: FilterableItem): string | undefined {
+  return item.ci === 'failure' && !isFailing(item) ? 'pending' : item.ci;
+}
+
 export function matchesQuickFilter(
   item: FilterableItem,
   quick: string | undefined,
 ): boolean {
   switch (quick) {
     case 'failing':
-      return item.ci === 'failure';
+      return isFailing(item);
     case 'running':
       return item.ci === 'pending';
     case 'passing':
@@ -809,7 +825,12 @@ export function failingFilters(
     !(item.labels || []).some((l) => l.name.toLowerCase() === shared.label)
   )
     failing.push('label');
-  if (isPR && extra?.status && item.ci !== extra.status) failing.push('status');
+  if (
+    isPR &&
+    extra?.status &&
+    (extra.status === 'failure' ? !isFailing(item) : item.ci !== extra.status)
+  )
+    failing.push('status');
   if (isPR && !matchesQuickFilter(item, extra?.quick)) failing.push('quick');
   if (isPR && !matchesAutoMerge(item, extra?.autoMerge))
     failing.push('autoMerge');
@@ -1110,7 +1131,11 @@ const CI_CHOICES: Choice[] = [
 
 // The CI states some item is in, in the order the select lists them (#1427).
 export function ciChoices(items: FilterableItem[]): Choice[] {
-  return CI_CHOICES.filter((c) => items.some((i) => i.ci === c.value));
+  return CI_CHOICES.filter((c) =>
+    items.some((i) =>
+      c.value === 'failure' ? isFailing(i) : i.ci === c.value,
+    ),
+  );
 }
 
 const AGE_RANGES: Choice[] = [

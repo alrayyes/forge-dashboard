@@ -2294,76 +2294,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/admin/requests:
-    get:
-      operationId: listRequests
-      summary: List every outbound GitHub/Forgejo request this instance has made
-      description: |
-        Every outbound request `internal/github` or `internal/forgejo` has
-        made, newest first, across every account — an admin's own
-        credential included, since correlating a shared-credential
-        problem (like the rate-limit incident that motivated this
-        endpoint) needs a cross-account view no single account's own
-        session could give.
-      tags: [admin]
-      security: [{ bearerAuth: [] }]
-      parameters:
-        - $ref: "#/components/parameters/QueryRequestLogForge"
-        - $ref: "#/components/parameters/QueryRequestLogAccount"
-      responses:
-        "200":
-          description: Every request-log entry matching the filter, newest first.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/RequestLogEntry"
-        "401":
-          description: No valid session cookie was presented.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "403":
-          description: The signed-in user isn't the designated admin.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /api/admin/requests/export:
-    get:
-      operationId: exportRequests
-      summary: Export the (filtered) outbound-request log as CSV
-      description: |
-        The same rows GET /api/admin/requests would return for the same
-        filter, as a downloadable CSV file with one header row.
-      tags: [admin]
-      security: [{ bearerAuth: [] }]
-      parameters:
-        - $ref: "#/components/parameters/QueryRequestLogForge"
-        - $ref: "#/components/parameters/QueryRequestLogAccount"
-      responses:
-        "200":
-          description: A CSV file, one row per matching entry plus a header row.
-          content:
-            text/csv:
-              schema:
-                type: string
-        "401":
-          description: No valid session cookie was presented.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "403":
-          description: The signed-in user isn't the designated admin.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
   /readyz:
     get:
       operationId: ready
@@ -2908,27 +2838,6 @@ components:
         type: boolean
         default: false
 
-    QueryRequestLogForge:
-      name: forge
-      in: query
-      required: false
-      description: Narrow to entries against this forge only. Omitted matches every forge.
-      schema:
-        $ref: "#/components/schemas/Forge"
-
-    QueryRequestLogAccount:
-      name: account
-      in: query
-      required: false
-      description: |
-        Narrow to entries made under this account's own credential only —
-        the account's `username` (matching RequestLogEntry.account), not
-        its internal id. An unrecognized username matches nothing rather
-        than erroring, the same as any other filter with no matches.
-        Omitted matches every account.
-      schema:
-        type: string
-
   schemas:
     Health:
       type: object
@@ -3210,44 +3119,6 @@ components:
         expiresAt:
           type: string
           format: date-time
-
-    RequestLogEntry:
-      type: object
-      description: |
-        One outbound request `internal/github` or `internal/forgejo`
-        made, as persisted by the request_log table.
-      required: [loggedAt, forge, method, endpoint, outcome]
-      properties:
-        loggedAt:
-          type: string
-          format: date-time
-        forge:
-          $ref: "#/components/schemas/Forge"
-        account:
-          type: string
-          description: |
-            The display username of the account whose credential made
-            this request, or omitted when the request was made with no
-            per-account credential, or when that account has since been
-            deleted.
-        method:
-          type: string
-          examples: [GET, POST]
-        endpoint:
-          type: string
-          description: The request's own path — GraphQL requests all report "/graphql".
-          examples: ["/repos/alrayyes/forge-dashboard/pulls", /graphql]
-        statusCode:
-          type: integer
-          description: Omitted when the request never got a response at all.
-        outcome:
-          type: string
-          description: '"success", or the `ForgeErrorKind` the failure was classified as.'
-          examples: [success, rate_limited]
-        rateLimit:
-          description: Omitted when the response carried no rate-limit fields.
-          allOf:
-            - $ref: "#/components/schemas/RateLimit"
 
     SharedUser:
       type: object
@@ -3869,11 +3740,25 @@ components:
 
     CheckState:
       type: string
-      enum: [queued, running, success, failure, cancelled, skipped, timed_out]
+      enum:
+        [
+          queued,
+          running,
+          success,
+          failure,
+          cancelled,
+          skipped,
+          timed_out,
+          awaiting_approval,
+        ]
       description: |
         One job/check's own status — the per-job detail CIStatus
         deliberately doesn't carry, since CIStatus is the combined result
         across every one of them.
+
+        "awaiting_approval" is a GitHub workflow run held until a
+        maintainer approves it. It has no jobs yet, so it is not queued and
+        not failed; its `url` is the run's page, where the approve button is.
 
     Check:
       type: object
@@ -4240,6 +4125,7 @@ components:
           stackChildren,
           requestedReviewerLogins,
           reviewComments,
+          conversationComments,
           unresolvedThreads,
           awaitingWorkflowApproval,
           reviewRequestedFromMe,
@@ -4247,6 +4133,7 @@ components:
           allowedActions,
           status,
           readyToMerge,
+          failingCi,
           needsReview,
         ]
       properties:
@@ -4409,13 +4296,23 @@ components:
           type: integer
           minimum: 0
           description: |
-            How many review comments the pull request has. Ordinary
-            conversation comments are not counted. Always present, and 0 when
+            How many review comments the pull request has, the ones on a
+            line of code. Ordinary conversation comments are counted apart,
+            in `conversationComments`. Always present, and 0 when
             there are none or the forge can't say (a Forgejo draft or failed
             reviews call, GitHub's unauthenticated fallback). On GitHub it is read from
             the review threads in the pull request query, first 30 threads; on Forgejo it is the sum
             of each review's comment count, from the reviews call that already
             feeds `review`, so a draft (which makes no such call) reports 0.
+        conversationComments:
+          type: integer
+          minimum: 0
+          description: |
+            How many ordinary comments the pull request's conversation has,
+            apart from `reviewComments`. A review's own body is not a comment.
+            Always present, and 0 when there are none. On GitHub it comes from
+            the pull request query, on Forgejo from the pull request itself, so
+            neither costs a request.
         unresolvedThreads:
           oneOf:
             - type: "null"
@@ -4531,6 +4428,13 @@ components:
             True when the pull request is mergeable, its CI is green and it
             isn't a draft: what the Ready quick filter lists. Always
             present. A pull request with no checks isn't ready.
+        failingCi:
+          type: boolean
+          description: |
+            True when CI is failing and not only because a workflow run is
+            held for approval: what the Failing CI quick filter and the status
+            filter's Failing choice list, and what the menu pill's Failed
+            number counts. Always present.
         needsReview:
           type: boolean
           description: |
@@ -4920,9 +4824,9 @@ components:
         The Branches page's numbers: how many default branches
         it lists and how many of those have a pipeline running, failed and
         passed, the same four as `NavPullRequestCount`, plus `none`, the ones
-        with no pipeline. Every branch is in exactly one of the four states,
-        so `running`, `failed`, `passed` and `none` add up to `total`. All
-        five are always present.
+        with no pipeline. A branch whose only trouble is a cancelled run
+        counts in `total` only, as a pull request with no checks does, so the
+        parts need not add up. All five are always present.
       properties:
         total:
           type: integer
@@ -4965,7 +4869,12 @@ components:
         failed:
           type: integer
           minimum: 0
-          description: How many of them have failing CI.
+          description: |
+            How many of them have failing CI. A pull request whose only
+            failure is workflow runs held until someone approves them
+            (`awaitingWorkflowApproval`) is counted in `total` and not here,
+            as nothing failed; one with a job that really failed beside a
+            held run still counts.
         passed:
           type: integer
           minimum: 0
@@ -5129,11 +5038,13 @@ components:
 
     MainBranchStatus:
       type: string
-      enum: [failed, passed, running, none]
+      enum: [failed, passed, running, cancelled, none]
       description: |
         The result of the latest pipeline on a default branch's newest
         commit, across all its workflows. "failed" when any job failed,
         "running" when none failed and some are still queued or running,
+        "cancelled" when nothing failed and nothing is running but some run
+        was cancelled (a newer push or a person stopped it, so nothing broke),
         "passed" when all finished green, "none" when the commit has no
         pipeline at all (or the repository has no commit yet).
 
@@ -5232,10 +5143,10 @@ components:
 
     MainBranchCounts:
       type: object
-      required: [failed, passed, running, none, total]
+      required: [failed, passed, running, cancelled, none, total]
       description: |
         How many rows are in each status, the numbers on the filter pills.
-        `total` is every row, so it equals the sum of the other four.
+        `total` is every row, so it equals the sum of the other five.
       properties:
         failed:
           type: integer
@@ -5244,6 +5155,9 @@ components:
           type: integer
           minimum: 0
         running:
+          type: integer
+          minimum: 0
+        cancelled:
           type: integer
           minimum: 0
         none:

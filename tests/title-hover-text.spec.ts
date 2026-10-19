@@ -115,11 +115,13 @@ test.describe('truncated titles show the whole title on hover', () => {
   }) => {
     await page.goto('/pull-requests.html');
     const medium = text(page, '#pr-rows', 4);
-    await page.setViewportSize({ width: 1100, height: 800 });
+    // 1104 px is the narrowest window with the full row grid (#1899), so the
+    // title column is as small as it gets there without the phone layout.
+    await page.setViewportSize({ width: 1104, height: 800 });
     await expect(medium).toHaveAttribute('title', MEDIUM);
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(medium).not.toHaveAttribute('title');
-    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.setViewportSize({ width: 1104, height: 800 });
     await expect(medium).toHaveAttribute('title', MEDIUM);
   });
 

@@ -262,7 +262,6 @@ func run() error {
 		Database:      schemaPinger{db: db},
 		Dashboard:     manager,
 		BuildSources:  buildSourcesForUser(authStore, requestLogWriter, githubAppID, githubAppPrivateKey),
-		RequestLog:    requestlog.NewSQLiteRecorder(authStore, "", requestlog.WithWriter(requestLogWriter)),
 		AppContext:    ctx,
 		// Same env var buildAuth already required for WebAuthn's own
 		// RPOrigins — reused rather than adding a second "what's my own
@@ -288,7 +287,7 @@ func resolveIntervals() (refreshInterval, ciPollInterval time.Duration) {
 func newServer(addr string, deps api.Deps) *http.Server {
 	return &http.Server{
 		Addr:              addr,
-		Handler:           api.NewMux(deps),
+		Handler:           withE2EHooks(api.NewMux(deps), deps),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 }

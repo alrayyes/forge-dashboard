@@ -122,8 +122,6 @@ const PENDING_OPERATIONS = [
   'createInvite',
   'listInvites',
   'revokeInvite',
-  'listRequests',
-  'exportRequests',
   'getVersion',
   'refreshDashboard',
   'getSharing',

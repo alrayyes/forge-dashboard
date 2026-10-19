@@ -161,4 +161,93 @@ test.describe('Bots page (#1192)', () => {
       );
     expect(tabs.every(Boolean)).toBe(true);
   });
+
+  test('has no horizontal overflow at 761 px (#1899)', async ({ page }) => {
+    await mockDashboard(page, SNAPSHOT);
+    await page.goto('/bots.html');
+    await page.setViewportSize({ width: 761, height: 844 });
+
+    await expect(page.locator('#pr-rows .row')).toHaveCount(4);
+
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+
+    const rows = page.locator('#pr-rows .row');
+    const fits = await rows.evaluateAll((els) =>
+      els.map((el) => el.getBoundingClientRect().right <= innerWidth + 1),
+    );
+    expect(fits.every(Boolean)).toBe(true);
+
+    // Every title text and status chip must be fully visible.
+    const chips = page.locator('#pr-rows .row .status-cell');
+    const chipFits = await chips.evaluateAll((els) =>
+      els.map((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.right <= innerWidth + 1 && rect.width > 0;
+      }),
+    );
+    expect(chipFits.every(Boolean)).toBe(true);
+
+    expect(
+      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
+    ).toEqual([]);
+  });
+
+  test('the narrow layout drops the author, created and updated columns up to 1103 px, not past it (#1899)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, SNAPSHOT);
+    await page.goto('/bots.html');
+    const author = page.locator('#pr-rows .row .author').first();
+    await page.setViewportSize({ width: 1103, height: 844 });
+    await expect(author).toBeHidden();
+    await page.setViewportSize({ width: 1104, height: 844 });
+    await expect(author).toBeVisible();
+  });
+
+  // 1103 px is the last width the narrow layout covers and 1104 px the first
+  // the full grid covers. 949 and 950 px are where the full grid's fixed
+  // columns alone stop fitting. The other widths sit inside the range.
+  for (const width of [768, 800, 949, 950, 1103, 1104]) {
+    test(`has no horizontal overflow at ${width} px (#1899)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await mockDashboard(page, SNAPSHOT);
+      await page.goto('/bots.html');
+      await expect(page.locator('#pr-rows .row')).toHaveCount(4);
+
+      const overflow = await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      );
+      expect(overflow, `horizontal scroll at ${width}px`).toBeLessThanOrEqual(
+        0,
+      );
+
+      // The page itself may not scroll while a row still spills out of it.
+      const spill = await page
+        .locator('#pr-rows .row')
+        .evaluateAll((els) => els.map((el) => el.scrollWidth - el.clientWidth));
+      expect(
+        spill.every((px) => px <= 0),
+        `a row overflows its own box at ${width}px`,
+      ).toBe(true);
+
+      // A title column squeezed to nothing fits the page and is no use.
+      const title = await page
+        .locator('#pr-rows .row .title')
+        .first()
+        .boundingBox();
+      expect(
+        title?.width,
+        `the title is too narrow at ${width}px`,
+      ).toBeGreaterThanOrEqual(100);
+    });
+  }
 });

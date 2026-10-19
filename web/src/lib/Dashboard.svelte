@@ -157,6 +157,7 @@
     // still open, or null where the forge can't say (#1335). Optional so a
     // server that predates them draws nothing.
     reviewComments?: number;
+    conversationComments?: number;
     unresolvedThreads?: number | null;
     // What the server offers on this pull request (#805).
     allowedActions?: AllowedAction[];
@@ -560,11 +561,12 @@
       );
       wrap.appendChild(badge);
       const repoName = el("span", "repo-name", item.repo);
-      // .repo-name truncates via CSS text-overflow: ellipsis — title
-      // is what lets a mouse user actually read the full name on
-      // hover; the truncation is purely visual, so a screen reader
+      // .repo-name truncates via CSS text-overflow: ellipsis — a title
+      // is what lets a mouse user actually read the full name on hover.
+      // It is set only while the name is cut, as for a pull request title
+      // (#1961); the truncation is purely visual, so a screen reader
       // already reads the untruncated text content regardless.
-      repoName.title = item.repo;
+      titleHover.track(repoName, item.repo);
       wrap.appendChild(repoName);
       return wrap;
     }
@@ -717,7 +719,7 @@
     // (failed, passed): one pill in one fixed-size slot, a glyph and a word,
     // so a run turns into its result without the row moving. The glyphs are
     // the pipeline panel's own (#1473). A run held for approval is not
-    // running, so it gets the queued hourglass.
+    // running, so it gets the pause glyph the pipeline panel uses for it.
     const CI_SLOT_GLYPHS: Record<string, string> = {
       pending: "running",
       failure: "failure",
@@ -732,7 +734,7 @@
         ? "Waiting for workflow approval"
         : CI_LABELS[status] || status;
       const glyphs = pipelineCheckGlyphs(
-        awaiting ? "queued" : (CI_SLOT_GLYPHS[status] ?? ""),
+        awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
       );
       const addMark = (pill: HTMLElement) => {
         if (glyphs.length > 0) glyphs.forEach((g) => pill.appendChild(g));
@@ -846,8 +848,13 @@
     // and the open state is a dot and "open" as well as amber. It links to
     // the files-and-review view on the forge.
     function reviewPill(item: PullRequestItem): HTMLElement | null {
-      const comments = item.reviewComments ?? 0;
+      const review = item.reviewComments ?? 0;
+      const conversation = item.conversationComments ?? 0;
+      const comments = review + conversation;
       if (comments <= 0) return null;
+      // Conversation comments join the count (#1953); the word is "review
+      // comment" only while every one of them is.
+      const word = conversation > 0 ? "comment" : "review comment";
       const open = item.unresolvedThreads ?? 0;
       const plural = (n: number, word: string) =>
         `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -855,7 +862,7 @@
         "a",
         open > 0 ? "review-pill open" : "review-pill",
       ) as HTMLAnchorElement;
-      pill.href = `${item.url}/files`;
+      pill.href = review > 0 ? `${item.url}/files` : item.url;
       pill.target = "_blank";
       pill.rel = "noopener noreferrer";
       pill.appendChild(reviewIcon());
@@ -872,8 +879,8 @@
           "span",
           "sr-only",
           open > 0
-            ? `${plural(comments, "review comment")}, ${plural(open, "unresolved thread")}`
-            : plural(comments, "review comment"),
+            ? `${plural(comments, word)}, ${plural(open, "unresolved thread")}`
+            : plural(comments, word),
         ),
       );
       return pill;
@@ -1138,23 +1145,81 @@
     // "Rerun failed checks" has no button on the row (it lives in the
     // pipeline dialog, next to the checks), so its in-flight state is kept
     // here, outside the footer's DOM like every other action's.
-    type RerunState = {
-      phase: "requesting" | "queued" | "failed";
-      message?: string;
-      details?: FailureDetails;
-    };
+    type RerunState =
+      | { phase: "requesting" }
+      | {
+          phase: "queued";
+          // When the forge accepted it, and the pull request's updatedAt
+          // then: a hold can't outlive ten minutes or the pull request
+          // changing under it (a new commit, a rerun that failed again).
+          queuedAt: number;
+          updatedAt: string;
+        }
+      | {
+          phase: "failed";
+          message: string;
+          details: FailureDetails;
+        };
     const rerunState: Record<string, RerunState> = {};
+    const RERUN_HOLD_MS = 10 * 60 * 1000;
+
+    // The pull request as the last snapshot shows it. A dialog that opened
+    // earlier holds an older copy, so staleness is judged from this one.
+    function livePullRequest(item: {
+      forge: string;
+      repo: string;
+      number: number;
+    }): PullRequestItem | undefined {
+      const key = prKey(item);
+      return allPRs.find((p) => prKey(p) === key);
+    }
+
+    // A rerun the forge accepted is held until CI moves on (the pull request
+    // stops reading failed or changes) or the hold runs out. The row, the
+    // details dialog and the pipeline panel all read this one answer (#1941).
+    // A pure read: evictRerunState does the deleting.
+    function rerunQueued(item: PullRequestItem): boolean {
+      const state = rerunState[prKey(item)];
+      if (state?.phase !== "queued") return false;
+      const live = livePullRequest(item);
+      return (
+        live !== undefined &&
+        live.ci === "failure" &&
+        live.updatedAt === state.updatedAt &&
+        Date.now() - state.queuedAt <= RERUN_HOLD_MS
+      );
+    }
+
+    // Forgets rerun state for pull requests no longer listed, and holds that
+    // have been released. Run on each snapshot.
+    function evictRerunState() {
+      for (const key of Object.keys(rerunState)) {
+        const state = rerunState[key];
+        const live = allPRs.find((p) => prKey(p) === key);
+        if (!live) delete rerunState[key];
+        else if (state.phase === "queued" && !rerunQueued(live))
+          delete rerunState[key];
+      }
+    }
     // A Hide that failed while the dialog was open: the page's own status
     // line is behind the modal, so the dialog shows and speaks it itself.
     const hideFailure: Record<string, string> = {};
 
-    function doRerunChecks(item: PullRequestItem) {
+    // The one rerun flow: the details dialog's button and the pipeline
+    // panel's both call it. `onChange` lets the panel redraw its own control
+    // in place after each state change.
+    function doRerunChecks(item: PullRequestItem, onChange?: () => void) {
       const key = prKey(item);
       rerunState[key] = { phase: "requesting" };
+      onChange?.();
       renderPRBoard();
       postRerunChecks(item)
         .then(() => {
-          rerunState[key] = { phase: "queued" };
+          rerunState[key] = {
+            phase: "queued",
+            queuedAt: Date.now(),
+            updatedAt: livePullRequest(item)?.updatedAt ?? item.updatedAt,
+          };
           feedback.announce(
             "Rerun queued. The new results show after the next refresh.",
           );
@@ -1172,7 +1237,10 @@
             }),
           };
         })
-        .finally(() => renderPRBoard());
+        .finally(() => {
+          onChange?.();
+          renderPRBoard();
+        });
     }
 
     // Offered where the server lists rerun_checks and something failed.
@@ -1183,7 +1251,9 @@
       if (readOnlyBecauseRateLimited(proactiveReason)) return null;
       if (proactiveReason)
         return lockedActionButton("Rerun failed checks", proactiveReason);
-      const phase = rerunState[prKey(item)]?.phase;
+      const phase = rerunQueued(item)
+        ? "queued"
+        : rerunState[prKey(item)]?.phase;
       const button = buttonEl(
         "row-action",
         phase === "requesting"
@@ -1237,7 +1307,7 @@
         lines.push(
           plainFailureLine(
             item,
-            `Failed: couldn't rerun the checks: ${rerun.message ?? "the forge refused it"}`,
+            `Failed: couldn't rerun the checks: ${rerun.message}`,
             rerun.details,
             () => delete rerunState[key],
           ),
@@ -1331,6 +1401,16 @@
       };
     }
 
+    // A merged pull request has nothing left to act on or read about, so a
+    // dialog open on it closes (#1927).
+    function closeDialogOf(key: string) {
+      if (dialogKey === key) detailsDialog?.close();
+    }
+
+    // The pull request's updatedAt when the dialog last fetched its details:
+    // a later one means a comment, an edit or a reaction landed.
+    let dialogUpdatedAt = "";
+
     let lastChromeSig = "";
     let lastChromeItem: PullRequestItem | undefined;
 
@@ -1392,6 +1472,7 @@
       dialogGone = false;
       lastChromeSig = "";
       lastChromeItem = undefined;
+      dialogUpdatedAt = item.updatedAt;
       detailsDialog?.open({ ...item, status: detailsStatus(item) }, triggerId);
       refreshDialogChrome();
     }
@@ -1401,7 +1482,9 @@
     escapeDetails = () => confirmArm.disarm("escape");
     detailsClosed = () => {
       if (dialogKey !== null) {
-        delete rerunState[dialogKey];
+        // A queued or in-flight rerun outlives the dialog; only a failure line goes.
+        if (!["queued", "requesting"].includes(rerunState[dialogKey]?.phase))
+          delete rerunState[dialogKey];
         delete hideFailure[dialogKey];
       }
       dialogKey = null;
@@ -1935,6 +2018,7 @@
       if (outcome.kind === "settled") {
         setState({ phase: "idle" });
         mergeState[prKey(item)] = { phase: outcome.state };
+        if (outcome.state === "merged") closeDialogOf(prKey(item));
         showSettled(feedback, fkey, actionRef(item), outcome);
         // Same immediate refresh the success path makes, so the row
         // drops off the open list as soon as the forge shows it.
@@ -2023,6 +2107,7 @@
         })
         .then(() => {
           delete mergeState[key];
+          closeDialogOf(key);
           feedback.update(fkey, {
             phase: "done",
             message: "Merged.",
@@ -2071,6 +2156,7 @@
                   // reports as the same success the happy path does
                   // rather than a false failure.
                   delete mergeState[key];
+                  closeDialogOf(key);
                   applySnapshot(data, true);
                   feedback.update(fkey, {
                     phase: "done",
@@ -3945,7 +4031,18 @@
       // held or not, so it is never left saying "gone" once it is back.
       if (dialogKey !== null) {
         const key = dialogKey;
-        dialogGone = !latestPRs.some((p) => prKey(p) === key);
+        const fresh = latestPRs.find((p) => prKey(p) === key);
+        dialogGone = !fresh;
+        // The board behind the dialog may be held, so this reads the newest
+        // snapshot: a later updatedAt means the details on show are stale.
+        if (fresh && fresh.updatedAt > dialogUpdatedAt) {
+          const seen = fresh.updatedAt;
+          dialogUpdatedAt = seen;
+          // A refresh that failed is tried again on the next snapshot.
+          void detailsDialog?.reload().then((ok) => {
+            if (!ok && dialogUpdatedAt === seen) dialogUpdatedAt = "";
+          });
+        }
       }
       // A refresh the user asked for (Refresh now, or the one after their own
       // merge) lands in full even with the pointer on the list: they just
@@ -4415,6 +4512,7 @@
       cancelled: "Cancelled",
       skipped: "Skipped",
       timed_out: "Timed out",
+      awaiting_approval: "Waiting for approval",
     };
 
     const pipelineDialog = document.getElementById(
@@ -4454,12 +4552,15 @@
       );
     }
 
-    // A required check that failed (or timed out) is what actually blocks
-    // the merge — flagged in text, not colour alone.
+    // A required check that failed (or timed out), or a required workflow
+    // held for approval, is what actually blocks the merge — flagged in text,
+    // not colour alone (#1946).
     function isBlocking(check: Check): boolean {
       return (
         check.required === true &&
-        (check.state === "failure" || check.state === "timed_out")
+        (check.state === "failure" ||
+          check.state === "timed_out" ||
+          check.state === "awaiting_approval")
       );
     }
 
@@ -4529,8 +4630,13 @@
         link.href = check.url;
         link.target = "_blank";
         link.rel = "noopener";
-        link.textContent = "View run";
-        link.setAttribute("aria-label", `View run: ${check.name}`);
+        // A held workflow's own page is where GitHub's approve button is.
+        const linkText =
+          check.state === "awaiting_approval"
+            ? "Approve on GitHub"
+            : "View run";
+        link.textContent = linkText;
+        link.setAttribute("aria-label", `${linkText}: ${check.name}`);
         row.appendChild(link);
       }
       if (check.failedStep) {
@@ -4606,7 +4712,9 @@
       if (!checks.some((c) => c.state === "failure" || c.state === "timed_out"))
         return null;
       const wrap = el("div", "pipeline-rerun");
+      const key = prKey(item);
       const button = buttonEl("row-action", "Rerun failed checks");
+      button.type = "button";
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
       // The failure sentence is the alert; Copy sits beside it, outside, so
@@ -4615,41 +4723,40 @@
       const failure = el("p", "pipeline-error");
       failure.setAttribute("role", "alert");
       failureBox.appendChild(failure);
-      failureBox.hidden = true;
-      const clearFailure = () => {
-        failureBox.hidden = true;
-        failure.textContent = "";
+      // Draws the control from the one rerun state the row and the details
+      // dialog read too, so a request still in flight or a hold survives the
+      // panel closing (#1941). The button is marked pending, not disabled,
+      // so it keeps focus and Tab still reaches it (#690).
+      const sync = () => {
+        const held = rerunQueued(item);
+        const state = rerunState[key];
+        const sending = state?.phase === "requesting";
+        button.textContent = held ? "Rerun queued" : "Rerun failed checks";
+        markPending(button, held || sending);
+        status.textContent = held
+          ? "Rerun queued. The new results show here after the next refresh."
+          : sending
+            ? "Queuing the rerun…"
+            : "";
         for (const extra of failureBox.querySelectorAll(
           ".pipeline-rerun-copy, .feedback-details",
         ))
           extra.remove();
+        if (state?.phase === "failed") {
+          failure.textContent = state.message;
+          failureBox.hidden = false;
+          failureBox.appendChild(
+            copyButton(state.details, "row-action pipeline-rerun-copy"),
+          );
+        } else {
+          failureBox.hidden = true;
+          failure.textContent = "";
+        }
       };
+      sync();
       button.addEventListener("click", () => {
-        button.disabled = true;
-        clearFailure();
-        status.textContent = "Queuing the rerun…";
-        postRerunChecks(item)
-          .then(() => {
-            status.textContent =
-              "Rerun queued. The new results show here after the next refresh.";
-          })
-          .catch((err: ActionRequestError) => {
-            status.textContent = "";
-            failure.textContent = err.message;
-            failureBox.hidden = false;
-            failureBox.appendChild(
-              copyButton(
-                failureDetails(err, {
-                  action: "rerun-checks",
-                  forge: item.forge,
-                  repo: item.repo,
-                  number: item.number,
-                }),
-                "row-action pipeline-rerun-copy",
-              ),
-            );
-            button.disabled = false;
-          });
+        if (isPending(button)) return;
+        doRerunChecks(item, sync);
       });
       wrap.append(button, status, failureBox);
       return wrap;
@@ -7448,6 +7555,7 @@
       const botChanged = syncServerRequests(prs, startedSeq);
       const issues = data.issues || [];
       allPRs = prs;
+      evictRerunState();
       allIssues = issues;
       reposByKey = new Map(
         (data.repos || []).map((r) => [

@@ -141,6 +141,31 @@ means a test raced the page, so fix the wait rather than adding a retry. A
 test that stays flaky gets `test.fixme`/an annotation naming the reason and a
 linked issue.
 
+Specs live in one of two Playwright projects (`playwright.config.ts`). `legacy`
+is the original: one shared server, users made through admin invites. The
+`single-user` project, listed by name in the config, gives every worker a server
+of its own and one signed-in owner, so a spec needs no registration of its own:
+
+- Import `test` from `tests/server-fixture.ts`. The `server` fixture (once per
+  worker) starts the binary on a free port with a temp database and registers
+  the owner through the Chrome virtual authenticator, as a first visit does.
+- Before each test `POST /__e2e/reset` empties every table except the owner's,
+  keeps the first passkey, and answers with a fresh session cookie, so a test
+  starts signed in with nothing left over from the last, and one that logs out
+  hurts only itself. A test about a visitor with no session calls
+  `context.clearCookies()` first.
+- A test that logs in with the passkey again calls `addOwnerPasskey(page, server)`
+  (an authenticator belongs to one browser session). A test that needs a virgin
+  database, such as the first visit registering the owner, takes `freshServer`.
+- The route exists only in a binary built with `-tags e2e`. `run-local.sh` and CI
+  build that and pass it as `E2E_BINARY`; a default build, and so a release,
+  carries no route that can wipe the database. Build it yourself with
+  `go build -tags e2e -o forge-dashboard-e2e ./cmd/forge-dashboard` to run
+  `bunx playwright test` by hand.
+- Move a spec across by changing its `test` import, deleting its registration
+  helper in favour of `landOnPullRequests(page)` and adding it to the list in the
+  config. A new spec starts here.
+
 Specs import `test` from `tests/fixtures.ts`, not from `@playwright/test`. It
 is Playwright's own `test` with one addition: mocked snapshots whose pull
 requests don't state `allowedActions`, `status` or `kind` get them filled in

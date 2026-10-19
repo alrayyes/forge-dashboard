@@ -68,6 +68,9 @@ const (
 	CheckCancelled CheckState = "cancelled"
 	CheckSkipped   CheckState = "skipped"
 	CheckTimedOut  CheckState = "timed_out"
+	// CheckAwaitingApproval is a GitHub workflow run held until a maintainer
+	// approves it: it has no jobs yet, so it is neither queued nor failed.
+	CheckAwaitingApproval CheckState = "awaiting_approval"
 )
 
 // Check is one job/check run against a pull request's head commit — the
@@ -196,6 +199,10 @@ type PullRequest struct {
 	// ordinary conversation comments (#1335). 0 when there are none or the
 	// forge didn't say.
 	ReviewComments int `json:"reviewComments"`
+	// ConversationComments counts the ordinary comments in the pull request's
+	// conversation, kept apart from ReviewComments so a client that reads only
+	// that one doesn't change (#1953). 0 when there are none.
+	ConversationComments int `json:"conversationComments"`
 	// UnresolvedThreads is how many review threads are still open, or nil when
 	// the forge reports no resolved state (Forgejo), so a client shows the
 	// count without an "open" state rather than a false zero.
@@ -205,6 +212,11 @@ type PullRequest struct {
 	// failing in CI, so a client uses this to say "waiting for approval"
 	// instead of "check failed". Always present; false on Forgejo.
 	AwaitingWorkflowApproval bool `json:"awaitingWorkflowApproval"`
+	// FailingOnlyForApproval is true when held runs are the only reason CI reads
+	// as failing: no job really failed. The menu pill counts such a pull
+	// request in the total but not as failed. Server-side only, so the API shape
+	// is unchanged.
+	FailingOnlyForApproval bool `json:"-"`
 	// HeadSHA is the commit the pull request's head branch points at (#759).
 	// A bot's rebase moves it, which shows the bot acted even when the pull
 	// request is still reported behind, or wasn't behind to begin with.

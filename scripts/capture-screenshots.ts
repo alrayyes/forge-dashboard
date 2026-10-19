@@ -177,7 +177,7 @@ const SNAPSHOT = {
 function mainBranch(
   forge: 'github' | 'forgejo',
   fullName: string,
-  status: 'failed' | 'running' | 'passed' | 'none',
+  status: 'failed' | 'running' | 'passed' | 'cancelled' | 'none',
   branch = 'main',
 ) {
   const noCommit = status === 'none';

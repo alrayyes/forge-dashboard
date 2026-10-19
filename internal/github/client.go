@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1233,26 +1234,15 @@ func (r *statusCheckRollup) settleFailedRollup() dashboard.CIStatus {
 	if r.Contexts == nil {
 		return dashboard.CIFailure
 	}
-	var failed, running bool
+	failed := r.hasFailedContext(failureKinds{heldRun: true})
+	var running bool
 	for _, c := range r.Contexts.CheckRunCountsByState {
-		if c.Count == 0 {
-			continue
-		}
-		switch c.State {
-		case "FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE", "STALE":
-			failed = true
-		case "QUEUED", "IN_PROGRESS", "PENDING", "WAITING", "REQUESTED":
+		if c.Count > 0 && slices.Contains(runningCheckRunStates, c.State) {
 			running = true
 		}
 	}
 	for _, c := range r.Contexts.StatusContextCountsByState {
-		if c.Count == 0 {
-			continue
-		}
-		switch c.State {
-		case "FAILURE", "ERROR":
-			failed = true
-		case "PENDING", "EXPECTED":
+		if c.Count > 0 && (c.State == "PENDING" || c.State == "EXPECTED") {
 			running = true
 		}
 	}
@@ -1261,6 +1251,53 @@ func (r *statusCheckRollup) settleFailedRollup() dashboard.CIStatus {
 	}
 
 	return dashboard.CIFailure
+}
+
+var runningCheckRunStates = []string{"QUEUED", "IN_PROGRESS", "PENDING", "WAITING", "REQUESTED"}
+
+// failureKinds picks which of the less clear-cut check run states hasFailedContext
+// counts as a failure. A job that failed, timed out, failed to start or went
+// stale, and a failed or errored status, always count.
+type failureKinds struct {
+	// heldRun counts a run held as action_required: the rollup rule (#722)
+	// reads it as a failure, while the held-for-approval rule does not (#1933).
+	heldRun bool
+	// cancelled counts a cancelled run: the held-for-approval rule keeps a
+	// cancelled run beside a held one a failure, the rollup rule has its own
+	// handling for it (#1950).
+	cancelled bool
+}
+
+// hasFailedContext reports a check run or status context that really failed.
+// The one list both settleFailedRollup and failsOnlyForApproval read, so the
+// two can't drift; kinds names the one place they differ on purpose.
+func (r *statusCheckRollup) hasFailedContext(kinds failureKinds) bool {
+	for _, c := range r.Contexts.CheckRunCountsByState {
+		if c.Count > 0 && kinds.failedRun(c.State) {
+			return true
+		}
+	}
+	for _, c := range r.Contexts.StatusContextCountsByState {
+		if c.Count > 0 && (c.State == "FAILURE" || c.State == "ERROR") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// failedRun reports a check run state that counts as a failed job.
+func (k failureKinds) failedRun(state string) bool {
+	switch state {
+	case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "STALE":
+		return true
+	case "ACTION_REQUIRED":
+		return k.heldRun
+	case "CANCELLED":
+		return k.cancelled
+	default:
+		return false
+	}
 }
 
 type prCommitNode struct {
@@ -1282,6 +1319,14 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 	}
 
 	return commits[0].Commit.StatusCheckRollup.ci()
+}
+
+func failingOnlyForApprovalOf(commits []prCommitNode) bool {
+	if len(commits) == 0 {
+		return false
+	}
+
+	return commits[0].Commit.StatusCheckRollup.failsOnlyForApproval()
 }
 
 func awaitingApprovalOf(commits []prCommitNode) bool {
@@ -1327,6 +1372,17 @@ func (r *statusCheckRollup) awaitingApproval() bool {
 	}
 
 	return false
+}
+
+// failsOnlyForApproval reports whether held runs are the only reason the
+// rollup reads as failing: at least one run is held, and no job or status really
+// failed (#1933). A held run beside a failed job is still a failure.
+func (r *statusCheckRollup) failsOnlyForApproval() bool {
+	if !r.awaitingApproval() {
+		return false
+	}
+
+	return !r.hasFailedContext(failureKinds{cancelled: true})
 }
 
 // ci is the rollup's combined result. A commit with no rollup (nil) has no
@@ -1423,6 +1479,10 @@ type graphqlPullRequest struct {
 			State string `json:"state"`
 		} `json:"nodes"`
 	} `json:"latestReviews"`
+	// Comments feeds the conversation comment count (#1953).
+	Comments *struct {
+		TotalCount int `json:"totalCount"`
+	} `json:"comments"`
 	// ReviewThreads feeds the review comment and open thread counts (#1335).
 	// Only the first 30 threads are read, so a pull request with more
 	// undercounts. Fewer than that keeps the query well under GitHub's 500,000
@@ -1597,6 +1657,9 @@ query($cursor: String, $since: DateTime) {
               nodes {
                 state
               }
+            }
+            comments {
+              totalCount
             }
             reviewThreads(first: 30) {
               nodes {
@@ -2390,15 +2453,26 @@ func reviewThreadCounts(p graphqlPullRequest) (comments, unresolved int) {
 	return comments, unresolved
 }
 
+// conversationCount is how many ordinary comments the pull request has (#1953).
+func conversationCount(p graphqlPullRequest) int {
+	if p.Comments == nil {
+		return 0
+	}
+
+	return p.Comments.TotalCount
+}
+
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	comments, unresolved := reviewThreadCounts(p)
 	ci := ciFromRollup(p.Commits.Nodes)
 	awaitingApproval := awaitingApprovalOf(p.Commits.Nodes)
+	failingOnlyForApproval := failingOnlyForApprovalOf(p.Commits.Nodes)
 	if rollupIsOfAnotherCommit(p.Commits.Nodes, p.HeadRefOid) {
 		slog.Debug("github rollup is of an earlier commit, reading pending", "forge", dashboard.ForgeGitHub, "repo", fullName,
 			"number", p.Number, "head", p.HeadRefOid, "rollup_commit", p.Commits.Nodes[0].Commit.Oid)
 		ci = dashboard.CIPending
 		awaitingApproval = false
+		failingOnlyForApproval = false
 	}
 
 	return dashboard.PullRequest{
@@ -2415,6 +2489,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		CI:                       ci,
 		MergeStatus:              mergeStatusFromGraphQL(p.MergeStateStatus),
 		AwaitingWorkflowApproval: awaitingApproval,
+		FailingOnlyForApproval:   failingOnlyForApproval,
 		Behind:                   p.MergeStateStatus == "BEHIND",
 		HeadSHA:                  p.HeadRefOid,
 		BaseBranch:               p.BaseRefName,
@@ -2430,6 +2505,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 
 		RequestedReviewerLogins: requestedReviewerLoginsFromGraphQL(p),
 		ReviewComments:          comments,
+		ConversationComments:    conversationCount(p),
 		UnresolvedThreads:       &unresolved,
 	}
 }
@@ -3097,9 +3173,82 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	if err != nil {
 		return nil, err
 	}
-	c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
+	// Held runs are read first so that a pull request with nothing but held
+	// workflows (no check run reported) still asks which checks are required.
+	held := c.heldWorkflowChecks(ctx, owner, name, sha)
+	unreported := false
+	if len(checks)+len(held) > 0 {
+		unreported = c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
+	}
+	// Appended after markRequired on purpose: a held run is named after its
+	// workflow, which protection never lists (it lists job names), so marking
+	// it would file it under Advisory when it is what blocks the merge. It is
+	// required when a required check never reported, since the held run is why
+	// (#1946), and unknown otherwise.
+	if unreported {
+		for i := range held {
+			held[i].Required = new(true)
+		}
+	}
+	checks = append(checks, held...)
 
 	return checks, nil
+}
+
+// heldWorkflowChecks lists the workflow runs held for approval as checks. They
+// finished as action_required and created no check runs, so the check-runs list
+// never shows them (#1933). The run's own page carries GitHub's approve button.
+// A failed lookup lists none, as a token that can't read Actions is expected;
+// the rest of the list still stands. Whether anything is held is remembered per
+// head commit, shared with the pill's lookup, so a commit with nothing held costs
+// one Actions request a minute rather than one per panel open.
+//
+// One page is read, not paged through: a commit with more than a page of held
+// workflows is not a case worth another request per open.
+func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string) []dashboard.Check {
+	previous, cached := c.requiredChecks.cachedHeld(sha)
+	if cached && !previous.held && !previous.unknown {
+		return nil
+	}
+	path := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: sha, Status: "action_required"}
+	opts.PerPage = perPage
+	runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, owner, name, opts)
+	if err != nil {
+		// Through restError so a rate limit is recorded as for any other call.
+		clientErr := c.restError(ctx, http.MethodGet, path, err)
+		// Logged once per head commit while the failure is remembered, not on
+		// every panel open.
+		if !cached || !previous.unknown {
+			slog.Debug("github held workflow runs unreadable", "forge", dashboard.ForgeGitHub, "repo", owner+"/"+name, "error", clientErr)
+		}
+		c.requiredChecks.storeUnknownHeld(sha)
+
+		return nil
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+	c.requiredChecks.storeHeld(sha, len(runs.WorkflowRuns) > 0)
+	checks := make([]dashboard.Check, 0, len(runs.WorkflowRuns))
+	// Newest first, so the first run of a workflow is the one to show: a rerun,
+	// or the pull_request and pull_request_target triggers, leave several held
+	// runs of one workflow (#1946).
+	seen := map[int64]bool{}
+	for _, r := range runs.WorkflowRuns {
+		if id := r.GetWorkflowID(); id != 0 {
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+		}
+		checks = append(checks, dashboard.Check{
+			Name:  r.GetName(),
+			State: dashboard.CheckAwaitingApproval,
+			URL:   r.GetHTMLURL(),
+		})
+	}
+
+	return checks
 }
 
 // listChecksForSHA is ListChecks' per-commit half: the check runs, or the
@@ -3160,11 +3309,12 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 // active rulesets' required_status_checks rule (readable with read
 // access). A listed check is required. An unlisted one is advisory only
 // when both lookups answered; otherwise it stays unknown (nil), because
-// the unreadable source might be the one that requires it. Failures here
-// never fail the checks list itself.
-func (c *Client) markRequired(ctx context.Context, owner, name, base string, checks []dashboard.Check) {
-	if base == "" || len(checks) == 0 {
-		return
+// the unreadable source might be the one that requires it. It reports whether
+// a required check never reported. Failures here never fail the checks list
+// itself.
+func (c *Client) markRequired(ctx context.Context, owner, name, base string, checks []dashboard.Check) (unreported bool) {
+	if base == "" {
+		return false
 	}
 	required := map[string]bool{}
 	protKnown := c.protectionContexts(ctx, owner, name, base, required)
@@ -3178,6 +3328,19 @@ func (c *Client) markRequired(ctx context.Context, owner, name, base string, che
 			checks[i].Required = new(false)
 		}
 	}
+
+	// A required context no check carries the name of never reported.
+	reported := make(map[string]bool, len(checks))
+	for _, ch := range checks {
+		reported[ch.Name] = true
+	}
+	for context := range required {
+		if !reported[context] {
+			return true
+		}
+	}
+
+	return false
 }
 
 // protectionContexts adds the classic branch protection rule's required
@@ -3238,8 +3401,10 @@ func (c *Client) rulesetContexts(ctx context.Context, owner, name, base string, 
 // CheckState. GitHub's own conclusion values: success, failure, neutral,
 // cancelled, skipped, timed_out, action_required, stale — neutral counts
 // as passing the same way statusFromCheckRuns already treats it;
-// action_required and stale count as failing, since either blocks the
-// pull request the same way a real failure does.
+// stale counts as failing, since it blocks the
+// pull request the same way a real failure does. The exception is
+// action_required, which reads as awaiting approval: the rollup counts it as held
+// (awaitingApproval), so the panel and the pill tell one story (#1933).
 func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
 	if r.GetStatus() != "completed" {
 		if r.GetStatus() == "queued" {
@@ -3257,7 +3422,9 @@ func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
 		return dashboard.CheckCancelled
 	case "timed_out":
 		return dashboard.CheckTimedOut
-	default: // "failure", "action_required", "stale"
+	case "action_required":
+		return dashboard.CheckAwaitingApproval
+	default: // "failure", "stale"
 		return dashboard.CheckFailure
 	}
 }

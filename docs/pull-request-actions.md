@@ -53,8 +53,17 @@ them (`awaitingWorkflowApproval`) doesn't read "Failed". The CI pill says
 "Waiting for workflow approval" and still opens the pipeline panel. An
 "Approve on GitHub" link beside it opens the pull request's checks page in a new
 tab, where GitHub's own button approves the runs. The dashboard doesn't approve
-anything itself. These runs still count as failing CI, so the Failing CI quick
-filter keeps matching them.
+anything itself. The locked Merge button says the runs are waiting for approval.
+The pipeline panel lists each held workflow as "Waiting for approval", with an
+"Approve on GitHub" link to that run's page, once per workflow even when a
+rerun left several held runs. Where a required check never reported, the held
+workflow is what holds the merge back, so it sits with the required checks and
+says "Blocking". The Failing CI quick filter, the status filter's Failing
+choice and the Failed number in the menu pill follow one answer from the
+server, `failingCi`, which leaves these pull requests out when held runs are
+the only failure: nothing failed, someone has to approve. A job that really
+failed beside a held run still counts as failed. With auto-merge armed, the
+status line says it is waiting for workflow approval, not that a check failed.
 
 A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
@@ -561,9 +570,18 @@ A pull request whose CI is failing also offers `Rerun failed checks` at the top
 of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each
 workflow run on the head commit, once per run, and answers when the forge has
 queued them: the panel says "Rerun queued" and the new results show after the
-next refresh. It needs a token that can write to Actions. When the forge refuses
-(no permission, a run too old or already running, a Forgejo too old to have the
-rerun route), the panel shows its reason and the button stays for another try.
+next refresh. The button stays pending and reads "Rerun queued", in the panel
+and in the pull request's detail view, until the pull request stops reading
+failed, is updated, or ten minutes pass, so the same rerun can't be queued
+twice. A refused rerun isn't held and leaves its failure line in the detail
+view. It needs
+write access to Actions: the `repo` scope on a classic token, Actions (read
+and write) on a fine-grained token, or Actions (Read and write) on a GitHub
+App. A permission added to an App that is already installed
+does nothing until the owner accepts it on the installation's page. When the
+forge refuses (no permission, a run too old or already running, a Forgejo too
+old to have the rerun route), the panel shows its reason and the button stays
+for another try.
 A failed check that isn't an Actions job, such as an external CI, can't be
 rerun and is skipped; a pull request with nothing left to rerun answers "no
 failed job to rerun" (`POST /api/pull-requests/rerun-checks`, listed as
@@ -585,5 +603,6 @@ known for any check, the panel stays the flat list.
 Each check's state has its own glyph inside a tinted pill, so states differ
 by shape and word, not colour alone. Passed is a check in a circle, Failed and
 Timed out a cross, Running an amber spinning arc (a still clock under reduced
-motion), Queued an hourglass in a dashed blue ring, Skipped a slashed circle in
+motion), Queued an hourglass in a dashed blue ring, Waiting for approval a pause
+sign in a ring (the row's pill draws the same one), Skipped a slashed circle in
 the quietest weight, and Cancelled a stop square in a circle.

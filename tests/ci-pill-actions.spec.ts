@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -117,10 +118,9 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
     ).toHaveCount(0);
   });
 
-  // Every row offers Hide (#841), so Close is no longer alone: it sits in
-  // More actions with the two Hide items. The rule that one action alone is
-  // drawn directly still holds for a row with no Hide, such as a settled one.
-  test('Close sits in More actions beside the Hide items', async ({ page }) => {
+  // Every row offers Hide (#841), so Close is no longer alone: it sits in the
+  // row's dialog with the two Hide items.
+  test('Close sits in the dialog beside the Hide items', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await mockDashboard(
       page,
@@ -128,15 +128,15 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
     );
     await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'More actions' }).click();
+    const footer = actionsFooter(await openActionsDialog(row));
     await expect(
-      row.getByRole('button', { name: 'Hide this pull request' }),
+      footer.getByRole('button', { name: 'Hide this pull request' }),
     ).toBeVisible();
-    await row
+    await footer
       .getByRole('button', { name: 'Close pull request', exact: true })
       .click();
     await expect(
-      row.getByRole('button', { name: /Confirm close/ }),
+      footer.getByRole('button', { name: /Confirm close/ }),
     ).toBeVisible();
     await expect(
       await new AxeBuilder({ page })
@@ -146,16 +146,17 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
     ).toEqual([]);
   });
 
-  test('a row with two or more extra actions keeps More actions', async ({
+  test('a bot row offers two or more extra actions in its dialog', async ({
     page,
   }) => {
     await mockDashboard(page, makePR({ author: 'dependabot' }));
     // Bot pull requests are on the Bots page, not the main list (#1192).
     await page.goto('/bots.html');
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'More actions' }).click();
-    const menu = page.getByRole('group', { name: 'More actions' });
-    expect(await menu.getByRole('button').count()).toBeGreaterThanOrEqual(2);
+    const footer = actionsFooter(await openActionsDialog(row));
+    expect(
+      await footer.locator('.details-actions').getByRole('button').count(),
+    ).toBeGreaterThanOrEqual(2);
     await expect(
       await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

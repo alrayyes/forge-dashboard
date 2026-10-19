@@ -1206,6 +1206,7 @@
                     <a
                       class="repo-link"
                       href={repo.url}
+                      title={repo.fullName}
                       target="_blank"
                       rel="noopener noreferrer">{repo.fullName}</a
                     >
@@ -1380,6 +1381,7 @@
                   <a
                     class="repo-link"
                     href={repo.url}
+                    title={repo.fullName}
                     target="_blank"
                     rel="noopener noreferrer">{repo.fullName}</a
                   >

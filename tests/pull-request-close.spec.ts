@@ -1,5 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import {
+  actionsFooter,
+  closeActionsDialog,
+  openActionsDialog,
+} from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -80,6 +85,21 @@ async function openClose(row: Locator) {
   return row.getByRole('button', { name: 'Close pull request', exact: true });
 }
 
+// Close is in the row's dialog footer, with the Hide items. Opens the dialog
+// and returns its footer and Close button.
+async function openCloseInDialog(row: Locator) {
+  const dialog = await openActionsDialog(row);
+  const footer = actionsFooter(dialog);
+  return {
+    dialog,
+    footer,
+    close: footer.getByRole('button', {
+      name: 'Close pull request',
+      exact: true,
+    }),
+  };
+}
+
 // Holds requestAnimationFrame callbacks queued after holdFrames() until
 // releaseFrames(), the way a loaded CI runner delays them. The menu moves
 // focus into its popover from one of these, so a held frame is how a test
@@ -138,28 +158,21 @@ test.describe('pull request close button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     // Wait for the row first: absent proves nothing before it has rendered.
-    await expect(
-      row.getByRole('button', { name: 'More actions' }),
-    ).toBeVisible();
+    await expect(row.getByRole('button', { name: /^#\d+ / })).toBeVisible();
     await expect(
       row.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toHaveCount(0);
   });
 
-  test('a pull request that cannot be merged still offers Close in More actions', async ({
+  test('a pull request that cannot be merged still offers Close in its dialog', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(await openClose(row)).toBeVisible();
-    await expect(
-      row.locator('.row-actions-popover').getByRole('button', {
-        name: 'Close pull request',
-        exact: true,
-      }),
-    ).toBeVisible();
+    const { close } = await openCloseInDialog(row);
+    await expect(close).toBeVisible();
   });
 
   // #1223: no green nudge any more. Close is the same neutral button on an
@@ -174,7 +187,8 @@ test.describe('pull request close button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(await openClose(row)).not.toHaveClass(/suggested/);
+    const { close } = await openCloseInDialog(row);
+    await expect(close).not.toHaveClass(/suggested/);
   });
 
   test('clicking Close arms a confirm step instead of closing immediately', async ({
@@ -189,12 +203,13 @@ test.describe('pull request close button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
+    const { footer, close } = await openCloseInDialog(row);
+    await close.click();
 
     await expect(
-      row.getByRole('button', { name: 'Confirm close pull request?' }),
+      footer.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeVisible();
-    await expect(row.getByRole('button', { name: 'Cancel' })).toBeVisible();
+    await expect(footer.getByRole('button', { name: 'Cancel' })).toBeVisible();
     expect(closeCalled).toBe(false);
   });
 
@@ -205,10 +220,11 @@ test.describe('pull request close button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
+    const { footer, close } = await openCloseInDialog(row);
+    await close.click();
 
     await expect(
-      row.getByRole('button', { name: 'Confirm close pull request?' }),
+      footer.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeFocused();
   });
 
@@ -224,10 +240,16 @@ test.describe('pull request close button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-    await row.getByRole('button', { name: 'Cancel' }).click();
+    const { footer, close } = await openCloseInDialog(row);
+    await close.click();
+    await footer.getByRole('button', { name: 'Cancel' }).click();
 
-    await expect(row.getByRole('button', { name: 'Close' })).toBeVisible();
+    await expect(
+      footer.getByRole('button', {
+        name: 'Close pull request',
+        exact: true,
+      }),
+    ).toBeVisible();
     expect(closeCalled).toBe(false);
   });
 
@@ -299,7 +321,7 @@ test.describe('pull request close button', () => {
     ).toBeVisible();
   });
 
-  test('confirm close has no axe-core violations inside the open menu', async ({
+  test('confirm close has no axe-core violations inside the open dialog', async ({
     page,
   }) => {
     // The confirm button fades in; scanning mid-fade measures a blended
@@ -309,9 +331,10 @@ test.describe('pull request close button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
+    const { footer, close } = await openCloseInDialog(row);
+    await close.click();
     await expect(
-      row.getByRole('button', { name: 'Confirm close pull request?' }),
+      footer.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeVisible();
 
     const results = await new AxeBuilder({ page })
@@ -345,10 +368,13 @@ test.describe('pull request close button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-    await row
+    const { dialog, footer, close } = await openCloseInDialog(row);
+    await close.click();
+    await footer
       .getByRole('button', { name: 'Confirm close pull request?' })
       .click();
+    // The modal covers the row, so close it before asserting the row left.
+    await closeActionsDialog(dialog);
 
     await expect(page.locator('#pr-rows .row')).toHaveCount(0);
     expect(requestBody).toEqual({
@@ -405,8 +431,9 @@ test.describe('pull request close button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-    await row
+    const { footer, close } = await openCloseInDialog(row);
+    await close.click();
+    await footer
       .getByRole('button', { name: 'Confirm close pull request?' })
       .click();
 
@@ -436,8 +463,9 @@ test.describe('pull request close button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-    await row
+    const { footer, close } = await openCloseInDialog(row);
+    await close.click();
+    await footer
       .getByRole('button', { name: 'Confirm close pull request?' })
       .click();
 
@@ -448,9 +476,8 @@ test.describe('pull request close button', () => {
       'pull request already merged',
     );
     await expect(page.locator('#error-banner')).toHaveCount(0);
-    const button = await openClose(row);
-    await expect(button).toBeVisible();
-    await expect(button).toBeEnabled();
+    await expect(close).toBeVisible();
+    await expect(close).toBeEnabled();
   });
 
   // #770: opening the menu queues a frame that moves focus to the first

@@ -63,30 +63,36 @@ reviewers' names come with the data already fetched.
 
 Each pull request also counts its review comments, `reviewComments` in
 `/api/dashboard`, and the review threads still open, `unresolvedThreads`.
-Ordinary conversation comments aren't counted. GitHub reads both from the
-review threads in the pull request query, so it costs no request. It reads the
-first 30 threads, so a pull request with more reports fewer than it has. The
-unauthenticated fallback has no thread data and reports 0 comments and a `null`
-`unresolvedThreads`.
-Forgejo's count is the sum of each review's comments from the reviews call that
-already feeds `review`, so a draft reports 0. Forgejo gives no resolved state
-without a request per review, so its `unresolvedThreads` is `null`: unknown, not
-zero.
+Ordinary conversation comments are counted apart, as `conversationComments`, and
+the row's comment pill shows the sum of the two. GitHub reads the review numbers
+from the review threads in the pull request query, so it costs no request. It
+reads the first 30 threads, so a pull request with more reports fewer than it
+has. The unauthenticated fallback has no thread data and reports 0 comments and
+a `null` `unresolvedThreads`. Forgejo's count is the sum of each review's
+comments from the reviews call that already feeds `review`, so a draft
+reports 0. Forgejo gives no resolved state without a request per review, so its
+`unresolvedThreads` is `null`: unknown, not zero.
 
-Each row shows that as a pill beside the other status pills: the number
-of review comments, and `7 · 2 open` in amber, with a dot, when threads are
-still unresolved. A pull request with no review comments shows nothing, and on
-Forgejo, where `unresolvedThreads` is `null`, the pill shows the count with no
-open state. The pill is a link to the pull request's files-and-review view on
-the forge, opened in a new tab. Its accessible name is the full sentence, such
-as "7 review comments, 2 unresolved threads".
+Each row shows that as a pill beside the other status pills: the number of
+comments, review and conversation together, and `7 · 2 open` in amber, with a
+dot, when threads are still unresolved. A pull request with no comments shows
+nothing, and on Forgejo, where `unresolvedThreads` is `null`, the pill shows the
+count with no open state. The pill is a link to the pull request's
+files-and-review view on the forge, or to the pull request itself when it has
+only conversation comments, opened in a new tab. Its accessible name is the full
+sentence, such as "7 review comments, 2 unresolved threads", or "3 comments"
+once a conversation comment is in the count.
 
 `awaitingWorkflowApproval` is true when GitHub is holding a workflow run on the
 head commit until someone approves it (a check run counted as `ACTION_REQUIRED`
 in the checks summary). It adds no request, and it is false when that summary
-belongs to an earlier commit. It can be true while `ci` is pending or failing
-for another reason. A third-party check that concludes `action_required` counts
-too. Forgejo and the unauthenticated fallback always report false.
+belongs to an earlier commit. Runs a first-time contributor's pull request
+holds create no check runs, so when a required check hasn't reported the
+dashboard asks the repository's Actions runs for the head commit once, and a
+held run sets it too, with `ci` failing instead of pending. It can be true
+while `ci` is pending or failing for another reason. A third-party check that
+concludes `action_required` counts too. Forgejo and the unauthenticated fallback
+always report false.
 
 The **Conflicts** quick filter keeps the pull requests with a merge conflict, so
 they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
@@ -131,14 +137,17 @@ To offer this to your users:
    any name, no webhook of its own needed. Under **Repository
    permissions**, grant Contents, Issues, and Pull requests (read and
    write) for repo discovery, plus **Webhooks (Read and write)** for
-   "Add a webhook"; Metadata (read) comes along automatically. (GitHub also
+   "Add a webhook", plus **Actions (Read and write)** for "Rerun failed
+   checks" and for listing workflow runs held for approval; Metadata (read)
+   comes along automatically. (GitHub also
    has an _organization_ Webhooks permission; that is not the one.) An
    installation has no role on a repo, so the Webhooks page offers the Add
    button wherever listing that repo's webhooks works. That proves read
    access only; write is confirmed when Add is used. If you add or change
    a permission on an App that is already installed, GitHub holds the change
    until the owner accepts it on the installation's page, and the App has
-   the old permissions until then.
+   the old permissions until then. A refused action reads "Resource not
+   accessible by integration" until you accept it.
 2. Generate a private key on the App's own settings page, then
    base64-encode the downloaded `.pem`: `base64 -w0 your-key.pem`.
 3. Set `GITHUB_APP_ID` (the numeric ID the App's settings page shows)

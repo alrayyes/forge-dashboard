@@ -2,10 +2,10 @@ import AxeBuilder from '@axe-core/playwright';
 import {
   type APIRequestContext,
   expect,
-  type Locator,
   type Page,
   type Route,
 } from '@playwright/test';
+import { viaActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
@@ -89,10 +89,6 @@ function armed(
   });
 }
 
-async function openMoreActions(row: Locator) {
-  await row.getByRole('button', { name: 'More actions' }).click();
-}
-
 // The pull request row tests mock the dashboard and write nothing per user, so
 // they start from the shared session instead of registering a user per test
 // (#1379).
@@ -132,8 +128,9 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await openMoreActions(row);
-    await row.getByRole('button', { name: 'Enable auto-merge' }).click();
+    await viaActionsDialog(row, (footer) =>
+      footer.getByRole('button', { name: 'Enable auto-merge' }).click(),
+    );
 
     await expect(row.getByText('Waiting for checks to finish.')).toBeVisible();
     expect(posted).toEqual({

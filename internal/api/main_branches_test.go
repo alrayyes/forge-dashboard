@@ -177,7 +177,7 @@ func TestMainBranches_NoRepos(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	assert.JSONEq(t, `[]`, string(rawField(t, got.body, "branches")), "an array, never null")
-	assert.JSONEq(t, `{"failed":0,"passed":0,"running":0,"none":0,"total":0}`, string(rawField(t, got.body, "counts")))
+	assert.JSONEq(t, `{"failed":0,"passed":0,"running":0,"cancelled":0,"none":0,"total":0}`, string(rawField(t, got.body, "counts")))
 }
 
 func rawField(t *testing.T, body []byte, name string) json.RawMessage {

@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -34,6 +35,57 @@ type requiredChecks struct {
 	complete map[string]struct{}
 	// contexts is each "owner/name@base" branch's required contexts.
 	contexts map[string]requiredContexts
+	// held is each head commit's answer to "has a run awaiting approval", kept
+	// for heldRunsTTL so a pull request that stays blocked isn't asked every poll.
+	held map[string]heldAnswer
+}
+
+// heldRunsTTL is how long a head commit's held-run answer is reused. Short,
+// because approving the runs changes it.
+const heldRunsTTL = time.Minute
+
+// heldAnswer is one lookup's result. unknown marks a lookup that failed: the
+// pill reads it as "not held" so a token that can't read Actions isn't asked
+// again for every pull request, but the panel doesn't trust it and asks again,
+// so a transient error never hides a held run (#1966).
+type heldAnswer struct {
+	held    bool
+	unknown bool
+	fetched time.Time
+}
+
+func (r *requiredChecks) cachedHeld(sha string) (heldAnswer, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	a, found := r.held[sha]
+	if !found || time.Since(a.fetched) > heldRunsTTL {
+		return heldAnswer{}, false
+	}
+
+	return a, true
+}
+
+func (r *requiredChecks) storeHeld(sha string, held bool) {
+	r.storeAnswer(sha, heldAnswer{held: held, fetched: time.Now()})
+}
+
+// storeUnknownHeld remembers that the lookup failed.
+func (r *requiredChecks) storeUnknownHeld(sha string) {
+	r.storeAnswer(sha, heldAnswer{unknown: true, fetched: time.Now()})
+}
+
+func (r *requiredChecks) storeAnswer(sha string, answer heldAnswer) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.held == nil {
+		r.held = map[string]heldAnswer{}
+	}
+	for k, a := range r.held {
+		if time.Since(a.fetched) > heldRunsTTL {
+			delete(r.held, k)
+		}
+	}
+	r.held[sha] = answer
 }
 
 type requiredContexts struct {
@@ -133,16 +185,65 @@ func (c *Client) settleUnreportedRequiredChecks(ctx context.Context, prs []dashb
 		}
 		switch c.hasUnreportedRequired(ctx, cand) {
 		case verdictMissing:
-			prs[cand.prIndex].CI = dashboard.CIPending
+			c.settleUnreported(ctx, prs, cand)
 		case verdictUnreadable:
 			if cand.onlyChecksCanBlock {
-				prs[cand.prIndex].CI = dashboard.CIPending
+				c.settleUnreported(ctx, prs, cand)
 			}
 		case verdictComplete:
 			c.requiredChecks.markComplete(cand.headOid)
 		case verdictKeepRollup:
 		}
 	}
+}
+
+// settleUnreported reads a required check that hasn't reported as pending,
+// unless workflow runs held for approval are why: those finished as
+// action_required and create no check runs, so nothing is coming until a
+// maintainer approves them (#1929). It then reads like any other held run
+// (#1280): failing, and awaiting approval.
+func (c *Client) settleUnreported(ctx context.Context, prs []dashboard.PullRequest, cand missingRequiredCheck) {
+	if c.hasRunsAwaitingApproval(ctx, cand) {
+		prs[cand.prIndex].CI = dashboard.CIFailure
+		prs[cand.prIndex].AwaitingWorkflowApproval = true
+		prs[cand.prIndex].FailingOnlyForApproval = true
+
+		return
+	}
+	prs[cand.prIndex].CI = dashboard.CIPending
+}
+
+// hasRunsAwaitingApproval reports whether the head commit has a workflow run
+// held as action_required. A failed lookup says no, so the pull request stays
+// pending as before; a token that can't read Actions is expected and only
+// logged at debug level, since it would repeat on every poll.
+func (c *Client) hasRunsAwaitingApproval(ctx context.Context, cand missingRequiredCheck) bool {
+	if answer, ok := c.requiredChecks.cachedHeld(cand.headOid); ok {
+		return answer.held
+	}
+	path := fmt.Sprintf("/repos/%s/%s/actions/runs", cand.owner, cand.name)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: cand.headOid, Status: "action_required"}
+	opts.PerPage = 1
+	runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, cand.owner, cand.name, opts)
+	if err != nil {
+		level := slog.LevelWarn
+		if clientErr, ok := errors.AsType[*dashboard.ClientError](asClientError(c.restError(ctx, http.MethodGet, path, err))); ok && clientErr.Kind == dashboard.ForgeErrorUnauthorized {
+			level = slog.LevelDebug
+		}
+		slog.Log(ctx, level, "github awaiting-approval lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
+		// Remembered as unknown for the TTL, which reads as no here, so a token
+		// that can't read Actions or a rate-limited poll isn't asked again for
+		// every pull request.
+		c.requiredChecks.storeUnknownHeld(cand.headOid)
+
+		return false
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+	held := runs.GetTotalCount() > 0
+	c.requiredChecks.storeHeld(cand.headOid, held)
+
+	return held
 }
 
 // hasUnreportedRequired judges the head commit's required contexts. A missing

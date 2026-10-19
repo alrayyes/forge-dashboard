@@ -77,6 +77,7 @@
     { key: "failed", label: "Failing" },
     { key: "passed", label: "Passing" },
     { key: "running", label: "Running" },
+    { key: "cancelled", label: "Cancelled" },
     { key: "none", label: "No pipeline" },
   ];
 
@@ -673,6 +674,7 @@
                   <a
                     class="mb-repo"
                     href={b.url}
+                    title={b.fullName}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="{b.fullName} (opens in a new tab)"

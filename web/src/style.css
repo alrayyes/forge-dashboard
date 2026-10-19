@@ -832,13 +832,44 @@ section.board {
      for this account's own repo names ("alrayyes/backup-git-repos",
      "alrayyes/forge-dashboard") without one. Every .row shares this
      exact list, which is what keeps columns aligned down the board
-     with no shared grid/subgrid — widen it here only, never per-row. */
+     with no shared grid/subgrid — widen it here only, never per-row.
+     #1899: the fixed columns alone sum to 842px; with gaps (6 x 12px)
+     and padding (2 x 18px) the grid needs ~950px before the 1fr title
+     column gets any space at all, and ~1100px before it gets as much as
+     the narrow layout's ~150px. The phone layout triggers at
+     max-width: 760px, so everything from 761px up to 1103px overflows or
+     squeezes the title. Drop the
+     author, created and updated columns across that range so the 1fr
+     title and the status cell stay on screen. */
   grid-template-columns: 280px 1fr 96px 82px 82px 280px 22px;
   gap: 12px;
   align-items: center;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
   color: inherit;
+}
+@media (min-width: 761px) and (max-width: 1103px) {
+  /* Hiding the three cells is not enough: their 96 + 82 + 82 px tracks stay in
+     the template and keep taking space, so the row still overflowed. The grid
+     has to drop them too, and the status and go cells move up to match. The
+     repo column gives up 40px so the title column stays wide enough (at 761px
+     it was 107px, narrower than a label chip, which then ran under the status
+     cell). */
+  .row {
+    grid-template-columns: 240px 1fr 280px 22px;
+  }
+  .row .author,
+  .row .created,
+  .row .updated {
+    display: none;
+  }
+  .row .status-cell,
+  .row .empty-cell {
+    grid-column: 3;
+  }
+  .row .go {
+    grid-column: 4;
+  }
 }
 
 .row:last-child {
@@ -1386,6 +1417,12 @@ a.ci-pill:hover {
 .ci-pill.pending {
   background: var(--warning-bg);
   color: var(--warning);
+}
+/* Cancelled (#1950): nothing broke, so the neutral pair, never critical. The
+   word and the stop glyph carry it, not the colour. */
+.ci-pill.cancelled {
+  background: var(--neutral-bg);
+  color: var(--ink-2);
 }
 .ci-pill.none {
   background: var(--neutral-bg);
@@ -2941,7 +2978,8 @@ footer a.mono:focus-visible {
 .ci-pill .check-glyph-arc {
   animation: check-spin 1.2s linear infinite;
 }
-.pipeline-check-status.queued {
+.pipeline-check-status.queued,
+.pipeline-check-status.awaiting_approval {
   background: var(--queued-bg);
   color: var(--queued);
 }

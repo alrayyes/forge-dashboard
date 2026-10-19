@@ -12,6 +12,15 @@ func IsReadyToMerge(pr PullRequest) bool {
 	return pr.MergeStatus == MergeMergeable && pr.CI == CISuccess && !pr.Draft
 }
 
+// IsFailingCI is the Failing CI quick filter and the status filter's Failing
+// choice, and the rule behind the menu pill's Failed number (#1946): CI reads
+// failing and the cause isn't only a workflow run held for approval, which
+// waits on a person and has not failed. A job that really failed beside a held
+// run still counts.
+func IsFailingCI(pr PullRequest) bool {
+	return pr.CI == CIFailure && !pr.FailingOnlyForApproval
+}
+
 // NeedsReview is the Needs review quick filter (#807): a review is
 // outstanding, meaning the forge requires one or a reviewer was asked. An
 // unreviewed pull request nobody was asked about is merely unreviewed,

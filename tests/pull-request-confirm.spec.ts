@@ -6,6 +6,7 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { flushRequests } from './flush-requests-helper';
 import { registerViaInvite } from './register-helper';
@@ -40,8 +41,7 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
     // Higher numbers are newer, so row 0 is the highest number.
     updatedAt: new Date(Date.now() - (100 - number) * 1000).toISOString(),
     mergeStatus: 'mergeable',
-    // Two extra actions, so Close stays behind "More actions" (#1139): a
-    // lone one is drawn directly.
+    // Merge, auto-merge and Close, so the dialog footer holds all three.
     allowedActions: [
       { action: 'merge' },
       { action: 'auto_merge' },
@@ -79,12 +79,17 @@ const confirmMerge = (row: Locator) =>
 const cancelButton = (row: Locator) =>
   row.getByRole('button', { name: 'Cancel' });
 
+// Close is in the row's dialog, opened unless it already is.
+const detailsDialog = (page: Page) =>
+  page.getByRole('dialog', { name: /^Pull request details/ });
+
 async function openClose(row: Locator) {
-  const trigger = row.getByRole('button', { name: 'More actions' });
-  if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
-    await trigger.click();
-  }
-  return row.getByRole('button', { name: 'Close pull request', exact: true });
+  const open = detailsDialog(row.page());
+  const dialog = (await open.isVisible()) ? open : await openActionsDialog(row);
+  return actionsFooter(dialog).getByRole('button', {
+    name: 'Close pull request',
+    exact: true,
+  });
 }
 
 // A request the test has to be able to say never happened.
@@ -178,12 +183,10 @@ test.describe('confirm step: leaving it', () => {
     await mergeButton(rowOf(page, 0)).click();
     await expect(confirmMerge(rowOf(page, 0))).toBeVisible();
 
-    const trigger = rowOf(page, 0).getByRole('button', {
-      name: 'More actions',
-    });
-    await trigger.click();
+    // Opening the row's dialog is another button's job, and it disarms.
+    const dialog = await openActionsDialog(rowOf(page, 0));
 
-    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(dialog).toBeVisible();
     await expect(confirmMerge(rowOf(page, 0))).toHaveCount(0);
   });
 
@@ -204,7 +207,7 @@ test.describe('confirm step: leaving it', () => {
     expect(calls).toEqual([]);
   });
 
-  test('Escape on an armed Close disarms it, keeps the menu and focuses Close; a second Escape closes the menu', async ({
+  test('Escape on an armed Close disarms it, keeps the dialog and focuses Close; a second Escape closes the dialog', async ({
     page,
   }) => {
     const calls = await trackRequests(page);
@@ -213,26 +216,25 @@ test.describe('confirm step: leaving it', () => {
 
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
+    const dialog = detailsDialog(page);
     await expect(
-      row.getByRole('button', { name: 'Confirm close pull request?' }),
+      dialog.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeFocused();
 
     await page.keyboard.press('Escape');
 
     await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
+      dialog.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeFocused();
-    await expect(row.locator('.row-actions-popover')).toBeVisible();
+    await expect(dialog).toBeVisible();
 
     await page.keyboard.press('Escape');
-    await expect(row.locator('.row-actions-popover')).toHaveCount(0);
-    await expect(
-      row.getByRole('button', { name: 'More actions' }),
-    ).toBeFocused();
+    await expect(dialog).toBeHidden();
+    await expect(row.getByRole('button', { name: /^#\d+ / })).toBeFocused();
     expect(calls).toEqual([]);
   });
 
-  test('Cancel on an armed Close returns focus to Close inside the open menu', async ({
+  test('Cancel on an armed Close returns focus to Close inside the open dialog', async ({
     page,
   }) => {
     await mockDashboard(page, [makePR(2)]);
@@ -240,15 +242,16 @@ test.describe('confirm step: leaving it', () => {
 
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
-    await cancelButton(row).click();
+    const dialog = detailsDialog(page);
+    await cancelButton(dialog).click();
 
     await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
+      dialog.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toBeFocused();
-    await expect(row.locator('.row-actions-popover')).toBeVisible();
+    await expect(dialog).toBeVisible();
   });
 
-  test('a click outside the open menu disarms an armed Close', async ({
+  test('a click outside the open dialog closes it and disarms an armed Close', async ({
     page,
   }) => {
     await mockDashboard(page, [makePR(2)]);
@@ -256,13 +259,21 @@ test.describe('confirm step: leaving it', () => {
 
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
+    const dialog = detailsDialog(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Confirm close pull request?' }),
+    ).toBeVisible();
     // Not the h1: it is the brand link, and that now leaves the page (#1279).
     await page.locator('body').click({ position: { x: 2, y: 600 } });
 
-    await expect(
-      row.getByRole('button', { name: 'Confirm close pull request?' }),
-    ).toHaveCount(0);
+    await expect(dialog).toBeHidden();
+    // Reopened, the dialog finds a plain Close, not a confirm left armed.
     await (await openClose(row)).waitFor();
+    await expect(
+      detailsDialog(page).getByRole('button', {
+        name: 'Confirm close pull request?',
+      }),
+    ).toHaveCount(0);
   });
 });
 
@@ -381,6 +392,9 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     // Each test installs its dashboard mock, then loads the page once.
   });
 
+  // Under a modal dialog the other row cannot be reached, so Merge on the
+  // first row is armed, then opening the second row's dialog disarms it, and
+  // arming Close there works.
   test('arming Close in one row disarms Merge in another', async ({ page }) => {
     await mockDashboard(page, [makePR(3), makePR(2)]);
     await page.goto('/pull-requests.html');
@@ -391,7 +405,7 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await (await openClose(rowOf(page, 1))).click();
 
     await expect(
-      rowOf(page, 1).getByRole('button', {
+      detailsDialog(page).getByRole('button', {
         name: 'Confirm close pull request?',
       }),
     ).toBeVisible();
@@ -427,7 +441,9 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     await (await openClose(row)).dblclick();
 
     await expect(
-      row.getByRole('button', { name: 'Confirm close pull request?' }),
+      detailsDialog(page).getByRole('button', {
+        name: 'Confirm close pull request?',
+      }),
     ).toBeVisible();
     // A request the guard failed to stop has reached the route by now; the
     // test also fails on the visible state when the guard is removed (#1382).
@@ -617,9 +633,10 @@ test.describe('confirm step: screen readers', () => {
     await page.goto('/pull-requests.html');
 
     await (await openClose(rowOf(page, 0))).click();
-    await expect(page.locator('#feedback-live')).toHaveText(
-      'Confirm close of #342? Press Confirm or Cancel.',
-    );
+    // The dialog is modal, so it speaks through its own live region.
+    await expect(
+      detailsDialog(page).locator('[role="status"][aria-live="polite"]'),
+    ).toHaveText('Confirm close of #342? Press Confirm or Cancel.');
   });
 
   test('an armed Merge and Close show how to back out, and the hint is not announced (#767)', async ({
@@ -643,10 +660,10 @@ test.describe('confirm step: screen readers', () => {
     await expect(hint(rowOf(page, 0))).toHaveCount(0);
 
     await (await openClose(rowOf(page, 0))).click();
-    await expect(hint(rowOf(page, 0))).toHaveText(
+    await expect(hint(detailsDialog(page))).toHaveText(
       'Esc or click away to cancel',
     );
-    // No axe scan here: this is the armed-Close-in-the-open-menu state that
+    // No axe scan here: this is the armed-Close-in-the-open-dialog state that
     // the last test in this file scans, hint included (#1381).
   });
 
@@ -684,7 +701,7 @@ test.describe('confirm step: screen readers', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('an armed Close in the open menu has no axe-core violations', async ({
+  test('an armed Close in the open dialog has no axe-core violations', async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -694,7 +711,9 @@ test.describe('confirm step: screen readers', () => {
     const row = rowOf(page, 0);
     await (await openClose(row)).click();
     await expect(
-      row.getByRole('button', { name: 'Confirm close pull request?' }),
+      detailsDialog(page).getByRole('button', {
+        name: 'Confirm close pull request?',
+      }),
     ).toBeVisible();
 
     const results = await new AxeBuilder({ page })

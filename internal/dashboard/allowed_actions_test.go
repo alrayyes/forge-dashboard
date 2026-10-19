@@ -67,6 +67,7 @@ func TestAllowedActions(t *testing.T) {
 		{"behind but mergeable keeps merge (Forgejo)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.Behind = true }), []string{"auto_merge", "close", "merge", "update_branch"}},
 		{"blocked with CI failing", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge:checks_failing", "rerun_checks"}},
 		{"failing CI on GitHub offers rerunning the failed checks (#698)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},
+		{"CI failing only because a workflow is held for approval offers no rerun (#1946)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.FailingOnlyForApproval = true }), []string{"auto_merge", "close", "merge"}},
 		{"failing CI on Forgejo offers rerunning the failed checks (#1032)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},
 		{"passing CI on Forgejo has nothing to rerun", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CISuccess }), []string{"close", "merge"}},
 		{"blocked otherwise", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:blocked_by_protection"}},
@@ -161,6 +162,11 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 		next     string
 	}{
 		{"CI pending", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }, dashboard.ActionChecksPending, "Waiting for CI to finish", "Merge unlocks automatically"},
+		{"workflow runs awaiting approval", func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeBlocked
+			p.CI = dashboard.CIFailure
+			p.AwaitingWorkflowApproval = true
+		}, dashboard.ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge"},
 		{"blocked with a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }, dashboard.ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge"},
 		{"blocked with passing CI does not invent a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CISuccess }, dashboard.ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing"},
 		{"conflicting", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }, dashboard.ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge"},
@@ -184,6 +190,16 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 				assert.Equal(t, tc.next, merge.Blocked.Next)
 			}
 		})
+	}
+}
+
+func TestAllowedActions_HeldRunsOnAMergeablePullRequest_DoNotLockMerge(t *testing.T) {
+	t.Parallel()
+
+	for _, a := range dashboard.AllowedActions(ghPR(func(p *dashboard.PullRequest) { p.AwaitingWorkflowApproval = true }), nil) {
+		if a.Action == dashboard.ActionMerge {
+			assert.Nil(t, a.Blocked, "GitHub says it can merge, so a held non-required run is no reason to lock it")
+		}
 	}
 }
 

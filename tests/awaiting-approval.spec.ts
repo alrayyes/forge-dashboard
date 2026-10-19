@@ -62,6 +62,11 @@ test.describe('Awaiting workflow approval (#1280)', () => {
       held.getByRole('button', { name: /Waiting for workflow approval/ }),
     ).toBeVisible();
     await expect(held.locator('.ci-pill')).not.toContainText('Failed');
+    // The pause glyph, not the queued hourglass or the failure cross.
+    await expect(held.locator('.ci-pill [data-glyph]')).toHaveAttribute(
+      'data-glyph',
+      'pause',
+    );
     const link = held.getByRole('link', { name: /approve.*GitHub/i });
     await expect(link).toHaveAttribute(
       'href',
@@ -80,6 +85,10 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     await open(page);
     const failing = row(page, 'Really failing');
     await expect(failing.locator('.ci-pill')).toHaveText('Failed');
+    await expect(failing.locator('.ci-pill [data-glyph]')).not.toHaveAttribute(
+      'data-glyph',
+      'pause',
+    );
     await expect(
       failing.getByRole('link', { name: /approve.*GitHub/i }),
     ).toHaveCount(0);

@@ -1,5 +1,95 @@
 # Changelog
 
+## [0.224.3](https://github.com/alrayyes/forge-dashboard/compare/v0.224.2...v0.224.3) (2026-10-19)
+
+
+### Bug Fixes
+
+* **github:** keep a failed held-run lookup from hiding held workflows ([#1975](https://github.com/alrayyes/forge-dashboard/issues/1975)) ([5e93e12](https://github.com/alrayyes/forge-dashboard/commit/5e93e12f793c8f5f5ab998035784733f660c803a))
+
+## [0.224.2](https://github.com/alrayyes/forge-dashboard/compare/v0.224.1...v0.224.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* show a branch whose only trouble is a cancelled run as cancelled, not failed ([#1960](https://github.com/alrayyes/forge-dashboard/issues/1960)) ([7086624](https://github.com/alrayyes/forge-dashboard/commit/7086624dd21880bdd00be27333e96b17ce00e1a9))
+
+## [0.224.1](https://github.com/alrayyes/forge-dashboard/compare/v0.224.0...v0.224.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* one rule for failing CI across the filters, the auto-merge line and the checks panel ([#1955](https://github.com/alrayyes/forge-dashboard/issues/1955)) ([e0c7f3b](https://github.com/alrayyes/forge-dashboard/commit/e0c7f3b6472e0c696af6f73161ab7cd3dfd628d4))
+
+## [0.224.0](https://github.com/alrayyes/forge-dashboard/compare/v0.223.0...v0.224.0) (2026-10-19)
+
+
+### Features
+
+* remove the outbound request log page section and its API ([#1968](https://github.com/alrayyes/forge-dashboard/issues/1968)) ([550e1b2](https://github.com/alrayyes/forge-dashboard/commit/550e1b274f74cfab3571cc2a4522a2ce0766508e))
+
+## [0.223.0](https://github.com/alrayyes/forge-dashboard/compare/v0.222.1...v0.223.0) (2026-10-19)
+
+
+### Features
+
+* **web:** show a repo's full owner/name on hover on Main branches and Webhooks ([#1962](https://github.com/alrayyes/forge-dashboard/issues/1962)) ([569e62d](https://github.com/alrayyes/forge-dashboard/commit/569e62d7f4562b7cc7b064728ce84e3af53e599f))
+
+## [0.222.1](https://github.com/alrayyes/forge-dashboard/compare/v0.222.0...v0.222.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **web:** open a nav link's name with the numbers drawn on it ([#1952](https://github.com/alrayyes/forge-dashboard/issues/1952)) ([2a00275](https://github.com/alrayyes/forge-dashboard/commit/2a0027549ca706df7094a454e8d28d895b564180))
+
+## [0.222.0](https://github.com/alrayyes/forge-dashboard/compare/v0.221.3...v0.222.0) (2026-10-19)
+
+
+### Features
+
+* count conversation comments in a pull request's comment count ([#1954](https://github.com/alrayyes/forge-dashboard/issues/1954)) ([7798ce2](https://github.com/alrayyes/forge-dashboard/commit/7798ce2449d3a29ebde1b43c50caae2f24018230))
+
+## [0.221.3](https://github.com/alrayyes/forge-dashboard/compare/v0.221.2...v0.221.3) (2026-10-19)
+
+
+### Bug Fixes
+
+* **web:** hold a queued rerun as "Rerun queued" in the pipeline panel too ([#1951](https://github.com/alrayyes/forge-dashboard/issues/1951)) ([aa23a2a](https://github.com/alrayyes/forge-dashboard/commit/aa23a2a9255cb6eb4f72d5cfd026dd3117c870d4))
+
+## [0.221.2](https://github.com/alrayyes/forge-dashboard/compare/v0.221.1...v0.221.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **deps:** bump the web-shipped group with a refreshed bun.lock ([#1942](https://github.com/alrayyes/forge-dashboard/issues/1942)) ([742bb35](https://github.com/alrayyes/forge-dashboard/commit/742bb35caeeed857757c731daafed8b0cd58bc86))
+
+## [0.221.1](https://github.com/alrayyes/forge-dashboard/compare/v0.221.0...v0.221.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **web:** prevent row overflow on bots page between 761-949 px ([#1899](https://github.com/alrayyes/forge-dashboard/issues/1899)) ([#1911](https://github.com/alrayyes/forge-dashboard/issues/1911)) ([86ffcd7](https://github.com/alrayyes/forge-dashboard/commit/86ffcd7045bbdab8c4cd73a2df8920ffb8053565))
+
+## [0.221.0](https://github.com/alrayyes/forge-dashboard/compare/v0.220.2...v0.221.0) (2026-10-19)
+
+
+### Features
+
+* **web:** keep the details dialog current and close it on merge ([#1928](https://github.com/alrayyes/forge-dashboard/issues/1928)) ([ff5ca64](https://github.com/alrayyes/forge-dashboard/commit/ff5ca6458fc6bbcbb7561364391be879ede71b16)), closes [#1927](https://github.com/alrayyes/forge-dashboard/issues/1927)
+
+
+### Bug Fixes
+
+* **github:** read runs held for approval as awaiting approval, not running ([#1930](https://github.com/alrayyes/forge-dashboard/issues/1930)) ([ba1dd6a](https://github.com/alrayyes/forge-dashboard/commit/ba1dd6acae391daaf4911e95464ae7b523a00149)), closes [#1929](https://github.com/alrayyes/forge-dashboard/issues/1929)
+
+## [0.220.2](https://github.com/alrayyes/forge-dashboard/compare/v0.220.1...v0.220.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **deps:** bump github.com/getkin/kin-openapi ([#1921](https://github.com/alrayyes/forge-dashboard/issues/1921)) ([bfb149e](https://github.com/alrayyes/forge-dashboard/commit/bfb149e49b51f6b23355a364e4cc631f8166fafa))
+* **deps:** bump oven/bun ([#1923](https://github.com/alrayyes/forge-dashboard/issues/1923)) ([4a4b9dc](https://github.com/alrayyes/forge-dashboard/commit/4a4b9dc0713625730d455084dbf574f99f3ba4a9))
+
 ## [0.220.1](https://github.com/alrayyes/forge-dashboard/compare/v0.220.0...v0.220.1) (2026-10-18)
 
 

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { viaActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -198,13 +199,14 @@ test.describe('row failure lines (#752)', () => {
 
     // A different action on the same row: its own start replaces the old
     // failure rather than stacking a second line beside it.
-    await row(page).getByRole('button', { name: 'More actions' }).click();
-    await row(page)
-      .getByRole('button', { name: 'Close pull request', exact: true })
-      .click();
-    await row(page)
-      .getByRole('button', { name: 'Confirm close pull request?' })
-      .click();
+    await viaActionsDialog(row(page), async (footer) => {
+      await footer
+        .getByRole('button', { name: 'Close pull request', exact: true })
+        .click();
+      await footer
+        .getByRole('button', { name: 'Confirm close pull request?' })
+        .click();
+    });
     // The close is a wait, so it is a chip now, and the old failure line
     // is gone rather than stacked beside it.
     await expect(row(page).locator('.wait-chip .wait-chip-label')).toHaveText(

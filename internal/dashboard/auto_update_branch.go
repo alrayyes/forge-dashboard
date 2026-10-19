@@ -348,14 +348,16 @@ func (a *Aggregator) reconcileDependabotRebaseWatch(ctx context.Context, snap Sn
 			continue
 		}
 
-		switch pr.CI {
-		case CIFailure:
+		switch {
+		case IsFailingCI(pr):
 			a.recreateDependabotPR(ctx, pr)
 			a.clearDependabotWatch(key)
-		case CISuccess:
+		case pr.CI == CISuccess:
 			a.clearDependabotWatch(key)
-		case CIPending, CINone:
-			// Still waiting on this rebase's own CI run — check again next refresh.
+		default:
+			// Still waiting on this rebase's own CI run, or on a person to
+			// approve a held workflow, which is not a failure to recreate
+			// over: check again next refresh.
 		}
 	}
 }

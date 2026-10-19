@@ -1,10 +1,26 @@
 import { defineConfig } from '@playwright/test';
 
+// Specs that run against their own server with one signed-in user and a reset
+// between tests (tests/server-fixture.ts, #1880). A spec lives in exactly one
+// project: the rest are `legacy`, which share one server and register users
+// through admin invites, until the invites go and every spec has moved.
+const singleUserSpecs = [
+  '**/page-tops.spec.ts',
+  '**/filter-persistence.spec.ts',
+  '**/timezone.spec.ts',
+  '**/webhooks.spec.ts',
+  '**/auth-single-user.spec.ts',
+];
+
 export default defineConfig({
   testDir: 'tests',
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8080',
   },
+  projects: [
+    { name: 'single-user', testMatch: singleUserSpecs },
+    { name: 'legacy', testIgnore: singleUserSpecs },
+  ],
   // CI runs the suite as shards, each writing a blob report. The final e2e job
   // merges them into the JUnit XML the pages job publishes next to the Go test
   // results (rules/published-reports.md): playwright merge-reports --reporter
@@ -12,14 +28,16 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['blob']] : 'list',
   // Registers the very first user (who becomes admin) once, before any
   // test file runs — see the file's own header comment for why this
-  // can't be a per-file beforeAll.
+  // can't be a per-file beforeAll. It serves the `legacy` project's shared
+  // server; the `single-user` specs start servers of their own.
   globalSetup: './tests/admin-global-setup.ts',
   // Every test drives a real WebAuthn ceremony through Chrome's CDP virtual
-  // authenticator against one shared Go binary. CI runs one worker. Locally
-  // the default worker count stays: measured on #736, the server idles
-  // (about 10% of one core, every request but the SSE stream under 50 ms)
-  // and fewer workers didn't make failures go away, so the failures were
-  // test races and a starved browser, not server contention. Use
+  // authenticator. The `legacy` project runs against one shared Go binary; each
+  // `single-user` worker starts its own, so those scale with workers. CI runs
+  // one worker. Locally the default worker count stays: measured on #736, the
+  // shared server idles (about 10% of one core, every request but the SSE
+  // stream under 50 ms) and fewer workers didn't make failures go away, so the
+  // failures were test races and a starved browser, not server contention. Use
   // tests/run-local.sh for a fresh database per run.
   workers: process.env.CI ? 1 : undefined,
   retries: process.env.CI ? 1 : 0,

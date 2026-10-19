@@ -156,6 +156,10 @@ type pullRequestView struct {
 	// requests the page does.
 	ReadyToMerge bool `json:"readyToMerge"`
 	NeedsReview  bool `json:"needsReview"`
+	// FailingCI is the Failing CI filter's answer and the rule behind the menu
+	// pill's Failed number (#1946): CI is failing and not only because a
+	// workflow run is held for approval.
+	FailingCI bool `json:"failingCi"`
 	// ReviewRequestedFromMe is true when this open, non-draft pull request
 	// asks the signed-in user to review it (#695), by the username saved in
 	// Settings for its forge. False when no username is saved.
@@ -458,6 +462,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 			Status:         dashboard.PullRequestStatus(pr, actions),
 			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
 			NeedsReview:    dashboard.NeedsReview(pr),
+			FailingCI:      dashboard.IsFailingCI(pr),
 
 			ReviewRequestedFromMe: dashboard.ReviewRequestedFrom(pr, b.logins[pr.Forge]),
 			AutoMerge:             b.autoMergeStatus(pr),

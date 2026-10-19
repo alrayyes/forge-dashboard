@@ -153,13 +153,26 @@
     dialogEl?.showModal();
   }
 
-  async function load() {
+  // Fetches the details again for the pull request on show. Once they are on
+  // screen the swap is quiet and a failure leaves them as they were; while the
+  // first load is still going, or after it failed, it is that load again, so
+  // the skeleton or the error never outlives the answer. Resolves to whether
+  // the details are now current.
+  export function reload(): Promise<boolean> {
+    if (!target) return Promise.resolve(true);
+
+    return load(phase === "ready");
+  }
+
+  async function load(quiet = false): Promise<boolean> {
     const current = target;
-    if (!current) return;
+    if (!current) return true;
     const mine = ++token;
-    phase = "loading";
-    details = null;
-    html = {};
+    if (!quiet) {
+      phase = "loading";
+      details = null;
+      html = {};
+    }
     try {
       const res = await fetch(
         `/api/pull-requests/details?forge=${encodeURIComponent(current.forge)}&fullName=${encodeURIComponent(current.repo)}&number=${current.number}`,
@@ -167,7 +180,7 @@
       );
       if (res.status === 401) {
         window.location.href = "/login.html";
-        return;
+        return true;
       }
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -188,12 +201,21 @@
       if (loaded.releaseNotes) add("notes", loaded.releaseNotes.text);
       for (const c of loaded.comments) add(c.id, c.text);
       await Promise.all(jobs);
-      if (mine !== token) return;
+      if (mine !== token) return true;
       html = rendered;
       details = loaded;
       phase = "ready";
+      // A quiet swap leaves a list the reader has open alone; a full load
+      // replaces everything, so the old content's state goes with it.
+      if (!quiet) {
+        shownReaction = null;
+        brokenAvatars = {};
+      }
+
+      return true;
     } catch (err) {
-      if (mine !== token) return;
+      if (mine !== token) return true;
+      if (quiet) return false;
       // The server's own reason is plain words. A network or chunk failure
       // carries a URL and a browser message, which stay out of the UI.
       errorMessage =
@@ -201,6 +223,8 @@
           ? `Could not load the details: ${err.message}`
           : "Could not load the details. Check your connection and try again.";
       phase = "error";
+
+      return false;
     }
   }
 
@@ -399,7 +423,7 @@
       {:else if phase === "error"}
         <div class="details-error" role="alert">
           <p>{errorMessage}</p>
-          <button type="button" class="details-retry" onclick={load}
+          <button type="button" class="details-retry" onclick={() => load()}
             >Try again</button
           >
         </div>

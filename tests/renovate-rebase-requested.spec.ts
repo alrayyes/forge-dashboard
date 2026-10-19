@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { closeActionsDialog, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { settle } from './settle-helper';
 import { rateLimit } from './severity-stand-in';
@@ -72,12 +73,13 @@ async function serve(
   await page.route('**/api/dashboard/refresh*', answer);
 }
 
+const rowOf = (page: Page) => page.locator('#pr-rows .row').first();
+
 const open = async (page: Page) => {
   await page.goto('/bots.html');
-  const row = page.locator('#pr-rows .row').first();
+  const row = rowOf(page);
   await expect(row).toBeVisible();
-  await row.getByRole('button', { name: 'More actions' }).click();
-  return row;
+  return openActionsDialog(row);
 };
 
 test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
@@ -89,11 +91,11 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
     page,
   }) => {
     await serve(page, { rebase: BLOCKED });
-    const row = await open(page);
+    const dialog = await open(page);
 
-    const button = row.getByRole('button', { name: 'Renovate: Rebase' });
+    const button = dialog.getByRole('button', { name: 'Renovate: Rebase' });
     await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(
+    await expect(dialog).toContainText(
       'A Renovate rebase is already requested on this pull request.',
     );
   });
@@ -102,14 +104,14 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
     page,
   }) => {
     await serve(page, { rebase: BLOCKED });
-    const row = await open(page);
+    const dialog = await open(page);
 
-    const text = await row.innerText();
+    const text = await dialog.innerText();
     expect(text.split('already requested')).toHaveLength(2);
-    await expect(row.locator('.row-action-note-reason')).toHaveText(
+    await expect(dialog.locator('.row-action-note-reason')).toHaveText(
       BLOCKED.blocked.message,
     );
-    await expect(row.locator('.row-action-note-next')).toHaveText(
+    await expect(dialog.locator('.row-action-note-next')).toHaveText(
       BLOCKED.blocked.next,
     );
   });
@@ -124,8 +126,8 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
     );
     const state: State = { rebase: { action: 'renovate_rebase' } };
     await serve(page, state);
-    const row = await open(page);
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    const dialog = await open(page);
+    await dialog.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
     // The box is now ticked, so the next snapshot blocks a second request, and
     // the server carries the request this page made as `botRequest`.
@@ -139,13 +141,14 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
       },
     };
+    await closeActionsDialog(dialog);
     await page.locator('#force-refresh-button').click();
-    await row.getByRole('button', { name: 'More actions' }).click();
+    const reopened = await openActionsDialog(rowOf(page));
 
     await expect(
-      row.getByRole('button', { name: /Rebase requested/ }),
+      reopened.getByRole('button', { name: /Rebase requested/ }),
     ).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.locator('.row-action-note-reason')).toHaveCount(0);
+    await expect(reopened.locator('.row-action-note-reason')).toHaveCount(0);
   });
 
   test('a rate-limited forge draws no Renovate control, blocked or not', async ({
@@ -161,18 +164,21 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
     const row = page.locator('#pr-rows .row').first();
     await expect(row).toBeVisible();
     // The read-only controls are drawn, so a missing Renovate control is not
-    // just a row that had not rendered, and the menu holds nothing to open.
+    // just a row that had not rendered, and neither the row nor its dialog
+    // draws the Renovate control.
     await expect(
       row.getByRole('button', { name: /Open pipeline/ }),
     ).toBeVisible();
-    await expect(row.getByRole('button', { name: 'More actions' })).toHaveCount(
-      0,
-    );
 
     await expect(
       row.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toHaveCount(0);
     await expect(row.locator('.row-action-note-reason')).toHaveCount(0);
+    const dialog = await openActionsDialog(row);
+    await expect(
+      dialog.getByRole('button', { name: 'Renovate: Rebase' }),
+    ).toHaveCount(0);
+    await expect(dialog.locator('.row-action-note-reason')).toHaveCount(0);
   });
 
   test('clicking it sends nothing', async ({ page }) => {
@@ -182,10 +188,10 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
       return route.fulfill({ status: 204 });
     });
     await serve(page, { rebase: BLOCKED });
-    const row = await open(page);
+    const dialog = await open(page);
 
     // Forced, since Playwright won't click a disabled button on its own.
-    await row
+    await dialog
       .getByRole('button', { name: 'Renovate: Rebase' })
       .click({ force: true });
     await settle(page);
@@ -197,9 +203,9 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
     page,
   }) => {
     await serve(page, { rebase: BLOCKED });
-    const row = await open(page);
+    const dialog = await open(page);
 
-    const button = row.getByRole('button', { name: 'Renovate: Rebase' });
+    const button = dialog.getByRole('button', { name: 'Renovate: Rebase' });
     await expect(button).toHaveAccessibleDescription(/already requested/);
     // Said once: the description is the reason and the line under it.
     const description = await button.evaluate(
@@ -215,17 +221,18 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
   }) => {
     const state: State = { rebase: BLOCKED };
     await serve(page, state);
-    const row = await open(page);
+    const dialog = await open(page);
     await expect(
-      row.getByRole('button', { name: 'Renovate: Rebase' }),
+      dialog.getByRole('button', { name: 'Renovate: Rebase' }),
     ).toHaveAttribute('aria-disabled', 'true');
 
     state.rebase = { action: 'renovate_rebase' };
+    await closeActionsDialog(dialog);
     await page.locator('#force-refresh-button').click();
-    await row.getByRole('button', { name: 'More actions' }).click();
+    const reopened = await openActionsDialog(rowOf(page));
 
     await expect(
-      row.getByRole('button', { name: 'Renovate: Rebase' }),
+      reopened.getByRole('button', { name: 'Renovate: Rebase' }),
     ).not.toHaveAttribute('aria-disabled', 'true');
   });
 
@@ -238,9 +245,9 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
       return route.fulfill({ status: 204 });
     });
     await serve(page, { rebase: { action: 'renovate_rebase' } });
-    const row = await open(page);
+    const dialog = await open(page);
 
-    await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
+    await dialog.getByRole('button', { name: 'Renovate: Rebase' }).click();
 
     await expect
       .poll(() => posted)
@@ -257,8 +264,8 @@ test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
     }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await serve(page, { rebase: BLOCKED });
-      const row = await open(page);
-      await expect(row).toContainText('already requested');
+      const dialog = await open(page);
+      await expect(dialog).toContainText('already requested');
 
       expect(
         (

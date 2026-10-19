@@ -9,6 +9,7 @@ import {
 } from 'bun:test';
 import {
   ageChoices,
+  ciBucket,
   ciChoices,
   type FilterableItem,
   matchesFilters,
@@ -254,5 +255,48 @@ describe('matchesQuickFilter follows the server flags', () => {
       ),
     ).toBe(false);
     expect(matchesQuickFilter(choiceItem(), 'review-requested')).toBe(false);
+  });
+});
+
+// Failing CI lists what the server says is failing (#1946): a pull request
+// whose only trouble is a workflow held for approval reads ci "failure" but is
+// not failing, the same rule as the menu pill. A server that predates the flag
+// leaves it off, and the raw ci answers.
+describe('the failing filters follow failingCi', () => {
+  const held = choiceItem({ ci: 'failure', failingCi: false });
+  const broken = choiceItem({ ci: 'failure', failingCi: true });
+  const oldServer = choiceItem({ ci: 'failure' });
+
+  test('the Failing CI quick filter leaves a held pull request out', () => {
+    expect(matchesQuickFilter(held, 'failing')).toBe(false);
+    expect(matchesQuickFilter(broken, 'failing')).toBe(true);
+    expect(matchesQuickFilter(oldServer, 'failing')).toBe(true);
+  });
+
+  test("the status filter's Failing choice follows the same rule", () => {
+    const status = { status: 'failure' };
+    expect(matchesFilters(held, true, {}, status)).toBe(false);
+    expect(matchesFilters(broken, true, {}, status)).toBe(true);
+    expect(matchesFilters(oldServer, true, {}, status)).toBe(true);
+  });
+
+  test('counts file a held pull request under running, not failing', () => {
+    expect(ciBucket(held)).toBe('pending');
+    expect(ciBucket(broken)).toBe('failure');
+    expect(ciBucket(oldServer)).toBe('failure');
+    expect(ciBucket(choiceItem({ ci: 'success' }))).toBe('success');
+  });
+
+  test('the other statuses still read ci', () => {
+    expect(
+      matchesFilters(
+        choiceItem({ ci: 'pending' }),
+        true,
+        {},
+        {
+          status: 'pending',
+        },
+      ),
+    ).toBe(true);
   });
 });

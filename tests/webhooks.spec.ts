@@ -1,8 +1,7 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { type APIRequestContext, expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 
 declare global {
   interface Window {
@@ -76,24 +75,9 @@ function startFakeForgejo(issues: FakeIssue[]): Promise<FakeForgejo> {
   });
 }
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `webhooks-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Webhooks Test User',
-  );
-}
-
 test.describe('webhook-triggered live updates', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('a verified webhook delivery pushes a live snapshot to the open dashboard over SSE', async ({

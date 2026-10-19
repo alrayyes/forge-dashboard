@@ -85,6 +85,26 @@ test.describe('webhooks page', () => {
     ).toHaveCount(0);
   });
 
+  test('the repo link carries the full owner/name as hover text (#1961)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      {
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        url: 'https://github.com/alrayyes/forge-dashboard',
+        hasWebhook: true,
+      },
+    ]);
+    await page.goto('/webhooks.html');
+
+    await expect(
+      page.locator('a.repo-link[title="alrayyes/forge-dashboard"]'),
+    ).not.toHaveCount(0);
+    // Every repo link has it, in the table and in the phone cards.
+    await expect(page.locator('a.repo-link:not([title])')).toHaveCount(0);
+  });
+
   test.describe('filters and sorting', () => {
     function repoFilter(page: Page) {
       return page.locator('#webhooks-repo-filter');
