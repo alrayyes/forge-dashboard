@@ -393,3 +393,46 @@ func TestListRepos_CarriesTheDefaultBranch(t *testing.T) {
 	require.Len(t, repos, 1)
 	assert.Equal(t, "trunk", repos[0].DefaultBranch)
 }
+
+// A default branch carries how many of its newest commit's workflow runs
+// passed, are running, are waiting and failed. The runs are already listed to
+// work out the status, so it costs no request; a job count would cost one per
+// run. A cancelled run is in none of the four, as for a pull request.
+func TestReadMainBranch_CarriesTheRunCounts(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		statuses []string
+		want     dashboard.CheckCounts
+	}{
+		{"mixed", []string{"success", "skipped", "running", "waiting", "blocked", "failure"}, dashboard.CheckCounts{Passed: 2, Running: 1, Waiting: 2, Failed: 1}},
+		{"all passed", []string{"success", "success", "success"}, dashboard.CheckCounts{Passed: 3}},
+		{"cancelled counts in none", []string{"success", "cancelled"}, dashboard.CheckCounts{Passed: 1}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := &mainBranchServer{}
+			for i, st := range tc.statuses {
+				s.runs = append(s.runs, actionRun(20-i, "main", "cafef00d", st, "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z"))
+			}
+			client := s.start(t)
+
+			row, err := client.ReadMainBranch(t.Context(), repoA)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, row.Checks)
+		})
+	}
+
+	t.Run("a repo with no run has all zero", func(t *testing.T) {
+		t.Parallel()
+		client := (&mainBranchServer{}).start(t)
+
+		row, err := client.ReadMainBranch(t.Context(), repoA)
+
+		require.NoError(t, err)
+		assert.Equal(t, dashboard.CheckCounts{}, row.Checks)
+	})
+}
