@@ -16,16 +16,23 @@ moving. A branch with no pipeline is neither, so it gets a quiet outlined "No
 pipeline" note instead. The row also shows the repo, the branch, the short SHA,
 subject and author of the newest commit, how long ago the run finished and how
 long it ran. A branch whose only trouble is a cancelled run (a newer push or a
-person stopped it) reads Cancelled, not Failed, with a stop glyph and a link to
-that run; a real failure beside a cancelled run is Failed and names only the
-failed job, and a cancelled run beside one still going is Running. A failed row
-names its failing jobs and expands to list them. The status pill is the link to
-the run: it opens the run on the forge in a new tab, and a screen reader hears
-it as, for example, "Failed. Open run (opens in a new tab)". It has the pull
+person stopped it) reads Cancelled, not Failed, with a stop glyph; a real
+failure beside a cancelled run is Failed and names only the failed job, and a
+cancelled run beside one still going is Running. A failed row names its first
+failing jobs. The status pill is a button, as on the pull request pages: it
+opens the pipeline panel, a side panel that lists every job of the branch's
+newest pipeline with its state and how long it took, a link to each job, and,
+for a failed job, the step that broke and the tail of its log. The panel also
+links to the run on the forge, in a new tab. Escape, the close button or a
+click outside closes it and focus goes back to the pill, and a screen reader
+hears the pill as, for example, "Failed. Open pipeline". The jobs are read from
+the forge when the panel opens, not from the page's snapshot, so they are never
+older than the click, and a read that fails offers Retry. The pill has the pull
 request board's colours but is taller and larger, 32 pixels high on a desktop
 and 44 on a phone, because this page has room and the pill is the main control
-on the row. The "No pipeline" note is plain, not a link, since there is no run
-to open. Rows come latest commit first, in the order the server sends them.
+on the row. The "No pipeline" note is plain, not a button, since there is no
+pipeline to open. Rows come latest commit first, in the order the server sends
+them.
 
 The pills (All, Failing, Passing, Running, Cancelled, No pipeline) keep their
 filter names, like the quick pills on the pull request board, and carry the
@@ -40,7 +47,8 @@ is still set after a reload and in another browser.
 Rows from a forge that can't be read, or whose rate limit is spent, keep their
 last known status, are marked **stale**, and sit under one banner. The page
 offers no write at all: there is no Re-run, because the only re-run endpoint
-works on a pull request's checks, not on a default-branch run. With every
+works on a pull request's checks, not on a default-branch run, so the pipeline
+panel here only reads. With every
 default branch passing the page says so, and a filter that matches nothing
 offers **Reset filters**. A repo with no pipeline says no run was found.
 
@@ -79,3 +87,13 @@ Actions shows `none`. The snapshot updates on each full refresh, and a webhook
 delivery for a repo (a finished check, say) re-reads that repo's default branch
 at once, so a rerun that passed turns its row green without the next poll. If
 that read fails, the row keeps its earlier state.
+
+`GET /api/main-branches/checks?forge=&fullName=` answers the jobs behind one
+row, in the same `{checks: [...]}` shape as `GET /api/pull-requests/checks`.
+Unlike the list, it calls the forge on every request and is not part of the
+snapshot, so it spends rate-limit budget: the pipeline panel makes it when it
+opens and an MCP client makes it with `get_main_branch_checks`. The commit is
+the one the row describes, the newest on the default branch that a check ran
+on, so a bot's commit that skips CI does not hide the run. A branch with no
+job answers an empty list. `required` is never set, since only a pull request
+has a base branch whose protection could require a job.
