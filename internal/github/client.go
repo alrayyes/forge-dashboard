@@ -922,11 +922,10 @@ func (c *Client) DisableAutoMerge(ctx context.Context, owner, name string, numbe
 }
 
 // UpdateBranch implements dashboard.BranchUpdater: merges owner/name#number's
-// base branch into its head branch. GitHub can schedule this as a
-// background job and answer 202 before it's actually done — go-github
-// surfaces that as a *github.AcceptedError rather than a real failure
-// (see its own doc comment), so that specific case is unwrapped into
-// accepted=true instead of being treated as an error.
+// base branch into its head branch. When GitHub answers with its own 5xx it
+// asks once more after a short wait, since the call is idempotent; the retry
+// reads GitHub's "no new commits" as success, because the first try may have
+// worked with only its answer lost.
 func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
 	accepted, err := c.updateBranchOnce(ctx, owner, name, number)
 	if !failedOnGitHubsSide(err) {
@@ -944,7 +943,24 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 	case <-timer.C:
 	}
 
-	return c.updateBranchOnce(ctx, owner, name, number)
+	accepted, err = c.updateBranchOnce(ctx, owner, name, number)
+	if upToDateAlready(err) {
+		// The first try may have worked and only its answer been lost. GitHub
+		// then says there is nothing new on the base: the branch is up to
+		// date, which is what was asked for, so it is not a conflict.
+		return false, nil
+	}
+
+	return accepted, err
+}
+
+// upToDateAlready reports whether err is GitHub's 422 for an update-branch
+// request on a branch that has nothing to bring in.
+func upToDateAlready(err error) bool {
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+
+	return ok && clientErr.Kind == dashboard.ForgeErrorConflict &&
+		strings.Contains(strings.ToLower(clientErr.Error()), "no new commits")
 }
 
 func failedOnGitHubsSide(err error) bool {
@@ -976,6 +992,11 @@ func (c *Client) serverErrorRetryWait() time.Duration {
 	return defaultServerErrorRetryWait
 }
 
+// updateBranchOnce makes the one request. GitHub can schedule the update as a
+// background job and answer 202 before it's actually done — go-github
+// surfaces that as a *github.AcceptedError rather than a real failure
+// (see its own doc comment), so that specific case is unwrapped into
+// accepted=true instead of being treated as an error.
 func (c *Client) updateBranchOnce(ctx context.Context, owner, name string, number int) (bool, error) {
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/update-branch", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPut, "url", path)
@@ -2095,8 +2116,9 @@ func (c *Client) graphqlStatusError(ctx context.Context, resp *http.Response) er
 		kind = forgeErrorKindFromStatus(resp.StatusCode)
 	}
 	c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(kind), rl)
+	status, requestID := forgeFailure(resp)
 
-	return &apiError{msg: "github: POST /graphql: " + msg, rateLimit: rl, kind: kind}
+	return &apiError{msg: "github: POST /graphql: " + msg, rateLimit: rl, kind: kind, status: status, requestID: requestID}
 }
 
 // graphqlQueryError records and returns the failure for a GraphQL call whose
@@ -2117,8 +2139,11 @@ func (c *Client) graphqlQueryError(ctx context.Context, resp *http.Response, ent
 		kind = dashboard.ForgeErrorRateLimited
 	}
 	c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(kind), rl)
+	// A query-level error arrives with a 200, so there is no 5xx to carry,
+	// only the request id.
+	_, requestID := forgeFailure(resp)
 
-	return &apiError{msg: "github: graphql: " + msg, rateLimit: rl, kind: kind}
+	return &apiError{msg: "github: graphql: " + msg, rateLimit: rl, kind: kind, requestID: requestID}
 }
 
 // graphqlDo posts one GraphQL request and decodes its data into out.

@@ -2784,6 +2784,134 @@ func TestUpdateBranch_ServerError_StopsWaitingWhenTheRequestEnds(t *testing.T) {
 	assert.Equal(t, int32(1), calls.Load())
 }
 
+// The first try may have worked and only its answer been lost. GitHub then
+// answers the second with 422 "no new commits": the branch is already up to
+// date, which is what was asked for, so it is a success and not a conflict.
+func TestUpdateBranch_NoNewCommitsAfterARetry_IsSuccess(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusBadGateway)
+			writeJSON(t, w, map[string]any{"message": "Server Error"})
+
+			return
+		}
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		writeJSON(t, w, map[string]any{"message": "There are no new commits on the base branch."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetServerErrorRetryWait(time.Millisecond)
+
+	_, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), calls.Load())
+}
+
+// Only the retry gets that reading. On the first try the same answer means
+// the branch was already up to date, which the person is told.
+func TestUpdateBranch_NoNewCommitsOnTheFirstTry_StaysARefusal(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		writeJSON(t, w, map[string]any{"message": "There are no new commits on the base branch."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	_, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+}
+
+func TestUpdateBranch_RealConflictAfterARetry_StaysAConflict(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			writeJSON(t, w, map[string]any{"message": "Server Error"})
+
+			return
+		}
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		writeJSON(t, w, map[string]any{"message": "merge conflict between base and head"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetServerErrorRetryWait(time.Millisecond)
+
+	_, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+}
+
+// A GraphQL call GitHub answers with its own 5xx (Enable and cancel auto-merge
+// use it) carries the status and request id like a REST one.
+func TestEnableAutoMerge_GitHubServerError_CarriesTheUpstreamStatusAndRequestID(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-GitHub-Request-Id", "AAAA:1111:2222:3333:4444")
+		w.WriteHeader(http.StatusBadGateway)
+		writeJSON(t, w, map[string]any{"message": "Server Error"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnableAutoMerge(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, http.StatusBadGateway, clientErr.UpstreamStatus)
+	assert.Equal(t, "AAAA:1111:2222:3333:4444", clientErr.RequestID)
+}
+
+// A query-level error comes back as a 200, so there is no 5xx to carry; the
+// request id still goes with it, so a report can be traced.
+func TestEnableAutoMerge_QueryLevelError_CarriesTheRequestIDButNoUpstreamStatus(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-GitHub-Request-Id", "BBBB:1111:2222:3333:4444")
+		writeJSON(t, w, map[string]any{"errors": []map[string]any{{"message": "Something went wrong while executing your query."}}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	err := client.EnableAutoMerge(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, "BBBB:1111:2222:3333:4444", clientErr.RequestID)
+	assert.Zero(t, clientErr.UpstreamStatus)
+}
+
 func TestListChecks_ReturnsEveryCheckRunForThePullRequestsHeadSHA(t *testing.T) {
 	t.Parallel()
 
