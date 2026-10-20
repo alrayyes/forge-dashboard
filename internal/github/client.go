@@ -1991,7 +1991,11 @@ type graphqlRequestBody struct {
 }
 
 type graphqlErrorEntry struct {
-	Message    string `json:"message"`
+	Message string `json:"message"`
+	// Type is where GitHub puts the error's kind in a real response
+	// ("NOT_FOUND" for an issue that doesn't exist); Extensions.Type is the
+	// GraphQL-spec place some servers use, kept as a fallback.
+	Type       string `json:"type"`
 	Extensions struct {
 		Type string `json:"type"`
 	} `json:"extensions"`
@@ -2015,7 +2019,7 @@ func (c *Client) graphqlStatusError(ctx context.Context, resp *http.Response) er
 func (c *Client) graphqlQueryError(ctx context.Context, resp *http.Response, entry graphqlErrorEntry) error {
 	rl := rateLimitFromHeaders(resp.Header)
 	msg := entry.Message
-	kind := graphqlErrorKind(entry.Extensions.Type)
+	kind := graphqlErrorKind(cmp.Or(entry.Type, entry.Extensions.Type))
 	// GitHub sometimes reports rate limiting as a query-level error in
 	// a 200 response rather than rejecting the request outright — the
 	// same headers are usually still there, so this gets the same
