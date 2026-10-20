@@ -44,11 +44,11 @@ refresh tries again.
 - **Many tracked repositories.** One GraphQL query returns every repository with
   its open pull requests, issues and CI status, and a bigger answer costs more.
   The dashboard logs each query's cost at the `info` log level.
-- **A restart.** The dashboard keeps the answers to some REST requests (such as
-  the webhook checks and the public-repository mode) in memory, and GitHub
-  doesn't charge a request that comes back unchanged. After a restart that
-  cache is empty, so those requests are paid in full once. The GraphQL query
-  isn't cached.
+- **A restart.** The dashboard remembers the answers to its REST reads in
+  memory, together with the ETag the forge sent, and asks again with
+  `If-None-Match`. GitHub doesn't charge a request that comes back unchanged
+  (`304 Not Modified`). After a restart that memory is empty, so each read is
+  paid in full once. The GraphQL query isn't cached.
 - **Refreshing often.** Each full refresh spends budget. `REFRESH_INTERVAL` sets
   how often it runs (see [Configuration](configuration.md)).
 - **An unwatched dashboard.** While nobody is using the dashboard, the scheduled
@@ -129,6 +129,57 @@ while a forge is limited. They run after the reset, when the pull request still
 needs them, and Merge and Close can't be queued. See
 [Pull request actions](pull-request-actions.md) for what happens to a queued
 action.
+
+## Conditional requests
+
+Every REST read the dashboard sends to GitHub goes through one cache. The first
+answer is kept with its `ETag`. The next request for the same URL sends it back
+as `If-None-Match`, and if nothing changed GitHub answers `304 Not Modified`,
+which costs nothing against the REST limit. The dashboard counts it under
+`notModified` and serves the kept body, so the rest of the code never sees the
+difference. GitHub documents this in its
+[REST API best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests-if-appropriate).
+The same page says a `304` is only free for a request that carries an
+`Authorization` header, so the public-repository mode, which has none, may still
+be charged.
+
+The cache is keyed by forge, credential label and URL, never by user. GitHub
+folds the credential into the ETag, so one credential's ETag is never offered
+under another. Two clients holding the same credential share entries, and a
+replaced token starts empty. A page size, page number or filter is part of the
+URL, so a different one is a different entry.
+
+Forgejo can't take part. A live Forgejo instance sends no `ETag` and no
+`Last-Modified` header on its JSON endpoints (pull requests, issues, commit
+statuses, Actions runs, repositories, search), and it answers a request with
+`If-None-Match` or `If-Modified-Since` with a full `200`. Forgejo reports no
+request budget of its own to spend, so each read costs a round trip and nothing
+more. Check again when you upgrade Forgejo; if it starts sending ETags, add a
+cache for it the way GitHub's works.
+
+Each row below is one source file with its number of REST `GET` call sites. A
+test reads this table and fails when a file's count differs from the source, so
+a new read can't skip the question of whether it can be conditional.
+
+| File                                       | Calls | Reads                                                                                                                                                               | Conditional                       |
+| ------------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `internal/github/client.go`                | 23    | Hooks, repository, pull requests, files, issues, commits, check runs, statuses, runs, branch protection and rules, jobs, and installation and user repository lists | Yes, all but the job log download |
+| `internal/github/dependabot_ack.go`        | 2     | Comments and comment reactions                                                                                                                                      | Yes                               |
+| `internal/github/pull_request_body.go`     | 1     | One pull request                                                                                                                                                    | Yes                               |
+| `internal/github/required_checks.go`       | 3     | Workflow runs, check runs, statuses                                                                                                                                 | Yes                               |
+| `internal/github/rerun.go`                 | 3     | One pull request, check runs, one job                                                                                                                               | Yes                               |
+| `internal/forgejo/client.go`               | 15    | Hooks, repositories, pull requests, issues, labels, reviews, statuses, Actions runs and jobs, protection                                                            | No, Forgejo sends no ETag         |
+| `internal/forgejo/issue_details.go`        | 1     | One issue                                                                                                                                                           | No, Forgejo sends no ETag         |
+| `internal/forgejo/main_branch.go`          | 3     | Repository, Actions runs, one commit                                                                                                                                | No, Forgejo sends no ETag         |
+| `internal/forgejo/pull_request_body.go`    | 1     | One pull request                                                                                                                                                    | No, Forgejo sends no ETag         |
+| `internal/forgejo/pull_request_details.go` | 4     | Pull request, comments, reactions                                                                                                                                   | No, Forgejo sends no ETag         |
+| `internal/forgejo/rerun.go`                | 2     | One pull request, Actions runs                                                                                                                                      | No, Forgejo sends no ETag         |
+| `internal/forgejo/scheduled_merge.go`      | 1     | Issue timeline                                                                                                                                                      | No, Forgejo sends no ETag         |
+
+The one GitHub read that isn't conditional is the download of a job's log. The
+API answers with a redirect to a short-lived signed address on GitHub's storage,
+and that download doesn't count against the REST limit, and its address changes
+every time, so there is nothing to match.
 
 ## Reading the stats
 
