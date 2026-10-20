@@ -157,6 +157,23 @@ func (a *Aggregator) MarkSettled(forge Forge, repo string, number int) {
 	a.mu.Unlock()
 
 	a.notify(next)
+	a.forgetAutoUpdateChoice(key)
+}
+
+// forgetAutoUpdateChoice deletes the pull request's own automatic-update
+// choice when it merged or closed. Done here, where every close is told to the
+// aggregator (a merge or close through this app, a closed delivery, an
+// auto-merge), so a pull request that reopens before any refresh saw it gone
+// follows its repo again. The background pass still forgets the ones it finds
+// gone, which covers a close nobody told it about. A failure is logged and left
+// to that pass.
+func (a *Aggregator) forgetAutoUpdateChoice(key string) {
+	if a.autoUpdate == nil {
+		return
+	}
+	if err := a.autoUpdate.lister.ForgetPullRequestAutoUpdates(context.Background(), a.autoUpdate.userID, []string{key}); err != nil {
+		slog.Warn("could not forget a settled pull request's update choice", "pull_request", key, "error", err)
+	}
 }
 
 // Unsettle forgets a MarkSettled for forge/repo#number, for a pull request

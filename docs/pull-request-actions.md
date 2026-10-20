@@ -549,10 +549,12 @@ from the repo's setting: choosing what the repo already says, or sending
 `enabled` as `null`, hands the pull request back to the repo, so a later
 change to the repo's setting reaches it. That includes the repo being
 switched to match a choice made earlier: the pull request follows the repo
-from then on. The choice is forgotten once the pull request is no longer open
-or its repo is no longer tracked, and a pull request the dashboard doesn't
-hold is refused. Update branch comes back on a pull request
-you have switched off, and goes away on one you have switched on.
+from then on. The choice is forgotten as soon as the pull request is merged
+or closed, so one that reopens follows its repo again. It is also forgotten
+once the pull request is no longer open or its repo is no longer tracked, and
+a pull request the dashboard doesn't hold is refused. Update branch comes
+back on a pull request you have switched off, and goes away on one you have
+switched on.
 
 A Renovate-authored pull request, on either forge, gets a `Renovate:
 Rebase` button that ticks the `rebase-check` checkbox in the pull request's

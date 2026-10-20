@@ -1,0 +1,29 @@
+package dashboard_test
+
+import (
+	"testing"
+
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/stretchr/testify/assert"
+)
+
+// A pull request the aggregator is told has merged or closed loses its own
+// automatic-update choice then, so one that reopens follows its repo again.
+
+func TestAggregator_MarkSettled_ForgetsThePullRequestsOwnUpdateChoice(t *testing.T) {
+	t.Parallel()
+	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": false}}
+	agg := dashboard.NewAggregator([]dashboard.Source{&fakeSource{}})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+
+	agg.MarkSettled(dashboard.ForgeGitHub, "alrayyes/a", 1)
+
+	assert.Equal(t, []string{"github/alrayyes/a#1"}, lister.forgotten)
+}
+
+func TestAggregator_MarkSettled_WithoutAutoUpdateConfigured_IsStillFine(t *testing.T) {
+	t.Parallel()
+	agg := dashboard.NewAggregator([]dashboard.Source{&fakeSource{}})
+
+	assert.NotPanics(t, func() { agg.MarkSettled(dashboard.ForgeGitHub, "alrayyes/a", 1) })
+}
