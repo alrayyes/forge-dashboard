@@ -58,7 +58,7 @@ func TestBuildSourcesForUser_TwoUsers_RecordUnderTwoDistinctAccountIDs(t *testin
 	defer srv.Close()
 
 	store := newTestAuthStore(t)
-	build := buildSourcesForUser(store, nil, 0, nil)
+	build := buildSourcesForUser(store, nil, 0, nil, nil)
 
 	userA, err := store.CreateUser(t.Context(), "user-a", "User A", false)
 	require.NoError(t, err)
@@ -145,7 +145,7 @@ func TestBuildGitHubSource_BothAppInstallationAndToken_AppWins(t *testing.T) {
 
 	source := buildGitHubSource(
 		settings.Credentials{GitHubToken: "pat-value", GitHubAppInstallationID: 42},
-		1, testGitHubAppPrivateKeyPEM, srv.URL, nil,
+		1, testGitHubAppPrivateKeyPEM, srv.URL, nil, nil,
 	)
 	require.NotNil(t, source)
 
@@ -164,7 +164,7 @@ func TestBuildGitHubSource_AppConstructionFails_FallsBackToToken(t *testing.T) {
 	// up being used.
 	source := buildGitHubSource(
 		settings.Credentials{GitHubToken: "pat-value", GitHubAppInstallationID: 42},
-		1, []byte("not a pem"), srv.URL, nil,
+		1, []byte("not a pem"), srv.URL, nil, nil,
 	)
 	require.NotNil(t, source)
 
@@ -184,7 +184,7 @@ func TestBuildGitHubSource_InstallationIdSetButNoServerApp_FallsBackToToken(t *t
 	// the existing PAT from working.
 	source := buildGitHubSource(
 		settings.Credentials{GitHubToken: "pat-value", GitHubAppInstallationID: 42},
-		0, nil, srv.URL, nil,
+		0, nil, srv.URL, nil, nil,
 	)
 	require.NotNil(t, source)
 
@@ -200,7 +200,7 @@ func TestBuildGitHubSource_AppFailsWithNoFallback_ReportsHealthError(t *testing.
 	// the (deliberately broken) App branch fails.
 	source := buildGitHubSource(
 		settings.Credentials{GitHubAppInstallationID: 42},
-		1, []byte("not a pem"), "", nil,
+		1, []byte("not a pem"), "", nil, nil,
 	)
 	require.NotNil(t, source)
 

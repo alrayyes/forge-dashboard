@@ -23,6 +23,10 @@ var staticFiles embed.FS
 // long parameter list, since it's grown one dependency per feature slice
 // (auth, then per-user settings) and reads better named than positional.
 type Deps struct {
+	// APIStats counts the forge requests every client makes (#2008). Nil counts
+	// nothing and serves an empty list.
+	APIStats *apistats.Counters
+
 	// Version is the release tag this binary was built from ("dev" for a
 	// build outside the release pipeline) — see cmd/forge-dashboard's own
 	// version var for how it's set.
@@ -111,6 +115,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/dashboard", auth.RequireAuth(deps.AuthStore)(handleDashboard(deps)))
 	mux.Handle("GET /api/main-branches", auth.RequireAuth(deps.AuthStore)(handleMainBranches(deps)))
 	mux.Handle("GET /api/main-branches/checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleMainBranchChecks(deps))))
+	mux.Handle("GET /api/stats/forge-api", auth.RequireAuth(deps.AuthStore)(handleForgeAPIStats(deps)))
 	mux.Handle("GET /api/dashboard/stream", auth.RequireAuth(deps.AuthStore)(handleDashboardStream(deps)))
 	mux.Handle("POST /api/dashboard/refresh", auth.RequireAuth(deps.AuthStore)(handleDashboardRefresh(deps)))
 	// The Streamable HTTP transport itself routes GET (a standalone SSE

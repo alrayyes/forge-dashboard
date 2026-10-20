@@ -93,8 +93,8 @@ func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func([]byte, set
 
 // newTestServerWithSettingsStore is newTestServerWithFirstLoadWait plus the
 // *settings.Store, for a test that asserts what the store holds after a call
-// (say, that a read created no webhook credentials).
-func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration) (*httptest.Server, *dashboard.Manager, *authpkg.Store, *settingspkg.Store) {
+// (say, that a read created no webhook credentials). opts adjust the Deps before the mux is built.
+func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration, opts ...func(*api.Deps)) (*httptest.Server, *dashboard.Manager, *authpkg.Store, *settingspkg.Store) {
 	tb.Helper()
 
 	db, err := sql.Open("sqlite", filepath.Join(tb.TempDir(), "app.db"))
@@ -129,7 +129,7 @@ func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, set
 	appCtx, cancel := context.WithCancel(context.Background())
 	tb.Cleanup(cancel)
 
-	mux := api.NewMux(api.Deps{
+	deps := api.Deps{
 		Version:       testVersion,
 		AuthService:   authService,
 		AuthStore:     authStore,
@@ -140,7 +140,11 @@ func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, set
 		AppContext:    appCtx,
 
 		FirstLoadWait: firstLoadWait,
-	})
+	}
+	for _, opt := range opts {
+		opt(&deps)
+	}
+	mux := api.NewMux(deps)
 	srv := httptest.NewServer(mux)
 	tb.Cleanup(srv.Close)
 
