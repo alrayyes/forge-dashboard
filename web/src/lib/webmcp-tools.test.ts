@@ -380,13 +380,14 @@ describe('WebMCP get_settings', () => {
 describe('WebMCP set_pull_request_auto_update', () => {
   // The write posts the endpoint's own JSON body, then reads the board through
   // the page so what the person sees is what the agent changed.
-  function writeSetup(status = 204, body: unknown = {}) {
+  function writeSetup(status = 204, body: unknown = {}, refreshFails = false) {
     const calls: { url: string; init?: RequestInit }[] = [];
     let reads = 0;
     let expired = 0;
     const tools = createWebMCPTools({
       getDashboard: async () => {
         reads++;
+        if (refreshFails) throw new Error('board unreachable');
 
         return { pullRequests: [] };
       },
@@ -448,6 +449,17 @@ describe('WebMCP set_pull_request_auto_update', () => {
       'pull request not found',
     );
     expect(reads()).toBe(0);
+  });
+
+  test('a board refresh that fails after the save still reports success, with a note', async () => {
+    const { tool } = writeSetup(204, {}, true);
+    const result = (await tool.execute({ ...PR, enabled: false })) as {
+      enabled: boolean;
+      note?: string;
+    };
+    expect(result.enabled).toBe(false);
+    expect(result.note).toContain('saved');
+    expect(result.note).toContain('get_dashboard');
   });
 
   test('a 401 sends the page to sign in and throws', async () => {

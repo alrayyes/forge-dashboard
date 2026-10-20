@@ -232,7 +232,13 @@ export function createWebMCPTools(deps: WebMCPToolDeps): WebMCPToolDef[] {
 
   // A write the endpoint answers 204 to. The page then reads the board again,
   // so what the person sees is what the agent changed.
-  async function postJSON(url: string, body: unknown): Promise<void> {
+  // The save has already happened by then, so a refresh that fails is a note
+  // on the result, not an error: an agent that saw a failure might retry or
+  // report a change that did not fail.
+  async function postJSON(
+    url: string,
+    body: unknown,
+  ): Promise<string | undefined> {
     await request(url, {
       method: 'POST',
       headers: {
@@ -241,7 +247,13 @@ export function createWebMCPTools(deps: WebMCPToolDeps): WebMCPToolDef[] {
       },
       body: JSON.stringify(body),
     });
-    await deps.getDashboard();
+    try {
+      await deps.getDashboard();
+    } catch {
+      return 'The choice is saved, but the page could not re-read the board. Call get_dashboard to see it.';
+    }
+
+    return undefined;
   }
 
   return [
@@ -319,12 +331,12 @@ export function createWebMCPTools(deps: WebMCPToolDeps): WebMCPToolDef[] {
         if (enabled !== null && typeof enabled !== 'boolean') {
           throw new Error('enabled must be true, false or null');
         }
-        await postJSON('/api/pull-requests/auto-update', {
+        const note = await postJSON('/api/pull-requests/auto-update', {
           ...target,
           enabled,
         });
 
-        return { ...target, enabled };
+        return note ? { ...target, enabled, note } : { ...target, enabled };
       },
     },
   ];
