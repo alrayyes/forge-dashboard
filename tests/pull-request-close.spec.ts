@@ -331,4 +331,138 @@ test.describe('pull request close button', () => {
     await expect(close).toBeVisible();
     await expect(close).toBeEnabled();
   });
+
+  // A refused Close locks its button, but the button lives in the dialog. The
+  // row says so itself, in words, so nobody opens every dialog to find out.
+  test('a refused Close still says so on the row after the dialog is closed', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/close', (route: Route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'github: 403 Resource not accessible by integration',
+          code: 'permission',
+          message: "This token can't close pull requests on this repository.",
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+
+    const row = page.locator('#pr-rows .row').first();
+    const { dialog, footer, close } = await openCloseInDialog(row);
+    // Nothing locked, nothing said, before any refusal.
+    await expect(row.locator('.row-lock-cue')).toHaveCount(0);
+    await close.click();
+    await footer
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
+    await expect(
+      footer.getByRole('button', { name: 'Close pull request', exact: true }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    await closeActionsDialog(dialog);
+
+    const cue = row.locator('.row-lock-cue');
+    await expect(cue).toBeVisible();
+    await expect(cue).toHaveText(/^Close locked/);
+    // The reason is read with the cue, not only hovered.
+    await expect(cue).toContainText('Missing permission');
+    // One cue, and no second Close control on the row.
+    await expect(page.locator('#pr-rows .row .row-lock-cue')).toHaveCount(1);
+    await expect(
+      row.getByRole('button', { name: 'Close pull request', exact: true }),
+    ).toHaveCount(0);
+  });
+
+  test('dismissing the failure line lifts the Close lock and its cue', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/close', (route: Route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'github: 403 Resource not accessible by integration',
+          code: 'permission',
+          message: "This token can't close pull requests on this repository.",
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+
+    const row = page.locator('#pr-rows .row').first();
+    const { dialog, footer, close } = await openCloseInDialog(row);
+    await close.click();
+    await footer
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
+    await closeActionsDialog(dialog);
+    await expect(row.locator('.row-lock-cue')).toBeVisible();
+
+    await row.getByRole('button', { name: /^Dismiss failure/ }).click();
+    await expect(row.locator('.row-lock-cue')).toHaveCount(0);
+    const reopened = await openCloseInDialog(row);
+    await expect(reopened.close).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  test('the Close lock cue is words, passes axe, and holds at a phone width', async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await mockDashboard(page, makePR());
+      await page.route('**/api/pull-requests/close', (route: Route) =>
+        route.fulfill({
+          status: 429,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'github: rate limit exceeded',
+            code: 'rate_limited',
+            message:
+              "The forge's API rate limit is reached. Try again once it resets.",
+          }),
+        }),
+      );
+      await page.goto('/pull-requests.html');
+      const row = page.locator('#pr-rows .row').first();
+      const { dialog, footer, close } = await openCloseInDialog(row);
+      await close.click();
+      await footer
+        .getByRole('button', { name: 'Confirm close pull request?' })
+        .click();
+      await closeActionsDialog(dialog);
+      const cue = row.locator('.row-lock-cue');
+      await expect(cue).toBeVisible();
+
+      for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 800 });
+        await expect(cue).toBeVisible();
+        const box = await cue.boundingBox();
+        expect(box?.width ?? 0).toBeGreaterThan(0);
+        const scroll = await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        );
+        expect(scroll).toBeLessThanOrEqual(0);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      }
+    }
+  });
+
+  test('a Close that succeeded or was never tried has no lock cue', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.goto('/pull-requests.html');
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row.getByRole('button', { name: /^#\d+ / })).toBeVisible();
+    await expect(row.locator('.row-lock-cue')).toHaveCount(0);
+  });
 });

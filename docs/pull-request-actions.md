@@ -137,7 +137,11 @@ one that turns out not to need merging at all (a duplicate, or one whose content
 already landed another way) it's the action that applies. It asks for
 confirmation the same way Merge does. Escape drops an unconfirmed Close. If the
 forge refuses a confirmed Close, the button reads locked and the reason is its
-description.
+description. The row says so too, in a short note under its status: "Close
+locked" and the reason, in words. That way you don't open every pop-up to find
+the refused one. The note goes when the lock does: a permission lock stands
+until you dismiss the failure line, and a rate-limit lock clears on the next
+refresh.
 A permission refusal is re-read too: if the pull request turns out to be
 merged or closed, that is what the row says, not "check your token". Only a
 rate limit skips the re-read, since it would be limited as well.
