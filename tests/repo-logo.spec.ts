@@ -144,6 +144,23 @@ test.describe('Repository logo (#2001)', () => {
   });
 
   for (const scheme of ['light', 'dark'] as const) {
+    test(`the Repositories page with a logo has no accessibility violations in ${scheme} mode`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await mock(page);
+      await page.goto('/webhooks.html');
+      await expect(
+        page
+          .locator('#webhooks-rows tr', { hasText: 'alrayyes/with-logo' })
+          .locator('img.repo-logo'),
+      ).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+
     for (const width of [1280, 390]) {
       test(`rows with a logo have no accessibility violations in ${scheme} mode at ${width}px`, async ({
         page,
