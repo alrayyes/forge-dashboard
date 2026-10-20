@@ -1189,7 +1189,17 @@ func labelsFromNodes(nodes []graphqlLabelNode) []dashboard.Label {
 }
 
 type graphqlActor struct {
-	Login string `json:"login"`
+	Login     string `json:"login"`
+	AvatarURL string `json:"avatarUrl"`
+}
+
+// authorAvatarURL is the author's avatar, empty for a deleted account.
+func authorAvatarURL(a *graphqlActor) string {
+	if a == nil {
+		return ""
+	}
+
+	return a.AvatarURL
 }
 
 // authorLogin reports "ghost" for a null author — GitHub's own name for a
@@ -1625,6 +1635,7 @@ query($cursor: String, $since: DateTime) {
             isDraft
             author {
               login
+              avatarUrl
             }
             mergeStateStatus
             headRefOid
@@ -1736,6 +1747,7 @@ const appRepoFieldsTemplate = `
         isDraft
         author {
           login
+          avatarUrl
         }
         mergeStateStatus
         headRefOid
@@ -2479,6 +2491,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		Title:                    p.Title,
 		URL:                      p.URL,
 		Author:                   authorLogin(p.Author),
+		AuthorAvatarURL:          authorAvatarURL(p.Author),
 		Draft:                    p.IsDraft,
 		Labels:                   labelsFromNodes(p.Labels.Nodes),
 		CreatedAt:                p.CreatedAt,
@@ -3002,6 +3015,7 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				Title:                   p.GetTitle(),
 				URL:                     p.GetHTMLURL(),
 				Author:                  p.GetUser().GetLogin(),
+				AuthorAvatarURL:         p.GetUser().GetAvatarURL(),
 				Draft:                   p.GetDraft(),
 				Labels:                  restLabelsToDashboard(p.Labels),
 				CreatedAt:               p.GetCreatedAt().Time,

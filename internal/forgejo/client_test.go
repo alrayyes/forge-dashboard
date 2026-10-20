@@ -508,7 +508,7 @@ func TestListOpenPullRequests_MapsFieldsAndResolvesCI(t *testing.T) {
 		writeJSON(t, w, []map[string]any{
 			{
 				"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
-				"draft": false, "user": map[string]string{"login": "ryankes"},
+				"draft": false, "user": map[string]string{"login": "ryankes", "avatar_url": "https://git.example/avatars/1"},
 				"labels":     []map[string]string{{"name": "topic/monitoring", "color": "1d76db"}},
 				"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
 				"head": map[string]string{"sha": "cafef00d"},
@@ -533,6 +533,10 @@ func TestListOpenPullRequests_MapsFieldsAndResolvesCI(t *testing.T) {
 		assert.Equal(t, 12, pr.Number)
 		assert.Equal(t, "Add NTP alarm", pr.Title)
 		assert.Equal(t, "ryankes", pr.Author)
+	})
+	t.Run("author avatar carries through", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, "https://git.example/avatars/1", pr.AuthorAvatarURL)
 	})
 	t.Run("labels carry through", func(t *testing.T) {
 		t.Parallel()
