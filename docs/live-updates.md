@@ -202,10 +202,16 @@ with 44px choices.
 
 A label saved before the list existed is read as a list of one, so nothing
 needs doing after an upgrade. A pick holds up to 20 labels and 1000
-characters, and the server refuses a longer one. The pick is saved in the same
-field as before, the labels in lowercase one after another. A page that doesn't
-offer one of the saved labels leaves it saved and says so, as it does for any
-other filter.
+characters, and the server refuses a longer one. The browser keeps the saved
+filters in one cookie of about 4 KB, so the pick is also held to 2000
+characters as that cookie writes it; labels in a script that takes several
+bytes a letter run out of room sooner, and the page stops ticking more once
+the room is gone. A saved pick over any of these limits is cut down to fit
+when the page loads. If the server still refuses a save, the page says the
+filter was not saved and does not send it again by itself. The pick is saved
+in the same field as before, the labels in lowercase one after another. A page
+that doesn't offer one of the saved labels leaves it saved and says so, as it
+does for any other filter.
 
 ## Remembered filters
 
