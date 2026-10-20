@@ -53,12 +53,16 @@ refresh tries again.
   how often it runs (see [Configuration](configuration.md)).
 - **An unwatched dashboard.** While nobody is using the dashboard, the scheduled
   refresh rests. After `IDLE_AFTER` (15 minutes by default) with no signed-in
-  request and no open live stream, the schedule skips its turn and tries again
-  on the next one. The first request after that refreshes once, a moment after
-  it answers, so that request and any client without a live stream can still
-  see data from before the rest. A tab left open counts as use, because the
-  server can't tell a tab you're looking at from one nobody is: close every tab
-  and the refresh rests. What still runs while it rests:
+  request and no tab that is visible and in use, the schedule skips its turn
+  and tries again on the next one. A tab counts while it is visible and has had
+  input within that period; it tells the server when it is hidden, and one that
+  stops sending its minute-by-minute heartbeat stops counting after three
+  minutes. The first request after that refreshes once, a moment after it
+  answers, so that request and any client without a live stream can still see
+  data from before the rest. An open live stream doesn't count, since it says
+  nothing about whether anyone is looking, and neither does the page's own timed
+  read of its data. A tab becoming visible again makes the one catch-up refresh.
+  What still runs while it rests:
   - Webhook deliveries, which refresh the repository they name.
   - Refresh now.
   - The CI poll, for pull requests with checks still running or GitHub's
