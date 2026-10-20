@@ -18,6 +18,10 @@
     title: string;
     url: string;
     kind?: "release" | "dependency" | "regular";
+    // Who filed an issue and the forge's avatar for them, from its row. Only
+    // the issue dialog shows them.
+    author?: string;
+    authorAvatarUrl?: string;
     // Drawn from the row the dialog was opened from, as it was then. Nothing
     // here is fetched.
     status?: DetailsStatus;
@@ -99,6 +103,8 @@
   let html = $state<Record<string, string>>({});
   // Avatars that failed to load, by comment id: they fall back to an initial.
   let brokenAvatars = $state<Record<string, boolean>>({});
+  // The same for the avatar of whoever filed the issue, in the header.
+  let brokenFilerAvatar = $state(false);
 
   // Bumped on every open and every close: a slow answer for a closed dialog,
   // or for another pull request, never lands.
@@ -157,6 +163,7 @@
     target = item;
     returnFocusId = triggerId;
     brokenAvatars = {};
+    brokenFilerAvatar = false;
     load();
     dialogEl?.showModal();
   }
@@ -366,6 +373,24 @@
           <span class="mono">{target.repo} #{target.number}</span>
         </p>
         <h2 class="details-title">{target.title}</h2>
+        {#if target.subject === "issue" && target.author}
+          <p class="details-author">
+            {#if avatarSrc(target.authorAvatarUrl) && !brokenFilerAvatar}
+              <img
+                class="filer-avatar"
+                src={avatarSrc(target.authorAvatarUrl) ?? undefined}
+                alt=""
+                width="20"
+                height="20"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+                onerror={() => (brokenFilerAvatar = true)}
+              />
+            {/if}
+            <span>Filed by <span class="filer-name">{target.author}</span></span
+            >
+          </p>
+        {/if}
         {#if target.status?.attributes.hasChildNodes()}
           <div
             class="details-attributes"
@@ -585,6 +610,25 @@
     font-size: 16px;
     font-weight: 600;
     overflow-wrap: anywhere;
+  }
+  .details-author {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+  .filer-name {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .filer-avatar {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
   }
   .details-close {
     flex: none;
