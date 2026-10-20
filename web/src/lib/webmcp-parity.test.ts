@@ -124,6 +124,7 @@ const PENDING_OPERATIONS = [
   'listInvites',
   'revokeInvite',
   'getVersion',
+  'getForgeApiStats',
   'refreshDashboard',
   'getSharing',
   'shareWith',

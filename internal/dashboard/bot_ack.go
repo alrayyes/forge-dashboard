@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 )
 
 // ackLookup is one pending Dependabot request to ask the forge about.
@@ -24,6 +26,7 @@ type ackLookup struct {
 // fails, leaves the request as it was: the row shows the plain requested
 // state, never an error.
 func (a *Aggregator) checkDependabotAcks(ctx context.Context) {
+	ctx = apistats.WithKind(ctx, apistats.KindUserAction)
 	for _, l := range a.pendingAcks() {
 		reader := a.ackReaderFor(l.forge)
 		if reader == nil {

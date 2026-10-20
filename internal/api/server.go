@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -22,6 +23,10 @@ var staticFiles embed.FS
 // long parameter list, since it's grown one dependency per feature slice
 // (auth, then per-user settings) and reads better named than positional.
 type Deps struct {
+	// APIStats counts the forge requests every client makes (#2008). Nil counts
+	// nothing and serves an empty list.
+	APIStats *apistats.Counters
+
 	// Version is the release tag this binary was built from ("dev" for a
 	// build outside the release pipeline) — see cmd/forge-dashboard's own
 	// version var for how it's set.
@@ -109,7 +114,8 @@ func NewMux(deps Deps) http.Handler {
 
 	mux.Handle("GET /api/dashboard", auth.RequireAuth(deps.AuthStore)(handleDashboard(deps)))
 	mux.Handle("GET /api/main-branches", auth.RequireAuth(deps.AuthStore)(handleMainBranches(deps)))
-	mux.Handle("GET /api/main-branches/checks", auth.RequireAuth(deps.AuthStore)(handleMainBranchChecks(deps)))
+	mux.Handle("GET /api/main-branches/checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleMainBranchChecks(deps))))
+	mux.Handle("GET /api/stats/forge-api", auth.RequireAuth(deps.AuthStore)(handleForgeAPIStats(deps)))
 	mux.Handle("GET /api/dashboard/stream", auth.RequireAuth(deps.AuthStore)(handleDashboardStream(deps)))
 	mux.Handle("POST /api/dashboard/refresh", auth.RequireAuth(deps.AuthStore)(handleDashboardRefresh(deps)))
 	// The Streamable HTTP transport itself routes GET (a standalone SSE
@@ -138,28 +144,28 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/tokens", auth.RequireAuth(deps.AuthStore)(handleTokensGet(deps.AuthStore)))
 	mux.Handle("POST /api/tokens", auth.RequireAuth(deps.AuthStore)(handleTokensPost(deps.AuthStore)))
 	mux.Handle("DELETE /api/tokens/{id}", auth.RequireAuth(deps.AuthStore)(handleTokensDelete(deps.AuthStore)))
-	mux.Handle("POST /api/webhooks/ensure", auth.RequireAuth(deps.AuthStore)(handleWebhookEnsure(deps)))
+	mux.Handle("POST /api/webhooks/ensure", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindHookMaintenance, handleWebhookEnsure(deps))))
 	mux.Handle("POST /api/repos/ignore", auth.RequireAuth(deps.AuthStore)(handleRepoIgnore(deps)))
 	mux.Handle("POST /api/repos/unignore", auth.RequireAuth(deps.AuthStore)(handleRepoUnignore(deps)))
 	mux.Handle("POST /api/repos/auto-update-branch/enable", auth.RequireAuth(deps.AuthStore)(handleAutoUpdateBranchEnable(deps)))
 	mux.Handle("POST /api/repos/auto-update-branch/disable", auth.RequireAuth(deps.AuthStore)(handleAutoUpdateBranchDisable(deps)))
-	mux.Handle("POST /api/pull-requests/merge", auth.RequireAuth(deps.AuthStore)(handlePullRequestMerge(deps)))
-	mux.Handle("POST /api/pull-requests/auto-merge", auth.RequireAuth(deps.AuthStore)(handlePullRequestAutoMerge(deps)))
+	mux.Handle("POST /api/pull-requests/merge", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestMerge(deps))))
+	mux.Handle("POST /api/pull-requests/auto-merge", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestAutoMerge(deps))))
 	mux.Handle("POST /api/pull-requests/hide", auth.RequireAuth(deps.AuthStore)(handlePullRequestHide(deps)))
 	mux.Handle("POST /api/pull-requests/unhide", auth.RequireAuth(deps.AuthStore)(handlePullRequestUnhide(deps)))
 	mux.Handle("POST /api/pull-requests/auto-update", auth.RequireAuth(deps.AuthStore)(handlePullRequestAutoUpdate(deps)))
-	mux.Handle("POST /api/pull-requests/auto-merge/cancel", auth.RequireAuth(deps.AuthStore)(handlePullRequestAutoMergeCancel(deps)))
-	mux.Handle("POST /api/pull-requests/close", auth.RequireAuth(deps.AuthStore)(handlePullRequestClose(deps)))
-	mux.Handle("POST /api/pull-requests/update-branch", auth.RequireAuth(deps.AuthStore)(handlePullRequestUpdateBranch(deps)))
-	mux.Handle("POST /api/pull-requests/rerun-checks", auth.RequireAuth(deps.AuthStore)(handlePullRequestRerunChecks(deps)))
-	mux.Handle("POST /api/pull-requests/dependabot-action", auth.RequireAuth(deps.AuthStore)(handlePullRequestDependabotAction(deps)))
-	mux.Handle("POST /api/pull-requests/renovate-rebase", auth.RequireAuth(deps.AuthStore)(handlePullRequestRenovateRebase(deps)))
+	mux.Handle("POST /api/pull-requests/auto-merge/cancel", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestAutoMergeCancel(deps))))
+	mux.Handle("POST /api/pull-requests/close", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestClose(deps))))
+	mux.Handle("POST /api/pull-requests/update-branch", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestUpdateBranch(deps))))
+	mux.Handle("POST /api/pull-requests/rerun-checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestRerunChecks(deps))))
+	mux.Handle("POST /api/pull-requests/dependabot-action", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestDependabotAction(deps))))
+	mux.Handle("POST /api/pull-requests/renovate-rebase", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestRenovateRebase(deps))))
 	mux.Handle("GET /api/queued-actions", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsList(deps)))
 	mux.Handle("POST /api/queued-actions", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsCreate(deps)))
 	mux.Handle("DELETE /api/queued-actions/{id}", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsCancel(deps)))
-	mux.Handle("GET /api/pull-requests/checks", auth.RequireAuth(deps.AuthStore)(handlePullRequestChecks(deps)))
-	mux.Handle("GET /api/pull-requests/details", auth.RequireAuth(deps.AuthStore)(handlePullRequestDetails(deps)))
-	mux.Handle("GET /api/issues/details", auth.RequireAuth(deps.AuthStore)(handleIssueDetails(deps)))
+	mux.Handle("GET /api/pull-requests/checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handlePullRequestChecks(deps))))
+	mux.Handle("GET /api/pull-requests/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handlePullRequestDetails(deps))))
+	mux.Handle("GET /api/issues/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleIssueDetails(deps))))
 
 	mux.Handle("GET /api/sharing", auth.RequireAuth(deps.AuthStore)(handleSharingGet(deps)))
 	mux.Handle("PUT /api/sharing/{username}", auth.RequireAuth(deps.AuthStore)(handleSharingPut(deps)))

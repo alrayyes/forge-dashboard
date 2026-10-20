@@ -30,7 +30,10 @@ import (
 // request a guaranteed cache miss against an entry made under the old
 // token, which is harmless: a miss, not a wrong answer.
 type etagTransport struct {
+	// base is what the cache calls; raw is the transport it started with, so
+	// wrapBase can be called again without stacking wrappers.
 	base http.RoundTripper
+	raw  http.RoundTripper
 
 	mu    sync.Mutex
 	cache map[string]cachedResponse
@@ -60,7 +63,14 @@ func newETagTransport(base http.RoundTripper) *etagTransport {
 		base = defaultTransport()
 	}
 
-	return &etagTransport{base: base, cache: make(map[string]cachedResponse)}
+	return &etagTransport{base: base, raw: base, cache: make(map[string]cachedResponse)}
+}
+
+// wrapBase puts wrap between the cache and the network, below the cache so a
+// wrapper sees the real 304 and not the 200 the cache turns it into. Call it
+// before the transport carries traffic: base is read without a lock.
+func (t *etagTransport) wrapBase(wrap func(http.RoundTripper) http.RoundTripper) {
+	t.base = wrap(t.raw)
 }
 
 // RoundTrip implements http.RoundTripper. Only a GET is ever cached — a

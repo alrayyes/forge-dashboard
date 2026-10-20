@@ -10,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 )
 
 // Aggregator holds the most recently fetched Snapshot and refreshes it in
@@ -302,7 +304,7 @@ func (a *Aggregator) Get() Snapshot {
 // unreachable ForgeHealth entry instead, so one broken forge never drops
 // the other's data.
 func (a *Aggregator) Refresh(ctx context.Context) {
-	a.refresh.do(func() { a.refreshOnce(ctx) })
+	a.refresh.do(func() { a.refreshOnce(apistats.WithKind(ctx, apistats.KindFull)) })
 }
 
 // RefreshRepo refreshes just the named repository's pull requests and
@@ -330,6 +332,7 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 	}
 
 	a.repoRefresh.do(string(forge)+"/"+fullName, func() {
+		ctx := scopedRefreshContext(ctx, fullName)
 		seq := a.fetchSeq.Add(1)
 		prs, issues, err := refresher.FetchRepo(ctx, owner, name, fullName)
 		if err != nil {
@@ -341,6 +344,16 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 	})
 
 	return true
+}
+
+// scopedRefreshContext tags a one-repo fetch with the repo, and with a webhook
+// as its cause unless the caller already named one (the CI poll does).
+func scopedRefreshContext(ctx context.Context, fullName string) context.Context {
+	if apistats.KindFrom(ctx) == apistats.KindUnknown {
+		ctx = apistats.WithKind(ctx, apistats.KindScopedWebhook)
+	}
+
+	return apistats.WithRepo(ctx, fullName)
 }
 
 // repoRefresherFor is the Source that drives forge when it can fetch one repo
@@ -664,7 +677,7 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 		name     string
 		fullName string
 	}
-	pending := make(map[repoKey]struct{})
+	pending := make(map[repoKey]apistats.Kind)
 	for _, pr := range a.Get().PullRequests {
 		if pr.CI != CIPending && !armedOnGitHub(pr) {
 			continue
@@ -673,10 +686,17 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 		if !ok {
 			continue
 		}
-		pending[repoKey{forge: pr.Forge, owner: owner, name: name, fullName: pr.Repo}] = struct{}{}
+		key := repoKey{forge: pr.Forge, owner: owner, name: name, fullName: pr.Repo}
+		// A pending check is what the poll is for; an armed auto-merge alone is the
+		// other reason.
+		if pr.CI == CIPending || pending[key] == apistats.KindCIPoll {
+			pending[key] = apistats.KindCIPoll
+		} else {
+			pending[key] = apistats.KindAutoMergePoll
+		}
 	}
 	snap := a.Get()
-	for key := range pending {
+	for key, kind := range pending {
 		// A forge whose budget is spent can't answer until its reset: the next
 		// full refresh already waits that out (NextRefreshDelay), so polling
 		// every minute meanwhile only repeats the refusal. An armed pull
@@ -684,7 +704,7 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 		if _, spent := exhaustedHealth(snap, key.forge, a.now()); spent {
 			continue
 		}
-		a.RefreshRepo(ctx, key.forge, key.owner, key.name, key.fullName)
+		a.RefreshRepo(apistats.WithKind(ctx, kind), key.forge, key.owner, key.name, key.fullName)
 	}
 }
 

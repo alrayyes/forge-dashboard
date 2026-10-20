@@ -26,6 +26,7 @@ import (
 	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
@@ -48,7 +49,14 @@ const pageLimit = 50
 // user (a token) or anonymously against one user's public repositories on
 // that instance (a username, no token at all).
 type Client struct {
-	sdk         *gitea.Client
+	*clientState
+	// sdk is bound to one call's context by withContext, so concurrent calls
+	// never share one (the SDK keeps a single context per client).
+	sdk *gitea.Client
+}
+
+// clientState is everything a Client shares between its per-call copies.
+type clientState struct {
 	token       string
 	username    string
 	webhookPath string
@@ -59,6 +67,8 @@ type Client struct {
 	// request URLs.
 	instanceURL string
 	httpClient  *http.Client
+	// rawTransport is httpClient's transport before SetStats wraps it.
+	rawTransport http.RoundTripper
 
 	// recorder persists a request_log entry for every outbound request
 	// this Client makes (#482) — always non-nil (NewClient defaults it
@@ -108,7 +118,8 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 	// completely different Client's in-flight request against its own
 	// httptest server — confirmed live as a flaky
 	// "CloseIdleConnections called" failure in TestEnsureWebhook_*.
-	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{}}
+	rawTransport := &http.Transport{}
+	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: rawTransport}
 	opts := []gitea.ClientOption{
 		gitea.SetHTTPClient(httpClient),
 		// Skips the server-version probe NewClient otherwise makes on
@@ -134,16 +145,16 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 		rec = recorder[0]
 	}
 
-	return &Client{
-		sdk:         sdk,
-		token:       token,
-		username:    username,
-		instanceURL: strings.TrimSuffix(instanceURL, "/"),
-		httpClient:  httpClient,
-		recorder:    rec,
-		reviews:     map[string]cachedReview{},
-		schedule:    map[string]cachedSchedule{},
-	}
+	return &Client{sdk: sdk, clientState: &clientState{
+		token:        token,
+		username:     username,
+		instanceURL:  strings.TrimSuffix(instanceURL, "/"),
+		httpClient:   httpClient,
+		recorder:     rec,
+		rawTransport: rawTransport,
+		reviews:      map[string]cachedReview{},
+		schedule:     map[string]cachedSchedule{},
+	}}
 }
 
 // recordRequest builds and persists this call's own request_log entry
@@ -166,8 +177,43 @@ func (c *Client) recordRequest(ctx context.Context, method, endpoint string, sta
 	}
 }
 
-func (c *Client) setContext(ctx context.Context) {
-	c.sdk.SetContext(ctx)
+// SetStats counts every request this client makes in counters, under
+// credential, tagged with the kind and repo the request's context carries.
+// Call it right after construction, before the client makes a request. Every
+// SDK call goes through c.httpClient, so this sees them all, not only the
+// ones recordRequest logs. Nil counters count nothing.
+func (c *Client) SetStats(counters *apistats.Counters, credential string) {
+	c.httpClient.Transport = apistats.Transport(c.rawTransport, counters, string(dashboard.ForgeForgejo), credential)
+}
+
+// withContext returns a copy of c whose SDK calls run under ctx, so the kind and
+// repo tags ctx carries travel with each request and a concurrent call can't
+// swap them. The copy shares c's caches and settings. Call it as
+// `c = c.withContext(ctx)` at the top of each method that talks to the forge.
+func (c *Client) withContext(ctx context.Context) *Client {
+	sdk, err := newSDK(c.instanceURL, c.httpClient, c.token)
+	if err != nil {
+		// newSDK never fails (see NewClient); keep the shared one rather than panic.
+		return c
+	}
+	sdk.SetContext(ctx)
+
+	return &Client{clientState: c.clientState, sdk: sdk}
+}
+
+// newSDK builds the Gitea SDK client over httpClient. It makes no request: the
+// version probe is switched off.
+func newSDK(instanceURL string, httpClient *http.Client, token string) (*gitea.Client, error) {
+	opts := []gitea.ClientOption{gitea.SetHTTPClient(httpClient), gitea.SetGiteaVersion("")}
+	if token != "" {
+		opts = append(opts, gitea.SetToken(token))
+	}
+	sdk, err := gitea.NewClient(instanceURL, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("forgejo: build sdk client: %w", err)
+	}
+
+	return sdk, nil
 }
 
 // SetWebhookPath tells Client the path (not the full URL — see
@@ -205,7 +251,7 @@ func (c *Client) HasWebhook(ctx context.Context, owner, name string) (bool, erro
 // path its own targetURL argument carries, independent of whether
 // SetWebhookPath was ever called on this Client at all).
 func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) (*gitea.Hook, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
 	opt := gitea.ListHooksOptions{PageSize: pageLimit}
 
@@ -251,6 +297,7 @@ var forgejoWebhookEvents = []string{
 // back to active with the right config rather than creating a second,
 // duplicate hook.
 func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
+	c = c.withContext(ctx)
 	u, err := url.Parse(targetURL)
 	if err != nil {
 		return fmt.Errorf("forgejo: invalid webhook target URL: %w", err)
@@ -294,7 +341,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 // editHook PATCHes hook id back to active with config and the current event
 // list.
 func (c *Client) editHook(ctx context.Context, owner, name string, id int64, config map[string]string) error {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, id)
 	slog.Debug("forgejo request", "method", http.MethodPatch, "url", path)
 	active := true
@@ -432,7 +479,7 @@ func forgeErrorKind(statusCode int) dashboard.ForgeErrorKind {
 // wire — so this looks the repo's DefaultMergeStyle up first rather than
 // hardcoding one style for every repo regardless of its own settings.
 func (c *Client) MergePullRequest(ctx context.Context, owner, name string, number int) error {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	repoPath := fmt.Sprintf("/repos/%s/%s", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", repoPath)
@@ -474,7 +521,7 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 // (which Gitea also marks unmergeable) as Blocked. A missing review or
 // check isn't visible here: the merge refusal's own text names it.
 func (c *Client) ReadPullRequestState(ctx context.Context, owner, name string, number int) (dashboard.PullRequestState, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
@@ -503,7 +550,7 @@ func (c *Client) ReadPullRequestState(ctx context.Context, owner, name string, n
 // why that matters) — Forgejo's real rejection reason, if any, reaches
 // the caller here without needing rawRequest.
 func (c *Client) ClosePullRequest(ctx context.Context, owner, name string, number int) error {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodPatch, "url", path)
@@ -522,7 +569,7 @@ func (c *Client) ClosePullRequest(ctx context.Context, owner, name string, numbe
 // call is synchronous — accepted is always false here — unlike GitHub's
 // async equivalent.
 func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/update", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodPost, "url", path)
 	// Via rawRequest, not the SDK's own UpdatePullRequest — see
@@ -543,7 +590,7 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 // rather than silently doing nothing — Renovate doesn't create the label
 // itself, the repo owner (or Renovate's own onboarding) does.
 func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, label string) error {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	labelsPath := fmt.Sprintf("/repos/%s/%s/labels", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", labelsPath)
@@ -636,7 +683,7 @@ func hasPushAccess(r *gitea.Repository) bool {
 // listWriteRepos returns every repository the token can push to, across
 // every page.
 func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 	var repos []dashboard.RepoRef
 	opt := gitea.ListReposOptions{PageSize: pageLimit}
 
@@ -665,7 +712,7 @@ func (c *Client) listWriteRepos(ctx context.Context) ([]dashboard.RepoRef, error
 // listPublicRepos returns every public repository username owns on this
 // instance, with no authentication at all.
 func (c *Client) listPublicRepos(ctx context.Context) ([]dashboard.RepoRef, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 	var repos []dashboard.RepoRef
 	opt := gitea.ListReposOptions{PageSize: pageLimit}
 	path := fmt.Sprintf("/users/%s/repos", c.username)
@@ -865,7 +912,7 @@ func (c *Client) pruneReviews(owner, name string, open map[string]struct{}) {
 
 // listReviews pages through one PR's reviews.
 func (c *Client) listReviews(ctx context.Context, owner, name string, index int64) ([]*gitea.PullReview, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", owner, name, index)
 	opt := gitea.ListPullReviewsOptions{PageSize: pageLimit}
 	var all []*gitea.PullReview
@@ -946,7 +993,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 // ListOpenPullRequests returns every open pull request against repo, with
 // CI already resolved. repo is owner-qualified ("alrayyes/tempus-fugit").
 func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo string) ([]dashboard.PullRequest, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 	var prs []dashboard.PullRequest
 	path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
 	opt := gitea.ListPullRequestsOptions{State: gitea.StateOpen, PageSize: pageLimit}
@@ -979,7 +1026,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 // endpoint takes type=issues to exclude pull requests server-side, unlike
 // GitHub's equivalent — no client-side filtering needed here.
 func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) ([]dashboard.Issue, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 	var issues []dashboard.Issue
 	path := fmt.Sprintf("/repos/%s/%s/issues", owner, name)
 	opt := gitea.ListIssueOption{State: gitea.StateOpen, Type: gitea.IssueTypeIssue, PageSize: pageLimit}
@@ -1020,7 +1067,7 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	if sha == "" {
 		return dashboard.CINone, dashboard.CheckCounts{}, nil
 	}
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	path := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
@@ -1108,7 +1155,7 @@ func statusFromCombinedState(state gitea.StatusState) dashboard.CIStatus {
 // comment). A real fetch error (permission, rate limit) still propagates
 // instead of being swallowed into that same fallback.
 func (c *Client) ListChecks(ctx context.Context, owner, name string, number int) ([]dashboard.Check, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", prPath)
@@ -1143,6 +1190,7 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 // an Actions job reports under ("<workflow> / <job> (<event>)"), or ""
 // for a legacy status whose name already is its context.
 func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) ([]dashboard.Check, []string, error) {
+	c = c.withContext(ctx)
 	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
 	runs, runsResp, err := c.sdk.ListRepoActionRuns(owner, name, gitea.ListRepoActionRunsOptions{
@@ -1201,7 +1249,7 @@ func (c *Client) statusChecks(ctx context.Context, owner, name, sha string) ([]d
 // state, target URL), not a second aggregate — the same shape GitHub's
 // own combined-status fallback already uses for the equivalent case.
 func (c *Client) checksFromCombinedStatus(ctx context.Context, owner, name, sha string) ([]dashboard.Check, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	path := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
@@ -1409,7 +1457,7 @@ func (c *Client) markRequired(ctx context.Context, owner, name, base string, che
 	if base == "" || len(checks) == 0 {
 		return
 	}
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	protPath := fmt.Sprintf("/repos/%s/%s/branch_protections", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", protPath)

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 )
 
 // AutoMergeStore is what an Aggregator needs to merge the pull requests a
@@ -62,6 +64,7 @@ func (a *Aggregator) EnableAutoMerge(userID []byte, store AutoMergeStore) {
 // runAutoMerge is the post-refresh hook. A store failure is logged and
 // merges nothing.
 func (a *Aggregator) runAutoMerge(ctx context.Context, snap Snapshot) {
+	ctx = apistats.WithKind(ctx, apistats.KindUserAction)
 	cfg := a.autoMerge
 	if cfg == nil {
 		return

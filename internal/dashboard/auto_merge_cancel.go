@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 )
 
 // cancelEmptyAutoMerges takes an armed auto-merge back off a pull request that
@@ -15,6 +17,7 @@ import (
 // The reason is kept for the row. A pull request that is not armed, or is not
 // empty, is never touched.
 func (a *Aggregator) cancelEmptyAutoMerges(ctx context.Context, snap Snapshot) {
+	ctx = apistats.WithKind(ctx, apistats.KindUserAction)
 	cfg := a.autoMerge
 	cfg.forgetGone(snap)
 

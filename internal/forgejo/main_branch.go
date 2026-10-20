@@ -69,7 +69,7 @@ func (c *Client) ReadMainBranch(ctx context.Context, repo dashboard.RepoRef) (da
 // lookup is an error. "Required" is a pull request's base-branch notion and
 // stays unknown.
 func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string) ([]dashboard.Check, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	repoPath := fmt.Sprintf("/repos/%s/%s", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", repoPath)
@@ -236,7 +236,7 @@ func (c *Client) branchCommit(ctx context.Context, repo dashboard.RepoRef, run *
 		commit.Author = run.Trigger.Login
 	}
 
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/git/commits/%s", repo.Owner, repo.Name, run.CommitSHA)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	got, resp, err := c.sdk.GetSingleCommit(repo.Owner, repo.Name, run.CommitSHA)

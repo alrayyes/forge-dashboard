@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 )
 
 // errUnsupportedByClient is what a GenericSource answers when its forge's
@@ -215,7 +217,7 @@ func (s *GenericSource) fetchRepo(ctx context.Context, repo RepoRef) repoResult 
 	issuesFailed := err != nil
 	var hasWebhook bool
 	if checker, ok := s.client.(WebhookChecker); ok {
-		hasWebhook, err = checker.HasWebhook(ctx, repo.Owner, repo.Name)
+		hasWebhook, err = checker.HasWebhook(apistats.WithKind(ctx, apistats.KindHookMaintenance), repo.Owner, repo.Name)
 		if err != nil {
 			slog.Warn("webhook check failed", "forge", s.forge, "repo", repo.FullName, "error", err)
 		}

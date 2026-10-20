@@ -2834,6 +2834,57 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/stats/forge-api:
+    get:
+      operationId: getForgeApiStats
+      summary: How many forge API calls the dashboard has spent, and on what
+      description: |
+        Counts the forge requests made since the server started, so a change
+        to what the dashboard refreshes can be shown to have saved budget, and
+        a rate-limit incident traced to the refresh that caused it. One bucket
+        per forge, credential, refresh `kind` and repository, each with the
+        REST calls made, the GraphQL calls made, the GraphQL `rateLimit.cost`
+        they were charged, and the requests answered `304 Not Modified`. A 304
+        is not charged against the REST budget, so it is counted on its own and
+        not as a REST call.
+
+        `kind` says why the request was made: `full` (a whole-account
+        refresh), `scoped_webhook` (one repository, after a webhook),
+        `ci_poll` (one repository, waiting on a running check),
+        `auto_merge_poll` (one repository, waiting on an armed auto-merge),
+        `details` (a dialog or check list opened), `hook_maintenance`
+        (checking, adding or upgrading webhooks), `user_action` (a button
+        pressed, a queued action, or something the dashboard does for you such
+        as auto-merge) and `unknown` (a request nobody tagged, which is a bug
+        to report). A request that names no repository, such as listing an
+        account's repositories, has an empty `repo`.
+
+        The counters live in memory and start from zero on every start;
+        `since` says when counting began. `credential` names the connected
+        account or App installation by a label that carries no secret and no
+        user id (`app:<installation id>`, `token:<short hash>`,
+        `public:<username>`). Only the buckets of the caller's own
+        credentials are returned. They are matched to the credentials
+        the caller has saved, and a GitHub App installation id is a number the
+        caller types in, so until the dashboard has one user, someone who saves
+        another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
+        reported, the same figures as `forges` on GET /api/dashboard.
+      tags: [dashboard]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The counters since the server started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForgeApiStats"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/sharing:
     get:
       operationId: getSharing
@@ -4379,6 +4430,87 @@ components:
             text, auto-update-branch skips Dependabot pull requests, and the
             dependabot-action endpoint answers 409 with it. Omitted when
             commands work.
+
+    ForgeApiStats:
+      type: object
+      required: [since, buckets, budgets]
+      properties:
+        since:
+          type: string
+          format: date-time
+          description: When counting began, which is when the server last started.
+        buckets:
+          type: array
+          description: >-
+            One row per forge, credential, kind and repository that made a
+            request, ordered by forge, credential, kind and repo.
+          items:
+            $ref: "#/components/schemas/ForgeApiBucket"
+        budgets:
+          type: array
+          description: The rate limits each forge last reported, one row per forge.
+          items:
+            $ref: "#/components/schemas/ForgeApiBudget"
+
+    ForgeApiBucket:
+      type: object
+      required:
+        [forge, credential, kind, repo, rest, graphql, graphqlCost, notModified]
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        credential:
+          type: string
+          maxLength: 80
+          description: >-
+            The credential the requests were made with, as a label with no
+            secret and no user id.
+        kind:
+          type: string
+          maxLength: 32
+          description: >-
+            Why the requests were made. Open-ended, so a new kind is not a
+            breaking change; today `full`, `scoped_webhook`, `ci_poll`,
+            `auto_merge_poll`, `details`, `hook_maintenance`, `user_action`
+            and `unknown`.
+        repo:
+          type: string
+          maxLength: 200
+          description: >-
+            The repository as `owner/name`, or empty when the request touched
+            no single repository. `other` collects the repositories past the
+            cap on how many are counted separately.
+        rest:
+          type: integer
+          minimum: 0
+          description: REST requests that were charged against the REST budget.
+        graphql:
+          type: integer
+          minimum: 0
+          description: GraphQL requests made.
+        graphqlCost:
+          type: integer
+          minimum: 0
+          description: The `rateLimit.cost` points the GraphQL requests were charged.
+        notModified:
+          type: integer
+          minimum: 0
+          description: Requests answered `304 Not Modified`, which cost nothing.
+
+    ForgeApiBudget:
+      type: object
+      required: [forge]
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        rateLimitGraphQL:
+          allOf:
+            - $ref: "#/components/schemas/RateLimit"
+          description: The forge's GraphQL budget as last reported; absent when it has none.
+        rateLimitREST:
+          allOf:
+            - $ref: "#/components/schemas/RateLimit"
+          description: The forge's REST budget as last reported; absent when not reported.
 
     RateLimit:
       type: object
