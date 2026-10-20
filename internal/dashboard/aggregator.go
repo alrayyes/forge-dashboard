@@ -82,6 +82,10 @@ type Aggregator struct {
 	// refresh can carry its data over and say how old it is (#922). Guarded
 	// by mu, like snap.
 	lastGood map[Forge]time.Time
+
+	// activity says whether anyone is using the dashboard, so Run can rest
+	// its scheduled refresh while nobody is. Nil means always in use.
+	activity *Activity
 }
 
 // defaultSettleWindow is how long a pull request a merge or close succeeded
@@ -102,6 +106,13 @@ func WithSettleWindow(d time.Duration) AggregatorOption {
 // WithClock sets the clock bot request deadlines read, for tests.
 func WithClock(now func() time.Time) AggregatorOption {
 	return func(a *Aggregator) { a.now = now }
+}
+
+// WithActivity makes Run skip its scheduled refresh while act reports the
+// dashboard idle, and refresh once when use returns. Refresh and RefreshRepo
+// are unaffected: a forced refresh and a webhook delivery run regardless.
+func WithActivity(act *Activity) AggregatorOption {
+	return func(a *Aggregator) { a.activity = act }
 }
 
 // NewAggregator returns an Aggregator whose Get answers an empty snapshot
@@ -611,6 +622,11 @@ func logOneRateLimitTransition(forge Forge, kind string, previous, current *Rate
 // (#381). A plain Timer, not a Ticker, since the delay changes cycle to
 // cycle rather than staying fixed. Meant to run in its own goroutine for
 // the lifetime of the process.
+//
+// While the Activity says nobody is using the dashboard, a due tick is
+// skipped and the timer re-armed, so an unwatched dashboard spends no forge
+// budget on the schedule. The first use after that wakes Run, which refreshes
+// once so the person who just arrived is not shown data from before they left.
 func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 	a.Refresh(ctx)
 
@@ -622,7 +638,21 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-timer.C:
+			if a.activity.Idle() {
+				timer.Reset(NextRefreshDelay(a.Get(), interval))
+
+				continue
+			}
 			a.Refresh(ctx)
+			timer.Reset(NextRefreshDelay(a.Get(), interval))
+		case <-a.activity.Woken():
+			a.Refresh(ctx)
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			timer.Reset(NextRefreshDelay(a.Get(), interval))
 		}
 	}
