@@ -38,7 +38,7 @@ const PRS = [
   pr(2, 'Mid', 'pending', { passed: 5, running: 2, waiting: 3, failed: 0 }),
   pr(3, 'Single', 'pending', { passed: 0, running: 1, waiting: 0, failed: 0 }),
   pr(4, 'No counts', 'pending'),
-  pr(5, 'Done', 'success', { passed: 9, running: 0, waiting: 0, failed: 0 }),
+  pr(5, 'Done', 'success'),
 ];
 
 async function open(page: Page) {
@@ -119,7 +119,7 @@ test.describe('Running pill counts (#2004)', () => {
     );
   });
 
-  test('a pull request without counts, or one that is not running, keeps the plain pill', async ({
+  test('a pull request without counts, or one that has none, keeps the plain pill', async ({
     page,
   }) => {
     await open(page);

@@ -28,7 +28,7 @@
     CHECK_KIND_GLYPH,
     type CheckCounts,
     checkSegments,
-    runningPillName,
+    pillName,
   } from "#lib/check-counts.js";
   import {
     CHECK_STATE_LABELS,
@@ -762,6 +762,7 @@
     // so a run turns into its result without the row moving. The glyphs are
     // the pipeline panel's own (#1473). A run held for approval is not
     // running, so it gets the pause glyph the pipeline panel uses for it.
+    const SEGMENTED_CI = new Set(["pending", "failure", "success"]);
     const CI_SLOT_GLYPHS: Record<string, string> = {
       pending: "running",
       failure: "failure",
@@ -778,11 +779,12 @@
       const glyphs = pipelineCheckGlyphs(
         awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
       );
-      // A running pipeline says how far it is (#2004): the word, then one
-      // count per state that has any, each with its glyph. The server tallies
-      // the counts; nothing is drawn without them, which leaves the plain pill.
+      // A pipeline that ran says how far it got (#2004, #2074), running, passed
+      // or failed alike: the word, then one count per state that has any, each
+      // with its glyph. The server tallies the counts; nothing is drawn without
+      // them, which leaves the plain pill.
       const segments =
-        status === "pending" && !awaiting ? checkSegments(item.checks) : [];
+        SEGMENTED_CI.has(status) && !awaiting ? checkSegments(item.checks) : [];
       const segmented = segments.length > 0;
       const addMark = (pill: HTMLElement) => {
         if (glyphs.length > 0) glyphs.forEach((g) => pill.appendChild(g));
@@ -822,7 +824,7 @@
           badge
             .querySelector(".ci-seg-label")
             ?.setAttribute("aria-hidden", "true");
-          badge.appendChild(el("span", "sr-only", runningPillName(segments)));
+          badge.appendChild(el("span", "sr-only", pillName(label, segments)));
         }
         return badge;
       }
@@ -837,7 +839,7 @@
       // after it.
       pill.setAttribute(
         "aria-label",
-        `${segmented ? runningPillName(segments) : label}. Open pipeline`,
+        `${segmented ? pillName(label, segments) : label}. Open pipeline`,
       );
       pill.addEventListener("click", () => {
         openPipelineDialog(item);

@@ -2,6 +2,8 @@
 // the row shape, the local filter, and the small formatters. No DOM here, so
 // the page component stays the one place that touches elements.
 
+import type { CheckCounts } from './check-counts';
+
 export type MainBranchStatus =
   | 'failed'
   | 'running'
@@ -29,6 +31,7 @@ export type MainBranch = {
   finishedAt: string | null;
   durationSeconds: number | null;
   runUrl: string;
+  checks: CheckCounts;
   stale: boolean;
   staleSince: string | null;
 };
@@ -91,6 +94,14 @@ export const CI_SLOT: Partial<
   // pair by .awaiting, with the pause glyph (#1280).
   awaiting_approval: { cls: 'failure awaiting', glyphs: 'awaiting_approval' },
 };
+
+// The statuses whose pill says how far the pipeline got (#2074): one that ran,
+// failed, passed or still going. A cancelled or held one has its own word.
+export const SEGMENTED_STATUSES: ReadonlySet<MainBranchStatus> = new Set([
+  'failed',
+  'running',
+  'passed',
+]);
 
 export function isFiltered(filter: MainBranchFilter): boolean {
   return (

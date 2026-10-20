@@ -2,6 +2,11 @@
   import { onDestroy, onMount, untrack } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
+  import {
+    CHECK_KIND_GLYPH,
+    checkSegments,
+    pillName,
+  } from "#lib/check-counts.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
     branchesAwaitingFlag,
@@ -39,6 +44,7 @@
     type MainBranches,
     type MainBranchFilter,
     CI_SLOT,
+    SEGMENTED_STATUSES,
     STATUS_LABEL,
     statusCount,
     type StatusPill,
@@ -462,6 +468,15 @@
       width: 14px;
       height: 14px;
     }
+    /* A pill with counts is a capsule of segments that carry their own
+       padding, and its slot grows to it, as on the pull request pages. */
+    .mb-row .ci-pill.segmented {
+      padding: 0;
+      justify-content: flex-start;
+    }
+    .mb-row .ci-slot:has(.ci-pill.segmented) {
+      width: max-content;
+    }
     /* Right edge on the slot's right edge, as tall as the pills beside it, so
        no state moves the row. */
     .mb-nopipe {
@@ -614,25 +629,60 @@
                   <!-- A native button, as on the pull request pages: it opens
                        the pipeline panel, which carries the link to the run.
                        The visible word leads the name (WCAG 2.5.3). -->
+                  {@const segments = SEGMENTED_STATUSES.has(b.status)
+                    ? checkSegments(b.checks)
+                    : []}
+                  {@const segmented = segments.length > 0}
                   <button
                     type="button"
                     class="ci-pill {slot.cls}"
-                    aria-label="{STATUS_LABEL[b.status]}. Open pipeline"
+                    class:segmented
+                    aria-label="{segmented
+                      ? pillName(STATUS_LABEL[b.status], segments)
+                      : STATUS_LABEL[b.status]}. Open pipeline"
                     onclick={(e) => openPipeline(b, e.currentTarget)}
                   >
-                    {#each CHECK_GLYPHS[slot.glyphs] as g (g.name)}
-                      <svg
-                        viewBox="0 0 16 16"
-                        class="check-glyph check-glyph-{g.name}"
-                        data-glyph={g.name}
-                        aria-hidden="true"
-                        focusable="false"
+                    {#if segmented}
+                      <!-- How far the pipeline got (#2074): the word, then a
+                           count per state that has any, as on the pull request
+                           pages. The server tallies them; the name says them. -->
+                      <span class="ci-seg ci-seg-label"
+                        >{STATUS_LABEL[b.status]}</span
                       >
-                        <!-- nosemgrep: svelte-at-html -- g.body comes only from the static CHECK_GLYPHS constant in #lib/check-glyphs, never from forge data -->
-                        {@html g.body}
-                      </svg>
-                    {/each}
-                    {STATUS_LABEL[b.status]}
+                      {#each segments as seg (seg.kind)}
+                        {" "}<span
+                          class="ci-seg ci-seg-{seg.kind}"
+                          aria-hidden="true"
+                        >
+                          {#each CHECK_GLYPHS[CHECK_KIND_GLYPH[seg.kind]] as g (g.name)}
+                            <svg
+                              viewBox="0 0 16 16"
+                              class="check-glyph check-glyph-{g.name}"
+                              data-glyph={g.name}
+                              aria-hidden="true"
+                              focusable="false"
+                            >
+                              <!-- nosemgrep: svelte-at-html -- g.body comes only from the static CHECK_GLYPHS constant in #lib/check-glyphs, never from forge data -->
+                              {@html g.body}
+                            </svg>
+                          {/each}{seg.n}</span
+                        >
+                      {/each}
+                    {:else}
+                      {#each CHECK_GLYPHS[slot.glyphs] as g (g.name)}
+                        <svg
+                          viewBox="0 0 16 16"
+                          class="check-glyph check-glyph-{g.name}"
+                          data-glyph={g.name}
+                          aria-hidden="true"
+                          focusable="false"
+                        >
+                          <!-- nosemgrep: svelte-at-html -- g.body comes only from the static CHECK_GLYPHS constant in #lib/check-glyphs, never from forge data -->
+                          {@html g.body}
+                        </svg>
+                      {/each}
+                      {STATUS_LABEL[b.status]}
+                    {/if}
                   </button>
                 {:else}
                   <span class="attr-chip mb-nopipe">
