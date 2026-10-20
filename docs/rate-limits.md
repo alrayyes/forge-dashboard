@@ -139,9 +139,9 @@ which costs nothing against the REST limit. The dashboard counts it under
 `notModified` and serves the kept body, so the rest of the code never sees the
 difference. GitHub documents this in its
 [REST API best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests-if-appropriate).
-The same page says a `304` is only free for a request that carries an
-`Authorization` header, so the public-repository mode, which has none, may still
-be charged.
+The same page says a `304` is only free for a request that carries credentials,
+sent as the `Authorization` header, so the public-repository mode, which has
+none, may still be charged.
 
 The cache is keyed by forge, credential label and URL, never by user. GitHub
 folds the credential into the ETag, so one credential's ETag is never offered
