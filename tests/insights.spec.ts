@@ -179,6 +179,8 @@ test.describe('insights page', () => {
       '/api/settings/theme',
       '/api/settings/timezone',
       '/api/settings/filter-state',
+      // The layout's heartbeat saying the tab is visible: plumbing, not a data read.
+      '/api/presence',
     ]);
     expect([...apiPaths].filter((p) => !layout.has(p))).toEqual([]);
   });

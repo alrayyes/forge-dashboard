@@ -2645,7 +2645,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/dashboard/presence:
+  /api/presence:
     post:
       operationId: reportDashboardPresence
       x-mcp-excluded: "Cookie-session only: the spec refuses a personal API token with 403, so an MCP client cannot call it."

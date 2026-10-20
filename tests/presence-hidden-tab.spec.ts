@@ -36,10 +36,7 @@ test('a tab reports visible, then hidden, then visible again', async ({
   );
   const reports: Report[] = [];
   page.on('request', (req: Request) => {
-    if (
-      req.url().endsWith('/api/dashboard/presence') &&
-      req.method() === 'POST'
-    )
+    if (req.url().endsWith('/api/presence') && req.method() === 'POST')
       reports.push(req.postDataJSON() as Report);
   });
 

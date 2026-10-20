@@ -27,7 +27,7 @@ type presenceAnswer struct {
 
 // handleDashboardPresence records whether one browser tab is being looked at,
 // which is the only way the server learns it: an open live stream says
-// nothing. See POST /api/dashboard/presence in the OpenAPI spec.
+// nothing. See POST /api/presence in the OpenAPI spec.
 func handleDashboardPresence(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req presenceReport

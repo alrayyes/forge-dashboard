@@ -120,7 +120,7 @@ const backgroundReadHeader = "X-Background-Read"
 // a page's own timed read says nothing about a person.
 func countsAsUse(r *http.Request) bool {
 	switch r.URL.Path {
-	case "/api/dashboard/stream", "/api/dashboard/presence":
+	case "/api/dashboard/stream", "/api/presence":
 		return false
 	}
 

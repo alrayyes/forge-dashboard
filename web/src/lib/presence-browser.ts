@@ -26,13 +26,22 @@ export function startPresence(): () => void {
     clearTimer: (handle) => window.clearTimeout(handle as number),
     send: async (visible): Promise<PresenceTimings | null> => {
       try {
-        const res = await fetch('/api/dashboard/presence', {
+        const res = await fetch('/api/presence', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ viewerId, visible }),
           keepalive: true,
         });
-        return res.ok ? ((await res.json()) as PresenceTimings) : null;
+        if (!res.ok) return null;
+        const timings = (await res.json()) as Partial<PresenceTimings>;
+        // Anything but the two numbers (a proxy's page, a test stand-in) is a
+        // report that did not get through, never a zero-millisecond heartbeat.
+        if (
+          typeof timings.heartbeatSeconds !== 'number' ||
+          typeof timings.idleAfterSeconds !== 'number'
+        )
+          return null;
+        return timings as PresenceTimings;
       } catch {
         return null;
       }

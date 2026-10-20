@@ -122,7 +122,7 @@ func TestActivity_AnOpenLiveStreamAloneIsNotUse(t *testing.T) {
 func postPresence(t *testing.T, srvURL string, cookie *http.Cookie, body string) (int, []byte) {
 	t.Helper()
 
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/dashboard/presence", strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/presence", strings.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	if cookie != nil {
@@ -234,7 +234,7 @@ func TestPresence_APersonalAPITokenIsRefusedAndHoldsNothingActive(t *testing.T) 
 	token := createTestAPIToken(t, srv.URL, cookie)
 	act := idleActivity(t, manager)
 
-	resp := doWithBearer(t, http.MethodPost, srv.URL+"/api/dashboard/presence", `{"viewerId":"tab-aaaaaaaa","visible":true}`, token)
+	resp := doWithBearer(t, http.MethodPost, srv.URL+"/api/presence", `{"viewerId":"tab-aaaaaaaa","visible":true}`, token)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
