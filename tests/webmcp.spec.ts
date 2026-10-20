@@ -71,6 +71,7 @@ test.describe('WebMCP tools', () => {
       'get_pull_request_details',
       'list_queued_actions',
       'get_settings',
+      'set_pull_request_auto_update',
     ]);
     expect(tools[0].description).toMatch(/pull requests/i);
   });
