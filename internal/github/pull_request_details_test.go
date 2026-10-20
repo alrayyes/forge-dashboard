@@ -204,5 +204,7 @@ func TestGetPullRequestDetails_GraphQLError_IsReturned(t *testing.T) {
 
 	_, err := client.GetPullRequestDetails(t.Context(), "alrayyes", "a", 5)
 
-	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
 }

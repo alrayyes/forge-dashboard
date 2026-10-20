@@ -7,8 +7,11 @@
     attributes: HTMLElement;
   };
 
-  // The part of a row this dialog needs.
+  // The part of a row this dialog needs. An issue row opens the same dialog
+  // with subject "issue": its own endpoint and wording, no release notes and
+  // no footer actions.
   export type DetailsTarget = {
+    subject?: "pull-request" | "issue";
     forge: string;
     repo: string;
     number: number;
@@ -32,12 +35,12 @@
 </script>
 
 <script lang="ts">
-  // A read-only dialog for one pull request (#943): its description, the
-  // conversation and the thumbs reactions on both, and, for a release pull
-  // request, the release notes. The data comes from
-  // GET /api/pull-requests/details, fetched when the dialog opens and never
-  // as part of the snapshot. Dashboard.svelte calls open() from a row's
-  // trigger and holds nothing else of this dialog's state.
+  // A read-only dialog for one pull request (#943) or one issue: its
+  // description, the conversation and the thumbs reactions on both, and, for a
+  // release pull request, the release notes. The data comes from
+  // GET /api/pull-requests/details or GET /api/issues/details, fetched when
+  // the dialog opens and never as part of the snapshot. Dashboard.svelte calls
+  // open() from a row's trigger and holds nothing else of this dialog's state.
   import { avatarSrc } from "#lib/avatar.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
@@ -50,7 +53,8 @@
   // An error the server explained, as opposed to a network or chunk failure.
   class ServerReason extends Error {}
 
-  // Matches components.schemas.PullRequestDetails in api/openapi.yaml.
+  // Matches components.schemas.PullRequestDetails and IssueDetails in
+  // api/openapi.yaml (an issue has no releaseNotes).
   type Reaction = { count: number; logins: string[] };
   type Reactions = { thumbsUp: Reaction; thumbsDown: Reaction };
   type Body = {
@@ -70,7 +74,7 @@
     comments: Comment[];
     commentCount: number;
     commentsTruncated: boolean;
-    releaseNotes: Body | null;
+    releaseNotes?: Body | null;
   };
 
   // Dashboard.svelte's hooks: Escape first backs out of an armed confirm, and
@@ -105,6 +109,9 @@
   );
   const releaseNotes = $derived(details?.releaseNotes ?? null);
   const isBot = $derived(target?.kind === "dependency");
+  const subjectName = $derived(
+    target?.subject === "issue" ? "Issue" : "Pull request",
+  );
 
   // The dialog's own polite live region. The page's one (outside the
   // <dialog>) is ignored by assistive tech while a modal is open, so the
@@ -176,7 +183,7 @@
     }
     try {
       const res = await fetch(
-        `/api/pull-requests/details?forge=${encodeURIComponent(current.forge)}&fullName=${encodeURIComponent(current.repo)}&number=${current.number}`,
+        `/api/${current.subject === "issue" ? "issues" : "pull-requests"}/details?forge=${encodeURIComponent(current.forge)}&fullName=${encodeURIComponent(current.repo)}&number=${current.number}`,
         { headers: { Accept: "application/json" } },
       );
       if (res.status === 401) {
@@ -337,7 +344,7 @@
   bind:this={dialogEl}
   class="details-dialog"
   aria-label={target
-    ? `Pull request details: ${target.repo} #${target.number}`
+    ? `${subjectName} details: ${target.repo} #${target.number}`
     : "Pull request details"}
   onclose={onClose}
   oncancel={onCancel}

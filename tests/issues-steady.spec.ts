@@ -337,7 +337,7 @@ test.describe('steady issues refresh', () => {
     page,
   }) => {
     await open(page);
-    await page.locator('#issue-rows > .row a').first().focus();
+    await page.locator('#issue-rows > .row button.title').first().focus();
 
     await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
     await expect(page.locator('#issue-rows')).not.toContainText('Brand new');
