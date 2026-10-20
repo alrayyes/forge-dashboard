@@ -106,7 +106,7 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
       'alice',
       'bob',
     ]);
-    expect(await choices(page, 'shared-label-select')).toEqual(['bug', 'docs']);
+    expect(await choices(page, 'shared-label-filter')).toEqual(['bug', 'docs']);
   });
 
   test('the Failing CI pill leaves out what only passing pull requests have', async ({
@@ -118,7 +118,7 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
     expect(await choices(page, 'shared-author-select')).toEqual(['alice']);
-    expect(await choices(page, 'shared-label-select')).toEqual(['bug']);
+    expect(await choices(page, 'shared-label-filter')).toEqual(['bug']);
     expect(await choices(page, 'shared-repo-select')).toEqual(['alrayyes/app']);
   });
 
@@ -131,7 +131,7 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
     expect(await choices(page, 'shared-author-select')).toEqual(['bob']);
-    expect(await choices(page, 'shared-label-select')).toEqual(['docs']);
+    expect(await choices(page, 'shared-label-filter')).toEqual(['docs']);
     expect(await choices(page, 'shared-repo-select')).toEqual(['alrayyes/lib']);
   });
 
@@ -144,7 +144,7 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
     expect(await choices(page, 'shared-author-select')).toEqual(['alice']);
-    expect(await choices(page, 'shared-label-select')).toEqual(['bug']);
+    expect(await choices(page, 'shared-label-filter')).toEqual(['bug']);
   });
 
   test('clearing the board filter offers everything again', async ({

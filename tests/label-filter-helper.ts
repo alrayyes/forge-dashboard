@@ -48,9 +48,9 @@ export async function clearLabels(page: Page) {
 
 // The choices of a shared filter by control id, the "All ..." entry first, for
 // specs that check every dynamic control the same way. The Label filter is
-// checkboxes, the rest are selects.
+// checkboxes (id 'shared-label-filter'), the rest are selects.
 export async function choicesOf(page: Page, id: string): Promise<string[]> {
-  if (id === 'shared-label-select')
+  if (id === 'shared-label-filter')
     return ['All labels', ...(await labelChoices(page))];
   return page
     .locator(`#${id} option`)

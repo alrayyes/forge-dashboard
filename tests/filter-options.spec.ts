@@ -97,7 +97,7 @@ for (const path of ['/issues.html', '/insights.html']) {
         'claude',
         'ryan',
       ]);
-      expect(await choices(page, 'shared-label-select')).toEqual([
+      expect(await choices(page, 'shared-label-filter')).toEqual([
         'All labels',
         'bug',
         'enhancement',
@@ -116,7 +116,7 @@ for (const path of ['/issues.html', '/insights.html']) {
         'alrayyes/dash-only',
       );
       expect(await choices(page, 'shared-author-select')).toContain('renovate');
-      expect(await choices(page, 'shared-label-select')).toContain(
+      expect(await choices(page, 'shared-label-filter')).toContain(
         'dependencies',
       );
 

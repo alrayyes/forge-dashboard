@@ -8,12 +8,35 @@
 // matches without regard to case.
 
 const SEPARATOR = '\n';
+const HINT = 'Shows items with any of the ticked labels.';
+
+// The pick is a cookie value and a server field, and grows with each label, so
+// it is held to a size a cookie carries. The server refuses a save over either.
+export const MAX_LABELS = 20;
+export const MAX_CHARS = 1000;
+
+// A label as the pick holds it: lowercase, and with any control character
+// (a line break, a tab) turned into a space, so a name can never split into
+// two picks. The page matches items on this too, so such a label still
+// matches itself.
+export function labelKey(name: string): string {
+  return name
+    .replace(/\p{Cc}+/gu, ' ')
+    .trim()
+    .toLowerCase();
+}
 
 export function parseLabels(saved: string | undefined): string[] {
   const seen = new Set<string>();
+  let chars = 0;
   for (const part of (saved ?? '').split(SEPARATOR)) {
-    const name = part.trim().toLowerCase();
-    if (name) seen.add(name);
+    const name = labelKey(part);
+    if (!name || seen.has(name)) continue;
+    if (seen.size >= MAX_LABELS) break;
+    const size = [...name].length + (seen.size > 0 ? 1 : 0);
+    if (chars + size > MAX_CHARS) continue;
+    chars += size;
+    seen.add(name);
   }
   return [...seen];
 }
@@ -23,15 +46,16 @@ export function joinLabels(labels: string[]): string {
 }
 
 export function hasLabel(labels: string[], name: string): boolean {
-  return labels.includes(name.toLowerCase());
+  return labels.includes(labelKey(name));
 }
 
-// Ticks the label when it is not picked, unticks it when it is.
+// Ticks the label when it is not picked, unticks it when it is. A label that
+// would take the pick past its size is not ticked.
 export function toggleLabel(labels: string[], name: string): string[] {
-  const lower = name.toLowerCase();
-  return hasLabel(labels, lower)
-    ? labels.filter((l) => l !== lower)
-    : [...labels, lower];
+  const key = labelKey(name);
+  if (hasLabel(labels, key)) return labels.filter((l) => l !== key);
+  const next = parseLabels([...labels, key].join(SEPARATOR));
+  return next.includes(key) ? next : labels;
 }
 
 // What of a pick the page still offers (kept) and what it does not (dropped),
@@ -40,7 +64,7 @@ export function narrowLabels(
   picked: string[],
   offered: string[],
 ): { kept: string[]; dropped: string[] } {
-  const on = new Set(offered.map((o) => o.toLowerCase()));
+  const on = new Set(offered.map(labelKey));
   return {
     kept: picked.filter((p) => on.has(p)),
     dropped: picked.filter((p) => !on.has(p)),
@@ -60,7 +84,7 @@ export function carriesAny(
 ): boolean {
   const picked = parseLabels(saved);
   if (picked.length === 0) return true;
-  return (itemLabels ?? []).some((l) => picked.includes(l.name.toLowerCase()));
+  return (itemLabels ?? []).some((l) => picked.includes(labelKey(l.name)));
 }
 
 // What the control's button says: one label by name as the page writes it, or
@@ -68,7 +92,7 @@ export function carriesAny(
 export function labelSummary(picked: string[], offered: string[]): string {
   if (picked.length === 0) return 'All labels';
   if (picked.length > 1) return `${picked.length} labels`;
-  return offered.find((o) => o.toLowerCase() === picked[0]) ?? picked[0];
+  return offered.find((o) => labelKey(o) === picked[0]) ?? picked[0];
 }
 
 export interface LabelFilterControl {
@@ -117,13 +141,8 @@ export function mountLabelFilter(
 
   const group = node('fieldset', 'label-filter-group');
   group.appendChild(node('legend', 'label-filter-legend', 'Label'));
-  group.appendChild(
-    node(
-      'p',
-      'label-filter-hint',
-      'Shows items with any of the ticked labels.',
-    ),
-  );
+  const hint = node('p', 'label-filter-hint', HINT);
+  group.appendChild(hint);
   const options = node('div', 'label-filter-options');
   const empty = node('p', 'label-filter-empty', 'No labels on this page.');
   group.append(options, empty);
@@ -195,8 +214,8 @@ export function mountLabelFilter(
     // One box per label, whatever its case.
     const seen = new Set<string>();
     offeredNow = offered.filter((o) => {
-      const key = o.toLowerCase();
-      if (seen.has(key)) return false;
+      const key = labelKey(o);
+      if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
     });
@@ -209,7 +228,7 @@ export function mountLabelFilter(
     }
     let previous: Element | null = null;
     for (const name of offeredNow) {
-      const key = name.toLowerCase();
+      const key = labelKey(name);
       let row = rows.get(key);
       if (!row) {
         row = node('label', 'label-filter-option');
@@ -223,7 +242,11 @@ export function mountLabelFilter(
       const text = row.querySelector('span');
       if (text && text.textContent !== name) text.textContent = name;
       const box = row.querySelector('input');
-      if (box) box.checked = picked.includes(key);
+      if (box) {
+        box.checked = picked.includes(key);
+        // At the most, only a ticked box can still be changed.
+        box.disabled = !box.checked && picked.length >= MAX_LABELS;
+      }
       const wanted: Node | null = previous
         ? previous.nextElementSibling
         : options.firstChild;
@@ -234,6 +257,9 @@ export function mountLabelFilter(
 
     empty.hidden = offeredNow.length > 0;
     clear.disabled = picked.length === 0;
+    const full =
+      picked.length >= MAX_LABELS ? `${HINT} Up to ${MAX_LABELS}.` : HINT;
+    if (hint.textContent !== full) hint.textContent = full;
     const summary = labelSummary(picked, offeredNow);
     if (button.textContent !== summary) button.textContent = summary;
     button.setAttribute('aria-label', `Filter by label: ${summary}`);

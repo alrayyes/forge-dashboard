@@ -67,7 +67,7 @@ function issue(number: number, ...labels: string[]) {
 }
 const ISSUES = [issue(1, 'bug'), issue(2, 'question'), issue(3, 'enhancement')];
 
-async function mock(page: Page) {
+async function mock(page: Page, prs: Record<string, unknown>[] = PRS) {
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
@@ -76,7 +76,7 @@ async function mock(page: Page) {
       body: JSON.stringify({
         generatedAt: NOW,
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: PRS,
+        pullRequests: prs,
         issues: ISSUES,
         openIssueCount: ISSUES.length,
         repos: [],
@@ -86,8 +86,12 @@ async function mock(page: Page) {
   );
 }
 
-async function open(page: Page, url = '/pull-requests.html') {
-  await mock(page);
+async function open(
+  page: Page,
+  url = '/pull-requests.html',
+  prs: Record<string, unknown>[] = PRS,
+) {
+  await mock(page, prs);
   await page.goto(url);
   await expect(
     page.locator('#pr-rows, #issue-rows, .filter-bar').first(),
@@ -225,6 +229,53 @@ test.describe('Label filter: several labels, matching any', () => {
     await toggleLabels(page, 'bug', 'question');
     await expect(issueRows(page)).toHaveCount(2);
     await expect(labelButton(page)).toHaveText('2 labels');
+  });
+});
+
+test.describe('Label filter: names and sizes', () => {
+  test('a mixed-case label is ticked as written and matches in lowercase', async ({
+    page,
+  }) => {
+    await open(page, '/pull-requests.html', [
+      pr(1, 'alice', 'Kind/Bug'),
+      pr(2, 'bob', 'docs'),
+    ]);
+    await toggleLabels(page, 'Kind/Bug');
+
+    await expect(prRows(page)).toHaveCount(1);
+    await expect(labelButton(page)).toHaveText('Kind/Bug');
+    expect(await pickedLabels(page)).toEqual(['kind/bug']);
+  });
+
+  test('a label with a line break in its name stays one choice and matches', async ({
+    page,
+  }) => {
+    await open(page, '/pull-requests.html', [
+      pr(1, 'alice', 'odd\nname'),
+      pr(2, 'bob', 'docs'),
+    ]);
+    await toggleLabels(page, 'odd name');
+
+    await expect(prRows(page)).toHaveCount(1);
+    expect(await pickedLabels(page)).toEqual(['odd name']);
+  });
+
+  test('stops at twenty labels: the other boxes are disabled', async ({
+    page,
+  }) => {
+    const prs = Array.from({ length: 22 }, (_, i) => pr(i + 1, 'a', `l${i}`));
+    await open(page, '/pull-requests.html', prs);
+    await labelButton(page).click();
+    for (let i = 0; i < 20; i++)
+      await labelPanel(page)
+        .getByRole('checkbox', { name: `l${i}`, exact: true })
+        .check();
+
+    await expect(labelButton(page)).toHaveText('20 labels');
+    await expect(
+      labelPanel(page).getByRole('checkbox', { name: 'l20', exact: true }),
+    ).toBeDisabled();
+    await expect(labelPanel(page)).toContainText('Up to 20');
   });
 });
 

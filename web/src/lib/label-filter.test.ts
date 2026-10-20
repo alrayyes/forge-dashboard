@@ -9,6 +9,7 @@ import {
   saveState,
 } from './filters';
 import {
+  carriesAny,
   hasLabel,
   joinLabels,
   labelSummary,
@@ -41,6 +42,49 @@ describe('parseLabels', () => {
 
   test('several labels read back in order, lowercased, without repeats', () => {
     expect(parseLabels('bug\nSecurity\nBUG\n')).toEqual(['bug', 'security']);
+  });
+});
+
+describe('the size of a pick', () => {
+  test('keeps at most twenty labels', () => {
+    const many = Array.from({ length: 25 }, (_, i) => `l${i}`).join('\n');
+    expect(parseLabels(many)).toHaveLength(20);
+    expect(parseLabels(many)[19]).toBe('l19');
+  });
+
+  test('keeps at most a thousand characters, skipping a label that would pass it', () => {
+    const big = 'a'.repeat(990);
+    expect(parseLabels(`${big}\n${'b'.repeat(20)}\nc`)).toEqual([big, 'c']);
+  });
+
+  test('does not tick a twenty-first label', () => {
+    const twenty = Array.from({ length: 20 }, (_, i) => `l${i}`);
+    expect(toggleLabel(twenty, 'extra')).toEqual(twenty);
+    expect(toggleLabel(twenty, 'l3')).toHaveLength(19);
+  });
+});
+
+describe('a label name with a control character', () => {
+  test('stays one label, never two', () => {
+    expect(toggleLabel([], 'bug\nfix')).toEqual(['bug fix']);
+    expect(parseLabels(joinLabels(toggleLabel([], 'a\r\nb')))).toEqual(['a b']);
+  });
+
+  test('still matches the item that carries it', () => {
+    const labels = [{ name: 'Bug\nFix' }];
+    expect(carriesAny(labels, joinLabels(toggleLabel([], 'Bug\nFix')))).toBe(
+      true,
+    );
+  });
+});
+
+describe('case', () => {
+  test('a mixed-case label on the item matches a lowercase pick', () => {
+    expect(carriesAny([{ name: 'Kind/Bug' }], 'kind/bug')).toBe(true);
+  });
+
+  test('a mixed-case pick is read as lowercase', () => {
+    expect(parseLabels('Kind/Bug')).toEqual(['kind/bug']);
   });
 });
 

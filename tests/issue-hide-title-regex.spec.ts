@@ -246,7 +246,7 @@ test.describe('hide titles matching a pattern (#1593)', () => {
       'alrayyes/reports',
     );
     expect(await choices(page, 'shared-author-select')).toContain('bot');
-    expect(await choices(page, 'shared-label-select')).toContain('report');
+    expect(await choices(page, 'shared-label-filter')).toContain('report');
 
     await input(page).fill('^Weekly report|^Weekly');
 
@@ -255,7 +255,7 @@ test.describe('hide titles matching a pattern (#1593)', () => {
       'alrayyes/reports',
     );
     expect(await choices(page, 'shared-author-select')).not.toContain('bot');
-    expect(await choices(page, 'shared-label-select')).not.toContain('report');
+    expect(await choices(page, 'shared-label-filter')).not.toContain('report');
 
     await input(page).fill('');
     expect(await choices(page, 'shared-repo-select')).toContain(
