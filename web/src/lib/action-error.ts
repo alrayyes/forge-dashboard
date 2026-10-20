@@ -46,6 +46,9 @@ export type ActionRequestError = Error & {
   // The response body as it arrived: the parsed JSON, or the text when it
   // wasn't JSON. Only Copy reads it (#1323); the row never shows it.
   raw?: unknown;
+  // True when `message` is the server's own sentence, false when it is one of
+  // the stock fallbacks below.
+  fromServer?: boolean;
 };
 
 export type SettledState = 'merged' | 'closed';
@@ -100,12 +103,16 @@ export function isTransientFailure(err: ActionRequestError): boolean {
 function plainReason(
   body: Record<string, unknown> | null,
   status: number,
-): string {
+): { text: string; fromServer: boolean } {
   const message = typeof body?.message === 'string' ? body.message.trim() : '';
-  if (message && !looksRaw(message)) return message;
-  return status === 502 || status === 503 || status === 504
-    ? FORGE_UNAVAILABLE
-    : NO_REASON;
+  if (message && !looksRaw(message)) return { text: message, fromServer: true };
+  return {
+    text:
+      status === 502 || status === 503 || status === 504
+        ? FORGE_UNAVAILABLE
+        : NO_REASON,
+    fromServer: false,
+  };
 }
 
 function looksRaw(text: string): boolean {
@@ -134,8 +141,9 @@ export async function readActionFailure(
       ? body.code
       : 'unknown'
   ) as ActionCode;
-  const text = plainReason(body, res.status);
-  const err: ActionRequestError = new Error(text);
+  const reason = plainReason(body, res.status);
+  const err: ActionRequestError = new Error(reason.text);
+  err.fromServer = reason.fromServer;
   err.status = res.status;
   err.code = code;
   err.raw = raw;
