@@ -644,10 +644,12 @@ func logOneRateLimitTransition(forge Forge, kind string, previous, current *Rate
 // auto-update hook has yet to try, is only ever acted on after a refresh. The first use after that wakes Run, which refreshes
 // once so the person who just arrived is not shown data from before they left.
 func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
-	a.Refresh(ctx)
 	// A wake left over from before this refresh (a sign-in builds this
-	// Aggregator and then its first request wakes it) is answered by it.
+	// Aggregator and then its first request wakes it) is answered by it. Drained
+	// first, not after: one that arrives while the refresh runs is a real
+	// request and still gets its catch-up.
 	a.activity.drainWake()
+	a.Refresh(ctx)
 
 	timer := time.NewTimer(NextRefreshDelay(a.Get(), interval))
 	defer timer.Stop()
