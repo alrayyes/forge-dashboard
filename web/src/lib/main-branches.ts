@@ -19,6 +19,12 @@ export type MainBranchCommit = {
   committedAt: string | null;
 };
 
+// Matches api/openapi.yaml's MainBranchRelease.
+export type MainBranchRelease = {
+  tag: string;
+  url: string;
+};
+
 // Matches api/openapi.yaml's MainBranch.
 export type MainBranch = {
   forge: string;
@@ -32,6 +38,7 @@ export type MainBranch = {
   durationSeconds: number | null;
   runUrl: string;
   checks: CheckCounts;
+  latestRelease: MainBranchRelease | null;
   stale: boolean;
   staleSince: string | null;
 };

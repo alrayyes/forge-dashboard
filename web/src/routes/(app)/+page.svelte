@@ -390,6 +390,33 @@
       color: var(--ink-2);
       white-space: nowrap;
     }
+    /* The latest release is a link, so on a phone it has a 44px target. */
+    .mb-release {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 24px;
+      padding: 1px 8px;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-2);
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+      max-width: 100%;
+    }
+    .mb-release:hover {
+      color: var(--ink);
+      text-decoration: underline;
+    }
+    @media (max-width: 760px) {
+      .mb-release {
+        min-height: 44px;
+        padding: 0 14px;
+      }
+    }
     .mb-stale {
       background: var(--warning-bg);
       color: var(--warning);
@@ -721,6 +748,28 @@
                       b.forge}</span
                   >
                   {#if b.stale}<span class="mb-chip mb-stale">stale</span>{/if}
+                  {#if b.latestRelease}
+                    <a
+                      class="mb-release"
+                      data-testid="main-branch-release"
+                      href={b.latestRelease.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Latest release {b.latestRelease
+                        .tag} (opens in a new tab)"
+                      ><svg
+                        viewBox="0 0 16 16"
+                        class="attr-icon"
+                        aria-hidden="true"
+                        focusable="false"
+                        ><path d="M2.5 2.5h5.2l6 6-5.2 5.2-6-6z" /><circle
+                          cx="5.5"
+                          cy="5.5"
+                          r="1"
+                        /></svg
+                      >{b.latestRelease.tag}</a
+                    >
+                  {/if}
                 </div>
                 <p class="mb-meta">
                   {#if b.branch}<span class="mb-branch">{b.branch}</span

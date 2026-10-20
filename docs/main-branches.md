@@ -15,7 +15,12 @@ with the same glyphs and colours, so a run turns into its result without the row
 moving. A branch with no pipeline is neither, so it gets a quiet outlined "No
 pipeline" note instead. The row also shows the repo, the branch, the short SHA,
 subject and author of the newest commit, how long ago the run finished and how
-long it ran. A branch whose only trouble is a cancelled run (a newer push or a
+long it ran. A GitHub repo with a published release also shows its tag
+(for example `v1.2.3`) as a link beside the forge badge, opening that release's
+notes in a new tab. A screen reader hears it as "Latest release v1.2.3 (opens in
+a new tab)", and on a phone it is 44 pixels tall. A repo with no release, or
+only drafts and pre-releases, shows no link, and so does every Forgejo repo for
+now. A branch whose only trouble is a cancelled run (a newer push or a
 person stopped it) reads Cancelled, not Failed, with a stop glyph; a real
 failure beside a cancelled run is Failed and names only the failed job, and a
 cancelled run beside one still going is Running. A GitHub branch whose newest
