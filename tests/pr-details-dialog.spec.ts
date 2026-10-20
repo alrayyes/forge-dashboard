@@ -146,6 +146,51 @@ test.describe('pull request details dialog', () => {
     ).toHaveAttribute('href', 'https://example.com/42');
   });
 
+  // The release pull request's description opens with :robot: (#1995).
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`shows emoji shortcodes as emoji in ${scheme} mode, with no axe violations`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await mockDashboard(page, [makePR()]);
+      await mockDetails(
+        page,
+        details({
+          description: body(':robot: I have created a release *beep* *boop*'),
+          comments: [
+            {
+              id: 'c1',
+              author: { login: 'alice', avatarUrl: '' },
+              createdAt: ago(30),
+              updatedAt: null,
+              edited: false,
+              text: 'Ship it :tada: at 10:30:45 `:robot:`',
+              format: 'markdown',
+              truncated: false,
+              reactions: noReactions,
+            },
+          ],
+          commentCount: 1,
+        }),
+      );
+      await page.goto('/pull-requests.html');
+
+      await trigger(page).click();
+      await expect(dialog(page)).toContainText(
+        '🤖 I have created a release beep boop',
+      );
+      await expect(dialog(page)).not.toContainText(':robot: I have');
+      await expect(dialog(page)).toContainText('Ship it 🎉 at 10:30:45');
+      await expect(dialog(page).locator('code')).toHaveText(':robot:');
+      await expect(dialog(page).locator('img[alt*="robot" i]')).toHaveCount(0);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
   test('opens with Enter, Escape closes it and focus returns to the trigger', async ({
     page,
   }) => {

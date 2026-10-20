@@ -9,7 +9,11 @@
 //   - task list items (`- [x] done`) become read-only checkboxes: a disabled
 //     <input type="checkbox"> inside a <label> with the item's text, built
 //     from the parsed tokens, so the text stays escaped (#1655);
-//   - every link opens in a new tab with rel="noopener noreferrer".
+//   - every link opens in a new tab with rel="noopener noreferrer";
+//   - :shortcodes: such as :robot: become the Unicode emoji, the way the
+//     forges draw them (#1995). Never an image, and the plugin skips code.
+//     Emoticons like `:)` stay as typed: the forges don't expand them and
+//     they would rewrite ordinary text.
 // The library is imported on first use, so the dashboard's own chunk doesn't
 // carry it.
 import type MarkdownIt from 'markdown-it';
@@ -53,9 +57,16 @@ function taskLists(state: StateCore): void {
   }
 }
 
-function create(MarkdownItCtor: typeof MarkdownIt): Renderer {
+function create(
+  MarkdownItCtor: typeof MarkdownIt,
+  emoji: (
+    md: Renderer,
+    options?: { shortcuts?: Record<string, never> },
+  ) => void,
+): Renderer {
   const md = new MarkdownItCtor({ html: false, linkify: true });
   md.disable('image');
+  emoji(md, { shortcuts: {} });
   md.core.ruler.after('inline', 'task-lists', taskLists);
   md.renderer.rules.link_open = (tokens, idx, options, _env, self) => {
     const href = String(tokens[idx].attrGet('href') ?? '');
@@ -79,8 +90,10 @@ function create(MarkdownItCtor: typeof MarkdownIt): Renderer {
 function load(): Promise<Renderer> {
   // A failed import is not cached: Try again must be able to fetch the chunk
   // once the network is back.
-  renderer ??= import('markdown-it')
-    .then(({ default: MarkdownItCtor }) => create(MarkdownItCtor))
+  renderer ??= Promise.all([import('markdown-it'), import('markdown-it-emoji')])
+    .then(([{ default: MarkdownItCtor }, { full }]) =>
+      create(MarkdownItCtor, full),
+    )
     .catch((err) => {
       renderer = null;
       throw err;
