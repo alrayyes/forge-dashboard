@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.226.0](https://github.com/alrayyes/forge-dashboard/compare/v0.225.0...v0.226.0) (2026-10-20)
+
+
+### Features
+
+* the Behind the base branch warning carries its own fix button ([#1983](https://github.com/alrayyes/forge-dashboard/issues/1983)) ([63a23cc](https://github.com/alrayyes/forge-dashboard/commit/63a23cca8c09f9230d5e32f80f9d36e5c09d602b))
+
 ## [0.225.0](https://github.com/alrayyes/forge-dashboard/compare/v0.224.4...v0.225.0) (2026-10-20)
 
 
