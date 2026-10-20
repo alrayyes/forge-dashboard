@@ -3293,13 +3293,22 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, commitsPath, resp)
 
-	for _, commit := range commits {
+	for i, commit := range commits {
 		checks, err := c.listChecksForSHA(ctx, owner, name, commit.GetSHA())
 		if err != nil {
 			return nil, err
 		}
 		if len(checks) > 0 {
 			return checks, nil
+		}
+		// The newest commit's runs may be held for approval. It has no check run
+		// either, but the row reports it as awaiting approval, so the panel lists
+		// the held workflows instead of looking further back. Only the newest
+		// commit: the row looks no further for held runs (#2024).
+		if i == 0 {
+			if held := c.heldWorkflowChecks(ctx, owner, name, commit.GetSHA()); len(held) > 0 {
+				return held, nil
+			}
 		}
 	}
 
