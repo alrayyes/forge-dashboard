@@ -504,7 +504,6 @@
                         href={profileHref(c.author?.url) ?? undefined}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label="{login} (opens their profile in a new tab)"
                       >
                         {@render person()}
                       </a>

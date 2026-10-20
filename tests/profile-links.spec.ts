@@ -110,13 +110,18 @@ test.describe('Profile links (#1991)', () => {
     await expect(cell.getByRole('link')).toContainText('claude');
   });
 
-  test('a link is named by the person, so it says where it goes', async ({
+  test("a link's accessible name is the person's name, exactly", async ({
     page,
   }) => {
     await openPulls(page);
+    // The visible text is the name (WCAG 2.5.3 label in name), and the avatar
+    // is decorative, so nothing else is added to it.
     await expect(
-      author(page, 'With avatar').getByRole('link', { name: /^claude/ }),
-    ).toHaveAccessibleName(/opens their profile in a new tab/);
+      author(page, 'With avatar').getByRole('link', {
+        name: 'claude',
+        exact: true,
+      }),
+    ).toBeVisible();
   });
 
   test('a person with no avatar is a link on the name alone', async ({
@@ -254,7 +259,9 @@ test.describe('Profile links in the pull request dialog (#1991)', () => {
 
   test('a commenter is one link to their page', async ({ page }) => {
     await openDialog(page);
-    const link = page.getByRole('dialog').getByRole('link', { name: /^alice/ });
+    const link = page
+      .getByRole('dialog')
+      .getByRole('link', { name: 'alice', exact: true });
     await expect(link).toHaveAttribute('href', 'https://github.com/alice');
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
@@ -283,7 +290,7 @@ test.describe('Profile links in the pull request dialog (#1991)', () => {
     await openDialog(page);
     const box = await page
       .getByRole('dialog')
-      .getByRole('link', { name: /^alice/ })
+      .getByRole('link', { name: 'alice', exact: true })
       .boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
   });

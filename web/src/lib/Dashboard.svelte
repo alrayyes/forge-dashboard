@@ -1617,10 +1617,8 @@
         link.href = profile;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        link.setAttribute(
-          "aria-label",
-          `${item.author} (opens their profile in a new tab)`,
-        );
+        // No aria-label: the link's name is the visible name, as WCAG 2.5.3
+        // (label in name) and the person's own name ask.
         link.append(...Array.from(authorCell.childNodes));
         authorCell.replaceChildren(link);
       }
