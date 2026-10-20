@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.238.1](https://github.com/alrayyes/forge-dashboard/compare/v0.238.0...v0.238.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **dashboard:** forget a pull request's own update choice when it closes ([#2065](https://github.com/alrayyes/forge-dashboard/issues/2065)) ([6084470](https://github.com/alrayyes/forge-dashboard/commit/60844703743f29f599a002aeaf7e33b233f4c979))
+
 ## [0.238.0](https://github.com/alrayyes/forge-dashboard/compare/v0.237.0...v0.238.0) (2026-10-20)
 
 
@@ -7,6 +14,7 @@
 
 * **api:** count forge API calls by refresh kind and repo and serve them ([#2061](https://github.com/alrayyes/forge-dashboard/issues/2061)) ([043340a](https://github.com/alrayyes/forge-dashboard/commit/043340a86ba8a9e4ca3b03d9e4fd589b03fcecb2))
 * **dashboard:** rest the scheduled refresh while nobody is using the dashboard ([#2058](https://github.com/alrayyes/forge-dashboard/issues/2058)) ([926a5af](https://github.com/alrayyes/forge-dashboard/commit/926a5af90454facb62d887b00553553ee507ebea))
+* **web:** add a per-pull-request checkbox for automatic branch updates ([#2063](https://github.com/alrayyes/forge-dashboard/issues/2063)) ([bd34926](https://github.com/alrayyes/forge-dashboard/commit/bd349264a3a0546983fe8653f46aead132537144))
 
 ## [0.237.0](https://github.com/alrayyes/forge-dashboard/compare/v0.236.0...v0.237.0) (2026-10-20)
 

@@ -50,10 +50,18 @@ type fakeAutoUpdateBranchLister struct {
 	err           error
 	labelErr      error
 	forgotten     []string // keys the pass asked to forget
+	// forgetBounded is whether the last forget came with a deadline.
+	forgetBounded bool
 }
 
-func (f *fakeAutoUpdateBranchLister) ForgetPullRequestAutoUpdates(_ context.Context, _ []byte, keys []string) error {
+// ForgetPullRequestAutoUpdates deletes the keys from the choices, as the store
+// does, so a later read sees them gone.
+func (f *fakeAutoUpdateBranchLister) ForgetPullRequestAutoUpdates(ctx context.Context, _ []byte, keys []string) error {
+	_, f.forgetBounded = ctx.Deadline()
 	f.forgotten = append(f.forgotten, keys...)
+	for _, key := range keys {
+		delete(f.overrides, key)
+	}
 
 	return nil
 }
