@@ -2,6 +2,7 @@ package github_test
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -53,21 +54,31 @@ func rollupOf(state string, runCounts map[string]int, nodes ...map[string]any) m
 func tokenFetchWith(t *testing.T, ref any) (dashboard.MainBranch, string) {
 	t.Helper()
 
+	return tokenFetchRepo(t, ref, nil)
+}
+
+// tokenFetchRepo is tokenFetchWith for a repository node that also carries
+// the given extra fields, such as latestRelease.
+func tokenFetchRepo(t *testing.T, ref any, extra map[string]any) (dashboard.MainBranch, string) {
+	t.Helper()
+
 	var query string
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		query = readGraphQLRequest(t, r).Query
+		node := map[string]any{
+			"name": "a", "url": "https://github.com/alrayyes/a", "viewerPermission": "WRITE",
+			"owner":            map[string]any{"login": "alrayyes"},
+			"pullRequests":     map[string]any{"nodes": []map[string]any{}},
+			"issues":           map[string]any{"nodes": []map[string]any{}},
+			"defaultBranchRef": ref,
+		}
+		maps.Copy(node, extra)
 		writeJSON(t, w, map[string]any{"data": map[string]any{
 			"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
 			"viewer": map[string]any{"repositories": map[string]any{
 				"pageInfo": map[string]any{"hasNextPage": false},
-				"nodes": []map[string]any{{
-					"name": "a", "url": "https://github.com/alrayyes/a", "viewerPermission": "WRITE",
-					"owner":            map[string]any{"login": "alrayyes"},
-					"pullRequests":     map[string]any{"nodes": []map[string]any{}},
-					"issues":           map[string]any{"nodes": []map[string]any{}},
-					"defaultBranchRef": ref,
-				}},
+				"nodes":    []map[string]any{node},
 			}},
 		}})
 	})
@@ -391,4 +402,32 @@ func TestFetch_MainBranch_ANewestCommitWithHeldRunsAwaitsApproval(t *testing.T) 
 	assert.True(t, heldAsked)
 	assert.False(t, historyAsked, "no walk back to an older commit")
 	assert.Equal(t, "https://github.com/alrayyes/a/actions/runs/1", row.RunURL, "the held run's own page carries GitHub's approve button")
+}
+
+// The repository query reads latestRelease beside defaultBranchRef, so a row
+// names the newest published release at no request of its own. GitHub leaves
+// drafts and pre-releases out of latestRelease and answers null for none.
+func TestFetch_MainBranch_LatestRelease(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a published release is named by tag and linked", func(t *testing.T) {
+		t.Parallel()
+		row, query := tokenFetchRepo(t, branchRef(rollupOf("SUCCESS", map[string]int{"SUCCESS": 1})), map[string]any{
+			"latestRelease": map[string]any{
+				"tagName": "v1.2.3", "url": "https://github.com/alrayyes/a/releases/tag/v1.2.3",
+			},
+		})
+
+		require.NotNil(t, row.LatestRelease)
+		assert.Equal(t, "v1.2.3", row.LatestRelease.Tag)
+		assert.Equal(t, "https://github.com/alrayyes/a/releases/tag/v1.2.3", row.LatestRelease.URL)
+		assert.Contains(t, query, "latestRelease", "asked in the query every refresh already makes")
+	})
+
+	t.Run("a repository with no release has none", func(t *testing.T) {
+		t.Parallel()
+		row, _ := tokenFetchRepo(t, branchRef(nil), map[string]any{"latestRelease": nil})
+
+		assert.Nil(t, row.LatestRelease)
+	})
 }

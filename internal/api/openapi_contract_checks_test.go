@@ -89,3 +89,44 @@ func TestContract_MainBranchesCarryCheckCounts(t *testing.T) {
 		}
 	})
 }
+
+// Every default branch names its latest published release or says null, always
+// present, so the Branches page links it without a lookup of its own.
+func TestContract_MainBranchesCarryLatestRelease(t *testing.T) {
+	t.Parallel()
+
+	t.Run("the spec requires a nullable latestRelease with a tag and a url", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+		require.NoError(t, err)
+		row := doc.Components.Schemas["MainBranch"].Value
+		require.Contains(t, row.Required, "latestRelease")
+		release := doc.Components.Schemas["MainBranchRelease"].Value
+
+		assert.ElementsMatch(t, []string{"tag", "url"}, release.Required)
+	})
+	t.Run("every row in the response has the key", func(t *testing.T) {
+		t.Parallel()
+
+		srv, cookie := populatedBoard(t)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/main-branches", cookie)
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+
+		var body struct {
+			Branches []map[string]any `json:"branches"`
+		}
+		require.NoError(t, json.Unmarshal(got.body, &body))
+		require.NotEmpty(t, body.Branches)
+		var named int
+		for _, b := range body.Branches {
+			release, ok := b["latestRelease"]
+			require.True(t, ok, "%v has no latestRelease key", b["fullName"])
+			if release != nil {
+				named++
+			}
+		}
+		assert.Equal(t, 1, named, "one fixture row names a release, the rest say null")
+	})
+}

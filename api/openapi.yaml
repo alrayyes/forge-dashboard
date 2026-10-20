@@ -5832,6 +5832,7 @@ components:
           durationSeconds,
           runUrl,
           checks,
+          latestRelease,
           stale,
           staleSince,
         ]
@@ -5881,6 +5882,16 @@ components:
             the repository's `url`.
         checks:
           $ref: "#/components/schemas/CheckCounts"
+        latestRelease:
+          description: |
+            The repository's latest published release, for a link to its
+            notes. Null when the repository has none, when its only releases
+            are drafts or pre-releases, and for every Forgejo repository,
+            whose latest release is a separate read per repository that the
+            refresh does not make.
+          oneOf:
+            - $ref: "#/components/schemas/MainBranchRelease"
+            - type: "null"
         stale:
           type: boolean
           description: |
@@ -5891,6 +5902,18 @@ components:
           type: [string, "null"]
           format: date-time
           description: When this row was last fetched. Null unless `stale`.
+
+    MainBranchRelease:
+      type: object
+      required: [tag, url]
+      description: A repository's latest published release.
+      properties:
+        tag:
+          type: string
+          description: The release's tag, such as "v1.2.3".
+        url:
+          type: string
+          description: The release's own page on its forge.
 
     MainBranchCounts:
       type: object
