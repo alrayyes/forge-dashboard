@@ -118,6 +118,40 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     });
   }
 
+  for (const theme of ['light', 'dark'] as const) {
+    test(`the details dialog has no axe violations in ${theme} mode`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.route('**/api/pull-requests/details*', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            description: null,
+            comments: [],
+            commentCount: 0,
+            commentsTruncated: false,
+            releaseNotes: null,
+          }),
+        }),
+      );
+      await open(page);
+      await row(page, 'Held for approval')
+        .getByRole('button', { name: /^#\d+ / })
+        .click();
+      await expect(
+        page
+          .getByRole('dialog', { name: /^Pull request details/ })
+          .locator('.details-state .ci-pill'),
+      ).toContainText('Waiting for workflow approval');
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
   test('a failing row without the flag is unchanged', async ({ page }) => {
     await open(page);
     const failing = row(page, 'Really failing');
