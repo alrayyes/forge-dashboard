@@ -1449,6 +1449,55 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/pull-requests/auto-update:
+    post:
+      operationId: setPullRequestAutoUpdate
+      summary: Turn the automatic branch update on or off for one pull request
+      description: |
+        A pure local write: nothing is sent to the forge. The choice is kept
+        only while it differs from the repo's auto-update setting
+        (`/api/repos/auto-update-branch/enable`), so a choice that matches
+        the repo is dropped and the pull request follows the repo again, and
+        a later change to the repo's setting reaches it. With `enabled`
+        `null` or absent the pull request goes back to its repo's setting.
+        Idempotent. A draft and a release-please pull request are never
+        updated automatically, whatever is chosen: `autoUpdate.unavailable`
+        in GET /api/dashboard says so. The server forgets the choice once
+        the pull request is no longer open, its repo is no longer tracked, or
+        the repo's setting changes to match it. A pull request the dashboard
+        doesn't hold is a 404.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestAutoUpdateRequest"
+      responses:
+        "204":
+          description: The choice is saved (or dropped).
+        "400":
+          description: |
+            The request body wasn't valid JSON, `forge` wasn't a known forge,
+            `fullName` wasn't "owner/repo", or `number` wasn't positive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The dashboard doesn't hold that pull request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/pull-requests/unhide:
     post:
       operationId: unhidePullRequest
@@ -4414,6 +4463,7 @@ components:
           readyToMerge,
           failingCi,
           needsReview,
+          autoUpdate,
         ]
       properties:
         forge:
@@ -4755,6 +4805,73 @@ components:
             isn't a draft. Unreviewed with nobody asked, approved, changes
             requested and an unknown review state are all false. Always
             present.
+        autoUpdate:
+          $ref: "#/components/schemas/AutoUpdate"
+
+    AutoUpdate:
+      type: object
+      required: [enabled, source, unavailable]
+      description: |
+        Whether the dashboard brings this pull request's branch up to date by
+        itself: the pull request's own choice when it has one
+        (`POST /api/pull-requests/auto-update`), else its repo's
+        auto-update setting. Always present.
+      properties:
+        enabled:
+          type: boolean
+          description: |
+            What the background pass does with this pull request. Always
+            false when `unavailable` is set.
+        source:
+          type: string
+          enum: [repo, pullRequest]
+          description: |
+            `repo` when the pull request follows its repo's setting,
+            `pullRequest` when the user chose for this one.
+        unavailable:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/AutoUpdateUnavailable"
+          description: |
+            Set when the pass skips this pull request however it is switched,
+            so a client shows the reason instead of a switch that does
+            nothing. Null otherwise.
+
+    AutoUpdateUnavailable:
+      type: object
+      required: [code, reason]
+      properties:
+        code:
+          type: string
+          enum: [draft, release_please]
+        reason:
+          type: string
+          description: A sentence a client can show as it is.
+
+    PullRequestAutoUpdateRequest:
+      type: object
+      required: [forge, fullName, number]
+      description: |
+        Which pull request, and whether the dashboard should update its
+        branch automatically.
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          maxLength: 255
+          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+        number:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Matching a PullRequest.number from GET /api/dashboard.
+        enabled:
+          type: [boolean, "null"]
+          description: |
+            `true` to update this pull request automatically, `false` to
+            leave it alone, whatever its repo says. `null` or absent
+            returns it to its repo's setting.
 
     QueuedActionRequest:
       type: object
