@@ -143,6 +143,19 @@ test.describe('Repository logo (#2001)', () => {
     ).toHaveCount(0);
   });
 
+  test('the Repositories page cell reads as the bare repository name, with or without a logo', async ({
+    page,
+  }) => {
+    await mock(page);
+    await page.goto('/webhooks.html');
+    await expect(page.locator('#webhooks-rows tr')).toHaveCount(REPOS.length);
+    const names = await page
+      .locator('#webhooks-rows tr td:nth-child(2)')
+      .allTextContents();
+
+    expect(names.sort()).toEqual(REPOS.map((r) => `alrayyes/${r.name}`).sort());
+  });
+
   for (const scheme of ['light', 'dark'] as const) {
     test(`the Repositories page with a logo has no accessibility violations in ${scheme} mode`, async ({
       page,

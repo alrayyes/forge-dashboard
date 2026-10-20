@@ -1205,20 +1205,15 @@
                     </span>
                   </span>
                 </td>
-                <td role="cell" data-label="Repo">
-                  <RepoLogo url={repo.logoUrl} />
-                  {#if repo.url}
-                    <a
+                <td role="cell" data-label="Repo"
+                  ><RepoLogo url={repo.logoUrl} />{#if repo.url}<a
                       class="repo-link"
                       href={repo.url}
                       title={repo.fullName}
                       target="_blank"
                       rel="noopener noreferrer">{repo.fullName}</a
-                    >
-                  {:else}
-                    {repo.fullName}
-                  {/if}
-                </td>
+                    >{:else}{repo.fullName}{/if}</td
+                >
                 <td
                   role="cell"
                   data-label="Webhook"
