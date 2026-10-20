@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.229.1](https://github.com/alrayyes/forge-dashboard/compare/v0.229.0...v0.229.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **web:** the waiting-for-approval pill in the details dialog holds its text ([#1989](https://github.com/alrayyes/forge-dashboard/issues/1989)) ([4a41f7e](https://github.com/alrayyes/forge-dashboard/commit/4a41f7ec05c4ccb112c7659787f14ae117bd16fb))
+
 ## [0.229.0](https://github.com/alrayyes/forge-dashboard/compare/v0.228.1...v0.229.0) (2026-10-20)
 
 
