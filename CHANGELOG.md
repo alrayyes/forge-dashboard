@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.238.1](https://github.com/alrayyes/forge-dashboard/compare/v0.238.0...v0.238.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **dashboard:** forget a pull request's own update choice when it closes ([#2065](https://github.com/alrayyes/forge-dashboard/issues/2065)) ([6084470](https://github.com/alrayyes/forge-dashboard/commit/60844703743f29f599a002aeaf7e33b233f4c979))
+
 ## [0.238.0](https://github.com/alrayyes/forge-dashboard/compare/v0.237.0...v0.238.0) (2026-10-20)
 
 
