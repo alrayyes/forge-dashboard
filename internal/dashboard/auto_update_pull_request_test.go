@@ -136,6 +136,43 @@ func TestAggregator_Refresh_ForgetsTheChoiceOfARepoNoLongerTracked(t *testing.T)
 	assert.Equal(t, []string{"github/alrayyes/old-name#9"}, lister.forgotten)
 }
 
+func TestAggregator_Refresh_FirstRefreshWithARepoListFailed_KeepsThatRepoChoices(t *testing.T) {
+	t.Parallel()
+	// No earlier snapshot exists, so nothing is carried over for the repo whose
+	// pull request list failed: its pull requests are simply missing.
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field
+		Health:      dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:       []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a"}},
+		FailedRepos: []dashboard.FailedRepo{{FullName: "alrayyes/a", PullRequests: true}},
+	}}}
+	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true}}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Empty(t, lister.forgotten, "a list that failed is not an empty one")
+}
+
+func TestAggregator_Refresh_OneRepoListFailed_KeepsItsChoices_ButStillForgetsTheOthers(t *testing.T) {
+	t.Parallel()
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos: []dashboard.Repo{
+			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a"},
+			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/b"},
+		},
+		FailedRepos: []dashboard.FailedRepo{{FullName: "alrayyes/a", PullRequests: true}},
+	}}}
+	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true, "github/alrayyes/b#9": true}}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"github/alrayyes/b#9"}, lister.forgotten)
+}
+
 func TestAggregator_Refresh_ForgeUnreachable_KeepsEveryChoice(t *testing.T) {
 	t.Parallel()
 	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field

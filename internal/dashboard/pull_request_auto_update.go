@@ -88,6 +88,17 @@ func staleAutoUpdateChoices(snap Snapshot, enabledRepos map[string]struct{}, ove
 		reachable[f.Forge] = f.Reachable
 	}
 
+	// A repo whose fetch failed is still listed, marked stale. Its missing
+	// pull requests say nothing about whether they are gone, and on the first
+	// refresh after a restart there is no earlier snapshot to carry them over
+	// from.
+	failed := make(map[string]struct{})
+	for _, r := range snap.Repos {
+		if r.StaleSince != nil {
+			failed[string(r.Forge)+"/"+r.FullName] = struct{}{}
+		}
+	}
+
 	var stale []string
 	for key, own := range overrides {
 		forge, repo, ok := splitAutoUpdateKey(key)
@@ -96,8 +107,9 @@ func staleAutoUpdateChoices(snap Snapshot, enabledRepos map[string]struct{}, ove
 		}
 		_, repoEnabled := enabledRepos[string(forge)+"/"+repo]
 		_, isOpen := open[key]
+		_, repoFailed := failed[string(forge)+"/"+repo]
 		switch {
-		case !isOpen && reachable[forge]:
+		case !isOpen && reachable[forge] && !repoFailed:
 			stale = append(stale, key)
 		case isOpen && own == repoEnabled:
 			stale = append(stale, key)
