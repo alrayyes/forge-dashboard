@@ -153,9 +153,10 @@ entries, and a replaced token starts empty. A page size, page number or filter
 is part of the URL, so a different one is a different entry.
 
 The cache lives in memory and is bounded. A body over a megabyte is never kept,
-so that read costs a full response each time. Across all entries the cache
-holds at most 5000 answers and 32 megabytes, and past either limit it drops the
-least recently used answer first.
+so that read costs a full response each time. The cache reads no more than that
+megabyte ahead to find out, and the caller still gets the whole body. Across
+all entries the cache holds at most 5000 answers and 32 megabytes, and past
+either limit it drops the least recently used answer first.
 
 Forgejo, as probed, doesn't take part. The Forgejo instance we tested
 (16.0.6, built on Gitea 1.22) sends no `ETag` and no `Last-Modified` header on
