@@ -78,19 +78,8 @@ func resetForE2E(ctx context.Context, db *sql.DB, deps api.Deps, w http.Response
 	firstPasskey := owner.Credentials[:1]
 	firstPasskey[0].Authenticator.SignCount = 0
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if err := emptyTables(ctx, tx); err != nil {
+	if err := rewriteDatabase(ctx, db, owner, firstPasskey); err != nil {
 		return err
-	}
-	if err := keepOwner(ctx, tx, owner, firstPasskey); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
 	}
 
 	if deps.Manager != nil {
@@ -106,7 +95,50 @@ func resetForE2E(ctx context.Context, db *sql.DB, deps api.Deps, w http.Response
 	return nil
 }
 
-func emptyTables(ctx context.Context, tx *sql.Tx) error {
+// sqlExecer is what emptyTables and keepOwner need, so they run on the
+// connection rewriteDatabase holds.
+type sqlExecer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// rewriteDatabase empties the tables and trims the owner in one transaction
+// that takes the write lock up front. A deferred transaction would start with
+// a read, and if the server's own poll or a webhook committed before the first
+// delete, SQLite would refuse the upgrade at once (SQLITE_BUSY_SNAPSHOT)
+// without waiting out the busy timeout. BEGIN IMMEDIATE waits for the lock
+// instead, before any snapshot exists
+// (https://www.sqlite.org/lang_transaction.html#deferred_immediate_and_exclusive_transactions).
+func rewriteDatabase(ctx context.Context, db *sql.DB, owner *auth.User, firstPasskey []webauthn.Credential) error {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("connect: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(context.WithoutCancel(ctx), "ROLLBACK")
+		}
+	}()
+	if err := emptyTables(ctx, conn); err != nil {
+		return err
+	}
+	if err := keepOwner(ctx, conn, owner, firstPasskey); err != nil {
+		return err
+	}
+	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	committed = true
+
+	return nil
+}
+
+func emptyTables(ctx context.Context, tx sqlExecer) error {
 	rows, err := tx.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
 	if err != nil {
 		return fmt.Errorf("list tables: %w", err)
@@ -137,7 +169,7 @@ func emptyTables(ctx context.Context, tx *sql.Tx) error {
 }
 
 // keepOwner leaves only the owner, with only their first passkey and its label.
-func keepOwner(ctx context.Context, tx *sql.Tx, owner *auth.User, firstPasskey []webauthn.Credential) error {
+func keepOwner(ctx context.Context, tx sqlExecer, owner *auth.User, firstPasskey []webauthn.Credential) error {
 	id := base64.RawURLEncoding.EncodeToString(owner.ID)
 	credentials, err := json.Marshal(firstPasskey)
 	if err != nil {

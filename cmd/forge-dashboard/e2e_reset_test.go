@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"net/http/httptest"
@@ -104,6 +105,57 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 	signedIn, err := authStore.UserForSession(ctx, cookie.Value)
 	require.NoError(t, err)
 	assert.Equal(t, "owner", signedIn.Username)
+}
+
+// A reset that arrives while the server is writing waits for the write to end
+// instead of failing. The reset's transaction used to start with a read and
+// only then ask for the write lock; when another writer committed in between,
+// SQLite refused the upgrade at once (SQLITE_BUSY_SNAPSHOT) without waiting out
+// the busy timeout: https://www.sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode
+func TestE2EReset_WaitsForAConcurrentWriteInsteadOfFailing(t *testing.T) {
+	ctx := t.Context()
+	dsn := filepath.Join(t.TempDir(), "e2e.db") + "?_busy_timeout=5000&_journal_mode=WAL"
+	db, err := sql.Open("sqlite", dsn)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	authStore := auth.NewStore(db)
+	require.NoError(t, authStore.Init(ctx))
+	cipher, err := settings.NewCipher("MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=")
+	require.NoError(t, err)
+	require.NoError(t, settings.NewStore(db, cipher).Init(ctx))
+	user, err := authStore.CreateUser(ctx, "owner", "Owner", true)
+	require.NoError(t, err)
+	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{1}}))
+
+	// The server's own poll or webhook: its own connection holds the write
+	// lock for a moment, then commits.
+	writer, err := sql.Open("sqlite", dsn)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = writer.Close() })
+	conn, err := writer.Conn(ctx)
+	require.NoError(t, err)
+	_, err = conn.ExecContext(ctx, "BEGIN IMMEDIATE")
+	require.NoError(t, err)
+	_, err = conn.ExecContext(ctx, "INSERT INTO hidden_pull_requests (user_id, forge, repo_full_name, number) VALUES ('x', 'github', 'a/b', 1)")
+	require.NoError(t, err)
+	committed := make(chan error, 1)
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		_, commitErr := conn.ExecContext(context.Background(), "COMMIT")
+		_ = conn.Close()
+		committed <- commitErr
+	}()
+
+	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Manager: dashboard.NewManager(time.Minute)}
+	srv := httptest.NewServer(withE2EHooks(http.NotFoundHandler(), deps))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Post(srv.URL+"/__e2e/reset", "application/json", nil)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.NoError(t, <-committed)
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 }
 
 // A route that wipes the database must never be reachable in a default build.
