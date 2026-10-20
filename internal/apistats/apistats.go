@@ -204,7 +204,28 @@ func (t *countingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	default:
 		n.REST = 1
 	}
-	t.counters.Add(keyFor(req.Context(), t.forge, t.credential), n)
+	key := keyFor(req.Context(), t.forge, t.credential)
+	if repo, ok := repoFromPath(req.URL.Path); ok {
+		key.Repo = repo
+	}
+	t.counters.Add(key, n)
 
 	return resp, err //nolint:wrapcheck // a transport passes the error through untouched
+}
+
+// repoFromPath reads owner/name out of a REST path like /repos/o/n/pulls or
+// /api/v1/repos/o/n/pulls. The path names the repo the request really touches,
+// which the context can't promise when a client shares one context between
+// concurrent calls (the Gitea SDK does).
+func repoFromPath(path string) (string, bool) {
+	_, rest, ok := strings.Cut(path, "/repos/")
+	if !ok {
+		return "", false
+	}
+	parts := strings.SplitN(rest, "/", 3)
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return "", false
+	}
+
+	return parts[0] + "/" + parts[1], true
 }

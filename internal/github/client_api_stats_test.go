@@ -73,7 +73,7 @@ func TestSetStats_AnswerFromTheETagCacheIsCountedAsNotModified(t *testing.T) {
 	_, err = client.HasWebhook(ctx, "alrayyes", "a")
 	require.NoError(t, err)
 
-	got := statsRow(counters, apistats.Key{Forge: "github", Credential: "token:abcd", Kind: apistats.KindHookMaintenance})
+	got := statsRow(counters, apistats.Key{Forge: "github", Credential: "token:abcd", Kind: apistats.KindHookMaintenance, Repo: "alrayyes/a"})
 	assert.EqualValues(t, 1, got.REST, "the first call was a full 200")
 	assert.EqualValues(t, 1, got.NotModified, "the repeat came back 304 and is not charged as REST")
 }

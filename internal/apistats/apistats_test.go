@@ -86,7 +86,7 @@ func TestTransportCountsA304AsNotModifiedNotREST(t *testing.T) {
 
 	get(apistats.WithKind(context.Background(), apistats.KindHookMaintenance), t, client, srv.URL+"/repos/o/r/hooks")
 
-	got := find(t, c, apistats.Key{Forge: "github", Credential: "token:ab12", Kind: apistats.KindHookMaintenance})
+	got := find(t, c, apistats.Key{Forge: "github", Credential: "token:ab12", Kind: apistats.KindHookMaintenance, Repo: "o/r"})
 	if got.NotModified != 1 || got.REST != 0 {
 		t.Fatalf("got %+v, want one not-modified and no REST", got)
 	}
@@ -145,6 +145,33 @@ func TestCardinalityIsBounded(t *testing.T) {
 	}
 	if total != int64(apistats.MaxBuckets*2) {
 		t.Fatalf("total %d, want no call lost to the overflow row", total)
+	}
+}
+
+func TestRepoComesFromTheURLWhenThePathNamesOne(t *testing.T) {
+	srv := okServer(t)
+	c := apistats.New()
+	client := &http.Client{Transport: apistats.Transport(nil, c, "forgejo", "user:ryan")}
+
+	// The context names another repo, as a shared SDK context can after a race.
+	ctx := apistats.WithRepo(apistats.WithKind(context.Background(), apistats.KindFull), "someone/else")
+	get(ctx, t, client, srv.URL+"/api/v1/repos/alrayyes/a/pulls")
+
+	got := find(t, c, apistats.Key{Forge: "forgejo", Credential: "user:ryan", Kind: apistats.KindFull, Repo: "alrayyes/a"})
+	if got.REST != 1 {
+		t.Fatalf("got %+v, want the call under the repo in the path", got)
+	}
+}
+
+func TestAnAccountWideListingHasNoRepo(t *testing.T) {
+	srv := okServer(t)
+	c := apistats.New()
+	client := &http.Client{Transport: apistats.Transport(nil, c, "forgejo", "user:ryan")}
+
+	get(apistats.WithKind(context.Background(), apistats.KindFull), t, client, srv.URL+"/api/v1/user/repos")
+
+	if got := find(t, c, apistats.Key{Forge: "forgejo", Credential: "user:ryan", Kind: apistats.KindFull}); got.REST != 1 {
+		t.Fatalf("got %+v, want the call under an empty repo", got)
 	}
 }
 
