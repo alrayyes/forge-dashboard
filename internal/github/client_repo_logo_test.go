@@ -94,6 +94,9 @@ func TestFetch_LogoThatIsNotAnHTTPSImageOnGitHubsOwnHost_IsDropped(t *testing.T)
 
 	for _, url := range []string{
 		"http://repository-images.githubusercontent.com/123/abc",
+		"https://avatars.githubusercontent.com/u/1",
+		"https://user-images.githubusercontent.com/1/logo.png",
+		"https://raw.githubusercontent.com/alrayyes/a/main/logo.png",
 		"https://example.com/logo.png",
 		"https://githubusercontent.com.evil.example/logo.png",
 		"https://opengraph.githubassets.com/0123456789abcdef/alrayyes/a",

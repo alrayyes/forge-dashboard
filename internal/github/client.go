@@ -2233,23 +2233,24 @@ func repoFrom(fullName string, r graphqlRepo, probe hookProbe, appAuthenticated 
 	return repo
 }
 
-// logoHostSuffix is the domain GitHub serves user-uploaded images from. A
-// custom social preview lives there, so it is the one host a repository
-// logo is accepted from; the generated card is on opengraph.githubassets.com
-// and is never one.
-const logoHostSuffix = ".githubusercontent.com"
+// logoHost is the one host GitHub serves a custom social preview from (seen
+// on cli/cli, vercel/next.js and sveltejs/svelte). Other githubusercontent.com
+// hosts carry avatars, raw files and user images, none of them a repository
+// logo, and the generated card is on opengraph.githubassets.com: neither is
+// accepted.
+const logoHost = "repository-images.githubusercontent.com"
 
 // repoLogoURL is the repository's own logo, "" unless the maintainer
 // uploaded one. GitHub always answers openGraphImageUrl, a generated card
 // naming the repo when nothing was uploaded, so only usesCustomOpenGraphImage
 // says the image is a deliberate logo. The URL must also be https on
-// GitHub's own image host: an image from anywhere else is not shown.
+// exactly that image host: an image from anywhere else is not shown.
 func repoLogoURL(r graphqlRepo) string {
 	if !r.UsesCustomOpenGraphImage {
 		return ""
 	}
 	u, err := url.Parse(r.OpenGraphImageURL)
-	if err != nil || u.Scheme != "https" || !strings.HasSuffix(u.Hostname(), logoHostSuffix) {
+	if err != nil || u.Scheme != "https" || u.Hostname() != logoHost {
 		return ""
 	}
 
