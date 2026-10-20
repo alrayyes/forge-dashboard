@@ -2903,6 +2903,10 @@ footer a.mono:focus-visible {
   color: var(--ink-3);
   font-size: 13px;
 }
+.pipeline-run {
+  margin: 14px 0 0;
+  font-size: 13px;
+}
 .pipeline-check-list {
   list-style: none;
   margin: 0;
