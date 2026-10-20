@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.241.0](https://github.com/alrayyes/forge-dashboard/compare/v0.240.0...v0.241.0) (2026-10-20)
+
+
+### Features
+
+* **dashboard:** let a hidden or unattended tab stop holding the refresh active ([#2072](https://github.com/alrayyes/forge-dashboard/issues/2072)) ([cd618e4](https://github.com/alrayyes/forge-dashboard/commit/cd618e4ab8b206c80aee189c8a109b9d7cc8cec3))
+
 ## [0.240.0](https://github.com/alrayyes/forge-dashboard/compare/v0.239.0...v0.240.0) (2026-10-20)
 
 
