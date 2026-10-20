@@ -81,6 +81,43 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     await expect(page.getByRole('dialog')).toBeVisible();
   });
 
+  // #1988: the details header draws the same pill as a plain badge, which
+  // lost the wrapping and the warning colours the row's pill has.
+  for (const width of [390, 1280]) {
+    test(`the details dialog pill holds its text at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.route('**/api/pull-requests/details*', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            description: null,
+            comments: [],
+            commentCount: 0,
+            commentsTruncated: false,
+            releaseNotes: null,
+          }),
+        }),
+      );
+      await open(page);
+      await row(page, 'Held for approval')
+        .getByRole('button', { name: /^#\d+ / })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: /^Pull request details/,
+      });
+      const pill = dialog.locator('.details-state .ci-pill');
+      await expect(pill).toContainText('Waiting for workflow approval');
+      await expect(pill).toHaveClass(/\bawaiting\b/);
+      const fits = await pill.evaluate(
+        (el) => el.scrollWidth <= el.clientWidth,
+      );
+      expect(fits).toBe(true);
+    });
+  }
+
   test('a failing row without the flag is unchanged', async ({ page }) => {
     await open(page);
     const failing = row(page, 'Really failing');
