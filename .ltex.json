@@ -3,6 +3,8 @@
   "ltex.dictionary": {
     "en-GB": [
       "Dependabot",
+      "ETag",
+      "ETags",
       "lookahead",
       "lookbehind",
       "backreferences",

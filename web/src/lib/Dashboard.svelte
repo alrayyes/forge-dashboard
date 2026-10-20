@@ -1052,14 +1052,19 @@
     }
 
     // The chips of a row's attribute cluster, in one order: auto-merge, draft,
-    // bot, out of date. Draft and bot come from the fields the row already has
-    // (a bot's pull request is the server's `kind: dependency`).
-    function attributeCluster(pr: PullRequestItem): HTMLElement {
+    // bot, out of date, auto-update. Draft and bot come from the fields the row
+    // already has (a bot's pull request is the server's `kind: dependency`).
+    // The Bots page is a bots-only overview, so its rows leave the bot chip
+    // out: it would say the same on every row. The dialog keeps it.
+    function attributeCluster(
+      pr: PullRequestItem,
+      showBot = true,
+    ): HTMLElement {
       const cluster = el("div", "attr-cluster");
       const chips = [
         autoMergePill(pr),
         pr.draft ? attrChip("draft", "Draft") : null,
-        pr.kind === "dependency" ? attrChip("bot", "Bot") : null,
+        showBot && pr.kind === "dependency" ? attrChip("bot", "Bot") : null,
         behindPill(pr),
         autoUpdateChip(pr),
       ];
@@ -1765,7 +1770,7 @@
         const ciSlot = el("div", "ci-slot");
         ciSlot.appendChild(ciPill(pr));
         stateGroup.appendChild(ciSlot);
-        stateGroup.appendChild(attributeCluster(pr));
+        stateGroup.appendChild(attributeCluster(pr, view !== "bots"));
         statusCell.appendChild(stateGroup);
         const approveLink = approveOnGithubLink(pr);
         if (approveLink) statusCell.appendChild(approveLink);
@@ -1787,7 +1792,13 @@
         // other action is in the details pop-up's footer, built by the same
         // functions (#943).
         const rowAction = rowActionCell(pr, settledRow, mergeAction);
-        if (rowAction) statusCell.appendChild(rowAction);
+        // In a bar of its own: on a phone it is the card's last tier, after a
+        // divider; on a wider screen the bar adds no box of its own.
+        if (rowAction) {
+          const bar = el("div", "row-action-bar");
+          bar.appendChild(rowAction);
+          statusCell.appendChild(bar);
+        }
         // A refused Close locks a button that lives in the pop-up, so the row
         // says so in words, or nobody would find it without opening it.
         const closeCue = settledRow ? null : closeLockCue(pr);

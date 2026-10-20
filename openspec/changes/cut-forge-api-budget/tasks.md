@@ -43,11 +43,11 @@ One pull request per group, in this order. Each group is its own ticket (named i
 
 ## 5. Conditional requests everywhere (#2012)
 
-- [ ] 5.1 List every REST GET in `internal/github` and `internal/forgejo` in a table in the PR (cached / not cached and why). Verify: the table covers a grep of all GET call sites.
-- [ ] 5.2 Close the GitHub gaps (installation repo list, webhook checks, anything outside `etagTransport`). Failing test first: a second call is a 304 and counted as one.
-- [ ] 5.3 Forgejo: confirm against a real instance whether the PR details and check endpoints honour `If-None-Match`; if yes add a Forgejo ETag transport keyed by credential; if no record that on #2012 and in `docs/rate-limits.md`. Verify: the recorded result and, when supported, a client test.
-- [ ] 5.4 Key cache entries by forge, credential and URL (D6), not the `Client` instance. Verify: a test that a replaced credential doesn't send the old ETags.
-- [ ] 5.5 Update `docs/rate-limits.md` ("A restart" bullet will change in group 6). Verify: before/after 304 counts.
+- [x] 5.1 List every REST GET in `internal/github` and `internal/forgejo` in a table in the PR (cached / not cached and why). Verify: the table covers a grep of all GET call sites.
+- [x] 5.2 Close the GitHub gaps (installation repo list, webhook checks, anything outside `etagTransport`). Failing test first: a second call is a 304 and counted as one.
+- [x] 5.3 Forgejo: confirm against a real instance whether the PR details and check endpoints honour `If-None-Match`; if yes add a Forgejo ETag transport keyed by credential; if no record that on #2012 and in `docs/rate-limits.md`. Verify: the recorded result and, when supported, a client test.
+- [x] 5.4 Key cache entries by forge, credential and URL (D6), not the `Client` instance. Verify: a test that a replaced credential doesn't send the old ETags.
+- [x] 5.5 Update `docs/rate-limits.md` ("A restart" bullet will change in group 6). Verify: before/after 304 counts.
 
 ## 6. Persist the cache (#2013)
 

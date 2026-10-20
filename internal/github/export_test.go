@@ -23,3 +23,12 @@ func (c *Client) ExpireRequiredContexts() {
 		c.requiredChecks.contexts[key] = entry
 	}
 }
+
+// UseETagStoreLimits gives this Client a private ETag store with the given
+// limits, so a test can reach an eviction without caching thousands of bodies.
+func (c *Client) UseETagStoreLimits(maxEntries, maxBytes int) {
+	c.etag.store = newETagStore(maxEntries, maxBytes)
+}
+
+// MaxETagBodyBytes is the largest body the ETag cache keeps.
+const MaxETagBodyBytes = maxETagBodyBytes

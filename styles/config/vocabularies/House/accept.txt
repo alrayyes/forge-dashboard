@@ -97,3 +97,4 @@ Vitest
 lookahead
 lookbehind
 backreferences?
+ETags?
