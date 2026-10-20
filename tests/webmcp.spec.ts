@@ -66,6 +66,7 @@ test.describe('WebMCP tools', () => {
     expect(tools.map((t) => t.name)).toEqual([
       'get_dashboard',
       'get_main_branches',
+      'get_main_branch_checks',
       'get_pull_request_checks',
       'get_pull_request_details',
       'list_queued_actions',
@@ -125,6 +126,12 @@ test.describe('WebMCP tools', () => {
   const PR_QUERY = 'forge=forgejo&fullName=acme%2Fapi&number=7';
   const readTools = [
     { tool: 'get_main_branches', input: {}, path: '/api/main-branches' },
+    {
+      tool: 'get_main_branch_checks',
+      input: { forge: 'forgejo', fullName: 'acme/api' },
+      path: '/api/main-branches/checks',
+      query: 'forge=forgejo&fullName=acme%2Fapi',
+    },
     {
       tool: 'get_pull_request_checks',
       input: PR,
