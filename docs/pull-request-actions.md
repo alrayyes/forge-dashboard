@@ -202,10 +202,10 @@ forge had a server error. Try again in a moment." instead of the forge's own
 words. Update branch is tried a second time on the server first, after a short
 wait, since asking again changes nothing it shouldn't; every other action is
 left for you to retry. Copy holds the status the forge answered with
-(`upstreamStatus`) and its request id (`requestId`), which is what the forge's
-support asks for, and the server log line carries both. That line clears itself
-after ten seconds, holds while you hover it or have focus in it, and when it
-clears the row is read again from the server, since the write may have landed
+(`upstreamStatus`) and, from GitHub, its request id (`requestId`), which is what
+its support asks for, and the server log line carries both. That line clears
+itself after ten seconds, holds while you hover it or have focus in it, and when
+it clears the row is read again from the server, since the write may have landed
 before the connection dropped. Nothing is announced when it clears, the failure
 stays in Activity, and an error toast waits for you as before. A 429 on a click
 the snapshot hadn't foreseen still greys that one action out with its reason
