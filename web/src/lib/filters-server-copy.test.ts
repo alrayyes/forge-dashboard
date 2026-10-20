@@ -10,6 +10,7 @@ import {
   loadState,
   releaseAllHeld,
   type SharedFilterState,
+  takeMigratedStatus,
   touchAll,
   touchKey,
 } from './filters';
@@ -160,6 +161,11 @@ describe('applyServerState with keys the user touched', () => {
 // pill it matches, so it neither disappears nor filters out of sight. A pill or
 // a forge already picked wins, and the old key never stays in the state.
 describe('a saved CI status after the pulldown went', () => {
+  // Keys touched by an earlier test would keep the user's value.
+  beforeEach(() => {
+    loadState();
+  });
+
   const fresh = (): SharedFilterState => ({
     shared: {},
     pr: {},
@@ -209,5 +215,21 @@ describe('a saved CI status after the pulldown went', () => {
     applyServerState(state, { pr: { status: 'failure' } });
     expect(state.pr.quick).toBe('');
     expect(state.pr.status).toBeUndefined();
+  });
+
+  test('a pill that no longer exists does not block the migration', () => {
+    const state = fresh();
+    state.pr.quick = 'bots';
+    applyServerState(state, { pr: { status: 'failure' } });
+    expect(state.pr.quick).toBe('failing');
+  });
+
+  test('says a saved status was read, once', () => {
+    takeMigratedStatus();
+    applyServerState(fresh(), { pr: { status: 'success' } });
+    expect(takeMigratedStatus()).toBe(true);
+    expect(takeMigratedStatus()).toBe(false);
+    applyServerState(fresh(), { pr: { autoMerge: 'on' } });
+    expect(takeMigratedStatus()).toBe(false);
   });
 });

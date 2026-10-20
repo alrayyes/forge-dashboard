@@ -584,9 +584,8 @@ instead of silently doing nothing if it doesn't.
 On a pull request with any CI reported, the CI pill is a button that opens
 a panel listing every individual job/check against its head commit —
 status, name, and a link to that job's own page on the forge — instead of
-only the pill's own summary. (Filtering by CI status is the column filter's
-job.) Fetched
-fresh every time the panel opens, not cached, or part of the regular
+only the pill's own summary. (Filtering by CI state is the quick pills' job.)
+Fetched fresh every time the panel opens, not cached, or part of the regular
 dashboard refresh. Falls back to the legacy combined commit-status
 API's own per-check entries when a repo (or an older Forgejo instance)
 reports no Actions/Workflow runs at all for that commit.

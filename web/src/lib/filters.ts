@@ -331,12 +331,28 @@ const CI_STATUS_PILLS: Record<string, string> = {
   none: 'no-checks',
 };
 
+// Set when a saved status was read, so the page saves the migrated state once
+// and the old key leaves the cookie and the server copy.
+let statusMigrated = false;
+
+export function takeMigratedStatus(): boolean {
+  const was = statusMigrated;
+  statusMigrated = false;
+  return was;
+}
+
 function migrateCiStatus(state: SharedFilterState): void {
   const status = state.pr.status;
   if (status === undefined) return;
   delete state.pr.status;
+  statusMigrated = true;
   const pill = CI_STATUS_PILLS[status];
-  if (!pill || state.pr.quick || state.shared.forge) return;
+  // Only a pill that still exists counts as picked: a saved one that was
+  // removed since shows as no pill, so it must not block the migration.
+  const pickedPill = (QUICK_FILTERS as readonly string[]).includes(
+    state.pr.quick ?? '',
+  );
+  if (!pill || pickedPill || state.shared.forge) return;
   if (isTouched('pr', 'quick') || isTouched('shared', 'forge')) return;
   state.pr.quick = pill;
 }

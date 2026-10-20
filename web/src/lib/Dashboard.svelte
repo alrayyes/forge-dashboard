@@ -5342,6 +5342,9 @@
       // values; save the merged state so the server keeps the copy's other
       // fields too (#1713).
       if (got && Filters.hasTouched()) Filters.saveState(sharedState);
+      // A CI status saved before its dropdown went has become a pill; save it
+      // once so the old key leaves the cookie and the server copy.
+      else if (Filters.takeMigratedStatus()) Filters.saveState(sharedState);
       syncDraftsPreference();
       // Only when the server's copy actually differs from what the cookie
       // already gave the page: a re-render for nothing replaces every row
