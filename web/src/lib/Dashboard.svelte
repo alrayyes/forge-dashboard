@@ -229,6 +229,8 @@
   type IssueItem = FilterableItem & {
     number: number;
     url: string;
+    // The forge's own avatar URL for whoever filed it; empty when it has none.
+    authorAvatarUrl?: string;
   };
   type Forge = {
     forge: string;
@@ -1580,9 +1582,9 @@
 
       const meta = el("div", "row-meta");
       const authorCell = el("div", "author", item.author);
-      const avatar = isPR
-        ? avatarSrc((item as PullRequestItem).authorAvatarUrl)
-        : null;
+      const avatar = avatarSrc(
+        (item as PullRequestItem | IssueItem).authorAvatarUrl,
+      );
       if (avatar) {
         // Decorative: the name beside it already says who. A failed load
         // drops the image and leaves the name alone.
