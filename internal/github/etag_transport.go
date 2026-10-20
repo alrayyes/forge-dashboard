@@ -147,6 +147,11 @@ func (b *spliceBody) Close() error {
 	return nil
 }
 
+// errReader fails every read with its error.
+type errReader struct{ err error }
+
+func (r errReader) Read([]byte) (int, error) { return 0, r.err }
+
 // maybeCache stores resp's body under key, keyed off its own ETag — never
 // touched again once read, since a caller downstream still needs the
 // original response body intact.
@@ -159,9 +164,16 @@ func (t *etagTransport) maybeCache(key etagKey, resp *http.Response) {
 	// too big, without holding all of it just to throw the copy away.
 	original := resp.Body
 	body, err := io.ReadAll(io.LimitReader(original, maxETagBodyBytes+1))
-	if err != nil || len(body) > maxETagBodyBytes {
+	if err != nil {
+		// Not cached. The caller gets what was read, then the same error,
+		// whether or not the original body would repeat it on another read.
+		resp.Body = &spliceBody{Reader: io.MultiReader(bytes.NewReader(body), errReader{err}), closer: original}
+
+		return
+	}
+	if len(body) > maxETagBodyBytes {
 		// Not cached. The caller still gets the whole body: what was read,
-		// then the rest (and the read error again, if that was the cause).
+		// then the rest.
 		resp.Body = &spliceBody{Reader: io.MultiReader(bytes.NewReader(body), original), closer: original}
 
 		return
