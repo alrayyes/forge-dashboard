@@ -41,7 +41,7 @@ func fixFor(b Blocked, actions []ActionAvailability) ActionName {
 		return ""
 	}
 	for _, a := range actions {
-		if a.Primary {
+		if a.Primary && (a.Action == ActionUpdateBranch || a.Action == ActionRenovateRebase || a.Action == ActionDependabotRebase) {
 			return a.Action
 		}
 	}

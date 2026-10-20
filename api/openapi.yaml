@@ -4702,8 +4702,8 @@ components:
       required: [code, message]
       description: |
         Why a pull request is waiting on something or can't be merged, in one
-        place for a client to show. Same shape as
-        `AllowedAction.blocked`.
+        place for a client to show. Same fields as
+        `AllowedAction.blocked`, plus `action`.
       properties:
         code:
           type: string

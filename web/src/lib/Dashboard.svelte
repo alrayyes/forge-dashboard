@@ -1336,14 +1336,7 @@
       const named: [ActionName, () => HTMLElement | null][] = [
         ["merge", () => mergeActionCell(item)],
         ["update_branch", () => updateBranchActionCell(item)],
-        [
-          "dependabot_rebase",
-          () =>
-            findAction(item, "dependabot_rebase") &&
-            !dependabotRebaseHidden(item)
-              ? dependabotActionButton(item, "rebase")
-              : null,
-        ],
+        ["dependabot_rebase", () => dependabotRebaseCell(item)],
         [
           "dependabot_recreate",
           () =>
@@ -2227,7 +2220,6 @@
       const status = item.status;
       if (!status) return null;
       const area = el("div", "status-area");
-      area.id = statusAreaId(item);
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("width", "14");
       svg.setAttribute("height", "14");
@@ -2254,6 +2246,8 @@
       svg.appendChild(mark);
       area.appendChild(svg);
       const text = el("span", "status-area-text");
+      // Merge is described by the words alone, never by the button beside them.
+      text.id = statusAreaId(item);
       text.appendChild(el("span", "status-area-message", status.message));
       if (status.next)
         text.appendChild(el("span", "status-area-next", status.next));
@@ -2267,26 +2261,40 @@
 
     // The action the server says clears this pull request's status, or null.
     // A settled pull request has nothing left to fix.
+    // Only a name the page can draw, and only while its button exists, so the
+    // row and the footer never drop their copy for a button that isn't there.
     function statusFixName(item: PullRequestItem): ActionName | null {
       const action = item.status?.action;
       if (!action || isSettled(item)) return null;
-      return action as ActionName;
+      return fixCellFor(item, action) ? (action as ActionName) : null;
     }
 
     function statusFixCell(item: PullRequestItem): HTMLElement | null {
-      switch (statusFixName(item)) {
+      const action = item.status?.action;
+      return action && !isSettled(item) ? fixCellFor(item, action) : null;
+    }
+
+    function fixCellFor(
+      item: PullRequestItem,
+      action: string,
+    ): HTMLElement | null {
+      switch (action) {
         case "update_branch":
           return updateBranchActionCell(item);
         case "dependabot_rebase":
-          return findAction(item, "dependabot_rebase") &&
-            !dependabotRebaseHidden(item)
-            ? dependabotActionButton(item, "rebase")
-            : null;
+          return dependabotRebaseCell(item);
         case "renovate_rebase":
           return renovateRebaseActionCell(item);
         default:
           return null;
       }
+    }
+
+    function dependabotRebaseCell(item: PullRequestItem): HTMLElement | null {
+      return findAction(item, "dependabot_rebase") &&
+        !dependabotRebaseHidden(item)
+        ? dependabotActionButton(item, "rebase")
+        : null;
     }
 
     // Always rendered for an open pull request (#705): clickable when
