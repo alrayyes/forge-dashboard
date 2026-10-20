@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 )
 
 // webhookUpgradeConcurrency caps the hooks listings in flight at once, so a
@@ -184,6 +186,7 @@ func upgradeForge(cfg *webhookUpgradeConfig, forge Forge, upgrader WebhookUpgrad
 
 // upgradeRepo reports false when the forge could not be asked right now.
 func upgradeRepo(ctx context.Context, forge Forge, upgrader WebhookUpgrader, fullName, targetURL, secret string) bool {
+	ctx = apistats.WithKind(ctx, apistats.KindHookMaintenance)
 	owner, name, ok := strings.Cut(fullName, "/")
 	if !ok {
 		return true

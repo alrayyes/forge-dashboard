@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 )
 
 // QueuedActionStore is what an Aggregator needs to run the actions a user
@@ -122,6 +124,7 @@ func (a *Aggregator) untilNextQueued(ctx context.Context) time.Duration {
 // this is the first real read), then decides each action against what the
 // forge shows now, runs it only if it still applies, and records the outcome.
 func (a *Aggregator) ProcessQueuedActions(ctx context.Context) {
+	ctx = apistats.WithKind(ctx, apistats.KindUserAction)
 	cfg := a.queued
 	if cfg == nil {
 		return

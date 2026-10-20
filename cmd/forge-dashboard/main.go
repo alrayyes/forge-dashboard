@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/api"
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
@@ -261,7 +262,7 @@ func run() error {
 		Manager:       manager,
 		Database:      schemaPinger{db: db},
 		Dashboard:     manager,
-		BuildSources:  buildSourcesForUser(authStore, requestLogWriter, githubAppID, githubAppPrivateKey),
+		APIStats:      apistats.New(),
 		AppContext:    ctx,
 		// Same env var buildAuth already required for WebAuthn's own
 		// RPOrigins — reused rather than adding a second "what's my own
@@ -269,6 +270,7 @@ func run() error {
 		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),
 		GitHubAppConfigured: githubAppID != 0,
 	}
+	deps.BuildSources = buildSourcesForUser(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats)
 
 	resumeQueuedActions(ctx, settingsStore, settingsStore, deps.BuildSources, manager)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
@@ -340,7 +342,7 @@ func serve(ctx context.Context, srv *http.Server, drain *api.Drain) error {
 // baseURL is always "" (the real GitHub API) from buildSourcesForUser;
 // it's a parameter purely so a test can override it, the same testability
 // NewClient/NewAppClient's own baseURL parameters already provide.
-func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPrivateKey []byte, baseURL string, recorder requestlog.Recorder) dashboard.Source {
+func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPrivateKey []byte, baseURL string, recorder requestlog.Recorder, stats *apistats.Counters) dashboard.Source {
 	appConnected := githubAppID != 0 && c.GitHubAppInstallationID != 0
 	if appConnected {
 		client, err := github.NewAppClient(githubAppID, c.GitHubAppInstallationID, githubAppPrivateKey, baseURL, recorder)
@@ -353,6 +355,7 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 			// Dependabot ignores GitHub Apps, so its commands go out as the
 			// saved personal token when there is one (#666).
 			client.SetCommentToken(c.GitHubToken)
+			client.SetStats(stats, apistats.AppCredential(c.GitHubAppInstallationID))
 
 			return client
 		}
@@ -361,13 +364,17 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 	switch {
 	case c.GitHubToken != "":
 		client := github.NewClient(c.GitHubToken, "", baseURL, recorder)
+		client.SetStats(stats, apistats.TokenCredential(c.GitHubToken))
 		if c.WebhookToken != "" {
 			client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
 		}
 
 		return client
 	case c.GitHubUsername != "":
-		return github.NewClient("", c.GitHubUsername, baseURL, recorder)
+		client := github.NewClient("", c.GitHubUsername, baseURL, recorder)
+		client.SetStats(stats, apistats.AccountCredential(c.GitHubUsername))
+
+		return client
 	case appConnected:
 		// The App branch above failed and there's nothing to fall back to
 		// — surface it as a real forge-health error rather than silently
@@ -385,12 +392,12 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 // known here, at construction, and nowhere else past this point, so this
 // is where it has to be threaded in.
 
-func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte) func(userID []byte, c settings.Credentials) []dashboard.Source {
+func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters) func(userID []byte, c settings.Credentials) []dashboard.Source {
 	return func(userID []byte, c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, base64.RawURLEncoding.EncodeToString(userID), requestlog.WithWriter(requestLogWriter))
 
-		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, "", recorder); src != nil {
+		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, "", recorder, stats); src != nil {
 			sources = append(sources, src)
 		}
 
@@ -399,12 +406,14 @@ func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Wri
 			// nothing configured for Forgejo at all
 		case c.ForgejoToken != "":
 			client := forgejo.NewClient(c.ForgejoURL, c.ForgejoToken, "", recorder)
+			client.SetStats(stats, apistats.TokenCredential(c.ForgejoToken))
 			if c.WebhookToken != "" {
 				client.SetWebhookPath("/api/webhooks/forgejo/" + c.WebhookToken)
 			}
 			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
 		case c.ForgejoUsername != "":
 			client := forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername, recorder)
+			client.SetStats(stats, apistats.AccountCredential(c.ForgejoUsername))
 			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
 		}
 

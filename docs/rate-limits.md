@@ -109,6 +109,53 @@ needs them, and Merge and Close can't be queued. See
 [Pull request actions](pull-request-actions.md) for what happens to a queued
 action.
 
+## Reading the stats
+
+`GET /api/stats/forge-api` says how many requests the dashboard has spent since
+the server started, so you can see what is using a budget before you change
+anything. It takes a session or an API token, like the rest of the API, and
+returns only the requests made with your own credentials.
+
+Each row is one forge, credential, kind and repo, with four counts:
+
+| Count         | What it counts                                                   |
+| ------------- | ---------------------------------------------------------------- |
+| `rest`        | REST requests, each charged against the REST budget.             |
+| `graphql`     | GraphQL requests made.                                           |
+| `graphqlCost` | The points the GraphQL requests were charged (`rateLimit.cost`). |
+| `notModified` | Requests answered `304 Not Modified`, which cost nothing.        |
+
+The kind says why the request was made:
+
+| Kind               | Cause                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| `full`             | A refresh of the whole account.                                                      |
+| `scoped_webhook`   | A refresh of one repo after a webhook delivery.                                      |
+| `ci_poll`          | A poll of one repo with a check still running.                                       |
+| `auto_merge_poll`  | A poll of one repo with an armed auto-merge.                                         |
+| `details`          | A pull request, issue or check list you opened.                                      |
+| `hook_maintenance` | Checking, adding or upgrading webhooks.                                              |
+| `user_action`      | A button you pressed, a queued action, or auto-merge and auto-update acting for you. |
+| `unknown`          | A request nobody tagged. That is a bug in the dashboard; please report it.           |
+
+A few things to know when you read the numbers:
+
+- The counts start at zero on every start. `since` says when counting began, so
+  compare two readings taken some time apart, not one reading to a budget.
+- A request that names no repo, such as listing an account's repos, has an empty
+  `repo`. A GitHub full refresh is one query for every repo, so it shows under
+  the empty repo too.
+- Rows are matched to the credentials you saved. A GitHub App installation id
+  is a number you type in, so until the dashboard has one user, someone who
+  saves another account's installation id sees that installation's counts.
+  Tokens can't be matched this way without knowing them.
+- The credential is a label, `app:<installation id>`, `token:<short hash>` or
+  `public:<username>`. It holds no secret. Two accounts that connect the same
+  token share a row, because they share a budget.
+- Forgejo has no GraphQL, so its `graphql` and `graphqlCost` stay zero.
+- `budgets` repeats the limits each forge last reported, the same figures as
+  `forges` on `GET /api/dashboard`.
+
 ## What you can do
 
 - **Connect a GitHub App installation** instead of a token, or give the token

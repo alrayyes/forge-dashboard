@@ -65,8 +65,9 @@ would need the same answer. The reasons, and what it costs, are in
   browser's network tab and watch it call only this app's own routes (`/api/...`
   and the static `/changelog.json`), never a forge — and that
   `/api/settings` never echoes a forge token back, only whether one is set.
-- **An MCP endpoint for agents, `/api/mcp`, read-only like the rest of
-  this app.** Authenticated the same way any other `/api/*` route already
+- **An MCP endpoint for agents, `/api/mcp`, read-only (the web app itself
+  can act on pull requests).**
+  Authenticated the same way any other `/api/*` route already
   is — a personal API token (Settings → API tokens),
   `Authorization: Bearer <token>` — not a separate credential system. Its
   tools so far are `get_dashboard`, which mirrors `GET /api/dashboard`
@@ -89,6 +90,8 @@ would need the same answer. The reasons, and what it costs, are in
   hours, under a `queuedActions` key). It costs no forge budget.
   `get_version` mirrors `GET /api/version` (the running server's release
   tag, under a `version` key). It costs no forge budget.
+  `get_forge_api_stats` mirrors `GET /api/stats/forge-api` (the forge request
+  counters and budgets). It costs no forge budget.
   `get_settings` mirrors `GET /api/settings` without the webhook token and
   secret, which are never sent over MCP; it reports `webhookConfigured`
   instead, and unlike the HTTP read it never creates them. It carries
@@ -127,14 +130,24 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   answers `500.html` with a 500 (the stack goes to the log, never the page),
   and an unknown `/api/` path stays a JSON error. Errors the proxy makes
   itself (502, 503, 504) need its own static pages.
-- **Read-only against both forges, with one caveat.** Nothing here writes
-  back to GitHub or Forgejo — it aggregates and displays, and every row
-  links out to the real thing. The caveat: checking whether a repo's
-  webhook is already pointed at this dashboard (the Webhooks card, and the
-  dashboard's own coverage summary) needs a token scope that includes
-  write access on Forgejo, since its hooks API has no separate read-only
-  scope — this app still only reads that list, and never creates or edits a
-  hook itself.
+- **It writes to the forges only when you ask, and for the webhooks.** The
+  board reads from GitHub and Forgejo, and every row links out to the real
+  thing. What it writes: the pull request actions you press (merge, enable
+  or cancel auto-merge, update branch, close, re-run failed checks, the
+  Dependabot and Renovate rebase), the same actions it runs for you when you
+  queue them or turn on auto-update or auto-merge, and the webhook it adds
+  when you click "Add a webhook", plus the events it adds to a webhook it
+  created earlier (a Forgejo token needs write access for that, since its
+  hooks API has no separate read-only scope).
+- **Every forge request is counted.** A counting transport sits under each
+  client's HTTP cache, so it sees the real answers, including a `304`. Each
+  request is counted by forge, credential, why it was made (a full refresh, a
+  webhook's scoped refresh, a CI poll, a detail view, webhook upkeep, a
+  button you pressed) and repo, and `GET /api/stats/forge-api` serves the
+  rows for your own credentials. The counters are in memory and restart at
+  zero. A key carries no user id, only a label for the account or App
+  installation. [Rate limits](docs/rate-limits.md#reading-the-stats) says how
+  to read them.
 - **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
   itself: `get_dashboard`, `get_main_branches`, `get_main_branch_checks`,
   `get_pull_request_checks`, `get_pull_request_details`,

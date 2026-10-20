@@ -143,6 +143,24 @@ func addStoreTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name: "get_forge_api_stats",
+		Description: "Report how many forge API requests this server has made since it started, " +
+			"by forge, credential, kind (full refresh, scoped webhook refresh, CI poll, " +
+			"auto-merge poll, details, hook maintenance, user action) and repo, with the REST " +
+			"calls, GraphQL calls and cost, and 304s, plus the rate limits each forge last " +
+			"reported. Only the rows of the signed-in user's own credentials. Read-only, " +
+			"served from memory, and it costs no forge budget.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, forgeAPIStatsResponse, error) {
+		if !ok {
+			return nil, forgeAPIStatsResponse{}, errNoAuthenticatedUser
+		}
+
+		body, err := resolveForgeAPIStatsFor(ctx, deps, u)
+
+		return nil, body, err
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_version",
 		Description: "Report the version of the running forge-dashboard server: the " +
 			"release tag its binary was built from (\"dev\" for a build outside the " +
