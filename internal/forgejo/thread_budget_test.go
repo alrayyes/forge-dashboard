@@ -17,6 +17,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/stretchr/testify/assert"
@@ -88,7 +89,7 @@ func stubForgejo(t *testing.T) *httptest.Server {
 
 // Not parallel: a parallel sibling's threads would count against the budget.
 func TestRefresh_ManyReposAndTabs_StaysUnderTheThreadBudget(t *testing.T) {
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "auth.db")+"?_busy_timeout=5000&_journal_mode=WAL")
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	store := auth.NewStore(db)

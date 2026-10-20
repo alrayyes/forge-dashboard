@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ import (
 
 func newTestAuthStore(t *testing.T) *auth.Store {
 	t.Helper()
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "auth.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 

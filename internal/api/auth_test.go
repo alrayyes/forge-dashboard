@@ -17,6 +17,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
 	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/descope/virtualwebauthn"
@@ -97,7 +98,7 @@ func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func([]byte, set
 func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration, opts ...func(*api.Deps)) (*httptest.Server, *dashboard.Manager, *authpkg.Store, *settingspkg.Store) {
 	tb.Helper()
 
-	db, err := sql.Open("sqlite", filepath.Join(tb.TempDir(), "app.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(tb.TempDir(), "app.db")))
 	require.NoError(tb, err)
 	tb.Cleanup(func() { _ = db.Close() })
 

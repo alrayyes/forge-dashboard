@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,7 +90,7 @@ func TestStore_ForgetPullRequestAutoUpdates_DropsOnlyTheNamedOnes(t *testing.T) 
 
 func TestStore_Init_OnADatabaseThatPredatesTheTable_KeepsItsRowsAndAddsTheTable(t *testing.T) {
 	t.Parallel()
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "settings.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "settings.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	cipher, err := settings.NewCipher(randomKey(t))

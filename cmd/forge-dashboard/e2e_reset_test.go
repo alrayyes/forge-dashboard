@@ -14,6 +14,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,7 @@ func rowCount(t *testing.T, db *sql.DB, table string) int {
 
 func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T) {
 	ctx := t.Context()
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "e2e.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "e2e.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	authStore := auth.NewStore(db)
@@ -114,7 +115,7 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 // the busy timeout: https://www.sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode
 func TestE2EReset_WaitsForAConcurrentWriteInsteadOfFailing(t *testing.T) {
 	ctx := t.Context()
-	dsn := filepath.Join(t.TempDir(), "e2e.db") + "?_busy_timeout=5000&_journal_mode=WAL"
+	dsn := dbdsn.For(filepath.Join(t.TempDir(), "e2e.db"))
 	db, err := sql.Open("sqlite", dsn)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
@@ -166,7 +167,7 @@ func TestE2EReset_WaitsForAConcurrentWriteInsteadOfFailing(t *testing.T) {
 // inside a transaction fails.
 func TestE2EReset_AFailedRewriteLeavesNoOpenTransaction(t *testing.T) {
 	ctx := t.Context()
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "e2e.db")+"?_busy_timeout=5000&_journal_mode=WAL")
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "e2e.db")))
 	require.NoError(t, err)
 	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = db.Close() })

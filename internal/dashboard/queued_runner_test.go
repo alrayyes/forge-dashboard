@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,7 +115,7 @@ func behindPR(number int, author string) dashboard.PullRequest {
 func openQueueStore(t *testing.T, path string) *settings.Store {
 	t.Helper()
 
-	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)")
+	db, err := sql.Open("sqlite", dbdsn.For(path))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	key := make([]byte, 32)

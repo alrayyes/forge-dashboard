@@ -25,6 +25,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/github"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
@@ -483,7 +484,7 @@ func openDatabase() (*sql.DB, error) {
 		}
 	}
 
-	db, err := sql.Open("sqlite", dbPath+"?_busy_timeout=5000&_journal_mode=WAL")
+	db, err := sql.Open("sqlite", dbdsn.For(dbPath))
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,7 +14,7 @@ import (
 
 func newTestStore(t *testing.T) *sharing.Store {
 	t.Helper()
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "sharing.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "sharing.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ import (
 func newTestStore(t *testing.T) *settings.Store {
 	t.Helper()
 
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "settings.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "settings.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -99,7 +100,7 @@ func TestStore_SetThenGet_RoundTripsGitHubAppInstallationID(t *testing.T) {
 func TestStore_GitHubAppInstallationID_StoredAsPlainInteger(t *testing.T) {
 	t.Parallel()
 
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "settings.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "settings.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -181,7 +182,7 @@ func TestStore_Delete_NeverSaved_IsANoOp(t *testing.T) {
 func TestStore_TokensAreEncryptedAtRest(t *testing.T) {
 	t.Parallel()
 
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "settings.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "settings.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -768,7 +769,7 @@ func TestStore_Get_CorruptIgnoredTitles_FallsBackToNoPatternsAndKeepsTheRest(t *
 	for _, bad := range []string{``, `{}`, `"x"`, `[1]`, `not json`} {
 		t.Run(bad, func(t *testing.T) {
 			t.Parallel()
-			db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "settings.db"))
+			db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "settings.db")))
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = db.Close() })
 			cipher, err := settings.NewCipher(randomKey(t))

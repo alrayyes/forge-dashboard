@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,7 +117,7 @@ func TestStore_QueuedActions_SurviveReopeningTheDatabase(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "settings.db")
 	open := func() *settings.Store {
-		db, err := sql.Open("sqlite", path)
+		db, err := sql.Open("sqlite", dbdsn.For(path))
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = db.Close() })
 		cipher, err := settings.NewCipher(randomKey(t))
