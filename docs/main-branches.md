@@ -22,21 +22,24 @@ cancelled run beside one still going is Running. A GitHub branch whose newest
 commit has workflow runs held until someone approves them reads "Waiting for
 approval" with a pause glyph, the same one the pull request row uses: nothing
 has run and nothing has failed, and the pipeline panel lists the held workflows
-with a link to GitHub's approve button. A failed row names its first
-failing jobs. The status pill is a button, as on the pull request pages: it
-opens the pipeline panel, a side panel that lists every job of the branch's
-newest pipeline with its state and how long it took, a link to each job, and,
-for a failed job, the step that broke and the tail of its log. The panel also
-links to the run on the forge, in a new tab. Escape, the close button or a
-click outside closes it and focus goes back to the pill, and a screen reader
-hears the pill as, for example, "Failed. Open pipeline". The jobs are read from
-the forge when the panel opens, not from the page's snapshot, so they are never
-older than the click, and a read that fails offers Retry. The pill has the pull
-request board's colours but is taller and larger, 32 pixels high on a desktop
-and 44 on a phone, because this page has room and the pill is the main control
-on the row. The "No pipeline" note is plain, not a button, since there is no
-pipeline to open. Rows come latest commit first, in the order the server sends
-them.
+with a link to GitHub's approve button. A held run beside check runs that all
+passed still reads as Passed on a branch, unlike a pull request row: a branch
+reads as waiting only when its newest commit has no check run at all. A held run
+nobody approves keeps the branch on Waiting for approval until the next push. A
+failed row names its first failing jobs. The status pill is a button, as on the
+pull request pages: it opens the pipeline panel, a side panel that lists every
+job of the branch's newest pipeline with its state and how long it took, a link
+to each job, and, for a failed job, the step that broke and the tail of its log.
+The panel also links to the run on the forge, in a new tab. Escape, the close
+button or a click outside closes it and focus goes back to the pill, and a
+screen reader hears the pill as, for example, "Failed. Open pipeline". The jobs
+are read from the forge when the panel opens, not from the page's snapshot, so
+they are never older than the click, and a read that fails offers Retry. The
+pill has the pull request board's colours but is taller and larger, 32 pixels
+high on a desktop and 44 on a phone, because this page has room and the pill is
+the main control on the row. The "No pipeline" note is plain, not a button,
+since there is no pipeline to open. Rows come latest commit first, in the order
+the server sends them.
 
 The pills (All, Failing, Passing, Running, Cancelled, Waiting for approval, No
 pipeline) keep their filter names, like the quick pills on the pull request
