@@ -43,10 +43,27 @@ func (f *fakeBranchUpdaterSource) updatedBranches() []string {
 // the Aggregator's own use of it.
 type fakeAutoUpdateBranchLister struct {
 	enabled       map[string]struct{}
+	overrides     map[string]bool // a pull request's own choice, keyed forge/owner/repo#number
+	overridesErr  error
 	renovateLabel string
 	authors       []string
 	err           error
 	labelErr      error
+	forgotten     []string // keys the pass asked to forget
+}
+
+func (f *fakeAutoUpdateBranchLister) ForgetPullRequestAutoUpdates(_ context.Context, _ []byte, keys []string) error {
+	f.forgotten = append(f.forgotten, keys...)
+
+	return nil
+}
+
+func (f *fakeAutoUpdateBranchLister) PullRequestAutoUpdates(_ context.Context, _ []byte) (map[string]bool, error) {
+	if f.overridesErr != nil {
+		return nil, f.overridesErr
+	}
+
+	return f.overrides, nil
 }
 
 func (f *fakeAutoUpdateBranchLister) RenovateAuthors(_ context.Context, _ []byte) ([]string, error) {

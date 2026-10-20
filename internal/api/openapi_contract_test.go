@@ -81,6 +81,47 @@ func record(t *testing.T, method, url string, cookie *http.Cookie) (*http.Reques
 	return req, recorded{status: resp.StatusCode, header: resp.Header, body: body}
 }
 
+// Every pull request in the dashboard carries its automatic-update state, and
+// the write endpoint answers what the spec says for a call with no body or no
+// session.
+func TestContract_PullRequestAutoUpdate(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie := populatedBoard(t)
+
+	t.Run("every pull request carries an autoUpdate object the spec accepts", func(t *testing.T) {
+		t.Parallel()
+
+		req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard?includeDrafts=true", cookie)
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+		var body struct {
+			PullRequests []map[string]any `json:"pullRequests"`
+		}
+		require.NoError(t, json.Unmarshal(got.body, &body))
+		require.NotEmpty(t, body.PullRequests)
+		for _, pr := range body.PullRequests {
+			assert.Contains(t, pr, "autoUpdate")
+		}
+	})
+	t.Run("a call without a body answers 400 as the spec says", func(t *testing.T) {
+		t.Parallel()
+
+		req, got := record(t, http.MethodPost, srv.URL+"/api/pull-requests/auto-update", cookie)
+
+		require.Equal(t, http.StatusBadRequest, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+	})
+	t.Run("a call without a session answers 401 as the spec says", func(t *testing.T) {
+		t.Parallel()
+
+		req, got := record(t, http.MethodPost, srv.URL+"/api/pull-requests/auto-update", nil)
+
+		require.Equal(t, http.StatusUnauthorized, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+	})
+}
+
 func TestContract_HealthAndReadiness(t *testing.T) {
 	t.Parallel()
 
