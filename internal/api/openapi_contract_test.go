@@ -223,6 +223,7 @@ func contractBranches(now time.Time) []dashboard.MainBranch {
 			Status: dashboard.MainBranchFailed, FailingJobs: []string{"test"}, RunURL: "https://github.com/alrayyes/a/actions/runs/1",
 			Commit:     &dashboard.MainBranchCommit{SHA: "0123456", Subject: "fix: stop the thing", Author: "alrayyes", CommittedAt: &now},
 			FinishedAt: &now, DurationSeconds: &seconds,
+			LatestRelease: &dashboard.MainBranchRelease{Tag: "v1.2.3", URL: "https://github.com/alrayyes/a/releases/tag/v1.2.3"},
 		},
 		{
 			Forge: dashboard.ForgeGitHub, FullName: "alrayyes/b", URL: "https://github.com/alrayyes/b", Branch: "main",

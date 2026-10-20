@@ -19,6 +19,12 @@ export type MainBranchCommit = {
   committedAt: string | null;
 };
 
+// Matches api/openapi.yaml's MainBranchRelease.
+export type MainBranchRelease = {
+  tag: string;
+  url: string;
+};
+
 // Matches api/openapi.yaml's MainBranch.
 export type MainBranch = {
   forge: string;
@@ -32,6 +38,7 @@ export type MainBranch = {
   durationSeconds: number | null;
   runUrl: string;
   checks: CheckCounts;
+  latestRelease: MainBranchRelease | null;
   stale: boolean;
   staleSince: string | null;
 };
@@ -220,6 +227,19 @@ export function filterFromState(
   const query =
     typeof saved?.query === 'string' ? saved.query.slice(0, 200) : '';
   return { status, forge, query };
+}
+
+// The release link is shown only for an http(s) url, so anything else
+// (javascript:, data:) is never put in a href.
+export function releaseHref(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+      ? url
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export function filterToState(
