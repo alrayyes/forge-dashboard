@@ -195,6 +195,10 @@ type actionErrorBody struct {
 	Code     string     `json:"code"`
 	Message  string     `json:"message"`
 	ResetsAt *time.Time `json:"resetsAt"`
+	// UpstreamStatus and RequestID are what the forge answered with, when it
+	// failed on its own side.
+	UpstreamStatus int    `json:"upstreamStatus"`
+	RequestID      string `json:"requestId"`
 }
 
 func mergeRefusal(kind dashboard.ForgeErrorKind, text string) error {

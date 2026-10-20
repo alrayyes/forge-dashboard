@@ -31,7 +31,10 @@ const (
 	ActionLabelMissing        ActionCode = "label_missing"
 	ActionPermission          ActionCode = "permission"
 	ActionRateLimited         ActionCode = "rate_limited"
-	ActionStacked             ActionCode = "stacked"
+	// ActionForgeError: the forge failed on its own side (a 5xx), so nothing
+	// is wrong with the request and asking again may work.
+	ActionForgeError ActionCode = "forge_error"
+	ActionStacked    ActionCode = "stacked"
 	// ActionAlreadyRequested: a Renovate rebase is already asked for (its
 	// rebase-check box is ticked), so asking again does nothing.
 	ActionAlreadyRequested ActionCode = "already_requested"
@@ -190,6 +193,7 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 const (
 	noReasonMessage     = "The forge refused this action and gave no reason."
 	unreachableMessage  = "The forge didn't answer. Try again in a moment."
+	forgeFailedMessage  = "The forge had a server error. Try again in a moment."
 	maxPlainMessageSize = 200
 )
 
@@ -273,6 +277,9 @@ func refusalFromKind(actionErr error) (ActionRefusal, bool) {
 		}
 
 		return ActionRefusal{Code: ActionPermission, Message: "Missing permission — check your token in Settings."}, true
+	}
+	if clientErr.ForgeFailed() {
+		return ActionRefusal{Code: ActionForgeError, Message: forgeFailedMessage}, true
 	}
 
 	return ActionRefusal{}, false
