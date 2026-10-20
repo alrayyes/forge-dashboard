@@ -1,4 +1,6 @@
 <script module lang="ts">
+  import type { CheckCounts } from "#lib/check-counts.js";
+
   // The row a Main branches pill was pressed on.
   export type PipelineTarget = {
     forge: string;
@@ -6,6 +8,10 @@
     branch: string;
     // Where the run is on the forge; empty when the forge named none.
     runUrl: string;
+    // What the row said about its CI when the panel opened, to tell later
+    // whether the pipeline behind the panel moved on.
+    status: string;
+    checks: CheckCounts;
     // The control to give focus back to when the panel closes.
     opener: HTMLElement | null;
   };
@@ -16,8 +22,9 @@
   // with the states, durations and links the pull request board's panel shows,
   // drawn with the same classes. The list comes from
   // GET /api/main-branches/checks, fetched when the panel opens and never as
-  // part of the snapshot. The page calls open() from a row's pill and holds
-  // nothing else of this panel's state.
+  // part of the snapshot. The page calls open() from a row's pill, and follow()
+  // with each list it reads: the panel reads again only when its own row's CI
+  // changed, so a finished pipeline costs no more requests.
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { FORGE_LABELS } from "#lib/forges.js";
   import {
@@ -25,6 +32,14 @@
     formatCheckDuration,
     type Check,
   } from "#lib/pipeline-checks.js";
+  import {
+    announceChange,
+    ciSignature,
+    createLiveChecks,
+    keepOrder,
+    type LiveChecks,
+  } from "#lib/pipeline-live.js";
+  import type { MainBranch } from "#lib/main-branches.js";
 
   let dialog: HTMLDialogElement;
   let target = $state<PipelineTarget | null>(null);
@@ -33,17 +48,56 @@
   let message = $state("");
   // Only the newest request may draw: an older answer arriving late is dropped.
   let request = 0;
+  let live: LiveChecks | null = null;
+  // Set when a read made for a change failed: the checks on screen may be old.
+  let staleNote = $state("");
+  // The one polite line a changed check earns.
+  let announcement = $state("");
 
   export function open(next: PipelineTarget) {
     target = next;
+    staleNote = "";
+    announcement = "";
+    live = createLiveChecks({
+      signature: ciSignature({
+        ci: next.status,
+        checks: next.checks,
+        runUrl: next.runUrl,
+      }),
+      paused: () => false,
+      reload: () => target && load(target, true),
+      onStale: () => {},
+    });
     load(next);
     dialog.showModal();
   }
 
-  async function load(row: PipelineTarget) {
+  // The page hands over each list it reads. A row whose CI moved on is what
+  // sends the panel back to the forge.
+  export function follow(branches: MainBranch[]) {
+    if (!target || !live) return;
+    const now = branches.find(
+      (b) => b.forge === target?.forge && b.fullName === target?.fullName,
+    );
+    live.seen(
+      now
+        ? ciSignature({
+            ci: now.status,
+            checks: now.checks,
+            runUrl: now.runUrl,
+          })
+        : null,
+    );
+  }
+
+  async function load(row: PipelineTarget, wantAgain = false) {
+    // A change before the first read has drawn restarts that read.
+    const again = wantAgain && phase === "ready";
     const mine = ++request;
-    phase = "loading";
-    checks = [];
+    if (!again) {
+      phase = "loading";
+      checks = [];
+    }
     try {
       const res = await fetch(
         `/api/main-branches/checks?forge=${encodeURIComponent(row.forge)}&fullName=${encodeURIComponent(row.fullName)}`,
@@ -59,10 +113,28 @@
         throw new Error(body?.error || `backend answered ${res.status}`);
       }
       if (mine !== request) return;
-      checks = body?.checks ?? [];
+      const next: Check[] = body?.checks ?? [];
+      if (again) {
+        // Each pill changes where it stands; nothing moves or redraws when no
+        // check changed.
+        const ordered = keepOrder(checks, next);
+        staleNote = "";
+        if (JSON.stringify(ordered) === JSON.stringify(checks)) return;
+        const message = announceChange(checks, ordered);
+        checks = ordered;
+        if (message) announcement = message;
+        return;
+      }
+      live?.refreshed();
+      checks = next;
       phase = "ready";
     } catch (err) {
       if (mine !== request) return;
+      if (again) {
+        live?.failed();
+        staleNote = "Couldn't refresh these checks. They may be out of date.";
+        return;
+      }
       message = `Couldn't load the pipeline jobs for ${row.fullName}: ${err instanceof Error ? err.message : String(err)}`;
       phase = "error";
     }
@@ -72,6 +144,7 @@
   // on the backdrop.
   function closed() {
     request++;
+    live = null;
     target?.opener?.focus();
     target = null;
   }
@@ -123,6 +196,10 @@
       >
     </button>
   </div>
+  <p class="pipeline-paused-note" aria-live="polite" hidden={!staleNote}>
+    {staleNote}
+  </p>
+  <p class="sr-only" aria-live="polite">{announcement}</p>
   <div class="pipeline-dialog-body">
     {#if phase === "loading"}
       <p class="pipeline-status">Loading jobs…</p>
