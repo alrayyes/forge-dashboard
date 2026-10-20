@@ -96,6 +96,14 @@ describe('createLiveChecks', () => {
     expect(state.reloads).toBe(0);
   });
 
+  test('after a failed read the next snapshot tries again', () => {
+    const { state, live } = setup();
+    live.seen('b');
+    live.failed();
+    live.seen('b');
+    expect(state.reloads).toBe(2);
+  });
+
   test('a fresh read by hand clears the stale note', () => {
     const { state, live } = setup(true);
     live.seen('b');

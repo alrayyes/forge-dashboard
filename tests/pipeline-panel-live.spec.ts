@@ -193,6 +193,32 @@ test.describe('pipeline panel updates live', () => {
     await expect(names).toHaveText(['build', 'test']);
   });
 
+  test('a blocking failure listed first stays first through a live redraw', async ({
+    page,
+  }) => {
+    const req = (name: string, state: string) => ({
+      name,
+      state,
+      required: true,
+      url: `https://example.com/r/${name}`,
+    });
+    const state = await open(page, RUNNING, [
+      req('build', 'running'),
+      req('lint', 'failure'),
+    ]);
+    const names = dialog(page).locator('.pipeline-check-name');
+    await expect(names).toHaveText(['lint', 'build']);
+    state.checks = [req('build', 'success'), req('lint', 'failure')];
+    await push(
+      page,
+      pr('failure', { passed: 1, running: 0, waiting: 0, failed: 1 }),
+    );
+    await expect(dialog(page).locator('.pipeline-check').nth(1)).toContainText(
+      'Passed',
+    );
+    await expect(names).toHaveText(['lint', 'build']);
+  });
+
   for (const scheme of ['light', 'dark'] as const) {
     for (const width of [390, 1280]) {
       test(`has no axe violations after a live update, ${scheme} at ${width}px`, async ({

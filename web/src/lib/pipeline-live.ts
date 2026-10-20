@@ -38,6 +38,8 @@ export type LiveChecks = {
   resume: () => void;
   // The panel read its checks by some other route, so it is current.
   refreshed: () => void;
+  // A read made for a change failed: the next snapshot tries again.
+  failed: () => void;
 };
 
 export function createLiveChecks(options: LiveChecksOptions): LiveChecks {
@@ -61,6 +63,9 @@ export function createLiveChecks(options: LiveChecksOptions): LiveChecks {
       missed = false;
       options.onStale(false);
       options.reload();
+    },
+    failed() {
+      known = '\u0000';
     },
     refreshed() {
       if (!missed) return;

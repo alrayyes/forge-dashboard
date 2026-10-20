@@ -90,7 +90,9 @@
     );
   }
 
-  async function load(row: PipelineTarget, again = false) {
+  async function load(row: PipelineTarget, wantAgain = false) {
+    // A change before the first read has drawn restarts that read.
+    const again = wantAgain && phase === "ready";
     const mine = ++request;
     if (!again) {
       phase = "loading";
@@ -129,6 +131,7 @@
     } catch (err) {
       if (mine !== request) return;
       if (again) {
+        live?.failed();
         staleNote = "Couldn't refresh these checks. They may be out of date.";
         return;
       }
@@ -193,9 +196,9 @@
       >
     </button>
   </div>
-  {#if staleNote}
-    <p class="pipeline-paused-note" aria-live="polite">{staleNote}</p>
-  {/if}
+  <p class="pipeline-paused-note" aria-live="polite" hidden={!staleNote}>
+    {staleNote}
+  </p>
   <p class="sr-only" aria-live="polite">{announcement}</p>
   <div class="pipeline-dialog-body">
     {#if phase === "loading"}

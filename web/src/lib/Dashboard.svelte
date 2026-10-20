@@ -4870,6 +4870,8 @@
     let pipelineItem: PullRequestItem | null = null;
     // What the panel shows now, to keep its order and to tell a real change.
     let pipelineShown: Check[] = [];
+    // The first read has drawn; a change before that restarts it instead.
+    let pipelineReady = false;
     const pipelineNote = document.getElementById("pipeline-paused-note");
     const pipelineAnnounce = document.getElementById("pipeline-live-status");
 
@@ -5094,6 +5096,13 @@
       inPlace = false,
     ) {
       if (!pipelineDialogBody) return;
+      // Blocking failures first, once, when the panel opens (a stable sort,
+      // so the forge's own order stands otherwise). What is kept is the order
+      // drawn, so a live redraw leaves every check where it stands.
+      if (!inPlace)
+        checks = [...checks].sort(
+          (a, b) => Number(isBlocking(b)) - Number(isBlocking(a)),
+        );
       pipelineShown = checks;
       pipelineDialogBody.innerHTML = "";
       if (checks.length === 0) {
@@ -5112,11 +5121,7 @@
       }
       // Blocking failures first within Required; a stable sort keeps the
       // forge's own order otherwise.
-      const required = checks
-        .filter((check) => check.required === true)
-        .sort((a, b) =>
-          inPlace ? 0 : Number(isBlocking(b)) - Number(isBlocking(a)),
-        );
+      const required = checks.filter((check) => check.required === true);
       const advisory = checks.filter((check) => check.required === false);
       // Never filed under Advisory on a guess.
       const unknown = checks.filter((check) => check.required === undefined);
@@ -5150,7 +5155,9 @@
     // own eager pull, per the checks endpoint's own doc comment: this is
     // detail a row doesn't show until the panel is actually opened for
     // it.
-    function loadPipelineChecks(item: PullRequestItem, live = false) {
+    function loadPipelineChecks(item: PullRequestItem, wantLive = false) {
+      const live = wantLive && pipelineReady;
+      if (!live) pipelineReady = false;
       const token = ++pipelineRequestToken;
       if (!live) renderPipelineLoading();
 
@@ -5181,6 +5188,7 @@
             setPipelineNote("");
             pipelineLive?.refreshed();
             renderPipelineChecks(data.checks || [], item);
+            pipelineReady = true;
           }
         })
         .catch((err: Error & { status?: number }) => {
@@ -5188,6 +5196,7 @@
           // A failed live read leaves the checks on screen and says so; the
           // next change reads again.
           if (live) {
+            pipelineLive?.failed();
             setPipelineNote(
               "Couldn't refresh these checks. They may be out of date.",
             );
@@ -5223,6 +5232,7 @@
       pipelineDialogRowKey = prKey(item);
       pipelineItem = item;
       pipelineShown = [];
+      pipelineReady = false;
       setPipelineNote("");
       if (pipelineAnnounce) pipelineAnnounce.textContent = "";
       if (pipelineDialogSubtitle) {
