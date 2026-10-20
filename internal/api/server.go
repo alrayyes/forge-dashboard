@@ -147,6 +147,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/pull-requests/auto-merge", auth.RequireAuth(deps.AuthStore)(handlePullRequestAutoMerge(deps)))
 	mux.Handle("POST /api/pull-requests/hide", auth.RequireAuth(deps.AuthStore)(handlePullRequestHide(deps)))
 	mux.Handle("POST /api/pull-requests/unhide", auth.RequireAuth(deps.AuthStore)(handlePullRequestUnhide(deps)))
+	mux.Handle("POST /api/pull-requests/auto-update", auth.RequireAuth(deps.AuthStore)(handlePullRequestAutoUpdate(deps)))
 	mux.Handle("POST /api/pull-requests/auto-merge/cancel", auth.RequireAuth(deps.AuthStore)(handlePullRequestAutoMergeCancel(deps)))
 	mux.Handle("POST /api/pull-requests/close", auth.RequireAuth(deps.AuthStore)(handlePullRequestClose(deps)))
 	mux.Handle("POST /api/pull-requests/update-branch", auth.RequireAuth(deps.AuthStore)(handlePullRequestUpdateBranch(deps)))
