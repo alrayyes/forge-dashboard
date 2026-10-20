@@ -150,7 +150,7 @@ type pullRequestView struct {
 	AllowedActions []dashboard.ActionAvailability `json:"allowedActions"`
 	// Status is what the pull request is waiting on or blocked by, for one
 	// fixed place on a row (#1375). Null when nothing holds it back.
-	Status *dashboard.Blocked `json:"status"`
+	Status *dashboard.Status `json:"status"`
 	// ReadyToMerge and NeedsReview are the Ready and Needs review quick
 	// filters' answers (#807), so a second client lists the same pull
 	// requests the page does.

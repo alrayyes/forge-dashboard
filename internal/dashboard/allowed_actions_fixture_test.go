@@ -31,7 +31,7 @@ type axis struct {
 // of inputs: allowedActions, status and kind, as the API serialises them.
 type fixtureOutput struct {
 	AllowedActions []dashboard.ActionAvailability `json:"allowedActions"`
-	Status         *dashboard.Blocked             `json:"status"`
+	Status         *dashboard.Status              `json:"status"`
 	Kind           dashboard.PullRequestKind      `json:"kind"`
 }
 
