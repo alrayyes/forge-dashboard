@@ -8,7 +8,7 @@ Let an unchanged answer cost nothing, and keep that saving across a restart.
 
 ### Requirement: Every REST read is conditional where the server allows it
 
-Each REST GET the dashboard makes to a forge SHALL send `If-None-Match` when it holds an ETag for that request and credential, and SHALL treat `304` as "reuse the cached body". A GET that cannot be cached SHALL be listed with the reason in the code.
+Each REST GET the dashboard makes to a forge SHALL send `If-None-Match` when it holds an ETag for that request and credential, and SHALL treat `304` as "reuse the cached body". A GET that is not cached SHALL be one the server gives no ETag for.
 
 #### Scenario: Unchanged resource
 

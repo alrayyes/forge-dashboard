@@ -8,7 +8,7 @@ Turn a burst of webhook events for one repo into one scoped refresh, so a single
 
 ### Requirement: Scoped webhook refreshes are debounced per repo
 
-When a webhook names a repo, the dashboard SHALL start a refresh for that repo only after a quiet window of 2 seconds with no further event for the same forge and repo. Events arriving inside the window SHALL extend it. A burst SHALL NOT hold the refresh back more than 5 seconds after its first event. Both durations are constants, not settings.
+When a webhook names a repo, the dashboard SHALL start a refresh for that repo only after a quiet window of 2 seconds with no further event for the same forge and repo. Events arriving inside the window SHALL extend it. A burst SHALL NOT hold the refresh back more than 5 seconds after its first event.
 
 #### Scenario: A burst causes one refresh
 

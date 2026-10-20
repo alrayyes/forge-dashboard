@@ -34,6 +34,15 @@ If the probe fails, or the forge's source offers none, the refresh SHALL fetch e
 - **WHEN** the probe request fails
 - **THEN** the full refresh fetches every repo and the failure is logged
 
+### Requirement: The first refresh after a start, and a periodic pass, are full
+
+The first refresh after a start, and every sixth safety-net refresh, SHALL fetch every repo whatever the probe says.
+
+#### Scenario: Start
+
+- **WHEN** the dashboard starts with a persisted snapshot
+- **THEN** its first refresh fetches every repo
+
 ### Requirement: A force refresh is always full
 
 A user's "Refresh now" SHALL fetch every repo, whatever the probe says.

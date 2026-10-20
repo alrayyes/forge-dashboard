@@ -36,7 +36,7 @@ A pull request that stays pending SHALL be polled at a growing interval, up to a
 
 ### Requirement: A repo with a confirmed check webhook is not polled
 
-A repo whose webhook is confirmed to include check events SHALL NOT be polled while its deliveries are on time. If no delivery has arrived for it within an overdue period, it SHALL be polled until one does. A repo with no confirmed webhook, or one without check events, SHALL be polled.
+A repo whose webhook is confirmed to include check events SHALL NOT be polled while its check deliveries are on time. If no check delivery has arrived for it within an overdue period, it SHALL be polled until one does. A repo with no confirmed webhook, or one without check events, SHALL be polled.
 
 #### Scenario: Healthy webhook
 
@@ -47,6 +47,15 @@ A repo whose webhook is confirmed to include check events SHALL NOT be polled wh
 
 - **WHEN** the repo has a pending pull request and no delivery for longer than the overdue period
 - **THEN** it is polled
+
+### Requirement: One failing pull request does not fail the poll
+
+A pull request that cannot be read in a batched poll (repo deleted, access removed) SHALL NOT stop the others from being checked.
+
+#### Scenario: One alias fails
+
+- **WHEN** one of 12 pending pull requests errors
+- **THEN** the other 11 are updated and the failure is logged
 
 ### Requirement: A spent forge is not polled
 

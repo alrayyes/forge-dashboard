@@ -4,7 +4,7 @@
 
 ### Requirement: A forced refresh is not held back by background rules
 
-A user's "Refresh now" SHALL run at once and in full. It SHALL NOT wait for a webhook debounce window, the idle pause, or the stretched interval, and the budget reserve SHALL NOT block it unless the forge's budget is spent.
+A user's "Refresh now" SHALL run immediately (subject to the existing five-second cooldown between forced refreshes) and in full. It SHALL NOT wait for a webhook debounce window, the idle pause, or the stretched interval, and the budget reserve SHALL NOT block it unless the forge's budget is spent.
 
 #### Scenario: Forced during idle
 

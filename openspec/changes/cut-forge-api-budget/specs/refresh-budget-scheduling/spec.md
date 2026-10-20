@@ -8,7 +8,7 @@ Decide when background refreshes run, so they cost less when webhooks work, neve
 
 ### Requirement: The full refresh interval stretches when webhooks are healthy
 
-While every tracked repo has a healthy webhook, the full refresh interval SHALL stretch to between 20 minutes and 2 hours. When any tracked repo loses a healthy webhook, it SHALL return to `REFRESH_INTERVAL`. An explicitly set `REFRESH_INTERVAL` SHALL be the lower bound.
+While every tracked repo has a healthy webhook, the full refresh interval SHALL stretch to four times `REFRESH_INTERVAL`, up to 2 hours (never below `REFRESH_INTERVAL`). When any tracked repo loses a healthy webhook, it SHALL return to `REFRESH_INTERVAL`. An explicitly set `REFRESH_INTERVAL` SHALL be the lower bound.
 
 #### Scenario: Full coverage
 
@@ -22,7 +22,7 @@ While every tracked repo has a healthy webhook, the full refresh interval SHALL 
 
 ### Requirement: Background work leaves a reserve for user actions
 
-On a forge that reports a budget, background refreshes and polls SHALL NOT start when the remaining budget is at or under the reserve. A user's Merge, Update branch, bot rebase or Close SHALL still run. A forge that reports no budget has no reserve.
+On a forge that reports a budget, a background full refresh, poll or hook-maintenance call SHALL NOT start when it would take the remaining budget to or under the reserve; a scoped webhook refresh is held only when the budget is spent. A user's Merge, Update branch, bot rebase, Close, Enable auto-merge or queued action SHALL still run. A forge that reports no budget has no reserve.
 
 #### Scenario: Budget at the reserve
 
