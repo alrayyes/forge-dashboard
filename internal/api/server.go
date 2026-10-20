@@ -157,6 +157,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("DELETE /api/queued-actions/{id}", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsCancel(deps)))
 	mux.Handle("GET /api/pull-requests/checks", auth.RequireAuth(deps.AuthStore)(handlePullRequestChecks(deps)))
 	mux.Handle("GET /api/pull-requests/details", auth.RequireAuth(deps.AuthStore)(handlePullRequestDetails(deps)))
+	mux.Handle("GET /api/issues/details", auth.RequireAuth(deps.AuthStore)(handleIssueDetails(deps)))
 
 	mux.Handle("GET /api/sharing", auth.RequireAuth(deps.AuthStore)(handleSharingGet(deps)))
 	mux.Handle("PUT /api/sharing/{username}", auth.RequireAuth(deps.AuthStore)(handleSharingPut(deps)))
