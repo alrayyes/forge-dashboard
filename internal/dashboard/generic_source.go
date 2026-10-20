@@ -30,6 +30,8 @@ type RepoRef struct {
 	Name     string
 	// URL is the repo's own page on its forge — see Repo.URL.
 	URL string
+	// LogoURL — see Repo.LogoURL.
+	LogoURL string
 	// CanManageWebhooks — see Repo.CanManageWebhooks.
 	CanManageWebhooks bool
 	// WebhookLockedByConnection — see Repo.WebhookLockedByConnection.
@@ -101,6 +103,7 @@ func (s *GenericSource) Fetch(ctx context.Context) Result {
 			Forge:             s.forge,
 			FullName:          repo.FullName,
 			URL:               repo.URL,
+			LogoURL:           repo.LogoURL,
 			HasWebhook:        results[i].hasWebhook,
 			CanManageWebhooks: repo.CanManageWebhooks,
 

@@ -142,7 +142,10 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Title: "Dependency Dashboard", URL: "https://github.com/alrayyes/a/issues/1", Author: "renovate[bot]", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, Title: "A real bug", URL: "https://github.com/alrayyes/a/issues/2", Author: "alice", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
 		},
-		repos:    []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a", URL: "https://github.com/alrayyes/a"}},
+		repos: []dashboard.Repo{
+			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a", URL: "https://github.com/alrayyes/a", LogoURL: "https://repository-images.githubusercontent.com/123/abc"},
+			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/b", URL: "https://github.com/alrayyes/b"},
+		},
 		branches: contractBranches(now),
 	}
 	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
@@ -226,6 +229,7 @@ func TestContract_DashboardAndRefresh(t *testing.T) {
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 		require.Contains(t, string(got.body), `"firstRefreshDone":true`, "required by the spec (#1673)")
+		require.Contains(t, string(got.body), `"logoUrl":"https://repository-images.githubusercontent.com/123/abc"`, "a repository's own logo is on the wire")
 	})
 	t.Run("POST /api/dashboard/refresh", func(t *testing.T) {
 		t.Parallel()

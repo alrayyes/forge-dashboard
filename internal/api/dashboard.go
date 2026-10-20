@@ -28,6 +28,7 @@ type repoStatus struct {
 	Forge             dashboard.Forge `json:"forge"`
 	FullName          string          `json:"fullName"`
 	URL               string          `json:"url"`
+	LogoURL           string          `json:"logoUrl,omitempty"`
 	HasWebhook        bool            `json:"hasWebhook"`
 	CanManageWebhooks bool            `json:"canManageWebhooks"`
 	Ignored           bool            `json:"ignored"`
@@ -417,6 +418,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 			Forge:             r.Forge,
 			FullName:          r.FullName,
 			URL:               r.URL,
+			LogoURL:           r.LogoURL,
 			HasWebhook:        hasWebhook,
 			CanManageWebhooks: r.CanManageWebhooks,
 			Ignored:           scope.PRs || scope.Issues,
