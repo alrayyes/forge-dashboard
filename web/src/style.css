@@ -1507,6 +1507,67 @@ a.ci-pill:hover {
   border-radius: 14px;
   line-height: 1.2;
 }
+/* The Running pill with counts (#2004): a capsule split into segments like the
+   menu pills, the word Running and then one count per state that has any, each
+   with its own glyph, so colour is never alone. It draws its own background
+   (the neutral sunken one, not the warning tint) because the counts use the
+   state colours, and web/src/lib/ci-pill-contrast.test.ts holds each of them to
+   4.5:1 on it, which axe can't (it files these as incomplete). The slot grows
+   to the pill for a row that has one, so the counts fit beside the word and
+   are never clipped. */
+.ci-slot:has(.ci-pill.segmented) {
+  width: max-content;
+  min-width: 104px;
+}
+.ci-pill.segmented {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ci-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  align-self: stretch;
+  padding: 0 6px;
+}
+.ci-seg + .ci-seg {
+  border-left: 1px solid var(--border-strong);
+}
+.ci-pill.segmented .check-glyph {
+  width: 12px;
+  height: 12px;
+}
+.ci-seg-label {
+  color: var(--warning);
+}
+.ci-seg-passed {
+  color: var(--good);
+}
+.ci-seg-running {
+  color: var(--warning);
+}
+.ci-seg-waiting {
+  color: var(--queued);
+}
+.ci-seg-failed {
+  color: var(--critical);
+}
+@media (max-width: 760px) {
+  /* The word goes on a phone and the glyphs and counts stay, so the pill is as
+     narrow as it can be and the title keeps its two lines; the link's name
+     still says Running. */
+  .ci-seg-label {
+    display: none;
+  }
+  .ci-seg-label + .ci-seg {
+    border-left: 0;
+  }
+}
 .approve-link {
   position: relative;
   z-index: 1;
