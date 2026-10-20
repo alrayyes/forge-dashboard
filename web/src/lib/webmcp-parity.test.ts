@@ -111,7 +111,6 @@ const PENDING_OPERATIONS = [
   'rerunPullRequestChecks',
   'hidePullRequest',
   'unhidePullRequest',
-  'setPullRequestAutoUpdate',
   'updatePullRequestBranch',
   'postPullRequestDependabotAction',
   'postPullRequestRenovateRebase',

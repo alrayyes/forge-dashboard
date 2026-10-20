@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"unicode/utf8"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -45,19 +47,14 @@ func handlePullRequestAutoUpdate(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		if !validPullRequestTarget(w, req.Forge, req.FullName, req.Number) {
-			return
-		}
 
-		if _, found := deps.Manager.FindPullRequest(u.ID, dashboard.Forge(req.Forge), req.FullName, req.Number); !found {
-			writeJSON(w, http.StatusNotFound, errorBody("pull request not found"))
-
-			return
-		}
-
-		if err := saveAutoUpdateChoice(r, deps.SettingsStore, u.ID, req); err != nil {
-			slog.Warn("could not save pull request auto-update choice", "error", err)
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not save"))
+		field, serr := setPullRequestAutoUpdateFor(r.Context(), deps, u, req)
+		if serr != nil {
+			if field != "" {
+				writeJSON(w, serr.status, fieldErrorBody(field, serr.message))
+			} else {
+				serr.write(w)
+			}
 
 			return
 		}
@@ -65,10 +62,31 @@ func handlePullRequestAutoUpdate(deps Deps) http.HandlerFunc {
 	}
 }
 
+// setPullRequestAutoUpdateFor validates req and saves the choice for u. Shared
+// by handlePullRequestAutoUpdate and the MCP set_pull_request_auto_update tool
+// so the two can't drift. The *statusError carries the HTTP status the handler
+// answers with; the string names the request field a 400 is about, "" if none.
+func setPullRequestAutoUpdateFor(ctx context.Context, deps Deps, u *auth.User, req pullRequestAutoUpdateRequest) (string, *statusError) {
+	if field, serr := pullRequestTargetProblem(req.Forge, req.FullName, req.Number); serr != nil {
+		return field, serr
+	}
+
+	if _, found := deps.Manager.FindPullRequest(u.ID, dashboard.Forge(req.Forge), req.FullName, req.Number); !found {
+		return "", &statusError{http.StatusNotFound, "pull request not found"}
+	}
+
+	if err := saveAutoUpdateChoice(ctx, deps.SettingsStore, u.ID, req); err != nil {
+		slog.Warn("could not save pull request auto-update choice", "error", err)
+
+		return "", &statusError{http.StatusInternalServerError, "could not save"}
+	}
+
+	return "", nil
+}
+
 // saveAutoUpdateChoice keeps req's choice only while it differs from the repo's
 // setting, and drops any earlier one otherwise.
-func saveAutoUpdateChoice(r *http.Request, store *settings.Store, userID []byte, req pullRequestAutoUpdateRequest) error {
-	ctx := r.Context()
+func saveAutoUpdateChoice(ctx context.Context, store *settings.Store, userID []byte, req pullRequestAutoUpdateRequest) error {
 	if req.Enabled == nil {
 		return wrapAutoUpdate(store.ClearPullRequestAutoUpdate(ctx, userID, req.Forge, req.FullName, req.Number))
 	}
@@ -93,27 +111,22 @@ func wrapAutoUpdate(err error) error {
 	return nil
 }
 
-// validPullRequestTarget answers 400 itself when the forge, "owner/repo" or
-// number is not one a client could have read from the dashboard.
-func validPullRequestTarget(w http.ResponseWriter, forge, fullName string, number int) bool {
-	if overBound(w, bound{"fullName", fullName, maxRepoFullNameLen}) {
-		return false
+// pullRequestTargetProblem refuses, with a 400, a forge, "owner/repo" or number
+// a client could not have read from the dashboard. The string names the request
+// field it is about, "" when it is the whole name.
+func pullRequestTargetProblem(forge, fullName string, number int) (string, *statusError) {
+	if utf8.RuneCountInString(fullName) > maxRepoFullNameLen {
+		return "fullName", &statusError{http.StatusBadRequest, "fullName is too long"}
 	}
 	if _, _, ok := splitFullName(fullName); !ok {
-		writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
-
-		return false
+		return "", &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
 	}
 	if forge != string(dashboard.ForgeGitHub) && forge != string(dashboard.ForgeForgejo) {
-		writeJSON(w, http.StatusBadRequest, fieldErrorBody("forge", "forge must be github or forgejo"))
-
-		return false
+		return "forge", &statusError{http.StatusBadRequest, "forge must be github or forgejo"}
 	}
 	if number < 1 || number > maxPullRequestNumber {
-		writeJSON(w, http.StatusBadRequest, fieldErrorBody("number", "number must be a pull request number"))
-
-		return false
+		return "number", &statusError{http.StatusBadRequest, "number must be a pull request number"}
 	}
 
-	return true
+	return "", nil
 }

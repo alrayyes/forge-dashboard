@@ -559,6 +559,12 @@ a pull request the dashboard doesn't hold is refused. Update branch comes
 back on a pull request you have switched off, and goes away on one you have
 switched on.
 
+An agent sets the same choice with the `set_pull_request_auto_update` MCP tool,
+which takes `forge`, `fullName`, `number` and `enabled`. It does what the
+endpoint does, answers the same refusals, and writes only this app's own
+setting, so it sends nothing to a forge. Read the effective value and its
+source back from `autoUpdate` on the pull request in `get_dashboard`.
+
 In the details pop-up this is the checkbox "Update this branch
 automatically", just before the buttons. It shows the effective value, and the line
 under it says whether that is the repo's setting or a choice made for this
