@@ -11,10 +11,10 @@ import (
 // A pull request's own choice about automatic branch updates overrides its
 // repo's setting, in both directions.
 
-func behindPRsOn(repo string, numbers ...int) fakeSource {
+func behindPRsOn(numbers ...int) fakeSource {
 	prs := make([]dashboard.PullRequest, 0, len(numbers))
 	for _, n := range numbers {
-		prs = append(prs, dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: repo, Number: n, Behind: true})
+		prs = append(prs, dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: n, Behind: true})
 	}
 
 	return fakeSource{result: dashboard.Result{
@@ -25,7 +25,7 @@ func behindPRsOn(repo string, numbers ...int) fakeSource {
 
 func TestAggregator_Refresh_PROptedOutOnEnabledRepo_IsLeftAlone_OthersStillUpdate(t *testing.T) {
 	t.Parallel()
-	src := &fakeBranchUpdaterSource{fakeSource: behindPRsOn("alrayyes/a", 1, 2)}
+	src := &fakeBranchUpdaterSource{fakeSource: behindPRsOn(1, 2)}
 	lister := &fakeAutoUpdateBranchLister{
 		enabled:   map[string]struct{}{"github/alrayyes/a": {}},
 		overrides: map[string]bool{"github/alrayyes/a#1": false},
@@ -40,7 +40,7 @@ func TestAggregator_Refresh_PROptedOutOnEnabledRepo_IsLeftAlone_OthersStillUpdat
 
 func TestAggregator_Refresh_PROptedInOnRepoNotEnabled_IsUpdated_OthersAreNot(t *testing.T) {
 	t.Parallel()
-	src := &fakeBranchUpdaterSource{fakeSource: behindPRsOn("alrayyes/a", 1, 2)}
+	src := &fakeBranchUpdaterSource{fakeSource: behindPRsOn(1, 2)}
 	lister := &fakeAutoUpdateBranchLister{
 		enabled:   map[string]struct{}{},
 		overrides: map[string]bool{"github/alrayyes/a#2": true},
@@ -89,7 +89,7 @@ func TestAggregator_Refresh_ReleasePleasePROptedIn_IsStillLeftAlone(t *testing.T
 
 func TestAggregator_Refresh_OverridesUnreadable_FallsBackToTheRepoSetting(t *testing.T) {
 	t.Parallel()
-	src := &fakeBranchUpdaterSource{fakeSource: behindPRsOn("alrayyes/a", 1)}
+	src := &fakeBranchUpdaterSource{fakeSource: behindPRsOn(1)}
 	lister := &fakeAutoUpdateBranchLister{
 		enabled:      map[string]struct{}{"github/alrayyes/a": {}},
 		overridesErr: errors.New("database is locked"),
