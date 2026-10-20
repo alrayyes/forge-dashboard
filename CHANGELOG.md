@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.228.0](https://github.com/alrayyes/forge-dashboard/compare/v0.227.0...v0.228.0) (2026-10-20)
+
+
+### Features
+
+* **web:** the Main branches status pill opens the pipeline panel ([#1985](https://github.com/alrayyes/forge-dashboard/issues/1985)) ([cd2f278](https://github.com/alrayyes/forge-dashboard/commit/cd2f278d34355571c39e448a80a283b39e95a5a5))
+
 ## [0.227.0](https://github.com/alrayyes/forge-dashboard/compare/v0.226.0...v0.227.0) (2026-10-20)
 
 
