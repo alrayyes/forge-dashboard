@@ -353,9 +353,14 @@ test.describe('the real server serves what the nav reads (#1315)', () => {
       failed: expect.any(Number),
       passed: expect.any(Number),
     };
-    // A branch with no pipeline is counted as none, so the five add up (#1531).
+    // A branch with no pipeline is counted as none (#1531), and one whose runs
+    // are held for approval on its own (#2024), so the parts add up.
     expect(body.navCounts).toEqual({
-      branches: { ...checkedPage, none: expect.any(Number) },
+      branches: {
+        ...checkedPage,
+        none: expect.any(Number),
+        awaitingApproval: expect.any(Number),
+      },
       pullRequests: checkedPage,
       issues: { total: expect.any(Number) },
       releases: checkedPage,

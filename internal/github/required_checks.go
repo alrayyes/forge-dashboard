@@ -52,6 +52,10 @@ type heldAnswer struct {
 	held    bool
 	unknown bool
 	fetched time.Time
+	// runURL is the page of the newest held run, when the lookup listed the
+	// runs (the panel's and the branch's do; the pull request pill's reads
+	// only a count). A branch row links it (#2024).
+	runURL string
 }
 
 func (r *requiredChecks) cachedHeld(sha string) (heldAnswer, bool) {
@@ -65,8 +69,8 @@ func (r *requiredChecks) cachedHeld(sha string) (heldAnswer, bool) {
 	return a, true
 }
 
-func (r *requiredChecks) storeHeld(sha string, held bool) {
-	r.storeAnswer(sha, heldAnswer{held: held, fetched: time.Now()})
+func (r *requiredChecks) storeHeld(sha string, held bool, runURL string) {
+	r.storeAnswer(sha, heldAnswer{held: held, runURL: runURL, fetched: time.Now()})
 }
 
 // storeUnknownHeld remembers that the lookup failed.
@@ -241,7 +245,7 @@ func (c *Client) hasRunsAwaitingApproval(ctx context.Context, cand missingRequir
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
 	held := runs.GetTotalCount() > 0
-	c.requiredChecks.storeHeld(cand.headOid, held)
+	c.requiredChecks.storeHeld(cand.headOid, held, "")
 
 	return held
 }
