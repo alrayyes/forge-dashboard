@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.246.0](https://github.com/alrayyes/forge-dashboard/compare/v0.245.0...v0.246.0) (2026-10-20)
+
+
+### Features
+
+* **mcp:** add a tool to set a pull request's automatic branch update ([#2098](https://github.com/alrayyes/forge-dashboard/issues/2098)) ([e67a531](https://github.com/alrayyes/forge-dashboard/commit/e67a531c64a2b363c8ca401503705752e041f0e4))
+* show a pill on an issue linking to the pull request that will close it ([#2095](https://github.com/alrayyes/forge-dashboard/issues/2095)) ([375fa15](https://github.com/alrayyes/forge-dashboard/commit/375fa15bfba7f468b02efa292f79bcec21195201))
+
 ## [0.245.0](https://github.com/alrayyes/forge-dashboard/compare/v0.244.0...v0.245.0) (2026-10-20)
 
 
