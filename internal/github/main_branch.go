@@ -18,7 +18,14 @@ import (
 // of the commit for their names and times; the rollup's own state and counts
 // cover the rest, so a commit with more still gets the right status and only
 // the list of failing names can come up short.
+//
+// It also reads the repository's latestRelease, a single node that GitHub
+// answers without drafts and pre-releases, so a row can link to it.
 const defaultBranchSelection = `
+        latestRelease {
+          tagName
+          url
+        }
         defaultBranchRef {
           name
           target {
@@ -70,6 +77,21 @@ type graphqlBranchRef struct {
 	heldRunURL string
 }
 
+// graphqlRelease is a repository's latestRelease.
+type graphqlRelease struct {
+	TagName string `json:"tagName"`
+	URL     string `json:"url"`
+}
+
+// asRow is the release a row links to, nil for none or one with nothing to link.
+func (r *graphqlRelease) asRow() *dashboard.MainBranchRelease {
+	if r == nil || r.TagName == "" || r.URL == "" {
+		return nil
+	}
+
+	return &dashboard.MainBranchRelease{Tag: r.TagName, URL: r.URL}
+}
+
 // graphqlCommit is a commit with the CI that ran on it.
 type graphqlCommit struct {
 	OID             string    `json:"oid"`
@@ -101,10 +123,11 @@ type branchContext struct {
 
 // mainBranchFrom maps a repo's defaultBranchRef onto its default-branch row.
 // ref is nil for a repo with no commit yet.
-func mainBranchFrom(fullName, repoURL string, ref *graphqlBranchRef) dashboard.MainBranch {
+func mainBranchFrom(fullName, repoURL string, release *graphqlRelease, ref *graphqlBranchRef) dashboard.MainBranch {
 	row := dashboard.MainBranch{
 		Forge: dashboard.ForgeGitHub, FullName: fullName, URL: repoURL,
 		Status: dashboard.MainBranchNone, FailingJobs: []string{}, RunURL: repoURL,
+		LatestRelease: release.asRow(),
 	}
 	if ref == nil {
 		return row
@@ -438,6 +461,7 @@ func (c *Client) FetchMainBranch(ctx context.Context, owner, name, fullName stri
 	var resp struct {
 		Repository *struct {
 			URL              string            `json:"url"`
+			LatestRelease    *graphqlRelease   `json:"latestRelease"`
 			DefaultBranchRef *graphqlBranchRef `json:"defaultBranchRef"`
 		} `json:"repository"`
 	}
@@ -452,5 +476,5 @@ func (c *Client) FetchMainBranch(ctx context.Context, owner, name, fullName stri
 	repo.Owner.Login = owner
 	c.withCheckedCommits(ctx, []graphqlRepo{repo})
 
-	return mainBranchFrom(fullName, resp.Repository.URL, repo.DefaultBranchRef), nil
+	return mainBranchFrom(fullName, resp.Repository.URL, resp.Repository.LatestRelease, repo.DefaultBranchRef), nil
 }

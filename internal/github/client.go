@@ -1747,7 +1747,9 @@ type graphqlRepo struct {
 	Owner                    struct {
 		Login string `json:"login"`
 	} `json:"owner"`
-	PullRequests struct {
+	// LatestRelease is the newest published release, null for none.
+	LatestRelease *graphqlRelease `json:"latestRelease"`
+	PullRequests  struct {
 		Nodes []graphqlPullRequest `json:"nodes"`
 	} `json:"pullRequests"`
 	// IssuesTotal is the repo's own true current open-issue count,
@@ -2580,7 +2582,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 			}
 		}
 		result.Issues = append(result.Issues, issuesByRepo[fullName]...)
-		result.MainBranches = append(result.MainBranches, mainBranchFrom(fullName, r.URL, r.DefaultBranchRef))
+		result.MainBranches = append(result.MainBranches, mainBranchFrom(fullName, r.URL, r.LatestRelease, r.DefaultBranchRef))
 	}
 	c.resolveAmbiguousBehind(ctx, result.PullRequests, behindChecks)
 	c.settleUnreportedRequiredChecks(ctx, result.PullRequests, unreported)

@@ -40,6 +40,7 @@
     isFiltered,
     filterFromState,
     filterToState,
+    releaseHref,
     type MainBranch,
     type MainBranches,
     type MainBranchFilter,
@@ -394,6 +395,35 @@
       color: var(--ink-2);
       white-space: nowrap;
     }
+    /* The latest release is a link: underlined like the repo name, and 44px
+       tall on a phone. A long tag is cut to one line; the title has it whole. */
+    .mb-release {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 24px;
+      min-width: 0;
+      max-width: 100%;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink);
+      text-decoration: underline;
+    }
+    .mb-release-tag {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mb-release .attr-icon {
+      flex: none;
+    }
+    @media (max-width: 760px) {
+      .mb-release {
+        min-height: 44px;
+      }
+    }
     .mb-stale {
       background: var(--warning-bg);
       color: var(--warning);
@@ -725,6 +755,30 @@
                       b.forge}</span
                   >
                   {#if b.stale}<span class="mb-chip mb-stale">stale</span>{/if}
+                  {#if b.latestRelease && releaseHref(b.latestRelease.url)}
+                    <a
+                      class="mb-release"
+                      data-testid="main-branch-release"
+                      href={releaseHref(b.latestRelease.url)}
+                      title={b.latestRelease.tag}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Latest release {b.latestRelease
+                        .tag} (opens in a new tab)"
+                      ><svg
+                        viewBox="0 0 16 16"
+                        class="attr-icon"
+                        aria-hidden="true"
+                        focusable="false"
+                        ><path d="M2.5 2.5h5.2l6 6-5.2 5.2-6-6z" /><circle
+                          cx="5.5"
+                          cy="5.5"
+                          r="1"
+                        /></svg
+                      ><span class="mb-release-tag">{b.latestRelease.tag}</span
+                      ></a
+                    >
+                  {/if}
                 </div>
                 <p class="mb-meta">
                   {#if b.branch}<span class="mb-branch">{b.branch}</span

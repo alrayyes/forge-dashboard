@@ -87,10 +87,21 @@ type MainBranch struct {
 	// are waiting and failed, tallied from what the status was worked out
 	// from, so it costs no request. Always present, all zero when unknown.
 	Checks CheckCounts `json:"checks"`
+	// LatestRelease is the repository's newest published release, nil when it
+	// has none or the forge's read of it costs a request the refresh doesn't
+	// make. Drafts and pre-releases never count.
+	LatestRelease *MainBranchRelease `json:"latestRelease"`
 	// StaleSince is set on a row carried over from an earlier refresh because
 	// its forge couldn't be read (#922): when it was last fetched. The API
 	// derives the stale flag from it.
 	StaleSince *time.Time `json:"staleSince"`
+}
+
+// MainBranchRelease is a repository's latest release. Matches
+// components.schemas.MainBranchRelease.
+type MainBranchRelease struct {
+	Tag string `json:"tag"`
+	URL string `json:"url"`
 }
 
 // MainBranchCounts is how many rows each status holds. Matches
