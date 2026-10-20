@@ -10,7 +10,7 @@ import { registerViaInvite } from './register-helper';
 
 // #1427: the Repo, Author and Label choices on the Pull requests page offer
 // only what the list being shown has. The board's own filters (a quick pill,
-// the CI status select, Auto-merge) narrow that list, so they narrow these
+// the CI pills, Auto-merge) narrow that list, so they narrow these
 // choices too; picking an author must never leave an empty list.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
 
@@ -122,12 +122,12 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
     expect(await choices(page, 'shared-repo-select')).toEqual(['alrayyes/app']);
   });
 
-  test('the CI status filter leaves out what its other states have', async ({
+  test('the Passing CI pill leaves out what its other states have', async ({
     page,
   }) => {
     await open(page);
 
-    await page.selectOption('select[data-col="status"]', 'success');
+    await pill(page, 'Passing CI').click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
     expect(await choices(page, 'shared-author-select')).toEqual(['bob']);

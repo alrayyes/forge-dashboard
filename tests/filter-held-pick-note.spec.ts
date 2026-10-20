@@ -233,15 +233,6 @@ test.describe('seeded saved picks (#1620)', () => {
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(360);
   });
 
-  test('names a CI pick as a filter', async ({ page }) => {
-    await seed(page, {}, { status: 'failure' });
-    await open(page, '/pull-requests.html');
-    await expect(prRows(page)).toHaveCount(2);
-    await expect(page.locator('#held-picks')).toHaveText(
-      /Saved filter "CI status: Failing" is not on this page\./,
-    );
-  });
-
   test('after a Clear, focus moves to the next Clear button, then to the note', async ({
     page,
   }) => {

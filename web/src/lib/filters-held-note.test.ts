@@ -19,7 +19,7 @@ beforeEach(() => releaseAllHeld());
 function state(): SharedFilterState {
   return {
     shared: { author: 'ryan', repo: 'github:acme/docs', created: '10080' },
-    pr: { status: 'failure' },
+    pr: {},
     issue: {},
     view: {},
   };
@@ -35,12 +35,10 @@ describe('heldPicks', () => {
     holdStale(s, 'shared', 'author');
     holdStale(s, 'shared', 'repo');
     holdStale(s, 'shared', 'created');
-    holdStale(s, 'pr', 'status');
     expect(heldPicks().map((h) => [h.group, h.key, h.name, h.text])).toEqual([
       ['shared', 'author', 'author', 'ryan'],
       ['shared', 'repo', 'repo', 'acme/docs'],
       ['shared', 'created', 'created', '< 7 days'],
-      ['pr', 'status', 'CI status', 'Failing'],
     ]);
   });
 
@@ -68,13 +66,11 @@ describe('wording', () => {
     expect(heldPickClearLabel(pick)).toBe('Clear saved author "ryan"');
   });
 
-  test('says "filter" and names the control for date and CI kinds', () => {
+  test('says "filter" and names the control for date kinds', () => {
     const s = state();
     holdStale(s, 'shared', 'created');
-    holdStale(s, 'pr', 'status');
     expect(heldPicks().map(heldPickNote)).toEqual([
       'Saved filter "Created: < 7 days" is not on this page.',
-      'Saved filter "CI status: Failing" is not on this page.',
     ]);
   });
 

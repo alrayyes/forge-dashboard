@@ -107,12 +107,17 @@ branch gets Update branch and a line saying release-please won't update it
 until a releasable change lands. With no release pull requests open the page
 says nothing is waiting to ship.
 
-The quick filter pills above the list include **Failing CI**, **Running CI**
-and **Passing CI**, each offered only when it would show something. Next to
-them an **Auto-merge** control has Any, On and Off. On shows only pull requests
-that have auto-merge armed, Off only those without. It combines with a pill, so
-Failing CI with Auto-merge On finds armed pull requests whose checks have since
-failed.
+The quick filter pills above the list include **Failing CI**, **Running CI**,
+**Passing CI** and **No checks**, each offered only when it would show
+something. They are the only CI filter: the board header has no separate CI
+status dropdown, on this page, Releases and Bots. The **No checks** pill shows
+the pull requests that have no CI configured. A CI status saved from when the
+dropdown existed becomes the matching pill when the page loads, unless a pill or
+a forge is already picked, in which case it is dropped, so nothing stays
+filtered out of sight. Next to them an **Auto-merge** control has Any, On and
+Off. On shows only pull requests that have auto-merge armed, Off only those
+without. It combines with a pill, so Failing CI with Auto-merge On finds armed
+pull requests whose checks have since failed.
 
 ## Bots
 

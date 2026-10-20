@@ -7,7 +7,7 @@ import {
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
-// Show row on a pull request that the CI status or auto-merge filter hides
+// Show row on a pull request that the CI pill or auto-merge filter hides
 // has to clear that filter where the page keeps it (the pull-request group),
 // leave the filters that do not hide the row alone, and save the result.
 
@@ -113,21 +113,19 @@ test.describe('Show row clears the filter that hides the row', () => {
     await registerAndSignIn(page, request, baseURL);
   });
 
-  test('the CI status filter', async ({ page }) => {
+  test('the Failing CI pill', async ({ page }) => {
     await open(page);
     await queueOnFirst(page);
     await filtersByAuthor(page);
-    await page
-      .locator('.col-filter[data-col="status"]')
-      .selectOption('failure');
+    await page.locator('.quick-pills [data-pill="failing"]').click();
     await expect(titles(page)).toHaveCount(1);
     await expect(titles(page).first()).toContainText('Pull request 2');
 
     await showRow(page);
 
-    await expect(page.locator('.col-filter[data-col="status"]')).toHaveValue(
-      '',
-    );
+    await expect(
+      page.locator('.quick-pills [data-pill="all"]'),
+    ).toHaveAttribute('aria-pressed', 'true');
     await expect(titles(page)).toHaveCount(2);
     // Only what hid the row is cleared.
     await expect(
@@ -135,8 +133,8 @@ test.describe('Show row clears the filter that hides the row', () => {
     ).toHaveValue('claude');
     await expect(async () => {
       const { cookie, server } = await savedCopies(page);
-      expect(cookie?.pr?.status || '').toBe('');
-      expect(server?.pr?.status || '').toBe('');
+      expect(cookie?.pr?.quick || '').toBe('');
+      expect(server?.pr?.quick || '').toBe('');
       expect(cookie?.shared?.author).toBe('claude');
       expect(server?.shared?.author).toBe('claude');
     }).toPass();

@@ -92,7 +92,8 @@ function prsFor(base: number, kind: string | undefined) {
     }),
     pr(base + 3, kind, { ci: 'pending', needsReview: true }),
     pr(base + 4, kind, { reviewRequestedFromMe: true }),
-    ...Array.from({ length: 28 }, (_, i) => pr(base + 5 + i, kind)),
+    pr(base + 5, kind, { ci: 'none' }),
+    ...Array.from({ length: 27 }, (_, i) => pr(base + 6 + i, kind)),
   ];
 }
 
@@ -282,6 +283,7 @@ const CONTROLS: Control[] = [
   pill('Failing CI', 'failing', PR_BOARDS),
   pill('Running CI', 'running', PULLS_ONLY),
   pill('Passing CI', 'passing', PULLS_ONLY),
+  pill('No checks', 'no-checks', PULLS_ONLY),
   pill('Conflicts', 'conflicting', PULLS_ONLY),
   pill('Ready to Merge', 'ready', PULLS_ONLY),
   pill('Needs Review', 'needs-review', PULLS_ONLY),
@@ -325,14 +327,6 @@ const CONTROLS: Control[] = [
     'groupBy',
   ),
   select('sort select', '#pr-sort-select', 'created', 'view', 'sort'),
-  select(
-    'CI status select',
-    '[data-col="status"]',
-    'failure',
-    'pr',
-    'status',
-    PR_BOARDS,
-  ),
   toggle('Show drafts', '#show-drafts-toggle', 'drafts', PR_BOARDS),
   toggle('Pause live updates', '#pause-updates-button', 'paused', ALL),
   {

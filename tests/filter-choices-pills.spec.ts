@@ -120,14 +120,14 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     }
   });
 
-  test('the pills follow the CI filter', async ({ page }) => {
+  test('the pills follow the other filters', async ({ page }) => {
     await open(page, '/pull-requests.html', [
       pr(1, { ci: 'success', readyToMerge: true }),
-      pr(2, { ci: 'failure' }),
+      pr(2, { ci: 'failure', author: 'dana' }),
     ]);
     await expect(pill(page, 'Failing CI')).toBeVisible();
 
-    await page.selectOption('select[data-col="status"]', 'success');
+    await page.selectOption('#shared-author-select', 'claude');
 
     await expect(pill(page, 'Failing CI')).toBeHidden();
     await expect(pill(page, 'Ready to Merge')).toBeVisible();

@@ -57,6 +57,7 @@ export const QUICK_FILTERS = [
   'failing',
   'running',
   'passing',
+  'no-checks',
   'ready',
   'needs-review',
   'review-requested',
@@ -100,6 +101,8 @@ export function matchesQuickFilter(
       return item.ci === 'pending';
     case 'passing':
       return item.ci === 'success';
+    case 'no-checks':
+      return item.ci === 'none';
     case 'ready':
       return item.readyToMerge === true;
     case 'needs-review':
@@ -303,6 +306,7 @@ export function readCookieState(): SharedFilterState {
     state.webhooks = { ...state.webhooks, ...parsed.webhooks };
   dropUnknownAutoMerge(state);
   dropNonStringTitleRule(state);
+  migrateCiStatus(state);
   return state;
 }
 
@@ -313,6 +317,28 @@ function dropUnknownAutoMerge(state: SharedFilterState): void {
   const value = state.pr.autoMerge;
   if (value !== undefined && value !== 'on' && value !== 'off')
     delete state.pr.autoMerge;
+}
+
+// The pull request board used to have a CI status pulldown; the quick pills
+// do the same job. A status saved from then becomes the pill it matches, so it
+// still filters and can be seen and cleared. A pill or a forge already picked
+// stays (the pills are one choice), and the old status is dropped rather than
+// left as a filter nothing on the page shows (#2084).
+const CI_STATUS_PILLS: Record<string, string> = {
+  success: 'passing',
+  failure: 'failing',
+  pending: 'running',
+  none: 'no-checks',
+};
+
+function migrateCiStatus(state: SharedFilterState): void {
+  const status = state.pr.status;
+  if (status === undefined) return;
+  delete state.pr.status;
+  const pill = CI_STATUS_PILLS[status];
+  if (!pill || state.pr.quick || state.shared.forge) return;
+  if (isTouched('pr', 'quick') || isTouched('shared', 'forge')) return;
+  state.pr.quick = pill;
 }
 
 // A saved title pattern is a string; anything else is a stale or hand-edited
@@ -390,7 +416,7 @@ export function releaseAllHeld(): void {
 export type HeldPick = {
   group: StateGroup;
   key: string;
-  // What the control is called ("author", "CI status").
+  // What the control is called ("author", "repo").
   name: string;
   // The saved value as a reader knows it ("acme/docs", "< 7 days").
   text: string;
@@ -403,15 +429,10 @@ export function heldPicks(): HeldPick[] {
     let text = h.value;
     if (h.key === 'repo') text = h.value.slice(h.value.indexOf(':') + 1);
     const choices =
-      h.key === 'created' || h.key === 'updated'
-        ? AGE_RANGES
-        : h.key === 'status'
-          ? CI_CHOICES
-          : [];
+      h.key === 'created' || h.key === 'updated' ? AGE_RANGES : [];
     text = choices.find((c) => c.value === h.value)?.label ?? text;
     if (h.key === 'label') text = parseLabels(h.value).join(', ');
-    const name = h.key === 'status' ? FILTER_NAMES.status : h.key;
-    return { group: h.group, key: h.key, name, text };
+    return { group: h.group, key: h.key, name: h.key, text };
   });
 }
 
@@ -429,7 +450,7 @@ function shortText(text: string): string {
 // "filter" with the control's name for the date and CI kinds.
 function heldPickPhrase(pick: HeldPick): string {
   const value = shortText(pick.text);
-  if (['created', 'updated', 'status'].includes(pick.key))
+  if (['created', 'updated'].includes(pick.key))
     return `filter "${FILTER_NAMES[pick.key]}: ${value}"`;
   return `${pick.name} "${value}"`;
 }
@@ -814,6 +835,7 @@ export function applyServerState(
   }
   dropUnknownAutoMerge(state);
   dropNonStringTitleRule(state);
+  migrateCiStatus(state);
 }
 
 export function minutesAgo(iso: string): number {
@@ -825,7 +847,7 @@ export function minutesAgo(iso: string): number {
 
 // shared carries the fields that apply to both pull requests and
 // issues; extra carries whichever board-owned field applies to this
-// item's own entity type (status for a pull request,
+// item's own entity type (quick and autoMerge for a pull request,
 // hideDependencyDashboard for an issue) — the caller passes only the
 // one relevant to isPR.
 export function matchesFilters(
@@ -838,7 +860,7 @@ export function matchesFilters(
 }
 
 // Which active filters exclude an item, by the key each is stored under
-// (shared.repo, pr.status, pr.quick, ...). Empty when it matches. Show row
+// (shared.repo, pr.quick, ...). Empty when it matches. Show row
 // (#723) uses it to say what hides a row and to clear exactly those.
 export function failingFilters(
   item: FilterableItem,
@@ -863,12 +885,6 @@ export function failingFilters(
     failing.push('updated');
   // Any of the picked labels (shared.label holds one or several).
   if (!carriesAny(item.labels, shared.label)) failing.push('label');
-  if (
-    isPR &&
-    extra?.status &&
-    (extra.status === 'failure' ? !isFailing(item) : item.ci !== extra.status)
-  )
-    failing.push('status');
   if (isPR && !matchesQuickFilter(item, extra?.quick)) failing.push('quick');
   if (isPR && !matchesAutoMerge(item, extra?.autoMerge))
     failing.push('autoMerge');
@@ -1082,7 +1098,6 @@ export const FILTER_NAMES: Record<string, string> = {
   created: 'Created',
   updated: 'Updated',
   label: 'Label',
-  status: 'CI status',
   quick: 'quick',
   autoMerge: 'Auto-merge',
   hideTitleRegex: 'Hide titles matching',
@@ -1111,7 +1126,7 @@ export interface Choice {
   label: string;
 }
 
-// populateSelect for options whose label isn't their value (CI status, the
+// populateSelect for options whose label isn't their value (the
 // age ranges). Same contract: true when previous was stale and got cleared.
 export function populateChoices(
   select: HTMLSelectElement | null,
@@ -1157,22 +1172,6 @@ export function populateSelect(
     select,
     values.map((v) => ({ value: v, label: v })),
     previous,
-  );
-}
-
-const CI_CHOICES: Choice[] = [
-  { value: 'success', label: 'Passing' },
-  { value: 'failure', label: 'Failing' },
-  { value: 'pending', label: 'Running' },
-  { value: 'none', label: 'No checks' },
-];
-
-// The CI states some item is in, in the order the select lists them (#1427).
-export function ciChoices(items: FilterableItem[]): Choice[] {
-  return CI_CHOICES.filter((c) =>
-    items.some((i) =>
-      c.value === 'failure' ? isFailing(i) : i.ci === c.value,
-    ),
   );
 }
 
