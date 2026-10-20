@@ -240,7 +240,7 @@ func TestFetch_MapsPullRequestFieldsAndCIFromStatusCheckRollup(t *testing.T) {
 									"nodes": []map[string]any{
 										{
 											"number": 12, "title": "Add NTP alarm", "url": "https://github.com/alrayyes/a/pull/12",
-											"isDraft": false, "author": map[string]any{"login": "ryankes"},
+											"isDraft": false, "author": map[string]any{"login": "ryankes", "avatarUrl": "https://avatars.example.com/u/1"},
 											"labels":    map[string]any{"nodes": []map[string]any{{"name": "topic/monitoring", "color": "1d76db"}}},
 											"createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z",
 											"commits": map[string]any{
@@ -274,6 +274,10 @@ func TestFetch_MapsPullRequestFieldsAndCIFromStatusCheckRollup(t *testing.T) {
 		assert.Equal(t, "Add NTP alarm", pr.Title)
 		assert.Equal(t, "ryankes", pr.Author)
 		assert.Equal(t, "alrayyes/a", pr.Repo)
+	})
+	t.Run("author avatar carries through", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, "https://avatars.example.com/u/1", pr.AuthorAvatarURL)
 	})
 	t.Run("labels carry through", func(t *testing.T) {
 		t.Parallel()
@@ -894,7 +898,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 		writeJSON(t, w, []map[string]any{
 			{
 				"number": 12, "title": "Add NTP alarm", "html_url": "https://github.com/alrayyes/a/pull/12",
-				"draft": false, "user": map[string]string{"login": "ryankes"},
+				"draft": false, "user": map[string]string{"login": "ryankes", "avatar_url": "https://avatars.example.com/u/1"},
 				"labels":     []map[string]string{{"name": "topic/monitoring", "color": "1d76db"}},
 				"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
 				"head": map[string]string{"sha": "cafef00d"},
@@ -922,6 +926,7 @@ func TestFetch_NoToken_MapsPullRequestFieldsAndResolvesCIFromCheckRuns(t *testin
 	pr := result.PullRequests[0]
 	assert.Equal(t, 12, pr.Number)
 	assert.Equal(t, "ryankes", pr.Author)
+	assert.Equal(t, "https://avatars.example.com/u/1", pr.AuthorAvatarURL)
 	assert.Equal(t, dashboard.CISuccess, pr.CI)
 }
 

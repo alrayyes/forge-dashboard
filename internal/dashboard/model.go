@@ -144,18 +144,21 @@ func DeriveReviewDecision(approvals, changesRequested, requested int) ReviewDeci
 
 // PullRequest matches components.schemas.PullRequest in api/openapi.yaml.
 type PullRequest struct {
-	Forge       Forge       `json:"forge"`
-	Repo        string      `json:"repo"`
-	Number      int         `json:"number"`
-	Title       string      `json:"title"`
-	URL         string      `json:"url"`
-	Author      string      `json:"author"`
-	Draft       bool        `json:"draft"`
-	Labels      []Label     `json:"labels"`
-	CreatedAt   time.Time   `json:"createdAt"`
-	UpdatedAt   time.Time   `json:"updatedAt"`
-	CI          CIStatus    `json:"ci"`
-	MergeStatus MergeStatus `json:"mergeStatus"`
+	Forge  Forge  `json:"forge"`
+	Repo   string `json:"repo"`
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+	Author string `json:"author"`
+	// AuthorAvatarURL is the forge's own avatar URL for the author; empty
+	// when the forge supplies none (a deleted account).
+	AuthorAvatarURL string      `json:"authorAvatarUrl"`
+	Draft           bool        `json:"draft"`
+	Labels          []Label     `json:"labels"`
+	CreatedAt       time.Time   `json:"createdAt"`
+	UpdatedAt       time.Time   `json:"updatedAt"`
+	CI              CIStatus    `json:"ci"`
+	MergeStatus     MergeStatus `json:"mergeStatus"`
 	// Behind is deliberately its own field, not folded into MergeStatus,
 	// because the two aren't mutually exclusive on every forge: confirmed
 	// live against a real Forgejo instance (a PR's own Mergeable field
