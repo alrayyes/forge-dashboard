@@ -1449,6 +1449,55 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/pull-requests/auto-update:
+    post:
+      operationId: setPullRequestAutoUpdate
+      summary: Turn the automatic branch update on or off for one pull request
+      description: |
+        A pure local write: nothing is sent to the forge. The choice is kept
+        only while it differs from the repo's auto-update setting
+        (`/api/repos/auto-update-branch/enable`), so a choice that matches
+        the repo is dropped and the pull request follows the repo again, and
+        a later change to the repo's setting reaches it. With `enabled`
+        `null` or absent the pull request goes back to its repo's setting.
+        Idempotent. A draft and a release-please pull request are never
+        updated automatically, whatever is chosen: `autoUpdate.unavailable`
+        in GET /api/dashboard says so. The server forgets the choice once
+        the pull request is no longer open, its repo is no longer tracked, or
+        the repo's setting changes to match it. A pull request the dashboard
+        doesn't hold is a 404.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestAutoUpdateRequest"
+      responses:
+        "204":
+          description: The choice is saved (or dropped).
+        "400":
+          description: |
+            The request body wasn't valid JSON, `forge` wasn't a known forge,
+            `fullName` wasn't "owner/repo", or `number` wasn't positive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The dashboard doesn't hold that pull request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/pull-requests/unhide:
     post:
       operationId: unhidePullRequest
@@ -1855,7 +1904,9 @@ paths:
         number. An avatar is the forge's own URL, passed through unchanged
         and never proxied; this app sets no Content-Security-Policy today, so
         the browser loads it directly. A future policy's `img-src` has to
-        allow avatars.githubusercontent.com and the Forgejo host.
+        allow avatars.githubusercontent.com, repository-images.githubusercontent.com
+        (a GitHub repository's logo, see `logoUrl` on a repo in GET
+        /api/dashboard) and the Forgejo host.
 
         The error answers are those of GET /api/pull-requests/checks, with
         the same codes. A forge that can't be read is an error, never an
@@ -3098,6 +3149,7 @@ components:
             - ready_to_merge
             - permission
             - rate_limited
+            - forge_error
             - not_rate_limited
             - not_open
             - unknown
@@ -3106,6 +3158,12 @@ components:
             request's real state. `already_merged` and `already_closed`
             mean the dashboard's row was stale: the pull request has
             nothing left to merge.
+
+            `forge_error` means the forge failed on its own side (a 5xx):
+            nothing is wrong with the request, so asking again may work.
+            `upstreamStatus` and `requestId` then say what the forge
+            answered with, for tracing a report. Update branch is tried a
+            second time by the server before this is answered.
 
             `not_rate_limited` belongs to queueing an action: the forge
             isn't rate limited, so act directly. `not_open` is only an
@@ -3132,6 +3190,14 @@ components:
           type: string
           format: date-time
           description: Only with `rate_limited`, when the forge said so. When the budget comes back. On Forgejo it comes from the `Retry-After` header, in seconds or as a date.
+        upstreamStatus:
+          type: integer
+          minimum: 500
+          maximum: 599
+          description: Only with `forge_error`. The HTTP status the forge answered with.
+        requestId:
+          type: string
+          description: Only with `forge_error`, and only when the forge sent one (GitHub's `X-GitHub-Request-Id`). What the forge's support asks for.
 
     RegisterBeginRequest:
       type: object
@@ -3915,6 +3981,47 @@ components:
         request's head commit. "none" means neither forge reported any
         check at all, not that one failed.
 
+    CheckCounts:
+      type: object
+      required: [passed, running, waiting, failed]
+      description: |
+        How many of a pull request's checks are in each state, so a client can
+        say how far a pipeline is without opening it. The server tallies
+        them from what it already reads to work out `ci`, so they cost no
+        request. Always present, all zero when there are no checks.
+
+        `waiting` is a check that has not started: queued, or pending where the
+        forge doesn't tell queued from running. The counts agree with `ci`: a
+        pull request whose `ci` is `pending` has `failed` at 0, and one whose
+        `ci` is `success` has nothing running, waiting or failed. Two kinds of
+        run are therefore in none of the four. A run held for approval:
+        `awaitingWorkflowApproval` says that. A cancelled run: a push or a
+        concurrency group superseded it, and the overall state does not read it
+        as a failure while others still run. A timed-out or stale check counts
+        as `failed`, a skipped, neutral or bare completed one as `passed`.
+
+        On GitHub the counts come from the same rollup as `ci`; on Forgejo from
+        the statuses of the combined commit status, where nothing is ever
+        `running`. Forgejo answers one page of those statuses, and when its
+        total says there are more than the page holds the counts are all zero
+        rather than an undercount. When GitHub's rollup is of an earlier
+        commit than the head (a push still being processed), the counts are
+        zero too. GitHub's unauthenticated fallback has no such counts, so
+        there they are all zero.
+      properties:
+        passed:
+          type: integer
+          minimum: 0
+        running:
+          type: integer
+          minimum: 0
+        waiting:
+          type: integer
+          minimum: 0
+        failed:
+          type: integer
+          minimum: 0
+
     CheckState:
       type: string
       enum:
@@ -3999,7 +4106,7 @@ components:
 
     Person:
       type: object
-      required: [login, avatarUrl]
+      required: [login, avatarUrl, url]
       description: Who wrote a description or a comment.
       properties:
         login:
@@ -4007,6 +4114,9 @@ components:
         avatarUrl:
           type: string
           description: The forge's own avatar URL, passed through unchanged and never proxied.
+        url:
+          type: string
+          description: The person's profile page on the forge, built by the server from the web address of an item the board already holds for that forge. Empty when the board holds none yet, so a client shows the name alone.
 
     Reaction:
       type: object
@@ -4323,11 +4433,13 @@ components:
           url,
           author,
           authorAvatarUrl,
+          authorUrl,
           draft,
           labels,
           createdAt,
           updatedAt,
           ci,
+          checks,
           mergeStatus,
           behind,
           headSha,
@@ -4351,6 +4463,7 @@ components:
           readyToMerge,
           failingCi,
           needsReview,
+          autoUpdate,
         ]
       properties:
         forge:
@@ -4372,6 +4485,9 @@ components:
         authorAvatarUrl:
           type: string
           description: The forge's own avatar URL for the author, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+        authorUrl:
+          type: string
+          description: The author's profile page on the forge, built by the server from the forge's own web address, so a client needs no rule per forge. A GitHub bot links to its app page. Empty when there is nothing to link to, such as a deleted account.
         draft:
           type: boolean
         labels:
@@ -4386,6 +4502,8 @@ components:
           format: date-time
         ci:
           $ref: "#/components/schemas/CIStatus"
+        checks:
+          $ref: "#/components/schemas/CheckCounts"
         mergeStatus:
           $ref: "#/components/schemas/MergeStatus"
         behind:
@@ -4412,7 +4530,12 @@ components:
             What sort of pull request this is, decided by the server so no
             client keeps its own copy of the rule. `release`: release-please's,
             by its `autorelease:` label (a person opens these, so the label is
-            the only signal, and it wins over any bot author). `dependency`:
+            the main signal, and it wins over any bot author), or, when the
+            label is missing because release-please failed before applying it,
+            by its head branch: `release-please--branches--<base branch>`
+            (with `--components--<name>` after it for a repo that releases
+            several components) in the same repository and aimed at that base
+            branch. A fork's pull request is never a release. `dependency`:
             opened by Dependabot or Renovate, in either spelling of the login
             (the bare slug GraphQL gives, or REST's `[bot]` form), on either
             forge. `regular`: everything else. Always present.
@@ -4682,6 +4805,73 @@ components:
             isn't a draft. Unreviewed with nobody asked, approved, changes
             requested and an unknown review state are all false. Always
             present.
+        autoUpdate:
+          $ref: "#/components/schemas/AutoUpdate"
+
+    AutoUpdate:
+      type: object
+      required: [enabled, source, unavailable]
+      description: |
+        Whether the dashboard brings this pull request's branch up to date by
+        itself: the pull request's own choice when it has one
+        (`POST /api/pull-requests/auto-update`), else its repo's
+        auto-update setting. Always present.
+      properties:
+        enabled:
+          type: boolean
+          description: |
+            What the background pass does with this pull request. Always
+            false when `unavailable` is set.
+        source:
+          type: string
+          enum: [repo, pullRequest]
+          description: |
+            `repo` when the pull request follows its repo's setting,
+            `pullRequest` when the user chose for this one.
+        unavailable:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/AutoUpdateUnavailable"
+          description: |
+            Set when the pass skips this pull request however it is switched,
+            so a client shows the reason instead of a switch that does
+            nothing. Null otherwise.
+
+    AutoUpdateUnavailable:
+      type: object
+      required: [code, reason]
+      properties:
+        code:
+          type: string
+          enum: [draft, release_please]
+        reason:
+          type: string
+          description: A sentence a client can show as it is.
+
+    PullRequestAutoUpdateRequest:
+      type: object
+      required: [forge, fullName, number]
+      description: |
+        Which pull request, and whether the dashboard should update its
+        branch automatically.
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          maxLength: 255
+          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+        number:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Matching a PullRequest.number from GET /api/dashboard.
+        enabled:
+          type: [boolean, "null"]
+          description: |
+            `true` to update this pull request automatically, `false` to
+            leave it alone, whatever its repo says. `null` or absent
+            returns it to its repo's setting.
 
     QueuedActionRequest:
       type: object
@@ -5026,6 +5216,8 @@ components:
           title,
           url,
           author,
+          authorAvatarUrl,
+          authorUrl,
           labels,
           housekeeping,
           createdAt,
@@ -5056,6 +5248,12 @@ components:
             the server leaves it out of `issues` as well.
         author:
           type: string
+        authorAvatarUrl:
+          type: string
+          description: The forge's own avatar URL for whoever filed the issue, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+        authorUrl:
+          type: string
+          description: The author's profile page on the forge, built by the server from the forge's own web address. Empty when there is nothing to link to, such as a deleted account.
         labels:
           type: array
           items:
@@ -5069,14 +5267,15 @@ components:
 
     NavCount:
       type: object
-      required: [total, running, failed, passed, none]
+      required: [total, running, failed, passed, none, awaitingApproval]
       description: |
         The Branches page's numbers: how many default branches
         it lists and how many of those have a pipeline running, failed and
         passed, the same four as `NavPullRequestCount`, plus `none`, the ones
-        with no pipeline. A branch whose only trouble is a cancelled run
-        counts in `total` only, as a pull request with no checks does, so the
-        parts need not add up. All five are always present.
+        with no pipeline, and `awaitingApproval`, the ones whose workflow runs
+        are held until someone approves them. A branch whose only trouble is a
+        cancelled run counts in `total` only, as a pull request with no checks
+        does, so the parts need not add up. All six are always present.
       properties:
         total:
           type: integer
@@ -5098,6 +5297,13 @@ components:
           type: integer
           minimum: 0
           description: How many of them have no pipeline.
+        awaitingApproval:
+          type: integer
+          minimum: 0
+          description: |
+            How many of them have workflow runs held until someone approves
+            them. Nothing has run and nothing has failed, so they are in none
+            of `running`, `failed` and `passed`.
 
     NavPullRequestCount:
       type: object
@@ -5288,15 +5494,17 @@ components:
 
     MainBranchStatus:
       type: string
-      enum: [failed, passed, running, cancelled, none]
+      enum: [failed, passed, running, cancelled, awaiting_approval, none]
       description: |
         The result of the latest pipeline on a default branch's newest
         commit, across all its workflows. "failed" when any job failed,
         "running" when none failed and some are still queued or running,
         "cancelled" when nothing failed and nothing is running but some run
         was cancelled (a newer push or a person stopped it, so nothing broke),
-        "passed" when all finished green, "none" when the commit has no
-        pipeline at all (or the repository has no commit yet).
+        "awaiting_approval" when GitHub holds the commit's workflow runs until
+        a maintainer approves them (they create no check runs, so nothing
+        runs), "passed" when all finished green, "none" when the commit has
+        no pipeline at all (or the repository has no commit yet).
 
     MainBranchCommit:
       type: object
@@ -5393,10 +5601,11 @@ components:
 
     MainBranchCounts:
       type: object
-      required: [failed, passed, running, cancelled, none, total]
+      required:
+        [failed, passed, running, cancelled, awaitingApproval, none, total]
       description: |
         How many rows are in each status, the numbers on the filter pills.
-        `total` is every row, so it equals the sum of the other five.
+        `total` is every row, so it equals the sum of the other six.
       properties:
         failed:
           type: integer
@@ -5408,6 +5617,9 @@ components:
           type: integer
           minimum: 0
         cancelled:
+          type: integer
+          minimum: 0
+        awaitingApproval:
           type: integer
           minimum: 0
         none:
@@ -5461,6 +5673,22 @@ components:
           format: uri
           description: The repo's own page on its forge, for linking out.
           examples: ["https://github.com/alrayyes/forge-dashboard"]
+        logoUrl:
+          type: string
+          format: uri
+          description: |
+            The repository's own logo, only when it has one: a GitHub
+            repository's custom social preview image, or a Forgejo
+            repository's own avatar. Absent otherwise, and never the
+            generated social card GitHub shows for a repository with none,
+            nor the owner's avatar. Always an https URL, passed through
+            unchanged and never proxied: on GitHub exactly
+            repository-images.githubusercontent.com, on Forgejo the
+            instance's own host. A GitHub custom image is a wide banner,
+            not a square logo.
+            Absent for a repository reached through an unauthenticated,
+            username-only listing, since that listing carries no image.
+          examples: ["https://repository-images.githubusercontent.com/123/abc"]
         ignored:
           type: boolean
           description: |

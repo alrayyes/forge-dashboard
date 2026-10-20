@@ -81,6 +81,47 @@ func record(t *testing.T, method, url string, cookie *http.Cookie) (*http.Reques
 	return req, recorded{status: resp.StatusCode, header: resp.Header, body: body}
 }
 
+// Every pull request in the dashboard carries its automatic-update state, and
+// the write endpoint answers what the spec says for a call with no body or no
+// session.
+func TestContract_PullRequestAutoUpdate(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie := populatedBoard(t)
+
+	t.Run("every pull request carries an autoUpdate object the spec accepts", func(t *testing.T) {
+		t.Parallel()
+
+		req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard?includeDrafts=true", cookie)
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+		var body struct {
+			PullRequests []map[string]any `json:"pullRequests"`
+		}
+		require.NoError(t, json.Unmarshal(got.body, &body))
+		require.NotEmpty(t, body.PullRequests)
+		for _, pr := range body.PullRequests {
+			assert.Contains(t, pr, "autoUpdate")
+		}
+	})
+	t.Run("a call without a body answers 400 as the spec says", func(t *testing.T) {
+		t.Parallel()
+
+		req, got := record(t, http.MethodPost, srv.URL+"/api/pull-requests/auto-update", cookie)
+
+		require.Equal(t, http.StatusBadRequest, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+	})
+	t.Run("a call without a session answers 401 as the spec says", func(t *testing.T) {
+		t.Parallel()
+
+		req, got := record(t, http.MethodPost, srv.URL+"/api/pull-requests/auto-update", nil)
+
+		require.Equal(t, http.StatusUnauthorized, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+	})
+}
+
 func TestContract_HealthAndReadiness(t *testing.T) {
 	t.Parallel()
 
@@ -140,9 +181,12 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 		},
 		issues: []dashboard.Issue{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Title: "Dependency Dashboard", URL: "https://github.com/alrayyes/a/issues/1", Author: "renovate[bot]", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, Title: "A real bug", URL: "https://github.com/alrayyes/a/issues/2", Author: "alice", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, Title: "A real bug", URL: "https://github.com/alrayyes/a/issues/2", Author: "alice", AuthorAvatarURL: "https://avatars.example.com/u/2", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
 		},
-		repos:    []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a", URL: "https://github.com/alrayyes/a"}},
+		repos: []dashboard.Repo{
+			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a", URL: "https://github.com/alrayyes/a", LogoURL: "https://repository-images.githubusercontent.com/123/abc"},
+			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/b", URL: "https://github.com/alrayyes/b"},
+		},
 		branches: contractBranches(now),
 	}
 	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
@@ -226,6 +270,7 @@ func TestContract_DashboardAndRefresh(t *testing.T) {
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 		require.Contains(t, string(got.body), `"firstRefreshDone":true`, "required by the spec (#1673)")
+		require.Contains(t, string(got.body), `"logoUrl":"https://repository-images.githubusercontent.com/123/abc"`, "a repository's own logo is on the wire")
 	})
 	t.Run("POST /api/dashboard/refresh", func(t *testing.T) {
 		t.Parallel()

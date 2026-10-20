@@ -5,6 +5,7 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 import { rateLimit } from './severity-stand-in';
@@ -1733,7 +1734,7 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
     });
 
-    test('a PR-only filter like CI status is not part of the shared repo/author/label narrowing', async ({
+    test('a PR-only filter like CI status also narrows the shared repo/author/label choices', async ({
       page,
     }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
@@ -1783,13 +1784,25 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Failing PR');
 
-      // The CI filter narrowed the PR board's own rows, but it's a
-      // board-owned field, not a shared one — the shared Repo/Author/
-      // Label selects still offer values from both PRs, including the
-      // passing one CI status just hid.
-      await expect(page.locator('#shared-repo-select option')).toHaveCount(3); // All + team/one + team/two.
-      await expect(page.locator('#shared-author-select option')).toHaveCount(3); // All + claude + ryan.
-      await expect(page.locator('#shared-label-select option')).toHaveCount(3); // All + bug + enhancement.
+      // The CI filter narrows the list on screen, so the shared Repo/Author/
+      // Label choices drop what only the passing PR the filter just hid has:
+      // offering team/one, claude or bug would lead to an empty list. This
+      // replaces the earlier expectation that board filters stay out of the
+      // shared choices, which broke the rule that every choice matches
+      // something in the list being shown.
+      const optionValues = (id: string) =>
+        page
+          .locator(`#${id} option`)
+          .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+      expect(await optionValues('shared-repo-select')).toHaveLength(2); // All + team/two.
+      expect(await optionValues('shared-repo-select')).toContain(
+        'github:team/two',
+      );
+      expect(await optionValues('shared-author-select')).toEqual(['', 'ryan']);
+      expect(await optionValues('shared-label-select')).toEqual([
+        '',
+        'enhancement',
+      ]);
     });
   });
 
@@ -2234,8 +2247,8 @@ test.describe('dashboard page', () => {
     // A bot-managed pull request never gets the Update-branch button
     // (updateBranchActionCell returns null for one on purpose) — without
     // a dedicated pill, being behind was invisible on that row, with the
-    // one relevant action (Dependabot/Renovate: Rebase) sitting unlabeled
-    // inside "More actions." Confirmed live: hush-hush-python#153 showed
+    // one relevant action (Dependabot/Renovate: Rebase) not on the row.
+    // Confirmed live: hush-hush-python#153 showed
     // "out-of-date with the base branch" on GitHub with nothing on this
     // dashboard reflecting it.
     test('a behind Dependabot pull request shows the Out of date pill', async ({
@@ -2268,17 +2281,20 @@ test.describe('dashboard page', () => {
     // already gets the Update-branch button as its one clear signal, so
     // a second, generic pill saying the same thing would just be the
     // duplication that issue fixed, restated for a new status.
-    test('a behind, non-bot-managed pull request shows the Update-branch button but no Out of date pill', async ({
+    test('a behind, non-bot-managed pull request offers Update branch in its pop-up but shows no Out of date pill', async ({
       page,
     }) => {
       await mockDashboard(page, [pr({ behind: true })]);
       await page.reload();
 
+      // Merge stays the primary action while only behind, so the row draws
+      // no Update branch; the pop-up's footer offers it.
       const row = page.locator('#pr-rows .row').first();
-      await expect(
-        row.getByRole('button', { name: 'Update branch' }),
-      ).toBeVisible();
       await expect(row.locator('.attr-chip.behind')).toHaveCount(0);
+      const dialog = await openActionsDialog(row);
+      await expect(
+        actionsFooter(dialog).getByRole('button', { name: 'Update branch' }),
+      ).toBeVisible();
     });
 
     test('a Dependabot pull request that is not behind shows no Out of date pill', async ({

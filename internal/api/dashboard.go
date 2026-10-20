@@ -28,6 +28,7 @@ type repoStatus struct {
 	Forge             dashboard.Forge `json:"forge"`
 	FullName          string          `json:"fullName"`
 	URL               string          `json:"url"`
+	LogoURL           string          `json:"logoUrl,omitempty"`
 	HasWebhook        bool            `json:"hasWebhook"`
 	CanManageWebhooks bool            `json:"canManageWebhooks"`
 	Ignored           bool            `json:"ignored"`
@@ -137,6 +138,9 @@ func (d Deps) firstLoadWait() time.Duration {
 type issueView struct {
 	dashboard.Issue
 	Housekeeping bool `json:"housekeeping"`
+	// AuthorURL is the author's profile page on the forge, built here so no
+	// client needs a rule per forge. Empty for a deleted account.
+	AuthorURL string `json:"authorUrl"`
 }
 
 // pullRequestView is a pull request as the API serves it: the snapshot's own
@@ -148,6 +152,9 @@ type pullRequestView struct {
 	// its own for release and dependency pull requests (#716).
 	Kind           dashboard.PullRequestKind      `json:"kind"`
 	AllowedActions []dashboard.ActionAvailability `json:"allowedActions"`
+	// AuthorURL is the author's profile page on the forge, built here so no
+	// client needs a rule per forge. Empty for a deleted account.
+	AuthorURL string `json:"authorUrl"`
 	// Status is what the pull request is waiting on or blocked by, for one
 	// fixed place on a row (#1375). Null when nothing holds it back.
 	Status *dashboard.Status `json:"status"`
@@ -167,6 +174,10 @@ type pullRequestView struct {
 	// AutoMerge says why an armed pull request is waiting or stopped. Absent
 	// when auto-merge isn't armed on it.
 	AutoMerge *dashboard.AutoMergeStatus `json:"autoMerge,omitempty"`
+	// AutoUpdate says whether the dashboard brings this pull request's branch
+	// up to date by itself, from its own choice or its repo's setting, and
+	// why a switch would do nothing for it.
+	AutoUpdate dashboard.AutoUpdate `json:"autoUpdate"`
 	// Queued is the safe action this user queued on the pull request that is
 	// still waiting for the rate limit to reset, or null (#756).
 	Queued *dashboard.QueuedAction `json:"queued"`
@@ -340,9 +351,12 @@ type boardSettings struct {
 	deliveries       map[string]struct{}
 	ignored          map[string]settings.IgnoreScope
 	autoUpdateBranch map[string]struct{}
-	autoMerge        map[string]struct{}
-	autoMergeReport  dashboard.AutoMergeReport
-	queued           []dashboard.QueuedAction
+	// autoUpdateChoices are the pull requests with their own choice about
+	// automatic branch updates, keyed by settings.AutoMergeKey.
+	autoUpdateChoices map[string]bool
+	autoMerge         map[string]struct{}
+	autoMergeReport   dashboard.AutoMergeReport
+	queued            []dashboard.QueuedAction
 	// hidden are the pull requests the user hid, keyed by settings.AutoMergeKey (#841).
 	hidden map[string]settings.HiddenPullRequest
 	logins map[dashboard.Forge]string
@@ -368,6 +382,12 @@ func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte
 	if err != nil {
 		slog.Warn("could not load auto-update-branch repos for dashboard response", "error", err)
 		autoUpdateBranch = nil
+	}
+
+	autoUpdateChoices, err := store.PullRequestAutoUpdates(ctx, userID)
+	if err != nil {
+		slog.Warn("could not load pull request auto-update choices for dashboard response", "error", err)
+		autoUpdateChoices = nil
 	}
 
 	queued, err := store.QueuedActions(ctx, userID)
@@ -398,7 +418,7 @@ func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte
 		logins[dashboard.ForgeForgejo] = creds.ForgejoUsername
 	}
 
-	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, autoMerge: autoMerge, queued: queued, hidden: hidden, logins: logins, renovateAuthors: renovateAuthors}
+	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, autoUpdateChoices: autoUpdateChoices, autoMerge: autoMerge, queued: queued, hidden: hidden, logins: logins, renovateAuthors: renovateAuthors}
 }
 
 // repoStatuses is the tracked-repo list with each repo's webhook coverage and
@@ -417,6 +437,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 			Forge:             r.Forge,
 			FullName:          r.FullName,
 			URL:               r.URL,
+			LogoURL:           r.LogoURL,
 			HasWebhook:        hasWebhook,
 			CanManageWebhooks: r.CanManageWebhooks,
 			Ignored:           scope.PRs || scope.Issues,
@@ -457,6 +478,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 		actions := b.allowedActions(pr)
 		item := pullRequestView{
 			PullRequest:    pr,
+			AuthorURL:      dashboard.ProfileURL(pr.Forge, dashboard.WebBase(pr.URL, pr.Repo), pr.Author),
 			Kind:           dashboard.KindOf(pr, b.renovateAuthors),
 			AllowedActions: actions,
 			Status:         dashboard.PullRequestStatus(pr, actions),
@@ -466,6 +488,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 
 			ReviewRequestedFromMe: dashboard.ReviewRequestedFrom(pr, b.logins[pr.Forge]),
 			AutoMerge:             b.autoMergeStatus(pr),
+			AutoUpdate:            b.autoUpdate(pr),
 			Queued:                b.waitingQueuedAction(pr),
 			Hidden:                isHidden,
 		}
@@ -488,31 +511,13 @@ func (b *boardSettings) forgetClosedHides(ctx context.Context, store *settings.S
 	if len(b.hidden) == 0 {
 		return
 	}
-	open := make(map[string]struct{}, len(snap.PullRequests))
-	for _, pr := range snap.PullRequests {
-		open[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)] = struct{}{}
-	}
-	reachable := make(map[dashboard.Forge]bool, len(snap.Forges))
-	for _, f := range snap.Forges {
-		reachable[f.Forge] = f.Reachable
-	}
-	tracked := make(map[string]struct{}, len(snap.Repos))
-	for _, r := range snap.Repos {
-		tracked[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)] = struct{}{}
-	}
+	index := indexSnapshot(snap)
 
 	var gone []settings.HiddenPullRequest
-	for key, h := range b.hidden {
-		if _, isOpen := open[key]; isOpen {
-			continue
+	for _, h := range b.hidden {
+		if index.closed(h.Forge, h.Repo, h.Number) {
+			gone = append(gone, h)
 		}
-		if !reachable[dashboard.Forge(h.Forge)] {
-			continue
-		}
-		if _, isTracked := tracked[settings.WebhookDeliveryKey(h.Forge, h.Repo)]; !isTracked {
-			continue
-		}
-		gone = append(gone, h)
 	}
 	if len(gone) == 0 {
 		return
@@ -527,6 +532,47 @@ func (b *boardSettings) forgetClosedHides(ctx context.Context, store *settings.S
 	}
 }
 
+// snapshotIndex answers whether a recorded pull request has closed.
+type snapshotIndex struct {
+	open      map[string]struct{}
+	reachable map[dashboard.Forge]bool
+	tracked   map[string]struct{}
+}
+
+func indexSnapshot(snap dashboard.Snapshot) snapshotIndex {
+	idx := snapshotIndex{
+		open:      make(map[string]struct{}, len(snap.PullRequests)),
+		reachable: make(map[dashboard.Forge]bool, len(snap.Forges)),
+		tracked:   make(map[string]struct{}, len(snap.Repos)),
+	}
+	for _, pr := range snap.PullRequests {
+		idx.open[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)] = struct{}{}
+	}
+	for _, f := range snap.Forges {
+		idx.reachable[f.Forge] = f.Reachable
+	}
+	for _, r := range snap.Repos {
+		idx.tracked[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)] = struct{}{}
+	}
+
+	return idx
+}
+
+// closed is true only when the pull request is not open, its forge answered
+// and its repo is still tracked: an outage returns no pull requests, and that
+// isn't a close.
+func (idx snapshotIndex) closed(forge, repo string, number int) bool {
+	if _, isOpen := idx.open[settings.AutoMergeKey(forge, repo, number)]; isOpen {
+		return false
+	}
+	if !idx.reachable[dashboard.Forge(forge)] {
+		return false
+	}
+	_, isTracked := idx.tracked[settings.WebhookDeliveryKey(forge, repo)]
+
+	return isTracked
+}
+
 // allowedActions is the pull request's actions, minus an offer to update its
 // branch where the repo updates branches itself (#1080): the app is about to
 // do it. A blocked entry stays, since auto-update can't resolve a conflict and
@@ -535,11 +581,16 @@ func (b *boardSettings) forgetClosedHides(ctx context.Context, store *settings.S
 // (#1104). Merge's "behind" reason then says who does.
 func (b boardSettings) allowedActions(pr dashboard.PullRequest) []dashboard.ActionAvailability {
 	actions := dashboard.AllowedActions(pr, b.renovateAuthors)
-	if _, auto := b.autoUpdateBranch[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)]; !auto {
-		return actions
-	}
+	_, repoAuto := b.autoUpdateBranch[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)]
 	if dashboard.KindOf(pr, b.renovateAuthors) == dashboard.KindRelease {
+		if !repoAuto {
+			return actions
+		}
+
 		return explainBehind(actions, "Use Update branch. Auto-update skips release-please pull requests, and release-please only rewrites its branch for a new release.")
+	}
+	if !b.autoUpdate(pr).Enabled {
+		return actions
 	}
 	left := slices.DeleteFunc(slices.Clone(actions), func(a dashboard.ActionAvailability) bool {
 		return a.Action == dashboard.ActionUpdateBranch && a.Blocked == nil
@@ -549,6 +600,18 @@ func (b boardSettings) allowedActions(pr dashboard.PullRequest) []dashboard.Acti
 	}
 
 	return explainBehind(left, "Auto-update is bringing it up to date automatically.")
+}
+
+// autoUpdate is pr's automatic-update state: its own choice when it has one,
+// else its repo's setting.
+func (b boardSettings) autoUpdate(pr dashboard.PullRequest) dashboard.AutoUpdate {
+	_, repoAuto := b.autoUpdateBranch[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)]
+	var own *bool
+	if choice, ok := b.autoUpdateChoices[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)]; ok {
+		own = &choice
+	}
+
+	return dashboard.PullRequestAutoUpdate(pr, repoAuto, own)
 }
 
 // explainBehind rewrites the next step on Merge's "behind" reason.
@@ -613,7 +676,11 @@ func (b boardSettings) issueViews(issues []dashboard.Issue, filter issueFilter) 
 
 			continue
 		}
-		out = append(out, issueView{Issue: issue, Housekeeping: housekeeping})
+		out = append(out, issueView{
+			Issue:        issue,
+			Housekeeping: housekeeping,
+			AuthorURL:    dashboard.ProfileURL(issue.Forge, dashboard.WebBase(issue.URL, issue.Repo), issue.Author),
+		})
 		if !housekeeping {
 			open++
 		}

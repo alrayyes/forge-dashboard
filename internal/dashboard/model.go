@@ -27,6 +27,19 @@ const (
 	CINone    CIStatus = "none"
 )
 
+// CheckCounts is how many of a pull request's checks are in each state, read
+// from the per-state counts the forge's own answer already holds, so it costs
+// no extra request. Waiting is a check not started yet (queued, or pending on
+// Forgejo, which does not tell the two apart). A run held for approval is none
+// of the four: AwaitingWorkflowApproval says that. Always present, all zero
+// when there are no checks. Matches components.schemas.CheckCounts.
+type CheckCounts struct {
+	Passed  int `json:"passed"`
+	Running int `json:"running"`
+	Waiting int `json:"waiting"`
+	Failed  int `json:"failed"`
+}
+
 // MergeStatus is a pull request's mergeable/blocked state, as coarse as
 // every forge this service talks to can agree on. Matches
 // components.schemas.MergeStatus.
@@ -152,13 +165,16 @@ type PullRequest struct {
 	Author string `json:"author"`
 	// AuthorAvatarURL is the forge's own avatar URL for the author; empty
 	// when the forge supplies none (a deleted account).
-	AuthorAvatarURL string      `json:"authorAvatarUrl"`
-	Draft           bool        `json:"draft"`
-	Labels          []Label     `json:"labels"`
-	CreatedAt       time.Time   `json:"createdAt"`
-	UpdatedAt       time.Time   `json:"updatedAt"`
-	CI              CIStatus    `json:"ci"`
-	MergeStatus     MergeStatus `json:"mergeStatus"`
+	AuthorAvatarURL string    `json:"authorAvatarUrl"`
+	Draft           bool      `json:"draft"`
+	Labels          []Label   `json:"labels"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+	CI              CIStatus  `json:"ci"`
+	// Checks says how many checks passed, are running, are waiting and
+	// failed, so a client can show how far a pipeline is without opening it.
+	Checks      CheckCounts `json:"checks"`
+	MergeStatus MergeStatus `json:"mergeStatus"`
 	// Behind is deliberately its own field, not folded into MergeStatus,
 	// because the two aren't mutually exclusive on every forge: confirmed
 	// live against a real Forgejo instance (a PR's own Mergeable field
@@ -270,15 +286,18 @@ type PullRequest struct {
 
 // Issue matches components.schemas.Issue in api/openapi.yaml.
 type Issue struct {
-	Forge     Forge     `json:"forge"`
-	Repo      string    `json:"repo"`
-	Number    int       `json:"number"`
-	Title     string    `json:"title"`
-	URL       string    `json:"url"`
-	Author    string    `json:"author"`
-	Labels    []Label   `json:"labels"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Forge  Forge  `json:"forge"`
+	Repo   string `json:"repo"`
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+	Author string `json:"author"`
+	// AuthorAvatarURL is the forge's own avatar URL for whoever filed the
+	// issue; empty when the forge supplies none (a deleted account).
+	AuthorAvatarURL string    `json:"authorAvatarUrl"`
+	Labels          []Label   `json:"labels"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 // RateLimit matches components.schemas.RateLimit — the forge API's own
@@ -444,6 +463,21 @@ type ClientError struct {
 	// generic "check your token" refusal text with one that names what the
 	// connection is missing (a GitHub App has no token to check).
 	PermissionMessage string
+	// UpstreamStatus is the HTTP status the forge answered with when that
+	// status was its own failure (5xx), and zero otherwise. A forge's own
+	// "Server Error" says nothing a person can act on, so a refusal reads
+	// this to tell them to try again instead of repeating the forge's words.
+	UpstreamStatus int
+	// RequestID is the forge's identifier for the failing request, when it
+	// sent one (GitHub's X-GitHub-Request-Id). It is what the forge's support
+	// asks for, so it goes in the log and the error report.
+	RequestID string
+}
+
+// ForgeFailed reports whether the forge answered with a 5xx: its own failure,
+// not a refusal of this request, so asking again can succeed.
+func (e *ClientError) ForgeFailed() bool {
+	return e.UpstreamStatus >= 500 && e.UpstreamStatus < 600
 }
 
 func (e *ClientError) Error() string {
@@ -468,6 +502,12 @@ type Repo struct {
 	// forge's own API response, since the instance URL isn't otherwise
 	// tracked per repo.
 	URL string `json:"url"`
+	// LogoURL is the repository's own logo, only when it has one: a GitHub
+	// repository's custom social preview image, or a Forgejo repository's
+	// own avatar. Empty otherwise, never the generated card GitHub shows
+	// for a repository with none and never the owner's avatar. Always an
+	// https URL, passed through unchanged.
+	LogoURL string `json:"logoUrl,omitempty"`
 	// HasWebhook is a live signal from the Source itself — the forge's
 	// own webhook list, matched against this app's expected URL — not
 	// the settings.Store delivery table. False here doesn't mean "no

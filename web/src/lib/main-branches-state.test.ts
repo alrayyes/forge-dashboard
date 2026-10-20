@@ -14,6 +14,7 @@ import {
   DEFAULT_FILTER,
   filterFromState,
   filterToState,
+  statusCount,
 } from './main-branches';
 
 // The Branches filter rides in the same saved copy as the other pages' filters
@@ -58,6 +59,27 @@ describe('the Branches filter as saved state', () => {
 
   test('the cancelled status is kept, not reset to its default (#1950)', () => {
     expect(filterFromState({ status: 'cancelled' }).status).toBe('cancelled');
+  });
+
+  test('the awaiting approval status is kept, not reset to its default (#2024)', () => {
+    expect(filterFromState({ status: 'awaiting_approval' }).status).toBe(
+      'awaiting_approval',
+    );
+  });
+
+  test('a status pill reads its own count, awaiting approval from awaitingApproval (#2024)', () => {
+    const counts = {
+      failed: 0,
+      passed: 3,
+      running: 4,
+      cancelled: 0,
+      awaitingApproval: 1,
+      none: 0,
+      total: 8,
+    };
+    expect(statusCount(counts, 'awaiting_approval')).toBe(1);
+    expect(statusCount(counts, 'running')).toBe(4);
+    expect(statusCount(counts, 'all')).toBe(8);
   });
 
   test('a stale or hand-edited value reads as its default', () => {

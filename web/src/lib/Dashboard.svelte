@@ -20,6 +20,12 @@
   } from "#lib/PullRequestDetailsDialog.svelte";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import {
+    CHECK_KIND_GLYPH,
+    type CheckCounts,
+    checkSegments,
+    runningPillName,
+  } from "#lib/check-counts.js";
+  import {
     CHECK_STATE_LABELS,
     formatCheckDuration,
     type Check,
@@ -48,6 +54,7 @@
     primaryAction,
   } from "#lib/allowed-actions.js";
   import { avatarSrc } from "#lib/avatar.js";
+  import { profileHref } from "#lib/profile-link.js";
   import * as Stacks from "#lib/stacks.js";
   import { createTitleHover } from "#lib/title-hover.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
@@ -145,8 +152,15 @@
     url: string;
     // The forge's own avatar URL for the author; empty when it has none.
     authorAvatarUrl?: string;
+    // The author's profile page on the forge, built by the server; empty when
+    // there is none to link to.
+    authorUrl?: string;
     draft: boolean;
     ci: string;
+    // How many checks passed, are running, are waiting and failed (#2004). The
+    // server tallies them; absent from an older server, which leaves the pill
+    // as it was.
+    checks?: CheckCounts;
     mergeStatus: string;
     // GitHub holds this pull request's workflow runs until someone approves
     // them (#1280). The server decides; the page only says so.
@@ -229,6 +243,10 @@
   type IssueItem = FilterableItem & {
     number: number;
     url: string;
+    // The forge's own avatar URL for whoever filed it; empty when it has none.
+    authorAvatarUrl?: string;
+    // The author's profile page on the forge, built by the server.
+    authorUrl?: string;
   };
   type Forge = {
     forge: string;
@@ -559,6 +577,24 @@
         document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
       );
       wrap.appendChild(badge);
+      // The repository's own logo, only when the forge has one; a repository
+      // without one draws nothing, so the row doesn't shift. Decorative: the
+      // name beside it already says which repository. A failed load drops
+      // the image and leaves the name alone.
+      const logo = avatarSrc(
+        reposByKey.get(Filters.repoKey(item.forge, item.repo))?.logoUrl,
+      );
+      if (logo) {
+        const img = el("img", "repo-logo") as HTMLImageElement;
+        img.src = logo;
+        img.alt = "";
+        img.width = 16;
+        img.height = 16;
+        img.loading = "lazy";
+        img.referrerPolicy = "no-referrer";
+        img.addEventListener("error", () => img.remove());
+        wrap.appendChild(img);
+      }
       const repoName = el("span", "repo-name", item.repo);
       // .repo-name truncates via CSS text-overflow: ellipsis — a title
       // is what lets a mouse user actually read the full name on hover.
@@ -734,30 +770,67 @@
       const glyphs = pipelineCheckGlyphs(
         awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
       );
+      // A running pipeline says how far it is (#2004): the word, then one
+      // count per state that has any, each with its glyph. The server tallies
+      // the counts; nothing is drawn without them, which leaves the plain pill.
+      const segments =
+        status === "pending" && !awaiting ? checkSegments(item.checks) : [];
+      const segmented = segments.length > 0;
       const addMark = (pill: HTMLElement) => {
         if (glyphs.length > 0) glyphs.forEach((g) => pill.appendChild(g));
         else pill.appendChild(el("span", "dot"));
       };
+      const fill = (pill: HTMLElement) => {
+        if (!segmented) {
+          addMark(pill);
+          pill.appendChild(document.createTextNode(label));
+          return;
+        }
+        pill.appendChild(el("span", "ci-seg ci-seg-label", label));
+        for (const { kind, n } of segments) {
+          const seg = el("span", `ci-seg ci-seg-${kind}`);
+          // The counts are said in words by the name (or, on a badge, by the
+          // hidden text after them), so a screen reader skips these.
+          seg.setAttribute("aria-hidden", "true");
+          pipelineCheckGlyphs(CHECK_KIND_GLYPH[kind]).forEach((g) =>
+            seg.appendChild(g),
+          );
+          seg.appendChild(document.createTextNode(String(n)));
+          // A space before each count, so the pill's text reads "Running 5 2 3"
+          // and the name below contains it whole.
+          pill.appendChild(document.createTextNode(" "));
+          pill.appendChild(seg);
+        }
+      };
+      const classes = `ci-pill ${status}${awaiting ? " awaiting" : ""}${segmented ? " segmented" : ""}`;
       // No CI, no pipeline to open: a plain badge (#1139).
       if (status === "none" || !interactive) {
-        const badge = el(
-          "span",
-          `ci-pill ${status}${awaiting ? " awaiting" : ""}`,
-        );
-        addMark(badge);
-        badge.appendChild(document.createTextNode(label));
+        const badge = el("span", classes);
+        fill(badge);
+        if (segmented) {
+          // A badge has no name of its own to carry the words, so a hidden
+          // line says them whole, and the sighted word is hidden too or a
+          // screen reader would hear Running twice.
+          badge
+            .querySelector(".ci-seg-label")
+            ?.setAttribute("aria-hidden", "true");
+          badge.appendChild(el("span", "sr-only", runningPillName(segments)));
+        }
         return badge;
       }
       const pill = document.createElement("button");
       pill.type = "button";
-      pill.className = `ci-pill ${status}${awaiting ? " awaiting" : ""}`;
+      pill.className = classes;
       // Given a stable id: openPipelineDialog's "close" handler refocuses
       // it by this id once a later render has rebuilt the row.
       pill.id = `pipeline-trigger-${domSafeId(prKey(item))}`;
-      addMark(pill);
-      pill.appendChild(document.createTextNode(label));
-      // The visible word leads the name (WCAG 2.5.3).
-      pill.setAttribute("aria-label", `${label}. Open pipeline`);
+      fill(pill);
+      // The visible word leads the name (WCAG 2.5.3), the counts in words
+      // after it.
+      pill.setAttribute(
+        "aria-label",
+        `${segmented ? runningPillName(segments) : label}. Open pipeline`,
+      );
       pill.addEventListener("click", () => {
         openPipelineDialog(item);
       });
@@ -823,8 +896,8 @@
     // of it at all — confirmed live against a real Dependabot PR
     // (hush-hush-python#153) that GitHub itself flagged "out-of-date
     // with the base branch" while this dashboard showed nothing, with
-    // the one relevant action (Dependabot: Rebase) sitting unlabeled
-    // inside "More actions." Silent for every non-bot pull request:
+    // the one relevant action (Dependabot: Rebase) nowhere on the row.
+    // Silent for every non-bot pull request:
     // those already get the Update-branch button as their one clear
     // signal (#359), and a second pill saying the same thing would be
     // exactly the duplication #359 fixed.
@@ -1580,9 +1653,9 @@
 
       const meta = el("div", "row-meta");
       const authorCell = el("div", "author", item.author);
-      const avatar = isPR
-        ? avatarSrc((item as PullRequestItem).authorAvatarUrl)
-        : null;
+      const avatar = avatarSrc(
+        (item as PullRequestItem | IssueItem).authorAvatarUrl,
+      );
       if (avatar) {
         // Decorative: the name beside it already says who. A failed load
         // drops the image and leaves the name alone.
@@ -1599,6 +1672,22 @@
         });
         authorCell.classList.add("has-avatar");
         authorCell.replaceChildren(img, el("span", "author-name", item.author));
+      }
+      // The avatar and the name are one link to the person's page on the
+      // forge, not two links to the same place. It sits above the row's
+      // stretched title link, so clicking it never opens the row's dialog.
+      const profile = profileHref(
+        (item as PullRequestItem | IssueItem).authorUrl,
+      );
+      if (profile) {
+        const link = el("a", "author-link") as HTMLAnchorElement;
+        link.href = profile;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        // No aria-label: the link's name is the visible name, as WCAG 2.5.3
+        // (label in name) and the person's own name ask.
+        link.append(...Array.from(authorCell.childNodes));
+        authorCell.replaceChildren(link);
       }
       meta.appendChild(authorCell);
       meta.appendChild(timeCell("created", "Created", item.createdAt));
@@ -1643,69 +1732,16 @@
         // What it is waiting on, in its own place above the actions (#1375).
         const statusAreaEl = settledRow ? null : statusArea(pr);
         if (statusAreaEl) statusCell.appendChild(statusAreaEl);
-        // The chip holds Disarm while auto-merge is waiting; a stopped one
-        // keeps its Cancel button here.
-        const cancelAutoMerge =
-          settledRow || autoMergeWait ? null : cancelAutoMergeCell(pr);
-        if (cancelAutoMerge) statusCell.appendChild(cancelAutoMerge);
-        const updateBranchAction =
-          settledRow || statusFixName(pr) === "update_branch"
-            ? null
-            : updateBranchActionCell(pr);
-        if (updateBranchAction) statusCell.appendChild(updateBranchAction);
-        // Dependabot/Renovate's own Rebase asks for exactly what Update
-        // branch does on every other row — bring the branch back in sync
-        // — just through the bot's own comment command instead of this
-        // app writing to the branch directly (see updateBranchActionCell's
-        // doc comment for why those rows never get that button).
-        // Promoted inline the same way, and only the once, when it's
-        // actually the thing to do: Recreate is rarer and stays in "More
-        // actions" regardless (#527).
-        const dependabotRebasePromoted =
-          !settledRow &&
-          pr.behind &&
-          !pr.empty &&
-          Boolean(findAction(pr, "dependabot_rebase"));
-        const renovateRebasePromoted =
-          !settledRow &&
-          pr.behind &&
-          !pr.empty &&
-          Boolean(findAction(pr, "renovate_rebase"));
-        if (dependabotRebasePromoted) {
-          if (
-            statusFixName(pr) !== "dependabot_rebase" &&
-            !dependabotRebaseHidden(pr)
-          ) {
-            const rebaseButton = dependabotActionButton(pr, "rebase");
-            if (rebaseButton) statusCell.appendChild(rebaseButton);
-          }
-        } else if (renovateRebasePromoted) {
-          const promoted =
-            statusFixName(pr) === "renovate_rebase"
-              ? null
-              : renovateRebaseActionCell(pr);
-          if (promoted) statusCell.appendChild(promoted);
-        }
-        if (mergeAction) statusCell.appendChild(mergeAction);
-        // Close lives in "More actions" behind its confirm step (#705):
-        // it's rarely what the row needs, and the one button left beside
-        // a waiting Merge read as "close is what you do next".
-        const secondaryActions = (
-          settledRow
-            ? []
-            : [
-                autoMergeActionCell(pr),
-                dependabotRebasePromoted
-                  ? dependabotRecreateOnlyCell(pr)
-                  : dependabotActionCell(pr),
-                renovateRebasePromoted ? null : renovateRebaseActionCell(pr),
-                closeActionCell(pr),
-              ]
-        )
-          .filter((cell): cell is HTMLElement => cell !== null)
-          .concat(settledRow ? [] : hideActionCells(pr));
-        const moreActions = moreActionsCell(pr, secondaryActions);
-        if (moreActions) statusCell.appendChild(moreActions);
+        // The row draws one control: the action the server marked primary,
+        // or, while Merge is locked, the greyed Merge with its reason. Every
+        // other action is in the details pop-up's footer, built by the same
+        // functions (#943).
+        const rowAction = rowActionCell(pr, settledRow, mergeAction);
+        if (rowAction) statusCell.appendChild(rowAction);
+        // A refused Close locks a button that lives in the pop-up, so the row
+        // says so in words, or nobody would find it without opening it.
+        const closeCue = settledRow ? null : closeLockCue(pr);
+        if (closeCue) statusCell.appendChild(closeCue);
         const queueCell = queueActionCell(pr);
         if (queueCell) statusCell.appendChild(queueCell);
         dedupeRetryButtons(statusCell);
@@ -1717,6 +1753,70 @@
       row.appendChild(el("div", "go", "→"));
       if (isPR) feedbackUI.decorateRow(row, prKey(item as PullRequestItem));
       return row;
+    }
+
+    // The lasting state of a Close the forge refused (a missing permission, a
+    // rate limit). The locked button is in the pop-up's footer, so a row whose
+    // pop-up was closed would show nothing. This is the same note a locked
+    // Merge prints on the row: words, never colour alone, the reason beside
+    // the label so it is read without opening anything. It leaves when the
+    // lock does (the line that explains it is dismissed, or the next snapshot
+    // clears a stale lock), and is skipped while Close is the row's own
+    // action, whose locked button already says why.
+    function closeLockCue(item: PullRequestItem): HTMLElement | null {
+      const entry = closeState[prKey(item)];
+      if (!entry || entry.phase !== "locked") return null;
+      if (primaryAction(item)?.action === "close") return null;
+      const cue = el("span", "row-lock-cue row-action-note");
+      cue.appendChild(el("span", "row-action-note-reason", "Close locked"));
+      if (entry.reason)
+        cue.appendChild(el("span", "row-action-note-next", entry.reason));
+      return cue;
+    }
+
+    // The one control a row draws beside its status. A settled row keeps the
+    // merged or closed badge. Otherwise it is the server's primary action
+    // (the same one the footer lists first), or, with no primary and Merge
+    // locked, the greyed Merge with its reason. A pull request with no
+    // primary and no locked Merge has no action on the row; its other
+    // actions are in the pop-up. The "Behind the base branch" cure is
+    // drawn inside the status block, so the row never repeats it.
+    function rowActionCell(
+      pr: PullRequestItem,
+      settledRow: boolean,
+      mergeAction: HTMLElement | null,
+    ): HTMLElement | null {
+      if (settledRow) return mergeAction;
+      const primary = primaryAction(pr)?.action;
+      const fix = statusFixName(pr);
+      switch (primary) {
+        case "merge":
+          return mergeAction;
+        case "update_branch":
+          return fix === "update_branch" ? null : updateBranchActionCell(pr);
+        case "dependabot_rebase":
+          return fix === "dependabot_rebase" || dependabotRebaseHidden(pr)
+            ? null
+            : dependabotActionButton(pr, "rebase");
+        case "renovate_rebase":
+          return fix === "renovate_rebase"
+            ? null
+            : renovateRebaseActionCell(pr);
+        case "close":
+          return closeActionCell(pr);
+        case undefined:
+          // A Renovate rebase that is already waiting keeps its locked
+          // button: it says what the pull request is waiting on. Otherwise a
+          // locked Merge reads as the row's only button.
+          if (findAction(pr, "renovate_rebase")?.blocked)
+            return fix === "renovate_rebase"
+              ? null
+              : renovateRebaseActionCell(pr);
+          if (findAction(pr, "merge")?.blocked) return mergeAction;
+          return null;
+        default:
+          return null;
+      }
     }
 
     // ---- pull request merge action ----
@@ -2524,10 +2624,6 @@
             toast: true,
             announce: "Auto-merge enabled.",
           });
-          // Same "close the popover this button lives in, once it has
-          // nothing left to say" reasoning doDependabotAction's own
-          // success handler uses.
-          closeAllActionMenus();
           // Same immediate-refresh pattern doMerge/doUpdateBranch already
           // use, so the row's Auto-merge pill (autoMergePill) reflects
           // the new state without waiting out the rest of the background
@@ -2906,9 +3002,7 @@
       true,
     );
 
-    // Registered before the More actions menu's own Escape handler below,
-    // so Escape on an armed Close ends the confirm and leaves the menu open;
-    // a second Escape closes the menu.
+    // Escape on an armed Close ends the confirm.
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape" || modalDialogOpen()) return;
       if (confirmArm.disarm("escape")) e.stopImmediatePropagation();
@@ -2952,9 +3046,6 @@
         // Like merge, a close is never re-sent without its confirm step.
         retry: () => {
           feedback.drop(fkey);
-          // On the row the confirm lives in the menu, so the menu has to be
-          // open; in the dialog it is in the footer.
-          if (!activeScope()) openActionMenus[key] = true;
           armConfirm("close", item);
           renderPRBoard();
           document
@@ -2962,20 +3053,6 @@
             ?.focus();
         },
       });
-
-      // The confirm was the menu's last job, and progress shows on the row
-      // itself (Closing…, then a toast). Leaving it open would also hold
-      // back the next snapshot, so the closed pull request would linger
-      // until someone dismissed the menu (#705). Focus goes back to the
-      // trigger rather than falling to the page when the confirm button
-      // disappears.
-      if (openActionMenus[key]) {
-        delete openActionMenus[key];
-        renderPRBoard();
-        document
-          .getElementById(`row-actions-trigger-${domSafeId(key)}`)
-          ?.focus();
-      }
 
       fetch("/api/pull-requests/close", {
         method: "POST",
@@ -3028,12 +3105,11 @@
       return locked;
     }
 
-    // Shown for every open pull request row, gated only on the forge
-    // itself being reachable/within budget — unlike Merge, Close needs
-    // no particular mergeability or CI state to make sense. Rendered
-    // inside "More actions" (#705), so its confirm step has to survive
-    // the menu: openActionMenus persists across the re-render, and the
-    // confirm button is focused by id the same as before.
+    // Offered for every open pull request, gated only on the forge itself
+    // being reachable/within budget — unlike Merge, Close needs no
+    // particular mergeability or CI state to make sense. It lives in the
+    // details pop-up's footer, and on the row only when the server marks it
+    // primary (an empty pull request). Its confirm button is focused by id.
     function closeActionCell(item: PullRequestItem): HTMLElement | null {
       if (!findAction(item, "close")) return null;
       const key = prKey(item);
@@ -3041,16 +3117,11 @@
       const entry = closeState[key] || { phase: "idle" };
 
       if (entry.phase === "locked") {
-        // Confirming closes the menu, so the lock would only show after
-        // reopening it. The trigger reads these to say so itself (#747).
-        const locked = markClose(
+        return markClose(
           lockedActionButton("Close pull request", lockOf(entry), () =>
             retryLockedAction(item),
           ),
         );
-        locked.dataset.lockLabel = "Close";
-        locked.dataset.lockReason = entry.reason ?? "";
-        return locked;
       }
 
       if (entry.phase === "idle") {
@@ -3332,13 +3403,6 @@
           // doUpdateBranch: posting the comment doesn't change anything
           // about this pull request itself — Dependabot's own rebase/
           // recreate run is what would, on its own schedule.
-          //
-          // Closes the "More actions" popover this button may have been
-          // reached through — left open on success, it had nothing left
-          // to say and no way to close itself short of a click elsewhere
-          // on the page (confirmed live). Left open on failure/lock
-          // below, since that's exactly when the popover is still
-          // showing something the user needs to see.
           confirmRequest(dependabotActionState, key);
           feedback.update(fkey, {
             toast: true,
@@ -3347,7 +3411,7 @@
               "Dependabot",
             ),
           });
-          closeMenuKeepingFocus(prKey(item));
+          renderPRBoard();
         })
         .catch((err: ActionRequestError) => {
           renderActionRefusal(
@@ -3410,36 +3474,6 @@
         doDependabotAction(item, action, button);
       });
       return button;
-    }
-
-    // GitHub only — Dependabot doesn't run on Forgejo, so there's no
-    // equivalent comment command to send there.
-    function dependabotActionCell(item: PullRequestItem): HTMLElement | null {
-      const rebase = findAction(item, "dependabot_rebase");
-      const recreate = findAction(item, "dependabot_recreate");
-      if (!rebase && !recreate) return null;
-
-      const wrap = el("span", "row-action-group");
-      const buttons = [
-        rebase && !dependabotRebaseHidden(item)
-          ? dependabotActionButton(item, "rebase")
-          : null,
-        recreate ? dependabotActionButton(item, "recreate") : null,
-      ].filter((b): b is HTMLElement => b !== null);
-      if (buttons.length === 0) return null;
-      for (const button of buttons) wrap.appendChild(button);
-      return wrap;
-    }
-
-    // Just Recreate, for a row whose Rebase button already moved inline
-    // (see buildRow's dependabotRebasePromoted) — Recreate still belongs
-    // in "More actions" on its own rather than disappearing along with
-    // the button it used to share a wrapper with.
-    function dependabotRecreateOnlyCell(
-      item: PullRequestItem,
-    ): HTMLElement | null {
-      if (!findAction(item, "dependabot_recreate")) return null;
-      return dependabotActionButton(item, "recreate");
     }
 
     // ---- Renovate rebase action ----
@@ -3524,17 +3558,13 @@
     const updatedMarkers = new Set<string>();
 
     // Whether a re-render now would be felt: a row action is in flight (or
-    // an armed confirm waits for its second click), a More actions menu is
-    // open, or a modal other than the details dialog is open. The details
+    // an armed confirm waits for its second click), or a modal other than
+    // the details dialog is open. The details
     // dialog is deliberately not here: it follows its own pull request,
     // and nothing behind it can be clicked, so the board behind it may
     // move.
     function interactionFreezesBoard(): boolean {
-      return (
-        anyRowActionInFlight() ||
-        Object.keys(openActionMenus).length > 0 ||
-        otherModalOpen()
-      );
+      return anyRowActionInFlight() || otherModalOpen();
     }
 
     // A modal that isn't the details dialog.
@@ -3794,7 +3824,6 @@
 
     async function doHidePullRequest(item: PullRequestItem, days?: number) {
       const ref = hideRefOf(item);
-      closeAllActionMenus();
       const key = prKey(item);
       if (!(await postHide("hide", days ? { ...ref, days } : ref))) {
         if (dialogKey === key) {
@@ -4282,9 +4311,6 @@
       });
 
       // Stays "queued" until the next snapshot, same as Dependabot.
-      // Same "close the popover this button lives in, once it has
-      // nothing left to say" reasoning doDependabotAction's own
-      // success handler uses.
       const requested = (alreadyTicked = false) => {
         confirmRequest(renovateRebaseState, key);
         feedback.update(fkey, {
@@ -4292,7 +4318,7 @@
           ...(alreadyTicked && { message: "Rebase requested." }),
           announce: requestedAnnouncement("bot-rebase", "Renovate"),
         });
-        closeMenuKeepingFocus(prKey(item));
+        renderPRBoard();
       };
 
       fetch("/api/pull-requests/renovate-rebase", {
@@ -4977,189 +5003,9 @@
       }
     });
 
-    // ---- "More actions" overflow menu ----
-    // Merge/Update branch stay inline — every PR row has at most one of
-    // them — and the CI pill opens the pipeline (#1139). Close, Dependabot
-    // Recreate, and Dependabot/Renovate
-    // Rebase while it isn't currently the promoted, out-of-date-only
-    // inline action (#635), are what's left to stack up on a row —
-    // reached rarely enough that collapsing them behind one trigger reads
-    // as tidying up rather than hiding something anyone reaches for often.
-    // One alone isn't collapsed: it's drawn directly (#1139).
-    //
-    // Keyed by prKey, not a per-row DOM flag: applySnapshot rebuilds
-    // every row from scratch on each poll, so
-    // an open/closed flag living only in the DOM would slam shut on its
-    // own mid-decision. Persisting it here is the same reason
-    // mergeState/closeState/etc. all live outside the DOM node too.
-    const openActionMenus: Record<string, boolean> = {};
-
-    function closeAllActionMenus() {
-      for (const key of Object.keys(openActionMenus)) {
-        // A "Confirm close pull request?" armed inside the menu doesn't outlive it:
-        // reopening the menu later shouldn't find a destructive confirm
-        // already waiting (#705).
-        confirmArm.disarm("dropped", `close:${key}`);
-        if (closeState[key]?.phase === "confirming") delete closeState[key];
-        delete openActionMenus[key];
-      }
-    }
-
-    // Closing the menu a just-clicked action lived in removes the button
-    // focus was on, so focus goes back to that row's trigger instead of
-    // falling to the page (#690), as Close already does.
-    function closeMenuKeepingFocus(key: string) {
-      closeAllActionMenus();
-      renderPRBoard();
-      document.getElementById(`row-actions-trigger-${domSafeId(key)}`)?.focus();
-    }
-
-    // Collapses actions into a single trailing "More actions" trigger —
-    // absent entirely when there's nothing to collapse, the same "don't
-    // render a control with nothing behind it" rule every other action
-    // cell here already follows.
-    function moreActionsCell(
-      item: PullRequestItem,
-      actions: HTMLElement[],
-    ): HTMLElement | null {
-      if (actions.length === 0) return null;
-      // A menu is for the overflow, not a home for one action (#1139).
-      if (actions.length === 1) return actions[0];
-
-      const key = prKey(item);
-      const domKey = domSafeId(key);
-      const open = Boolean(openActionMenus[key]);
-      const popoverId = `row-actions-popover-${domKey}`;
-      const triggerId = `row-actions-trigger-${domKey}`;
-
-      const wrap = el("span", "row-actions-menu");
-
-      const trigger = buttonEl("row-action", "More actions");
-      trigger.type = "button";
-      trigger.id = triggerId;
-      trigger.setAttribute("aria-haspopup", "true");
-      trigger.setAttribute("aria-expanded", open ? "true" : "false");
-      trigger.setAttribute("aria-controls", popoverId);
-      trigger.addEventListener("click", (e) => {
-        // Bubbling to the document-level click-outside listener below
-        // would immediately re-close whatever this click just opened.
-        e.stopPropagation();
-        const willOpen = !openActionMenus[key];
-        closeAllActionMenus();
-        if (willOpen) openActionMenus[key] = true;
-        renderPRBoard();
-        if (willOpen) {
-          // Moves focus into the popover once it exists — same "make
-          // the state change reach someone not looking at that exact
-          // spot" reasoning mergeActionCell's own focus() call already
-          // uses for Confirm merge?.
-          //
-          // The frame can run late on a busy page. By then the user may
-          // already have reached an item, so focus only moves when it
-          // isn't inside the popover yet (#770).
-          requestAnimationFrame(() => {
-            const popover = document.getElementById(popoverId);
-            if (!popover || popover.contains(document.activeElement)) return;
-            popover.querySelector<HTMLElement>("button")?.focus();
-          });
-        }
-      });
-      wrap.appendChild(trigger);
-
-      // A lock found only inside a closed menu would go unseen, so the
-      // row carries a visible cue and the trigger the reason (#747). The
-      // cue is aria-hidden: the same words reach assistive tech through
-      // the trigger's description.
-      const locks = actions.filter((a) => a.dataset.lockLabel);
-      if (locks.length > 0 && !open) {
-        const labels = locks.map((a) => a.dataset.lockLabel).join(", ");
-        const cue = el("span", "row-actions-lock", `${labels} locked`);
-        cue.setAttribute("aria-hidden", "true");
-        wrap.appendChild(cue);
-        const why = el(
-          "span",
-          "sr-only",
-          locks
-            .map(
-              (a) =>
-                `${a.dataset.lockLabel} is locked. ${a.dataset.lockReason}`,
-            )
-            .join(" "),
-        );
-        why.id = `row-actions-lock-${domKey}`;
-        wrap.appendChild(why);
-        trigger.setAttribute("aria-describedby", why.id);
-      }
-
-      if (open) {
-        const popover = el("div", "row-actions-popover");
-        popover.id = popoverId;
-        popover.setAttribute("role", "group");
-        popover.setAttribute("aria-label", "More actions");
-        for (const action of actions) popover.appendChild(action);
-        wrap.appendChild(popover);
-      }
-
-      return wrap;
-    }
-
-    // The CI pill opens its own real, modal <dialog> — pipelineDialog
-    // further down — independently of this menu (#636: it's an inline row
-    // button now, not one of this menu's own actions). A modal dialog
-    // still owns Escape and outside clicks while it's open (native
-    // showModal() semantics), and this menu's own click-outside/Escape
-    // handling has to stand down while one is open: a row's own "More
-    // actions" popover can legitimately be open at the same time (View
-    // pipeline is a sibling button, not something reached through that
-    // popover), and without this guard a stray Escape or outside click
-    // while the pipeline dialog is showing would close that unrelated
-    // popover out from under the dialog rather than doing nothing, as a
-    // native modal's own top-layer behavior already implies it should.
     function modalDialogOpen(): boolean {
       return document.querySelector("dialog[open]") !== null;
     }
-
-    // Closes whichever menu is open on any click outside it — the
-    // standard disclosure-pattern behavior, and what stops a stale
-    // popover surviving a click on an unrelated row. Wired once at
-    // module scope rather than per-row: there's at most one open menu
-    // at a time (moreActionsCell's own trigger handler already closes
-    // every other one before opening its own), so one listener covers
-    // the whole board.
-    document.addEventListener("click", (e) => {
-      if (modalDialogOpen()) return;
-      const target = e.target as HTMLElement | null;
-      // A dialog's own close button (or its backdrop) closes the
-      // dialog synchronously as part of handling this same click,
-      // before it ever bubbles here — modalDialogOpen() above would
-      // already read false by then. Checking the click's own target
-      // for "was this inside a dialog" catches that case too, so a
-      // dialog-closing click never also collapses the menu underneath
-      // it out from under whatever focus the dialog's own close
-      // handling just restored.
-      if (target?.closest("dialog")) return;
-      if (Object.keys(openActionMenus).length === 0) return;
-      if (target?.closest(".row-actions-menu")) return;
-      closeAllActionMenus();
-      renderPRBoard();
-    });
-
-    // Escape closes the open menu and returns focus to its own trigger
-    // — the same "a locked/expanded control never just vanishes out
-    // from under keyboard focus" care lockedActionButton's own
-    // aria-describedby wiring already takes.
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      if (modalDialogOpen()) return;
-      const openKeys = Object.keys(openActionMenus);
-      if (openKeys.length === 0) return;
-      const [openKey] = openKeys;
-      closeAllActionMenus();
-      renderPRBoard();
-      document
-        .getElementById(`row-actions-trigger-${domSafeId(openKey)}`)
-        ?.focus();
-    });
 
     // ---- shared filter state ----
     // One object for forge/repo/label/author/title/created/updated/
@@ -5222,20 +5068,18 @@
     // excludeKey === "" scopes by all four (forge/repo/author/label),
     // which is what the Title datalist wants: free text has no "own
     // selection" to exclude itself from. The pull request board's own
-    // fields (CI status, quick pills) stay out of the repo, author and label
-    // choices by design: isPR is false, which skips both checks. The CI
-    // status and age choices do apply them, bar the one being populated, so
-    // a pick never leaves an empty list (#1427). The Issues page's default
-    // hiding of a bot's housekeeping issue is in, since a repo with nothing
-    // else has nothing to show.
+    // fields (CI status, quick pills, Auto-merge) narrow every choice list
+    // too, bar the one being populated, so a pick never leaves an empty list
+    // and no choice names something the list on screen lacks (#1427). The
+    // Issues page's default hiding of a bot's housekeeping issue is in,
+    // since a repo with nothing else has nothing to show.
     function sharedPoolExcluding(
       excludeKey: Filters.PoolKey,
       board:
-        | "ignore"
         | "apply"
         | "applyExceptStatus"
         | "applyExceptQuick"
-        | "applyExceptAutoMerge" = "ignore",
+        | "applyExceptAutoMerge" = "apply",
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -5243,7 +5087,7 @@
       const items: FilterableItem[] = pullsView ? allPRs : allIssues;
       // The Issues page hides a bot's housekeeping issue by default, so a
       // repo that has nothing else isn't a choice while it's hidden (#1427).
-      const withBoard = pullsView && board !== "ignore";
+      const withBoard = pullsView;
       return Filters.optionPool(
         items,
         withBoard,
@@ -5354,18 +5198,12 @@
       // age ranges something falls in, and the CI states pull requests are in.
       const staleCreated = populateEvery(
         'select[data-col="created"]',
-        Filters.ageChoices(
-          sharedPoolExcluding("created", "apply"),
-          "createdAt",
-        ),
+        Filters.ageChoices(sharedPoolExcluding("created"), "createdAt"),
         sharedState.shared.created,
       );
       const staleUpdated = populateEvery(
         'select[data-col="updated"]',
-        Filters.ageChoices(
-          sharedPoolExcluding("updated", "apply"),
-          "updatedAt",
-        ),
+        Filters.ageChoices(sharedPoolExcluding("updated"), "updatedAt"),
         sharedState.shared.updated,
       );
       const staleStatus =

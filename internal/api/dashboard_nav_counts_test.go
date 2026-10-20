@@ -91,7 +91,7 @@ func TestDashboard_NavCountsTotalAndFailedPerPage(t *testing.T) {
 	assert.Equal(t, map[string]any{"total": 2.0, "running": 0.0, "failed": 1.0, "passed": 1.0}, navCount(t, got, "releases"))
 	assert.Equal(t, map[string]any{"total": 3.0, "running": 0.0, "failed": 2.0, "passed": 0.0}, navCount(t, got, "bots"),
 		"a pull request with no checks counts in the total only, so the four need not add up")
-	assert.Equal(t, map[string]any{"total": 5.0, "running": 1.0, "failed": 1.0, "passed": 1.0, "none": 1.0}, navCount(t, got, "branches"),
+	assert.Equal(t, map[string]any{"total": 5.0, "running": 1.0, "failed": 1.0, "passed": 1.0, "none": 1.0, "awaitingApproval": 0.0}, navCount(t, got, "branches"),
 		"a branch with no pipeline is counted as none (#1531); a cancelled one counts in the total only, and not as failed (#1950)")
 	assert.Equal(t, got["navCounts"], fetchDashboard(t, srv.URL, cookie)["navCounts"],
 		"showing drafts changes the list, not the badge")
@@ -110,7 +110,7 @@ func TestDashboard_NavCountsAreZeroNotMissingWhenNothingIsTracked(t *testing.T) 
 	for _, page := range []string{"pullRequests", "releases", "bots"} {
 		assert.Equal(t, map[string]any{"total": 0.0, "running": 0.0, "failed": 0.0, "passed": 0.0}, navCount(t, got, page), page)
 	}
-	assert.Equal(t, map[string]any{"total": 0.0, "running": 0.0, "failed": 0.0, "passed": 0.0, "none": 0.0}, navCount(t, got, "branches"))
+	assert.Equal(t, map[string]any{"total": 0.0, "running": 0.0, "failed": 0.0, "passed": 0.0, "none": 0.0, "awaitingApproval": 0.0}, navCount(t, got, "branches"))
 	assert.Equal(t, map[string]any{"total": 0.0}, navCount(t, got, "issues"))
 }
 

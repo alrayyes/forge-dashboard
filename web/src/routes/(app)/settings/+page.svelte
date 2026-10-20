@@ -2100,7 +2100,7 @@
           <ul class="field-hint">
             <li>
               It's off for every pull request until you choose "Enable
-              auto-merge" in a Forgejo row's More actions. Nothing is merged
+              auto-merge" in a Forgejo pull request's pop-up. Nothing is merged
               that you didn't arm.
             </li>
             <li>

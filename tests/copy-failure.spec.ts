@@ -82,10 +82,13 @@ const ACTIONS: {
     name: 'Merge',
     endpoint: 'merge',
     action: 'merge',
-    start: async (row) => {
-      await row.getByRole('button', { name: 'Merge', exact: true }).click();
-      await row.getByRole('button', { name: 'Confirm merge?' }).click();
-    },
+    start: (row) =>
+      viaActionsDialog(row, async (footer) => {
+        await footer
+          .getByRole('button', { name: 'Merge', exact: true })
+          .click();
+        await footer.getByRole('button', { name: 'Confirm merge?' }).click();
+      }),
   },
   {
     name: 'Close',
@@ -105,9 +108,10 @@ const ACTIONS: {
     name: 'Update branch',
     endpoint: 'update-branch',
     action: 'update-branch',
-    start: async (row) => {
-      await row.getByRole('button', { name: 'Update branch' }).click();
-    },
+    start: (row) =>
+      viaActionsDialog(row, async (footer) => {
+        await footer.getByRole('button', { name: 'Update branch' }).click();
+      }),
   },
   {
     name: 'Enable auto-merge',
@@ -210,6 +214,36 @@ test.describe('Copy error details on a failed action (#1323)', () => {
     await expect(row.locator('.row-feedback-line')).not.toContainText(
       'raw refusal text',
     );
+  });
+
+  // The forge failing on its own side is not a refusal: the row says so and to
+  // try again, and Copy holds the status the forge answered with and its
+  // request id, which is what its support asks for.
+  // https://github.com/alrayyes/forge-dashboard/issues/2029
+  test("a forge's own server error says to try again, and Copy holds its status and request id", async ({
+    page,
+  }) => {
+    const sentence = 'The forge had a server error. Try again in a moment.';
+    await refuse(page, 'update-branch', 502, {
+      error: sentence,
+      code: 'forge_error',
+      message: sentence,
+      upstreamStatus: 500,
+      requestId: 'DC37:31D3AC:5E7D4F9:83EE23F:6AD77763',
+    });
+    const row = await open(page);
+    await ACTIONS[2].start(row);
+
+    const line = row.locator('.row-feedback-line[data-phase="failed"]');
+    await expect(line).toContainText(sentence);
+    await expect(line).not.toContainText('Server Error');
+    await copyIn(line).click();
+
+    expect((await readClipboard(page)).response).toMatchObject({
+      code: 'forge_error',
+      upstreamStatus: 500,
+      requestId: 'DC37:31D3AC:5E7D4F9:83EE23F:6AD77763',
+    });
   });
 
   test('Copy puts one JSON object on the clipboard: status, the body as received, the action, the pull request and a time', async ({

@@ -520,6 +520,11 @@ header,
 .nav-running {
   color: var(--warning);
 }
+/* Held until someone approves (#2024): the warning ink, like the running state,
+   with its own pause glyph so the colour is never alone. */
+.nav-awaiting {
+  color: var(--warning);
+}
 .nav-passed {
   color: var(--good);
 }
@@ -1128,6 +1133,22 @@ select.col-filter {
   letter-spacing: normal;
 }
 
+/* The repository's own logo (only drawn when it has one). A GitHub custom
+   social preview is a wide banner, so it is cropped to the square. */
+.repo-logo {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+/* Beside running text, as on the Repositories page, rather than in a row's
+   flex cell, which spaces it with its own gap. */
+:not(.repo) > .repo-logo {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
 .repo-name {
   font-family: "IBM Plex Mono", monospace;
   font-size: 12.5px;
@@ -1289,6 +1310,30 @@ button.title:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The author's avatar and name are one link to their page on the forge. Above
+   .title::after's stretched overlay (like the CI pill), or the row's own click
+   would win; 24px tall, the minimum target (WCAG 2.5.8). */
+.author-link {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 24px;
+  color: inherit;
+  text-decoration: none;
+}
+.author-link:hover .author-name,
+.author-link:hover {
+  text-decoration: underline;
+}
+.author-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .created,
@@ -1461,6 +1506,67 @@ a.ci-pill:hover {
   text-align: left;
   border-radius: 14px;
   line-height: 1.2;
+}
+/* The Running pill with counts (#2004): a capsule split into segments like the
+   menu pills, the word Running and then one count per state that has any, each
+   with its own glyph, so colour is never alone. It draws its own background
+   (the neutral sunken one, not the warning tint) because the counts use the
+   state colours, and web/src/lib/ci-pill-contrast.test.ts holds each of them to
+   4.5:1 on it, which axe can't (it files these as incomplete). The slot grows
+   to the pill for a row that has one, so the counts fit beside the word and
+   are never clipped. */
+.ci-slot:has(.ci-pill.segmented) {
+  width: max-content;
+  min-width: 104px;
+}
+.ci-pill.segmented {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ci-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  align-self: stretch;
+  padding: 0 6px;
+}
+.ci-seg + .ci-seg {
+  border-left: 1px solid var(--border-strong);
+}
+.ci-pill.segmented .check-glyph {
+  width: 12px;
+  height: 12px;
+}
+.ci-seg-label {
+  color: var(--warning);
+}
+.ci-seg-passed {
+  color: var(--good);
+}
+.ci-seg-running {
+  color: var(--warning);
+}
+.ci-seg-waiting {
+  color: var(--queued);
+}
+.ci-seg-failed {
+  color: var(--critical);
+}
+@media (max-width: 760px) {
+  /* The word goes on a phone and the glyphs and counts stay, so the pill is as
+     narrow as it can be and the title keeps its two lines; the link's name
+     still says Running. */
+  .ci-seg-label {
+    display: none;
+  }
+  .ci-seg-label + .ci-seg {
+    border-left: 0;
+  }
 }
 .approve-link {
   position: relative;
@@ -1783,13 +1889,11 @@ a.ci-pill:hover {
 .row-action-note-next {
   color: var(--ink-3);
 }
-/* Close inside "More actions" (#705): set apart from the rest by a rule. */
-.row-actions-popover .row-action-group.close-group,
-.row-actions-popover .row-action-locked.close-group {
-  align-self: stretch;
-  justify-content: flex-end;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+/* The reason comes from the forge; a long unbroken one wraps in the cue
+   instead of pushing the row wider. */
+.row-lock-cue {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 /* Close (#1223): a neutral secondary button. Closing is reversible, so the
    danger tone is kept for the confirm step. */
@@ -1903,64 +2007,6 @@ a.ci-pill:hover {
   .row-action-reason {
     transition: none;
   }
-}
-
-/* Collapses Dependabot/Renovate/View-pipeline behind one trigger on a
-   row that would otherwise stack up too many buttons at once (#527) —
-   same z-index:1 "stay above .title::after's stretched-link overlay"
-   treatment every other real control in .status-cell already needs. */
-/* Says a closed More actions menu holds a locked action (#747). Text, not
-   colour alone; the reason is the trigger's accessible description. */
-.row-actions-lock {
-  margin-inline-start: 6px;
-  font-size: 12px;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-
-.row-actions-menu {
-  position: relative;
-  z-index: 1;
-}
-/* .row-actions-menu's own position+z-index already makes it a stacking
-   context, so .row-actions-popover's z-index:20 below only outranks
-   siblings *inside that same context* — it says nothing about how the
-   menu as a whole stacks against another row's controls. .row itself
-   never becomes a stacking context (position: relative, but z-index:
-   auto — see its own comment), so every row's z-index:1 descendants
-   compete directly in one shared ancestor context, ordered by document
-   position once the values tie: a later row always paints over an
-   earlier one there. The popover overflows below its own row into the
-   next one, so with the menu stuck at the same z-index:1 as every other
-   row's controls, that overflow rendered *underneath* the next row's
-   own Close/More actions/status pills instead of above them — reported
-   live as the popover's own "View pipeline" button showing up behind
-   the row below's buttons. Bumping the open menu's z-index (not the
-   popover's) is what actually reaches past that: it changes what the
-   whole stacking context is compared against in the shared ancestor
-   context, so an open menu now outranks every row's z-index:1 controls,
-   including a later row's. :has() rather than a JS-toggled class:
-   .row-actions-popover only exists in the DOM at all while the menu is
-   open (moreActionsCell's own `if (open)`), so this reads directly off
-   that instead of needing new state kept in sync with it. */
-.row-actions-menu:has(.row-actions-popover) {
-  z-index: 30;
-}
-.row-actions-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 10px;
-  min-width: 200px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
 }
 
 .go {

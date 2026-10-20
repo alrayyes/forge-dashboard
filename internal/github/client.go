@@ -87,6 +87,9 @@ type Client struct {
 	// whose hooks call failed for an unrelated reason doesn't flip it.
 	refusedRepo    map[string]bool
 	hooksDenialTTL time.Duration
+	// retryWait is how long a repeatable call waits before its one retry
+	// after GitHub's own 5xx; zero means the default.
+	retryWait time.Duration
 
 	// requiredChecks backs the "required check hasn't reported yet" rule
 	// (#1311).
@@ -921,12 +924,82 @@ func (c *Client) DisableAutoMerge(ctx context.Context, owner, name string, numbe
 }
 
 // UpdateBranch implements dashboard.BranchUpdater: merges owner/name#number's
-// base branch into its head branch. GitHub can schedule this as a
+// base branch into its head branch. When GitHub answers with its own 5xx it
+// asks once more after a short wait, since the call is idempotent; the retry
+// reads GitHub's "no new commits" as success, because the first try may have
+// worked with only its answer lost.
+func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
+	accepted, err := c.updateBranchOnce(ctx, owner, name, number)
+	if !failedOnGitHubsSide(err) {
+		return accepted, err
+	}
+
+	// GitHub answered with its own 5xx. Updating a branch is idempotent, so
+	// one more try after a short wait is safe, and a one-off failure is the
+	// usual cause. The wait ends with the request.
+	timer := time.NewTimer(c.serverErrorRetryWait())
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return accepted, err
+	case <-timer.C:
+	}
+
+	accepted, err = c.updateBranchOnce(ctx, owner, name, number)
+	if upToDateAlready(err) {
+		// The first try may have worked and only its answer been lost. GitHub
+		// then says there is nothing new on the base: the branch is up to
+		// date, which is what was asked for, so it is not a conflict.
+		return false, nil
+	}
+
+	return accepted, err
+}
+
+// upToDateAlready reports whether err is GitHub's 422 for an update-branch
+// request on a branch that has nothing to bring in.
+func upToDateAlready(err error) bool {
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+
+	return ok && clientErr.Kind == dashboard.ForgeErrorConflict &&
+		strings.Contains(strings.ToLower(clientErr.Error()), "no new commits")
+}
+
+func failedOnGitHubsSide(err error) bool {
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+
+	return ok && clientErr.ForgeFailed()
+}
+
+// defaultServerErrorRetryWait is how long a repeatable call waits before its
+// one retry after GitHub's own 5xx.
+const defaultServerErrorRetryWait = 2 * time.Second
+
+// SetServerErrorRetryWait changes how long a safe, repeatable call waits
+// before its one retry after GitHub answered with a 5xx. The default is two
+// seconds.
+func (c *Client) SetServerErrorRetryWait(d time.Duration) {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+	c.retryWait = d
+}
+
+func (c *Client) serverErrorRetryWait() time.Duration {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+	if c.retryWait > 0 {
+		return c.retryWait
+	}
+
+	return defaultServerErrorRetryWait
+}
+
+// updateBranchOnce makes the one request. GitHub can schedule the update as a
 // background job and answer 202 before it's actually done — go-github
 // surfaces that as a *github.AcceptedError rather than a real failure
 // (see its own doc comment), so that specific case is unwrapped into
 // accepted=true instead of being treated as an error.
-func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
+func (c *Client) updateBranchOnce(ctx context.Context, owner, name string, number int) (bool, error) {
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/update-branch", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPut, "url", path)
 	_, resp, err := c.restClient.PullRequests.UpdateBranch(ctx, owner, name, number, nil)
@@ -1047,6 +1120,10 @@ type apiError struct {
 	msg       string
 	rateLimit *dashboard.RateLimit
 	kind      dashboard.ForgeErrorKind
+	// status is the forge's own 5xx, and zero for anything else; requestID is
+	// GitHub's X-GitHub-Request-Id for the failing request.
+	status    int
+	requestID string
 }
 
 func (e *apiError) Error() string { return e.msg }
@@ -1063,7 +1140,7 @@ func asClientError(err error) error {
 		return nil
 	}
 	if apiErr, ok := errors.AsType[*apiError](err); ok {
-		return &dashboard.ClientError{Kind: apiErr.kind, Err: err, RateLimit: apiErr.rateLimit}
+		return &dashboard.ClientError{Kind: apiErr.kind, Err: err, RateLimit: apiErr.rateLimit, UpstreamStatus: apiErr.status, RequestID: apiErr.requestID}
 	}
 
 	return err
@@ -1330,6 +1407,62 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 	return commits[0].Commit.StatusCheckRollup.ci()
 }
 
+// checkCountsOf tallies the rollup's per-state counts the query already asks
+// for into the four a client draws, so a pull request says how far its
+// pipeline is without another request. No rollup, no checks.
+func checkCountsOf(commits []prCommitNode) dashboard.CheckCounts {
+	if len(commits) == 0 {
+		return dashboard.CheckCounts{}
+	}
+
+	return commits[0].Commit.StatusCheckRollup.checkCounts()
+}
+
+// checkCounts sorts every check run and status context into passed, running,
+// waiting or failed, so the counts and the overall state (ci) agree: a pending
+// pull request never carries a failed count.
+//
+// Two kinds of run are in none of the four, for the reason ci() gives them
+// their own handling. A run held as ACTION_REQUIRED is awaiting approval, which
+// has its own flag and its own pill (#1280, #1933). A cancelled run is not a
+// failure while others still run: a push or a concurrency group superseded it
+// (#722, #1950), and settleFailedRollup reads such a rollup as pending, so
+// counting it as failed would put a red count under Running.
+//
+// COMPLETED counts as passed: GitHub reports a finished run under its
+// conclusion (SUCCESS, FAILURE, ...), so a bare COMPLETED carries no failure of
+// its own, and a failing one is a state of its own that is counted as failed.
+func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
+	var out dashboard.CheckCounts
+	if r == nil || r.Contexts == nil {
+		return out
+	}
+	for _, c := range r.Contexts.CheckRunCountsByState {
+		switch c.State {
+		case "SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED":
+			out.Passed += c.Count
+		case "IN_PROGRESS":
+			out.Running += c.Count
+		case "QUEUED", "PENDING", "WAITING", "REQUESTED":
+			out.Waiting += c.Count
+		case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "STALE":
+			out.Failed += c.Count
+		}
+	}
+	for _, c := range r.Contexts.StatusContextCountsByState {
+		switch c.State {
+		case "SUCCESS":
+			out.Passed += c.Count
+		case "PENDING", "EXPECTED":
+			out.Waiting += c.Count
+		case "FAILURE", "ERROR":
+			out.Failed += c.Count
+		}
+	}
+
+	return out
+}
+
 func failingOnlyForApprovalOf(commits []prCommitNode) bool {
 	if len(commits) == 0 {
 		return false
@@ -1549,7 +1682,12 @@ type graphqlRepo struct {
 	IsArchived       bool   `json:"isArchived"`
 	IsFork           bool   `json:"isFork"`
 	ViewerPermission string `json:"viewerPermission"`
-	Owner            struct {
+	// UsesCustomOpenGraphImage and OpenGraphImageURL are the repository's
+	// social preview: the URL is always present, a generated card when no
+	// image was uploaded, so only the flag says it is the maintainer's own.
+	UsesCustomOpenGraphImage bool   `json:"usesCustomOpenGraphImage"`
+	OpenGraphImageURL        string `json:"openGraphImageUrl"`
+	Owner                    struct {
 		Login string `json:"login"`
 	} `json:"owner"`
 	PullRequests struct {
@@ -1637,6 +1775,8 @@ query($cursor: String, $since: DateTime) {
         isArchived
         isFork
         viewerPermission
+        usesCustomOpenGraphImage
+        openGraphImageUrl
         owner {
           login
         }
@@ -1733,6 +1873,7 @@ query($cursor: String, $since: DateTime) {
             url
             author {
               login
+              avatarUrl
             }
             labels(first: 20) {
               nodes {
@@ -1761,6 +1902,8 @@ var reposQuery = fmt.Sprintf(reposQueryTemplate, itemsPerRepo, defaultBranchSele
 // each repo in the first place, and there's no viewerPermission to ask
 // an installation token's "viewer" for (#625).
 const appRepoFieldsTemplate = `
+    usesCustomOpenGraphImage
+    openGraphImageUrl
     pullRequests(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
       nodes {
         number
@@ -1851,6 +1994,7 @@ const appRepoFieldsTemplate = `
         url
         author {
           login
+          avatarUrl
         }
         labels(first: 20) {
           nodes {
@@ -2041,8 +2185,9 @@ func (c *Client) graphqlStatusError(ctx context.Context, resp *http.Response) er
 		kind = forgeErrorKindFromStatus(resp.StatusCode)
 	}
 	c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(kind), rl)
+	status, requestID := forgeFailure(resp)
 
-	return &apiError{msg: "github: POST /graphql: " + msg, rateLimit: rl, kind: kind}
+	return &apiError{msg: "github: POST /graphql: " + msg, rateLimit: rl, kind: kind, status: status, requestID: requestID}
 }
 
 // graphqlQueryError records and returns the failure for a GraphQL call whose
@@ -2063,8 +2208,11 @@ func (c *Client) graphqlQueryError(ctx context.Context, resp *http.Response, ent
 		kind = dashboard.ForgeErrorRateLimited
 	}
 	c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(kind), rl)
+	// A query-level error arrives with a 200, so there is no 5xx to carry,
+	// only the request id.
+	_, requestID := forgeFailure(resp)
 
-	return &apiError{msg: "github: graphql: " + msg, rateLimit: rl, kind: kind}
+	return &apiError{msg: "github: graphql: " + msg, rateLimit: rl, kind: kind, requestID: requestID}
 }
 
 // graphqlDo posts one GraphQL request and decodes its data into out.
@@ -2213,6 +2361,7 @@ func repoFrom(fullName string, r graphqlRepo, probe hookProbe, appAuthenticated 
 		Forge:      dashboard.ForgeGitHub,
 		FullName:   fullName,
 		URL:        r.URL,
+		LogoURL:    repoLogoURL(r),
 		HasWebhook: probe.has,
 	}
 	if appAuthenticated {
@@ -2223,6 +2372,30 @@ func repoFrom(fullName string, r graphqlRepo, probe hookProbe, appAuthenticated 
 	}
 
 	return repo
+}
+
+// logoHost is the one host GitHub serves a custom social preview from (seen
+// on cli/cli, vercel/next.js and sveltejs/svelte). Other githubusercontent.com
+// hosts carry avatars, raw files and user images, none of them a repository
+// logo, and the generated card is on opengraph.githubassets.com: neither is
+// accepted.
+const logoHost = "repository-images.githubusercontent.com"
+
+// repoLogoURL is the repository's own logo, "" unless the maintainer
+// uploaded one. GitHub always answers openGraphImageUrl, a generated card
+// naming the repo when nothing was uploaded, so only usesCustomOpenGraphImage
+// says the image is a deliberate logo. The URL must also be https on
+// exactly that image host: an image from anywhere else is not shown.
+func repoLogoURL(r graphqlRepo) string {
+	if !r.UsesCustomOpenGraphImage {
+		return ""
+	}
+	u, err := url.Parse(r.OpenGraphImageURL)
+	if err != nil || u.Scheme != "https" || u.Hostname() != logoHost {
+		return ""
+	}
+
+	return r.OpenGraphImageURL
 }
 
 // hookProbe is what one poll learned from a repo's hooks listing. refused is
@@ -2521,10 +2694,13 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 	ci := ciFromRollup(p.Commits.Nodes)
 	awaitingApproval := awaitingApprovalOf(p.Commits.Nodes)
 	failingOnlyForApproval := failingOnlyForApprovalOf(p.Commits.Nodes)
+	checks := checkCountsOf(p.Commits.Nodes)
 	if rollupIsOfAnotherCommit(p.Commits.Nodes, p.HeadRefOid) {
 		slog.Debug("github rollup is of an earlier commit, reading pending", "forge", dashboard.ForgeGitHub, "repo", fullName,
 			"number", p.Number, "head", p.HeadRefOid, "rollup_commit", p.Commits.Nodes[0].Commit.Oid)
 		ci = dashboard.CIPending
+		// The earlier commit's counts say nothing about the head's checks.
+		checks = dashboard.CheckCounts{}
 		awaitingApproval = false
 		failingOnlyForApproval = false
 	}
@@ -2542,6 +2718,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		CreatedAt:                p.CreatedAt,
 		UpdatedAt:                p.UpdatedAt,
 		CI:                       ci,
+		Checks:                   checks,
 		MergeStatus:              mergeStatusFromGraphQL(p.MergeStateStatus),
 		AwaitingWorkflowApproval: awaitingApproval,
 		FailingOnlyForApproval:   failingOnlyForApproval,
@@ -2707,15 +2884,16 @@ func (c *Client) resolveAmbiguousBehind(ctx context.Context, prs []dashboard.Pul
 
 func mapIssue(fullName string, i graphqlIssue) dashboard.Issue {
 	return dashboard.Issue{
-		Forge:     dashboard.ForgeGitHub,
-		Repo:      fullName,
-		Number:    i.Number,
-		Title:     i.Title,
-		URL:       i.URL,
-		Author:    authorLogin(i.Author),
-		Labels:    labelsFromNodes(i.Labels.Nodes),
-		CreatedAt: i.CreatedAt,
-		UpdatedAt: i.UpdatedAt,
+		Forge:           dashboard.ForgeGitHub,
+		Repo:            fullName,
+		Number:          i.Number,
+		Title:           i.Title,
+		URL:             i.URL,
+		Author:          authorLogin(i.Author),
+		AuthorAvatarURL: authorAvatarURL(i.Author),
+		Labels:          labelsFromNodes(i.Labels.Nodes),
+		CreatedAt:       i.CreatedAt,
+		UpdatedAt:       i.UpdatedAt,
 	}
 }
 
@@ -2813,6 +2991,7 @@ query($owner: String!, $name: String!) {
         url
         author {
           login
+          avatarUrl
         }
         labels(first: 20) {
           nodes {
@@ -2942,10 +3121,14 @@ func (c *Client) restError(ctx context.Context, method, path string, err error) 
 		}
 		c.recordRequest(ctx, method, path, statusCodeOf(errResp.Response), string(kind), rl)
 
+		status, requestID := forgeFailure(errResp.Response)
+
 		return &apiError{
 			msg:       fmt.Sprintf("github: %s %s: %s", method, path, errResp.Message),
 			kind:      kind,
 			rateLimit: rl,
+			status:    status,
+			requestID: requestID,
 		}
 	}
 
@@ -2960,6 +3143,22 @@ func (c *Client) restError(ctx context.Context, method, path string, err error) 
 // statusCodeOf returns resp's own status code, or 0 for a nil resp — a
 // request that never got a response at all (a timeout, a connection
 // refused) has no status code to report.
+// forgeFailure reads what a failing response says about GitHub's own side: its
+// status when that is a 5xx (zero otherwise, so a 4xx is never mistaken for
+// the forge failing) and the request id GitHub sent, for any status, so a
+// report can be traced.
+func forgeFailure(resp *http.Response) (int, string) {
+	if resp == nil {
+		return 0, ""
+	}
+	status := 0
+	if resp.StatusCode >= http.StatusInternalServerError && resp.StatusCode < 600 {
+		status = resp.StatusCode
+	}
+
+	return status, resp.Header.Get("X-GitHub-Request-Id")
+}
+
 func statusCodeOf(resp *http.Response) int {
 	if resp == nil {
 		return 0
@@ -3149,15 +3348,16 @@ func (c *Client) listOpenIssuesREST(ctx context.Context, owner, name, repo strin
 				continue
 			}
 			issues = append(issues, dashboard.Issue{
-				Forge:     dashboard.ForgeGitHub,
-				Repo:      repo,
-				Number:    i.GetNumber(),
-				Title:     i.GetTitle(),
-				URL:       i.GetHTMLURL(),
-				Author:    i.GetUser().GetLogin(),
-				Labels:    restLabelsToDashboard(i.Labels),
-				CreatedAt: i.GetCreatedAt().Time,
-				UpdatedAt: i.GetUpdatedAt().Time,
+				Forge:           dashboard.ForgeGitHub,
+				Repo:            repo,
+				Number:          i.GetNumber(),
+				Title:           i.GetTitle(),
+				URL:             i.GetHTMLURL(),
+				Author:          i.GetUser().GetLogin(),
+				AuthorAvatarURL: i.GetUser().GetAvatarURL(),
+				Labels:          restLabelsToDashboard(i.Labels),
+				CreatedAt:       i.GetCreatedAt().Time,
+				UpdatedAt:       i.GetUpdatedAt().Time,
 			})
 		}
 		if resp.NextPage == 0 {
@@ -3305,13 +3505,22 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, commitsPath, resp)
 
-	for _, commit := range commits {
+	for i, commit := range commits {
 		checks, err := c.listChecksForSHA(ctx, owner, name, commit.GetSHA())
 		if err != nil {
 			return nil, err
 		}
 		if len(checks) > 0 {
 			return checks, nil
+		}
+		// The newest commit's runs may be held for approval. It has no check run
+		// either, but the row reports it as awaiting approval, so the panel lists
+		// the held workflows instead of looking further back. Only the newest
+		// commit: the row looks no further for held runs (#2024).
+		if i == 0 {
+			if held := c.heldWorkflowChecks(ctx, owner, name, commit.GetSHA()); len(held) > 0 {
+				return held, nil
+			}
 		}
 	}
 
@@ -3351,7 +3560,11 @@ func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string
 		return nil
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
-	c.requiredChecks.storeHeld(sha, len(runs.WorkflowRuns) > 0)
+	firstURL := ""
+	if len(runs.WorkflowRuns) > 0 {
+		firstURL = runs.WorkflowRuns[0].GetHTMLURL()
+	}
+	c.requiredChecks.storeHeld(sha, len(runs.WorkflowRuns) > 0, firstURL)
 	checks := make([]dashboard.Check, 0, len(runs.WorkflowRuns))
 	// Newest first, so the first run of a workflow is the one to show: a rerun,
 	// or the pull_request and pull_request_target triggers, leave several held

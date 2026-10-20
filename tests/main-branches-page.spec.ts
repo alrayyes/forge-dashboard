@@ -26,7 +26,13 @@ const minutesAgo = (n: number) =>
 
 function row(
   fullName: string,
-  status: 'failed' | 'running' | 'passed' | 'cancelled' | 'none',
+  status:
+    | 'failed'
+    | 'running'
+    | 'passed'
+    | 'cancelled'
+    | 'awaiting_approval'
+    | 'none',
   overrides: Record<string, unknown> = {},
 ) {
   const forge = (overrides.forge as string | undefined) ?? 'github';
@@ -64,6 +70,7 @@ function snapshot(branches: ReturnType<typeof row>[]) {
       passed: count('passed'),
       running: count('running'),
       cancelled: count('cancelled'),
+      awaitingApproval: count('awaiting_approval'),
       none: count('none'),
       total: branches.length,
     },
@@ -892,6 +899,46 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(pill(page, /^Cancelled \d/)).toContainText('1');
     await pill(page, /^Cancelled \d/).click();
     await expect(rows(page)).toHaveCount(1);
+
+    for (const theme of ['light', 'dark']) {
+      await setTheme(page, theme);
+      await page.reload();
+      await expect(rows(page)).toHaveCount(1);
+      expect(
+        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+          .violations,
+      ).toEqual([]);
+    }
+    await setTheme(page, 'light');
+  });
+
+  test('a branch whose runs are held for approval says so in words, with the pause glyph, and is filterable (#2024)', async ({
+    page,
+  }) => {
+    await mock(
+      page,
+      snapshot([
+        row('acme/held', 'awaiting_approval'),
+        row('acme/ok', 'passed'),
+        row('acme/broken', 'failed'),
+      ]),
+    );
+    await page.goto('/');
+    await expect(rows(page)).toHaveCount(3);
+
+    const held = rows(page).filter({ hasText: 'acme/held' });
+    const control = held.getByRole('button', {
+      name: /Waiting for approval\. Open pipeline/,
+    });
+    await expect(control).toHaveText('Waiting for approval');
+    await expect(control).toHaveClass(/\bawaiting\b/);
+    await expect(control.locator('svg[data-glyph="pause"]')).toBeAttached();
+
+    await expect(pill(page, /^Waiting for approval \d/)).toContainText('1');
+    await expect(pill(page, /^Failing \d/)).toContainText('1');
+    await pill(page, /^Waiting for approval \d/).click();
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('acme/held');
 
     for (const theme of ['light', 'dark']) {
       await setTheme(page, theme);

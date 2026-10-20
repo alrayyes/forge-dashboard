@@ -18,6 +18,12 @@
     title: string;
     url: string;
     kind?: "release" | "dependency" | "regular";
+    // Who filed an issue and the forge's avatar for them, from its row. Only
+    // the issue dialog shows them.
+    author?: string;
+    authorAvatarUrl?: string;
+    // The filer's page on the forge, built by the server; empty when none.
+    authorUrl?: string;
     // Drawn from the row the dialog was opened from, as it was then. Nothing
     // here is fetched.
     status?: DetailsStatus;
@@ -42,6 +48,7 @@
   // the dialog opens and never as part of the snapshot. Dashboard.svelte calls
   // open() from a row's trigger and holds nothing else of this dialog's state.
   import { avatarSrc } from "#lib/avatar.js";
+  import { profileHref } from "#lib/profile-link.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
 
@@ -65,7 +72,7 @@
   };
   type Comment = Body & {
     id: string;
-    author: { login: string; avatarUrl: string } | null;
+    author: { login: string; avatarUrl: string; url: string } | null;
     createdAt: string;
     updatedAt: string | null;
   };
@@ -99,6 +106,8 @@
   let html = $state<Record<string, string>>({});
   // Avatars that failed to load, by comment id: they fall back to an initial.
   let brokenAvatars = $state<Record<string, boolean>>({});
+  // The same for the avatar of whoever filed the issue, in the header.
+  let brokenFilerAvatar = $state(false);
 
   // Bumped on every open and every close: a slow answer for a closed dialog,
   // or for another pull request, never lands.
@@ -157,6 +166,7 @@
     target = item;
     returnFocusId = triggerId;
     brokenAvatars = {};
+    brokenFilerAvatar = false;
     load();
     dialogEl?.showModal();
   }
@@ -366,6 +376,41 @@
           <span class="mono">{target.repo} #{target.number}</span>
         </p>
         <h2 class="details-title">{target.title}</h2>
+        {#if target.subject === "issue" && target.author}
+          {#snippet filer()}
+            {#if avatarSrc(target?.authorAvatarUrl) && !brokenFilerAvatar}
+              <img
+                class="filer-avatar"
+                src={avatarSrc(target?.authorAvatarUrl) ?? undefined}
+                alt=""
+                width="20"
+                height="20"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+                onerror={() => (brokenFilerAvatar = true)}
+              />
+            {/if}
+            <span class="filer-name">{target?.author}</span>
+          {/snippet}
+          <p class="details-author">
+            <span>Filed by</span>
+            <!-- The avatar and the name are one link to the filer's page on
+              the forge, as on the row. Without an address, or for a deleted
+              account, they are plain text. -->
+            {#if profileHref(target.authorUrl)}
+              <a
+                class="filer-link"
+                href={profileHref(target.authorUrl) ?? undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {@render filer()}
+              </a>
+            {:else}
+              {@render filer()}
+            {/if}
+          </p>
+        {/if}
         {#if target.status?.attributes.hasChildNodes()}
           <div
             class="details-attributes"
@@ -472,23 +517,43 @@
                 {@const login = c.author?.login ?? "ghost"}
                 <li class="details-comment">
                   <div class="comment-head">
-                    {#if avatarSrc(c.author?.avatarUrl) && !brokenAvatars[c.id]}
-                      <img
-                        class="avatar"
-                        src={avatarSrc(c.author?.avatarUrl) ?? undefined}
-                        alt=""
-                        width="32"
-                        height="32"
-                        loading="lazy"
-                        referrerpolicy="no-referrer"
-                        onerror={() => (brokenAvatars[c.id] = true)}
-                      />
-                    {:else}
-                      <span class="avatar" aria-hidden="true"
-                        >{c.author ? login.charAt(0).toUpperCase() : "?"}</span
+                    {#snippet person()}
+                      {#if avatarSrc(c.author?.avatarUrl) && !brokenAvatars[c.id]}
+                        <img
+                          class="avatar"
+                          src={avatarSrc(c.author?.avatarUrl) ?? undefined}
+                          alt=""
+                          width="32"
+                          height="32"
+                          loading="lazy"
+                          referrerpolicy="no-referrer"
+                          onerror={() => (brokenAvatars[c.id] = true)}
+                        />
+                      {:else}
+                        <span class="avatar" aria-hidden="true"
+                          >{c.author
+                            ? login.charAt(0).toUpperCase()
+                            : "?"}</span
+                        >
+                      {/if}
+                      <span class="comment-login">{login}</span>
+                    {/snippet}
+                    <!-- The avatar and the name are one link to the person's
+                      page on the forge: two links to one place would read as
+                      the same link twice. A deleted account, or a forge the
+                      board has no address for yet, stays plain text. -->
+                    {#if profileHref(c.author?.url)}
+                      <a
+                        class="comment-person"
+                        href={profileHref(c.author?.url) ?? undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
+                        {@render person()}
+                      </a>
+                    {:else}
+                      {@render person()}
                     {/if}
-                    <span class="comment-login">{login}</span>
                     <span class="comment-time">{relativeTime(c.createdAt)}</span
                     >
                     {#if c.edited}<span class="comment-edited">edited</span
@@ -585,6 +650,42 @@
     font-size: 16px;
     font-weight: 600;
     overflow-wrap: anywhere;
+  }
+  .details-author {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+  .filer-name {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  /* One link on the avatar and the name; 24px tall at least (WCAG 2.5.8). */
+  .filer-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .filer-link:hover .filer-name {
+    text-decoration: underline;
+  }
+  .filer-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .filer-avatar {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
   }
   .details-close {
     flex: none;
@@ -852,6 +953,29 @@
   }
   .comment-login {
     font-weight: 600;
+  }
+  /* The avatar and the name are one link to the person's page on the forge;
+     24px tall at least (WCAG 2.5.8), 44px on a phone. */
+  .comment-person {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 24px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .comment-person:hover .comment-login {
+    text-decoration: underline;
+  }
+  .comment-person:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  @media (max-width: 480px) {
+    .comment-person {
+      min-height: 44px;
+    }
   }
   .comment-time,
   .comment-edited {

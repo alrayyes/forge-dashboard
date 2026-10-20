@@ -109,6 +109,27 @@
             /></svg
           >{part.n}</span
         >
+      {:else if part.kind === "awaiting"}
+        <!-- Workflow runs held until someone approves them (#2024): the pause
+           glyph the row and the pipeline panel use for it, in the warning ink
+           of the other pending state. -->
+        {#if i > 0 && !parts.some((p, j) => j < i && p.kind === "running")}
+          <span class="nav-divider" aria-hidden="true"></span>
+        {/if}
+        <span class="nav-count nav-awaiting"
+          ><svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            ><circle cx="12" cy="12" r="10" /><path d="M10 9v6M14 9v6" /></svg
+          >{part.n}</span
+        >
       {:else if part.kind === "none"}
         <!-- A dashed circle: no run to be good or bad. Neutral ink. -->
         <span class="nav-count nav-none"

@@ -43,10 +43,27 @@ func (f *fakeBranchUpdaterSource) updatedBranches() []string {
 // the Aggregator's own use of it.
 type fakeAutoUpdateBranchLister struct {
 	enabled       map[string]struct{}
+	overrides     map[string]bool // a pull request's own choice, keyed forge/owner/repo#number
+	overridesErr  error
 	renovateLabel string
 	authors       []string
 	err           error
 	labelErr      error
+	forgotten     []string // keys the pass asked to forget
+}
+
+func (f *fakeAutoUpdateBranchLister) ForgetPullRequestAutoUpdates(_ context.Context, _ []byte, keys []string) error {
+	f.forgotten = append(f.forgotten, keys...)
+
+	return nil
+}
+
+func (f *fakeAutoUpdateBranchLister) PullRequestAutoUpdates(_ context.Context, _ []byte) (map[string]bool, error) {
+	if f.overridesErr != nil {
+		return nil, f.overridesErr
+	}
+
+	return f.overrides, nil
 }
 
 func (f *fakeAutoUpdateBranchLister) RenovateAuthors(_ context.Context, _ []byte) ([]string, error) {
@@ -153,6 +170,29 @@ func TestAggregator_Refresh_BehindReleasePleasePR_NeverUpdated(t *testing.T) {
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, src.updatedBranches(), "a release-please pull request must never get the generic UpdateBranch call")
+}
+
+func TestAggregator_Refresh_BehindUnlabelledReleasePleasePR_NeverUpdated(t *testing.T) {
+	t.Parallel()
+
+	// release-please can fail between opening its pull request and labelling
+	// it. The branch name still says whose it is, so the pass leaves it alone
+	// the same way it leaves a labelled one.
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, HeadBranch: "release-please--branches--main", BaseBranch: "main"},
+		},
+	}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Empty(t, src.updatedBranches(), "an unlabelled release-please pull request must never get the generic UpdateBranch call")
 }
 
 func TestAggregator_Refresh_BehindDraftPR_NeverUpdated(t *testing.T) {

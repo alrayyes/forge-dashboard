@@ -357,6 +357,7 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 	msg := err.Error()
 	kind := dashboard.ForgeErrorUnreachable
 	statusCode := 0
+	upstreamStatus := 0
 	var rateLimit *dashboard.RateLimit
 	if resp != nil {
 		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
@@ -364,6 +365,11 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 		}
 		kind = forgeErrorKind(resp.StatusCode)
 		statusCode = resp.StatusCode
+		// The forge's own 5xx is not a refusal of this request, so asking
+		// again can work. Forgejo sends no request id to carry with it.
+		if statusCode >= http.StatusInternalServerError && statusCode < 600 {
+			upstreamStatus = statusCode
+		}
 		if kind == dashboard.ForgeErrorRateLimited {
 			rateLimit = rateLimitFromRetryAfter(resp.Header.Get("Retry-After"), time.Now())
 		}
@@ -371,7 +377,7 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 	c.recordRequest(ctx, method, path, statusCode, string(kind))
 	wrapped := fmt.Errorf("forgejo: %s %s: %w: %s", method, path, errForgeRefused, msg)
 
-	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit}
+	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit, UpstreamStatus: upstreamStatus}
 }
 
 // rateLimitFromRetryAfter turns a Retry-After header (RFC 9110 10.2.3: a
@@ -594,10 +600,14 @@ func repoRef(r *gitea.Repository) dashboard.RepoRef {
 	}
 
 	return dashboard.RepoRef{
-		FullName:          r.FullName,
-		Owner:             owner,
-		Name:              r.Name,
-		URL:               r.HTMLURL,
+		FullName: r.FullName,
+		Owner:    owner,
+		Name:     r.Name,
+		URL:      r.HTMLURL,
+		// avatar_url is empty for a repository that never set one, so empty
+		// means no logo. The owner's avatar is a different field and is not
+		// a fallback.
+		LogoURL:           repoLogoURL(r.AvatarURL),
 		CanManageWebhooks: r.Permissions != nil && r.Permissions.Admin,
 		// Forgejo and Gitea set the permissions object on every repo they
 		// convert, anonymous callers included (all flags false), so a missing
@@ -605,6 +615,18 @@ func repoRef(r *gitea.Repository) dashboard.RepoRef {
 		WebhookLockedByConnection: r.Permissions == nil,
 		DefaultBranch:             r.DefaultBranch,
 	}
+}
+
+// repoLogoURL is the repository's own avatar as its logo: the forge's URL
+// passed through unchanged, and only when it is an absolute https one. The
+// page loads nothing else, so a relative, http or script URL is no logo.
+func repoLogoURL(avatarURL string) string {
+	u, err := url.Parse(avatarURL)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" {
+		return ""
+	}
+
+	return avatarURL
 }
 
 func hasPushAccess(r *gitea.Repository) bool {
@@ -869,9 +891,10 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 	if p.Head != nil {
 		sha = p.Head.Sha
 	}
-	ci, err := c.ciStatus(ctx, owner, name, sha)
+	ci, checks, err := c.ciStatus(ctx, owner, name, sha)
 	if err != nil {
 		ci = dashboard.CINone
+		checks = dashboard.CheckCounts{}
 	}
 	var created, updated time.Time
 	if p.Created != nil {
@@ -896,6 +919,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		CreatedAt:               created,
 		UpdatedAt:               updated,
 		CI:                      ci,
+		Checks:                  checks,
 		MergeStatus:             mergeStatusOf(p),
 		Behind:                  isBehind(p),
 		HeadSHA:                 sha,
@@ -969,15 +993,16 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 		for _, i := range batch {
 			issues = append(issues, dashboard.Issue{
-				Forge:     dashboard.ForgeForgejo,
-				Repo:      repo,
-				Number:    int(i.Index),
-				Title:     i.Title,
-				URL:       i.HTMLURL,
-				Author:    posterLogin(i.Poster),
-				Labels:    toLabels(i.Labels),
-				CreatedAt: i.Created,
-				UpdatedAt: i.Updated,
+				Forge:           dashboard.ForgeForgejo,
+				Repo:            repo,
+				Number:          int(i.Index),
+				Title:           i.Title,
+				URL:             i.HTMLURL,
+				Author:          posterLogin(i.Poster),
+				AuthorAvatarURL: posterAvatarURL(i.Poster),
+				Labels:          toLabels(i.Labels),
+				CreatedAt:       i.Created,
+				UpdatedAt:       i.Updated,
 			})
 		}
 		if resp.NextPage == 0 {
@@ -991,9 +1016,9 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 
 // ciStatus resolves the combined commit status for sha, which Forgejo
 // updates for both external CI and its own Actions runs.
-func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboard.CIStatus, error) {
+func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboard.CIStatus, dashboard.CheckCounts, error) {
 	if sha == "" {
-		return dashboard.CINone, nil
+		return dashboard.CINone, dashboard.CheckCounts{}, nil
 	}
 	c.setContext(ctx)
 
@@ -1001,11 +1026,58 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	combined, resp, err := c.sdk.GetCombinedStatus(owner, name, sha)
 	if err != nil {
-		return dashboard.CINone, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+		return dashboard.CINone, dashboard.CheckCounts{}, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
 	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
-	return statusFromCombinedState(combined.State), nil
+	counts := checkCountsOf(combined.Statuses)
+	if statusListIsCapped(resp, combined) {
+		// One page of the statuses was read: a count of it would undercount.
+		counts = dashboard.CheckCounts{}
+	}
+
+	return statusFromCombinedState(combined.State), counts, nil
+}
+
+// statusListIsCapped reports whether the combined-status answer holds fewer
+// statuses than the commit has. The SDK has no paging option for the call, so it
+// reads the forge's first page, and the forge puts the full number in the
+// X-Total-Count header. Not tried on a live instance: the header is read from
+// the API's documented paging contract, and a missing or unreadable one counts
+// as not capped.
+func statusListIsCapped(resp *gitea.Response, combined *gitea.CombinedStatus) bool {
+	total := combined.TotalCount
+	if resp != nil && resp.Header != nil {
+		if n, err := strconv.Atoi(resp.Header.Get("X-Total-Count")); err == nil && n > total {
+			total = n
+		}
+	}
+
+	return total > len(combined.Statuses)
+}
+
+// checkCountsOf tallies the statuses the combined-status answer already
+// carries, so the counts cost no request. Forgejo says pending for a check
+// that is queued or running alike, so it counts as waiting and nothing here is
+// ever running. A warning counts as passed, the way the combined state
+// treats it.
+func checkCountsOf(statuses []*gitea.Status) dashboard.CheckCounts {
+	var out dashboard.CheckCounts
+	for _, s := range statuses {
+		if s == nil {
+			continue
+		}
+		switch s.State {
+		case gitea.StatusSuccess, gitea.StatusWarning:
+			out.Passed++
+		case gitea.StatusPending:
+			out.Waiting++
+		case gitea.StatusFailure, gitea.StatusError:
+			out.Failed++
+		}
+	}
+
+	return out
 }
 
 func statusFromCombinedState(state gitea.StatusState) dashboard.CIStatus {

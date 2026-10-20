@@ -1,5 +1,220 @@
 # Changelog
 
+## [0.235.0](https://github.com/alrayyes/forge-dashboard/compare/v0.234.0...v0.235.0) (2026-10-20)
+
+
+### Features
+
+* an issue row opens its description and comments in a dialog ([#1997](https://github.com/alrayyes/forge-dashboard/issues/1997)) ([5b292be](https://github.com/alrayyes/forge-dashboard/commit/5b292bea557e49448f6d8aa64362cebce021f6c4))
+* **api:** add a get_settings MCP tool that leaves out the webhook secrets ([#1711](https://github.com/alrayyes/forge-dashboard/issues/1711)) ([d66e927](https://github.com/alrayyes/forge-dashboard/commit/d66e9278e328263e4e8153b769c0b7a22e7ca666))
+* **api:** add a get_version MCP tool for GET /api/version ([#1707](https://github.com/alrayyes/forge-dashboard/issues/1707)) ([956cf72](https://github.com/alrayyes/forge-dashboard/commit/956cf72a25855c28c8b25eb54815a64748606be6)), closes [#1503](https://github.com/alrayyes/forge-dashboard/issues/1503)
+* **api:** add GET /api/settings/summary, a read that creates nothing ([#1727](https://github.com/alrayyes/forge-dashboard/issues/1727)) ([ffb5f8d](https://github.com/alrayyes/forge-dashboard/commit/ffb5f8d593a1bc73387401ab0f50c247c2119b96))
+* **api:** add the get_main_branches MCP tool ([#1529](https://github.com/alrayyes/forge-dashboard/issues/1529)) ([4225979](https://github.com/alrayyes/forge-dashboard/commit/4225979fb6158a40c122b09f214240ea07300c26)), closes [#1503](https://github.com/alrayyes/forge-dashboard/issues/1503)
+* **api:** add the get_pull_request_details MCP tool ([#1544](https://github.com/alrayyes/forge-dashboard/issues/1544)) ([48409e8](https://github.com/alrayyes/forge-dashboard/commit/48409e88f063c6291aea27f4ac853bb76dfcbf60))
+* **api:** an empty pull request offers Close only, with its reason in status ([#1426](https://github.com/alrayyes/forge-dashboard/issues/1426)) ([a387e2f](https://github.com/alrayyes/forge-dashboard/commit/a387e2f43f0d1a3d56d4f4a510002da0f20f35f5))
+* **api:** count the branches with no pipeline in navCounts.branches ([#1531](https://github.com/alrayyes/forge-dashboard/issues/1531)) ([#1535](https://github.com/alrayyes/forge-dashboard/issues/1535)) ([deb736f](https://github.com/alrayyes/forge-dashboard/commit/deb736fd025c3a12cb191d31f89dc32d8297db82))
+* **api:** count the open issues each ignored title pattern hides ([#1688](https://github.com/alrayyes/forge-dashboard/issues/1688)) ([1e67140](https://github.com/alrayyes/forge-dashboard/commit/1e67140d96055d77aaad0207ab63d5a9ab2997fe))
+* **api:** flag a pull request whose workflow runs await approval ([#1413](https://github.com/alrayyes/forge-dashboard/issues/1413)) ([fcabc32](https://github.com/alrayyes/forge-dashboard/commit/fcabc32d193745ac2d4a2e00afe62bb665fc4a0d))
+* **api:** let a pull request keep its own automatic-update choice ([#2050](https://github.com/alrayyes/forge-dashboard/issues/2050)) ([d3189be](https://github.com/alrayyes/forge-dashboard/commit/d3189bea344f77d81918848ab4c35fbcf5f14a80))
+* **api:** list a default branch's jobs at /api/main-branches/checks ([#1982](https://github.com/alrayyes/forge-dashboard/issues/1982)) ([a856d70](https://github.com/alrayyes/forge-dashboard/commit/a856d70404d098a5599834aed0394c90ec9a2874))
+* **api:** mark the one primary action in allowedActions ([#1759](https://github.com/alrayyes/forge-dashboard/issues/1759)) ([4f1c665](https://github.com/alrayyes/forge-dashboard/commit/4f1c665595a9c19a9d7ba6f0c215e90483e0bdb3))
+* **api:** navCounts carries running and passed for the pull request pages ([#1443](https://github.com/alrayyes/forge-dashboard/issues/1443)) ([5fc6c91](https://github.com/alrayyes/forge-dashboard/commit/5fc6c9121f5abbee707761042a7eb94ade64d1d0))
+* **api:** navCounts.branches carries running and passed ([#1472](https://github.com/alrayyes/forge-dashboard/issues/1472)) ([251bb04](https://github.com/alrayyes/forge-dashboard/commit/251bb046a2c947410ad43f519e7e661ad2ea5bf2))
+* **api:** read a pull request's description, comments and reactions ([#1506](https://github.com/alrayyes/forge-dashboard/issues/1506)) ([#1519](https://github.com/alrayyes/forge-dashboard/issues/1519)) ([1b7ad46](https://github.com/alrayyes/forge-dashboard/commit/1b7ad46dd9233a134dc512d0969486e468ad7661))
+* **api:** say how many checks passed, run, wait and failed on each pull request ([#2047](https://github.com/alrayyes/forge-dashboard/issues/2047)) ([34c3c62](https://github.com/alrayyes/forge-dashboard/commit/34c3c62ece510113721bd4eb78503b3a5b0a1c7d))
+* **api:** say on the dashboard snapshot whether the first refresh has finished ([#1683](https://github.com/alrayyes/forge-dashboard/issues/1683)) ([17a5d49](https://github.com/alrayyes/forge-dashboard/commit/17a5d49b8e61c439604e5637c58473bd7ab50d81))
+* **api:** say who holds an auto-merge with autoMergeHeldBy ([#1604](https://github.com/alrayyes/forge-dashboard/issues/1604)) ([d5fc900](https://github.com/alrayyes/forge-dashboard/commit/d5fc900c8f8ad5112bcc0dcfe9e67fec530a7384)), closes [#1596](https://github.com/alrayyes/forge-dashboard/issues/1596)
+* **api:** store and apply the hide-Dependency-Dashboard and ignored-titles settings ([#1635](https://github.com/alrayyes/forge-dashboard/issues/1635)) ([5ec8602](https://github.com/alrayyes/forge-dashboard/commit/5ec8602cf54b5b0942c0fd946694bdbea25ab06d))
+* count conversation comments in a pull request's comment count ([#1954](https://github.com/alrayyes/forge-dashboard/issues/1954)) ([7798ce2](https://github.com/alrayyes/forge-dashboard/commit/7798ce2449d3a29ebde1b43c50caae2f24018230))
+* **dashboard:** cancel an armed auto-merge on a pull request that went empty ([#1454](https://github.com/alrayyes/forge-dashboard/issues/1454)) ([e2e0299](https://github.com/alrayyes/forge-dashboard/commit/e2e0299769d40d0baa644ebf75ed00544701b97c))
+* list the issues a pull request closes ([#1999](https://github.com/alrayyes/forge-dashboard/issues/1999)) ([e221846](https://github.com/alrayyes/forge-dashboard/commit/e22184611fe4ab2d4a6190721795057850adc318))
+* **mcp:** add the list_queued_actions tool ([#1656](https://github.com/alrayyes/forge-dashboard/issues/1656)) ([4a54b76](https://github.com/alrayyes/forge-dashboard/commit/4a54b766669b278e28712436ceaf7c9c34b3272f))
+* open the run from the Main branches status pill ([#1839](https://github.com/alrayyes/forge-dashboard/issues/1839)) ([7185586](https://github.com/alrayyes/forge-dashboard/commit/718558677268390b25e776d70d9d6e83061100cd))
+* remove the outbound request log page section and its API ([#1968](https://github.com/alrayyes/forge-dashboard/issues/1968)) ([550e1b2](https://github.com/alrayyes/forge-dashboard/commit/550e1b274f74cfab3571cc2a4522a2ce0766508e))
+* **settings:** group Settings into five groups with help behind disclosures ([#1718](https://github.com/alrayyes/forge-dashboard/issues/1718)) ([6be0e07](https://github.com/alrayyes/forge-dashboard/commit/6be0e076df473543f4598ffcdee010a1a8a89076))
+* the Behind the base branch warning carries its own fix button ([#1983](https://github.com/alrayyes/forge-dashboard/issues/1983)) ([63a23cc](https://github.com/alrayyes/forge-dashboard/commit/63a23cca8c09f9230d5e32f80f9d36e5c09d602b))
+* upgrade existing app-created webhooks once per start ([#1589](https://github.com/alrayyes/forge-dashboard/issues/1589)) ([85d1650](https://github.com/alrayyes/forge-dashboard/commit/85d1650ce27b69429992f717ed22b5da5263a05f))
+* **web:** 44px targets on a phone and a 24px floor everywhere ([#1764](https://github.com/alrayyes/forge-dashboard/issues/1764)) ([e77e1a7](https://github.com/alrayyes/forge-dashboard/commit/e77e1a78f6efafe17e933c0392e6c891e543e42f))
+* **web:** a WebMCP parity test and the read tools that have a server twin ([#1556](https://github.com/alrayyes/forge-dashboard/issues/1556)) ([c8569ed](https://github.com/alrayyes/forge-dashboard/commit/c8569ed4e26e91f7fdeff97e1a158bc819adf524))
+* **web:** apply live updates by themselves and drop the Show updates bar ([#1870](https://github.com/alrayyes/forge-dashboard/issues/1870)) ([d1ec8dd](https://github.com/alrayyes/forge-dashboard/commit/d1ec8dd413c27611ca23ac274bb3b0cc20da38d0))
+* **web:** count the branches without a pipeline in the Branches pill ([#1536](https://github.com/alrayyes/forge-dashboard/issues/1536)) ([448202c](https://github.com/alrayyes/forge-dashboard/commit/448202c3c78479d0b816c7fe06258262f5134f6c))
+* **web:** draw one action on the row and drop the More actions menu ([#2039](https://github.com/alrayyes/forge-dashboard/issues/2039)) ([a932d3f](https://github.com/alrayyes/forge-dashboard/commit/a932d3f2eabe6046827a4c91b39eb57f37565f83))
+* **web:** draw state, outcome and attributes as three tiers on a row ([#1595](https://github.com/alrayyes/forge-dashboard/issues/1595)) ([409fa3c](https://github.com/alrayyes/forge-dashboard/commit/409fa3c7b004d3f8ff31f28121f34c18afa6f9e4))
+* **web:** draw the Branches status as state, outcome and a quiet note ([#1628](https://github.com/alrayyes/forge-dashboard/issues/1628)) ([fec2644](https://github.com/alrayyes/forge-dashboard/commit/fec264492483059e2d8e0759bf6f4f6ac02cc5e4))
+* **web:** draw the details header as state, outcome and attributes ([#1619](https://github.com/alrayyes/forge-dashboard/issues/1619)) ([6912ce4](https://github.com/alrayyes/forge-dashboard/commit/6912ce4eebd556235ec941d257d62fa190604639))
+* **web:** filter pull requests by running or passing CI and by auto-merge ([#1470](https://github.com/alrayyes/forge-dashboard/issues/1470)) ([c25b191](https://github.com/alrayyes/forge-dashboard/commit/c25b191ed5b51f3d4d4d45227b07789f89b6984a))
+* **web:** group the running state after the outcomes in the nav pill ([#1600](https://github.com/alrayyes/forge-dashboard/issues/1600)) ([7d12158](https://github.com/alrayyes/forge-dashboard/commit/7d121588386046ed3bba0273eca923153267987c))
+* **web:** hide issues whose title matches a pattern ([#1598](https://github.com/alrayyes/forge-dashboard/issues/1598)) ([3411378](https://github.com/alrayyes/forge-dashboard/commit/34113787c93a571a5733e2ebabbadebafbfc3549))
+* **web:** hide the Pull requests link when there are none ([#1416](https://github.com/alrayyes/forge-dashboard/issues/1416)) ([cb2b446](https://github.com/alrayyes/forge-dashboard/commit/cb2b446efe2ecc576c4517318c4c4dc98d873f0b))
+* **webhooks:** add a Clear filters button to the webhooks page ([#1823](https://github.com/alrayyes/forge-dashboard/issues/1823)) ([96d1dc1](https://github.com/alrayyes/forge-dashboard/commit/96d1dc18d86f61aa600f538a001c9668463c7c42))
+* **webhooks:** remember the webhooks filters in the saved filter state ([#1808](https://github.com/alrayyes/forge-dashboard/issues/1808)) ([b50b51f](https://github.com/alrayyes/forge-dashboard/commit/b50b51f4d06ea226694e06130aee12e07184ab2f))
+* **web:** ignore issue titles and the Dependency Dashboard from Settings ([#1636](https://github.com/alrayyes/forge-dashboard/issues/1636)) ([9a140c3](https://github.com/alrayyes/forge-dashboard/commit/9a140c3ff26dee6db170a842f2cb411cd380cbf8))
+* **web:** keep the details dialog current and close it on merge ([#1928](https://github.com/alrayyes/forge-dashboard/issues/1928)) ([ff5ca64](https://github.com/alrayyes/forge-dashboard/commit/ff5ca6458fc6bbcbb7561364391be879ede71b16)), closes [#1927](https://github.com/alrayyes/forge-dashboard/issues/1927)
+* **web:** link a person's avatar and name to their page on the forge ([#2041](https://github.com/alrayyes/forge-dashboard/issues/2041)) ([0ff2724](https://github.com/alrayyes/forge-dashboard/commit/0ff27241965a148703e8bcb92cb72e7aed2fb472))
+* **webmcp:** add get_settings, the twin of the MCP tool ([#1723](https://github.com/alrayyes/forge-dashboard/issues/1723)) ([36ed117](https://github.com/alrayyes/forge-dashboard/commit/36ed1176f5b3db2526a6390c13ae944356f29482))
+* **webmcp:** add list_queued_actions, the twin of the MCP tool ([#1658](https://github.com/alrayyes/forge-dashboard/issues/1658)) ([df7f1fa](https://github.com/alrayyes/forge-dashboard/commit/df7f1fa49a081ac6e93f53c6d957bd39b5ff9aea))
+* **webmcp:** read get_settings from the settings summary, which creates nothing ([#1737](https://github.com/alrayyes/forge-dashboard/issues/1737)) ([331b4a0](https://github.com/alrayyes/forge-dashboard/commit/331b4a0d07303fa297d5047c7224a380f92b160f)), closes [#1726](https://github.com/alrayyes/forge-dashboard/issues/1726)
+* **web:** offer every row action in the pull request pop-up's footer ([#1848](https://github.com/alrayyes/forge-dashboard/issues/1848)) ([a1e1000](https://github.com/alrayyes/forge-dashboard/commit/a1e1000fcb43236eae059339d864d9bf53586eee))
+* **web:** open a pull request's dialog from anywhere on its row ([#1692](https://github.com/alrayyes/forge-dashboard/issues/1692)) ([ecac298](https://github.com/alrayyes/forge-dashboard/commit/ecac298432d75fa7de434f81716512206b3017a1))
+* **web:** open a read-only details dialog from a pull request row ([#1525](https://github.com/alrayyes/forge-dashboard/issues/1525)) ([bf65c5d](https://github.com/alrayyes/forge-dashboard/commit/bf65c5d822efd87c72dee4fc092bed0421ef2ff6))
+* **web:** pin the Branches nav pill showing failing, running and passing ([#1498](https://github.com/alrayyes/forge-dashboard/issues/1498)) ([b5bcd64](https://github.com/alrayyes/forge-dashboard/commit/b5bcd64bee6bc812888bd302b69c7b7e5f1a9390)), closes [#1458](https://github.com/alrayyes/forge-dashboard/issues/1458)
+* **web:** plumb the server's primary action through the page and specs ([#1832](https://github.com/alrayyes/forge-dashboard/issues/1832)) ([8237dee](https://github.com/alrayyes/forge-dashboard/commit/8237dee89d41ddd62fc3411204a8b73c53b81534))
+* **web:** say a pull request is waiting for workflow approval and link to approve it ([#1480](https://github.com/alrayyes/forge-dashboard/issues/1480)) ([e05ecc6](https://github.com/alrayyes/forge-dashboard/commit/e05ecc6b951a10989dc9ef835baceb18b0ba598f)), closes [#1280](https://github.com/alrayyes/forge-dashboard/issues/1280)
+* **web:** show a loading state until the first refresh is done ([#1675](https://github.com/alrayyes/forge-dashboard/issues/1675)) ([9e9bdcd](https://github.com/alrayyes/forge-dashboard/commit/9e9bdcd1b73b1339cc1b07355404c77e4f3bd7fe))
+* **web:** show a repo's full owner/name on hover on Main branches and Webhooks ([#1962](https://github.com/alrayyes/forge-dashboard/issues/1962)) ([569e62d](https://github.com/alrayyes/forge-dashboard/commit/569e62d7f4562b7cc7b064728ce84e3af53e599f))
+* **web:** show a repository's own logo beside its name ([#2042](https://github.com/alrayyes/forge-dashboard/issues/2042)) ([f24511e](https://github.com/alrayyes/forge-dashboard/commit/f24511ef5a529ed9ddbe010641e0b4f10db7182f))
+* **web:** show emoji shortcodes such as :robot: as emoji in descriptions and comments ([#1996](https://github.com/alrayyes/forge-dashboard/issues/1996)) ([db4a59f](https://github.com/alrayyes/forge-dashboard/commit/db4a59fe938cabb60f293c3e518418060a07f531))
+* **web:** show failing, running and passing in the nav pill ([#1445](https://github.com/alrayyes/forge-dashboard/issues/1445)) ([c1dbdba](https://github.com/alrayyes/forge-dashboard/commit/c1dbdba2ebabc71efe596e532568026930076232)), closes [#1439](https://github.com/alrayyes/forge-dashboard/issues/1439)
+* **web:** show how many checks passed, run, wait and failed in the Running pill ([#2051](https://github.com/alrayyes/forge-dashboard/issues/2051)) ([64a6dd7](https://github.com/alrayyes/forge-dashboard/commit/64a6dd7cd935c4a500a272efc9f890f9eedda475))
+* **web:** show how many issues each ignored title pattern hides ([#1697](https://github.com/alrayyes/forge-dashboard/issues/1697)) ([2020f24](https://github.com/alrayyes/forge-dashboard/commit/2020f246045591b3326f062c8f2e1ca43fee593a))
+* **web:** show review comments and open threads on each pull request row ([#1418](https://github.com/alrayyes/forge-dashboard/issues/1418)) ([d34a37b](https://github.com/alrayyes/forge-dashboard/commit/d34a37bf87b72c98baa2d7bd4d88683bfe979d4e))
+* **web:** show the author's avatar on pull request rows ([#1984](https://github.com/alrayyes/forge-dashboard/issues/1984)) ([d6aead5](https://github.com/alrayyes/forge-dashboard/commit/d6aead534afc1ec4085c05eee7ff4fa12400b0df))
+* **web:** show the avatar of whoever filed an issue, on the row and in the dialog ([#2035](https://github.com/alrayyes/forge-dashboard/issues/2035)) ([32b389c](https://github.com/alrayyes/forge-dashboard/commit/32b389c22db3e530c85fc559230ea4b9228c6037))
+* **web:** show the full title as hover text when a row title is cut ([#1751](https://github.com/alrayyes/forge-dashboard/issues/1751)) ([a640e78](https://github.com/alrayyes/forge-dashboard/commit/a640e780181e3c9e741a77074027b717b8f91c58))
+* **web:** show versions, hashes and numbers in the mono face ([#1776](https://github.com/alrayyes/forge-dashboard/issues/1776)) ([6213840](https://github.com/alrayyes/forge-dashboard/commit/62138407f93a939a1bfb6221d525f21aee47d8a8)), closes [#1754](https://github.com/alrayyes/forge-dashboard/issues/1754)
+* **web:** show what a pull request is waiting on in one place on its row ([#1436](https://github.com/alrayyes/forge-dashboard/issues/1436)) ([267ac19](https://github.com/alrayyes/forge-dashboard/commit/267ac19ecf3c1fdf6e3754eba5e71af14223d299))
+* **web:** tell queued, skipped and cancelled pipeline checks apart ([#1482](https://github.com/alrayyes/forge-dashboard/issues/1482)) ([7a84c01](https://github.com/alrayyes/forge-dashboard/commit/7a84c01261c6c73bcbe407dad1883d7fb36d45cc)), closes [#1473](https://github.com/alrayyes/forge-dashboard/issues/1473)
+* **web:** the Main branches status pill opens the pipeline panel ([#1985](https://github.com/alrayyes/forge-dashboard/issues/1985)) ([cd2f278](https://github.com/alrayyes/forge-dashboard/commit/cd2f278d34355571c39e448a80a283b39e95a5a5))
+
+
+### Bug Fixes
+
+* **api:** advise a short re-read interval until the first refresh ends ([#1733](https://github.com/alrayyes/forge-dashboard/issues/1733)) ([37380af](https://github.com/alrayyes/forge-dashboard/commit/37380aff0912ededee2d52c11905790437b62fbd))
+* **api:** leave a repo ignored for pull requests off Branches and its badge ([#1372](https://github.com/alrayyes/forge-dashboard/issues/1372)) ([3623d98](https://github.com/alrayyes/forge-dashboard/commit/3623d98c0fc06ac1c5009b1cda17c559ff461665)), closes [#1337](https://github.com/alrayyes/forge-dashboard/issues/1337)
+* **api:** recognise a release-please pull request by its branch when it has no label ([#2036](https://github.com/alrayyes/forge-dashboard/issues/2036)) ([10ba493](https://github.com/alrayyes/forge-dashboard/commit/10ba493f928dc584c1594fd58b0f02ab347898a8))
+* **api:** refuse a Forgejo URL that carries credentials ([#1724](https://github.com/alrayyes/forge-dashboard/issues/1724)) ([f6dd988](https://github.com/alrayyes/forge-dashboard/commit/f6dd9889f339cca9c7e51c73b780b35c3b08d258))
+* **api:** say a forge's own 5xx is the forge's, retry Update branch once, and carry the request id ([#2037](https://github.com/alrayyes/forge-dashboard/issues/2037)) ([3c1c06f](https://github.com/alrayyes/forge-dashboard/commit/3c1c06ff12af1f9031b61a53fcee3bee03550daa))
+* **api:** show the version in the footer of the 404 and 500 pages ([#1694](https://github.com/alrayyes/forge-dashboard/issues/1694)) ([ed5e5a9](https://github.com/alrayyes/forge-dashboard/commit/ed5e5a9f20a711d7226e2a31b1f9495c83efb84d))
+* **api:** suppress the G705 false positive on the embedded error page ([#1566](https://github.com/alrayyes/forge-dashboard/issues/1566)) ([#1567](https://github.com/alrayyes/forge-dashboard/issues/1567)) ([e626df8](https://github.com/alrayyes/forge-dashboard/commit/e626df8329c62ec2d497baf69692219c1c1dc4ed))
+* bring the webhooks table controls up to the tap-target rule ([#1831](https://github.com/alrayyes/forge-dashboard/issues/1831)) ([e4a1fb1](https://github.com/alrayyes/forge-dashboard/commit/e4a1fb1cba4e365bda00eeb039ae7065e14a5f1a)), closes [#1825](https://github.com/alrayyes/forge-dashboard/issues/1825)
+* **dashboard:** drop the checks-pending next step when auto-merge is on ([#1644](https://github.com/alrayyes/forge-dashboard/issues/1644)) ([e92899e](https://github.com/alrayyes/forge-dashboard/commit/e92899e73dca7c48eb01752dbd773e20e426a935))
+* **dashboard:** order main branches by newest commit, not by status ([#1553](https://github.com/alrayyes/forge-dashboard/issues/1553)) ([d41d56d](https://github.com/alrayyes/forge-dashboard/commit/d41d56d56539cf43e872b30e8734d9ae66cc8647)), closes [#1552](https://github.com/alrayyes/forge-dashboard/issues/1552)
+* **dashboard:** poll repos with an armed GitHub pull request until it merges ([#1508](https://github.com/alrayyes/forge-dashboard/issues/1508)) ([d930af2](https://github.com/alrayyes/forge-dashboard/commit/d930af2b1d7884f493df7eba05bda7cc329c34ef))
+* **dashboard:** sort pull requests by last activity alone ([#1532](https://github.com/alrayyes/forge-dashboard/issues/1532)) ([#1534](https://github.com/alrayyes/forge-dashboard/issues/1534)) ([ecfb56b](https://github.com/alrayyes/forge-dashboard/commit/ecfb56b530c37368ab06c7948f7203dd1bd755e3))
+* **deps:** bump github.com/getkin/kin-openapi ([#1921](https://github.com/alrayyes/forge-dashboard/issues/1921)) ([bfb149e](https://github.com/alrayyes/forge-dashboard/commit/bfb149e49b51f6b23355a364e4cc631f8166fafa))
+* **deps:** bump oven/bun ([#1923](https://github.com/alrayyes/forge-dashboard/issues/1923)) ([4a4b9dc](https://github.com/alrayyes/forge-dashboard/commit/4a4b9dc0713625730d455084dbf574f99f3ba4a9))
+* **deps:** bump the web-shipped group with a refreshed bun.lock ([#1942](https://github.com/alrayyes/forge-dashboard/issues/1942)) ([742bb35](https://github.com/alrayyes/forge-dashboard/commit/742bb35caeeed857757c731daafed8b0cd58bc86))
+* **e2e:** take the write lock first in the reset so a concurrent write is waited out ([#2021](https://github.com/alrayyes/forge-dashboard/issues/2021)) ([b26e537](https://github.com/alrayyes/forge-dashboard/commit/b26e53726239856424124fe626dd1850ec3afc6a))
+* **forgejo:** ask for a saved token, not an owner, when no token is saved ([#1877](https://github.com/alrayyes/forge-dashboard/issues/1877)) ([a521f21](https://github.com/alrayyes/forge-dashboard/commit/a521f21a7529b6b28ed07f735d9ae1a760102bdc))
+* **forgejo:** tell a missing permissions object from a non-admin role ([#1865](https://github.com/alrayyes/forge-dashboard/issues/1865)) ([e5195f1](https://github.com/alrayyes/forge-dashboard/commit/e5195f14e8e8b95bf0b77fa9c6c6b6147a1ab3ea))
+* **github:** a queued or running required check keeps CI pending ([#1371](https://github.com/alrayyes/forge-dashboard/issues/1371)) ([8699b32](https://github.com/alrayyes/forge-dashboard/commit/8699b329c0833ecf507b39d70709f93ff7a072c4))
+* **github:** don't trust a rollup that belongs to an earlier commit ([#1377](https://github.com/alrayyes/forge-dashboard/issues/1377)) ([666a6d5](https://github.com/alrayyes/forge-dashboard/commit/666a6d578846879ba2286a46a19c6527d694a540))
+* **github:** keep a failed held-run lookup from hiding held workflows ([#1975](https://github.com/alrayyes/forge-dashboard/issues/1975)) ([5e93e12](https://github.com/alrayyes/forge-dashboard/commit/5e93e12f793c8f5f5ab998035784733f660c803a))
+* **github:** let a GitHub App add webhooks and say what it lacks ([#1847](https://github.com/alrayyes/forge-dashboard/issues/1847)) ([a573ba8](https://github.com/alrayyes/forge-dashboard/commit/a573ba803969d16d4856ae6457d1eef7c1e26ca5))
+* **github:** lock repos checked after an app-wide webhooks denial ([#1874](https://github.com/alrayyes/forge-dashboard/issues/1874)) ([c053a17](https://github.com/alrayyes/forge-dashboard/commit/c053a17c7b459ef7bbea792c56db704b1d47c818)), closes [#1871](https://github.com/alrayyes/forge-dashboard/issues/1871)
+* **github:** log when a rollup is of an earlier commit ([#1388](https://github.com/alrayyes/forge-dashboard/issues/1388)) ([39e03f1](https://github.com/alrayyes/forge-dashboard/commit/39e03f1719deb3b1905a0090c63c26c0c81a393f))
+* **github:** read CI pending when blocked and required checks are unreadable ([#1640](https://github.com/alrayyes/forge-dashboard/issues/1640)) ([7dd9442](https://github.com/alrayyes/forge-dashboard/commit/7dd9442e5b3adec21d83e4f9eeda6b4d788fc33d))
+* **github:** read runs held for approval as awaiting approval, not running ([#1930](https://github.com/alrayyes/forge-dashboard/issues/1930)) ([ba1dd6a](https://github.com/alrayyes/forge-dashboard/commit/ba1dd6acae391daaf4911e95464ae7b523a00149)), closes [#1929](https://github.com/alrayyes/forge-dashboard/issues/1929)
+* **github:** signal token permission is the webhook limit, not the owner ([#1914](https://github.com/alrayyes/forge-dashboard/issues/1914)) ([9463ba4](https://github.com/alrayyes/forge-dashboard/commit/9463ba44f21db37d2ea92defa1c60aada0b22db6))
+* **github:** warn once per branch when the required checks can't be read ([#1389](https://github.com/alrayyes/forge-dashboard/issues/1389)) ([30104b9](https://github.com/alrayyes/forge-dashboard/commit/30104b9d5360f46c7e761d8e4f279a8a3c0acbf5))
+* give the pop-up's reaction pills and collapsed summary the 44 px target up to 760 px ([#1878](https://github.com/alrayyes/forge-dashboard/issues/1878)) ([b6afa14](https://github.com/alrayyes/forge-dashboard/commit/b6afa141b5d25436e4e856a253c2e684b5899c8e)), closes [#1867](https://github.com/alrayyes/forge-dashboard/issues/1867)
+* give the pull request details pop-up 44px targets under 761px ([#1866](https://github.com/alrayyes/forge-dashboard/issues/1866)) ([56ad64c](https://github.com/alrayyes/forge-dashboard/commit/56ad64c72bca9cafa6dd72af919b56ae1309a898)), closes [#1857](https://github.com/alrayyes/forge-dashboard/issues/1857)
+* one rule for failing CI across the filters, the auto-merge line and the checks panel ([#1955](https://github.com/alrayyes/forge-dashboard/issues/1955)) ([e0c7f3b](https://github.com/alrayyes/forge-dashboard/commit/e0c7f3b6472e0c696af6f73161ab7cd3dfd628d4))
+* show a branch whose only trouble is a cancelled run as cancelled, not failed ([#1960](https://github.com/alrayyes/forge-dashboard/issues/1960)) ([7086624](https://github.com/alrayyes/forge-dashboard/commit/7086624dd21880bdd00be27333e96b17ce00e1a9))
+* show and cancel a merge scheduled on Forgejo ([#1571](https://github.com/alrayyes/forge-dashboard/issues/1571)) ([#1591](https://github.com/alrayyes/forge-dashboard/issues/1591)) ([c88a4ca](https://github.com/alrayyes/forge-dashboard/commit/c88a4ca5d4f0bd341f419f86ccc31cf6cae96c57))
+* sort the webhooks cards with a visible select and align the breakpoints ([#1856](https://github.com/alrayyes/forge-dashboard/issues/1856)) ([1393fcc](https://github.com/alrayyes/forge-dashboard/commit/1393fcc3f18139190ec5576b844ba59eaa38863b))
+* **web:** announce forge health only when its state changes ([#1790](https://github.com/alrayyes/forge-dashboard/issues/1790)) ([d196a27](https://github.com/alrayyes/forge-dashboard/commit/d196a27e3ec3c9268ff81d8d08288066ead53544)), closes [#1771](https://github.com/alrayyes/forge-dashboard/issues/1771)
+* **web:** clear the status and auto-merge filters where Show row finds them ([#1778](https://github.com/alrayyes/forge-dashboard/issues/1778)) ([22f5bb3](https://github.com/alrayyes/forge-dashboard/commit/22f5bb301d4b74177726420c633ff4517bdec935)), closes [#1758](https://github.com/alrayyes/forge-dashboard/issues/1758)
+* **web:** don't show the Blocked pill when CI is failing ([#1562](https://github.com/alrayyes/forge-dashboard/issues/1562)) ([2cfe92c](https://github.com/alrayyes/forge-dashboard/commit/2cfe92c44044c788706acb41f3847a3ee9862da1))
+* **web:** hold a queued rerun as "Rerun queued" in the pipeline panel too ([#1951](https://github.com/alrayyes/forge-dashboard/issues/1951)) ([aa23a2a](https://github.com/alrayyes/forge-dashboard/commit/aa23a2a9255cb6eb4f72d5cfd026dd3117c870d4))
+* **webhooks:** clear the status line when a filter changes ([#1840](https://github.com/alrayyes/forge-dashboard/issues/1840)) ([fba8045](https://github.com/alrayyes/forge-dashboard/commit/fba80450d3a3156568271913d3af6072aaf8f883))
+* **webhooks:** subscribe created hooks to comment and review events ([#1554](https://github.com/alrayyes/forge-dashboard/issues/1554)) ([ecff081](https://github.com/alrayyes/forge-dashboard/commit/ecff08183216abd1942007394af4e3635baceafd))
+* **web:** keep a filter changed while the saved copy loads ([#1752](https://github.com/alrayyes/forge-dashboard/issues/1752)) ([a4c13a0](https://github.com/alrayyes/forge-dashboard/commit/a4c13a021f217b30cfa85e68754878455664db6d))
+* **web:** keep a saved pick the current page does not offer ([#1631](https://github.com/alrayyes/forge-dashboard/issues/1631)) ([fbeed07](https://github.com/alrayyes/forge-dashboard/commit/fbeed0710a1607da6aaf27178b6b40351db22137))
+* **web:** keep an author or label pick whose option has capitals ([#1681](https://github.com/alrayyes/forge-dashboard/issues/1681)) ([04c37e8](https://github.com/alrayyes/forge-dashboard/commit/04c37e85e4610804c9d7a95c49933ff573004cb7))
+* **web:** keep every footer link on every page and mark the current one ([#1687](https://github.com/alrayyes/forge-dashboard/issues/1687)) ([9361ca0](https://github.com/alrayyes/forge-dashboard/commit/9361ca02b791e0beed198c8f9581cce714fbbc03))
+* **web:** keep the low rate-limit banner stable while its count falls ([#1807](https://github.com/alrayyes/forge-dashboard/issues/1807)) ([61496f3](https://github.com/alrayyes/forge-dashboard/commit/61496f3fc391e21cf62b0d0b33d7c7597c0e479c))
+* **web:** let the newer saved filter state win on load ([#1789](https://github.com/alrayyes/forge-dashboard/issues/1789)) ([2df15aa](https://github.com/alrayyes/forge-dashboard/commit/2df15aa33fac6c2b8719891b93675b11fb8ec717)), closes [#1760](https://github.com/alrayyes/forge-dashboard/issues/1760) [#1620](https://github.com/alrayyes/forge-dashboard/issues/1620)
+* **web:** offer a Branches pill only when clicking it would show something ([#1452](https://github.com/alrayyes/forge-dashboard/issues/1452)) ([dcc90b8](https://github.com/alrayyes/forge-dashboard/commit/dcc90b84b4e0c22bc1a4561e2680cee6426c50d1))
+* **web:** offer a quick pill only when clicking it would show something ([#1440](https://github.com/alrayyes/forge-dashboard/issues/1440)) ([f866069](https://github.com/alrayyes/forge-dashboard/commit/f86606922415b9bb06f5ddb07d5768c12b5715a2))
+* **web:** offer only the CI states, age ranges and forges the results have ([#1431](https://github.com/alrayyes/forge-dashboard/issues/1431)) ([2024f47](https://github.com/alrayyes/forge-dashboard/commit/2024f47f6270d1bafc0ae3d89dae1a29540e3c89))
+* **web:** offer only the forges and statuses the webhooks list has ([#1430](https://github.com/alrayyes/forge-dashboard/issues/1430)) ([e007881](https://github.com/alrayyes/forge-dashboard/commit/e007881888a4a7ff4883c018d36a17d310eed3a4))
+* **web:** offer only the repos, authors and labels a page can show ([#1429](https://github.com/alrayyes/forge-dashboard/issues/1429)) ([dfea2a2](https://github.com/alrayyes/forge-dashboard/commit/dfea2a295bc7769b8bc7c2ba149e19ecd7e9039a))
+* **web:** offer only the repos, authors and labels the pull request list has ([#2027](https://github.com/alrayyes/forge-dashboard/issues/2027)) ([9a48a25](https://github.com/alrayyes/forge-dashboard/commit/9a48a250fa5f068453510522a4d8039d1e7ebe3f))
+* **web:** open a nav link's name with the numbers drawn on it ([#1952](https://github.com/alrayyes/forge-dashboard/issues/1952)) ([2a00275](https://github.com/alrayyes/forge-dashboard/commit/2a0027549ca706df7094a454e8d28d895b564180))
+* **web:** open the live stream after the first poll, and reopen it if it closes ([#1574](https://github.com/alrayyes/forge-dashboard/issues/1574)) ([20f87d0](https://github.com/alrayyes/forge-dashboard/commit/20f87d095b380bf626e477688c6f115905f4142a))
+* **web:** prevent row overflow on bots page between 761-949 px ([#1899](https://github.com/alrayyes/forge-dashboard/issues/1899)) ([#1911](https://github.com/alrayyes/forge-dashboard/issues/1911)) ([86ffcd7](https://github.com/alrayyes/forge-dashboard/commit/86ffcd7045bbdab8c4cd73a2df8920ffb8053565))
+* **web:** read the navigation counts one at a time ([#1793](https://github.com/alrayyes/forge-dashboard/issues/1793)) ([f5938c4](https://github.com/alrayyes/forge-dashboard/commit/f5938c41b1297f3728317ef676c009f4f39d4f17))
+* **web:** refetch the Branches list when the first refresh finishes ([#1735](https://github.com/alrayyes/forge-dashboard/issues/1735)) ([3b7beeb](https://github.com/alrayyes/forge-dashboard/commit/3b7beeb14c769d61e2b17359a172309869b8fde3))
+* **web:** render markdown task lists as read-only checkboxes ([#1657](https://github.com/alrayyes/forge-dashboard/issues/1657)) ([5a5153b](https://github.com/alrayyes/forge-dashboard/commit/5a5153baf292efe3c65faf4954625fd4d8065a77))
+* **web:** restore the Issues page's Hide Dependency Dashboard box from the server copy ([#1710](https://github.com/alrayyes/forge-dashboard/issues/1710)) ([0ed055a](https://github.com/alrayyes/forge-dashboard/commit/0ed055acf50c19dbf520a7b8eb6c3d060fee934a))
+* **web:** save pending free-text filters when leaving the page ([#1705](https://github.com/alrayyes/forge-dashboard/issues/1705)) ([dc7690f](https://github.com/alrayyes/forge-dashboard/commit/dc7690ffc46f949ce8c1cc26b38bad8f506715a3))
+* **web:** save the branches filter in the server copy ([#1755](https://github.com/alrayyes/forge-dashboard/issues/1755)) ([ee334e6](https://github.com/alrayyes/forge-dashboard/commit/ee334e6d1511dbd3f75cd2e8e1a3aaebea6c0fa8))
+* **web:** say a saved pick is waiting and let Clear filters end it ([#1678](https://github.com/alrayyes/forge-dashboard/issues/1678)) ([f73ce94](https://github.com/alrayyes/forge-dashboard/commit/f73ce94dda93cde98ee7e23f2433163aeb6582f3))
+* **web:** say Branches come newest commit first in the tool and page descriptions ([#1588](https://github.com/alrayyes/forge-dashboard/issues/1588)) ([e2b0d90](https://github.com/alrayyes/forge-dashboard/commit/e2b0d9038792c67457a0a514d526f77aa266ba08)), closes [#1552](https://github.com/alrayyes/forge-dashboard/issues/1552)
+* **web:** say GitHub merges an armed pull request itself, not on the next refresh ([#1507](https://github.com/alrayyes/forge-dashboard/issues/1507)) ([afacb0e](https://github.com/alrayyes/forge-dashboard/commit/afacb0e7096c571737c89c9fc56a530af5f477a8)), closes [#1505](https://github.com/alrayyes/forge-dashboard/issues/1505)
+* **web:** say who holds a Forgejo auto-merge ([#1618](https://github.com/alrayyes/forge-dashboard/issues/1618)) ([7b62bf1](https://github.com/alrayyes/forge-dashboard/commit/7b62bf1fd0adf16201ffd1a4ae9ca9bf66e040ea))
+* **web:** send filter-state saves one at a time so the last pick wins ([#1646](https://github.com/alrayyes/forge-dashboard/issues/1646)) ([ffb7014](https://github.com/alrayyes/forge-dashboard/commit/ffb701445b606e40440980f92fcc008e29001849))
+* **web:** show a default branch held for workflow approval in the Branches pill ([#2030](https://github.com/alrayyes/forge-dashboard/issues/2030)) ([9a9d6ea](https://github.com/alrayyes/forge-dashboard/commit/9a9d6ead36e61af4e48acaa05adcec5ba678df68))
+* **web:** show Counting… and re-read ignored title counts after a first save ([#1717](https://github.com/alrayyes/forge-dashboard/issues/1717)) ([2b96ca8](https://github.com/alrayyes/forge-dashboard/commit/2b96ca81e86a10c0d5cb28698e100c8d93441c14))
+* **web:** show each GitHub budget under the pill, labelled ([#1434](https://github.com/alrayyes/forge-dashboard/issues/1434)) ([da636b5](https://github.com/alrayyes/forge-dashboard/commit/da636b578ddd99a846145e1c9ea650303760b42c))
+* **web:** show the generic permission text when the server sent no sentence ([#1980](https://github.com/alrayyes/forge-dashboard/issues/1980)) ([41590f7](https://github.com/alrayyes/forge-dashboard/commit/41590f7ffd99b22117edd912a05001aadece309d))
+* **web:** show the loading state from the first paint ([#1738](https://github.com/alrayyes/forge-dashboard/issues/1738)) ([b00e917](https://github.com/alrayyes/forge-dashboard/commit/b00e917b01875a4618b31af7e9811d9b8f19a76e))
+* **web:** speak the share of a rate limit budget left in coarse bands ([#1817](https://github.com/alrayyes/forge-dashboard/issues/1817)) ([89403f4](https://github.com/alrayyes/forge-dashboard/commit/89403f4615d5072f25606104452e55d7fda0482b)), closes [#1812](https://github.com/alrayyes/forge-dashboard/issues/1812)
+* **web:** the waiting-for-approval pill in the details dialog holds its text ([#1989](https://github.com/alrayyes/forge-dashboard/issues/1989)) ([4a41f7e](https://github.com/alrayyes/forge-dashboard/commit/4a41f7ec05c4ccb112c7659787f14ae117bd16fb))
+
+
+### Performance Improvements
+
+* **web:** inline the layout and footer css into each page ([#1538](https://github.com/alrayyes/forge-dashboard/issues/1538)) ([4a68bde](https://github.com/alrayyes/forge-dashboard/commit/4a68bde12f8c74e0f2df42943b855ab481846af8))
+
+## [0.234.0](https://github.com/alrayyes/forge-dashboard/compare/v0.233.0...v0.234.0) (2026-10-20)
+
+
+### Features
+
+* **web:** show how many checks passed, run, wait and failed in the Running pill ([#2051](https://github.com/alrayyes/forge-dashboard/issues/2051)) ([64a6dd7](https://github.com/alrayyes/forge-dashboard/commit/64a6dd7cd935c4a500a272efc9f890f9eedda475))
+
+## [0.233.0](https://github.com/alrayyes/forge-dashboard/compare/v0.232.0...v0.233.0) (2026-10-20)
+
+
+### Features
+
+* **api:** say how many checks passed, run, wait and failed on each pull request ([#2047](https://github.com/alrayyes/forge-dashboard/issues/2047)) ([34c3c62](https://github.com/alrayyes/forge-dashboard/commit/34c3c62ece510113721bd4eb78503b3a5b0a1c7d))
+
+## [0.232.0](https://github.com/alrayyes/forge-dashboard/compare/v0.231.2...v0.232.0) (2026-10-20)
+
+
+### Features
+
+* **web:** draw one action on the row and drop the More actions menu ([#2039](https://github.com/alrayyes/forge-dashboard/issues/2039)) ([a932d3f](https://github.com/alrayyes/forge-dashboard/commit/a932d3f2eabe6046827a4c91b39eb57f37565f83))
+* **web:** link a person's avatar and name to their page on the forge ([#2041](https://github.com/alrayyes/forge-dashboard/issues/2041)) ([0ff2724](https://github.com/alrayyes/forge-dashboard/commit/0ff27241965a148703e8bcb92cb72e7aed2fb472))
+
+## [0.231.2](https://github.com/alrayyes/forge-dashboard/compare/v0.231.1...v0.231.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **api:** say a forge's own 5xx is the forge's, retry Update branch once, and carry the request id ([#2037](https://github.com/alrayyes/forge-dashboard/issues/2037)) ([3c1c06f](https://github.com/alrayyes/forge-dashboard/commit/3c1c06ff12af1f9031b61a53fcee3bee03550daa))
+
+## [0.231.1](https://github.com/alrayyes/forge-dashboard/compare/v0.231.0...v0.231.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **api:** recognise a release-please pull request by its branch when it has no label ([#2036](https://github.com/alrayyes/forge-dashboard/issues/2036)) ([10ba493](https://github.com/alrayyes/forge-dashboard/commit/10ba493f928dc584c1594fd58b0f02ab347898a8))
+
+## [0.231.0](https://github.com/alrayyes/forge-dashboard/compare/v0.230.2...v0.231.0) (2026-10-20)
+
+
+### Features
+
+* **web:** show the avatar of whoever filed an issue, on the row and in the dialog ([#2035](https://github.com/alrayyes/forge-dashboard/issues/2035)) ([32b389c](https://github.com/alrayyes/forge-dashboard/commit/32b389c22db3e530c85fc559230ea4b9228c6037))
+
+## [0.230.2](https://github.com/alrayyes/forge-dashboard/compare/v0.230.1...v0.230.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **web:** offer only the repos, authors and labels the pull request list has ([#2027](https://github.com/alrayyes/forge-dashboard/issues/2027)) ([9a48a25](https://github.com/alrayyes/forge-dashboard/commit/9a48a250fa5f068453510522a4d8039d1e7ebe3f))
+
+## [0.230.1](https://github.com/alrayyes/forge-dashboard/compare/v0.230.0...v0.230.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **web:** show a default branch held for workflow approval in the Branches pill ([#2030](https://github.com/alrayyes/forge-dashboard/issues/2030)) ([9a9d6ea](https://github.com/alrayyes/forge-dashboard/commit/9a9d6ead36e61af4e48acaa05adcec5ba678df68))
+
 ## [0.230.0](https://github.com/alrayyes/forge-dashboard/compare/v0.229.1...v0.230.0) (2026-10-20)
 
 

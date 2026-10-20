@@ -9,7 +9,7 @@ marks it "Updated just now" for a couple of seconds; it never reorders the
 list. Rows that are added, removed or reordered land by themselves in one
 render, with nothing to press. They wait only while something would be
 disturbed, and land the moment it ends: a row action is in flight (or a Merge is
-waiting for its second click), a More actions menu or a pop-up other than the
+waiting for its second click), a pop-up other than the
 pull request pop-up is open, the mouse rests on the list (until you move away,
 close a pop-up or leave the window), or a finger has just touched or scrolled
 the page (for about a second). A refresh you asked for (Refresh now, or the one
@@ -139,10 +139,12 @@ Dashboard** is unchecked. Hiding it again clears a repo picked on that basis.
 The CI status select, the Created and Updated ranges and the forge buttons on
 Insights follow the same rule: a CI state, a range or a forge appears only when
 something in the results is in it, and a pick that nothing matches any more is
-cleared. The CI and age choices also follow the other one and the quick pills,
-so picking one never leaves an empty list. The quick pills do too: a pill is
-offered only when clicking it would show something, and the one that is active
-stays so it can be cleared.
+cleared. On the pull request page the repo, author and label choices and the CI
+and age choices also follow the board's own filters (the quick pills, CI status
+and Auto-merge), so an author with nothing in the list on screen isn't offered
+and picking a choice never leaves an empty list. The quick pills do too: a pill
+is offered only when clicking it would show something, and the one that is
+active stays so it can be cleared.
 
 ## Remembered filters
 
