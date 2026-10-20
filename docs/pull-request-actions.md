@@ -554,7 +554,7 @@ or its repo is no longer tracked, and a pull request the dashboard doesn't
 hold is refused. Update branch comes back on a pull request
 you have switched off, and goes away on one you have switched on.
 
-In the pull request's dialog this is the checkbox "Update this branch
+In the details pop-up this is the checkbox "Update this branch
 automatically", just before the buttons. It shows the effective value, and the line
 under it says whether that is the repo's setting or a choice made for this
 pull request. Changing it saves at once. "Use the repo's setting"
