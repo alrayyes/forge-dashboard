@@ -30,7 +30,7 @@ func TestFetch_CheckCountsAgreeWithTheOverallState(t *testing.T) {
 		runs := map[string]int{}
 		statuses := map[string]int{}
 		var name []string
-		for i := 0; i < total; i++ {
+		for i := range total {
 			if mask&(1<<i) == 0 {
 				continue
 			}
