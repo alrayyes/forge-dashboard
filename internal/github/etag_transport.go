@@ -132,6 +132,21 @@ func (t *etagTransport) servedFromCache(fresh *http.Response, cached cachedRespo
 	}
 }
 
+// spliceBody reads from Reader and closes closer, so a body that was read
+// ahead and the unread rest of it behave as the one body they were.
+type spliceBody struct {
+	io.Reader
+	closer io.Closer
+}
+
+func (b *spliceBody) Close() error {
+	if err := b.closer.Close(); err != nil {
+		return fmt.Errorf("github: close response body: %w", err)
+	}
+
+	return nil
+}
+
 // maybeCache stores resp's body under key, keyed off its own ETag — never
 // touched again once read, since a caller downstream still needs the
 // original response body intact.
@@ -140,15 +155,18 @@ func (t *etagTransport) maybeCache(key etagKey, resp *http.Response) {
 	if etag == "" {
 		return
 	}
-	body, err := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	if err != nil {
-		return
-	}
-	resp.Body = io.NopCloser(bytes.NewReader(body))
+	// Read at most one byte past the cap: that is enough to know the body is
+	// too big, without holding all of it just to throw the copy away.
+	original := resp.Body
+	body, err := io.ReadAll(io.LimitReader(original, maxETagBodyBytes+1))
+	if err != nil || len(body) > maxETagBodyBytes {
+		// Not cached. The caller still gets the whole body: what was read,
+		// then the rest (and the read error again, if that was the cause).
+		resp.Body = &spliceBody{Reader: io.MultiReader(bytes.NewReader(body), original), closer: original}
 
-	if len(body) > maxETagBodyBytes {
 		return
 	}
+	_ = original.Close()
+	resp.Body = io.NopCloser(bytes.NewReader(body))
 	t.store.put(key, cachedResponse{etag: etag, body: body, header: resp.Header.Clone()})
 }
