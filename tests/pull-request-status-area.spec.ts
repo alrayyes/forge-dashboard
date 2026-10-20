@@ -111,7 +111,9 @@ test.describe('the status area on a pull request row (#1375)', () => {
     ).toHaveCount(0);
     await expect(merge).toHaveAttribute('aria-disabled', 'true');
     // The reason is read without hovering: Merge is described by the area.
-    const areaId = await waiting.locator('.status-area').getAttribute('id');
+    const areaId = await waiting
+      .locator('.status-area-text')
+      .getAttribute('id');
     await expect(merge).toHaveAttribute('aria-describedby', areaId ?? '');
     await expect(merge).toHaveAccessibleDescription(/Waiting for CI to finish/);
   });

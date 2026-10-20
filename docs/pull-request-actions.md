@@ -29,6 +29,15 @@ The row shows `status` in one place, a block with an icon and words above its
 actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.
 
+When the status is "Behind the base branch", it also carries `action`: the
+action that clears it, Update branch or the Dependabot or Renovate rebase.
+It is the same action the server marks `primary`. The page draws that button
+inside the row's status block and leaves out the row's own copy, so the
+warning and its cure are one control. The pop-up's footer still lists every
+action. A conflict, a check still running and a draft have no `action`, and
+neither does a Renovate pull request whose rebase is already waiting, which
+keeps its locked rebase button in the row.
+
 The details pop-up (see Pull request pages) draws the same actions in its
 footer, built by the same code as the row's buttons so the two cannot disagree.
 The order in the footer is the primary action first, then the others, then Close
