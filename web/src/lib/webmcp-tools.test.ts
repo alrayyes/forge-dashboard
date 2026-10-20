@@ -35,11 +35,12 @@ function setup(response: { status?: number; body?: unknown } = {}) {
 const PR = { forge: 'forgejo', fullName: 'acme/api', number: 7 };
 
 describe('WebMCP read tools', () => {
-  test('lists get_dashboard and the five server twins', () => {
+  test('lists get_dashboard and the six server twins', () => {
     const tools = createWebMCPTools({ getDashboard: async () => ({}) });
     expect(tools.map((t) => t.name)).toEqual([
       'get_dashboard',
       'get_main_branches',
+      'get_main_branch_checks',
       'get_pull_request_checks',
       'get_pull_request_details',
       'list_queued_actions',
@@ -90,6 +91,31 @@ describe('WebMCP read tools', () => {
     expect(calls[0].url).toBe(
       '/api/pull-requests/checks?forge=forgejo&fullName=acme%2Fapi&number=7',
     );
+  });
+
+  test('get_main_branch_checks reads /api/main-branches/checks with the repository', async () => {
+    const { calls, tool } = setup({ body: { checks: [] } });
+    expect(
+      await tool('get_main_branch_checks').execute({
+        forge: 'forgejo',
+        fullName: 'acme/api',
+      }),
+    ).toEqual({ checks: [] });
+    expect(calls[0].url).toBe(
+      '/api/main-branches/checks?forge=forgejo&fullName=acme%2Fapi',
+    );
+  });
+
+  test('get_main_branch_checks refuses input the endpoint would reject, without calling it', async () => {
+    const { calls, tool } = setup();
+    const t = tool('get_main_branch_checks');
+    await expect(
+      t.execute({ forge: 'gitlab', fullName: 'acme/api' }),
+    ).rejects.toThrow('forge');
+    await expect(
+      t.execute({ forge: 'github', fullName: 'nope' }),
+    ).rejects.toThrow('fullName');
+    expect(calls).toHaveLength(0);
   });
 
   test('get_pull_request_details reads /api/pull-requests/details', async () => {
