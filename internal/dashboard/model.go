@@ -27,6 +27,19 @@ const (
 	CINone    CIStatus = "none"
 )
 
+// CheckCounts is how many of a pull request's checks are in each state, read
+// from the per-state counts the forge's own answer already holds, so it costs
+// no extra request. Waiting is a check not started yet (queued, or pending on
+// Forgejo, which does not tell the two apart). A run held for approval is none
+// of the four: AwaitingWorkflowApproval says that. Always present, all zero
+// when there are no checks. Matches components.schemas.CheckCounts.
+type CheckCounts struct {
+	Passed  int `json:"passed"`
+	Running int `json:"running"`
+	Waiting int `json:"waiting"`
+	Failed  int `json:"failed"`
+}
+
 // MergeStatus is a pull request's mergeable/blocked state, as coarse as
 // every forge this service talks to can agree on. Matches
 // components.schemas.MergeStatus.
@@ -152,13 +165,16 @@ type PullRequest struct {
 	Author string `json:"author"`
 	// AuthorAvatarURL is the forge's own avatar URL for the author; empty
 	// when the forge supplies none (a deleted account).
-	AuthorAvatarURL string      `json:"authorAvatarUrl"`
-	Draft           bool        `json:"draft"`
-	Labels          []Label     `json:"labels"`
-	CreatedAt       time.Time   `json:"createdAt"`
-	UpdatedAt       time.Time   `json:"updatedAt"`
-	CI              CIStatus    `json:"ci"`
-	MergeStatus     MergeStatus `json:"mergeStatus"`
+	AuthorAvatarURL string    `json:"authorAvatarUrl"`
+	Draft           bool      `json:"draft"`
+	Labels          []Label   `json:"labels"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+	CI              CIStatus  `json:"ci"`
+	// Checks says how many checks passed, are running, are waiting and
+	// failed, so a client can show how far a pipeline is without opening it.
+	Checks      CheckCounts `json:"checks"`
+	MergeStatus MergeStatus `json:"mergeStatus"`
 	// Behind is deliberately its own field, not folded into MergeStatus,
 	// because the two aren't mutually exclusive on every forge: confirmed
 	// live against a real Forgejo instance (a PR's own Mergeable field

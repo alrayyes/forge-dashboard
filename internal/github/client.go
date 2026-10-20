@@ -1405,6 +1405,62 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 	return commits[0].Commit.StatusCheckRollup.ci()
 }
 
+// checkCountsOf tallies the rollup's per-state counts the query already asks
+// for into the four a client draws, so a pull request says how far its
+// pipeline is without another request. No rollup, no checks.
+func checkCountsOf(commits []prCommitNode) dashboard.CheckCounts {
+	if len(commits) == 0 {
+		return dashboard.CheckCounts{}
+	}
+
+	return commits[0].Commit.StatusCheckRollup.checkCounts()
+}
+
+// checkCounts sorts every check run and status context into passed, running,
+// waiting or failed, so the counts and the overall state (ci) agree: a pending
+// pull request never carries a failed count.
+//
+// Two kinds of run are in none of the four, for the reason ci() gives them
+// their own handling. A run held as ACTION_REQUIRED is awaiting approval, which
+// has its own flag and its own pill (#1280, #1933). A cancelled run is not a
+// failure while others still run: a push or a concurrency group superseded it
+// (#722, #1950), and settleFailedRollup reads such a rollup as pending, so
+// counting it as failed would put a red count under Running.
+//
+// COMPLETED counts as passed: GitHub reports a finished run under its
+// conclusion (SUCCESS, FAILURE, ...), so a bare COMPLETED carries no failure of
+// its own, and a failing one is a state of its own that is counted as failed.
+func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
+	var out dashboard.CheckCounts
+	if r == nil || r.Contexts == nil {
+		return out
+	}
+	for _, c := range r.Contexts.CheckRunCountsByState {
+		switch c.State {
+		case "SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED":
+			out.Passed += c.Count
+		case "IN_PROGRESS":
+			out.Running += c.Count
+		case "QUEUED", "PENDING", "WAITING", "REQUESTED":
+			out.Waiting += c.Count
+		case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "STALE":
+			out.Failed += c.Count
+		}
+	}
+	for _, c := range r.Contexts.StatusContextCountsByState {
+		switch c.State {
+		case "SUCCESS":
+			out.Passed += c.Count
+		case "PENDING", "EXPECTED":
+			out.Waiting += c.Count
+		case "FAILURE", "ERROR":
+			out.Failed += c.Count
+		}
+	}
+
+	return out
+}
+
 func failingOnlyForApprovalOf(commits []prCommitNode) bool {
 	if len(commits) == 0 {
 		return false
@@ -2592,10 +2648,13 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 	ci := ciFromRollup(p.Commits.Nodes)
 	awaitingApproval := awaitingApprovalOf(p.Commits.Nodes)
 	failingOnlyForApproval := failingOnlyForApprovalOf(p.Commits.Nodes)
+	checks := checkCountsOf(p.Commits.Nodes)
 	if rollupIsOfAnotherCommit(p.Commits.Nodes, p.HeadRefOid) {
 		slog.Debug("github rollup is of an earlier commit, reading pending", "forge", dashboard.ForgeGitHub, "repo", fullName,
 			"number", p.Number, "head", p.HeadRefOid, "rollup_commit", p.Commits.Nodes[0].Commit.Oid)
 		ci = dashboard.CIPending
+		// The earlier commit's counts say nothing about the head's checks.
+		checks = dashboard.CheckCounts{}
 		awaitingApproval = false
 		failingOnlyForApproval = false
 	}
@@ -2613,6 +2672,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		CreatedAt:                p.CreatedAt,
 		UpdatedAt:                p.UpdatedAt,
 		CI:                       ci,
+		Checks:                   checks,
 		MergeStatus:              mergeStatusFromGraphQL(p.MergeStateStatus),
 		AwaitingWorkflowApproval: awaitingApproval,
 		FailingOnlyForApproval:   failingOnlyForApproval,
