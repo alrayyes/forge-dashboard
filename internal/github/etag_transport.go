@@ -6,7 +6,6 @@ import (
 	"io"
 	"maps"
 	"net/http"
-	"sync"
 )
 
 // etagTransport wraps another http.RoundTripper with a per-URL ETag cache
@@ -15,8 +14,9 @@ import (
 // hasn't changed (checkWebhooks' own ListHooks call runs once per
 // tracked repo on every poll) can come back free instead (#381).
 //
-// Entries live in an etagStore and are keyed by forge, credential label
-// and URL, never by Client or user: GitHub folds the Authorization header
+// Entries live in an etagStore and are keyed by forge, credential label,
+// URL and Accept header (GitHub varies the body on it), never by Client or
+// user: GitHub folds the Authorization header
 // into its own ETag calculation, so an entry made under one credential is
 // never offered under another. Two Clients holding the same credential
 // share entries, so rebuilding a Client keeps the answers that are still
@@ -37,49 +37,6 @@ type etagTransport struct {
 	store      *etagStore
 	credential string
 }
-
-// etagStore holds cached responses for every Client in the process.
-type etagStore struct {
-	mu      sync.Mutex
-	entries map[etagKey]cachedResponse
-}
-
-type etagKey struct {
-	forge      string
-	credential string
-	url        string
-}
-
-// maxETagEntries bounds the store. Past it an arbitrary entry is dropped,
-// which only costs one full response later.
-const maxETagEntries = 5000
-
-func (s *etagStore) get(k etagKey) (cachedResponse, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	v, ok := s.entries[k]
-
-	return v, ok
-}
-
-func (s *etagStore) put(k etagKey, v cachedResponse) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.entries == nil {
-		s.entries = make(map[etagKey]cachedResponse)
-	}
-	if _, exists := s.entries[k]; !exists && len(s.entries) >= maxETagEntries {
-		for old := range s.entries {
-			delete(s.entries, old)
-
-			break
-		}
-	}
-	s.entries[k] = v
-}
-
-// sharedETags is the process-wide store every Client uses.
-var sharedETags = &etagStore{}
 
 type cachedResponse struct {
 	etag   string
@@ -128,7 +85,7 @@ func (t *etagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, nil
 	}
 
-	key := etagKey{forge: "github", credential: t.credential, url: req.URL.String()}
+	key := etagKey{forge: "github", credential: t.credential, url: req.URL.String(), accept: req.Header.Get("Accept")}
 	cached, ok := t.store.get(key)
 
 	if ok {
@@ -190,5 +147,8 @@ func (t *etagTransport) maybeCache(key etagKey, resp *http.Response) {
 	}
 	resp.Body = io.NopCloser(bytes.NewReader(body))
 
+	if len(body) > maxETagBodyBytes {
+		return
+	}
 	t.store.put(key, cachedResponse{etag: etag, body: body, header: resp.Header.Clone()})
 }

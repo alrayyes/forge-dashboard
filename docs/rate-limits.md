@@ -143,19 +143,25 @@ The same page says a `304` is only free for a request that carries an
 `Authorization` header, so the public-repository mode, which has none, may still
 be charged.
 
-The cache is keyed by forge, credential label and URL, never by user. GitHub
-folds the credential into the ETag, so one credential's ETag is never offered
-under another. Two clients holding the same credential share entries, and a
-replaced token starts empty. A page size, page number or filter is part of the
-URL, so a different one is a different entry.
+The cache is keyed by forge, credential label, URL and `Accept` header, never
+by user. GitHub folds the credential into the ETag, so one credential's ETag is
+never offered under another. Two clients holding the same credential share
+entries, and a replaced token starts empty. A page size, page number or filter
+is part of the URL, so a different one is a different entry.
 
-Forgejo can't take part. A live Forgejo instance sends no `ETag` and no
-`Last-Modified` header on its JSON endpoints (pull requests, issues, commit
-statuses, Actions runs, repositories, search), and it answers a request with
-`If-None-Match` or `If-Modified-Since` with a full `200`. Forgejo reports no
-request budget of its own to spend, so each read costs a round trip and nothing
-more. Check again when you upgrade Forgejo; if it starts sending ETags, add a
-cache for it the way GitHub's works.
+The cache lives in memory and is bounded. A body over 1 MiB is never kept, so
+that read costs a full response each time. Across all entries the cache holds
+at most 5000 answers and 32 MiB, and past either limit it drops the least
+recently used answer first.
+
+Forgejo, as probed, doesn't take part. The Forgejo instance we tested
+(16.0.6, built on Gitea 1.22) sends no `ETag` and no `Last-Modified` header on
+its JSON endpoints (pull requests, issues, commit statuses, Actions runs,
+repositories, search), and it answers a request with `If-None-Match` or
+`If-Modified-Since` with a full `200`. We haven't tested other versions.
+Forgejo reports no request budget of its own to spend, so each read costs a
+round trip and nothing more. Check again when you upgrade Forgejo; if it starts
+sending ETags, add a cache for it the way GitHub's works.
 
 Each row below is one source file with its number of REST `GET` call sites. A
 test reads this table and fails when a file's count differs from the source, so

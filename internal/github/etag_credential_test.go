@@ -101,9 +101,9 @@ func TestAppClient_InstallationRepositoryList_SecondCallIsCountedAsNotModified(t
 	assert.Equal(t, first.Health.RepoCount, second.Health.RepoCount, "the cached body answers the 304")
 	assert.EqualValues(t, 2, listings.Load())
 	assert.EqualValues(t, 1, conditional.Load())
-	var notModified uint64
+	var notModified int64
 	for _, b := range counters.Snapshot() {
-		notModified += uint64(b.NotModified)
+		notModified += int64(b.NotModified)
 	}
 	assert.EqualValues(t, 1, notModified)
 }

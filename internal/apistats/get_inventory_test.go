@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -122,9 +123,7 @@ func TestRESTGetInventory_MatchesTheSource(t *testing.T) {
 	t.Parallel()
 
 	found := getSites(t, "github")
-	for k, v := range getSites(t, "forgejo") {
-		found[k] = v
-	}
+	maps.Copy(found, getSites(t, "forgejo"))
 	documented := documentedSites(t)
 
 	var drift []string
@@ -141,4 +140,105 @@ func TestRESTGetInventory_MatchesTheSource(t *testing.T) {
 	sort.Strings(drift)
 
 	assert.Empty(t, drift)
+}
+
+// isHTTPClient reports whether expr names the http package or a client field.
+func isHTTPClient(expr ast.Expr) bool {
+	switch x := expr.(type) {
+	case *ast.Ident:
+		return x.Name == "http"
+	case *ast.SelectorExpr:
+		return x.Sel.Name == "httpClient" || x.Sel.Name == "client"
+	}
+
+	return false
+}
+
+// httpCallsOutsideTheCount lists calls that could send a GET without being
+// one of the sites getSites counts: Get or Head on anything but the go-github
+// service chain, and Do or a hand-built request in a function that has no
+// counted site of its own. Known senders are named in allowed.
+func httpCallsOutsideTheCount(t *testing.T, dir string, allowed map[string]bool) []string {
+	t.Helper()
+	files, err := filepath.Glob(filepath.Join("..", "..", "internal", dir, "*.go"))
+	require.NoError(t, err)
+
+	var found []string
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
+		require.NoError(t, err)
+		for _, decl := range parsed.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			hasSite := false
+			ast.Inspect(fn, func(node ast.Node) bool {
+				if call, ok := node.(*ast.CallExpr); ok && isGetSite(dir, call) {
+					hasSite = true
+				}
+
+				return true
+			})
+			ast.Inspect(fn, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				name := sel.Sel.Name
+				var risky bool
+				switch name {
+				case "Get", "Head":
+					risky = isHTTPClient(sel.X)
+				case "Do", "NewRequest":
+					risky = true
+				case "NewRequestWithContext":
+					risky = !isGetSite(dir, call)
+				case "rawRequest":
+					risky = mentionsMethodGet(call) && !hasSite
+				}
+				id := "internal/" + dir + "/" + filepath.Base(file) + ":" + fn.Name.Name + ":" + name
+				if risky && !allowed[id] {
+					found = append(found, id)
+				}
+
+				return true
+			})
+		}
+	}
+	sort.Strings(found)
+
+	return found
+}
+
+// The count above only sees the shapes it knows. This catches the others: a
+// plain http.Client Get, or a new function that sends a request by hand. A
+// legitimate new sender goes in the allowed list below, and its GETs in the
+// table.
+//
+// Limit: a Forgejo read that goes through the gitea SDK instead of
+// rawRequest, or a GitHub read through a client other than restClient, is not
+// recognised here; review catches those.
+func TestRESTGetInventory_NoRequestBypassesTheCount(t *testing.T) {
+	t.Parallel()
+
+	allowedGitHub := map[string]bool{
+		"internal/github/client.go:graphqlDo:NewRequestWithContext": true, // POST
+		"internal/github/client.go:graphqlDo:Do":                    true, // POST
+		"internal/github/client.go:logExcerpt:Do":                   true, // job log download, listed as not conditional
+	}
+	allowedForgejo := map[string]bool{
+		"internal/forgejo/client.go:rawRequest:NewRequestWithContext": true,
+		"internal/forgejo/client.go:rawRequest:Do":                    true,
+	}
+
+	assert.Empty(t, httpCallsOutsideTheCount(t, "github", allowedGitHub))
+	assert.Empty(t, httpCallsOutsideTheCount(t, "forgejo", allowedForgejo))
 }
