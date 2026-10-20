@@ -1924,6 +1924,99 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/issues/details:
+    get:
+      operationId: getIssueDetails
+      x-mcp-excluded: "Not offered to MCP clients yet: only the Issues page's dialog reads it. The pull request one (get_pull_request_details) is the model if that changes."
+      summary: Read an issue's description, comments and reactions, on demand
+      description: |
+        What the issue dialog shows: the description, the conversation in
+        order, and the thumbs up and thumbs down reactions on each with who
+        gave them. The same shape and rules as GET /api/pull-requests/details
+        without the release notes, which only a pull request has. Fetched live
+        on every call, never as part of GET /api/dashboard's snapshot.
+
+        GitHub answers with one GraphQL query. Forgejo costs one call for the
+        issue, one for its comments, one for the description's reactions and
+        one for each comment's reactions (up to 50), so the reaction calls run
+        at most eight at a time and stop at the first rate limit.
+
+        Every text is Markdown exactly as the forge stores it (`format` is
+        always `markdown`). The server neither converts nor sanitises it, so a
+        client must render it with raw HTML disabled. Each text is cut at
+        20,000 characters (`truncated`), the conversation keeps its first 50
+        comments (`commentsTruncated`, with the full `commentCount`), and a
+        reaction names at most its first 10 people while `count` is the full
+        number. An avatar is the forge's own URL, passed through unchanged and
+        never proxied.
+
+        The error answers are those of GET /api/pull-requests/details, with
+        the same codes. An issue that doesn't exist is a 404, and a forge that
+        can't be read is an error, never an empty thread.
+      tags: [dashboard]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: forge
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Forge"
+        - name: fullName
+          in: query
+          required: true
+          schema:
+            type: string
+          description: '"owner/repo", matching an Issue.repo from GET /api/dashboard.'
+        - name: number
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Matching an Issue.number from GET /api/dashboard.
+      responses:
+        "200":
+          description: The issue's description and conversation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueDetails"
+        "400":
+          description: '`number` wasn''t an integer, `fullName` wasn''t "owner/repo", no credentials are saved for that forge, or that forge''s client can''t read issue details.'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie or token was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The forge rejected the request as unauthorized: the saved token's scope doesn't cover reading this issue."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge reported the repo or issue doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/queued-actions:
     get:
       operationId: listQueuedActions
@@ -4023,6 +4116,27 @@ components:
             release-please pull request's description is its changelog). Null
             for any other pull request, and for a release pull request this
             app can't identify. Never an empty string.
+
+    IssueDetails:
+      type: object
+      required: [description, comments, commentCount, commentsTruncated]
+      description: What the issue dialog shows.
+      properties:
+        description:
+          $ref: "#/components/schemas/DetailsBody"
+        comments:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/DetailsComment"
+          description: The conversation, oldest first, at most the first 50.
+        commentCount:
+          type: integer
+          minimum: 0
+          description: How many comments the forge has on the issue.
+        commentsTruncated:
+          type: boolean
+          description: True when `commentCount` is more than the comments returned.
 
     PullRequestChecksResponse:
       type: object
