@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 )
 
 // AutoUpdateBranchLister reports what an Aggregator needs to decide
@@ -115,6 +117,7 @@ func (a *Aggregator) EnableAutoUpdateBranch(userID []byte, lister AutoUpdateBran
 // still stand, the same resilience refreshOnce already gives one
 // source's own failure.
 func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
+	ctx = apistats.WithKind(ctx, apistats.KindUserAction)
 	if a.autoUpdate == nil {
 		return
 	}

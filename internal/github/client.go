@@ -2562,6 +2562,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 // call per repo. Returns an empty map without calling GitHub at all
 // when no webhook path is configured.
 func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[string]hookProbe {
+	ctx = apistats.WithKind(ctx, apistats.KindHookMaintenance)
 	result := make(map[string]hookProbe, len(repos))
 	if c.webhookPath == "" {
 		return result
