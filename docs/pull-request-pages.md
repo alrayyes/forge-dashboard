@@ -56,6 +56,13 @@ in a new tab with `rel="noopener noreferrer"`. Task list items (`- [x]` and
 `- [ ]`) show as read-only checkboxes; ticking one changes nothing on the
 forge. The library loads the first time a pop-up opens.
 
+## Author on a row
+
+A row shows the author's avatar to the left of their name. It is the forge's
+own HTTPS image URL, loaded straight from the forge by your browser. When the
+forge sends none, the URL isn't HTTPS, or the image can't load, the row shows
+the name alone. The narrow layout drops the author column, avatar and all.
+
 ## Releases
 
 Release pull requests have their own page, `/releases.html`, reached from the
