@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -381,4 +382,36 @@ func TestAggregator_Run_AWakeLeftBeforeTheEntryRefreshIsNotAnsweredTwice(t *test
 	<-done
 
 	assert.Equal(t, 1, src.callCount(), "only the refresh on entry")
+}
+
+func TestActivity_TheNumberOfViewersIsCappedAndTheOldestGoesFirst(t *testing.T) {
+	t.Parallel()
+
+	clock := newActivityClock()
+	act := dashboard.NewActivity(time.Minute, clock.now)
+
+	act.Present("first-tab", true)
+	for i := range dashboard.MaxViewers {
+		clock.advance(time.Second)
+		act.Present(fmt.Sprintf("tab-%d", i), true)
+	}
+	assert.Equal(t, dashboard.MaxViewers, act.ViewerCount(), "a client making up ids cannot grow the map")
+
+	act.Present("first-tab", false)
+	assert.Equal(t, dashboard.MaxViewers, act.ViewerCount(), "the oldest id was dropped to make room, so letting it go changes nothing")
+}
+
+func TestActivity_ExpiredViewersAreDroppedWhateverOtherTabsAreBeating(t *testing.T) {
+	t.Parallel()
+
+	clock := newActivityClock()
+	act := dashboard.NewActivity(time.Minute, clock.now)
+
+	for i := range 5 {
+		act.Present(fmt.Sprintf("gone-%d", i), true)
+	}
+	clock.advance(dashboard.PresenceTTL + time.Second)
+	act.Present("live-tab", true)
+
+	assert.Equal(t, 1, act.ViewerCount())
 }

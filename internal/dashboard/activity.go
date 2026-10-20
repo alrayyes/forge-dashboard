@@ -23,6 +23,11 @@ const PresenceHeartbeat = time.Minute
 // counting within a bounded time.
 const PresenceTTL = 3 * PresenceHeartbeat
 
+// MaxViewers caps how many tabs are tracked at once. A person has a handful of
+// tabs; the cap keeps a client that invents ids from growing the map. Past it
+// the tab heard from longest ago is dropped.
+const MaxViewers = 32
+
 // Activity records whether anyone is using the dashboard, so the background
 // refresh can rest when nobody is. Two things count as use:
 //
@@ -123,11 +128,46 @@ func (a *Activity) Present(viewer string, visible bool) {
 	}
 
 	wasIdle := a.idleLocked()
+	a.pruneLocked(now)
+	if _, known := a.viewers[viewer]; !known && len(a.viewers) >= MaxViewers {
+		a.dropOldestLocked()
+	}
 	a.viewers[viewer] = now
 	a.lastUsed = now
 	if wasIdle {
 		a.signalLocked()
 	}
+}
+
+// ViewerCount is how many tabs are being tracked, for tests of the cap.
+func (a *Activity) ViewerCount() int {
+	if a == nil {
+		return 0
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return len(a.viewers)
+}
+
+func (a *Activity) pruneLocked(now time.Time) {
+	for id, seen := range a.viewers {
+		if now.Sub(seen) >= PresenceTTL {
+			delete(a.viewers, id)
+		}
+	}
+}
+
+func (a *Activity) dropOldestLocked() {
+	var oldest string
+	var oldestSeen time.Time
+	for id, seen := range a.viewers {
+		if oldest == "" || seen.Before(oldestSeen) {
+			oldest, oldestSeen = id, seen
+		}
+	}
+	delete(a.viewers, oldest)
 }
 
 // Idle reports whether nothing is using the dashboard and nothing has for the
