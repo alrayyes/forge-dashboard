@@ -35,9 +35,16 @@ filters and goes with every dashboard request, refresh and the live stream.
 
 The server refreshes your forges on a schedule (`REFRESH_INTERVAL`), but it
 rests that schedule once nothing has used the dashboard for `IDLE_AFTER` (15
-minutes by default). An open live stream counts as use, so a dashboard in a
-visible tab keeps updating, and so does one in a forgotten tab. The first
-request after a rest makes one refresh, and the live stream pushes it to the
+minutes by default). What counts as use is a tab someone is looking at: the page
+tells the server when its tab is visible or hidden and sends a short heartbeat
+while it is visible, and a visible tab with no pointer, key or scroll input for
+the period stops counting too. A forgotten tab in the background, a laptop with
+the lid shut, or a browser that crashed (no heartbeat for three minutes) lets
+the schedule rest. The live stream stays open and keeps delivering snapshots
+either way; it just doesn't hold the schedule. A visible tab that nobody
+is at, on a second monitor say, counts only until its input has been quiet for
+the period. The first request after a rest, or a tab becoming visible again,
+makes one refresh, and the live stream pushes it to the
 open board a moment later; that first request itself, and a client with no live
 stream such as the API or MCP, is answered with the data from before the rest.
 A webhook delivery still refreshes the repository it names while the schedule

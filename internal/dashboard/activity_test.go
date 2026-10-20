@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -47,57 +48,114 @@ func TestActivity_ARequestRestartsTheIdlePeriod(t *testing.T) {
 	assert.True(t, act.Idle(), "and idle again a full idle period after the last request")
 }
 
-// An open live stream is counted as activity while it is open. The server cannot
-// tell a stream in a visible tab from one on a second monitor nobody is
-// looking at, and treating it as idle would leave a person who is looking at the
-// board with data that stops updating until they click something. Stale data
-// for someone watching costs more than the calls an open tab spends.
-func TestActivity_AnOpenStreamCountsAsActivityWhileItIsOpen(t *testing.T) {
+// A tab someone is looking at holds the dashboard active for as long as it
+// keeps saying so. An open live stream alone is not use: the server cannot
+// tell a stream in a tab someone is looking at from one in a tab nobody is.
+func TestActivity_AVisibleViewerHoldsTheDashboardActiveWhileItKeepsBeating(t *testing.T) {
 	t.Parallel()
 
 	clock := newActivityClock()
 	act := dashboard.NewActivity(15*time.Minute, clock.now)
 
-	act.StreamOpened()
-	clock.advance(3 * time.Hour)
-	assert.False(t, act.Idle(), "an open stream keeps the dashboard active however long it has been open")
+	for range 10 {
+		act.Present("tab-a", true)
+		clock.advance(dashboard.PresenceTTL / 2)
+		assert.False(t, act.Idle(), "a tab that keeps sending heartbeats is use however long it goes on")
+	}
+}
 
-	act.StreamClosed()
-	assert.False(t, act.Idle(), "closing the stream starts the idle period from that moment")
+func TestActivity_AViewerThatGoesHiddenLetsGoAndTheIdlePeriodStartsThen(t *testing.T) {
+	t.Parallel()
+
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+
+	act.Present("tab-a", true)
+	clock.advance(3 * time.Hour)
+	act.Present("tab-a", true)
+	act.Present("tab-a", false)
+	assert.False(t, act.Idle(), "hiding the tab starts the idle period from that moment")
 
 	clock.advance(14 * time.Minute)
 	assert.False(t, act.Idle())
 	clock.advance(2 * time.Minute)
-	assert.True(t, act.Idle())
+	assert.True(t, act.Idle(), "a hidden tab does not hold the refresh active")
 }
 
-func TestActivity_TwoStreamsNeedBothClosed(t *testing.T) {
+func TestActivity_ADeadViewerStopsCountingAfterTheTTLWithoutAHiddenMessage(t *testing.T) {
 	t.Parallel()
 
 	clock := newActivityClock()
 	act := dashboard.NewActivity(time.Minute, clock.now)
 
-	act.StreamOpened()
-	act.StreamOpened()
-	act.StreamClosed()
-	clock.advance(time.Hour)
-	assert.False(t, act.Idle(), "one stream is still open")
+	act.Present("tab-a", true)
+	clock.advance(dashboard.PresenceTTL - time.Second)
+	assert.False(t, act.Idle(), "still inside the TTL")
 
-	act.StreamClosed()
-	clock.advance(time.Hour)
-	assert.True(t, act.Idle())
+	clock.advance(2*time.Second + time.Minute)
+	assert.True(t, act.Idle(), "a closed laptop or crashed browser stops counting after a bounded time")
 }
 
-func TestActivity_ExtraCloseDoesNotGoNegative(t *testing.T) {
+func TestActivity_OneHiddenTabDoesNotReleaseAnotherVisibleOne(t *testing.T) {
 	t.Parallel()
 
 	clock := newActivityClock()
 	act := dashboard.NewActivity(time.Minute, clock.now)
 
-	act.StreamClosed()
-	act.StreamOpened()
+	act.Present("tab-a", true)
+	act.Present("tab-b", true)
+	act.Present("tab-a", false)
+	clock.advance(30 * time.Second)
+	act.Present("tab-b", true)
+	clock.advance(time.Hour - 30*time.Second)
+	act.Present("tab-b", true)
+	assert.False(t, act.Idle(), "tab b is still visible")
+
+	act.Present("tab-b", false)
+	clock.advance(2 * time.Minute)
+	assert.True(t, act.Idle(), "every tab hidden")
+}
+
+func TestActivity_AViewerBecomingVisibleAfterIdleWakesOnce(t *testing.T) {
+	t.Parallel()
+
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+
 	clock.advance(time.Hour)
-	assert.False(t, act.Idle(), "a stray close must not cancel the next open")
+	require.True(t, act.Idle())
+
+	act.Present("tab-a", false)
+	select {
+	case <-act.Woken():
+		t.Fatal("a hidden report is not use and must not wake")
+	default:
+	}
+
+	act.Present("tab-a", true)
+	select {
+	case <-act.Woken():
+	default:
+		t.Fatal("a tab becoming visible after idle should signal a wake")
+	}
+
+	act.Present("tab-a", true)
+	select {
+	case <-act.Woken():
+		t.Fatal("the next heartbeat is not the first after idle")
+	default:
+	}
+}
+
+func TestActivity_AHiddenReportFromAnUnknownViewerChangesNothing(t *testing.T) {
+	t.Parallel()
+
+	clock := newActivityClock()
+	act := dashboard.NewActivity(time.Minute, clock.now)
+
+	clock.advance(time.Hour)
+	act.Present("never-seen", false)
+	assert.True(t, act.Idle(), "a hidden report is not use")
 }
 
 func TestActivity_WakesOnceWhenActivityReturnsAfterIdle(t *testing.T) {
@@ -131,22 +189,6 @@ func TestActivity_WakesOnceWhenActivityReturnsAfterIdle(t *testing.T) {
 	}
 }
 
-func TestActivity_AStreamOpeningAfterIdleWakes(t *testing.T) {
-	t.Parallel()
-
-	clock := newActivityClock()
-	act := dashboard.NewActivity(15*time.Minute, clock.now)
-
-	clock.advance(time.Hour)
-	act.StreamOpened()
-
-	select {
-	case <-act.Woken():
-	default:
-		t.Fatal("opening the live stream after idle should signal a wake")
-	}
-}
-
 func TestActivity_ZeroIdlePeriodNeverIdles(t *testing.T) {
 	t.Parallel()
 
@@ -165,8 +207,8 @@ func TestActivity_NilIsNeverIdle(t *testing.T) {
 	var act *dashboard.Activity
 	assert.False(t, act.Idle())
 	act.Touch()
-	act.StreamOpened()
-	act.StreamClosed()
+	act.Present("x", true)
+	act.Present("x", false)
 }
 
 func TestAggregator_Run_SkipsScheduledRefreshesWhileIdle(t *testing.T) {
@@ -241,7 +283,7 @@ func TestAggregator_Run_NoCatchUpWhenNothingWasSkipped(t *testing.T) {
 
 	require.Eventually(t, func() bool { return src.callCount() == 1 }, time.Second, 5*time.Millisecond)
 	act.Touch()
-	act.StreamOpened()
+	act.Present("tab-a", true)
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 	<-done
@@ -249,12 +291,12 @@ func TestAggregator_Run_NoCatchUpWhenNothingWasSkipped(t *testing.T) {
 	assert.Equal(t, 1, src.callCount(), "activity while the data is fresh must not trigger a refresh")
 }
 
-func TestAggregator_Run_KeepsRefreshingWhileAStreamIsOpen(t *testing.T) {
+func TestAggregator_Run_KeepsRefreshingWhileAViewerIsVisible(t *testing.T) {
 	t.Parallel()
 
 	src := &fakeSource{result: dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
 	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
-	act.StreamOpened()
+	act.Present("tab-a", true)
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -269,7 +311,7 @@ func TestAggregator_Run_KeepsRefreshingWhileAStreamIsOpen(t *testing.T) {
 	cancel()
 	<-done
 
-	assert.GreaterOrEqual(t, src.callCount(), 3, "an open stream counts as activity, so the schedule runs as usual")
+	assert.GreaterOrEqual(t, src.callCount(), 3, "a visible tab counts as activity, so the schedule runs as usual")
 }
 
 func TestAggregator_ForcedRefreshAndWebhookRefreshRunWhileIdle(t *testing.T) {
@@ -340,4 +382,36 @@ func TestAggregator_Run_AWakeLeftBeforeTheEntryRefreshIsNotAnsweredTwice(t *test
 	<-done
 
 	assert.Equal(t, 1, src.callCount(), "only the refresh on entry")
+}
+
+func TestActivity_TheNumberOfViewersIsCappedAndTheOldestGoesFirst(t *testing.T) {
+	t.Parallel()
+
+	clock := newActivityClock()
+	act := dashboard.NewActivity(time.Minute, clock.now)
+
+	act.Present("first-tab", true)
+	for i := range dashboard.MaxViewers {
+		clock.advance(time.Second)
+		act.Present(fmt.Sprintf("tab-%d", i), true)
+	}
+	assert.Equal(t, dashboard.MaxViewers, act.ViewerCount(), "a client making up ids cannot grow the map")
+
+	act.Present("first-tab", false)
+	assert.Equal(t, dashboard.MaxViewers, act.ViewerCount(), "the oldest id was dropped to make room, so letting it go changes nothing")
+}
+
+func TestActivity_ExpiredViewersAreDroppedWhateverOtherTabsAreBeating(t *testing.T) {
+	t.Parallel()
+
+	clock := newActivityClock()
+	act := dashboard.NewActivity(time.Minute, clock.now)
+
+	for i := range 5 {
+		act.Present(fmt.Sprintf("gone-%d", i), true)
+	}
+	clock.advance(dashboard.PresenceTTL + time.Second)
+	act.Present("live-tab", true)
+
+	assert.Equal(t, 1, act.ViewerCount())
 }

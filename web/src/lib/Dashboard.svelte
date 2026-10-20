@@ -14,6 +14,7 @@
   const pullsView = $derived(view !== "issues");
 
   import { onMount } from "svelte";
+  import { BACKGROUND_READ_HEADER } from "#lib/presence-browser.js";
   import PullRequestDetailsDialog, {
     type DetailsChrome,
     type DetailsStatus,
@@ -7694,6 +7695,7 @@
     // one fetch layer for /api/dashboard, not two.
     function fetchDashboardData(
       signal?: AbortSignal,
+      fromPoll = false,
     ): Promise<DashboardSnapshot> {
       const url = withDrafts(
         "/api/dashboard" +
@@ -7701,7 +7703,11 @@
       );
 
       return fetch(url, {
-        headers: { Accept: "application/json" },
+        // The poll's own timed read says nothing about a person being here.
+        headers: {
+          Accept: "application/json",
+          ...(fromPoll ? BACKGROUND_READ_HEADER : {}),
+        },
         signal,
       }).then((res) => {
         if (res.status === 401) {
@@ -7735,7 +7741,7 @@
         pollReadInFlight = false;
         if (!destroyed) schedulePoll();
       };
-      fetchDashboardData(abort?.signal)
+      fetchDashboardData(abort?.signal, fromPoll)
         .then((data) => {
           applySnapshot(data, userAsked, seq);
           streamFailures = 0;
