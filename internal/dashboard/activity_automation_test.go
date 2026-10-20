@@ -185,3 +185,46 @@ func (l *switchableLister) RenovateRebaseLabel(context.Context, []byte) (string,
 func (l *switchableLister) RenovateAuthors(context.Context, []byte) ([]string, error) {
 	return nil, nil
 }
+
+func behindSource() *fakeBranchUpdaterSource {
+	return &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // see auto_update_branch_test.go
+		Health:       dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true}},
+	}}}
+}
+
+// A pull request switched on by its own choice is as much a reason to keep
+// the schedule running as one whose repo is switched on.
+func TestAggregator_Run_WhileIdle_StillRefreshesForAPullRequestSwitchedOnByItsOwnChoice(t *testing.T) {
+	t.Parallel()
+
+	src := behindSource()
+	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true}}
+	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+
+	runIdle(t, agg, act, src.callCount)
+
+	require.Eventually(t, func() bool { return src.callCount() >= 3 }, time.Second, 5*time.Millisecond, "the repo is off but this pull request is on, so the idle tick still runs")
+}
+
+// A pull request switched off by its own choice is left alone however its
+// repo is set, so it is no reason to refresh.
+func TestAggregator_Run_WhileIdle_RestsForAPullRequestSwitchedOffByItsOwnChoice(t *testing.T) {
+	t.Parallel()
+
+	src := behindSource()
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:   map[string]struct{}{"github/alrayyes/a": {}},
+		overrides: map[string]bool{"github/alrayyes/a#1": false},
+	}
+	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+
+	runIdle(t, agg, act, src.callCount)
+	time.Sleep(100 * time.Millisecond)
+
+	assert.Equal(t, 1, src.callCount(), "the repo is on but this pull request is off, so the idle tick rests")
+}
