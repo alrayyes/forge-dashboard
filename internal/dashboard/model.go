@@ -444,6 +444,21 @@ type ClientError struct {
 	// generic "check your token" refusal text with one that names what the
 	// connection is missing (a GitHub App has no token to check).
 	PermissionMessage string
+	// UpstreamStatus is the HTTP status the forge answered with when that
+	// status was its own failure (5xx), and zero otherwise. A forge's own
+	// "Server Error" says nothing a person can act on, so a refusal reads
+	// this to tell them to try again instead of repeating the forge's words.
+	UpstreamStatus int
+	// RequestID is the forge's identifier for the failing request, when it
+	// sent one (GitHub's X-GitHub-Request-Id). It is what the forge's support
+	// asks for, so it goes in the log and the error report.
+	RequestID string
+}
+
+// ForgeFailed reports whether the forge answered with a 5xx: its own failure,
+// not a refusal of this request, so asking again can succeed.
+func (e *ClientError) ForgeFailed() bool {
+	return e.UpstreamStatus >= 500 && e.UpstreamStatus < 600
 }
 
 func (e *ClientError) Error() string {
