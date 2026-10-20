@@ -657,9 +657,8 @@
       // interactive elements.
       // https://css-tricks.com/block-links-the-search-for-a-perfect-solution/
       //
-      // A pull request's title is a button that opens its dialog (the dialog
-      // links on to the forge); an issue has no dialog, so its title still
-      // links to the forge.
+      // A row's title is a button that opens its dialog (the dialog links on
+      // to the forge); a row with nothing to open still links to the forge.
       const title = document.createElement(onOpen ? "button" : "a");
       title.className = "title";
       if (title instanceof HTMLAnchorElement) {
@@ -1469,6 +1468,37 @@
       refreshDialogChrome();
     }
 
+    // An issue opens the same dialog as a pull request, with nothing in the
+    // footer but the link to the forge: there is no action on an issue. The
+    // board's dialog state (dialogKey) stays null, so a poll neither redraws
+    // its footer nor reloads it.
+    function openIssueDialog(item: IssueItem, triggerId: string) {
+      dialogKey = null;
+      dialogGone = false;
+      lastChromeSig = "";
+      lastChromeItem = undefined;
+      detailsDialog?.setChrome({ status: null, feedback: null, actions: [] });
+      detailsDialog?.open(
+        { ...item, subject: "issue", status: issueStatus(item) },
+        triggerId,
+      );
+    }
+
+    // The issue header: it is open (the board lists open issues only), and
+    // its labels as the pull request header shows them.
+    function issueStatus(item: IssueItem): DetailsStatus {
+      const state = el("div", "details-state");
+      state.setAttribute("role", "group");
+      state.setAttribute("aria-label", "Status when opened");
+      state.appendChild(el("span", "attr-chip", "Open"));
+      const attributes = el("div", "attr-cluster");
+      attributes.setAttribute("role", "group");
+      attributes.setAttribute("aria-label", "Labels when opened");
+      for (const label of item.labels ?? [])
+        attributes.appendChild(el("span", "attr-chip label", label.name));
+      return { state, attributes };
+    }
+
     // An armed confirm in the footer ends on the first Escape, and goes
     // with the dialog when it closes.
     escapeDetails = () => confirmArm.disarm("escape");
@@ -1514,7 +1544,7 @@
         activeLabel,
         isPR
           ? (triggerId) => openDetailsDialog(item as PullRequestItem, triggerId)
-          : undefined,
+          : (triggerId) => openIssueDialog(item as IssueItem, triggerId),
       );
       row.appendChild(titleCellEl);
       if (!isPR) row.dataset.issueKey = prKey(item);
@@ -8431,12 +8461,14 @@
   {/if}
 </div>
 
+<!-- Pull request rows and issue rows both open it. -->
+<PullRequestDetailsDialog
+  bind:this={detailsDialog}
+  onEscape={() => escapeDetails()}
+  onClosed={() => detailsClosed()}
+/>
+
 {#if pullsView}
-  <PullRequestDetailsDialog
-    bind:this={detailsDialog}
-    onEscape={() => escapeDetails()}
-    onClosed={() => detailsClosed()}
-  />
   <dialog
     id="pipeline-dialog"
     class="pipeline-dialog"
