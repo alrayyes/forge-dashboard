@@ -1050,15 +1050,20 @@
       return label ? attrChip("auto-update", label) : null;
     }
 
-    // The chips of a row's attribute cluster, in one order: auto-merge, draft,
-    // bot, out of date. Draft and bot come from the fields the row already has
-    // (a bot's pull request is the server's `kind: dependency`).
-    function attributeCluster(pr: PullRequestItem): HTMLElement {
+    // The chips of an attribute cluster, in one order: auto-merge, draft, bot,
+    // out of date. Draft and bot come from the fields the row already has (a
+    // bot's pull request is the server's `kind: dependency`). A row leaves the
+    // bot chip out, since every row on the Bots page is a bot's; the dialog,
+    // which can open from anywhere, keeps it.
+    function attributeCluster(
+      pr: PullRequestItem,
+      withBot: boolean,
+    ): HTMLElement {
       const cluster = el("div", "attr-cluster");
       const chips = [
         autoMergePill(pr),
         pr.draft ? attrChip("draft", "Draft") : null,
-        pr.kind === "dependency" ? attrChip("bot", "Bot") : null,
+        withBot && pr.kind === "dependency" ? attrChip("bot", "Bot") : null,
         behindPill(pr),
         autoUpdateChip(pr),
       ];
@@ -1208,7 +1213,7 @@
       // Mergeable draws nothing, as on the row.
       const merge = mergeStatusPill(item.mergeStatus, item.ci);
       if (merge) state.appendChild(merge);
-      const attributes = attributeCluster(item);
+      const attributes = attributeCluster(item, true);
       attributes.setAttribute("role", "group");
       attributes.setAttribute("aria-label", "Attributes when opened");
       // The row only flags a bot's pull request as out of date (it has an
@@ -1764,7 +1769,7 @@
         const ciSlot = el("div", "ci-slot");
         ciSlot.appendChild(ciPill(pr));
         stateGroup.appendChild(ciSlot);
-        stateGroup.appendChild(attributeCluster(pr));
+        stateGroup.appendChild(attributeCluster(pr, false));
         statusCell.appendChild(stateGroup);
         const approveLink = approveOnGithubLink(pr);
         if (approveLink) statusCell.appendChild(approveLink);

@@ -119,7 +119,8 @@ request board over the pull requests the server marks `kind: dependency`, with
 the same filters, rows and actions as the main page. The main pull request page
 lists none of them, so it has no quick filter for bots. A saved quick filter
 for bots, from before this page existed, is ignored. With no bot pull requests
-open the page says there is nothing to review.
+open the page says there is nothing to review. Its rows carry no "Bot" pill,
+since every row there is a bot's; the pull request pop-up still shows one.
 
 ## Hiding one pull request
 
