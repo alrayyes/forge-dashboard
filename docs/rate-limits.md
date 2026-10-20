@@ -51,6 +51,14 @@ refresh tries again.
   isn't cached.
 - **Refreshing often.** Each full refresh spends budget. `REFRESH_INTERVAL` sets
   how often it runs (see [Configuration](configuration.md)).
+- **An unwatched dashboard.** While nobody is using the dashboard, the scheduled
+  refresh rests. After `IDLE_AFTER` (15 minutes by default) with no signed-in
+  request and no open live stream, the schedule skips its turn and tries again
+  on the next one. The first request after that refreshes once, so you are not
+  shown data from before you left. A tab left open counts as use, because the
+  server can't tell a tab you're looking at from one nobody is: close every tab
+  and the refresh rests. Webhooks, Refresh now and the CI poll still run while
+  it rests.
 
 A GitHub App installation has its own budget, separate from your tokens and
 from other tools. The dashboard asks GitHub for an installation token for the

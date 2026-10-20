@@ -31,6 +31,16 @@ filter bar, off to start with, brings them back, marked "Draft", and its muted
 "N hidden" count says how many are left out. The choice is saved like the other
 filters and goes with every dashboard request, refresh and the live stream.
 
+## When nobody is looking
+
+The server refreshes your forges on a schedule (`REFRESH_INTERVAL`), but it
+rests that schedule once nothing has used the dashboard for `IDLE_AFTER` (15
+minutes by default). An open live stream counts as use, so a dashboard in a
+visible tab keeps updating, and so does one in a forgotten tab. The first
+request after a rest makes one refresh, and the live stream pushes it to the
+open board a moment later. A webhook delivery still refreshes the repository it
+names while the schedule rests.
+
 ## The first load after a restart
 
 A restarted server holds no state until your first refresh has finished, so its
