@@ -1051,10 +1051,10 @@
     }
 
     // The chips of a row's attribute cluster, in one order: auto-merge, draft,
-    // bot, out of date. Draft and bot come from the fields the row already has
-    // (a bot's pull request is the server's `kind: dependency`). The Bots page
-    // is a bots-only overview, so its rows leave the bot chip out: it would
-    // say the same on every row. The dialog keeps it.
+    // bot, out of date, auto-update. Draft and bot come from the fields the row
+    // already has (a bot's pull request is the server's `kind: dependency`).
+    // The Bots page is a bots-only overview, so its rows leave the bot chip
+    // out: it would say the same on every row. The dialog keeps it.
     function attributeCluster(
       pr: PullRequestItem,
       showBot = true,
