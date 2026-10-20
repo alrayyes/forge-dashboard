@@ -1,7 +1,10 @@
 package api_test
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -113,4 +116,112 @@ func TestActivity_AnOpenLiveStreamAloneIsNotUse(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	assert.True(t, act.Idle(), "a stream in a tab nobody is looking at must not keep the refresh running")
+}
+
+// postPresence sends one presence report and returns the status and body.
+func postPresence(t *testing.T, srvURL string, cookie *http.Cookie, body string) (int, []byte) {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/dashboard/presence", strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	return resp.StatusCode, raw
+}
+
+func TestPresence_RequiresASession(t *testing.T) {
+	t.Parallel()
+
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	act := idleActivity(t, manager)
+
+	status, _ := postPresence(t, srv.URL, nil, `{"viewerId":"tab-aaaaaaaa","visible":true}`)
+
+	assert.Equal(t, http.StatusUnauthorized, status)
+	assert.True(t, act.Idle())
+}
+
+func TestPresence_VisibleHoldsTheDashboardActiveAndAnswersTheTimings(t *testing.T) {
+	t.Parallel()
+
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	act := idleActivity(t, manager)
+
+	status, raw := postPresence(t, srv.URL, cookie, `{"viewerId":"tab-aaaaaaaa","visible":true}`)
+
+	require.Equal(t, http.StatusOK, status)
+	var body struct {
+		HeartbeatSeconds int `json:"heartbeatSeconds"`
+		IdleAfterSeconds int `json:"idleAfterSeconds"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &body))
+	assert.Equal(t, 60, body.HeartbeatSeconds)
+	assert.Equal(t, 900, body.IdleAfterSeconds)
+	assert.False(t, act.Idle())
+	select {
+	case <-act.Woken():
+	default:
+		t.Fatal("the first visible report after idle should wake the refresh")
+	}
+}
+
+func TestPresence_HiddenIsNotUseAndLetsTheTabGo(t *testing.T) {
+	t.Parallel()
+
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	clock := newAPIClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	manager.SetActivity(act)
+
+	status, _ := postPresence(t, srv.URL, cookie, `{"viewerId":"tab-aaaaaaaa","visible":true}`)
+	require.Equal(t, http.StatusOK, status)
+	clock.advance(time.Hour)
+	status, _ = postPresence(t, srv.URL, cookie, `{"viewerId":"tab-aaaaaaaa","visible":false}`)
+	require.Equal(t, http.StatusOK, status)
+	clock.advance(16 * time.Minute)
+
+	assert.True(t, act.Idle(), "the hidden report itself is not a request that counts as use")
+}
+
+func TestPresence_RejectsABodyItCannotUse(t *testing.T) {
+	t.Parallel()
+
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	act := idleActivity(t, manager)
+
+	for _, body := range []string{``, `{`, `{"visible":true}`, `{"viewerId":"x","visible":true}`, `{"viewerId":"tab-aaaaaaaa"}`} {
+		status, _ := postPresence(t, srv.URL, cookie, body)
+		assert.Equal(t, http.StatusBadRequest, status, body)
+	}
+	assert.True(t, act.Idle())
+}
+
+func TestActivity_ABackgroundReadIsNotUse(t *testing.T) {
+	t.Parallel()
+
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	act := idleActivity(t, manager)
+
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
+	require.NoError(t, err)
+	req.AddCookie(cookie)
+	req.Header.Set("X-Background-Read", "true")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	assert.True(t, act.Idle(), "the page's own poll in a hidden or unattended tab is not use")
 }

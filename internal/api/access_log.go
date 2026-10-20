@@ -28,7 +28,8 @@ import (
 // probe or a page for people does not. Touched after the handler returns,
 // because the slot is filled by then. The live stream is not use (it stays
 // open, or reconnects, in a tab nobody is looking at), and neither is the
-// presence report, which says whether anyone is.
+// presence report, which says whether anyone is, nor a read
+// the page marks as its own timer (X-Background-Read).
 func accessLogMiddleware(manager *dashboard.Manager, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -110,13 +111,18 @@ func (s *statusRecorder) Flush() {
 	}
 }
 
+// backgroundReadHeader marks a read the page makes on its own timer, which a
+// hidden or unattended tab keeps making.
+const backgroundReadHeader = "X-Background-Read"
+
 // countsAsUse reports whether a signed-in request is someone using the
-// dashboard. The stream and the presence report each say so another way.
+// dashboard. The stream and the presence report each say so another way, and
+// a page's own timed read says nothing about a person.
 func countsAsUse(r *http.Request) bool {
 	switch r.URL.Path {
 	case "/api/dashboard/stream", "/api/dashboard/presence":
 		return false
 	}
 
-	return true
+	return r.Header.Get(backgroundReadHeader) == ""
 }

@@ -75,6 +75,15 @@ func NewActivity(idleAfter time.Duration, now func() time.Time) *Activity {
 	}
 }
 
+// IdleAfter is the idle period, zero when idle mode is off. Safe on nil.
+func (a *Activity) IdleAfter() time.Duration {
+	if a == nil {
+		return 0
+	}
+
+	return a.idleAfter
+}
+
 // Touch records a request from a signed-in browser or an API client.
 func (a *Activity) Touch() {
 	if a == nil {

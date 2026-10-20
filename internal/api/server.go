@@ -117,6 +117,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/main-branches/checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleMainBranchChecks(deps))))
 	mux.Handle("GET /api/stats/forge-api", auth.RequireAuth(deps.AuthStore)(handleForgeAPIStats(deps)))
 	mux.Handle("GET /api/dashboard/stream", auth.RequireAuth(deps.AuthStore)(handleDashboardStream(deps)))
+	mux.Handle("POST /api/dashboard/presence", auth.RequireAuth(deps.AuthStore)(handleDashboardPresence(deps)))
 	mux.Handle("POST /api/dashboard/refresh", auth.RequireAuth(deps.AuthStore)(handleDashboardRefresh(deps)))
 	// The Streamable HTTP transport itself routes GET (a standalone SSE
 	// stream), POST (JSON-RPC requests) and DELETE (session close) on
