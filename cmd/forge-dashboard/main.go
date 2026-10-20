@@ -133,6 +133,29 @@ func resolveCIPollInterval(v string) time.Duration {
 	return d
 }
 
+var errNegativeIdleAfter = errors.New("must not be negative; use 0s to turn idle mode off")
+
+// resolveIdleAfter reads IDLE_AFTER, how long nothing may have used the
+// dashboard before its scheduled refresh rests. Empty means the default and
+// "0s" is a real zero that turns idle mode off. A value that does not parse, or
+// is negative, is an error: the other intervals fall back to their default
+// with a log line, but this one silently changing how long a refresh rests
+// would hide a mistake.
+func resolveIdleAfter(v string) (time.Duration, error) {
+	if v == "" {
+		return dashboard.DefaultIdleAfter, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return 0, fmt.Errorf("invalid IDLE_AFTER %q: want a duration such as 15m, or 0s to turn idle mode off: %w", v, err)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("invalid IDLE_AFTER %q: %w", v, errNegativeIdleAfter)
+	}
+
+	return d, nil
+}
+
 func main() {
 	// Checked before configureLogging/run: the container's own HEALTHCHECK
 	// execs this binary with "healthcheck" as its only argument, and needs
@@ -225,9 +248,9 @@ func run() error {
 		return fmt.Errorf("auth setup failed: %w", err)
 	}
 
-	settingsStore, err := buildSettingsStore(ctx, db)
+	settingsStore, sharingStore, err := buildStores(ctx, db)
 	if err != nil {
-		return fmt.Errorf("settings setup failed: %w", err)
+		return err
 	}
 
 	githubAppID, githubAppPrivateKey, err := buildGitHubApp()
@@ -235,19 +258,13 @@ func run() error {
 		return fmt.Errorf("github app setup failed: %w", err)
 	}
 
-	sharingStore := sharing.NewStore(db)
-	if err := sharingStore.Init(ctx); err != nil {
-		return fmt.Errorf("sharing setup failed: %w", err)
+	manager, err := newManager(settingsStore, refreshInterval, ciPollInterval)
+	if err != nil {
+		return err
 	}
-
-	manager := newManager(settingsStore, refreshInterval, ciPollInterval)
 	defer manager.Stop()
-	// Existing app-created webhooks get new events without a click on
-	// "Add a webhook" (#1555); same origin the ensure endpoint builds URLs from.
-	manager.SetWebhookUpgrade(settingsStore, envOr("RP_ORIGIN", "http://localhost:8080"))
 
-	// One writer for every request-log row (#902). Close drains what's
-	// queued on the way out; a row logged after that is dropped, not a panic.
+	// One writer for every request-log row (#902); Close drains what's queued.
 	requestLogWriter := requestlog.NewWriter(authStore, requestLogQueueSize)
 	defer requestLogWriter.Close()
 
@@ -264,9 +281,8 @@ func run() error {
 		Dashboard:     manager,
 		APIStats:      apistats.New(),
 		AppContext:    ctx,
-		// Same env var buildAuth already required for WebAuthn's own
-		// RPOrigins — reused rather than adding a second "what's my own
-		// address" knob. See Deps.PublicOrigin's own doc comment.
+		// The env var buildAuth already requires for WebAuthn's RPOrigins; see
+		// Deps.PublicOrigin.
 		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),
 		GitHubAppConfigured: githubAppID != 0,
 	}
@@ -296,8 +312,17 @@ func newServer(addr string, deps api.Deps) *http.Server {
 
 // newManager is the per-user refresh manager, with the settings store as its
 // list of repos to keep up to date.
-func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval time.Duration) *dashboard.Manager {
+func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval time.Duration) (*dashboard.Manager, error) {
+	idleAfter, err := resolveIdleAfter(os.Getenv("IDLE_AFTER"))
+	if err != nil {
+		return nil, err
+	}
+
 	manager := dashboard.NewManager(refreshInterval)
+	manager.SetActivity(dashboard.NewActivity(idleAfter, nil))
+	// Existing app-created webhooks get new events without a click on
+	// "Add a webhook" (#1555); same origin the ensure endpoint builds URLs from.
+	manager.SetWebhookUpgrade(settingsStore, envOr("RP_ORIGIN", "http://localhost:8080"))
 	// settingsStore satisfies dashboard.AutoUpdateBranchLister (#365)
 	// with its own AutoUpdateBranchRepos/RenovateRebaseLabel methods.
 	manager.SetAutoUpdateBranchLister(settingsStore)
@@ -305,7 +330,7 @@ func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval t
 	manager.SetQueuedActionStore(settingsStore)
 	manager.SetCIPollInterval(ciPollInterval)
 
-	return manager
+	return manager, nil
 }
 
 // serve runs srv until ctx is cancelled, then drains readiness before it stops
@@ -488,6 +513,22 @@ func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, err
 	}
 
 	return auth.NewService(wa, store), store, nil
+}
+
+// buildStores opens the settings and sharing stores on db and creates their
+// tables.
+func buildStores(ctx context.Context, db *sql.DB) (*settings.Store, *sharing.Store, error) {
+	settingsStore, err := buildSettingsStore(ctx, db)
+	if err != nil {
+		return nil, nil, fmt.Errorf("settings setup failed: %w", err)
+	}
+
+	sharingStore := sharing.NewStore(db)
+	if err := sharingStore.Init(ctx); err != nil {
+		return nil, nil, fmt.Errorf("sharing setup failed: %w", err)
+	}
+
+	return settingsStore, sharingStore, nil
 }
 
 // buildSettingsStore requires a real ENCRYPTION_KEY — a service about to

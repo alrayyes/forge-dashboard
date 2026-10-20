@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
 // accessLogMiddleware logs one structured line per request, after the
@@ -20,7 +21,14 @@ import (
 // remote address are the fields logged unconditionally; username is added
 // once auth.RequireAuth (further in) resolves one, via the shared slot
 // auth.WithAccessLogUsername sets up.
-func accessLogMiddleware(next http.Handler) http.Handler {
+//
+// That same slot says the request was a signed-in one, so it is where the
+// dashboard learns someone is using it: a request that got past
+// auth.RequireAuth touches the manager's Activity, and a rejected one, a
+// probe or a page for people does not. Touched after the handler returns,
+// because the slot is filled by then; a long-lived stream says it is open
+// itself (StreamOpened).
+func accessLogMiddleware(manager *dashboard.Manager, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -29,6 +37,10 @@ func accessLogMiddleware(next http.Handler) http.Handler {
 
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
+
+		if *usernameSlot != "" {
+			manager.Activity().Touch()
+		}
 
 		duration := time.Since(start)
 		level := accessLogLevel(r.URL.Path, rec.status)

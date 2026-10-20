@@ -35,6 +35,10 @@ type Manager struct {
 	// Aggregator this Manager builds before that point, or ever, if
 	// it's never called, skips the CI-poll fallback (#177) entirely.
 	ciPollInterval time.Duration
+	// activity is nil until SetActivity is called; every Aggregator built
+	// before that, or ever, if it's never called, refreshes on its schedule
+	// whether or not anyone is using the dashboard.
+	activity *Activity
 	// firstRefreshSeen latches once any Aggregator finishes its first
 	// refresh, so a later sign-in (a new Aggregator, mid-refresh) can't
 	// flip a serving process back to unready.
@@ -151,6 +155,30 @@ func (m *Manager) SetCIPollInterval(d time.Duration) {
 	m.ciPollInterval = d
 }
 
+// SetActivity lets the scheduled refresh rest while nobody is using the
+// dashboard. The same Activity is what the HTTP layer touches, so it is the
+// one place that says whether anyone is there. Call once, before the first
+// Ensure that should carry it; an Aggregator already running keeps running
+// without it until its own next Ensure rebuilds it.
+func (m *Manager) SetActivity(act *Activity) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.activity = act
+}
+
+// Activity is what SetActivity was given, or nil. Safe on a nil Manager, and
+// a nil Activity is safe to touch, so a caller never has to check either.
+func (m *Manager) Activity() *Activity {
+	if m == nil {
+		return nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.activity
+}
+
 // Ensure (re)builds userID's Aggregator from sources and starts its
 // background refresh, stopping whatever was running for that user
 // before. Call it once after login (using their currently saved
@@ -198,7 +226,7 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 // Manager has been given, and starts its background loops. The caller holds m.mu.
 func (m *Manager) startLocked(ctx context.Context, key string, userID []byte, sources []Source) {
 	runCtx, cancel := context.WithCancel(ctx)
-	opts := []AggregatorOption{WithDebounceOwner(runCtx)}
+	opts := []AggregatorOption{WithDebounceOwner(runCtx), WithActivity(m.activity)}
 	if m.debounceTimer != nil {
 		opts = append(opts, WithDebounceTimer(m.debounceTimer))
 	}

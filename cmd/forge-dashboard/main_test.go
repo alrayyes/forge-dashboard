@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -66,6 +67,39 @@ func TestResolveCIPollInterval_InvalidEnv_FallsBackToDefault(t *testing.T) {
 func TestResolveCIPollInterval_ExplicitZero_DisablesRatherThanFallingBack(t *testing.T) {
 	got := resolveCIPollInterval("0s")
 	assert.Equal(t, time.Duration(0), got)
+}
+
+func TestResolveIdleAfter_NoEnv_UsesDefault(t *testing.T) {
+	got, err := resolveIdleAfter("")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.DefaultIdleAfter, got)
+}
+
+func TestResolveIdleAfter_ValidEnv_Overrides(t *testing.T) {
+	got, err := resolveIdleAfter("5m")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Minute, got)
+}
+
+// "0s" turns idle mode off: the refresh runs on its schedule whoever is there.
+func TestResolveIdleAfter_ExplicitZero_DisablesRatherThanFallingBack(t *testing.T) {
+	got, err := resolveIdleAfter("0s")
+	require.NoError(t, err)
+	assert.Equal(t, time.Duration(0), got)
+}
+
+// A setting that cannot be read is a mistake to fix, not one to paper over with
+// a default the operator did not choose.
+func TestResolveIdleAfter_InvalidEnv_FailsWithAMessageThatNamesTheSetting(t *testing.T) {
+	_, err := resolveIdleAfter("soon")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "IDLE_AFTER")
+}
+
+func TestResolveIdleAfter_Negative_Fails(t *testing.T) {
+	_, err := resolveIdleAfter("-5m")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "IDLE_AFTER")
 }
 
 // TestOpenDatabase_SurvivesConcurrentWriters is a regression test for
