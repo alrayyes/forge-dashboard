@@ -357,6 +357,7 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 	msg := err.Error()
 	kind := dashboard.ForgeErrorUnreachable
 	statusCode := 0
+	upstreamStatus := 0
 	var rateLimit *dashboard.RateLimit
 	if resp != nil {
 		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
@@ -364,6 +365,11 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 		}
 		kind = forgeErrorKind(resp.StatusCode)
 		statusCode = resp.StatusCode
+		// The forge's own 5xx is not a refusal of this request, so asking
+		// again can work. Forgejo sends no request id to carry with it.
+		if statusCode >= http.StatusInternalServerError && statusCode < 600 {
+			upstreamStatus = statusCode
+		}
 		if kind == dashboard.ForgeErrorRateLimited {
 			rateLimit = rateLimitFromRetryAfter(resp.Header.Get("Retry-After"), time.Now())
 		}
@@ -371,7 +377,7 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 	c.recordRequest(ctx, method, path, statusCode, string(kind))
 	wrapped := fmt.Errorf("forgejo: %s %s: %w: %s", method, path, errForgeRefused, msg)
 
-	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit}
+	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit, UpstreamStatus: upstreamStatus}
 }
 
 // rateLimitFromRetryAfter turns a Retry-After header (RFC 9110 10.2.3: a
