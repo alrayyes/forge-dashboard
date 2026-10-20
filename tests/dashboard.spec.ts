@@ -2154,11 +2154,7 @@ test.describe('dashboard page', () => {
       const row = page.locator('#pr-rows > .row');
       await expect(row.locator('.ci-pill')).toContainText('Failed');
       await expect(page.locator('#pr-rows .merge-pill.blocked')).toHaveCount(0);
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
+      // Axe: the failing CI pill rides in the scan of the rich fixture below.
     });
 
     test('a blocked pull request with no CI still shows the blocked pill', async ({
@@ -2207,7 +2203,7 @@ test.describe('dashboard page', () => {
       await expect(page.locator('.attr-chip.auto-merge')).toHaveCount(0);
     });
 
-    test('has no axe-core violations with both pills and a Forgejo badge rendered', async ({
+    test('has no axe-core violations with both pills, a failing CI pill and a Forgejo badge rendered', async ({
       page,
     }) => {
       // Regression test for #305: mergeStatus: 'blocked' was never
@@ -2221,10 +2217,13 @@ test.describe('dashboard page', () => {
         // Regression test for #235: a real .forge-badge.fj element has to be
         // in a scanned state too, so a Forgejo row rides along here.
         pr({ number: 4, forge: 'forgejo', repo: 'alrayyes/a' }),
+        // The failing CI pill, with the Blocked pill left off (#1561).
+        pr({ number: 5, mergeStatus: 'blocked', ci: 'failure' }),
       ]);
       await page.reload();
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(4);
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(5);
       await expect(page.locator('.forge-badge.fj')).toBeVisible();
+      await expect(page.locator('#pr-rows .ci-pill.failure')).toBeVisible();
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
