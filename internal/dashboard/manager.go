@@ -198,7 +198,7 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 // Manager has been given, and starts its background loops. The caller holds m.mu.
 func (m *Manager) startLocked(ctx context.Context, key string, userID []byte, sources []Source) {
 	runCtx, cancel := context.WithCancel(ctx)
-	var opts []AggregatorOption
+	opts := []AggregatorOption{WithDebounceOwner(runCtx)}
 	if m.debounceTimer != nil {
 		opts = append(opts, WithDebounceTimer(m.debounceTimer))
 	}

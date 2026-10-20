@@ -300,3 +300,79 @@ func TestRefreshRepoDebounced_TwoAggregatorsEachRefreshTheSameRepo(t *testing.T)
 	assert.Equal(t, 1, one.src.repoFetchCallCount("alrayyes/a"))
 	assert.Equal(t, 1, two.src.repoFetchCallCount("alrayyes/a"), "the debouncer belongs to each Aggregator, so one user's event never drops another's")
 }
+
+func newManagedDebounce(t *testing.T) (*dashboard.Manager, *fakeTimers, *fakeRepoRefresherSource) {
+	t.Helper()
+
+	clock := newFakeTimers()
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", nil)
+	m := dashboard.NewManager(time.Hour)
+	m.SetWebhookDebounceTimer(clock.After)
+	t.Cleanup(m.Stop)
+	m.Ensure(t.Context(), []byte("u1"), []dashboard.Source{src})
+	require.Eventually(t, func() bool { return src.fetchCallCount() >= 1 }, 5*time.Second, time.Millisecond, "the first full refresh")
+
+	return m, clock, src
+}
+
+func TestManager_RemoveDropsAPendingDebouncedRefresh(t *testing.T) {
+	t.Parallel()
+	m, clock, src := newManagedDebounce(t)
+
+	require.True(t, m.RefreshRepoDebounced(t.Context(), []byte("u1"), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a"))
+	require.Equal(t, 1, clock.pending())
+	m.Remove([]byte("u1"))
+
+	require.Eventually(t, func() bool { return clock.pending() == 0 }, 5*time.Second, time.Millisecond, "the removed user's timer is stopped")
+	clock.Advance(10 * time.Second)
+	assert.Zero(t, src.repoFetchCallCount("alrayyes/a"), "nothing fetches for a user who was removed")
+}
+
+func TestManager_EnsureRebuildDropsAPendingDebouncedRefreshOfTheOldAggregator(t *testing.T) {
+	t.Parallel()
+	m, clock, src := newManagedDebounce(t)
+
+	require.True(t, m.RefreshRepoDebounced(t.Context(), []byte("u1"), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a"))
+	m.Ensure(t.Context(), []byte("u1"), []dashboard.Source{src})
+
+	require.Eventually(t, func() bool { return clock.pending() == 0 }, 5*time.Second, time.Millisecond, "the replaced Aggregator's timer is stopped")
+	clock.Advance(10 * time.Second)
+	assert.Zero(t, src.repoFetchCallCount("alrayyes/a"), "the old Aggregator never fetches after it was replaced")
+}
+
+func TestRefreshRepoDebounced_AStoppedOwnerAcceptsNothing(t *testing.T) {
+	t.Parallel()
+	clock := newFakeTimers()
+	src := newFakeRepoRefresherSource()
+	owner, stop := context.WithCancel(t.Context())
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now), dashboard.WithDebounceTimer(clock.After), dashboard.WithDebounceOwner(owner))
+	stop()
+
+	ok := agg.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+
+	assert.False(t, ok)
+	assert.Zero(t, clock.pending())
+}
+
+func TestRefreshRepoDebounced_ATimerThatCouldNotBeStoppedDoesNotCutTheNewerWindowShort(t *testing.T) {
+	t.Parallel()
+
+	// A real timer's callback may already be running when the next event tries
+	// to stop it. Stop then returns false and both callbacks run.
+	var callbacks []func()
+	unstoppable := func(_ time.Duration, f func()) func() bool {
+		callbacks = append(callbacks, f)
+
+		return func() bool { return false }
+	}
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", nil)
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithDebounceTimer(unstoppable))
+
+	agg.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	agg.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	callbacks[0]()
+
+	assert.Zero(t, src.repoFetchCallCount("alrayyes/a"), "the older event's timer must not cut the newer event's window short")
+}

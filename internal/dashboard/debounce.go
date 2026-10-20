@@ -45,6 +45,9 @@ type debouncer struct {
 
 	mu      sync.Mutex
 	entries map[string]*debounceEntry
+	// closed is set when the owner's context ends; nothing is accepted after.
+	closed bool
+	owner  context.Context
 }
 
 type debounceEntry struct {
@@ -58,15 +61,41 @@ type debounceEntry struct {
 	release func() bool
 }
 
-func newDebouncer(now func() time.Time, after AfterFunc, quiet, maxHold time.Duration) *debouncer {
-	return &debouncer{now: now, after: after, quiet: quiet, maxHold: maxHold, entries: make(map[string]*debounceEntry)}
+// newDebouncer returns a debouncer that closes itself when owner (which may be
+// nil) ends.
+func newDebouncer(owner context.Context, now func() time.Time, after AfterFunc, quiet, maxHold time.Duration) *debouncer {
+	d := &debouncer{now: now, after: after, quiet: quiet, maxHold: maxHold, entries: make(map[string]*debounceEntry), owner: owner}
+	if owner != nil {
+		context.AfterFunc(owner, d.close)
+	}
+
+	return d
+}
+
+// close drops every pending call and refuses new ones.
+func (d *debouncer) close() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.closed = true
+	for key, e := range d.entries {
+		e.stop()
+		e.release()
+		delete(d.entries, key)
+	}
 }
 
 // Submit records an event for key. fn runs once, after the burst, with the
-// latest fn of the burst. Cancelling ctx drops the pending call.
-func (d *debouncer) Submit(ctx context.Context, key string, fn func()) {
+// latest fn of the burst. Cancelling ctx drops the pending call. It reports
+// false, arming nothing, once the debouncer's owner has ended.
+func (d *debouncer) Submit(ctx context.Context, key string, fn func()) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	// The owner's AfterFunc runs close on its own goroutine, so ask the context too.
+	if d.closed || (d.owner != nil && d.owner.Err() != nil) {
+		return false
+	}
 
 	now := d.now()
 	e, ok := d.entries[key]
@@ -87,6 +116,8 @@ func (d *debouncer) Submit(ctx context.Context, key string, fn func()) {
 	gen := e.gen
 	e.stop = d.after(wait, func() { d.fire(key, gen) })
 	e.release = context.AfterFunc(ctx, func() { d.drop(key, gen) })
+
+	return true
 }
 
 func (d *debouncer) fire(key string, gen uint64) {
@@ -122,6 +153,14 @@ func WithDebounceTimer(after AfterFunc) AggregatorOption {
 	return func(a *Aggregator) { a.after = after }
 }
 
+// WithDebounceOwner ties the webhook debouncer to ctx, the lifetime of the
+// Aggregator's own run: once ctx ends, every pending refresh is dropped with its
+// timer and later events are refused. Without it a refresh queued for a
+// removed or replaced Aggregator would still fire, up to the max hold later.
+func WithDebounceOwner(ctx context.Context) AggregatorOption {
+	return func(a *Aggregator) { a.debounceOwner = ctx }
+}
+
 // RefreshRepoDebounced is RefreshRepo for a webhook delivery: events for one
 // repo that arrive close together cause one scoped refresh after the last of
 // them, not one each. Polls, force refreshes and user actions call RefreshRepo
@@ -138,9 +177,8 @@ func (a *Aggregator) RefreshRepoDebounced(ctx context.Context, forge Forge, owne
 	if a.repoRefresherFor(forge) == nil {
 		return false
 	}
-	a.debounce.Submit(ctx, string(forge)+"/"+fullName, func() {
+
+	return a.debounce.Submit(ctx, string(forge)+"/"+fullName, func() {
 		a.RefreshRepo(ctx, forge, owner, name, fullName, attrs...)
 	})
-
-	return true
 }

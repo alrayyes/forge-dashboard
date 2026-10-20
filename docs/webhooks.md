@@ -195,7 +195,8 @@ refresh, the CI-status poll, the refresh button and anything you do on a pull
 request run at once. A delivery that arrives while a refresh of the same repo
 is running is not lost; it causes exactly one more refresh when the running one
 finishes. A delivery with no repository (the "ping") falls back to a full
-refresh straight away. If the dashboard shuts down during the wait, the pending
+refresh straight away. If the dashboard shuts down during the wait, or your account's
+connection is replaced (you save new credentials) or removed, the pending
 refresh is dropped, and the next scheduled refresh picks the change up.
 
 A `pull_request` delivery whose action is `closed` also takes that pull

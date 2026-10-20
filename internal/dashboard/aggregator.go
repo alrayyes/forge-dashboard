@@ -72,6 +72,8 @@ type Aggregator struct {
 	// asks for until its burst is over (RefreshRepoDebounced).
 	after    AfterFunc
 	debounce *debouncer
+	// debounceOwner, when set, ends the debouncer with the Aggregator's run.
+	debounceOwner context.Context
 
 	// firstRefreshed flips once, when the first refreshOnce finishes —
 	// every source answered or reported itself unreachable. Readiness
@@ -131,7 +133,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 	for _, opt := range opts {
 		opt(a)
 	}
-	a.debounce = newDebouncer(a.now, a.after, webhookQuiet, webhookMaxHold)
+	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold)
 
 	return a
 }
