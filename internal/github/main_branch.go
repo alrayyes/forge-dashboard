@@ -137,12 +137,7 @@ func mainBranchFrom(fullName, repoURL string, ref *graphqlBranchRef) dashboard.M
 		return row
 	}
 	row.Status = dashboard.MainBranchStatusOfCI(rollup.ci())
-	row.Checks = rollup.checkCounts()
-	if row.Status == dashboard.MainBranchFailed && row.Checks.Failed == 0 {
-		// The branch reads a held run as a failure and names it as the failing
-		// job, so it is what failed here; a pull request has its own flag.
-		row.Checks.Failed = rollup.heldRuns()
-	}
+	row.Checks = branchCheckCounts(rollup, row.Status)
 	if rollup.Contexts == nil {
 		return row
 	}
@@ -162,6 +157,19 @@ func mainBranchFrom(fullName, repoURL string, ref *graphqlBranchRef) dashboard.M
 	}
 
 	return row
+}
+
+// branchCheckCounts is the rollup's counts for a branch in status. A failed
+// branch reads a held run as a failure and names it as the failing job, so with
+// nothing else counted as failed, the held runs are what failed; a pull request
+// says it with its own flag instead.
+func branchCheckCounts(rollup *statusCheckRollup, status dashboard.MainBranchStatus) dashboard.CheckCounts {
+	counts := rollup.checkCounts()
+	if status == dashboard.MainBranchFailed && counts.Failed == 0 {
+		counts.Failed = rollup.heldRuns()
+	}
+
+	return counts
 }
 
 // markAwaitingApproval gives the row the awaiting-approval status when the
