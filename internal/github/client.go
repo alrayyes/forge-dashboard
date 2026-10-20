@@ -29,6 +29,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/bradleyfalzon/ghinstallation/v2"
@@ -66,13 +67,19 @@ const appRepoBatchSize = 20
 // requests — same wire calls, typed responses and typed rate-limit errors
 // instead of reparsing JSON bodies by hand.
 type Client struct {
-	httpClient  *http.Client
-	baseURL     string
-	graphqlURL  string
-	token       string
-	username    string
-	restClient  *ghsdk.Client
-	webhookPath string
+	httpClient *http.Client
+	baseURL    string
+	graphqlURL string
+	// etag is the cache under httpClient, kept so SetStats can put its
+	// counter below it. Nil on a client that never makes a request.
+	etag *etagTransport
+	// stats counts this client's calls (SetStats); nil counts nothing.
+	stats           *apistats.Counters
+	statsCredential string
+	token           string
+	username        string
+	restClient      *ghsdk.Client
+	webhookPath     string
 
 	// hooks* remember a webhook check GitHub refused for lack of permission
 	// (#894), so refreshes don't ask 50 repos the same question every time.
@@ -181,7 +188,8 @@ func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder)
 
 	// etagTransport only ever touches a GET, so it's safe to share with
 	// graphqlDo's own POST calls on the same httpClient (#381).
-	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: newETagTransport(nil)}
+	etag := newETagTransport(nil)
+	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: etag}
 	restClient := ghsdk.NewClient(httpClient)
 	if token != "" {
 		restClient = restClient.WithAuthToken(token)
@@ -197,6 +205,7 @@ func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder)
 
 	return &Client{
 		httpClient: httpClient,
+		etag:       etag,
 		baseURL:    baseURL,
 		graphqlURL: baseURL + "/graphql",
 		token:      token,
@@ -243,7 +252,8 @@ func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL str
 	// ghinstallation.New wraps it as the *outer* layer: every request's
 	// Authorization header is set by the installation-token transport,
 	// then handed down to etagTransport for its own GET-caching logic.
-	transport, err := ghinstallation.New(newETagTransport(nil), appID, installationID, privateKeyPEM)
+	etag := newETagTransport(nil)
+	transport, err := ghinstallation.New(etag, appID, installationID, privateKeyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("github: build app installation transport: %w", err)
 	}
@@ -262,12 +272,28 @@ func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL str
 
 	return &Client{
 		httpClient:       httpClient,
+		etag:             etag,
 		baseURL:          baseURL,
 		graphqlURL:       baseURL + "/graphql",
 		restClient:       restClient,
 		appAuthenticated: true,
 		recorder:         rec,
 	}, nil
+}
+
+// SetStats counts every request this client makes in counters, under
+// credential (see apistats.Credential*), tagged with the kind and repo the
+// request's context carries. Call it right after construction, before the
+// client makes a request. Nil counters count nothing.
+func (c *Client) SetStats(counters *apistats.Counters, credential string) {
+	c.stats = counters
+	c.statsCredential = credential
+	if c.etag == nil {
+		return
+	}
+	c.etag.wrapBase(func(base http.RoundTripper) http.RoundTripper {
+		return apistats.Transport(base, counters, string(dashboard.ForgeGitHub), credential)
+	})
 }
 
 // NewUnreachableClient returns a Client whose Fetch always reports reason
@@ -2261,6 +2287,7 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 
 		return fmt.Errorf("github: decode graphql response: %w", err)
 	}
+	c.countGraphQLCost(ctx, envelope.Data)
 	if len(envelope.Errors) > 0 {
 		return c.graphqlQueryError(ctx, resp, envelope.Errors[0])
 	}
@@ -2274,6 +2301,24 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	}
 
 	return nil
+}
+
+// countGraphQLCost adds the rateLimit.cost a response reports to the stats.
+// Every query this client sends asks for it at the top of data. A response
+// without it, or a client without stats, costs nothing here.
+func (c *Client) countGraphQLCost(ctx context.Context, data json.RawMessage) {
+	if c.stats == nil || len(data) == 0 {
+		return
+	}
+	var peek struct {
+		RateLimit *struct {
+			Cost int `json:"cost"`
+		} `json:"rateLimit"`
+	}
+	if err := json.Unmarshal(data, &peek); err != nil || peek.RateLimit == nil {
+		return
+	}
+	c.stats.AddCost(ctx, string(dashboard.ForgeGitHub), c.statsCredential, peek.RateLimit.Cost)
 }
 
 // sinceVariable formats since for the issues connection's own
