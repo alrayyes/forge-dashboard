@@ -5,6 +5,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -16,6 +19,50 @@ import (
 // enough to refuse an obviously abusive body outright rather than
 // storing it.
 const maxFilterStateBytes = 16 * 1024
+
+// The Label filter's pick is saved as lowercase labels joined by a newline, in
+// a cookie as well as here, so it is held to a size a cookie carries, and to
+// text with no control character that could split one label into two.
+const (
+	maxLabelPickLabels = 20
+	maxLabelPickChars  = 1000
+)
+
+// validLabelPick reports whether shared.label in a filter state body, when it
+// is there and a string, stays inside those limits. Everything else about the
+// body stays opaque.
+func validLabelPick(body []byte) bool {
+	var state struct {
+		Shared struct {
+			Label any `json:"label"`
+		} `json:"shared"`
+	}
+	if err := json.Unmarshal(body, &state); err != nil {
+		// Some other shape under "shared": not this check's concern.
+		return true
+	}
+
+	label, ok := state.Shared.Label.(string)
+	if !ok {
+		return true
+	}
+
+	if utf8.RuneCountInString(label) > maxLabelPickChars {
+		return false
+	}
+
+	if strings.Count(label, "\n")+1 > maxLabelPickLabels {
+		return false
+	}
+
+	for _, r := range label {
+		if r != '\n' && unicode.IsControl(r) {
+			return false
+		}
+	}
+
+	return true
+}
 
 // handleFilterStateGet answers with the signed-in user's own saved
 // filter state verbatim — this handler never parses or re-encodes it,
@@ -45,7 +92,7 @@ func handleFilterStateGet(store *settings.Store) http.HandlerFunc {
 }
 
 // handleFilterStatePut stores the request body verbatim as the signed-in
-// user's new filter state — validated only as well-formed JSON, never
+// user's new filter state — validated only as well-formed JSON and the label pick's limits, never
 // interpreted, so the frontend's own filter shape can evolve without a matching
 // change here.
 func handleFilterStatePut(store *settings.Store) http.HandlerFunc {
@@ -65,6 +112,12 @@ func handleFilterStatePut(store *settings.Store) http.HandlerFunc {
 		}
 		if !json.Valid(body) {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
+			return
+		}
+
+		if !validLabelPick(body) {
+			writeJSON(w, http.StatusBadRequest, errorBody("label filter too long or invalid"))
 
 			return
 		}
