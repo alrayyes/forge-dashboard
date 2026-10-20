@@ -4054,8 +4054,9 @@ components:
         concurrency group superseded it, and the overall state does not read it
         as a failure while others still run. When cancelled runs (and, on a
         branch, held ones) are the only reason a pipeline reads as failed, they
-        count as `failed`, so a failed pipeline always has a failed count on
-        GitHub. A timed-out or stale check counts as `failed`, a skipped,
+        count as `failed` (a held run first, where both are there), so a failed
+        pipeline always has a failed count on GitHub. A branch whose status is
+        `cancelled` has `failed` at 0. A timed-out or stale check counts as `failed`, a skipped,
         neutral or bare completed one as `passed`.
 
         On GitHub the counts come from the same rollup as the overall state,
