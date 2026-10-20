@@ -124,7 +124,11 @@ test.describe('the row follows allowedActions (#805)', () => {
       }),
     );
 
-    const merge = row.getByRole('button', { name: 'Merge', exact: true });
+    // Not primary, so the row draws no Merge; the pop-up's footer has it.
+    const merge = (await footerOf(row)).getByRole('button', {
+      name: 'Merge',
+      exact: true,
+    });
     await expect(merge).toBeVisible();
     await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
   });
@@ -144,7 +148,7 @@ test.describe('the row follows allowedActions (#805)', () => {
       }),
     );
     await expect(
-      listed.getByRole('button', { name: 'Update branch' }),
+      (await footerOf(listed)).getByRole('button', { name: 'Update branch' }),
     ).toBeVisible();
   });
 
@@ -180,9 +184,12 @@ test.describe('the row follows allowedActions (#805)', () => {
         ],
       }),
     );
-    await expect(row).toContainText('Server conflict words');
+    // A blocked action is never primary, so the row draws no button for it;
+    // the pop-up's footer has it locked, with the server's reason.
+    const footer = await footerOf(row);
+    await expect(footer).toContainText('Server conflict words');
     await expect(
-      row.getByRole('button', { name: 'Update branch' }),
+      footer.getByRole('button', { name: 'Update branch' }),
     ).toHaveAttribute('aria-disabled', 'true');
   });
 

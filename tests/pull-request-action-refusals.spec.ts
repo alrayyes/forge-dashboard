@@ -140,10 +140,12 @@ const drivers: Driver[] = [
     endpoint: '**/api/pull-requests/update-branch',
     pr: { behind: true },
     button: 'Update branch',
-    act: async (row) => {
-      await row.getByRole('button', { name: 'Update branch' }).click();
-    },
-    find: async (row) => row.getByRole('button', { name: 'Update branch' }),
+    act: (row) =>
+      viaActionsDialog(row, (footer) =>
+        footer.getByRole('button', { name: 'Update branch' }).click(),
+      ),
+    find: async (row) =>
+      (await footerOf(row)).getByRole('button', { name: 'Update branch' }),
     retryOnLock: true,
     specific: {
       code: 'conflict',
@@ -461,11 +463,14 @@ for (const d of drivers) {
           specific.message,
         );
         if (d.retryOnLock) {
+          // The button lives in the pop-up's footer, so the Retry that
+          // replaces it does too.
+          const footer = await footerOf(row);
           await expect(
-            row.getByRole('button', { name: 'Retry' }),
+            footer.getByRole('button', { name: 'Retry' }),
           ).toBeVisible();
           await expect(
-            row.getByRole('button', { name: d.button, exact: true }),
+            footer.getByRole('button', { name: d.button, exact: true }),
           ).toHaveCount(0);
         } else {
           const button = await d.find(row);

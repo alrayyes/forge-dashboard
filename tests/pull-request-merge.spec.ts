@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { rateLimit } from './severity-stand-in';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
@@ -203,7 +204,7 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
-  test('a mergeable pull request whose CI failed still shows a Merge button — unchanged, deliberately out of scope for #385', async ({
+  test('a mergeable pull request whose CI failed offers Merge in the pop-up, not on the row', async ({
     page,
   }) => {
     await mockDashboard(
@@ -212,8 +213,16 @@ test.describe('pull request merge button', () => {
     );
     await page.goto('/pull-requests.html');
 
+    // The server doesn't mark Merge primary while CI is failing, so the row
+    // draws no button; the footer still offers it, unlocked.
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+    const merge = actionsFooter(await openActionsDialog(row)).getByRole(
+      'button',
+      { name: 'Merge', exact: true },
+    );
+    await expect(merge).toBeVisible();
+    await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
   });
 
   // #543: a mergeable pull request whose diff against its base is already
