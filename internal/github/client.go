@@ -3210,6 +3210,11 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 	opts.PerPage = branchCheckCommits
 	commits, resp, err := c.restClient.Repositories.ListCommits(ctx, owner, name, opts)
 	if err != nil {
+		// A repository with no commit yet answers 409: no pipeline, not a failure.
+		if errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err); ok && errResp.Response != nil && errResp.Response.StatusCode == http.StatusConflict {
+			return nil, nil
+		}
+
 		return nil, asClientError(c.restError(ctx, http.MethodGet, commitsPath, err))
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, commitsPath, resp)

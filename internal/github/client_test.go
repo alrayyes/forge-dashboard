@@ -2873,6 +2873,27 @@ func TestListDefaultBranchChecks_NoCommitHasChecks_ReturnsNone(t *testing.T) {
 	assert.Empty(t, checks)
 }
 
+// GitHub answers 409 "Git Repository is empty" for the commits of a repo with
+// no commit yet, which is no pipeline, the way its row reads it.
+func TestListDefaultBranchChecks_EmptyRepo_ReturnsNone(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/commits", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		writeJSON(t, w, map[string]any{"message": "Git Repository is empty."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Empty(t, checks)
+}
+
 func TestListDefaultBranchChecks_CommitListFails_ReturnsError(t *testing.T) {
 	t.Parallel()
 
