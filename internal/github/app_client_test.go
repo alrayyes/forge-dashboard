@@ -683,7 +683,7 @@ func TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedUntilItExpires(t *t
 	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
 	require.NoError(t, err)
 	client.SetWebhookPath("/api/webhooks/github/tok123")
-	const ttl = 200 * time.Millisecond
+	const ttl = 80 * time.Millisecond
 	client.SetWebhookDenialTTL(ttl)
 
 	first := client.Fetch(t.Context())
@@ -697,7 +697,7 @@ func TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedUntilItExpires(t *t
 	assert.False(t, second.Repos[0].CanManageWebhooks)
 	assert.Equal(t, int32(1), hookCalls.Load(), "the cached denial skips the hooks call")
 
-	time.Sleep(ttl + 50*time.Millisecond)
+	time.Sleep(ttl + 200*time.Millisecond)
 	third := client.Fetch(t.Context())
 
 	require.Len(t, third.Repos, 1)

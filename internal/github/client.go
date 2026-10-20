@@ -535,8 +535,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 // GitHub's integration refusal counts, as in the hooks listing: a 401 (bad or
 // expired credentials) says nothing about the permission.
 func (c *Client) appAware(err error) error {
-	if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && c.appAuthenticated &&
-		clientErr.Kind == dashboard.ForgeErrorUnauthorized && strings.Contains(err.Error(), integrationRefusal) {
+	if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && c.appAuthenticated && isIntegrationRefusal(err) {
 		clientErr.PermissionMessage = appPermissionMessage
 	}
 
@@ -2199,6 +2198,17 @@ const appPermissionMessage = "This GitHub App can't write webhooks on this repo.
 	"Under its Repository permissions, set Webhooks (Read and write), " +
 	"then accept the change on the installation."
 
+// isIntegrationRefusal reports whether err is GitHub's 403 refusal for an App
+// installation lacking the requested permission.
+func isIntegrationRefusal(err error) bool {
+	clientErr, ok := errors.AsType[*dashboard.ClientError](asClientError(err))
+	if !ok {
+		return false
+	}
+
+	return clientErr.Kind == dashboard.ForgeErrorUnauthorized && strings.Contains(err.Error(), integrationRefusal)
+}
+
 // refusesHooks reports whether err from a hooks call is the connection's own
 // refusal rather than an unrelated failure.
 func refusesHooks(err error) bool {
@@ -2207,8 +2217,7 @@ func refusesHooks(err error) bool {
 		return false
 	}
 
-	return clientErr.Kind == dashboard.ForgeErrorNotFound ||
-		(clientErr.Kind == dashboard.ForgeErrorUnauthorized && strings.Contains(err.Error(), integrationRefusal))
+	return clientErr.Kind == dashboard.ForgeErrorNotFound || isIntegrationRefusal(err)
 }
 
 // trackedRepos keeps the repos the dashboard follows: not archived, not a

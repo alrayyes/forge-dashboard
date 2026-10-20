@@ -4,7 +4,6 @@
   import {
     type ActionRequestError,
     interpretActionFailure,
-    NO_REASON,
     readActionFailure,
   } from "#lib/action-error.js";
   import {
@@ -385,12 +384,10 @@
       if (outcome.kind === "locked") {
         // A permission refusal carries the server's own sentence, which
         // names what a GitHub App is missing; the shared text says "token".
-        // With no usable sentence, readActionFailure left NO_REASON.
-        const message = (err as Error).message;
         rowState[key] = {
           lockReason:
-            outcome.code === "permission" && message && message !== NO_REASON
-              ? message
+            outcome.code === "permission" && (err as Error).message
+              ? (err as Error).message
               : outcome.reason,
         };
         setStatus(`Couldn't add a webhook for ${repo.fullName}.`, "error");
