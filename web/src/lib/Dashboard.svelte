@@ -19,6 +19,11 @@
     type DetailsStatus,
   } from "#lib/PullRequestDetailsDialog.svelte";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
+  import {
+    CHECK_STATE_LABELS,
+    formatCheckDuration,
+    type Check,
+  } from "#lib/pipeline-checks.js";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
@@ -224,20 +229,6 @@
   type IssueItem = FilterableItem & {
     number: number;
     url: string;
-  };
-  // Matches components.schemas.Check in api/openapi.yaml — one job/check
-  // run against a pull request's head commit, as returned by
-  // GET /api/pull-requests/checks.
-  // `required` is absent when the forge couldn't tell (#681) — not the
-  // same as false.
-  type Check = {
-    name: string;
-    state: string;
-    url: string;
-    required?: boolean;
-    durationSeconds?: number;
-    failedStep?: string;
-    excerpt?: string;
   };
   type Forge = {
     forge: string;
@@ -4582,21 +4573,9 @@
     }
 
     // ---- pipeline checks panel ----
-    // Per-check status vocabulary for GET /api/pull-requests/checks's own
-    // CheckState enum — distinct from CI_LABELS above, which only ever
-    // describes the combined, row-level CIStatus, never one individual
-    // job.
-    const CHECK_STATE_LABELS: Record<string, string> = {
-      queued: "Queued",
-      running: "Running",
-      success: "Passed",
-      failure: "Failed",
-      cancelled: "Cancelled",
-      skipped: "Skipped",
-      timed_out: "Timed out",
-      awaiting_approval: "Waiting for approval",
-    };
-
+    // The per-check status labels (CHECK_STATE_LABELS) are distinct from
+    // CI_LABELS above, which only ever describes the combined, row-level
+    // CIStatus, never one individual job.
     const pipelineDialog = document.getElementById(
       "pipeline-dialog",
     ) as HTMLDialogElement | null;
@@ -4646,17 +4625,6 @@
       );
     }
 
-    // 125 -> "2m 5s", 42 -> "42s", 3700 -> "1h 1m": a duration the way a
-    // person reads it, not a bare second count.
-    function formatDuration(seconds: number): string {
-      const h = Math.floor(seconds / 3600);
-      const m = Math.floor((seconds % 3600) / 60);
-      const sec = seconds % 60;
-      if (h > 0) return `${h}h ${m}m`;
-      if (m > 0) return `${m}m ${sec}s`;
-      return `${sec}s`;
-    }
-
     // One inline glyph per state, so the states differ by shape and not
     // colour alone (#1473). The shapes live in #lib/check-glyphs.js, which
     // the Branches page draws from too.
@@ -4692,7 +4660,7 @@
           el(
             "span",
             "pipeline-check-duration",
-            formatDuration(check.durationSeconds),
+            formatCheckDuration(check.durationSeconds),
           ),
         );
       }
