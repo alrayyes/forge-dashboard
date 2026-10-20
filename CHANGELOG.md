@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.230.1](https://github.com/alrayyes/forge-dashboard/compare/v0.230.0...v0.230.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **web:** show a default branch held for workflow approval in the Branches pill ([#2030](https://github.com/alrayyes/forge-dashboard/issues/2030)) ([9a9d6ea](https://github.com/alrayyes/forge-dashboard/commit/9a9d6ead36e61af4e48acaa05adcec5ba678df68))
+
 ## [0.230.0](https://github.com/alrayyes/forge-dashboard/compare/v0.229.1...v0.230.0) (2026-10-20)
 
 
