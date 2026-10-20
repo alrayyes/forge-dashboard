@@ -10,6 +10,7 @@ import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 type Allowed = {
   action: string;
+  primary?: boolean;
   blocked?: { code: string; message: string; next?: string };
 };
 
@@ -83,6 +84,103 @@ const names = async (row: Locator) => {
 // It mocks the dashboard and writes nothing per user, so it starts from the
 // shared session instead of registering a user per test (#1379).
 test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+// The row draws one control (#943 step 3): the action the server marks
+// primary, or, with none primary and Merge locked, the greyed Merge with its
+// reason, or a Renovate rebase that is already waiting, or nothing. Everything
+// else is in the pop-up's footer.
+const ROW_ACTION =
+  /^(Merge|Update branch|Close pull request|Enable auto-merge|Cancel auto-merge|Dependabot: |Renovate: )/;
+const rowActions = async (row: Locator) =>
+  (await row.getByRole('button', { name: ROW_ACTION }).allInnerTexts()).map(
+    (t) => t.trim(),
+  );
+
+test.describe('the row draws one action (#943)', () => {
+  const blockedMerge = {
+    action: 'merge',
+    blocked: { code: 'checks_pending', message: 'Waiting for CI to finish' },
+  };
+
+  test('the primary action is the only one drawn, however many are offered', async ({
+    page,
+  }) => {
+    const row = await open(
+      page,
+      withActions([
+        { action: 'merge', primary: true },
+        { action: 'auto_merge' },
+        { action: 'close' },
+      ]),
+    );
+    expect(await rowActions(row)).toEqual(['Merge']);
+  });
+
+  test('with no primary and Merge locked, the row shows the locked Merge and its reason', async ({
+    page,
+  }) => {
+    const row = await open(
+      page,
+      withActions([
+        blockedMerge,
+        { action: 'auto_merge' },
+        { action: 'close' },
+      ]),
+    );
+    expect(await rowActions(row)).toEqual(['Merge']);
+    await expect(
+      row.getByRole('button', { name: 'Merge', exact: true }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    await expect(row).toContainText('Waiting for CI to finish');
+  });
+
+  test('with no primary and Merge offered, the row draws nothing', async ({
+    page,
+  }) => {
+    // Failing CI: the server offers Merge but doesn't make it primary.
+    const row = await open(
+      page,
+      withActions([
+        { action: 'merge' },
+        { action: 'auto_merge' },
+        { action: 'close' },
+      ]),
+    );
+    expect(await rowActions(row)).toEqual([]);
+  });
+
+  test('a Renovate rebase that is already waiting stays on the row, locked', async ({
+    page,
+  }) => {
+    const row = await open(
+      page,
+      makePR({
+        author: 'renovate[bot]',
+        kind: 'dependency',
+        behind: true,
+        allowedActions: [
+          {
+            action: 'merge',
+            blocked: { code: 'behind', message: 'Behind the base branch' },
+          },
+          { action: 'close' },
+          {
+            action: 'renovate_rebase',
+            blocked: {
+              code: 'already_requested',
+              message: 'Rebase requested',
+            },
+          },
+        ],
+        status: { code: 'behind', message: 'Behind the base branch' },
+      }),
+    );
+    expect(await rowActions(row)).toEqual(['Renovate: Rebase']);
+    await expect(
+      row.getByRole('button', { name: 'Renovate: Rebase' }),
+    ).toHaveAttribute('aria-disabled', 'true');
+  });
+});
 
 test.describe('the row follows allowedActions (#805)', () => {
   test("a blocked Merge shows the server's own reason and what unlocks it", async ({

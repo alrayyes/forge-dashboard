@@ -20,8 +20,12 @@ entry is.
 The row draws one button: the primary action, or, while Merge is locked, the
 greyed Merge with its reason. A pull request with neither draws none, so a
 draft, one waiting on CI, one with failing CI and one with nothing to act on
-show their status and nothing to click. Every other action is in the pop-up's
-footer, one click away, and there is no "More actions" menu.
+show their status and nothing to click. A pull request that is behind the base
+branch is the one case where a locked Merge is not the row's button: the row
+draws no button of its own, because the cure (Update branch, or the bot's
+rebase) sits inside the status block above, and the greyed Merge is in the
+pop-up. Every other action is in the pop-up's footer, one click away, and there
+is no "More actions" menu.
 
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a
