@@ -1917,6 +1917,11 @@ a.ci-pill:hover {
   background: var(--neutral-bg);
   color: var(--ink-2);
 }
+/* The row's one control. Beside the status on a wide screen the bar has no box
+   of its own; on a phone it is the card's last tier (see the phone rules). */
+.row-action-bar {
+  display: contents;
+}
 .row-action-group {
   position: relative;
   z-index: 1;
@@ -2908,6 +2913,42 @@ footer a.mono:focus-visible {
   .wait-chip-action {
     min-width: 44px;
     min-height: 44px;
+  }
+  /* The card's last tier: the one control after a hairline divider, the full
+     width and 44px tall (WCAG 2.5.5), with a locked Merge's reason beside
+     or under its label in place. */
+  .row-action-bar {
+    display: flex;
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .row-action-bar .row-action {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+    font-size: 13px;
+  }
+  .row-action-bar .row-action-locked,
+  .row-action-bar .row-action-group {
+    display: flex;
+    width: 100%;
+  }
+  .row-action-bar .row-action-group > .row-action {
+    flex: 1 1 0;
+    width: auto;
+  }
+  .row-action-bar .row-action-locked-visible {
+    align-items: stretch;
+  }
+  .row-action-bar .row-action-note {
+    align-items: flex-start;
+    max-width: none;
+    text-align: left;
   }
   .review-pill {
     min-height: 44px;

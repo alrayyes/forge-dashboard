@@ -55,6 +55,39 @@ func TestFetch_MainBranch_CarriesTheCheckCounts(t *testing.T) {
 		})
 	}
 
+	t.Run("a branch that is cancelled, not failed, has no failed count", func(t *testing.T) {
+		t.Parallel()
+
+		row, _ := tokenFetchWith(t, branchRef(rollupOf("FAILURE", map[string]int{"SUCCESS": 2, "CANCELLED": 1},
+			checkRun("lint", "SUCCESS", "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z"),
+			checkRun("secrets", "CANCELLED", "2026-10-10T09:01:00Z", "2026-10-10T09:01:05Z"),
+		)))
+
+		assert.Equal(t, dashboard.MainBranchCancelled, row.Status)
+		assert.Equal(t, dashboard.CheckCounts{Passed: 2}, row.Checks, "cancelled is in none of the four")
+	})
+
+	t.Run("a held run is what failed, not the cancelled runs beside it", func(t *testing.T) {
+		t.Parallel()
+
+		row, _ := tokenFetchWith(t, branchRef(rollupOf("FAILURE", map[string]int{"ACTION_REQUIRED": 1, "CANCELLED": 2},
+			checkRun("deploy", "ACTION_REQUIRED", "2026-10-10T09:01:00Z", "2026-10-10T09:01:05Z"),
+		)))
+
+		assert.Equal(t, dashboard.MainBranchFailed, row.Status)
+		assert.Equal(t, []string{"deploy"}, row.FailingJobs)
+		assert.Equal(t, dashboard.CheckCounts{Failed: 1}, row.Checks)
+	})
+
+	t.Run("a passed branch never gains a failed count", func(t *testing.T) {
+		t.Parallel()
+
+		row, _ := tokenFetchWith(t, branchRef(rollupOf("SUCCESS", map[string]int{"SUCCESS": 3, "ACTION_REQUIRED": 1})))
+
+		assert.Equal(t, dashboard.MainBranchPassed, row.Status)
+		assert.Equal(t, dashboard.CheckCounts{Passed: 3}, row.Checks)
+	})
+
 	t.Run("a commit nothing ran on has all zero", func(t *testing.T) {
 		t.Parallel()
 

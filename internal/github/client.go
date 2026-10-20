@@ -188,7 +188,11 @@ func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder)
 
 	// etagTransport only ever touches a GET, so it's safe to share with
 	// graphqlDo's own POST calls on the same httpClient (#381).
-	etag := newETagTransport(nil)
+	credential := apistats.TokenCredential(token)
+	if token == "" {
+		credential = apistats.AccountCredential(username)
+	}
+	etag := newETagTransport(nil, credential)
 	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: etag}
 	restClient := ghsdk.NewClient(httpClient)
 	if token != "" {
@@ -246,13 +250,13 @@ func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL str
 		baseURL = defaultBaseURL
 	}
 
-	// etagTransport is this Client's own base, exactly like NewClient's —
-	// never shared across users or across Clients (etag_transport.go's
-	// own doc comment explains why a shared cache would be wrong here).
+	// etagTransport sits below the installation transport, as in NewClient, and
+	// shares entries only with a Client holding the same installation (see its
+	// doc comment for the keying).
 	// ghinstallation.New wraps it as the *outer* layer: every request's
 	// Authorization header is set by the installation-token transport,
 	// then handed down to etagTransport for its own GET-caching logic.
-	etag := newETagTransport(nil)
+	etag := newETagTransport(nil, apistats.AppCredential(installationID))
 	transport, err := ghinstallation.New(etag, appID, installationID, privateKeyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("github: build app installation transport: %w", err)
@@ -1457,15 +1461,27 @@ func checkCountsOf(commits []prCommitNode) dashboard.CheckCounts {
 // conclusion (SUCCESS, FAILURE, ...), so a bare COMPLETED carries no failure of
 // its own, and a failing one is a state of its own that is counted as failed.
 func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
+	out := r.rawCheckCounts()
+	// A failing rollup with no failed check is failing because of cancelled
+	// runs (nothing is running to replace them, see settleFailedRollup), so
+	// those are what failed. Left in none of the four, a Failed pill would show
+	// counts that never mention the failure. A held run is not counted: a pull
+	// request says that with its own flag.
+	if out.Failed == 0 && r.ci() == dashboard.CIFailure {
+		out.Failed = r.runsInState("CANCELLED")
+	}
+
+	return out
+}
+
+// rawCheckCounts is the tally with cancelled and held runs in none of the four.
+func (r *statusCheckRollup) rawCheckCounts() dashboard.CheckCounts {
 	var out dashboard.CheckCounts
 	if r == nil || r.Contexts == nil {
 		return out
 	}
-	var unexplained int
 	for _, c := range r.Contexts.CheckRunCountsByState {
 		switch c.State {
-		case "CANCELLED":
-			unexplained += c.Count
 		case "SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED":
 			out.Passed += c.Count
 		case "IN_PROGRESS":
@@ -1485,14 +1501,6 @@ func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
 		case "FAILURE", "ERROR":
 			out.Failed += c.Count
 		}
-	}
-	// A failing rollup with no failed check is failing because of cancelled
-	// runs (nothing is running to replace them, see settleFailedRollup), so
-	// those are what failed. Left in none of the four, a Failed pill would show
-	// counts that never mention the failure. A held run is not counted: a pull
-	// request says that with its own flag.
-	if out.Failed == 0 && r.ci() == dashboard.CIFailure {
-		out.Failed = unexplained
 	}
 
 	return out
@@ -1534,13 +1542,13 @@ func rollupIsOfAnotherCommit(commits []prCommitNode, headOid string) bool {
 	return oid != "" && headOid != "" && oid != headOid
 }
 
-// heldRuns is how many runs are held as ACTION_REQUIRED.
-func (r *statusCheckRollup) heldRuns() int {
+// runsInState is how many check runs the rollup counts in one state.
+func (r *statusCheckRollup) runsInState(state string) int {
 	if r == nil || r.Contexts == nil {
 		return 0
 	}
 	for _, c := range r.Contexts.CheckRunCountsByState {
-		if c.State == "ACTION_REQUIRED" {
+		if c.State == state {
 			return c.Count
 		}
 	}
