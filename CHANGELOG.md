@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.228.1](https://github.com/alrayyes/forge-dashboard/compare/v0.228.0...v0.228.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **e2e:** take the write lock first in the reset so a concurrent write is waited out ([#2021](https://github.com/alrayyes/forge-dashboard/issues/2021)) ([b26e537](https://github.com/alrayyes/forge-dashboard/commit/b26e53726239856424124fe626dd1850ec3afc6a))
+
 ## [0.228.0](https://github.com/alrayyes/forge-dashboard/compare/v0.227.0...v0.228.0) (2026-10-20)
 
 
