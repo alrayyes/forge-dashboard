@@ -969,15 +969,16 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 		for _, i := range batch {
 			issues = append(issues, dashboard.Issue{
-				Forge:     dashboard.ForgeForgejo,
-				Repo:      repo,
-				Number:    int(i.Index),
-				Title:     i.Title,
-				URL:       i.HTMLURL,
-				Author:    posterLogin(i.Poster),
-				Labels:    toLabels(i.Labels),
-				CreatedAt: i.Created,
-				UpdatedAt: i.Updated,
+				Forge:           dashboard.ForgeForgejo,
+				Repo:            repo,
+				Number:          int(i.Index),
+				Title:           i.Title,
+				URL:             i.HTMLURL,
+				Author:          posterLogin(i.Poster),
+				AuthorAvatarURL: posterAvatarURL(i.Poster),
+				Labels:          toLabels(i.Labels),
+				CreatedAt:       i.Created,
+				UpdatedAt:       i.Updated,
 			})
 		}
 		if resp.NextPage == 0 {

@@ -53,6 +53,7 @@ func TestGetIssueDetails_ReadsDescriptionCommentsAndReactions(t *testing.T) {
 	assert.Equal(t, 2, got.Description.Reactions.ThumbsUp.Count)
 	require.Len(t, got.Comments, 2)
 	assert.Equal(t, "demo-a", got.Comments[0].Author.Login)
+	assert.Equal(t, "https://git.example.com/avatars/1", got.Comments[0].Author.AvatarURL, "the forge's own avatar, unchanged")
 	assert.Equal(t, 1, got.Comments[0].Reactions.ThumbsDown.Count)
 	assert.Nil(t, got.Comments[1].Author)
 	assert.True(t, got.Comments[1].Edited)

@@ -47,6 +47,7 @@ const ISSUES = [
     title: 'An issue',
     url: 'https://github.com/alrayyes/app/issues/9',
     author: 'claude',
+    authorAvatarUrl: AVATAR,
     authorUrl: 'https://github.com/claude',
     housekeeping: false,
     labels: [],
@@ -185,14 +186,59 @@ test.describe('Profile links (#1991)', () => {
     });
   }
 
-  test('an issue row links its author too', async ({ page }) => {
+  test('an issue row links its author too, avatar and name as one link', async ({
+    page,
+  }) => {
     await mock(page);
     await page.goto('/issues.html');
-    const link = page
+    const cell = page
       .locator('.row', { hasText: 'An issue' })
-      .locator('.author')
-      .getByRole('link');
+      .locator('.author');
+    await expect(cell.getByRole('link')).toHaveCount(1);
+    await expect(cell.getByRole('link')).toHaveAttribute(
+      'href',
+      'https://github.com/claude',
+    );
+    await expect(cell.getByRole('link').locator('img')).toHaveCount(1);
+  });
+
+  test("the issue dialog's Filed by is one link on the avatar and the name", async ({
+    page,
+  }) => {
+    await mock(page);
+    await page.route('**/api/issues/details*', (route: Route) => {
+      const none = { count: 0, logins: [] };
+      const reactions = { thumbsUp: none, thumbsDown: none };
+
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          description: {
+            text: 'Body.',
+            format: 'markdown',
+            truncated: false,
+            edited: false,
+            reactions,
+          },
+          comments: [],
+          commentCount: 0,
+          commentsTruncated: false,
+        }),
+      });
+    });
+    await page.goto('/issues.html');
+    await page
+      .locator('#issue-rows .row', { hasText: 'An issue' })
+      .getByRole('button', { name: /^#9 / })
+      .click();
+    const filedBy = page.getByRole('dialog').locator('.details-author');
+    const link = filedBy.getByRole('link', { name: 'claude', exact: true });
     await expect(link).toHaveAttribute('href', 'https://github.com/claude');
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(link.locator('img')).toHaveCount(1);
+    await expect(filedBy.getByRole('link')).toHaveCount(1);
   });
 });
 

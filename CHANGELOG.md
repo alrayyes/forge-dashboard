@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.230.2](https://github.com/alrayyes/forge-dashboard/compare/v0.230.1...v0.230.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **web:** offer only the repos, authors and labels the pull request list has ([#2027](https://github.com/alrayyes/forge-dashboard/issues/2027)) ([9a48a25](https://github.com/alrayyes/forge-dashboard/commit/9a48a250fa5f068453510522a4d8039d1e7ebe3f))
+
 ## [0.230.1](https://github.com/alrayyes/forge-dashboard/compare/v0.230.0...v0.230.1) (2026-10-20)
 
 
