@@ -39,6 +39,7 @@ func resolvePullRequestDetailsFor(ctx context.Context, deps Deps, u *auth.User, 
 	}
 
 	details.ReleaseNotes = releaseNotesOf(deps, u.ID, dashboard.Forge(forge), fullName, number, details.Description)
+	linkCommenters(details.Comments, dashboard.Forge(forge), boardWebBase(deps, u.ID, dashboard.Forge(forge), fullName))
 
 	return details, nil
 }

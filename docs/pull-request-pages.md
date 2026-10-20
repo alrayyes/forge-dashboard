@@ -44,10 +44,12 @@ then the attributes as quiet outlined chips (auto-merge, draft, bot, out of
 date, labels, and the version on the Releases page). Each comment carries the
 author's avatar (the forge's own HTTPS image URL, or an initial if it isn't one
 or can't load), a relative time and an
-"edited" mark. A deleted author reads "ghost". Hovering or focusing a reaction
-lists who gave it, up to ten names and then "and N more"; Escape hides that
-list first and a second press closes the pop-up. Reactions are display only.
-When the details can't load, it says so in plain words with **Try again**.
+"edited" mark. The avatar and the name are one link to that person's page on
+the forge. A deleted author reads "ghost" and isn't a link. Hovering or
+focusing a reaction lists who gave it, up to ten names and then "and N more";
+Escape hides that list first and a second press closes the pop-up. Reactions
+are display only. When the details can't load, it says so in plain words with
+**Try again**.
 
 The text is Markdown and the server doesn't sanitise it, so the page renders
 it with [markdown-it](https://github.com/markdown-it/markdown-it) with raw HTML
@@ -66,6 +68,13 @@ A row shows the author's avatar to the left of their name. It is the forge's
 own HTTPS image URL, loaded straight from the forge by your browser. When the
 forge sends none, the URL isn't HTTPS, or the image can't load, the row shows
 the name alone. The narrow layout drops the author column, avatar and all.
+
+The avatar and the name are one link to the author's page on the forge, opening
+in a new tab. The server builds the address from the forge's own web address, so
+a self-hosted Forgejo works the same as GitHub. A GitHub bot such as Dependabot
+links to its app page. A deleted account ("ghost"), or an address that isn't a
+web address, shows the name without a link. Clicking it never opens the row's
+pop-up. Issues rows link their author the same way.
 
 ## Releases
 

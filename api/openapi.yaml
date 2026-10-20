@@ -4014,7 +4014,7 @@ components:
 
     Person:
       type: object
-      required: [login, avatarUrl]
+      required: [login, avatarUrl, url]
       description: Who wrote a description or a comment.
       properties:
         login:
@@ -4022,6 +4022,9 @@ components:
         avatarUrl:
           type: string
           description: The forge's own avatar URL, passed through unchanged and never proxied.
+        url:
+          type: string
+          description: The person's profile page on the forge, built by the server from the web address of an item the board already holds for that forge. Empty when the board holds none yet, so a client shows the name alone.
 
     Reaction:
       type: object
@@ -4338,6 +4341,7 @@ components:
           url,
           author,
           authorAvatarUrl,
+          authorUrl,
           draft,
           labels,
           createdAt,
@@ -4387,6 +4391,9 @@ components:
         authorAvatarUrl:
           type: string
           description: The forge's own avatar URL for the author, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+        authorUrl:
+          type: string
+          description: The author's profile page on the forge, built by the server from the forge's own web address, so a client needs no rule per forge. A GitHub bot links to its app page. Empty when there is nothing to link to, such as a deleted account.
         draft:
           type: boolean
         labels:
@@ -5047,6 +5054,7 @@ components:
           url,
           author,
           authorAvatarUrl,
+          authorUrl,
           labels,
           housekeeping,
           createdAt,
@@ -5080,6 +5088,9 @@ components:
         authorAvatarUrl:
           type: string
           description: The forge's own avatar URL for whoever filed the issue, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+        authorUrl:
+          type: string
+          description: The author's profile page on the forge, built by the server from the forge's own web address. Empty when there is nothing to link to, such as a deleted account.
         labels:
           type: array
           items:

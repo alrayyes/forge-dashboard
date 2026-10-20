@@ -1295,6 +1295,30 @@ button.title:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The author's avatar and name are one link to their page on the forge. Above
+   .title::after's stretched overlay (like the CI pill), or the row's own click
+   would win; 24px tall, the minimum target (WCAG 2.5.8). */
+.author-link {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 24px;
+  color: inherit;
+  text-decoration: none;
+}
+.author-link:hover .author-name,
+.author-link:hover {
+  text-decoration: underline;
+}
+.author-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 .created,
 .updated {
