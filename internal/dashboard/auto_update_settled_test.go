@@ -52,7 +52,7 @@ func TestAggregator_MarkSettled_BoundsTheDelete(t *testing.T) {
 
 func TestAggregator_Refresh_AnOpenPullRequestKeepsItsChoice(t *testing.T) {
 	t.Parallel()
-	src := &fakeBranchUpdaterSource{fakeSource: behindPRsOn("alrayyes/a", 1)}
+	src := &fakeBranchUpdaterSource{fakeSource: behindPRsOn(1)}
 	lister := &fakeAutoUpdateBranchLister{
 		enabled:   map[string]struct{}{"github/alrayyes/a": {}},
 		overrides: map[string]bool{"github/alrayyes/a#1": false},
@@ -69,7 +69,7 @@ func TestAggregator_Refresh_AnOpenPullRequestKeepsItsChoice(t *testing.T) {
 
 func TestAggregator_ClosedThenReopened_FollowsTheRepoAgain(t *testing.T) {
 	t.Parallel()
-	src := &fakeBranchUpdaterSource{fakeSource: behindPRsOn("alrayyes/a", 1)}
+	src := &fakeBranchUpdaterSource{fakeSource: behindPRsOn(1)}
 	lister := &fakeAutoUpdateBranchLister{
 		enabled:   map[string]struct{}{"github/alrayyes/a": {}},
 		overrides: map[string]bool{"github/alrayyes/a#1": false},
