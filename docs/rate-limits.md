@@ -139,9 +139,8 @@ which costs nothing against the REST limit. The dashboard counts it under
 `notModified` and serves the kept body, so the rest of the code never sees the
 difference. GitHub documents this in its
 [REST API best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests-if-appropriate).
-The same page says a `304` is only free for a request that carries an
-`Authorization` header, so the public-repository mode, which has none, may still
-be charged.
+The same page says a `304` is only free when the request is authorized, so the
+public-repository mode, which sends no credential, may still be charged.
 
 The cache is keyed by forge, credential label, URL and `Accept` header, never
 by user. GitHub folds the credential into the ETag, so one credential's ETag is
@@ -149,10 +148,10 @@ never offered under another. Two clients holding the same credential share
 entries, and a replaced token starts empty. A page size, page number or filter
 is part of the URL, so a different one is a different entry.
 
-The cache lives in memory and is bounded. A body over 1 MiB is never kept, so
-that read costs a full response each time. Across all entries the cache holds
-at most 5000 answers and 32 MiB, and past either limit it drops the least
-recently used answer first.
+The cache lives in memory and is bounded. A body over a megabyte is never kept,
+so that read costs a full response each time. Across all entries the cache
+holds at most 5000 answers and 32 megabytes, and past either limit it drops the
+least recently used answer first.
 
 Forgejo, as probed, doesn't take part. The Forgejo instance we tested
 (16.0.6, built on Gitea 1.22) sends no `ETag` and no `Last-Modified` header on
