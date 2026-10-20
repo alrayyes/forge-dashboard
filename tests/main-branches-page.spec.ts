@@ -489,6 +489,82 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(dialog(page).getByRole('listitem')).toHaveCount(2);
   });
 
+  test('a rate-limited read shows the server sentence and Retry', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await mockChecks(page, {
+      status: 429,
+      body: { error: 'github rate limit exceeded, resets in 12 minutes' },
+    });
+    await page.goto('/');
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    const alert = dialog(page).getByRole('alert');
+    await expect(alert).toContainText('rate limit exceeded, resets in 12');
+    await expect(alert.getByRole('button', { name: 'Retry' })).toBeVisible();
+  });
+
+  test('an answer that arrives after the panel moved on is not drawn', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    // The first row's answer is held back until the second row's has drawn.
+    let releaseSlow: () => void = () => {};
+    const slowHeld = new Promise<void>((resolve) => {
+      releaseSlow = resolve;
+    });
+    await page.route('**/api/main-branches/checks*', async (route: Route) => {
+      const slow = new URL(route.request().url()).searchParams
+        .get('fullName')
+        ?.includes('ingress');
+      if (slow) await slowHeld;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checks: [
+            {
+              name: slow ? 'from-the-first-row' : 'from-the-second-row',
+              state: 'success',
+              url: '',
+            },
+          ],
+        }),
+      });
+    });
+    await page.goto('/');
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    await dialog(page).getByRole('button', { name: /close/i }).click();
+    await expect(dialog(page)).toBeHidden();
+
+    await rows(page)
+      .nth(2)
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    await expect(dialog(page)).toContainText('from-the-second-row');
+
+    const late = page.waitForResponse((r) =>
+      r.url().includes('fullName=acme%2Fingress-controller'),
+    );
+    releaseSlow();
+    await late;
+    // Two frames after the late answer, when a draw would have happened.
+    await page.evaluate(
+      () =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done)),
+        ),
+    );
+    await expect(dialog(page)).toContainText('from-the-second-row');
+    await expect(dialog(page)).not.toContainText('from-the-first-row');
+  });
+
   test('a branch with no jobs says so in the panel', async ({ page }) => {
     await mock(page, snapshot(MIXED));
     await mockChecks(page, { body: { checks: [] } });
