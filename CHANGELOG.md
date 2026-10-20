@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.243.0](https://github.com/alrayyes/forge-dashboard/compare/v0.242.0...v0.243.0) (2026-10-20)
+
+
+### Features
+
+* **web:** show check counts on the Passed, Failed and branch pills ([#2081](https://github.com/alrayyes/forge-dashboard/issues/2081)) ([5c6502c](https://github.com/alrayyes/forge-dashboard/commit/5c6502cac795abeef9d5c71136eca19158e0d802))
+
 ## [0.242.0](https://github.com/alrayyes/forge-dashboard/compare/v0.241.0...v0.242.0) (2026-10-20)
 
 
