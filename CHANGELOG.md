@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.236.0](https://github.com/alrayyes/forge-dashboard/compare/v0.235.0...v0.236.0) (2026-10-20)
+
+
+### Features
+
+* **web:** say on the row when a refused Close is locked ([#2056](https://github.com/alrayyes/forge-dashboard/issues/2056)) ([f830917](https://github.com/alrayyes/forge-dashboard/commit/f830917a051b9bcbf39f1bb45645f1a9d4378525))
+
 ## [0.235.0](https://github.com/alrayyes/forge-dashboard/compare/v0.234.0...v0.235.0) (2026-10-20)
 
 
