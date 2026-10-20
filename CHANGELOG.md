@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.247.0](https://github.com/alrayyes/forge-dashboard/compare/v0.246.0...v0.247.0) (2026-10-20)
+
+
+### Features
+
+* **web:** drop the CI status dropdown, the quick pills cover it ([#2102](https://github.com/alrayyes/forge-dashboard/issues/2102)) ([0ea18ab](https://github.com/alrayyes/forge-dashboard/commit/0ea18abdfb9c91461cd897b98f7602a2d6788165))
+
 ## [0.246.0](https://github.com/alrayyes/forge-dashboard/compare/v0.245.0...v0.246.0) (2026-10-20)
 
 
