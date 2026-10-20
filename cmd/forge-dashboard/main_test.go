@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -66,6 +67,27 @@ func TestResolveCIPollInterval_InvalidEnv_FallsBackToDefault(t *testing.T) {
 func TestResolveCIPollInterval_ExplicitZero_DisablesRatherThanFallingBack(t *testing.T) {
 	got := resolveCIPollInterval("0s")
 	assert.Equal(t, time.Duration(0), got)
+}
+
+func TestResolveIdleAfter_NoEnv_UsesDefault(t *testing.T) {
+	assert.Equal(t, dashboard.DefaultIdleAfter, resolveIdleAfter(""))
+}
+
+func TestResolveIdleAfter_ValidEnv_Overrides(t *testing.T) {
+	assert.Equal(t, 5*time.Minute, resolveIdleAfter("5m"))
+}
+
+func TestResolveIdleAfter_InvalidEnv_FallsBackToDefault(t *testing.T) {
+	assert.Equal(t, dashboard.DefaultIdleAfter, resolveIdleAfter("soon"))
+}
+
+// "0s" turns idle mode off: the refresh runs on its schedule whoever is there.
+func TestResolveIdleAfter_ExplicitZero_DisablesRatherThanFallingBack(t *testing.T) {
+	assert.Equal(t, time.Duration(0), resolveIdleAfter("0s"))
+}
+
+func TestResolveIdleAfter_Negative_FallsBackToDefault(t *testing.T) {
+	assert.Equal(t, dashboard.DefaultIdleAfter, resolveIdleAfter("-5m"))
 }
 
 // TestOpenDatabase_SurvivesConcurrentWriters is a regression test for

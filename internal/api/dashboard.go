@@ -886,6 +886,12 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		}
 		defer unsubscribe()
 
+		// An open stream is someone looking at the board, so the background
+		// refresh keeps its schedule for as long as it stays open.
+		activity := deps.Manager.Activity()
+		activity.StreamOpened()
+		defer activity.StreamClosed()
+
 		// Read once: every event on this connection follows the choice it
 		// opened with, and a client that changes its mind reconnects.
 		view := viewOf(r)

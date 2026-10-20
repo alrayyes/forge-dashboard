@@ -227,7 +227,7 @@ func NewMux(deps Deps) http.Handler {
 		writeJSON(w, http.StatusNotFound, errorBody("not found"))
 	})
 
-	return noIndex(accessLogMiddleware(recoverPanics(static, deps.Version, limitRequestBody(mux))))
+	return noIndex(accessLogMiddleware(deps.Manager, recoverPanics(static, deps.Version, limitRequestBody(mux))))
 }
 
 // noIndex marks every response, page, script, JSON or error, as not for search
