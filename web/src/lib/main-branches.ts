@@ -7,6 +7,7 @@ export type MainBranchStatus =
   | 'running'
   | 'passed'
   | 'cancelled'
+  | 'awaiting_approval'
   | 'none';
 
 export type MainBranchCommit = {
@@ -32,7 +33,19 @@ export type MainBranch = {
   staleSince: string | null;
 };
 
-export type MainBranchCounts = Record<MainBranchStatus | 'total', number>;
+// The count of a status keeps its own name, but awaiting_approval is
+// awaitingApproval on the wire, like every other field.
+export type MainBranchCounts = Record<
+  Exclude<MainBranchStatus, 'awaiting_approval'> | 'awaitingApproval' | 'total',
+  number
+>;
+
+// What a status pill shows: its status's count, or all of them.
+export function statusCount(counts: MainBranchCounts, key: StatusPill): number {
+  if (key === 'all') return counts.total;
+  if (key === 'awaiting_approval') return counts.awaitingApproval;
+  return counts[key];
+}
 
 export type MainBranches = {
   generatedAt: string;
@@ -60,6 +73,7 @@ export const STATUS_LABEL: Record<MainBranchStatus, string> = {
   running: 'Running',
   passed: 'Passed',
   cancelled: 'Cancelled',
+  awaiting_approval: 'Waiting for approval',
   none: 'No pipeline',
 };
 
@@ -73,6 +87,9 @@ export const CI_SLOT: Partial<
   running: { cls: 'pending', glyphs: 'running' },
   passed: { cls: 'success', glyphs: 'success' },
   cancelled: { cls: 'cancelled', glyphs: 'cancelled' },
+  // The pull request row's held run: the failure pill recoloured to the warning
+  // pair by .awaiting, with the pause glyph (#1280).
+  awaiting_approval: { cls: 'failure awaiting', glyphs: 'awaiting_approval' },
 };
 
 export function isFiltered(filter: MainBranchFilter): boolean {
@@ -169,7 +186,15 @@ export function duration(seconds: number | null): string {
 // `branches` group of plain strings in the shared cookie for the first paint
 // and in the server copy for a second browser. These two convert between that
 // group and the filter, and a stale or hand-edited value reads as its default.
-const STATUSES = ['all', 'failed', 'running', 'passed', 'cancelled', 'none'];
+const STATUSES = [
+  'all',
+  'failed',
+  'running',
+  'passed',
+  'cancelled',
+  'awaiting_approval',
+  'none',
+];
 const FORGES = ['all', 'github', 'forgejo'];
 
 export function filterFromState(

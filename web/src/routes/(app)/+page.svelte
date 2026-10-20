@@ -40,6 +40,7 @@
     type MainBranchFilter,
     CI_SLOT,
     STATUS_LABEL,
+    statusCount,
     type StatusPill,
     type ForgeFilter,
   } from "#lib/main-branches.js";
@@ -79,6 +80,7 @@
     { key: "passed", label: "Passing" },
     { key: "running", label: "Running" },
     { key: "cancelled", label: "Cancelled" },
+    { key: "awaiting_approval", label: "Waiting for approval" },
     { key: "none", label: "No pipeline" },
   ];
 
@@ -556,8 +558,7 @@
               aria-pressed={filter.status === key}
               onclick={() => setStatus(key)}
               >{label}
-              <span class="mb-count"
-                >{key === "all" ? data.counts.total : data.counts[key]}</span
+              <span class="mb-count">{statusCount(data.counts, key)}</span
               ></button
             >
           {/each}

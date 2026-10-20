@@ -330,3 +330,65 @@ func TestFetch_MainBranch_SkipsCommitsNoCheckRanOn(t *testing.T) {
 	assert.Equal(t, "perf: count pages without pdf-lib (#131)", row.Commit.Subject)
 	assert.Len(t, queries, 2, "one extra query, only for the repo whose newest commit has no checks")
 }
+
+// TestFetch_MainBranch_ANewestCommitWithHeldRunsAwaitsApproval pins #2024. A
+// workflow run held for approval (action_required) creates no check run, so the
+// newest commit has no rollup, just like a [skip ci] commit. Walking back to an
+// older commit would show that commit's result as if it were current; the row
+// says the newest commit is waiting for someone to approve its runs.
+func TestFetch_MainBranch_ANewestCommitWithHeldRunsAwaitsApproval(t *testing.T) {
+	t.Parallel()
+
+	held := map[string]any{
+		"oid": "d77a71648ce53adf4e77dc02ce7c434f55538953", "abbreviatedOid": "d77a716",
+		"messageHeadline": "feat: from a first-time contributor",
+		"url":             "https://github.com/alrayyes/a/commit/d77a716",
+		"committedDate":   "2026-10-20T09:10:00Z", "statusCheckRollup": nil,
+	}
+	var heldAsked, historyAsked bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
+		heldAsked = true
+		assert.Equal(t, "action_required", r.URL.Query().Get("status"))
+		assert.Equal(t, "d77a71648ce53adf4e77dc02ce7c434f55538953", r.URL.Query().Get("head_sha"))
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{
+			"id": 1, "name": "ci", "workflow_id": 7, "conclusion": "action_required",
+			"html_url": "https://github.com/alrayyes/a/actions/runs/1",
+		}}})
+	})
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		query := readGraphQLRequest(t, r).Query
+		rate := map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"}
+		if strings.Contains(query, "history(") {
+			historyAsked = true
+		}
+		head := branchRef(nil)
+		head["target"] = held
+		writeJSON(t, w, map[string]any{"data": map[string]any{
+			"rateLimit": rate,
+			"viewer": map[string]any{"repositories": map[string]any{
+				"pageInfo": map[string]any{"hasNextPage": false},
+				"nodes": []map[string]any{{
+					"name": "a", "url": "https://github.com/alrayyes/a", "viewerPermission": "WRITE",
+					"owner":            map[string]any{"login": "alrayyes"},
+					"pullRequests":     map[string]any{"nodes": []map[string]any{}},
+					"issues":           map[string]any{"nodes": []map[string]any{}},
+					"defaultBranchRef": head,
+				}},
+			}},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.MainBranches, 1)
+	row := result.MainBranches[0]
+	assert.Equal(t, dashboard.MainBranchAwaitingApproval, row.Status)
+	require.NotNil(t, row.Commit)
+	assert.Equal(t, "d77a716", row.Commit.SHA, "the newest commit, not an older one that had checks")
+	assert.True(t, heldAsked)
+	assert.False(t, historyAsked, "no walk back to an older commit")
+	assert.Equal(t, "https://github.com/alrayyes/a/actions/runs/1", row.RunURL, "the held run's own page carries GitHub's approve button")
+}
