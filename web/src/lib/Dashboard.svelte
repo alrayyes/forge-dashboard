@@ -559,6 +559,24 @@
         document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
       );
       wrap.appendChild(badge);
+      // The repository's own logo, only when the forge has one; a repository
+      // without one draws nothing, so the row doesn't shift. Decorative: the
+      // name beside it already says which repository. A failed load drops
+      // the image and leaves the name alone.
+      const logo = avatarSrc(
+        reposByKey.get(Filters.repoKey(item.forge, item.repo))?.logoUrl,
+      );
+      if (logo) {
+        const img = el("img", "repo-logo") as HTMLImageElement;
+        img.src = logo;
+        img.alt = "";
+        img.width = 16;
+        img.height = 16;
+        img.loading = "lazy";
+        img.referrerPolicy = "no-referrer";
+        img.addEventListener("error", () => img.remove());
+        wrap.appendChild(img);
+      }
       const repoName = el("span", "repo-name", item.repo);
       // .repo-name truncates via CSS text-overflow: ellipsis — a title
       // is what lets a mouse user actually read the full name on hover.

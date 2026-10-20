@@ -19,6 +19,7 @@
     touchKey,
   } from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import RepoLogo from "#lib/RepoLogo.svelte";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
@@ -40,6 +41,8 @@
     forge: string;
     fullName: string;
     url?: string;
+    // The repository's own logo, absent when it has none.
+    logoUrl?: string;
     hasWebhook: boolean;
     canManageWebhooks?: boolean;
     webhookLockedByConnection?: boolean;
@@ -1203,6 +1206,7 @@
                   </span>
                 </td>
                 <td role="cell" data-label="Repo">
+                  <RepoLogo url={repo.logoUrl} />
                   {#if repo.url}
                     <a
                       class="repo-link"
@@ -1378,6 +1382,7 @@
                   <span class="dot"></span>
                   {FORGE_LABELS[repo.forge] ?? repo.forge}
                 </span>
+                <RepoLogo url={repo.logoUrl} />
                 {#if repo.url}
                   <a
                     class="repo-link"

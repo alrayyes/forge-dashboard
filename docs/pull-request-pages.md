@@ -66,6 +66,18 @@ own HTTPS image URL, loaded straight from the forge by your browser. When the
 forge sends none, the URL isn't HTTPS, or the image can't load, the row shows
 the name alone. The narrow layout drops the author column, avatar and all.
 
+## Repository logo
+
+A row, and the Repositories page, show a repository's own logo to the left of
+its name when it has one. On Forgejo, that is the avatar set on the repository.
+On GitHub, it is the custom social preview image uploaded in the repository's
+settings, which is a wide banner, so it is cropped to a small square. The
+generated card GitHub makes for a repository with no image is never shown, and
+neither is the owner's avatar. The image is the forge's own HTTPS URL, loaded
+straight from the forge by your browser. A repository with no logo, an image
+that isn't HTTPS or one that can't load shows the name alone. The unauthenticated
+username-only listing carries no images, so it shows none.
+
 ## Releases
 
 Release pull requests have their own page, `/releases.html`, reached from the

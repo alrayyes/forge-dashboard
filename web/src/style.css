@@ -1133,6 +1133,22 @@ select.col-filter {
   letter-spacing: normal;
 }
 
+/* The repository's own logo (only drawn when it has one). A GitHub custom
+   social preview is a wide banner, so it is cropped to the square. */
+.repo-logo {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+/* Beside running text, as on the Repositories page, rather than in a row's
+   flex cell, which spaces it with its own gap. */
+:not(.repo) > .repo-logo {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
 .repo-name {
   font-family: "IBM Plex Mono", monospace;
   font-size: 12.5px;
