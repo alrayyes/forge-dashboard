@@ -531,11 +531,12 @@ and any other failure waits five minutes, so a stuck pull request costs one
 request, not one per refresh.
 
 Each pull request can also have its own say, whatever its repo does. Every
-pull request in `GET /api/dashboard` carries an `autoUpdate` object: whether
-the pass updates it (`enabled`), where that comes from (`source` is `repo`
-for the repo's setting and `pullRequest` for a choice made on this one), and,
-for a draft or a release-please pull request, an `unavailable` reason,
-because the pass never touches those however they are switched.
+pull request in `GET /api/dashboard` carries its own state under `autoUpdate`:
+whether the pass updates it (`enabled`), where that comes from (`source` is
+`repo` for the repo's setting and `pullRequest` for a choice made on this
+one), and, for a draft or a release-please pull request, the reason under
+`unavailable`, because the pass never touches those however they are
+switched.
 `POST /api/pull-requests/auto-update` with `enabled` true or false sets it,
 so a pull request you are still testing stays put while the rest of the repo
 keeps updating, or the other way round for one pull request in a repo that
