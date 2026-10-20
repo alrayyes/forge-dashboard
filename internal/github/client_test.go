@@ -2796,6 +2796,127 @@ func TestListChecks_NoChecksAtAll_ReturnsEmptySlice(t *testing.T) {
 	assert.Empty(t, checks)
 }
 
+func TestListDefaultBranchChecks_ReturnsTheCheckRunsOfTheNewestCommit(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/commits", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{{"sha": "cafef00d"}, {"sha": "deadbeef"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "build", "status": "completed", "conclusion": "success", "html_url": "https://github.com/alrayyes/a/runs/1"},
+			{"name": "test", "status": "in_progress", "html_url": "https://github.com/alrayyes/a/runs/2"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Equal(t, []dashboard.Check{
+		{Name: "build", State: dashboard.CheckSuccess, URL: "https://github.com/alrayyes/a/runs/1"},
+		{Name: "test", State: dashboard.CheckRunning, URL: "https://github.com/alrayyes/a/runs/2"},
+	}, checks)
+}
+
+// A release bot's "[skip ci]" commit has no checks; the row shows the commit
+// before it, so the panel must too (the pill and the panel describe one run).
+func TestListDefaultBranchChecks_NewestCommitHasNoChecks_UsesTheNewestThatDoes(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/commits", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{{"sha": "cafef00d"}, {"sha": "deadbeef"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/deadbeef/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "build", "status": "completed", "conclusion": "success", "html_url": "https://github.com/alrayyes/a/runs/9"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://github.com/alrayyes/a/runs/9", checks[0].URL)
+}
+
+func TestListDefaultBranchChecks_NoCommitHasChecks_ReturnsNone(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/commits", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Empty(t, checks)
+}
+
+// GitHub answers 409 "Git Repository is empty" for the commits of a repo with
+// no commit yet, which is no pipeline, the way its row reads it.
+func TestListDefaultBranchChecks_EmptyRepo_ReturnsNone(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/commits", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		writeJSON(t, w, map[string]any{"message": "Git Repository is empty."})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	checks, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Empty(t, checks)
+}
+
+func TestListDefaultBranchChecks_CommitListFails_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/commits", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		writeJSON(t, w, map[string]any{"message": "Not Found"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	_, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.Error(t, err)
+}
+
 func TestListChecks_PullRequestLookupFails_ReturnsError(t *testing.T) {
 	t.Parallel()
 
