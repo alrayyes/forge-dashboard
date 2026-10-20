@@ -89,6 +89,8 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 		return nil, err
 	}
 
+	// branchRuns sorts newest first and keeps one commit's runs, so runs[0] is
+	// the commit the row reports.
 	checks, _, err := c.listChecksForSHA(ctx, owner, name, runs[0].CommitSHA)
 
 	return checks, err

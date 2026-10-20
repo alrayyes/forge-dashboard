@@ -130,6 +130,30 @@ func TestMainBranchChecks_FetchFails_ClassifiesByError(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
+func TestMainBranchChecks_FetchFails_MapsNotFoundAndRateLimit(t *testing.T) {
+	t.Parallel()
+
+	for kind, want := range map[dashboard.ForgeErrorKind]int{
+		dashboard.ForgeErrorNotFound:    http.StatusNotFound,
+		dashboard.ForgeErrorRateLimited: http.StatusTooManyRequests,
+	} {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+
+			source := &fakeBranchCheckerSource{
+				forge:     dashboard.ForgeGitHub,
+				checksErr: &dashboard.ClientError{Kind: kind, Err: assert.AnError},
+			}
+			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+			resp := getMainBranchChecks(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit")
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, want, resp.StatusCode)
+		})
+	}
+}
+
 func TestMainBranchChecks_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
