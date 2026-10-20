@@ -90,6 +90,18 @@ func TestMCP_SetPullRequestAutoUpdate_AChoiceEqualToTheRepoIsDroppedAndNullFollo
 	require.False(t, absent.IsError, "an absent enabled follows the repo, like null")
 }
 
+func TestMCP_SetPullRequestAutoUpdate_RefusesANonBooleanEnabled(t *testing.T) {
+	t.Parallel()
+
+	srvURL, cookie := updateBranchServer(t, true)
+	token := createAPIToken(t, srvURL, cookie)
+
+	result := callSetAutoUpdate(t, srvURL, token, map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1, "enabled": "yes"})
+
+	require.True(t, result.IsError)
+	assert.Equal(t, "repo", autoUpdateStates(t, srvURL, cookie)[1]["source"], "nothing was saved")
+}
+
 func TestMCP_SetPullRequestAutoUpdate_RefusesWhatTheEndpointRefuses(t *testing.T) {
 	t.Parallel()
 
@@ -105,8 +117,11 @@ func TestMCP_SetPullRequestAutoUpdate_RefusesWhatTheEndpointRefuses(t *testing.T
 		"an unknown forge":                           {map[string]any{"forge": "gitlab", "fullName": "alrayyes/a", "number": 1, "enabled": true}, "forge must be github or forgejo"},
 		"a number that is not positive":              {map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 0, "enabled": true}, "number must be a pull request number"},
 	}
-	// Sequential: the subtests share one user's token, and concurrent MCP
-	// sessions on it make the test server answer 500 to an initialize.
+	// Sequential, on purpose: the test server's SQLite is opened without a busy
+	// timeout (the helper's DSN in auth_test.go), so parallel MCP sessions on
+	// one token collide on the token last-used write and answer 500. The
+	// production database sets a busy timeout, so this is the helper's limit,
+	// not the server's.
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			result := callSetAutoUpdate(t, srvURL, token, tc.args)
