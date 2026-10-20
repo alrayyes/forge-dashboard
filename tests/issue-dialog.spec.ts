@@ -20,6 +20,7 @@ const ISSUE = {
   title: 'The page loses its place',
   url: 'https://example.com/issues/7',
   author: 'ryankes',
+  authorAvatarUrl: 'https://avatars.example.com/u/7',
   labels: [{ name: 'bug', color: 'd73a4a' }],
   createdAt: ago(60),
   updatedAt: ago(5),
@@ -55,7 +56,17 @@ const details = {
   commentsTruncated: false,
 };
 
-async function mockDashboard(page: Page) {
+const AVATAR = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="10" fill="#c0392b"/></svg>',
+);
+
+async function mockDashboard(page: Page, issue: object = ISSUE) {
+  await page.route('https://avatars.example.com/u/7', (route: Route) =>
+    route.fulfill({ status: 200, contentType: 'image/svg+xml', body: AVATAR }),
+  );
+  await page.route('https://avatars.example.com/broken', (route: Route) =>
+    route.abort(),
+  );
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
@@ -65,7 +76,7 @@ async function mockDashboard(page: Page) {
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
         pullRequests: [],
-        issues: [ISSUE],
+        issues: [issue],
       }),
     }),
   );
@@ -137,6 +148,56 @@ test.describe('an issue row opens its dialog', () => {
     await expect(dialog(page).locator('.details-actions button')).toHaveCount(
       0,
     );
+  });
+
+  test('the header says who filed it, with their avatar', async ({ page }) => {
+    await mockDashboard(page);
+    await mockDetails(page);
+    await page.goto('/issues.html');
+    await titleButton(page).click();
+
+    const filedBy = dialog(page).locator('.details-author');
+    await expect(filedBy).toContainText('ryankes');
+    await expect(filedBy.locator('img')).toHaveAttribute(
+      'src',
+      'https://avatars.example.com/u/7',
+    );
+    // Decorative: the name beside it already says who.
+    await expect(filedBy.locator('img')).toHaveAttribute('alt', '');
+  });
+
+  test('without a usable avatar the header shows the name alone', async ({
+    page,
+  }) => {
+    for (const avatar of ['', 'http://avatars.example.com/u/7']) {
+      await mockDashboard(page, { ...ISSUE, authorAvatarUrl: avatar });
+      await mockDetails(page);
+      await page.goto('/issues.html');
+      await titleButton(page).click();
+
+      const filedBy = dialog(page).locator('.details-author');
+      await expect(filedBy).toContainText('ryankes');
+      await expect(filedBy.locator('img')).toHaveCount(0);
+      await dialog(page).getByRole('button', { name: 'Close details' }).click();
+      await page.unroute('**/api/dashboard*');
+      await page.unroute('**/api/issues/details*');
+    }
+  });
+
+  test('an avatar that fails to load leaves the name alone', async ({
+    page,
+  }) => {
+    await mockDashboard(page, {
+      ...ISSUE,
+      authorAvatarUrl: 'https://avatars.example.com/broken',
+    });
+    await mockDetails(page);
+    await page.goto('/issues.html');
+    await titleButton(page).click();
+
+    const filedBy = dialog(page).locator('.details-author');
+    await expect(filedBy).toContainText('ryankes');
+    await expect(filedBy.locator('img')).toHaveCount(0);
   });
 
   test('says so plainly when there is no description and no comments', async ({

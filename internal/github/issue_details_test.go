@@ -71,6 +71,7 @@ func TestGetIssueDetails_ReadsTheThreadInOneQuery(t *testing.T) {
 	assert.Equal(t, []string{"demo-a", "demo-b"}, got.Description.Reactions.ThumbsUp.Logins)
 	require.Len(t, got.Comments, 2)
 	assert.Equal(t, "demo-a", got.Comments[0].Author.Login)
+	assert.Equal(t, "https://avatars.example.com/u/1", got.Comments[0].Author.AvatarURL, "the forge's own avatar, unchanged")
 	assert.Nil(t, got.Comments[1].Author, "a deleted account has no author")
 	assert.True(t, got.Comments[1].Edited)
 	assert.Equal(t, 2, got.CommentCount)

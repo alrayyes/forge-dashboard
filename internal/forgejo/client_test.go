@@ -602,6 +602,34 @@ func TestListOpenIssues_UsesTypeIssuesFilter(t *testing.T) {
 	assert.Equal(t, 7, issues[0].Number)
 }
 
+// An issue carries its poster's avatar as the forge reports it, so the row can
+// draw it beside the name; one with no poster (a deleted account) carries none.
+func TestListOpenIssues_CarriesThePosterAvatar(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"number": 7, "title": "has a poster", "html_url": "https://x/7", "user": map[string]string{"login": "u", "avatar_url": "https://git.example/avatars/7"}},
+			{"number": 8, "title": "no poster", "html_url": "https://x/8"},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	issues, err := forgejo.NewClient(srv.URL, "test-token", "").ListOpenIssues(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, issues, 2)
+	assert.Equal(t, "https://git.example/avatars/7", issues[0].AuthorAvatarURL)
+	assert.Empty(t, issues[1].AuthorAvatarURL)
+}
+
 // TestListOpenPullRequests_MapsMergeableToMergeStatus asserts the
 // mapping: false on a pull request whose base has moved past its merge
 // base is a conflict (a conflict needs the base to have moved), and false
