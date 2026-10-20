@@ -15,29 +15,71 @@ import (
 // hasn't changed (checkWebhooks' own ListHooks call runs once per
 // tracked repo on every poll) can come back free instead (#381).
 //
-// Scoped to the lifetime of one Client's own http.Client rather than
-// shared across processes or tokens: GitHub folds the Authorization
-// header into its own ETag calculation, so a cache entry from one
-// credential is never valid for a different one — a problem only for
-// something that reuses a cache across credentials. That never happens
-// here: this transport is never shared across Clients or users.
+// Entries live in an etagStore and are keyed by forge, credential label
+// and URL, never by Client or user: GitHub folds the Authorization header
+// into its own ETag calculation, so an entry made under one credential is
+// never offered under another. Two Clients holding the same credential
+// share entries, so rebuilding a Client keeps the answers that are still
+// good. The label is the one the API counters use (apistats.Credential*),
+// so it holds no secret and no user id.
 //
 // #620: an App-mode Client's effective Authorization value does rotate
 // roughly hourly under the hood (ghinstallation's own installation-token
-// refresh), unlike a token-based Client's one fixed value for its whole
-// lifetime — but that's still just this one Client's own cache, still
-// never shared with anyone else's. A rotation makes the very next
-// request a guaranteed cache miss against an entry made under the old
-// token, which is harmless: a miss, not a wrong answer.
+// refresh). The label is the installation id, so entries survive that, and
+// the first request after a rotation may be answered with a 200 instead
+// of a 304, which is harmless: a miss, not a wrong answer.
 type etagTransport struct {
 	// base is what the cache calls; raw is the transport it started with, so
 	// wrapBase can be called again without stacking wrappers.
 	base http.RoundTripper
 	raw  http.RoundTripper
 
-	mu    sync.Mutex
-	cache map[string]cachedResponse
+	store      *etagStore
+	credential string
 }
+
+// etagStore holds cached responses for every Client in the process.
+type etagStore struct {
+	mu      sync.Mutex
+	entries map[etagKey]cachedResponse
+}
+
+type etagKey struct {
+	forge      string
+	credential string
+	url        string
+}
+
+// maxETagEntries bounds the store. Past it an arbitrary entry is dropped,
+// which only costs one full response later.
+const maxETagEntries = 5000
+
+func (s *etagStore) get(k etagKey) (cachedResponse, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.entries[k]
+
+	return v, ok
+}
+
+func (s *etagStore) put(k etagKey, v cachedResponse) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.entries == nil {
+		s.entries = make(map[etagKey]cachedResponse)
+	}
+	if _, exists := s.entries[k]; !exists && len(s.entries) >= maxETagEntries {
+		for old := range s.entries {
+			delete(s.entries, old)
+
+			break
+		}
+	}
+	s.entries[k] = v
+}
+
+// sharedETags is the process-wide store every Client uses.
+var sharedETags = &etagStore{}
 
 type cachedResponse struct {
 	etag   string
@@ -55,7 +97,7 @@ func defaultTransport() http.RoundTripper {
 	return http.DefaultTransport
 }
 
-func newETagTransport(base http.RoundTripper) *etagTransport {
+func newETagTransport(base http.RoundTripper, credential string) *etagTransport {
 	if base == nil {
 		// A transport of its own, not the process-wide default: every
 		// httptest.Server.Close() calls CloseIdleConnections on the default
@@ -63,7 +105,7 @@ func newETagTransport(base http.RoundTripper) *etagTransport {
 		base = defaultTransport()
 	}
 
-	return &etagTransport{base: base, raw: base, cache: make(map[string]cachedResponse)}
+	return &etagTransport{base: base, raw: base, store: sharedETags, credential: credential}
 }
 
 // wrapBase puts wrap between the cache and the network, below the cache so a
@@ -86,10 +128,8 @@ func (t *etagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, nil
 	}
 
-	key := req.URL.String()
-	t.mu.Lock()
-	cached, ok := t.cache[key]
-	t.mu.Unlock()
+	key := etagKey{forge: "github", credential: t.credential, url: req.URL.String()}
+	cached, ok := t.store.get(key)
 
 	if ok {
 		req = req.Clone(req.Context())
@@ -138,7 +178,7 @@ func (t *etagTransport) servedFromCache(fresh *http.Response, cached cachedRespo
 // maybeCache stores resp's body under key, keyed off its own ETag — never
 // touched again once read, since a caller downstream still needs the
 // original response body intact.
-func (t *etagTransport) maybeCache(key string, resp *http.Response) {
+func (t *etagTransport) maybeCache(key etagKey, resp *http.Response) {
 	etag := resp.Header.Get("ETag")
 	if etag == "" {
 		return
@@ -150,7 +190,5 @@ func (t *etagTransport) maybeCache(key string, resp *http.Response) {
 	}
 	resp.Body = io.NopCloser(bytes.NewReader(body))
 
-	t.mu.Lock()
-	t.cache[key] = cachedResponse{etag: etag, body: body, header: resp.Header.Clone()}
-	t.mu.Unlock()
+	t.store.put(key, cachedResponse{etag: etag, body: body, header: resp.Header.Clone()})
 }
