@@ -740,7 +740,10 @@
       };
       // No CI, no pipeline to open: a plain badge (#1139).
       if (status === "none" || !interactive) {
-        const badge = el("span", `ci-pill ${status}`);
+        const badge = el(
+          "span",
+          `ci-pill ${status}${awaiting ? " awaiting" : ""}`,
+        );
         addMark(badge);
         badge.appendChild(document.createTextNode(label));
         return badge;
