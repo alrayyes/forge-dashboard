@@ -83,7 +83,7 @@ type MainBranch struct {
 	DurationSeconds *int       `json:"durationSeconds"`
 	// RunURL is where to see the run on the forge, falling back to URL.
 	RunURL string `json:"runUrl"`
-	// Checks says how many of the newest commit's checks passed, are running,
+	// Checks says how many of the checks of the commit the status is read from passed, are running,
 	// are waiting and failed, tallied from what the status was worked out
 	// from, so it costs no request. Always present, all zero when unknown.
 	Checks CheckCounts `json:"checks"`

@@ -30,9 +30,19 @@ func TestFetch_MainBranch_CarriesTheCheckCounts(t *testing.T) {
 			want:   dashboard.CheckCounts{Passed: 12},
 		},
 		{
-			name:   "a cancelled run is in none of the four",
+			name:   "a cancelled run beside one still going is in none of the four",
+			rollup: rollupOf("FAILURE", map[string]int{"SUCCESS": 2, "CANCELLED": 1, "IN_PROGRESS": 1}),
+			want:   dashboard.CheckCounts{Passed: 2, Running: 1},
+		},
+		{
+			name:   "a failing rollup whose only trouble is a cancelled run counts it as failed, so a Failed pill never has none",
 			rollup: rollupOf("FAILURE", map[string]int{"SUCCESS": 2, "CANCELLED": 1}),
-			want:   dashboard.CheckCounts{Passed: 2},
+			want:   dashboard.CheckCounts{Passed: 2, Failed: 1},
+		},
+		{
+			name:   "a failing rollup held by a run awaiting approval counts it as failed",
+			rollup: rollupOf("FAILURE", map[string]int{"SUCCESS": 4, "ACTION_REQUIRED": 1}),
+			want:   dashboard.CheckCounts{Passed: 4, Failed: 1},
 		},
 	}
 	for _, tt := range tests {

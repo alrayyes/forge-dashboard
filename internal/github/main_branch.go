@@ -138,6 +138,11 @@ func mainBranchFrom(fullName, repoURL string, ref *graphqlBranchRef) dashboard.M
 	}
 	row.Status = dashboard.MainBranchStatusOfCI(rollup.ci())
 	row.Checks = rollup.checkCounts()
+	if row.Status == dashboard.MainBranchFailed && row.Checks.Failed == 0 {
+		// The branch reads a held run as a failure and names it as the failing
+		// job, so it is what failed here; a pull request has its own flag.
+		row.Checks.Failed = rollup.heldRuns()
+	}
 	if rollup.Contexts == nil {
 		return row
 	}
