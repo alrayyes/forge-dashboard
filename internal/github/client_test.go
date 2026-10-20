@@ -1,6 +1,7 @@
 package github_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -2671,6 +2672,116 @@ func TestUpdateBranch_UnprocessableEntity_ClassifiesAsForgeErrorConflict(t *test
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+}
+
+// GitHub answers its own 5xx to an update-branch request now and then
+// ("Server Error"). The call is idempotent, so one more try after a short
+// wait is safe, and usually enough.
+func TestUpdateBranch_ServerError_IsTriedOnceMoreAndCanSucceed(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			writeJSON(t, w, map[string]any{"message": "Server Error"})
+
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetServerErrorRetryWait(time.Millisecond)
+
+	accepted, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.True(t, accepted)
+	assert.Equal(t, int32(2), calls.Load())
+}
+
+func TestUpdateBranch_ServerErrorTwice_CarriesTheUpstreamStatusAndRequestID(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("X-GitHub-Request-Id", "DC37:31D3AC:5E7D4F9:83EE23F:6AD77763")
+		w.WriteHeader(http.StatusBadGateway)
+		writeJSON(t, w, map[string]any{"message": "Server Error"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetServerErrorRetryWait(time.Millisecond)
+
+	_, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, http.StatusBadGateway, clientErr.UpstreamStatus)
+	assert.Equal(t, "DC37:31D3AC:5E7D4F9:83EE23F:6AD77763", clientErr.RequestID)
+	assert.Equal(t, int32(2), calls.Load(), "one try and one more, not a loop")
+}
+
+// A conflict is the branch's own answer, not GitHub's trouble: asking again
+// would only repeat it.
+func TestUpdateBranch_UnprocessableEntity_IsNotTriedAgain(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		writeJSON(t, w, map[string]any{"message": "merge conflict between base and head"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetServerErrorRetryWait(time.Millisecond)
+
+	_, err := client.UpdateBranch(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Zero(t, clientErr.UpstreamStatus, "only a 5xx is GitHub's own failure")
+	assert.Equal(t, int32(1), calls.Load())
+}
+
+func TestUpdateBranch_ServerError_StopsWaitingWhenTheRequestEnds(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5/update-branch", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+		writeJSON(t, w, map[string]any{"message": "Server Error"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetServerErrorRetryWait(time.Hour)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+
+	started := time.Now()
+	_, err := client.UpdateBranch(ctx, "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	assert.Less(t, time.Since(started), 5*time.Second, "the wait ends with the request, not after the hour")
+	assert.Equal(t, int32(1), calls.Load())
 }
 
 func TestListChecks_ReturnsEveryCheckRunForThePullRequestsHeadSHA(t *testing.T) {

@@ -87,6 +87,9 @@ type Client struct {
 	// whose hooks call failed for an unrelated reason doesn't flip it.
 	refusedRepo    map[string]bool
 	hooksDenialTTL time.Duration
+	// retryWait is how long a repeatable call waits before its one retry
+	// after GitHub's own 5xx; zero means the default.
+	retryWait time.Duration
 
 	// requiredChecks backs the "required check hasn't reported yet" rule
 	// (#1311).
@@ -925,6 +928,55 @@ func (c *Client) DisableAutoMerge(ctx context.Context, owner, name string, numbe
 // (see its own doc comment), so that specific case is unwrapped into
 // accepted=true instead of being treated as an error.
 func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
+	accepted, err := c.updateBranchOnce(ctx, owner, name, number)
+	if !failedOnGitHubsSide(err) {
+		return accepted, err
+	}
+
+	// GitHub answered with its own 5xx. Updating a branch is idempotent, so
+	// one more try after a short wait is safe, and a one-off failure is the
+	// usual cause. The wait ends with the request.
+	timer := time.NewTimer(c.serverErrorRetryWait())
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return accepted, err
+	case <-timer.C:
+	}
+
+	return c.updateBranchOnce(ctx, owner, name, number)
+}
+
+func failedOnGitHubsSide(err error) bool {
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+
+	return ok && clientErr.ForgeFailed()
+}
+
+// defaultServerErrorRetryWait is how long a repeatable call waits before its
+// one retry after GitHub's own 5xx.
+const defaultServerErrorRetryWait = 2 * time.Second
+
+// SetServerErrorRetryWait changes how long a safe, repeatable call waits
+// before its one retry after GitHub answered with a 5xx. The default is two
+// seconds.
+func (c *Client) SetServerErrorRetryWait(d time.Duration) {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+	c.retryWait = d
+}
+
+func (c *Client) serverErrorRetryWait() time.Duration {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+	if c.retryWait > 0 {
+		return c.retryWait
+	}
+
+	return defaultServerErrorRetryWait
+}
+
+func (c *Client) updateBranchOnce(ctx context.Context, owner, name string, number int) (bool, error) {
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/update-branch", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPut, "url", path)
 	_, resp, err := c.restClient.PullRequests.UpdateBranch(ctx, owner, name, number, nil)
@@ -1045,6 +1097,10 @@ type apiError struct {
 	msg       string
 	rateLimit *dashboard.RateLimit
 	kind      dashboard.ForgeErrorKind
+	// status is the forge's own 5xx, and zero for anything else; requestID is
+	// GitHub's X-GitHub-Request-Id for the failing request.
+	status    int
+	requestID string
 }
 
 func (e *apiError) Error() string { return e.msg }
@@ -1061,7 +1117,7 @@ func asClientError(err error) error {
 		return nil
 	}
 	if apiErr, ok := errors.AsType[*apiError](err); ok {
-		return &dashboard.ClientError{Kind: apiErr.kind, Err: err, RateLimit: apiErr.rateLimit}
+		return &dashboard.ClientError{Kind: apiErr.kind, Err: err, RateLimit: apiErr.rateLimit, UpstreamStatus: apiErr.status, RequestID: apiErr.requestID}
 	}
 
 	return err
@@ -2930,10 +2986,14 @@ func (c *Client) restError(ctx context.Context, method, path string, err error) 
 		}
 		c.recordRequest(ctx, method, path, statusCodeOf(errResp.Response), string(kind), rl)
 
+		status, requestID := forgeFailure(errResp.Response)
+
 		return &apiError{
 			msg:       fmt.Sprintf("github: %s %s: %s", method, path, errResp.Message),
 			kind:      kind,
 			rateLimit: rl,
+			status:    status,
+			requestID: requestID,
 		}
 	}
 
@@ -2948,6 +3008,22 @@ func (c *Client) restError(ctx context.Context, method, path string, err error) 
 // statusCodeOf returns resp's own status code, or 0 for a nil resp — a
 // request that never got a response at all (a timeout, a connection
 // refused) has no status code to report.
+// forgeFailure reads what a failing response says about GitHub's own side: its
+// status when that is a 5xx (zero otherwise, so a 4xx is never mistaken for
+// the forge failing) and the request id GitHub sent, for any status, so a
+// report can be traced.
+func forgeFailure(resp *http.Response) (int, string) {
+	if resp == nil {
+		return 0, ""
+	}
+	status := 0
+	if resp.StatusCode >= http.StatusInternalServerError && resp.StatusCode < 600 {
+		status = resp.StatusCode
+	}
+
+	return status, resp.Header.Get("X-GitHub-Request-Id")
+}
+
 func statusCodeOf(resp *http.Response) int {
 	if resp == nil {
 		return 0
