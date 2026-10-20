@@ -5,30 +5,42 @@ import (
 	"strings"
 )
 
-// githubApps are the bot accounts GitHub's GraphQL answers with a bare slug
-// (no "[bot]" suffix), whose pages live under /apps/<slug>, not /<login>.
-// Only consulted for GitHub: a Forgejo user may well be called "renovate".
-var githubApps = map[string]bool{"dependabot": true, "renovate": true}
+// githubBotPages are the GitHub bots whose page was checked to exist, by the
+// slug without any "[bot]" suffix. A bot's login is not its page: Dependabot's
+// is an organisation at /dependabot (/apps/dependabot only lands on a docs
+// page), Renovate's is its app page (/renovate is a 404). GitHub Actions and
+// the rest have no page that is theirs, and a missing link beats a dead one,
+// so a bot not listed here is shown by name alone.
+var githubBotPages = map[string]string{
+	"dependabot": "dependabot",
+	"renovate":   "apps/renovate",
+}
 
-// WebOrigin is the scheme and host of a forge item's own web URL, the part a
-// profile page shares with it. Empty for anything that isn't an http or https
-// URL with a host, so a hostile or malformed value never becomes a link.
-func WebOrigin(itemURL string) string {
+// WebBase is the web address a forge's profile pages hang off, taken from one
+// of its own items: the item's URL up to the "/owner/repo/" part. That keeps a
+// path prefix a self-hosted forge may sit under (https://host/forgejo), which a
+// scheme-and-host cut would lose. Empty when itemURL isn't an http or https
+// URL with a host, or doesn't contain the repo, so a malformed or hostile
+// value never becomes a link.
+func WebBase(itemURL, repo string) string {
 	u, err := url.Parse(itemURL)
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || repo == "" {
+		return ""
+	}
+	i := strings.Index(strings.ToLower(u.Path), "/"+strings.ToLower(repo)+"/")
+	if i < 0 {
 		return ""
 	}
 
-	return u.Scheme + "://" + u.Host
+	return u.Scheme + "://" + u.Host + u.Path[:i]
 }
 
-// ProfileURL is the forge's page for login, built on origin (a WebOrigin).
-// Empty when there is nothing sensible to link to: no login, GitHub's "ghost"
-// for a deleted account, no origin, or a login that is not one path segment.
-// A GitHub bot (a "[bot]" suffix, or one of the known app slugs) links to its
-// /apps page, since /<login> would be a 404.
-func ProfileURL(forge Forge, origin, login string) string {
-	if login == "" || login == "ghost" || origin == "" {
+// ProfileURL is the forge's page for login, built on base (a WebBase). Empty
+// when there is nothing sensible to link to: no login, a deleted account
+// (GitHub's "ghost", Forgejo's "Ghost"), no base, or a login that is not one
+// path segment. A GitHub bot has a page only where githubBotPages says so.
+func ProfileURL(forge Forge, base, login string) string {
+	if login == "" || strings.EqualFold(login, "ghost") || base == "" {
 		return ""
 	}
 	if strings.ContainsAny(login, "/\\?#") {
@@ -36,10 +48,13 @@ func ProfileURL(forge Forge, origin, login string) string {
 	}
 	if forge == ForgeGitHub {
 		slug := strings.TrimSuffix(login, "[bot]")
-		if slug != login || githubApps[login] {
-			return origin + "/apps/" + url.PathEscape(slug)
+		if page, ok := githubBotPages[slug]; ok {
+			return base + "/" + page
+		}
+		if slug != login {
+			return ""
 		}
 	}
 
-	return origin + "/" + url.PathEscape(login)
+	return base + "/" + url.PathEscape(login)
 }

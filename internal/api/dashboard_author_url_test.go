@@ -23,6 +23,7 @@ func TestDashboard_EachItemCarriesItsAuthorsProfileURL(t *testing.T) {
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, URL: "https://github.com/alrayyes/a/pull/1", Author: "alice"},
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, URL: "https://github.com/alrayyes/a/pull/2", Author: "dependabot[bot]"},
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 3, URL: "https://github.com/alrayyes/a/pull/3", Author: "ghost"},
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 4, URL: "https://github.com/alrayyes/a/pull/4", Author: "github-actions[bot]"},
 		},
 		issues: []dashboard.Issue{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 9, URL: "https://github.com/alrayyes/a/issues/9", Author: "claude"},
@@ -43,7 +44,7 @@ func TestDashboard_EachItemCarriesItsAuthorsProfileURL(t *testing.T) {
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
-		return len(prs) == 3
+		return len(prs) == 4
 	}, time.Second, 10*time.Millisecond)
 
 	body := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")
@@ -63,8 +64,9 @@ func TestDashboard_EachItemCarriesItsAuthorsProfileURL(t *testing.T) {
 
 		assert.Equal(t, map[int]string{
 			1: "https://github.com/alice",
-			2: "https://github.com/apps/dependabot",
+			2: "https://github.com/dependabot",
 			3: "",
+			4: "",
 		}, prURLs)
 	})
 	t.Run("issues", func(t *testing.T) {

@@ -463,7 +463,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 		actions := b.allowedActions(pr)
 		item := pullRequestView{
 			PullRequest:    pr,
-			AuthorURL:      dashboard.ProfileURL(pr.Forge, dashboard.WebOrigin(pr.URL), pr.Author),
+			AuthorURL:      dashboard.ProfileURL(pr.Forge, dashboard.WebBase(pr.URL, pr.Repo), pr.Author),
 			Kind:           dashboard.KindOf(pr, b.renovateAuthors),
 			AllowedActions: actions,
 			Status:         dashboard.PullRequestStatus(pr, actions),
@@ -623,7 +623,7 @@ func (b boardSettings) issueViews(issues []dashboard.Issue, filter issueFilter) 
 		out = append(out, issueView{
 			Issue:        issue,
 			Housekeeping: housekeeping,
-			AuthorURL:    dashboard.ProfileURL(issue.Forge, dashboard.WebOrigin(issue.URL), issue.Author),
+			AuthorURL:    dashboard.ProfileURL(issue.Forge, dashboard.WebBase(issue.URL, issue.Repo), issue.Author),
 		})
 		if !housekeeping {
 			open++
