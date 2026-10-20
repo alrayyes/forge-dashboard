@@ -9,6 +9,7 @@
     firstRefreshLoading,
   } from "#lib/first-refresh.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
+  import BranchPipelineDialog from "#lib/BranchPipelineDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
   import {
@@ -49,7 +50,7 @@
   let failed = $state(false);
   let loading = $state(true);
   let filter = $state<MainBranchFilter>({ ...DEFAULT_FILTER });
-  let expanded = $state<Record<string, boolean>>({});
+  let pipeline = $state<BranchPipelineDialog>();
 
   // The server's first refresh after a restart has not finished (#1672): the
   // list is empty because nothing is read yet, not because nothing is tracked.
@@ -82,6 +83,16 @@
   ];
 
   const rowKey = (b: MainBranch) => `${b.forge}:${b.fullName}`;
+
+  function openPipeline(b: MainBranch, opener: HTMLElement) {
+    pipeline?.open({
+      forge: b.forge,
+      fullName: b.fullName,
+      branch: b.branch,
+      runUrl: b.runUrl,
+      opener,
+    });
+  }
 
   async function load(initial = false) {
     try {
@@ -393,12 +404,6 @@
     .mb-failing {
       color: var(--critical);
     }
-    .mb-side {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 6px;
-    }
     .mb-toggle {
       display: inline-flex;
       align-items: center;
@@ -414,16 +419,6 @@
       border-radius: var(--radius);
       text-decoration: none;
       cursor: pointer;
-    }
-    .mb-jobs {
-      grid-column: 1 / -1;
-      margin: 0;
-      padding: 8px 12px 8px 28px;
-      font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-variant-numeric: tabular-nums;
-      font-size: 12.5px;
-      background: var(--surface-sunken);
-      border-radius: 6px;
     }
     .mb-empty {
       padding: 28px 16px;
@@ -447,12 +442,8 @@
       grid-column: 1;
       grid-row: 1 / span 2;
     }
-    .mb-row .mb-side {
-      grid-column: 2;
-      grid-row: 2;
-    }
-    /* The pill is the row's one way to the run, so it is a real control: a
-       taller pill with a larger label, 32px on a desktop and 44px on a
+    /* The pill is the row's one way to the pipeline, so it is a real control:
+       a taller pill with a larger label, 32px on a desktop and 44px on a
        phone, in the same colours as the pull request board's. */
     .mb-row .ci-slot {
       width: auto;
@@ -498,12 +489,6 @@
       }
       .mb-row .mb-main {
         grid-row: 1;
-      }
-      .mb-row .mb-side {
-        grid-column: 1 / -1;
-      }
-      .mb-side {
-        align-items: stretch;
       }
     }
     @media (max-width: 760px) {
@@ -617,7 +602,6 @@
       {:else}
         <ul class="mb-list" aria-label="Default branches">
           {#each visible as b (rowKey(b))}
-            {@const key = rowKey(b)}
             <li
               class="mb-row"
               data-testid="main-branch-row"
@@ -626,17 +610,14 @@
               <div class="ci-slot mb-status" data-status={b.status}>
                 {#if CI_SLOT[b.status]}
                   {@const slot = CI_SLOT[b.status]!}
-                  <!-- A run URL makes the pill the link to the run; without
-                       one it is a plain pill, never an empty link. -->
-                  <svelte:element
-                    this={b.runUrl ? "a" : "span"}
+                  <!-- A native button, as on the pull request pages: it opens
+                       the pipeline panel, which carries the link to the run.
+                       The visible word leads the name (WCAG 2.5.3). -->
+                  <button
+                    type="button"
                     class="ci-pill {slot.cls}"
-                    href={b.runUrl || undefined}
-                    target={b.runUrl ? "_blank" : undefined}
-                    rel={b.runUrl ? "noopener noreferrer" : undefined}
-                    aria-label={b.runUrl
-                      ? `${STATUS_LABEL[b.status]}. Open run (opens in a new tab)`
-                      : undefined}
+                    aria-label="{STATUS_LABEL[b.status]}. Open pipeline"
+                    onclick={(e) => openPipeline(b, e.currentTarget)}
                   >
                     {#each CHECK_GLYPHS[slot.glyphs] as g (g.name)}
                       <svg
@@ -651,7 +632,7 @@
                       </svg>
                     {/each}
                     {STATUS_LABEL[b.status]}
-                  </svelte:element>
+                  </button>
                 {:else}
                   <span class="attr-chip mb-nopipe">
                     <svg
@@ -701,27 +682,6 @@
                   <p class="mb-when">{whenText(b)}</p>
                 {/if}
               </div>
-              <div class="mb-side">
-                {#if b.status === "failed" && b.failingJobs.length > 0}
-                  <button
-                    type="button"
-                    class="mb-toggle"
-                    aria-expanded={!!expanded[key]}
-                    aria-controls="jobs-{b.forge}-{b.fullName}"
-                    onclick={() => (expanded[key] = !expanded[key])}
-                    >Failing jobs ({b.failingJobs.length})</button
-                  >
-                {/if}
-              </div>
-              {#if expanded[key]}
-                <ul
-                  class="mb-jobs"
-                  id="jobs-{b.forge}-{b.fullName}"
-                  aria-label="Failing jobs for {b.fullName}"
-                >
-                  {#each b.failingJobs as job}<li>{job}</li>{/each}
-                </ul>
-              {/if}
             </li>
           {/each}
         </ul>
@@ -729,3 +689,5 @@
     {/if}
   {/if}
 </div>
+
+<BranchPipelineDialog bind:this={pipeline} />

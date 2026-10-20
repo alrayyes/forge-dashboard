@@ -91,6 +91,45 @@ async function mock(page: Page, body: unknown | (() => unknown)) {
   );
 }
 
+// The jobs behind a row, from GET /api/main-branches/checks. Records each
+// request so a test can say which repo the panel asked for.
+const JOBS = [
+  {
+    name: 'lint',
+    state: 'failure',
+    url: 'https://example.com/acme/ingress-controller/actions/runs/1/jobs/1',
+    durationSeconds: 65,
+    failedStep: 'Run biome',
+    excerpt: 'error: unused import',
+  },
+  {
+    name: 'unit',
+    state: 'success',
+    url: 'https://example.com/acme/ingress-controller/actions/runs/1/jobs/2',
+    durationSeconds: 42,
+  },
+  { name: 'e2e-playwright', state: 'skipped', url: '' },
+];
+
+async function mockChecks(
+  page: Page,
+  answer: { status?: number; body: unknown } = { body: { checks: JOBS } },
+) {
+  const asked: URL[] = [];
+  await page.route('**/api/main-branches/checks*', (route: Route) => {
+    asked.push(new URL(route.request().url()));
+    return route.fulfill({
+      status: answer.status ?? 200,
+      contentType: 'application/json',
+      body: JSON.stringify(answer.body),
+    });
+  });
+
+  return asked;
+}
+
+const dialog = (page: Page) => page.getByRole('dialog', { name: /pipeline/i });
+
 const rows = (page: Page) => page.locator('[data-testid="main-branch-row"]');
 const pill = (page: Page, name: RegExp | string) =>
   page.getByRole('button', { name });
@@ -297,65 +336,78 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(rows(page)).toHaveCount(2);
   });
 
-  test('a failed row links to its run, expands to its failing jobs and offers no re-run', async ({
+  test('the status pill opens the pipeline panel with the run jobs, and nothing navigates away', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
+    const asked = await mockChecks(page);
     await page.goto('/');
     const failed = rows(page).first();
-    const link = failed.getByRole('link', { name: /^Failed\. Open run/ });
-    await expect(link).toHaveAttribute(
-      'href',
-      'https://example.com/acme/ingress-controller/actions/runs/1',
-    );
+    const pill = failed.getByRole('button', { name: 'Failed. Open pipeline' });
+    await expect(pill).toHaveText('Failed');
     await expect(page.getByRole('button', { name: /re-run/i })).toHaveCount(0);
 
-    const toggle = failed.getByRole('button', { name: /failing jobs/i });
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await pill.click();
+    const panel = dialog(page);
+    await expect(panel).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    expect(asked.map((u) => u.search)).toEqual([
+      '?forge=github&fullName=acme%2Fingress-controller',
+    ]);
+    await expect(panel).toContainText('acme/ingress-controller');
+    const checks = panel.getByRole('listitem');
+    await expect(checks).toHaveCount(3);
+    await expect(checks.nth(0)).toContainText('lint');
+    await expect(checks.nth(0)).toContainText('Failed');
+    await expect(checks.nth(0)).toContainText('1m 5s');
+    await expect(checks.nth(0)).toContainText('Failed step: Run biome');
+    await expect(checks.nth(1)).toContainText('Passed');
+    await expect(checks.nth(2)).toContainText('Skipped');
+    // A skipped job, and one with no page, have no link.
     await expect(
-      failed.getByRole('list', { name: /failing jobs/i }),
-    ).toBeHidden();
-    await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      panel.getByRole('link', { name: /view run: lint/i }),
+    ).toHaveCount(1);
     await expect(
-      failed.getByRole('list', { name: /failing jobs/i }).getByRole('listitem'),
-    ).toHaveText(['lint', 'e2e-playwright']);
-    // A passing row has nothing to expand.
-    await expect(
-      rows(page)
-        .nth(3)
-        .getByRole('button', { name: /failing jobs/i }),
+      panel.getByRole('link', { name: /view run: e2e-playwright/i }),
     ).toHaveCount(0);
   });
 
-  test('the repo link and the status pill open in a new tab and say so', async ({
+  test('the panel links to the run on the forge in a new tab, and the failing jobs list is gone', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
+    await mockChecks(page);
     await page.goto('/');
     const failed = rows(page).first();
-    const pill = failed.locator('a.ci-pill');
+    await expect(
+      failed.getByRole('button', { name: /failing jobs/i }),
+    ).toHaveCount(0);
+    await failed
+      .getByRole('button', { name: /^Failed\. Open pipeline/ })
+      .click();
 
-    for (const link of [failed.locator('a.mb-repo'), pill]) {
-      await expect(link).toHaveAttribute('target', '_blank');
-      await expect(link).toHaveAttribute('rel', /noopener/);
-      await expect(link).toHaveAccessibleName(/opens in a new tab/);
-    }
-    // The name starts with the words on screen (WCAG 2.5.3).
-    await expect(failed.locator('a.mb-repo')).toHaveAccessibleName(
-      /acme\/ingress-controller/,
-    );
-    await expect(pill).toHaveText('Failed');
-    await expect(pill).toHaveAccessibleName(
-      'Failed. Open run (opens in a new tab)',
-    );
-    await expect(pill).toHaveAttribute(
+    const run = dialog(page).getByRole('link', { name: /open run on github/i });
+    await expect(run).toHaveAttribute(
       'href',
       'https://example.com/acme/ingress-controller/actions/runs/1',
     );
+    await expect(run).toHaveAttribute('target', '_blank');
+    await expect(run).toHaveAttribute('rel', /noopener/);
+    await expect(run).toHaveAccessibleName(/opens in a new tab/);
   });
 
-  test('every row with a run has a pill link named for its status, and there is no View run', async ({
+  test('the repo link opens in a new tab and says so', async ({ page }) => {
+    await mock(page, snapshot(MIXED));
+    await page.goto('/');
+    const link = rows(page).first().locator('a.mb-repo');
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', /noopener/);
+    await expect(link).toHaveAccessibleName(/opens in a new tab/);
+    // The name starts with the words on screen (WCAG 2.5.3).
+    await expect(link).toHaveAccessibleName(/acme\/ingress-controller/);
+  });
+
+  test('every row with a pipeline has a pill button named for its status, and there is no View run', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
@@ -368,94 +420,204 @@ test.describe('Main branches page (#1224, #1279)', () => {
       [2, 'Running'],
       [3, 'Passed'],
     ] as const) {
-      const link = rows(page).nth(n).locator('a.ci-pill');
-      await expect(link).toHaveAccessibleName(
-        `${word}. Open run (opens in a new tab)`,
-      );
-      expect(await link.getAttribute('href')).toMatch(/^https?:\/\//);
+      const control = rows(page).nth(n).locator('.ci-slot .ci-pill');
+      await expect(control).toHaveAccessibleName(`${word}. Open pipeline`);
+      expect(await control.evaluate((el) => el.tagName)).toBe('BUTTON');
     }
   });
 
-  test('a row with a status but no run URL gets a plain pill, never an empty link', async ({
+  test('a row with a status but no run URL still opens the panel, without a run link', async ({
     page,
   }) => {
     await mock(
       page,
-      snapshot([
-        row('acme/failed-blank', 'failed', { runUrl: '' }),
-        row('acme/running-blank', 'running', { runUrl: '' }),
-        row('acme/passed-blank', 'passed', { runUrl: '' }),
-      ]),
+      snapshot([row('acme/failed-blank', 'failed', { runUrl: '' })]),
     );
+    await mockChecks(page);
     await page.goto('/');
-    await expect(rows(page)).toHaveCount(3);
     await expect(page.locator('a[href=""]')).toHaveCount(0);
-    await expect(rows(page).locator('.ci-slot a')).toHaveCount(0);
-    await expect(rows(page).locator('.ci-slot .ci-pill')).toHaveText([
-      'Failed',
-      'Running',
-      'Passed',
-    ]);
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
+    await expect(
+      dialog(page).getByRole('link', { name: /open run on/i }),
+    ).toHaveCount(0);
   });
 
-  test('hovering the pill underlines it and leaves the colours alone, so contrast holds', async ({
+  test('a failed read of the jobs says so, offers Retry and recovers', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
+    const asked = await mockChecks(page, {
+      status: 403,
+      body: { error: 'token cannot read checks' },
+    });
     await page.goto('/');
-    for (const theme of ['light', 'dark']) {
-      await setTheme(page, theme);
-      await page.reload();
-      for (const n of [0, 2, 3]) {
-        const pill = rows(page).nth(n).locator('a.ci-pill');
-        const read = () =>
-          pill.evaluate((el) => {
-            const cs = getComputedStyle(el);
-            return {
-              filter: cs.filter,
-              color: cs.color,
-              background: cs.backgroundColor,
-              underline: cs.textDecorationLine,
-            };
-          });
-        await page.mouse.move(0, 0);
-        const rest = await read();
-        await pill.hover();
-        const hover = await read();
-        expect(hover.filter).toBe('none');
-        expect(hover.color).toBe(rest.color);
-        expect(hover.background).toBe(rest.background);
-        expect(hover.underline).toContain('underline');
-        expect(rest.underline).toBe('none');
-      }
-    }
-    await setTheme(page, 'light');
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    const alert = dialog(page).getByRole('alert');
+    await expect(alert).toContainText('token cannot read checks');
+
+    await page.unroute('**/api/main-branches/checks*');
+    await mockChecks(page);
+    await alert.getByRole('button', { name: 'Retry' }).click();
+    await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
+    expect(asked).toHaveLength(1);
   });
 
-  test('the pill opens from the keyboard and the Failing jobs toggle still works beside it', async ({
+  test('two jobs with the same name and no page both list', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
+    await mockChecks(page, {
+      body: {
+        checks: [
+          { name: 'build', state: 'success', url: '' },
+          { name: 'build', state: 'failure', url: '' },
+        ],
+      },
+    });
     await page.goto('/');
-    const failed = rows(page).first();
-    const pill = failed.locator('a.ci-pill');
-    await pill.focus();
-    await expect(pill).toBeFocused();
-    // Enter on a link opens it in a new tab.
-    // The popup is a new page, so the stand-in goes on the context.
-    await page
-      .context()
-      .route('https://example.com/**', (route) =>
-        route.fulfill({ status: 200, body: 'run' }),
-      );
-    const popup = page.waitForEvent('popup');
-    await page.keyboard.press('Enter');
-    expect((await popup).url()).toBe(
-      'https://example.com/acme/ingress-controller/actions/runs/1',
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    await expect(dialog(page).getByRole('listitem')).toHaveCount(2);
+  });
+
+  test('a rate-limited read shows the server sentence and Retry', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await mockChecks(page, {
+      status: 429,
+      body: { error: 'github rate limit exceeded, resets in 12 minutes' },
+    });
+    await page.goto('/');
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    const alert = dialog(page).getByRole('alert');
+    await expect(alert).toContainText('rate limit exceeded, resets in 12');
+    await expect(alert.getByRole('button', { name: 'Retry' })).toBeVisible();
+  });
+
+  test('an answer that arrives after the panel moved on is not drawn', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    // The first row's answer is held back until the second row's has drawn.
+    let releaseSlow: () => void = () => {};
+    const slowHeld = new Promise<void>((resolve) => {
+      releaseSlow = resolve;
+    });
+    await page.route('**/api/main-branches/checks*', async (route: Route) => {
+      const slow = new URL(route.request().url()).searchParams
+        .get('fullName')
+        ?.includes('ingress');
+      if (slow) await slowHeld;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checks: [
+            {
+              name: slow ? 'from-the-first-row' : 'from-the-second-row',
+              state: 'success',
+              url: '',
+            },
+          ],
+        }),
+      });
+    });
+    await page.goto('/');
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    await dialog(page).getByRole('button', { name: /close/i }).click();
+    await expect(dialog(page)).toBeHidden();
+
+    await rows(page)
+      .nth(2)
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    await expect(dialog(page)).toContainText('from-the-second-row');
+
+    const late = page.waitForResponse((r) =>
+      r.url().includes('fullName=acme%2Fingress-controller'),
     );
-    const toggle = failed.getByRole('button', { name: /failing jobs/i });
-    await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    releaseSlow();
+    await late;
+    // Two frames after the late answer, when a draw would have happened.
+    await page.evaluate(
+      () =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done)),
+        ),
+    );
+    await expect(dialog(page)).toContainText('from-the-second-row');
+    await expect(dialog(page)).not.toContainText('from-the-first-row');
+  });
+
+  test('a branch with no jobs says so in the panel', async ({ page }) => {
+    await mock(page, snapshot(MIXED));
+    await mockChecks(page, { body: { checks: [] } });
+    await page.goto('/');
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    await expect(dialog(page)).toContainText('No jobs were found');
+  });
+
+  test('the pill opens from the keyboard, Escape closes the panel and focus returns to the pill', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await mockChecks(page);
+    await page.goto('/');
+    const pill = rows(page).first().locator('.ci-slot .ci-pill');
+    await pill.focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog(page)).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    await expect(pill).toBeFocused();
+  });
+
+  // A browser that does not focus a button on click (Safari) leaves nothing
+  // for the dialog to restore, so the panel hands focus back itself. A click
+  // dispatched from script focuses nothing, which is the same situation.
+  test('focus returns to the pill even when the click never focused it', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await mockChecks(page);
+    await page.goto('/');
+    const pill = rows(page).first().locator('.ci-slot .ci-pill');
+    await pill.evaluate((el) => (el as HTMLElement).click());
+    await expect(dialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    await expect(pill).toBeFocused();
+  });
+
+  test('the close button returns focus to the pill too', async ({ page }) => {
+    await mock(page, snapshot(MIXED));
+    await mockChecks(page);
+    await page.goto('/');
+    const pill = rows(page).nth(2).locator('.ci-slot .ci-pill');
+    await pill.click();
+    await dialog(page).getByRole('button', { name: /close/i }).click();
+    await expect(dialog(page)).toBeHidden();
+    await expect(pill).toBeFocused();
   });
 
   test('the status pill is larger than the pull request board pill: 32px on desktop, 44px on a phone', async ({
@@ -464,11 +626,14 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await mock(page, snapshot(MIXED));
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/');
-    const pill = rows(page).first().locator('a.ci-pill');
+    const pill = rows(page).first().locator('.ci-slot .ci-pill');
     await expect(pill).toBeVisible();
     expect((await pill.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
     for (const n of [0, 2, 3]) {
-      const box = await rows(page).nth(n).locator('a.ci-pill').boundingBox();
+      const box = await rows(page)
+        .nth(n)
+        .locator('.ci-slot .ci-pill')
+        .boundingBox();
       expect(box?.width ?? 0).toBeGreaterThanOrEqual(32);
     }
     await page.setViewportSize({ width: 390, height: 844 });
@@ -485,8 +650,12 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await page.goto('/');
     const only = rows(page).first();
     await expect(only.locator('.mb-status')).toContainText('No pipeline');
-    await expect(only.getByRole('link', { name: /open run/i })).toHaveCount(0);
-    await expect(only.locator('.mb-status a')).toHaveCount(0);
+    await expect(
+      only.getByRole('button', { name: /open pipeline/i }),
+    ).toHaveCount(0);
+    await expect(only.locator('.mb-status a, .mb-status button')).toHaveCount(
+      0,
+    );
     await expect(only).toContainText('No run was found');
   });
 
@@ -583,10 +752,6 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await mock(page, snapshot([...MIXED, row('acme/stale', 'failed', stale)]));
     await page.goto('/');
     await expect(rows(page)).toHaveCount(7);
-    await rows(page)
-      .first()
-      .getByRole('button', { name: /failing jobs/i })
-      .click();
 
     for (const theme of ['light', 'dark']) {
       await setTheme(page, theme);
@@ -612,6 +777,39 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await setTheme(page, 'light');
   });
 
+  test('the open pipeline panel has no axe violations in light and dark, desktop and 390px', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await mockChecks(page);
+    await page.goto('/');
+    for (const theme of ['light', 'dark']) {
+      await setTheme(page, theme);
+      await page.reload();
+      await rows(page)
+        .first()
+        .getByRole('button', { name: /open pipeline/i })
+        .click();
+      await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
+      for (const size of [
+        { width: 1280, height: 900 },
+        { width: 390, height: 844 },
+      ]) {
+        await page.setViewportSize(size);
+        expect(
+          (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+            .violations,
+        ).toEqual([]);
+        const box = await dialog(page).boundingBox();
+        expect((box?.x ?? -1) + (box?.width ?? 0)).toBeLessThanOrEqual(
+          size.width,
+        );
+      }
+      await page.keyboard.press('Escape');
+    }
+    await setTheme(page, 'light');
+  });
+
   test('on a phone each row is a card with a primary action at least 44px tall', async ({
     page,
   }) => {
@@ -621,8 +819,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
     const failed = rows(page).first();
     await expect(failed).toBeVisible();
     for (const control of [
-      failed.locator('a.ci-pill'),
-      failed.getByRole('button', { name: /failing jobs/i }),
+      failed.locator('.ci-slot .ci-pill'),
       pill(page, /^Failing \d/),
       pill(page, /^All 6$/),
     ]) {
@@ -685,13 +882,11 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(rows(page)).toHaveCount(2);
 
     const cancelled = rows(page).filter({ hasText: 'acme/superseded' });
-    const link = cancelled.getByRole('link', { name: /Cancelled\. Open run/ });
-    await expect(link).toHaveText('Cancelled');
-    await expect(link).toHaveAttribute('href', /actions\/runs\/1$/);
-    await expect(link.locator('svg[data-glyph="stop"]')).toBeAttached();
-    await expect(
-      cancelled.getByRole('button', { name: /failing jobs/i }),
-    ).toHaveCount(0);
+    const control = cancelled.getByRole('button', {
+      name: /Cancelled\. Open pipeline/,
+    });
+    await expect(control).toHaveText('Cancelled');
+    await expect(control.locator('svg[data-glyph="stop"]')).toBeAttached();
 
     await expect(pill(page, /^Failing \d/)).toContainText('1');
     await expect(pill(page, /^Cancelled \d/)).toContainText('1');
