@@ -54,11 +54,23 @@ refresh tries again.
 - **An unwatched dashboard.** While nobody is using the dashboard, the scheduled
   refresh rests. After `IDLE_AFTER` (15 minutes by default) with no signed-in
   request and no open live stream, the schedule skips its turn and tries again
-  on the next one. The first request after that refreshes once, so you are not
-  shown data from before you left. A tab left open counts as use, because the
+  on the next one. The first request after that refreshes once, a moment after
+  it answers, so that request and any client without a live stream can still
+  see data from before the rest. A tab left open counts as use, because the
   server can't tell a tab you're looking at from one nobody is: close every tab
-  and the refresh rests. Webhooks, Refresh now and the CI poll still run while
-  it rests.
+  and the refresh rests. What still runs while it rests:
+  - Webhook deliveries, which refresh the repository they name.
+  - Refresh now.
+  - The CI poll, for pull requests with checks still running or GitHub's
+    auto-merge armed.
+  - The scheduled refresh itself, while something is waiting on it: a pull
+    request armed for auto-merge, or a behind pull request on a repository with
+    auto-update on that hasn't been tried yet or whose retry wait is up. Those
+    only ever happen after a refresh, so "merge when green" doesn't stall
+    overnight. A refused update (a conflict) isn't waiting on anything.
+
+  What waits for the next use instead: Dependabot's acknowledgement checks and
+  the check on a rebased Dependabot pull request.
 
 A GitHub App installation has its own budget, separate from your tokens and
 from other tools. The dashboard asks GitHub for an installation token for the

@@ -312,3 +312,32 @@ func TestAggregator_Run_ReturnsPromptlyOnShutdownWhileIdle(t *testing.T) {
 		t.Fatal("Run did not return after cancellation while idle")
 	}
 }
+
+// Signing in builds a new Aggregator, whose Run refreshes at once, and the
+// request that follows touches an idle Activity. The wake that request leaves
+// behind is already answered by the refresh Run has just made.
+func TestAggregator_Run_AWakeLeftBeforeTheEntryRefreshIsNotAnsweredTwice(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeSource{result: dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	clock.advance(time.Hour)
+	act.Touch() // idle to active: leaves a wake nobody has read
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		agg.Run(ctx, time.Hour)
+		close(done)
+	}()
+
+	require.Eventually(t, func() bool { return src.callCount() >= 1 }, time.Second, 5*time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	<-done
+
+	assert.Equal(t, 1, src.callCount(), "only the refresh on entry")
+}

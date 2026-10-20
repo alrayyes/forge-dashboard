@@ -625,10 +625,15 @@ func logOneRateLimitTransition(forge Forge, kind string, previous, current *Rate
 //
 // While the Activity says nobody is using the dashboard, a due tick is
 // skipped and the timer re-armed, so an unwatched dashboard spends no forge
-// budget on the schedule. The first use after that wakes Run, which refreshes
+// budget on the schedule. The exception is a tick something is waiting on
+// (automationPending): a pull request armed for merge, or a behind one the
+// auto-update hook has yet to try, is only ever acted on after a refresh. The first use after that wakes Run, which refreshes
 // once so the person who just arrived is not shown data from before they left.
 func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 	a.Refresh(ctx)
+	// A wake left over from before this refresh (a sign-in builds this
+	// Aggregator and then its first request wakes it) is answered by it.
+	a.activity.drainWake()
 
 	timer := time.NewTimer(NextRefreshDelay(a.Get(), interval))
 	defer timer.Stop()
@@ -638,7 +643,7 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			if a.activity.Idle() {
+			if a.activity.Idle() && !a.automationPending(ctx) {
 				timer.Reset(NextRefreshDelay(a.Get(), interval))
 
 				continue

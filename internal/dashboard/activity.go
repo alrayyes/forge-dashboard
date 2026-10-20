@@ -29,6 +29,12 @@ const DefaultIdleAfter = 15 * time.Minute
 // ago". A process that has only just started is not idle: its start counts as
 // use. The zero idle period turns idle mode off.
 //
+// One Activity serves every Aggregator the Manager builds, and its wake is
+// read by whichever Run gets there first. With one signed-in user, which is
+// what the app is becoming, that is the only reader. Should several users come
+// back, only one of them would catch up at once; the others catch up on their
+// next scheduled tick.
+//
 // A nil *Activity is valid and is never idle, which is what an Aggregator
 // built without idle mode holds. Safe for concurrent use.
 type Activity struct {
@@ -129,6 +135,18 @@ func (a *Activity) Woken() <-chan struct{} {
 	}
 
 	return a.wake
+}
+
+// drainWake discards a wake nobody has read. Safe on nil.
+func (a *Activity) drainWake() {
+	if a == nil {
+		return
+	}
+
+	select {
+	case <-a.wake:
+	default:
+	}
 }
 
 func (a *Activity) idleLocked() bool {
