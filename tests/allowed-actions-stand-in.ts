@@ -42,7 +42,12 @@ export type StandInPR = {
 
 // What the server says holds a pull request back (#1375): the same shape as
 // a blocked action.
-export type StandInStatus = { code: string; message: string; next?: string };
+export type StandInStatus = {
+  code: string;
+  message: string;
+  next?: string;
+  action?: string;
+};
 
 export type StandInEntry = {
   action: string;
