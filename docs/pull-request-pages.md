@@ -6,12 +6,13 @@ Clicking a pull request row, anywhere on it, opens a pop-up. The row's title is
 the button that does it, stretched over the row; the CI pill, the labels and the
 row's own buttons stay clickable on top of it. On a phone the row's one button
 is the last tier of the card: after a divider, the full width and 44 pixels
-tall, with the reason printed in place when Merge is locked. The pop-up has the
-pull request's description, its comments and the thumbs up and thumbs down
-reactions on each, and an **Open on GitHub** (or Forgejo) link. On the Releases
-page the pop-up shows the release notes in place of the description. A
-Dependabot or Renovate pull request opens the same pop-up, with its long
-generated description folded away until you open it.
+tall. A locked Merge stays there greyed; the status block just above it says
+why, and the button is described by it. The pop-up has the pull request's
+description, its comments and the thumbs up and thumbs down reactions on each,
+and an **Open on GitHub** (or Forgejo) link. On the Releases page the pop-up
+shows the release notes in place of the description. A Dependabot or Renovate
+pull request opens the same pop-up, with its long generated description folded
+away until you open it.
 
 The footer of the pop-up has every action a pull request offers, so it can be
 acted on from it. The row itself draws only the main one. The footer lists the

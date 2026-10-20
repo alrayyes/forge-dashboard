@@ -91,10 +91,36 @@ test('a locked Merge stays in the action row, greyed, with its reason', async ({
   await page.setViewportSize({ width: 390, height: 900 });
   const row = await open(page, pr({ ci: 'failure', mergeStatus: 'blocked' }));
   const bar = row.locator('.row-action-bar');
-  await expect(bar.getByRole('button', { name: 'Merge' })).toHaveAttribute(
-    'aria-disabled',
-    'true',
+  const button = bar.getByRole('button', { name: 'Merge' });
+  await expect(button).toHaveAttribute('aria-disabled', 'true');
+  // The status block above the bar says why, and the button is described by
+  // it, so the reason is on screen and read out with the button.
+  const describedBy = await button.getAttribute('aria-describedby');
+  expect(describedBy).toBeTruthy();
+  const status = page.locator(`[id="${describedBy}"]`);
+  await expect(status).toBeVisible();
+  await expect(status).toContainText('CI is failing');
+  const statusBox = await status.boundingBox();
+  const barBox = await bar.boundingBox();
+  expect((statusBox?.y ?? 0) + (statusBox?.height ?? 0)).toBeLessThanOrEqual(
+    (barBox?.y ?? 0) + 1,
   );
+});
+
+test('a plain Merge is centred by the phone bar rule, full width', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const row = await open(page, pr());
+  const button = row.locator('.row-action-bar .row-action');
+  const style = await button.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { justify: s.justifyContent, width: s.width, min: s.minHeight };
+  });
+  expect(style.justify).toBe('center');
+  expect(style.min).toBe('44px');
+  const barWidth = (await row.locator('.row-action-bar').boundingBox())?.width;
+  expect(Number.parseFloat(style.width)).toBeCloseTo(barWidth ?? 0, 0);
 });
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -115,8 +141,17 @@ test('on a desktop the button keeps its small size beside the status', async ({
   await page.setViewportSize({ width: 1280, height: 900 });
   const row = await open(page, pr());
   const box = await row.getByRole('button', { name: 'Merge' }).boundingBox();
+  const rowBox = await row.boundingBox();
+  const pill = await row.locator('.ci-pill').boundingBox();
   expect(box?.height).toBeLessThan(44);
   expect(box?.width).toBeLessThan(200);
+  // Right of the row's midline, inside the row, and no further left than the
+  // CI pill beside it.
+  expect(box?.x).toBeGreaterThan((rowBox?.x ?? 0) + (rowBox?.width ?? 0) / 2);
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
+    (rowBox?.x ?? 0) + (rowBox?.width ?? 0),
+  );
+  expect(box?.x).toBeGreaterThanOrEqual((pill?.x ?? 0) - 1);
   expect(
     await row
       .locator('.row-action-bar')
