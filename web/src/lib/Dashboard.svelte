@@ -18,6 +18,11 @@
     type DetailsChrome,
     type DetailsStatus,
   } from "#lib/PullRequestDetailsDialog.svelte";
+  import {
+    type AutoUpdate,
+    autoUpdateBadge,
+    autoUpdateControl,
+  } from "#lib/auto-update.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import {
     CHECK_KIND_GLYPH,
@@ -208,6 +213,9 @@
     // hidden ones (#841); hiddenUntil is when a timed hide ends.
     hidden?: boolean;
     hiddenUntil?: string;
+    // Whether the dashboard brings this branch up to date by itself, and
+    // where that comes from. The server decides; absent from an older server.
+    autoUpdate?: AutoUpdate;
   };
   // Matches components.schemas.AutoMergeStatus in api/openapi.yaml.
   type ServerAutoMergeStatus = {
@@ -1020,6 +1028,7 @@
         '<rect x="2.5" y="5" width="11" height="8" rx="2"/>' +
         '<path d="M8 2.5V5M5.8 8.5v1M10.2 8.5v1"/>',
       behind: '<path d="M8 2.5v8M4.5 7.5L8 11l3.5-3.5M3.5 13.5h9"/>',
+      "auto-update": '<path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3"/>',
     };
     function attrChip(name: string, label: string): HTMLElement {
       const chip = el("span", `attr-chip ${name}`);
@@ -1034,6 +1043,13 @@
       return chip;
     }
 
+    // Marks a pull request whose automatic update is its own choice, not the
+    // repo's. Words as well as a glyph, so it reads without colour.
+    function autoUpdateChip(pr: PullRequestItem): HTMLElement | null {
+      const label = autoUpdateBadge(pr.autoUpdate);
+      return label ? attrChip("auto-update", label) : null;
+    }
+
     // The chips of a row's attribute cluster, in one order: auto-merge, draft,
     // bot, out of date. Draft and bot come from the fields the row already has
     // (a bot's pull request is the server's `kind: dependency`).
@@ -1044,6 +1060,7 @@
         pr.draft ? attrChip("draft", "Draft") : null,
         pr.kind === "dependency" ? attrChip("bot", "Bot") : null,
         behindPill(pr),
+        autoUpdateChip(pr),
       ];
       for (const chip of chips) if (chip) cluster.appendChild(chip);
       return cluster;
@@ -1278,6 +1295,8 @@
     // A Hide that failed while the dialog was open: the page's own status
     // line is behind the modal, so the dialog shows and speaks it itself.
     const hideFailure: Record<string, string> = {};
+    // A change to a pull request's automatic update that the server refused.
+    const autoUpdateFailure: Record<string, string> = {};
 
     // The one rerun flow: the details dialog's button and the pipeline
     // panel's both call it. `onChange` lets the panel redraw its own control
@@ -1386,6 +1405,12 @@
             () => delete rerunState[key],
           ),
         );
+      if (autoUpdateFailure[key])
+        lines.push(
+          plainFailureLine(item, autoUpdateFailure[key], undefined, () => {
+            delete autoUpdateFailure[key];
+          }),
+        );
       if (hideFailure[key])
         lines.push(
           plainFailureLine(item, hideFailure[key], undefined, () => {
@@ -1451,7 +1476,7 @@
           "status-area details-gone",
           "This pull request is no longer on the board. It may have been merged, closed or hidden.",
         );
-        return { status: gone, feedback: null, actions: [] };
+        return { status: gone, feedback: null, option: null, actions: [] };
       }
       const key = prKey(item);
       const lines = feedbackUI.inlineLines(key);
@@ -1464,6 +1489,7 @@
       return {
         status: isSettled(item) ? null : statusArea(item, false),
         feedback: feedbackNode,
+        option: autoUpdateOption(item),
         actions: footerActionCells(item),
       };
     }
@@ -1499,6 +1525,7 @@
       const sig = [
         chrome.status?.outerHTML,
         chrome.feedback?.outerHTML,
+        chrome.option?.outerHTML,
         ...chrome.actions.map((a) => a.outerHTML),
       ].join("\n");
       if (sig === lastChromeSig && item === lastChromeItem) return;
@@ -1521,7 +1548,23 @@
               ),
             }
           : null;
+      // The same for the update option, whose controls are not buttons in
+      // the actions: put focus back on the one it was on, by id.
+      const optionHost = detailsDialog.optionElement();
+      const optionFocusId =
+        optionHost &&
+        document.activeElement instanceof HTMLElement &&
+        optionHost.contains(document.activeElement)
+          ? document.activeElement.id
+          : "";
       detailsDialog.setChrome(chrome);
+      if (optionFocusId) {
+        const back = optionHost?.querySelector<HTMLElement>(
+          `[id="${optionFocusId}"]`,
+        );
+        (back ?? optionHost?.querySelector<HTMLElement>("input"))?.focus();
+        return;
+      }
       if (!here || !host) return;
       const buttons = Array.from(host.querySelectorAll("button"));
       const back =
@@ -1553,7 +1596,12 @@
       dialogGone = false;
       lastChromeSig = "";
       lastChromeItem = undefined;
-      detailsDialog?.setChrome({ status: null, feedback: null, actions: [] });
+      detailsDialog?.setChrome({
+        status: null,
+        feedback: null,
+        option: null,
+        actions: [],
+      });
       detailsDialog?.open(
         { ...item, subject: "issue", status: issueStatus(item) },
         triggerId,
@@ -1584,6 +1632,7 @@
         if (!["queued", "requesting"].includes(rerunState[dialogKey]?.phase))
           delete rerunState[dialogKey];
         delete hideFailure[dialogKey];
+        delete autoUpdateFailure[dialogKey];
       }
       dialogKey = null;
       if (confirmArm.disarm("dropped")) renderPRBoard();
@@ -3857,6 +3906,90 @@
       await refreshBoard();
       if (hiddenToggle?.getAttribute("aria-expanded") === "true")
         void loadHiddenList();
+    }
+
+    // Sends the checkbox's change, or null to hand the pull request back to its
+    // repo's setting. A local write on the server: nothing goes to the forge.
+    async function doSetAutoUpdate(
+      item: PullRequestItem,
+      enabled: boolean | null,
+    ) {
+      const key = prKey(item);
+      delete autoUpdateFailure[key];
+      const ok = await fetch("/api/pull-requests/auto-update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          forge: item.forge,
+          fullName: item.repo,
+          number: item.number,
+          enabled,
+        }),
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = "/login.html";
+            return false;
+          }
+          return res.status === 204;
+        })
+        .catch(() => false);
+      if (!ok) {
+        autoUpdateFailure[key] =
+          `Couldn't change automatic updates for ${item.repo}#${item.number}. Try again.`;
+        feedback.announce(autoUpdateFailure[key]);
+        renderPRBoard();
+        return;
+      }
+      await refreshBoard();
+    }
+
+    // The dialog's checkbox for "Update this branch automatically". The label
+    // never changes; the checked state is the state. Where it cannot apply it
+    // is aria-disabled, not disabled, so it stays in the keyboard order and
+    // its reason is read with it.
+    function autoUpdateOption(item: PullRequestItem): HTMLElement | null {
+      if (isSettled(item)) return null;
+      const control = autoUpdateControl(item.autoUpdate);
+      if (!control) return null;
+      const id = `${idScope}auto-update-${domSafeId(prKey(item))}`;
+      const wrap = el("div", "auto-update-option");
+      const label = el("label", "auto-update-label");
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.id = id;
+      box.className = "auto-update-box";
+      box.checked = control.checked;
+      box.setAttribute("aria-describedby", `${id}-note`);
+      if (control.disabled) box.setAttribute("aria-disabled", "true");
+      box.addEventListener("click", (event) => {
+        if (control.disabled) event.preventDefault();
+      });
+      box.addEventListener("change", () => {
+        void doSetAutoUpdate(item, box.checked);
+      });
+      label.appendChild(box);
+      label.appendChild(
+        el("span", "auto-update-text", "Update this branch automatically"),
+      );
+      wrap.appendChild(label);
+      const note = el("p", "auto-update-note", control.note);
+      note.id = `${id}-note`;
+      wrap.appendChild(note);
+      if (control.canReset) {
+        const reset = buttonEl(
+          "row-action auto-update-reset",
+          "Use the repo's setting",
+        );
+        reset.type = "button";
+        reset.id = `${id}-reset`;
+        reset.addEventListener("click", () => void doSetAutoUpdate(item, null));
+        wrap.appendChild(reset);
+      }
+      return wrap;
     }
 
     // A rate-limited or unreachable forge draws no controls on its rows (one
