@@ -42,6 +42,14 @@ const BRANCHES = [
     url: 'https://example.com/acme/shipped/releases/tag/v1.2.3',
   }),
   row('acme/unreleased', null),
+  row('acme/longtag', {
+    tag: `release-candidate-${'x'.repeat(60)}-2026.10.20`,
+    url: 'https://example.com/acme/longtag/releases/tag/long',
+  }),
+  row('acme/unsafe', {
+    tag: 'v9.9.9',
+    url: 'javascript:alert(1)',
+  }),
 ];
 
 async function open(page: Page) {
@@ -54,7 +62,7 @@ async function open(page: Page) {
         generatedAt: new Date().toISOString(),
         counts: {
           failed: 0,
-          passed: 2,
+          passed: 4,
           running: 0,
           cancelled: 0,
           awaitingApproval: 0,
@@ -110,6 +118,50 @@ test.describe('Branches page latest release link', () => {
     await open(page);
 
     await expect(releaseLink(page, 'acme/unreleased')).toHaveCount(0);
+  });
+
+  test('the link is underlined like the repo name, so it reads as a link', async ({
+    page,
+  }) => {
+    await open(page);
+
+    await expect(releaseLink(page, 'acme/shipped')).toHaveCSS(
+      'text-decoration-line',
+      'underline',
+    );
+  });
+
+  test('a release url that is not http(s) renders no link', async ({
+    page,
+  }) => {
+    await open(page);
+
+    await expect(releaseLink(page, 'acme/unsafe')).toHaveCount(0);
+    await expect(page.locator('a[href^="javascript:" i]')).toHaveCount(0);
+  });
+
+  test('a long tag is cut to one line on a phone, with the full tag on hover and no overflow', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await open(page);
+
+    const link = releaseLink(page, 'acme/longtag');
+    const tag = `release-candidate-${'x'.repeat(60)}-2026.10.20`;
+    await expect(link).toHaveAttribute('title', tag);
+    await expect(link).toHaveAccessibleName(
+      `Latest release ${tag} (opens in a new tab)`,
+    );
+    const box = await link.boundingBox();
+    expect(box?.height).toBeLessThanOrEqual(48);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test('has no axe violations, 44px target and no overflow at 390px', async ({

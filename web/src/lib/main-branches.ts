@@ -229,6 +229,19 @@ export function filterFromState(
   return { status, forge, query };
 }
 
+// The release link is shown only for an http(s) url, so anything else
+// (javascript:, data:) is never put in a href.
+export function releaseHref(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+      ? url
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function filterToState(
   filter: MainBranchFilter,
 ): Record<string, string> {
