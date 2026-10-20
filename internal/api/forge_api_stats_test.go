@@ -11,6 +11,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -134,6 +135,59 @@ func TestForgeAPIStats_RightAfterAStartEveryCounterIsZero(t *testing.T) {
 	require.NoError(t, json.Unmarshal(got.body, &body))
 	assert.Empty(t, body.Buckets)
 	assert.False(t, body.Since.IsZero())
+}
+
+func TestMCP_GetForgeAPIStats_ReturnsTheSamePayloadAsTheHTTPEndpoint(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie, _ := statsServer(t)
+	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, cookie))
+
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_forge_api_stats"})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	_, got := record(t, http.MethodGet, srv.URL+"/api/stats/forge-api", cookie)
+	var httpBody map[string]any
+	require.NoError(t, json.Unmarshal(got.body, &httpBody))
+	assert.Equal(t, httpBody, result.StructuredContent)
+}
+
+// Two users on one server each see only the rows of the credentials they
+// saved, even though the counters are shared.
+func TestForgeAPIStats_TwoUsersSeeOnlyTheirOwnCredentialsRows(t *testing.T) {
+	t.Parallel()
+
+	counters := apistats.New()
+	counters.Add(apistats.Key{Forge: "github", Credential: apistats.TokenCredential("token-of-admin"), Kind: apistats.KindFull}, apistats.Count{REST: 1})
+	counters.Add(apistats.Key{Forge: "github", Credential: apistats.TokenCredential("token-of-guest"), Kind: apistats.KindCIPoll}, apistats.Count{REST: 2})
+	srv, _, _, _ := newTestServerWithSettingsStore(t, func([]byte, settingspkg.Credentials) []dashboard.Source { return nil },
+		false, 0, func(d *api.Deps) { d.APIStats = counters })
+
+	adminCookie, _, _ := registerViaRealCeremony(t, srv, "admin-user", "Admin")
+	invite := createInviteViaAdmin(t, srv, adminCookie, "guest-user", "Guest")
+	guestCookie, _, _ := registerViaRealCeremony(t, srv, "guest-user", "Guest", invite)
+	for cookie, token := range map[*http.Cookie]string{adminCookie: "token-of-admin", guestCookie: "token-of-guest"} {
+		resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+
+	kindsSeenBy := func(cookie *http.Cookie) []string {
+		_, got := record(t, http.MethodGet, srv.URL+"/api/stats/forge-api", cookie)
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		var body forgeAPIStatsBody
+		require.NoError(t, json.Unmarshal(got.body, &body))
+		var kinds []string
+		for _, b := range body.Buckets {
+			kinds = append(kinds, b.Kind)
+		}
+
+		return kinds
+	}
+
+	assert.Equal(t, []string{"full"}, kindsSeenBy(adminCookie))
+	assert.Equal(t, []string{"ci_poll"}, kindsSeenBy(guestCookie))
 }
 
 func statsServerWithoutCounts(t *testing.T) (*httptest.Server, *http.Cookie, *apistats.Counters) {

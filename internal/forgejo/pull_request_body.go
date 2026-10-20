@@ -13,7 +13,7 @@ import (
 // PullRequestBody implements dashboard.PullRequestBodyEditor: the
 // description of owner/name#number.
 func (c *Client) PullRequestBody(ctx context.Context, owner, name string, number int) (string, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
@@ -29,7 +29,7 @@ func (c *Client) PullRequestBody(ctx context.Context, owner, name string, number
 // SetPullRequestBody implements dashboard.PullRequestBodyEditor: replaces the
 // description of owner/name#number and nothing else about it.
 func (c *Client) SetPullRequestBody(ctx context.Context, owner, name string, number int, body string) error {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodPatch, "url", path)

@@ -15,7 +15,7 @@ import (
 // same cost as GetPullRequestDetails (1 call for the issue instead of the pull
 // request, then the shared thread reads).
 func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number int) (dashboard.IssueDetails, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	path := fmt.Sprintf("/repos/%s/%s/issues/%d", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)

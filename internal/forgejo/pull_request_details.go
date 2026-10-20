@@ -37,7 +37,7 @@ const maxReactionsRead = 50
 // Forgejo doesn't say whether a description was edited, so that is always
 // false. A comment counts as edited when it was updated after it was created.
 func (c *Client) GetPullRequestDetails(ctx context.Context, owner, name string, number int) (dashboard.PullRequestDetails, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	pr, err := c.detailsPullRequest(ctx, owner, name, number)
 	if err != nil {
@@ -116,6 +116,7 @@ func detailsCommentOf(comment *gitea.Comment, reactions dashboard.Reactions) das
 }
 
 func (c *Client) detailsPullRequest(ctx context.Context, owner, name string, number int) (*gitea.PullRequest, error) {
+	c = c.withContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	pr, resp, err := c.sdk.GetPullRequest(owner, name, int64(number))
@@ -128,6 +129,7 @@ func (c *Client) detailsPullRequest(ctx context.Context, owner, name string, num
 }
 
 func (c *Client) detailsIssueReactions(ctx context.Context, owner, name string, number int) (dashboard.Reactions, error) {
+	c = c.withContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/issues/%d/reactions", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	var opt gitea.ListIssueReactionsOptions
@@ -142,6 +144,7 @@ func (c *Client) detailsIssueReactions(ctx context.Context, owner, name string, 
 }
 
 func (c *Client) detailsCommentReactions(ctx context.Context, owner, name string, commentID int64) (dashboard.Reactions, error) {
+	c = c.withContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/issues/comments/%d/reactions", owner, name, commentID)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	reactions, resp, err := c.sdk.GetIssueCommentReactions(owner, name, commentID)
@@ -156,6 +159,7 @@ func (c *Client) detailsCommentReactions(ctx context.Context, owner, name string
 // detailsComments reads the first page of a pull request's comments, oldest
 // first, and the total Forgejo reports in X-Total-Count (0 when it doesn't).
 func (c *Client) detailsComments(ctx context.Context, owner, name string, number int) ([]*gitea.Comment, int, error) {
+	c = c.withContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/issues/%d/comments", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	var opt gitea.ListIssueCommentOptions

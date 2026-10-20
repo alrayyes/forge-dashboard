@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -43,24 +45,35 @@ func handleForgeAPIStats(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
-		if err != nil && !errors.Is(err, settings.ErrNotFound) {
+		body, err := resolveForgeAPIStatsFor(r.Context(), deps, u)
+		if err != nil {
 			slog.Error("read credentials for forge api stats", "error", err)
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not read your credentials"))
 
 			return
 		}
 
-		warmUpAggregator(r.Context(), deps, u.ID, u.Username)
-		deps.Manager.WaitFirstRefresh(r.Context(), u.ID, deps.firstLoadWait())
-		snap := deps.Manager.Get(u.ID)
-
-		writeJSON(w, http.StatusOK, forgeAPIStatsResponse{
-			Since:   deps.APIStats.Since(),
-			Buckets: ownBuckets(deps.APIStats.Snapshot(), creds.StatsCredentials()),
-			Budgets: budgetsOf(withRateLimitSeverity(snap.Forges, time.Now())),
-		})
+		writeJSON(w, http.StatusOK, body)
 	}
+}
+
+// resolveForgeAPIStatsFor answers u's counters and budgets. Shared by the HTTP
+// handler and the MCP get_forge_api_stats tool so the two can't drift.
+func resolveForgeAPIStatsFor(ctx context.Context, deps Deps, u *auth.User) (forgeAPIStatsResponse, error) {
+	creds, err := deps.SettingsStore.Get(ctx, u.ID)
+	if err != nil && !errors.Is(err, settings.ErrNotFound) {
+		return forgeAPIStatsResponse{}, fmt.Errorf("read credentials: %w", err)
+	}
+
+	warmUpAggregator(ctx, deps, u.ID, u.Username)
+	deps.Manager.WaitFirstRefresh(ctx, u.ID, deps.firstLoadWait())
+	snap := deps.Manager.Get(u.ID)
+
+	return forgeAPIStatsResponse{
+		Since:   deps.APIStats.Since(),
+		Buckets: ownBuckets(deps.APIStats.Snapshot(), creds.StatsCredentials()),
+		Budgets: budgetsOf(withRateLimitSeverity(snap.Forges, time.Now())),
+	}, nil
 }
 
 // ownBuckets keeps the buckets made with one of refs. Never nil, so the JSON

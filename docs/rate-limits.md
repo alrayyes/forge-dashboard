@@ -145,15 +145,16 @@ A few things to know when you read the numbers:
 - A request that names no repo, such as listing an account's repos, has an empty
   `repo`. A GitHub full refresh is one query for every repo, so it shows under
   the empty repo too.
+- Rows are matched to the credentials you saved. A GitHub App installation id
+  is a number you type in, so until the dashboard has one user, someone who
+  saves another account's installation id sees that installation's counts.
+  Tokens can't be matched this way without knowing them.
 - The credential is a label, `app:<installation id>`, `token:<short hash>` or
   `public:<username>`. It holds no secret. Two accounts that connect the same
   token share a row, because they share a budget.
 - Forgejo has no GraphQL, so its `graphql` and `graphqlCost` stay zero.
 - `budgets` repeats the limits each forge last reported, the same figures as
   `forges` on `GET /api/dashboard`.
-- On Forgejo, two requests running at once on one client can swap the repo
-  they are counted under when the repo is not in the request's path. The totals
-  per kind and credential stay right.
 
 ## What you can do
 

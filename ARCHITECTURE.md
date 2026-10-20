@@ -90,6 +90,8 @@ would need the same answer. The reasons, and what it costs, are in
   hours, under a `queuedActions` key). It costs no forge budget.
   `get_version` mirrors `GET /api/version` (the running server's release
   tag, under a `version` key). It costs no forge budget.
+  `get_forge_api_stats` mirrors `GET /api/stats/forge-api` (the forge request
+  counters and budgets). It costs no forge budget.
   `get_settings` mirrors `GET /api/settings` without the webhook token and
   secret, which are never sent over MCP; it reports `webhookConfigured`
   instead, and unlike the HTTP read it never creates them. It carries

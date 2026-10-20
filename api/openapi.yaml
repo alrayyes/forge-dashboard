@@ -2864,11 +2864,13 @@ paths:
         account or App installation by a label that carries no secret and no
         user id (`app:<installation id>`, `token:<short hash>`,
         `public:<username>`). Only the buckets of the caller's own
-        credentials are returned. `budgets` are the rate limits each forge last
+        credentials are returned. They are matched to the credentials
+        the caller has saved, and a GitHub App installation id is a number the
+        caller types in, so until the dashboard has one user, someone who saves
+        another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
         reported, the same figures as `forges` on GET /api/dashboard.
       tags: [dashboard]
       security: [{ bearerAuth: [] }]
-      x-mcp-excluded: "An operator's measuring tool, read from a script or the browser; an agent has no task that needs it yet."
       responses:
         "200":
           description: The counters since the server started.

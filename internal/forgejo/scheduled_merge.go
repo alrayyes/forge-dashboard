@@ -41,7 +41,7 @@ type cachedSchedule struct {
 // is scheduled on the forge: true when the latest of the schedule and cancel
 // events is the schedule, false when it is the cancel or neither ever happened.
 func (c *Client) scheduledMerge(ctx context.Context, owner, name string, number int64) (bool, error) {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	scheduled := false
 	for page := 1; page <= maxTimelinePages; page++ {
@@ -163,7 +163,7 @@ func (c *Client) pruneSchedules(owner, name string, open map[string]struct{}) {
 // pull request with nothing scheduled answers 404 or 409, which is the state
 // the caller wanted, so neither is an error.
 func (c *Client) DisableAutoMerge(ctx context.Context, owner, name string, number int) error {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodDelete, "url", path)

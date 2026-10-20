@@ -17,6 +17,7 @@ var mcpToolOperations = map[string]string{
 	"get_pull_request_checks":  "getPullRequestChecks",
 	"list_queued_actions":      "listQueuedActions",
 	"get_version":              "getVersion",
+	"get_forge_api_stats":      "getForgeApiStats",
 	"get_settings":             "getSettingsSummary",
 }
 

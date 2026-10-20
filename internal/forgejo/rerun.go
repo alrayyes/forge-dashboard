@@ -27,7 +27,7 @@ var errNothingToRerun = errors.New("no failed job to rerun on this pull request"
 // SDK drops the body of a refusal, and Forgejo's own reason (a token without
 // the Actions scope, an instance without the route) is what a person needs.
 func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, number int) error {
-	c.setContext(ctx)
+	c = c.withContext(ctx)
 
 	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", prPath)
@@ -64,6 +64,7 @@ func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, numb
 // failedRunIDs is the id of every Actions run on commit sha that failed. A
 // commit nobody can name has none.
 func (c *Client) failedRunIDs(ctx context.Context, owner, name, sha string) ([]int64, error) {
+	c = c.withContext(ctx)
 	if sha == "" {
 		return nil, nil
 	}
