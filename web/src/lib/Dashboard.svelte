@@ -155,7 +155,12 @@
     // Why this pull request is waiting or can't be merged, in one place
     // (#1375): null when nothing holds it back. The server sends it on every
     // pull request; the page only shows it.
-    status?: { code: string; message: string; next?: string } | null;
+    status?: {
+      code: string;
+      message: string;
+      next?: string;
+      action?: string;
+    } | null;
     // Review comments on the pull request, and how many review threads are
     // still open, or null where the forge can't say (#1335). Optional so a
     // server that predates them draws nothing.
@@ -1334,14 +1339,7 @@
       const named: [ActionName, () => HTMLElement | null][] = [
         ["merge", () => mergeActionCell(item)],
         ["update_branch", () => updateBranchActionCell(item)],
-        [
-          "dependabot_rebase",
-          () =>
-            findAction(item, "dependabot_rebase") &&
-            !dependabotRebaseHidden(item)
-              ? dependabotActionButton(item, "rebase")
-              : null,
-        ],
+        ["dependabot_rebase", () => dependabotRebaseCell(item)],
         [
           "dependabot_recreate",
           () =>
@@ -1398,7 +1396,7 @@
         for (const line of own) feedbackNode.appendChild(line);
       }
       return {
-        status: isSettled(item) ? null : statusArea(item),
+        status: isSettled(item) ? null : statusArea(item, false),
         feedback: feedbackNode,
         actions: footerActionCells(item),
       };
@@ -1626,9 +1624,10 @@
         const cancelAutoMerge =
           settledRow || autoMergeWait ? null : cancelAutoMergeCell(pr);
         if (cancelAutoMerge) statusCell.appendChild(cancelAutoMerge);
-        const updateBranchAction = settledRow
-          ? null
-          : updateBranchActionCell(pr);
+        const updateBranchAction =
+          settledRow || statusFixName(pr) === "update_branch"
+            ? null
+            : updateBranchActionCell(pr);
         if (updateBranchAction) statusCell.appendChild(updateBranchAction);
         // Dependabot/Renovate's own Rebase asks for exactly what Update
         // branch does on every other row — bring the branch back in sync
@@ -1649,12 +1648,18 @@
           !pr.empty &&
           Boolean(findAction(pr, "renovate_rebase"));
         if (dependabotRebasePromoted) {
-          if (!dependabotRebaseHidden(pr)) {
+          if (
+            statusFixName(pr) !== "dependabot_rebase" &&
+            !dependabotRebaseHidden(pr)
+          ) {
             const rebaseButton = dependabotActionButton(pr, "rebase");
             if (rebaseButton) statusCell.appendChild(rebaseButton);
           }
         } else if (renovateRebasePromoted) {
-          const promoted = renovateRebaseActionCell(pr);
+          const promoted =
+            statusFixName(pr) === "renovate_rebase"
+              ? null
+              : renovateRebaseActionCell(pr);
           if (promoted) statusCell.appendChild(promoted);
         }
         if (mergeAction) statusCell.appendChild(mergeAction);
@@ -2233,11 +2238,14 @@
       return `${idScope}status-area-${domSafeId(prKey(item))}`;
     }
 
-    function statusArea(item: PullRequestItem): HTMLElement | null {
+    // The pop-up passes withFix false: its footer already lists every action.
+    function statusArea(
+      item: PullRequestItem,
+      withFix = true,
+    ): HTMLElement | null {
       const status = item.status;
       if (!status) return null;
       const area = el("div", "status-area");
-      area.id = statusAreaId(item);
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("width", "14");
       svg.setAttribute("height", "14");
@@ -2264,11 +2272,61 @@
       svg.appendChild(mark);
       area.appendChild(svg);
       const text = el("span", "status-area-text");
+      // Merge is described by the words alone, never by the button beside them.
+      text.id = statusAreaId(item);
       text.appendChild(el("span", "status-area-message", status.message));
       if (status.next)
         text.appendChild(el("span", "status-area-next", status.next));
+      // The action that clears the warning sits under its words (#1943). The
+      // server names it; the row leaves its own copy out. The slot keeps the
+      // button's height while the server names an action, so the block keeps
+      // its size when the button goes (queued, hidden).
+      if (withFix && item.status?.action) {
+        const slot = el("span", "status-area-fix");
+        const fix = statusFixCell(item);
+        if (fix) slot.appendChild(fix);
+        text.appendChild(slot);
+      }
       area.appendChild(text);
       return area;
+    }
+
+    // The action the server says clears this pull request's status, or null.
+    // A settled pull request has nothing left to fix.
+    // Only a name the page can draw, and only while its button exists, so the
+    // row and the footer never drop their copy for a button that isn't there.
+    function statusFixName(item: PullRequestItem): ActionName | null {
+      const action = item.status?.action;
+      if (!action || isSettled(item)) return null;
+      return fixCellFor(item, action) ? (action as ActionName) : null;
+    }
+
+    function statusFixCell(item: PullRequestItem): HTMLElement | null {
+      const action = item.status?.action;
+      return action && !isSettled(item) ? fixCellFor(item, action) : null;
+    }
+
+    function fixCellFor(
+      item: PullRequestItem,
+      action: string,
+    ): HTMLElement | null {
+      switch (action) {
+        case "update_branch":
+          return updateBranchActionCell(item);
+        case "dependabot_rebase":
+          return dependabotRebaseCell(item);
+        case "renovate_rebase":
+          return renovateRebaseActionCell(item);
+        default:
+          return null;
+      }
+    }
+
+    function dependabotRebaseCell(item: PullRequestItem): HTMLElement | null {
+      return findAction(item, "dependabot_rebase") &&
+        !dependabotRebaseHidden(item)
+        ? dependabotActionButton(item, "rebase")
+        : null;
     }
 
     // Always rendered for an open pull request (#705): clickable when
