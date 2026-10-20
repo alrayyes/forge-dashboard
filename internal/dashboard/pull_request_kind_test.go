@@ -40,6 +40,17 @@ func TestKindOf(t *testing.T) {
 		{"a release label beats a renovate/ branch", dashboard.PullRequest{Author: "alice", HeadBranch: "renovate/x", Labels: release}, dashboard.KindRelease},
 		{"a release label beats renovatebot", dashboard.PullRequest{Author: "renovatebot", Labels: release}, dashboard.KindRelease},
 		{"a lookalike author is a person", dashboard.PullRequest{Author: "dependabot-fan"}, dashboard.KindRegular},
+		{"release-please's branch with no label", dashboard.PullRequest{Author: "alice", HeadBranch: "release-please--branches--main", BaseBranch: "main"}, dashboard.KindRelease},
+		{"release-please's branch for one component", dashboard.PullRequest{Author: "alice", HeadBranch: "release-please--branches--main--components--sdk-node", BaseBranch: "main"}, dashboard.KindRelease},
+		{"release-please's branch on a base with a slash", dashboard.PullRequest{Author: "alice", HeadBranch: "release-please--branches--release/1.x", BaseBranch: "release/1.x"}, dashboard.KindRelease},
+		{"release-please's branch beats a bot author", dashboard.PullRequest{Author: "dependabot[bot]", HeadBranch: "release-please--branches--main", BaseBranch: "main"}, dashboard.KindRelease},
+		{"release-please's branch from a fork", dashboard.PullRequest{Author: "mallory", HeadBranch: "release-please--branches--main", BaseBranch: "main", CrossRepository: true}, dashboard.KindRegular},
+		{"release-please's branch aimed at another base", dashboard.PullRequest{Author: "alice", HeadBranch: "release-please--branches--main", BaseBranch: "develop"}, dashboard.KindRegular},
+		{"release-please's branch with no base known", dashboard.PullRequest{Author: "alice", HeadBranch: "release-please--branches--main"}, dashboard.KindRegular},
+		{"the bare release-please prefix with no base known", dashboard.PullRequest{Author: "alice", HeadBranch: "release-please--branches--"}, dashboard.KindRegular},
+		{"a human branch that merely mentions release-please", dashboard.PullRequest{Author: "alice", HeadBranch: "fix/release-please--branches--main", BaseBranch: "main"}, dashboard.KindRegular},
+		{"a branch named after release but not release-please's", dashboard.PullRequest{Author: "alice", HeadBranch: "release/4.0.6", BaseBranch: "main"}, dashboard.KindRegular},
+		{"a base that only starts like the branch's", dashboard.PullRequest{Author: "alice", HeadBranch: "release-please--branches--mainline", BaseBranch: "main"}, dashboard.KindRegular},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
