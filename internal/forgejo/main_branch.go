@@ -62,6 +62,38 @@ func (c *Client) ReadMainBranch(ctx context.Context, repo dashboard.RepoRef) (da
 	return row, nil
 }
 
+// ListDefaultBranchChecks implements dashboard.DefaultBranchChecker: the jobs of
+// every Actions run on the newest commit of owner/name's default branch that has
+// one, the commit ReadMainBranch reports. Fetched on demand. A repo with no
+// default branch, or no run on it, has none, as its row reads none; a failed
+// lookup is an error. "Required" is a pull request's base-branch notion and
+// stays unknown.
+func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string) ([]dashboard.Check, error) {
+	c.setContext(ctx)
+
+	repoPath := fmt.Sprintf("/repos/%s/%s", owner, name)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", repoPath)
+	repo, resp, err := c.sdk.GetRepo(owner, name)
+	if err != nil {
+		return nil, c.forgejoError(ctx, http.MethodGet, repoPath, resp, err)
+	}
+	c.recordRequest(ctx, http.MethodGet, repoPath, resp.StatusCode, requestlog.OutcomeSuccess)
+	if repo.DefaultBranch == "" {
+		return nil, nil
+	}
+
+	runs, err := c.branchRuns(ctx, dashboard.RepoRef{
+		FullName: owner + "/" + name, Owner: owner, Name: name, DefaultBranch: repo.DefaultBranch,
+	})
+	if err != nil || len(runs) == 0 {
+		return nil, err
+	}
+
+	checks, _, err := c.listChecksForSHA(ctx, owner, name, runs[0].CommitSHA)
+
+	return checks, err
+}
+
 // branchRun is one entry of Forgejo's Actions runs list, decoded by hand: the
 // SDK's ActionWorkflowRun expects GitHub's field names (head_sha, head_branch,
 // started_at), none of which Forgejo sends, so every run came back with an
