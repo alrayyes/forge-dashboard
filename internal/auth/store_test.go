@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ func credentialIDKeyForTest(id []byte) string {
 
 func newTestStore(t *testing.T) *auth.Store {
 	t.Helper()
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "auth.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -513,7 +514,7 @@ func TestStore_APIToken_Expired_RejectedLikeAnInvalidToken(t *testing.T) {
 func TestStore_APIToken_LegacyRowWithNoExpiry_RejectedNotGrandfathered(t *testing.T) {
 	t.Parallel()
 
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "auth.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	store := auth.NewStore(db)

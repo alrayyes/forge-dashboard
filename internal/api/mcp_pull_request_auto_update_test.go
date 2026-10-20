@@ -117,13 +117,10 @@ func TestMCP_SetPullRequestAutoUpdate_RefusesWhatTheEndpointRefuses(t *testing.T
 		"an unknown forge":                           {map[string]any{"forge": "gitlab", "fullName": "alrayyes/a", "number": 1, "enabled": true}, "forge must be github or forgejo"},
 		"a number that is not positive":              {map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 0, "enabled": true}, "number must be a pull request number"},
 	}
-	// Sequential, on purpose: the test server's SQLite is opened without a busy
-	// timeout (the helper's DSN in auth_test.go), so parallel MCP sessions on
-	// one token collide on the token last-used write and answer 500. The
-	// production database sets a busy timeout, so this is the helper's limit,
-	// not the server's.
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			result := callSetAutoUpdate(t, srvURL, token, tc.args)
 
 			require.True(t, result.IsError)

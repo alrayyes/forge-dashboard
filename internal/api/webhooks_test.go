@@ -20,6 +20,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
 	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -167,7 +168,7 @@ func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after
 		return []dashboard.Source{source}
 	}
 
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "app.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 

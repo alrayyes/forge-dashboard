@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,7 +109,7 @@ func TestRunHealthcheckSucceedsOnReadyz200EvenIfHealthzIsNot(t *testing.T) {
 }
 
 func TestSchemaPinger_MigratedDatabase_Passes(t *testing.T) {
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "app.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	require.NoError(t, auth.NewStore(db).Init(t.Context()))
@@ -117,7 +118,7 @@ func TestSchemaPinger_MigratedDatabase_Passes(t *testing.T) {
 }
 
 func TestSchemaPinger_DatabaseWithoutSchema_Fails(t *testing.T) {
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "empty.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "empty.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -125,7 +126,7 @@ func TestSchemaPinger_DatabaseWithoutSchema_Fails(t *testing.T) {
 }
 
 func TestSchemaPinger_ClosedDatabase_Fails(t *testing.T) {
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "app.db")))
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 

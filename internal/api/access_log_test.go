@@ -12,6 +12,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
@@ -167,7 +168,7 @@ func TestAccessLog_Readyz_StillLoggedAtDebug(t *testing.T) {
 func TestAccessLog_5xxStatus_LogsAtError(t *testing.T) {
 	logs := withCapturedLogs(t, slog.LevelInfo)
 
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db"))
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "app.db")))
 	require.NoError(t, err)
 	authStore := authpkg.NewStore(db)
 	require.NoError(t, authStore.Init(t.Context()))
