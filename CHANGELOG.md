@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.244.0](https://github.com/alrayyes/forge-dashboard/compare/v0.243.0...v0.244.0) (2026-10-20)
+
+
+### Features
+
+* **web:** link each repository on the Branches page to its latest release ([#2093](https://github.com/alrayyes/forge-dashboard/issues/2093)) ([a19ef63](https://github.com/alrayyes/forge-dashboard/commit/a19ef63b95a727ec269de41c47403c2b7b42e149))
+
 ## [0.243.0](https://github.com/alrayyes/forge-dashboard/compare/v0.242.0...v0.243.0) (2026-10-20)
 
 
