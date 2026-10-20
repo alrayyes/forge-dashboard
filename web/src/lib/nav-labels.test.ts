@@ -65,6 +65,21 @@ describe('headerLabel', () => {
     ).toBe('3 3, Branches, 3 total, 3 passing');
   });
 
+  test('names the branches waiting for approval after the running ones, so the parts add up (#2024)', () => {
+    expect(
+      headerLabel('Branches', {
+        total: 8,
+        failed: 0,
+        running: 4,
+        passed: 3,
+        none: 0,
+        awaitingApproval: 1,
+      }),
+    ).toBe(
+      '8 3 4 1, Branches, 8 total, 3 passing, 4 running, 1 waiting for approval',
+    );
+  });
+
   test('large numbers are named whole', () => {
     expect(
       headerLabel('Pull requests', {

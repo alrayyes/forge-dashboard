@@ -11,16 +11,22 @@ import (
 // branch (#1224). Matches components.schemas.MainBranchStatus.
 type MainBranchStatus string
 
-// The five things a default branch's newest commit can be in. Failed wins over
+// The six things a default branch's newest commit can be in. Failed wins over
 // Running: a pipeline with one job down is broken however many others still run.
 // Cancelled is a commit whose only trouble is runs that were stopped, by a newer
 // push or by hand: nothing broke, so it is not Failed (#1950).
+// AwaitingApproval is a commit whose workflow runs GitHub holds until a
+// maintainer approves them: they create no check runs, so nothing runs and
+// nothing failed (#2024).
 const (
 	MainBranchFailed    MainBranchStatus = "failed"
 	MainBranchPassed    MainBranchStatus = "passed"
 	MainBranchRunning   MainBranchStatus = "running"
 	MainBranchCancelled MainBranchStatus = "cancelled"
-	MainBranchNone      MainBranchStatus = "none"
+	// MainBranchAwaitingApproval is the same word a held check carries
+	// (CheckAwaitingApproval).
+	MainBranchAwaitingApproval MainBranchStatus = "awaiting_approval"
+	MainBranchNone             MainBranchStatus = "none"
 )
 
 // MainBranchStatusOfCI maps a combined CIStatus onto a default branch's status.
@@ -90,8 +96,10 @@ type MainBranchCounts struct {
 	Passed    int `json:"passed"`
 	Running   int `json:"running"`
 	Cancelled int `json:"cancelled"`
-	None      int `json:"none"`
-	Total     int `json:"total"`
+	// AwaitingApproval counts the branches whose runs are held for approval.
+	AwaitingApproval int `json:"awaitingApproval"`
+	None             int `json:"none"`
+	Total            int `json:"total"`
 }
 
 // CountMainBranches tallies rows by status.
@@ -107,6 +115,8 @@ func CountMainBranches(rows []MainBranch) MainBranchCounts {
 			counts.Running++
 		case MainBranchCancelled:
 			counts.Cancelled++
+		case MainBranchAwaitingApproval:
+			counts.AwaitingApproval++
 		default:
 			counts.None++
 		}
