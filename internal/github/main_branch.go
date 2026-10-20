@@ -322,6 +322,24 @@ type branchRepo struct {
 	ref         *graphqlBranchRef
 }
 
+// heldBranchRun reports whether the commit's workflow runs are held for
+// approval, and the page of the newest held run. It answers from the per-commit
+// answer the pull request pill and the panel share when there is one, whether
+// held, not held or unreadable, so a poll every few seconds costs a request a
+// minute for a commit, and a token that cannot read Actions is not asked again
+// on every poll (the forge API budget). Unreadable reads as not held.
+func (c *Client) heldBranchRun(ctx context.Context, owner, name, sha string) (string, bool) {
+	if answer, ok := c.requiredChecks.cachedHeld(sha); ok {
+		return answer.runURL, answer.held
+	}
+	held := c.heldWorkflowChecks(ctx, owner, name, sha)
+	if len(held) == 0 {
+		return "", false
+	}
+
+	return held[0].URL, true
+}
+
 // uncheckedBranches picks the repos whose newest commit has no rollup and are
 // worth walking back for. A commit whose runs are held for approval has no check
 // run for the same reason a [skip ci] one has none, but it is not finished: its
@@ -334,8 +352,8 @@ func (c *Client) uncheckedBranches(ctx context.Context, tracked []graphqlRepo) [
 		if ref == nil || ref.Target.OID == "" || ref.Target.StatusCheckRollup != nil {
 			continue
 		}
-		if held := c.heldWorkflowChecks(ctx, r.Owner.Login, r.Name, ref.Target.OID); len(held) > 0 {
-			ref.heldRunURL = held[0].URL
+		if runURL, held := c.heldBranchRun(ctx, r.Owner.Login, r.Name, ref.Target.OID); held {
+			ref.heldRunURL = runURL
 			if ref.heldRunURL == "" {
 				ref.heldRunURL = ref.Target.URL + "/checks"
 			}

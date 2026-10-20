@@ -3348,7 +3348,11 @@ func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string
 		return nil
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
-	c.requiredChecks.storeHeld(sha, len(runs.WorkflowRuns) > 0)
+	firstURL := ""
+	if len(runs.WorkflowRuns) > 0 {
+		firstURL = runs.WorkflowRuns[0].GetHTMLURL()
+	}
+	c.requiredChecks.storeHeld(sha, len(runs.WorkflowRuns) > 0, firstURL)
 	checks := make([]dashboard.Check, 0, len(runs.WorkflowRuns))
 	// Newest first, so the first run of a workflow is the one to show: a rerun,
 	// or the pull_request and pull_request_target triggers, leave several held
